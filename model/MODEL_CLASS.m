@@ -99,7 +99,6 @@ classdef MODEL_CLASS < dynamicprops & handle
     end
 
     function [] = do(obj, varargin)
-      
       cha = varargin{2};
       if (cha == 'q' || cha == 's' || cha == 'a')
         return
