@@ -2,7 +2,6 @@
 // arduino の設定は
 // http://trac.switch-science.com/wiki/esp_dev_arduino_ide
 // CPU Frequency を 160 MHzにしないとFCにPPMを送れない．
-// Arduino IDEの環境設定のほうもCPU Frequency を 160 MHz
 // PPM は　Down pulse
 #include <Arduino.h>
 #include <ESP8266WiFi.h> //https://github.com/esp8266/Arduino
@@ -17,7 +16,9 @@ unsigned int droneNumber = 252; //機体番号を入力
 // ESPrのIPアドレスの設定
 // const char *ssid = "ACSLexperimentWiFi";
 // const char *password = "wifi-acsl-mse";
-const char *ssid = "aterm-b3cabe-g";
+// const char *ssid = "ACSL-Drone-Hotspot";
+// const char *password = "1qaz2wsx";
+const char *ssid = "aterm-b3cabe-a";
 const char *password = "1ddd2634b2f3e";
 IPAddress myIP(192, 168, 1, droneNumber); // 機体により下番号変更
 
