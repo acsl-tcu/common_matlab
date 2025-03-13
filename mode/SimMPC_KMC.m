@@ -34,11 +34,9 @@ initial_state.w = [0; 0; 0];
 %%
 % model_file = '2024-12-23_Exp_Kiyama_code23_saddle_increased_weight10.mat';
 % model_file = '2025-01-12_Exp_Kiyama_code00_saddle_increased.mat';
-% model_file = '2025-02-12_Exp_Kato25_code00_saddle'; % kiyama+kato25 =
+
 % 300data
-% model_file = '2025-02-12_Exp_Kato15_code00_saddle'; % kato25=150data
-% model_file = '2025-02-14_Exp_Kato15_code00_saddle_increased';
-model_file = '2025-02-21_Exp_Kiyama_code00_saddle_1';
+model_file = '2025-02-14_Exp_Kato15_code00_saddle_increased';
 
 %%
 agent = DRONE;
@@ -125,10 +123,10 @@ app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te
 app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 
-% experiment_figure_case_study; 
+experiment_figure_case_study; 
 
-param = app.agent.controller.param;
-P = Controller_MPC_KMC(param.dt_drone, param.Kmodel, app.agent); mojamoja(app, P, 'xz');
+% param = app.agent.controller.param;
+% P = Controller_MPC_KMC(param.dt_drone, param.Kmodel, app.agent); mojamoja(app, P, 'xz');
 end
 
 function in_prog(app)

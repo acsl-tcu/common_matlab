@@ -1,4 +1,4 @@
-function ref = Case_study_trajectory(~)
+function ref = Case_study_trajectory(z0)
 %UNTITLED この関数の概要をここに記述
 %   詳細説明をここに記述
 % arguments
@@ -9,6 +9,9 @@ function ref = Case_study_trajectory(~)
 % end
 
 syms t real
+x = z0(1);
+y = z0(2);
+z = z0(3);
 %% 
 
 % s = 4; % s = 2 → period = 4*pi (12 sec)ハート1周
@@ -46,9 +49,9 @@ syms t real
 % z = 1;
 %%
 %ホバリング
-x = 0;
-y = 0;
-z = 1;
+% x = 0;
+% y = 0;
+% z = 1;
 %%
 %縦円旋回
 % x = 0.5*sin(2*pi*t/T);
