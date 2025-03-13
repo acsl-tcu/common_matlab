@@ -10,7 +10,7 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 10; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) dfunc(app); % in progress plot
+in_prog_func = @(app) in_prog(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
@@ -26,11 +26,11 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 % agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.sensor = DIRECT_SENSOR(agent, 0.0);
 agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory", {[0;0;1]}, "HL"});
-agent.controller = MPC_CONTROLLER_HL(agent, Controller_MPC_HL(agent));
+agent.controller = MPC_CONTROLLER_HL(agent, Controller_MPC_HL(dt));
 run("SimBase");
 
 %% modeファイル内でプログラムを回す
-for i = 1:400
+for i = 1:te/dt
     if i < 20 || rem(i, 10) == 0; end
     % tic
     agent(1).sensor.do(time, 'f');
@@ -46,20 +46,14 @@ end
 %% 途中で止めた時もセクション実行でグラフ出せる
 logger.plot({1, "p", "er"}, {1, "q", "e"}, {1, "v", "er"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num",1,"row_col",[2 2]);
 
-% function dfunc(app)
-% app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
-% % figtype = 2; % 1:それぞれ, 2:subplot
-% % savefigure;
-% flg.figtype = 0; % 0:subplot
-% flg.savefig = 0;
-% flg.animation_save = 0;
-% flg.animation = 0;
-% flg.timerange = 1;
-% flg.plotmode = 2; % 1:inner_input, 2:xy, 3:xyz
-% phase = 1; % 1:flight, 2:all
-% fig = FIGURE_EXP(struct('logger',app.logger,'fExp',0),struct('flg',flg,'phase',phase,'filename','0710'));
-% fig.make_mpc_plot();
-% end
+function dfunc(app)
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+
+experiment_figure_case_study;
+end
+
+function in_prog(~)
+end

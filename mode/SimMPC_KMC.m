@@ -83,7 +83,7 @@ if ~modeType
         tic;
         gui.logger = logger;
         P = Controller_MPC_KMC(dt, model_file, agent);
-        mojamoja(gui, P, 'xy')
+        mojamoja(gui, P, 'xy'); % 第3引数はグラフの軸の設定
         dcal = toc;
         fprintf('Animation drawing time : %f s \n', dcal);
     end
@@ -119,31 +119,21 @@ function f = draw(logger, time, dt)
 end
 
 %%
-% function dfunc(app)
-% app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
-% % figtype = 2; % 1:それぞれ, 2:subplot
-% % savefigure;
-% flg.figtype = 0; % 0:subplot
-% flg.savefig = 0;
-% flg.animation_save = 0;
-% flg.animation = 0;
-% flg.timerange = 1;
-% flg.plotmode = 1; % 1:inner_input, 2:xy, 3:xyz
-% filename = string(datetime('now'), 'yyyy-MM-dd');
-% fig = FIGURE_EXP(app,struct('flg',flg,'phase',1,'filename',filename,'time_idx',[],'yrange',[],'fignum',[2, 3]), struct('model', filename));
-% % struct('logger',log,'fExp',0),struct('flg',flg,'phase',phase,'filename',filename,'time_idx',time_idx,'yrange',yrange)
-% fig.main_figure();
-% 
-% param = app.agent.controller.param;
-% P = Controller_MPC_KMC(param.dt_drone, param.Kmodel, app.agent); mojamoja(app, P, 'xz');
-% end
-% 
-% function in_prog(app)
-% est = app.agent.estimator.result.state.get();
-% ref = app.agent.reference.result.state.get();
-% fprintf('est: %f, %f, %f \n', est(1), est(2), est(3));
-% fprintf('ref: %f, %f, %f \n', ref(1), ref(2), ref(3));
-% end
+function dfunc(app)
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+
+% experiment_figure_case_study; 
+
+param = app.agent.controller.param;
+P = Controller_MPC_KMC(param.dt_drone, param.Kmodel, app.agent); mojamoja(app, P, 'xz');
+end
+
+function in_prog(app)
+est = app.agent.estimator.result.state.get();
+ref = app.agent.reference.result.state.get();
+fprintf('est: %f, %f, %f \n', est(1), est(2), est(3));
+fprintf('ref: %f, %f, %f \n', ref(1), ref(2), ref(3));
+end

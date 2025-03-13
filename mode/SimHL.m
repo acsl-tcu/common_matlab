@@ -1,12 +1,12 @@
-tmp = matlab.desktop.editor.getActive;
-dir = fileparts(tmp.Filename);
-if ~contains(path,dir)
-    cd(erase(dir,'\mode'));
-[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
-cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
-close all hidden; clear ; clc;
-userpath('clear');
-end
+% tmp = matlab.desktop.editor.getActive;
+% dir = fileparts(tmp.Filename);
+% if ~contains(path,dir)
+%     cd(erase(dir,'\mode'));
+% [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+% cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+% close all hidden; clear ; clc;
+% userpath('clear');
+% end
 
 %%
 ts = 0; % initial time
@@ -32,6 +32,7 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
 run("ExpBase");
+% run("SimBase"); % arming-takeoff-flight-landing が可能
 %%
 % logger = LOGGER("20241024_Exp_HL_circleT=12_[300,300,300,20],350_[5000,10000,2000,10],0.0001_good.mat");
 % logger.plot({1, "q", "er"});
@@ -43,5 +44,6 @@ app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te
 app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 
-Graphplot(app)
+Graphplot(app);
+% experiment_figure_case_study; % from komatsu
 end

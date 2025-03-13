@@ -26,11 +26,11 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %% ##############################################################
-% model_file = "EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat";
-model_file = "2024-12-23_Exp_Kiyama_code23_saddle_increased_weight10.mat"; %roll, pitch, yaw
+% model_file = "2025-01-12_Exp_Kiyama_code00_saddle_increased.mat";
+model_file = '2024-12-23_Exp_Kiyama_code23_saddle_increased_weight10.mat';
 
 %% controllerでHL, KMPCをphaseで判別して動かす
-agent.controller = MPC_CONTROLLER_KOOPMAN_quadprog_experiment_HL(agent,Controller_MPC_Koopman(dt, model_file, agent));
+agent.controller = MPC_CONTROLLER_KOOPMAN_quadprog_experiment_HL(agent,Controller_MPC_Koopman_komatsu(dt, model_file, agent));
 run("ExpBase");
 
 %% save log
