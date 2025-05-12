@@ -6,11 +6,10 @@ classdef LANDING_REFERENCE < handle
     dt
     result
     base_state
-    base_time = 0;
-    te = 3
+    base_time
+    te = 10
     th_offset
-    th_offset0 = 200;
-    initialz
+    th_offset0 = 280;
   end
 
   methods
@@ -23,20 +22,11 @@ classdef LANDING_REFERENCE < handle
     end
     function  result= do(obj,varargin)
       % [Input] time,cha,logger,env
-      if isempty(obj.result.state.xd)  % first take
-        fInit = true;
-        obj.initialz = obj.self.estimator.result.state.p(3);
-      else
-        obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
-        fInit = (obj.self.reference.result.state.p(3) - obj.result.state.xd(3))>0.5;
-      end
-      if fInit
+      if isempty(obj.result.state.xd) % first take
         obj.base_time=varargin{1}.t;
-        obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
+        obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
         obj.result.state.xd = [obj.base_state;zeros(17,1)];
-        if isprop(obj.self.input_transform,"param")
-          obj.th_offset = obj.self.input_transform.param.th_offset;
-        end
+        obj.th_offset = obj.self.input_transform.param.th_offset;
       end
       obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);
@@ -60,7 +50,7 @@ classdef LANDING_REFERENCE < handle
       Xd  = zeros( 20, 1);
       %% Set Xd
       if t<=obj.te
-        Zd = curve_interpolation_9order(t,obj.te,obj.base_state(3),0,obj.initialz,0);
+        Zd = curve_interpolation_9order(t,obj.te,obj.base_state(3),0,0,0);
       elseif t> obj.te
         Zd = zeros(1,5);
       end
@@ -75,7 +65,7 @@ classdef LANDING_REFERENCE < handle
 end
 
 %% derivation and verification of curve_interpolation_9order
-% clear
+% clear 
 % n = 20;
 % syms t z0 v0 te ve ze real
 % syms a [1,n] real
@@ -100,7 +90,7 @@ end
 % ddtra = diff(tra2,t,2);
 % dddtra = diff(tra2,t,3);
 % ddddtra = diff(tra2,t,4);
-%
+% 
 % comm = ["  curve interpolation function with both edge constraints wrt position and veloctiy",
 %   "  9-th order polynomial of time",
 %   "  [input] t,te,z0,v0,ze,ve",
@@ -112,7 +102,7 @@ end
 %   "     ve : terminal velocity",
 %   "  [output] [z,dz,ddz,dddz,ddddz] : position at time t and its higher time derivative"];
 % matlabFunction([tra2,dtra,ddtra,dddtra,ddddtra],"File","curve_interpolation_9order.m","vars",{t,te,z0,v0,ze,ve},"Comments",comm)
-%
+% 
 % clear Z
 % Te = 3;
 % T = 0:0.1:Te;

@@ -52,9 +52,6 @@ classdef EKF < handle
             obj.B = param.B;
             obj.result.P = param.P;
             obj.result.G = zeros(obj.n,size(obj.R,2));
-            if isempty(obj.self.estimator)
-              obj.self.estimator.result = obj.result;
-            end
         end
         
         function [result]=do(obj,varargin)
@@ -68,7 +65,7 @@ classdef EKF < handle
           end
           if varargin{1}.t ~= 0
             y = obj.sensor(obj.self,obj.sensor_param); % sensor output
-            x = obj.result.state.get(); % estimated state at previous step     
+            x = obj.result.state.get(); % estimated state at previous step
             obj.model.do(varargin{:}); % update state
             xh_pre = obj.model.state.get(); % Pre-estimation
             yh = obj.output_func(xh_pre,obj.output_param); % output estimation
@@ -76,9 +73,7 @@ classdef EKF < handle
             A = eye(obj.n)+obj.JacobianF(x,p)*dt; % Euler approximation
             C = obj.JacobianH(x,p);
             P_pre  = A*obj.result.P*A' + obj.B*obj.Q*obj.B';       % Predicted covariance
-            % if abs(det(C*P_pre*C'+obj.R)) > 1e-10
-              G = (P_pre*C')/(C*P_pre*C'+obj.R); % Kalman gain
-            % end
+            G = (P_pre*C')/(C*P_pre*C'+obj.R); % Kalman gain
             P = (eye(obj.n)-G*C)*P_pre;	% Update covariance
             tmpvalue = xh_pre + G*(y-yh);	% Update state estimate
             tmpvalue = obj.model.projection(tmpvalue);

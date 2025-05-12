@@ -5,12 +5,11 @@ classdef TAKEOFF_REFERENCE < handle
     base_time
     base_state
     ts
-    te = 5;
+    te = 10;
     zd = 1; % goal altitude
     result
-    th_offset = [];
-    th_offset0 = 200;
-    fInit = 0;
+    th_offset
+    th_offset0 = 280;
   end
 
   methods
@@ -21,24 +20,11 @@ classdef TAKEOFF_REFERENCE < handle
     end
     function  result= do(obj,varargin)
       % [Input] time,cha,logger,env
-      % if isempty( obj.base_state ) % first take
-      %   fInit = true;
-      %   obj.base_time=varargin{1}.t;
-      %   obj.k =varargin{1}.k;
-      %   obj.base_state = obj.self.estimator.result.state.p;
-      %   obj.result.state.xd = [obj.base_state;zeros(17,1)];
-      %   if isfield(obj.self.input_transform,"param")
-      %       obj.th_offset = obj.self.input_transform.param.th_offset;
-      %   end
-      % end
-      if obj.fInit < 2 || isempty( obj.base_state )
-          obj.base_time=varargin{1}.t;
-          obj.base_state = obj.self.estimator.result.state.p; % x,y : current position, z : reference using at flight phase
-          obj.result.state.xd = [obj.base_state;zeros(17,1)];
-          if isprop(obj.self.input_transform,"param")
-              obj.th_offset = obj.self.input_transform.param.th_offset;
-          end
-          obj.fInit = obj.fInit + 1;
+      if isempty( obj.base_state ) % first take
+        obj.base_time=varargin{1}.t;
+        obj.base_state = obj.self.estimator.result.state.p;
+        obj.result.state.xd = [obj.base_state;zeros(17,1)];
+        obj.th_offset = obj.self.input_transform.param.th_offset;
       end
       obj.result.state.xd = obj.gen_ref_for_take_off(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);

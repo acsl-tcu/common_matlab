@@ -11,5 +11,4 @@ function X = discrete_linear_model(x,u,P)
         error("This model requires A and B fields on param.");
     end
     X = A*x+B*u;
-    X = P.C*X;
 end

@@ -9,7 +9,7 @@ properties
     self
     interface = @(x) x;
     old_time
-    rigid_id % rigid indices
+    rigid_num % rigid indices
     motive
     initq
 end
@@ -26,15 +26,16 @@ methods
         %%% Output equation %%%
         obj.self = self;
         obj.motive = args.motive;
-        obj.rigid_id = args.rigid_id;
+        obj.rigid_num = args.rigid_num;
         %obj.initq = quaternion(Eul2Quat([args.initial_yaw_angle;0;0])');
         obj.initq = quaternion(Eul2Quat([0;0;args.initial_yaw_angle])');
 
         obj.result.state = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 4]));
-        % if sum(contains(self.estimator.result.state.list, "q")) == 1
-        %     obj.result.state.num_list = [3, length(self.estimator.result.state.q)]; % modelと合わせる
-        %     obj.result.state.type = length(self.estimator.result.state.q);
-        % end
+
+        if sum(contains(self.estimator.result.state.list, "q")) == 1
+            obj.result.state.num_list = [3, length(self.estimator.result.state.q)]; % modelと合わせる
+            obj.result.state.type = length(self.estimator.result.state.q);
+        end
 
     end
 
@@ -49,7 +50,7 @@ methods
             obj.old_time = data.time;
         end
 
-        id = obj.rigid_id;
+        id = obj.rigid_num(1);
 
         if sum(contains(obj.result.state.list, "q")) == 1
             tmpq = quaternion(data.rigid(id).q');

@@ -23,14 +23,13 @@ classdef STATE_CLASS < matlab.mixin.SetGetExactNames & dynamicprops & matlab.mix
         for i = 1:length(param.state_list)
           addprop(obj,param.state_list(i));
         end
-        if isfield(param,'qlist')
-        obj.qlist = param.qlist;
-      end
       end
       if strcmp(obj.list,"q")
         obj.qlist = [""];
       end
-      
+      if isfield(param,'qlist')
+        obj.qlist = param.qlist;
+      end
       if ~strcmp(obj.qlist,"")
         obj.type=obj.num_list(strcmp(obj.list,obj.qlist(1)));
       end

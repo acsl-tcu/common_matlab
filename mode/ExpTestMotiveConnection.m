@@ -23,5 +23,5 @@ Frame = app.motive.NatnetClient.getFrame;
 time = Frame.Timestamp;
 l_marker=System.Array.IndexOf(Frame.LabeledMarker, []);
 u_marker=System.Array.IndexOf(Frame.UnlabeledMarker, []);
-app.TextArea.Text = ["Connection to MOTIVE success","received data", "number of rigid body : " + rigid_num,"number of labeled marker : "+ l_marker,"number of unlabeled marker : "+ u_marker,"Current time in motive : "+time];
+app.Label_2.Text = ["Connection to MOTIVE success","received data", "number of rigid body : " + rigid_num,"number of labeled marker : "+ l_marker,"number of unlabeled marker : "+ u_marker,"Current time in motive : "+time];
 end

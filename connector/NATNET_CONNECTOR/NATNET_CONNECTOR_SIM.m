@@ -42,7 +42,6 @@ classdef NATNET_CONNECTOR_SIM < handle
             -0.075,  0.075,  0.015;
             0.075,  0.075, -0.015];
         sigmaw    = [6.716E-5; 7.058E-5; 7.058E-5];                        % Observationm noise variance
-        state_name = ["p","q"];
     end
     
     methods
@@ -65,9 +64,6 @@ classdef NATNET_CONNECTOR_SIM < handle
             end
             if isfield(param,'sigmaw')
                 obj.sigmaw = param.sigmaw;
-            end
-            if isfield(param, 'state_name')
-              obj.state_name = param.state_name;
             end
             obj.result.rigid(1:param.rigid_num) = struct();
             obj.on_marker= cell(obj.result.rigid_num);
@@ -94,29 +90,21 @@ classdef NATNET_CONNECTOR_SIM < handle
             
             %% rigidBodyCount and Labeledmarker
             for s = 1:obj.result.rigid_num
-                % if iscell(Param1)
-                %     obj.result.rigid(s+obj.result.rigid_num).p = Param1{1}(s).plant.state.(Param1{2}(1));
-                %     if length(Param1{2})==2
-                %         obj.result.rigid(s+obj.result.rigid_num).q = Param1{1}(s).plant.state.(Param1{2}(2));
-                %     elseif length(Param1{2})>2
-                %         for k = 3:length(Param1{2})
-                %             obj.result.rigid(s+obj.result.rigid_num).(Param1{2}(k)) = Param1{1}(s).plant.state.(Param1{2}(k));
-                %         end
-                %     end
-                %     Param1 = Param1{1};
-                % end
-                if iscell(obj.state_name)
-                  pname = obj.state_name{s}(1);
-                  qname = obj.state_name{s}(2);
-                else
-                  pname = obj.state_name(1);
-                  qname = obj.state_name(2);
+                if iscell(Param1)
+                    obj.result.rigid(s+obj.result.rigid_num).p = Param1{1}(s).plant.state.(Param1{2}(1));
+                    if length(Param1{2})==2
+                        obj.result.rigid(s+obj.result.rigid_num).q = Param1{1}(s).plant.state.(Param1{2}(2));
+                    elseif length(Param1{2})>2
+                        for k = 3:length(Param1{2})
+                            obj.result.rigid(s+obj.result.rigid_num).(Param1{2}(k)) = Param1{1}(s).plant.state.(Param1{2}(k));
+                        end
+                    end
+                    Param1 = Param1{1};
                 end
-                  Position = Param1(s).plant.state.(pname);
-                  obj.on_marker{s} = (Param1(s).plant.state.getq('rotmat')*obj.result.local_marker{s}'+Position)';
-                  obj.result.rigid(s).p  = Position;                 
-                  obj.result.rigid(s).q  = Param1(s).plant.state.getq('compact',qname);
-              
+                Position = Param1(s).plant.state.p;
+                obj.on_marker{s} = (Param1(s).plant.state.getq('rotmat')*obj.result.local_marker{s}'+Position)';
+                obj.result.rigid(s).p  = Position;
+                obj.result.rigid(s).q    = Param1(s).plant.state.getq('compact');
             end
             %% Additional noise for rigid body
             if obj.Flag.Noise == 1 %% Noise %%

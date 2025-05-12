@@ -36,5 +36,5 @@ app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 end
 function in_prog(app)
-app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
+app.Label_2.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
 end

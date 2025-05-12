@@ -33,7 +33,6 @@ for i = 1:N
   agent(i).sensor.do = @sensor_do; % synthesis of sensors
   agent(i).estimator = DIRECT_ESTIMATOR(agent(i),struct("model",MODEL_CLASS(agent(i),M))); % estimator.result.state = sensor.result.state
   agent(i).reference = VORONOI_BARYCENTER(agent(i),Reference_2DCoverage(agent(i),env,'void',0)); % calculate Voronoi varycenter
-  agent(i).cha_allocation = struct("sensor",["direct","rpos","rdensity"]);
 end
 %% local function
 function result = sensor_do(varargin)

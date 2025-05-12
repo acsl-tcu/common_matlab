@@ -98,11 +98,9 @@ classdef MODEL_CLASS < dynamicprops & handle
 
     end
 
-    function result = do(obj, varargin)
-      
+    function [] = do(obj, varargin)
       cha = varargin{2};
       if (cha == 'q' || cha == 's' || cha == 'a')
-        result = [];
         return
       end
       u = obj.self.controller.result.input;
@@ -134,19 +132,15 @@ classdef MODEL_CLASS < dynamicprops & handle
         else
           [~, tmpx] = obj.solver(@(t, x) obj.method(x, u, obj.param), [obj.ts obj.ts + obj.dt], obj.state.get());
         end
+
         obj.set_state(obj.projection(tmpx(end, :)'));
       end
-
-      obj.result = obj.state;
-      result = obj.result;
+    %     if 
+    %   obj.result = obj.state;%ここをいじればいい
     end
 
     function [] = set_state(obj, varargin)
-        if length(varargin)>1
-            obj.state.set_state(varargin{:});
-        else
-            obj.state.set_state(varargin{1});
-        end
+      obj.state.set_state(varargin{1});
     end
 
     function state = get(obj, varargin)

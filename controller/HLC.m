@@ -19,7 +19,6 @@ classdef HLC < handle
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p);
       xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;
@@ -41,12 +40,13 @@ classdef HLC < handle
       %if isfield(obj.param,'dt')
       if isfield(varargin{1},'dt') && varargin{1}.dt <= obj.param.dt
         dt = varargin{1}.dt;
-         vf = Vfd(dt,x,xd',P,F1);
-        vs = Vsd(dt,x,xd',vf,P,F2,F3,F4);
       else
-        vf = Vf(x,xd',P,F1);
-        vs = Vs(x,xd',vf,P,F2,F3,F4);
+        dt = obj.param.dt;
+        % vf = Vf(x,xd',P,F1);
+        % vs = Vs(x,xd',vf,P,F2,F3,F4);
       end
+        vf = Vfd(dt,x,xd',P,F1);
+        vs = Vsd(dt,x,xd',vf,P,F2,F3,F4);
       %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty

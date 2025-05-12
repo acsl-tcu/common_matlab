@@ -44,7 +44,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
       if isstring(target) || ischar(target) % save で保存されたデータを呼び出す場合
 
-        if ~contains(target, ".mat") % separate で保存された場合
+        if contains(target, "Data.mat") | ~contains(target, ".mat") % separate で保存された場合
 
           if contains(target, "Data.mat")
             target = erase(target, "/Data.mat");
@@ -53,8 +53,6 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
           tmp = load(target + "/Data.mat");
           fn = fieldnames(obj);
 
-          
-          
           for i = fn'
             obj.(i{1}) = tmp.log.(i{1});
           end
@@ -145,35 +143,31 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
           % 注：サイズの固定されている数値データだけ保存可能
         end
 
-        for n = 1:length(obj.target)
-          N = obj.target(n);
+        for n = obj.target
+
           for i = 1:length(obj.agent_items) % sensor,estimator,reference以外のみ
             str = strsplit(obj.agent_items(i), '.');
-            tmp = agent(N);
+            tmp = agent(n);
             obj.Data.agent(n).(str{1}){obj.k} = tmp.(str{1});
           end
 
-          obj.Data.agent(n).sensor.result{obj.k} = agent(N).sensor.result;
-          obj.Data.agent(n).estimator.result{obj.k} = agent(N).estimator.result;
-          obj.Data.agent(n).reference.result{obj.k} = agent(N).reference.result;
-          obj.Data.agent(n).controller.result{obj.k} = agent(N).controller.result;
+          obj.Data.agent(n).sensor.result{obj.k} = agent(n).sensor.result;
+          obj.Data.agent(n).estimator.result{obj.k} = agent(n).estimator.result;
+          obj.Data.agent(n).reference.result{obj.k} = agent(n).reference.result;
+          obj.Data.agent(n).controller.result{obj.k} = agent(n).controller.result;
 
-          if isfield(agent(N).sensor.result, "state")
-            obj.Data.agent(n).sensor.result{obj.k}.state = state_copy(agent(N).sensor.result.state);
+          if isfield(agent(n).sensor.result, "state")
+            obj.Data.agent(n).sensor.result{obj.k}.state = state_copy(agent(n).sensor.result.state);
           end
 
-          if isfield(agent(N).estimator.result,'state')
-            obj.Data.agent(n).estimator.result{obj.k}.state = state_copy(agent(N).estimator.result.state);
-          end
-          if isfield(agent(N).reference.result,'state')
-            obj.Data.agent(n).reference.result{obj.k}.state = state_copy(agent(N).reference.result.state);
-          end
-          obj.Data.agent(n).input{obj.k} = agent(N).controller.result.input;
+          obj.Data.agent(n).estimator.result{obj.k}.state = state_copy(agent(n).estimator.result.state);
+          obj.Data.agent(n).reference.result{obj.k}.state = state_copy(agent(n).reference.result.state);
+          obj.Data.agent(n).input{obj.k} = agent(n).controller.result.input;
 
           if obj.fExp
-            obj.Data.agent(n).inner_input{obj.k} = agent(N).input_transform.result;
+            obj.Data.agent(n).inner_input{obj.k} = agent(n).input_transform.result;
           else
-            obj.Data.agent(n).plant.result{obj.k}.state = state_copy(agent(N).plant.state);
+            obj.Data.agent(n).plant.result{obj.k}.state = state_copy(agent(n).plant.state);
           end
 
         end
@@ -183,7 +177,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
     function save(obj, name, opt)
       % save log.Data keeping its structure as a file Data/Log(datetime).mat
-      % retrieve it by logger = LOGGER("./Data/file.mat");
+      % retrieve it by logger = LOGGER.load("file.mat");
       arguments
         obj
         name = []
@@ -308,7 +302,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         attribute string = "e"
         option.ranget (1, 2) double = [0 0]
       end
-      if obj.k == 0
+      if obj(1).k == 0
         data = [];
         vrange = [];
       else
@@ -339,7 +333,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
       [variable, vrange] = obj.full_var_name(variable, attribute);
       attribute = "";
-      data_range = find((obj.Data.t - option.ranget(1)) > 0, 1) - 1:find((obj.Data.t - option.ranget(2)) >= 0, 1);
+      data_range = find((obj(1).Data.t - option.ranget(1)) > 0, 1) - 1:find((obj(1).Data.t - option.ranget(2)) >= 0, 1);
       if isempty(data_range)
         data_range = [1];
       end
@@ -347,7 +341,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         data = obj.Data.t(data_range);
       elseif n == 0 % n : agent number.  n=0 => obj.itmesのデータ
         variable = split(variable, '.'); % member毎に分割
-        data = [obj.Data.(variable{1})];
+        data = [obj(1).Data.(variable{1})];
 
         for j = 2:length(variable)
           data = [data.(variable{j})];
@@ -356,7 +350,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         data = data(data_range);
       else % agentに関するデータ
         variable = split(variable, '.'); % member毎に分割
-        data = [obj.Data.agent(n)];
+        data = [obj(n).Data.agent(n)];
 
         switch variable
           case "inner_input" % 横ベクトルの場合
@@ -389,24 +383,17 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
     function data = return_state_prop(obj, variable, data)
       % function for data_org
       for j = 1:length(variable)
-        fn = fieldnames(data); % フィールド名に数字を含む場合のケア
         %data = [data.(variable(j))];
+        data = vertcat(data.(variable(j)));
 
         if strcmp(variable(j), 'state')
-          data = vertcat(data.(fn{strcmp(fn,variable(j))}));
 
           for k = 1:length(data)
-            %ndata(k, :, :) = data(k).(variable(j + 1))(1:data(k).num_list(strcmp(data(k).list, variable(j + 1))), :);
-            ndata(k, :, :) = data(k).(variable(j + 1));
+            ndata(k, :, :) = data(k).(variable(j + 1))(1:data(k).num_list(strcmp(data(k).list, variable(j + 1))), :);
           end
 
           data = ndata;
           break % WRN : stateから更に深い構造には対応していない
-        else
-          for k = 1:length(data)
-            ndata(k, :, :) = data(k).(fn{strcmp(fn,variable(j))});
-          end
-          data = ndata;
         end
 
       end
@@ -455,7 +442,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       end
 
       arguments
-        option.time (1, 2) double = [0 obj.Data.t(obj.k)]
+        option.time (1, 2) double = [0 [obj(1).Data.t(obj(1).k)]]
         option.fig_num {mustBeNumeric} = 1
         option.row_col (1, 2) {mustBeNumeric} = [ceil(length(list) / min(length(list), 3)) min(length(list), 3)]
         option.color {mustBeNumeric} = 1
@@ -544,7 +531,6 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             end
 
             hold(ax, "on");
-            grid(ax, "on");
 
             switch length(ps)
               case 3
@@ -605,7 +591,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             end
 
             ylabel(ax, ps(2));
-            if length(ps) == 3; zlabel(ax, ps(3)); end
+            if length(ps) == 3; zlabel(ps(3)); end
           end
 
         end
@@ -619,19 +605,19 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         if fcolor
           txt = {''};
 
-          if length([find(obj.Data.phase == 97,1, 'last')+1, find(obj.Data.phase == 116, 1, 'last')]) == 2
-            Square_coloring(obj.Data.t([find(obj.Data.phase == 97, 1,'last')+1, find(obj.Data.phase == 116, 1, 'last')]),[],[],[],ax); % take off phase
+          if length([find(obj(1).Data.phase == 116, 1), find(obj(1).Data.phase == 116, 1, 'last')]) == 2
+            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 116, 1), find(obj(1).Data.phase == 116, 1, 'last')]),[],[],[],ax); % take off phase
             %                        txt = {txt{:},'{\color{yellow}■} :Take off phase'};
             txt = {txt{:}, '{\color[rgb]{1.0,1.0,0.9}■} :Take off phase'};
           end
 
-          if length([find(obj.Data.phase == 116, 1,'last')+1, find(obj.Data.phase == 102, 1, 'last')]) == 2
-            Square_coloring(obj.Data.t([find(obj.Data.phase ==  116, 1,'last')+1, find(obj.Data.phase == 102, 1, 'last')]), [0.9 1.0 1.0],[],[],ax); % flight phase
+          if length([find(obj(1).Data.phase == 102, 1), find(obj(1).Data.phase == 102, 1, 'last')]) == 2
+            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 102, 1), find(obj(1).Data.phase == 102, 1, 'last')]), [0.9 1.0 1.0],[],[],ax); % flight phase
             txt = {txt{:}, '{\color[rgb]{0.9,1.0,1.0}■} :Flight phase'};
           end
 
-          if length([find(obj.Data.phase ==  102, 1,'last')+1, find(obj.Data.phase == 108, 1, 'last')]) == 2
-            Square_coloring(obj.Data.t([find(obj.Data.phase ==  102, 1,'last')+1, find(obj.Data.phase == 108, 1, 'last')]), [1.0 0.9 1.0],[],[],ax); % landing phase
+          if length([find(obj(1).Data.phase == 108, 1), find(obj(1).Data.phase == 108, 1, 'last')]) == 2
+            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 108, 1), find(obj(1).Data.phase == 108, 1, 'last')]), [1.0 0.9 1.0],[],[],ax); % landing phase
             txt = {txt{:}, '{\color[rgb]{1.0,0.9,1.0}■} :Landing phase'};
           end
 
@@ -663,10 +649,9 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       vrange = regexp(var, "[0-9:]", 'match');
 
       if ~isempty(vrange)
-        vrange = eval(strjoin(vrange,''));%str2num(strjoin(vrange));
+        vrange = str2num(strjoin(vrange));
       end
-      % variable = var;
-      % vrange = [];
+
       switch variable
         case 'p'
           name = strcat(name, ".state.p");

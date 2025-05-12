@@ -1,4 +1,4 @@
-function Sensor = Sensor_Motive(rigid_id,initial_yaw_angle,motive)
+function Sensor = Sensor_Motive(rigid_num,initial_yaw_angle,motive)
 %% sensor class demo : constructor
 % sensor property をSensor classのインスタンス配列として定義
 % rpos : RnagePos_sim
@@ -8,6 +8,6 @@ Sensor.LocalX     = [ 0.075, -0.075,  0.015;  -0.075, -0.075, -0.015;-0.075,  0.
 Sensor.LPF_T=10;
 Sensor.initial_yaw_angle = initial_yaw_angle;
 % X, Y. Z
-Sensor.rigid_id=rigid_id;
+Sensor.rigid_num=rigid_num;
 Sensor.motive = motive;
 end

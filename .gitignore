@@ -51,6 +51,11 @@ latex.out/
 *.alg
 *.loa
 
+#########################
+/Data/OriginalData/
+#########################
+
+
 # achemso
 acs-*.bib
 
@@ -1041,12 +1046,10 @@ Temporary Items
 .apdisk
 
 # matlab
-*.mat
 Log*
 !assets/Logger.m
 !connector/NATNET_CONNECTOR/*.dll
 *.prj
 /codegen/
 assemblypath.txt
-
-*.gif
+Data/
