@@ -13,11 +13,13 @@ Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);
 
 
 % MECNN = importNetworkFromONNX("..\VarietyPack\Takano\HLNN_MEC\Result\MECNN_model.onnx");
-MECNN = importNetworkFromONNX("MECNN_model.onnx");
-MECNN.Initialized
+MECNN = importNetworkFromONNX("MECNN_model.onnx"); % 「一部の入力レイヤーにおいてデータ形式や画像サイズが不明確であるためdlnetworkを初期化できませんでした」という警告が出る．
 % ここで定義されたMECNNは「dlnetworkオブジェクト」というMATLAB用のDNNアーキテクチャ
 % 層構造やハイパーパラメータ情報が入っている．
 % ここでは，事前学習済みのONNXネットワークをインポートしている
+MECNN.Initialized;
+disp('MECNN.Initialized:')
+disp(MECNN.Initialized) % 確かに初期化できていないことが確認できる
 
 % load("./Data/OriginalData/Ad_Bd_F.mat")
 load("Data\Ad_Bd_F.mat")
@@ -25,7 +27,7 @@ Controller.Ad = Ad;
 Controller.Bd = Bd;
 
 % layer =inputLayer([24 1], "SC");
-layer = inputLayer([12 1], "SC");               % DNNの入力層 12個
+layer = inputLayer([12 1], "SC");               % DNNの入力層 12個（カスタム入力層）
 Controller.MECNN = addInputLayer(MECNN,layer);  % コントローラにDNNの情報を入れる
 
 

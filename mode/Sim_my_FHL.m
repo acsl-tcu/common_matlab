@@ -96,7 +96,7 @@ for j = 1:1
 
 
         agent(1).plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
-        agent(2).controller.Pn_p_cur = [agent(1,1).plant.state.p;agent(1,1).plant.state.q;agent(1,1).plant.state.v;agent(1,1).plant.state.w];
+        agent(2).controller.Pn_p_cur = [agent(1).plant.state.p;agent(1).plant.state.q;agent(1).plant.state.v;agent(1).plant.state.w];
         % 3. 状態更新後のノミナルの出力を「プラントのコントローラ」内に保存
 
         agent(2).sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
