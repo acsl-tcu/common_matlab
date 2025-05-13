@@ -92,28 +92,28 @@ for j = 1:1
         % Pn_estimator.state.p
 
 
-        agent(2).controller.Pa_p_pre = Pa_estimator.state.p;    % 前時刻のプラントの推定位置を「プラントのコントローラ」内に格納
+        agent(2).controller.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
 
 
-        agent(1).plant.do(time, 'f');%  xn[k] % ノミナルの状態更新
+        agent(1).plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
         agent(2).controller.Pn_p_cur = [agent(1,1).plant.state.p;agent(1,1).plant.state.q;agent(1,1).plant.state.v;agent(1,1).plant.state.w];
-        % 状態更新後のノミナルの出力を「プラントのコントローラ」内に保存
+        % 3. 状態更新後のノミナルの出力を「プラントのコントローラ」内に保存
 
-        agent(2).sensor.do(time, 'f'); % 2 hxa[k] % プラントのセンサ情報取得
-        Pa_estimator = agent(2).estimator.do(time, 'f'); % プラントの推定器を回し，情報を取得
+        agent(2).sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
+        Pa_estimator = agent(2).estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
         agent(2).controller.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
-        % 状態更新後のプラントの推定値を「プラントのコントローラ」内に保存
+        % 6. 状態更新後のプラントの推定値を「プラントのコントローラ」内に保存
 
-        agent(2).reference.do(time, 'f');
+        agent(2).reference.do(time, 'f'); % 7. プラントのリファレンス更新
 
-        agent(1).estimator = agent(2).estimator;%  3 un[k] % プラントの推定値をノミナルの推定値にコピー
-        agent(1).reference.do(time, 'f');
-        Pn_controller = agent(1).controller.do(time, 'f'); % ノミナルのコントローラを回し，情報を取得
-        agent(2).controller.Pn_u = Pn_controller.input; % ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
+        agent(1).estimator = agent(2).estimator;%  3 un[k] % 8. プラントの推定値をノミナルの推定値にコピー
+        agent(1).reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
+        Pn_controller = agent(1).controller.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
+        agent(2).controller.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
 
-        agent(2).controller.do(time, 'f');% 4, 5 du[k], u[k] % プラントのコントローラ計算
+        agent(2).controller.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
 
-        agent(2).plant.do(time, 'f');% 6 xa[k+1] % プラントの状態更新
+        agent(2).plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
 
         logger1.logging(time, 'f', agent(1));
         logger2.logging(time, 'f', agent(2));
