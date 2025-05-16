@@ -38,7 +38,8 @@ for j = 1:1
     % agent(1).parameter = DRONE_PARAM("DIATONE");
     agent(1).parameter = DRONE_PARAM("DIATONE");
 
-    agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    % agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
     agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
     agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
 
@@ -120,11 +121,14 @@ for j = 1:1
         time.t = time.t + time.dt;
         %pause(1)
         all = toc;
-        disp([num2str(time.t)])
-        
+        if mod(int32(time.t*1000), 1000) == 0 % 1秒おきに描画
+            disp([num2str(time.t)])
+        end
         
     end
-    logger = [logger1 logger2];
+    % logger = [logger1 logger2];
+    logger = logger2; % プラントのみをloggerに保存
+
     % save(strcat("Data\learning_data\data", num2str(j), ".mat"),"logger")
     save("Data\test","logger")
     % save("Data\sprine","logger")
@@ -246,12 +250,12 @@ end
 % end
 
 %%
-set(0,'defaultAxesFontSize', 10)
+set(0,'defaultAxesFontSize', 20)
 set(0, 'DefaultLineLineWidth', 1.5);
 logger.plot({1, "p", "er"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num",1,"row_col",[1 2]);
 % logger.save('HL_sim_test_1008_sigmoid');
 app.logger = logger;
-result_plot(app)
+% result_plot(app)
 % 
 % % 仮想入力の描画
 % imgu = cell2mat(arrayfun(@(N) logger.Data.agent.controller.result{N}.img_input, 1:te/dt, 'UniformOutput', false));
