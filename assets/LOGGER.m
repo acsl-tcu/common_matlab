@@ -17,7 +17,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
     fExp
     overwrite_target = ["all"];
   end
-
+%194行目消す
   methods
 
     function obj = LOGGER(target, number, fExp, items, agent_items, option)
@@ -190,7 +190,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       if isempty(name)
         tmpname = strrep(strrep(strcat('Log(', datestr(datetime('now')), ')'), ':', '_'), ' ', '_');
       else
-        tmpname = strrep(strrep(strcat('', name, '_Log(', datestr(datetime('now')), ')'), ':', '_'), ' ', '_');
+%         tmpname = strrep(strrep(strcat('', name, '_Log(', datestr(datetime('now')), ')'), ':', '_'), ' ', '_');
+        tmpname = strcat('', name);
       end
 
       if opt.separate
@@ -302,7 +303,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         attribute string = "e"
         option.ranget (1, 2) double = [0 0]
       end
-      if obj(1).k == 0
+      if obj.k == 0
         data = [];
         vrange = [];
       else
@@ -333,7 +334,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
       [variable, vrange] = obj.full_var_name(variable, attribute);
       attribute = "";
-      data_range = find((obj(1).Data.t - option.ranget(1)) > 0, 1) - 1:find((obj(1).Data.t - option.ranget(2)) >= 0, 1);
+      data_range = find((obj.Data.t - option.ranget(1)) > 0, 1) - 1:find((obj.Data.t - option.ranget(2)) >= 0, 1);
       if isempty(data_range)
         data_range = [1];
       end
@@ -341,7 +342,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         data = obj.Data.t(data_range);
       elseif n == 0 % n : agent number.  n=0 => obj.itmesのデータ
         variable = split(variable, '.'); % member毎に分割
-        data = [obj(1).Data.(variable{1})];
+        data = [obj.Data.(variable{1})];
 
         for j = 2:length(variable)
           data = [data.(variable{j})];
@@ -350,7 +351,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         data = data(data_range);
       else % agentに関するデータ
         variable = split(variable, '.'); % member毎に分割
-        data = [obj(n).Data.agent(n)];
+        data = [obj.Data.agent(n)];
 
         switch variable
           case "inner_input" % 横ベクトルの場合
@@ -442,7 +443,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       end
 
       arguments
-        option.time (1, 2) double = [0 [obj(1).Data.t(obj(1).k)]]
+        option.time (1, 2) double = [0 obj.Data.t(obj.k)]
         option.fig_num {mustBeNumeric} = 1
         option.row_col (1, 2) {mustBeNumeric} = [ceil(length(list) / min(length(list), 3)) min(length(list), 3)]
         option.color {mustBeNumeric} = 1
@@ -527,10 +528,11 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
               else
                 xlim(ax,[min(tmpx), max(tmpx)]);
               end
-              ylim(ax,[min(tmpy,[],'all'), max(tmpy,[],'all')+0.01]);
+                ylim(ax,[min(tmpy,[],'all'), max(tmpy,[],'all')+0.01]);
             end
 
             hold(ax, "on");
+            grid(ax, "on");
 
             switch length(ps)
               case 3
@@ -591,7 +593,9 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             end
 
             ylabel(ax, ps(2));
-            if length(ps) == 3; zlabel(ps(3)); end
+            if length(ps) == 3
+                zlabel(ax, ps(3)); 
+            end
           end
 
         end
@@ -605,19 +609,19 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         if fcolor
           txt = {''};
 
-          if length([find(obj(1).Data.phase == 116, 1), find(obj(1).Data.phase == 116, 1, 'last')]) == 2
-            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 116, 1), find(obj(1).Data.phase == 116, 1, 'last')]),[],[],[],ax); % take off phase
+          if length([find(obj.Data.phase == 116, 1), find(obj.Data.phase == 116, 1, 'last')]) == 2
+            Square_coloring(obj.Data.t([find(obj.Data.phase == 116, 1), find(obj.Data.phase == 116, 1, 'last')]),[],[],[],ax); % take off phase
             %                        txt = {txt{:},'{\color{yellow}■} :Take off phase'};
             txt = {txt{:}, '{\color[rgb]{1.0,1.0,0.9}■} :Take off phase'};
           end
 
-          if length([find(obj(1).Data.phase == 102, 1), find(obj(1).Data.phase == 102, 1, 'last')]) == 2
-            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 102, 1), find(obj(1).Data.phase == 102, 1, 'last')]), [0.9 1.0 1.0],[],[],ax); % flight phase
+          if length([find(obj.Data.phase == 102, 1), find(obj.Data.phase == 102, 1, 'last')]) == 2
+            Square_coloring(obj.Data.t([find(obj.Data.phase == 102, 1), find(obj.Data.phase == 102, 1, 'last')]), [0.9 1.0 1.0],[],[],ax); % flight phase
             txt = {txt{:}, '{\color[rgb]{0.9,1.0,1.0}■} :Flight phase'};
           end
 
-          if length([find(obj(1).Data.phase == 108, 1), find(obj(1).Data.phase == 108, 1, 'last')]) == 2
-            Square_coloring(obj(1).Data.t([find(obj(1).Data.phase == 108, 1), find(obj(1).Data.phase == 108, 1, 'last')]), [1.0 0.9 1.0],[],[],ax); % landing phase
+          if length([find(obj.Data.phase == 108, 1), find(obj.Data.phase == 108, 1, 'last')]) == 2
+            Square_coloring(obj.Data.t([find(obj.Data.phase == 108, 1), find(obj.Data.phase == 108, 1, 'last')]), [1.0 0.9 1.0],[],[],ax); % landing phase
             txt = {txt{:}, '{\color[rgb]{1.0,0.9,1.0}■} :Landing phase'};
           end
 

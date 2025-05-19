@@ -114,7 +114,8 @@ methods
         
     
         if obj.data_gen_mode
-            obj.result.delta_u = 0.001*sin(2*pi*rand(1))*obj.Pn_u + [9.81*(0.4-0.6)+rand(1);0.0;0.0;0.0]; % Sim上で仮定したモデル誤差に基づいて補償入力Δuを算出 → 教師データに使う
+            obj.result.delta_u = 0.001*sin(2*pi*rand(1))*obj.Pn_u + [9.81*(0.4-0.6)+rand(1);0.0;0.0;0.0];
+            % Sim上で仮定したモデル誤差に基づいて補償入力Δuを算出 → 教師データに使う
             % obj.result.input = obj.result.gened_u;
         else
             obj.Pn_p_cur(1:3) = obj.Pn_p_cur(1:3) - obj.Pa_p_pre(1:3);
