@@ -38,14 +38,14 @@ for j = 1:1
     % agent(1).parameter = DRONE_PARAM("DIATONE");
     agent(1).parameter = DRONE_PARAM("DIATONE");
 
-    agent(2).parameter = DRONE_PARAM("DIATONE","mass",1.5); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
     % agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
     agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
     agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
 
     agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-    % agent(2).estimator = EKF(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
-    agent(2).estimator = EKF_4_MEC_learning(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));  % ただのEKFと全く同じ
+    agent(2).estimator = EKF(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
+    % agent(2).estimator = EKF_4_MEC_learning(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));  % ただのEKFと全く同じ
     
     % agent(2).estimator = NN_ESTIMATOR(agent(2), Estimator_NN(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
 
@@ -121,28 +121,14 @@ for j = 1:1
         time.t = time.t + time.dt;
         %pause(1)
         all = toc;
-<<<<<<< Updated upstream
         if mod(int32(time.t*1000), 1000) == 0 % 1秒おきに描画
             disp([num2str(time.t)])
-        end
-        
-    end
-    % logger = [logger1 logger2];
-    logger = logger2; % プラントのみをloggerに保存
-
-=======
-        if mod(int32(time.t*1000), 1000) == 0 % 1秒おきにプロット
-            disp([num2str(time.t)])
-        end
-        
-        
+        end      
     end
     % logger = [logger1 logger2];
     logger = logger2; % プラントのみ保存
-    
->>>>>>> Stashed changes
+
     % save(strcat("Data\learning_data\data", num2str(j), ".mat"),"logger")
-    save("Data\test","logger")
     % save("Data\sprine","logger")
     
     % save('Data\MEC_Pn_u_delta_u_1780.mat')
@@ -181,7 +167,21 @@ for j = 1:1
     % % log = logger;
     % save(strcat('Data\HLsim\HL_exp_1007_', num2str(j), '.mat'), 'data');
 end
-
+%% 2025.05.20.小関 5/22の報告会用に簡易的にプロットする用（いずれlogger.plotに組み込んで便利にしたい）
+% data = simplifyLogger(load('Data\test.mat'));
+data = simplifyLogger(logger);
+figure(Position=[10, 10, 1300, 1300])
+plot(data.t, data.plant.p(1,:), data.t, data.plant.p(2,:), data.t, data.plant.p(3,:), ...
+    data.t, data.reference.p(1,:),'--', data.t, data.reference.p(2,:),'--', data.t, data.reference.p(3,:),'--', ...
+    'LineWidth',5)
+fontsize(40, 'points')
+grid on
+ylim([-4 4])
+legend('x_{plant}', 'y_{plant}', 'z_{plant}', ...
+    'x_{reference}', 'y_{reference}', 'z_{reference}', ...
+    Location='northoutside', Orientation='horizontal')
+xlabel('time [s]')
+ylabel('position [m]')
 %%
 % ts = 0; % initial time
 % dt = 0.025; % sampling period
@@ -262,16 +262,10 @@ end
 % end
 
 %%
-<<<<<<< Updated upstream
-set(0,'defaultAxesFontSize', 50)
-set(0, 'DefaultLineLineWidth', 3);
-=======
-set(0,'defaultAxesFontSize', 10)
-set(0, 'DefaultLineLineWidth', 1.5);
->>>>>>> Stashed changes
-logger.plot({1, "p", "pr"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num",1,"row_col",[1 2]);
-% logger.save('HL_sim_test_1008_sigmoid');
-app.logger = logger;
+% set(0,'defaultAxesFontSize', 50)
+% set(0, 'DefaultLineLineWidth', 3);
+% logger.plot({1, "p", "pr"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num",1,"row_col",[1 2]);
+% app.logger = logger;
 % result_plot(app)
 % 
 % % 仮想入力の描画
