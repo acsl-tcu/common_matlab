@@ -16,7 +16,7 @@ for j = 1:1
     clear data
     ts = 0; % initial time
     dt = 0.025; % sampling period
-    te = 10; % terminal time
+    te = 20; % terminal time
     time = TIME(ts,dt,te); % instance of time class
     in_prog_func = @(app) dfunc(app); % in progress plot
     post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -38,7 +38,7 @@ for j = 1:1
     % agent(1).parameter = DRONE_PARAM("DIATONE");
     agent(1).parameter = DRONE_PARAM("DIATONE");
 
-    agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    agent(2).parameter = DRONE_PARAM("DIATONE","mass",1.5); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
     % agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
     agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
     agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
@@ -74,7 +74,7 @@ for j = 1:1
     agent(2).controller = FUNCTIONAL_MECNNC(agent(2),Controller_FHLMECNN(dt));  % NNMEC用のHLコントローラ
     
 
-    % Pn_estimator.state = initial_state; % いらなさそう 2025.05.07
+    Pn_estimator.state = initial_state; % いらなさそう 2025.05.07
     Pa_estimator.state = initial_state;
     run("ExpBase");
 
@@ -126,6 +126,7 @@ for j = 1:1
         end      
     end
     % logger = [logger1 logger2];
+    % logger = logger1; % ノミナルのみ保存（あんま意味はない）
     logger = logger2; % プラントのみ保存
 
     % save(strcat("Data\learning_data\data", num2str(j), ".mat"),"logger")
@@ -182,6 +183,11 @@ legend('x_{plant}', 'y_{plant}', 'z_{plant}', ...
     Location='northoutside', Orientation='horizontal')
 xlabel('time [s]')
 ylabel('position [m]')
+
+% % 軌跡確認用
+% plot(data.plant.p(1,:), data.plant.p(2,:))
+% xlabel('x [m]')
+% ylabel('y [m]')
 %%
 % ts = 0; % initial time
 % dt = 0.025; % sampling period

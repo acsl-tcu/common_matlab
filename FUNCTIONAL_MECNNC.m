@@ -126,7 +126,7 @@ methods
             obj.result.delta_u = cast(predict(obj.param.MECNN, obj.Pa_p_cur-obj.Pn_p_cur), "double")';
         end
             obj.result.input = obj.Pn_u + obj.result.delta_u; % 最終的な制御入力
-            % obj.result.input = obj.Pn_u;
+            % obj.result.input = obj.Pn_u; % MEC無し
             % obj.result.delta_u
             
         % delta_u
