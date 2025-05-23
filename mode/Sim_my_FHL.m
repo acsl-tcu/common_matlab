@@ -38,8 +38,8 @@ for j = 1:1
     % agent(1).parameter = DRONE_PARAM("DIATONE");
     agent(1).parameter = DRONE_PARAM("DIATONE");
 
-    agent(2).parameter = DRONE_PARAM("DIATONE","mass",1.5); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
-    % agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
+    % agent(2).parameter = DRONE_PARAM("DIATONE","mass",1.5); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
     agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
     agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
 
