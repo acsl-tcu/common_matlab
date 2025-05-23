@@ -16,7 +16,7 @@ for j = 1:1
     clear data
     ts = 0; % initial time
     dt = 0.025; % sampling period
-    te = 20; % terminal time
+    te = 100; % terminal time
     time = TIME(ts,dt,te); % instance of time class
     in_prog_func = @(app) dfunc(app); % in progress plot
     post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -38,8 +38,8 @@ for j = 1:1
     % agent(1).parameter = DRONE_PARAM("DIATONE");
     agent(1).parameter = DRONE_PARAM("DIATONE");
 
-    % agent(2).parameter = DRONE_PARAM("DIATONE","mass",1.5); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
-    agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
+    agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.8); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    % agent(2).parameter = DRONE_PARAM("DIATONE"); % モデル誤差なし
     agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
     agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
 
@@ -171,7 +171,8 @@ end
 %% 2025.05.20.小関 5/22の報告会用に簡易的にプロットする用（いずれlogger.plotに組み込んで便利にしたい）
 % data = simplifyLogger(load('Data\test.mat'));
 data = simplifyLogger(logger);
-figure(Position=[10, 10, 1300, 1300])
+% figure(Position=[10, 10, 1300, 1300])
+figure(Position=[10, 10, 3000, 1300])
 plot(data.t, data.plant.p(1,:), data.t, data.plant.p(2,:), data.t, data.plant.p(3,:), ...
     data.t, data.reference.p(1,:),'--', data.t, data.reference.p(2,:),'--', data.t, data.reference.p(3,:),'--', ...
     'LineWidth',5)
