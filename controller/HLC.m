@@ -51,7 +51,7 @@ classdef HLC < handle
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
       %sスイープsin追加
-      obj.result.input = sin(2*pi*t)+[max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+      obj.result.input = sin(2*pi*varargin{1}.t)+[max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       result = obj.result;
     end
   end
