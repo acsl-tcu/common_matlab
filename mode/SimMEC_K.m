@@ -33,32 +33,35 @@ for j = 1:1
     % agent(1) = ノミナルモデル → 通常のSimHLでの定義と同じ
     % agent(2) = プラントモデル → あえてモデル誤差を与えたモデル
     %----------------------------
-    agent(1) = DRONE;
-    agent(2) = DRONE;
-    % agent.parameter = DRONE_PARAM("DIATONE","row","mass",0.58);
+    % agent(1) = DRONE;
+    % agent(2) = DRONE;
+    agent = DRONE;
     % agent(1).parameter = DRONE_PARAM("DIATONE");
-    agent(1).parameter = DRONE_PARAM("DIATONE");
+    % agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    % agent.parameter.nominal = DRONE_PARAM("DIATONE");
+    agent.parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    % agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
+    % agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
+    agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
+    % agent.plant.mec = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
 
-    agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
-    agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
-    agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
-
-    agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
+    agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
     % agent(2).estimator = EKF(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
-    agent(2).estimator = EKF_4_MEC_learning(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));  % ただのEKFと全く同じ
+    % agent(2).estimator = EKF_4_MEC_learning(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));  % ただのEKFと全く同じ
     
     % agent(2).estimator = NN_ESTIMATOR(agent(2), Estimator_NN(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
 
 
-    agent(1).sensor = DIRECT_SENSOR(agent(1), 0.0); % modeファイル内で回すとき
-    agent(2).sensor = DIRECT_SENSOR(agent(2), 0.0); % modeファイル内で回すとき
-
+    % agent(1).sensor = DIRECT_SENSOR(agent(1), 0.0); % modeファイル内で回すとき
+    % agent(2).sensor = DIRECT_SENSOR(agent(2), 0.0); % modeファイル内で回すとき
+    agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
     num = j;
     reference_file = strcat("Exp_2_4_", num2str(num));
     % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-    agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
-    agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
+    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
+    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
+    agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
     % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0,"i",j},"HL"});
@@ -68,10 +71,11 @@ for j = 1:1
     % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','origin'),1));%コマンドでシートを選びたいときは位置2を1にする
     % agent(2).reference = MY_WAY_POINT_REFERENCE(agent(2),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','origin'),1));%コマンドでシートを選びたいときは位置2を1にする
     % agent.controller = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-    agent(1).controller = FUNCTIONAL_HLC(agent(1),Controller_FHL(dt));
-    agent(2).controller = FUNCTIONAL_MECKC(agent(2),Controller_FHLMECK(time));  % KMEC用のHLコントローラ
+    % agent(1).controller = FUNCTIONAL_HLC(agent(1),Controller_FHL(dt));
+    % agent(2).controller = FUNCTIONAL_MECKC(agent(2),Controller_FHLMECK(time));  % KMEC用のHLコントローラ
+    agent.controller.nominal = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
+    agent.controller.mec = FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time));  % KMEC用のHLコントローラ
     
-
     % Pn_estimator.state = initial_state; % いらなさそう 2025.05.07
     Pa_estimator.state = initial_state;
     run("ExpBase");
@@ -91,31 +95,50 @@ for j = 1:1
         % Pn_estimator.state.p
 
 
-        agent(2).controller.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
+        % agent(2).controller.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
+        agent.controller.mec.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
 
 
-        agent(1).plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
-        agent(2).controller.Pn_p_cur = [agent(1).plant.state.p;agent(1).plant.state.q;agent(1).plant.state.v;agent(1).plant.state.w];
+        % agent(1).plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
+        agent.plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
+        % agent(2).controller.Pn_p_cur = [agent(1).plant.state.p;agent(1).plant.state.q;agent(1).plant.state.v;agent(1).plant.state.w];
         % 3. 状態更新後のノミナルの出力を「プラントのコントローラ」内に保存
+           
+        agent.controller.mec.Pn_p_cur = [agent.plant.state.p;agent.plant.state.q;agent.plant.state.v;agent.plant.state.w];
+        
+        % agent(2).sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
+        agent.sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
 
-        agent(2).sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
-        Pa_estimator = agent(2).estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
-        agent(2).controller.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
+        % Pa_estimator = agent(2).estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
+        Pa_estimator = agent.estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
+
+        % agent(2).controller.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
+        agent.controller.mec.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
         % 6. 状態更新後のプラントの推定値を「プラントのコントローラ」内に保存
 
-        agent(2).reference.do(time, 'f'); % 7. プラントのリファレンス更新
+        % agent(2).reference.do(time, 'f'); % 7. プラントのリファレンス更新
+        agent.reference.do(time, 'f'); % 7. プラントのリファレンス更新
 
-        agent(1).estimator = agent(2).estimator;%  3 un[k] % 8. プラントの推定値をノミナルの推定値にコピー
-        agent(1).reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
-        Pn_controller = agent(1).controller.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
-        agent(2).controller.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
+        % agent(1).estimator = agent(2).estimator;%  3 un[k] % 8. プラントの推定値をノミナルの推定値にコピー
+        % agent(1).reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
+        agent.reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
 
-        agent(2).controller.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
+        % Pn_controller = agent(1).controller.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
+        Pn_controller = agent.controller.nominal.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
+        
+        % agent(2).controller.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
+        agent.controller.mec.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
 
-        agent(2).plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
 
-        logger1.logging(time, 'f', agent(1));
-        logger2.logging(time, 'f', agent(2));
+        % agent(2).controller.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
+        agent.controller.mec.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
+
+        % agent(2).plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
+        agent.plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
+
+        % logger1.logging(time, 'f', agent(1));
+        % logger2.logging(time, 'f', agent(2));
+        logger.logging(time, 'f', agent);
         time.t = time.t + time.dt;
         %pause(1)
         all = toc;
@@ -124,7 +147,7 @@ for j = 1:1
         
     end
     % logger = [logger1 logger2];
-    logger = logger2; % プラントだけを保存
+    % logger = logger2; % プラントだけを保存
     % logger = logger1; % ノミナルだけを保存
     % save(strcat("Data\learning_data\data", num2str(j), ".mat"),"logger")
     save("Data\test","logger")
