@@ -1,4 +1,4 @@
-classdef HLC < handle
+classdef HLC_KMPC < handle
   % Hierarchical linearization based controller for a quadcopter
   properties
     self
@@ -9,7 +9,7 @@ classdef HLC < handle
   end
 
   methods
-    function obj = HLC(self,param)
+    function obj = HLC_KMPC(self,param)
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);

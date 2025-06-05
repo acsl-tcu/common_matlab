@@ -1,5 +1,5 @@
 %-- ベクトル化するための関数
-function [ECM] = ExtendedCoefficientMatrix_kyo(Param)
+function [ResultA,ResultB] = ExtendedCoefficientMatrix_kyo(Param)
     % ECM:Extended Coeifficient Matrix
     A = Param{1};
     B = Param{2};
@@ -23,7 +23,6 @@ function [ECM] = ExtendedCoefficientMatrix_kyo(Param)
             end
         end
     end
-    ECM.A = Am;
-    ECM.B = S;
-
+    ResultA = Am;
+    ResultB = S;
 end
