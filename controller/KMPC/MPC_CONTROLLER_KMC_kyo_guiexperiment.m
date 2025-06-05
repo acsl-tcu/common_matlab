@@ -94,7 +94,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             C = repmat({obj.koopman.C}, 1, obj.H);
             obj.koopman.ExC = blkdiag(C{:});
 
-            [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
+            [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
             % obj.koopman.ExA = obj.model.A;
             % obj.koopman.ExB = obj.model.B;
             obj.flag.A = 0;
@@ -115,9 +115,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.result2input();
             time = varargin{1};
             phase = varargin{2};
-            if ~isempty(varargin{7})
-                app=varargin{7};
-            end
+          
             obj.param.t = time.t;
 
             obj.current_state = obj.self.estimator.result.state.get(); % 現在状態の取得
@@ -137,13 +135,13 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 obj.param.te = obj.param.te_value;
 
                 obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
-                if   abs(obj.self.plant.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
+                if   abs(obj.self.estimator.result.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
                     obj.param.catchflag = 1;
                     obj.param.catchtime = 2;
-                    obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.plant.state.p(1:3)],obj.param));
+                    obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
                     %obj.flag.A =1;
                 end
-             
+                disp('controller: MC,  phase: a');
             end
 
 
@@ -745,7 +743,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         function show(obj)
             % clc;
             % est_print = obj.self.estimator.result.state;
-            est_print = obj.self.plant.state;
+            est_print = obj.self.estimator.result.state;
             fprintf("==================================================================\n")
             fprintf("==================================================================\n")
             fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \n",...
