@@ -50,9 +50,9 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
 % 
-agent.reference = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0.6;0.6;0.6],time},"HL"});
+% agent.reference = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
 
-%agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},"HL"});
+agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
@@ -75,9 +75,10 @@ function result = controller_do(varargin)
         result = result.hlc; % hlc:hlcでcontrol
         disp('controller: MC,  phase: t');
     elseif varargin{2} == 'f'
-        result = controller.kmpc.do(varargin);
+        result = controller.kmpc.do(varargin{:});
     elseif varargin{2} == 'l'
         result = controller.hlc.do(varargin{:});
+        disp('controller: MC,  phase: l');
    end
     varargin{5}.controller.result = result;
 end
