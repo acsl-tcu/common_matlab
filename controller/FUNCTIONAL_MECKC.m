@@ -37,8 +37,6 @@ methods
         
         obj.param.P = nominal_parameter.get(obj.parameter_name);
         obj.result.input = zeros(self.estimator.model.dim(2),1);
-        % ここまでは通常のHLと同じ
-
 
         initial_state.p = self.plant.state.p;
         initial_state.q = self.plant.state.q;
@@ -63,80 +61,9 @@ methods
 
     function result = do(obj,varargin)
 
- 
-        model = obj.self.estimator.result;
-        ref = obj.self.reference.result;
-        xd = ref.state.xd;
-        P = obj.param.P;
-        F1 = obj.param.F1;
-        F2 = obj.param.F2;
-        F3 = obj.param.F3;
-        F4 = obj.param.F4;
-        xd = [xd; zeros(20 - size(xd, 1), 1)]; % 足りない分は０で埋める．
-
-        Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd(4)]));
-        x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
-        
-        xd(1:3) = Rb0' * xd(1:3);
-        xd(4) = 0;
-        xd(5:7) = Rb0' * xd(5:7);
-        xd(9:11) = Rb0' * xd(9:11);
-        xd(13:15) = Rb0' * xd(13:15);
-        xd(17:19) = Rb0' * xd(17:19);
-
-        %% calc Z
-        z1 = Z1(x, xd', P);%z
-        vf = obj.Vf(z1, F1);
-        z2 = Z2(x, xd', vf, P);%x
-        z3 = Z3(x, xd', vf, P);%y
-        z4 = Z4(x, xd', vf, P);%yaw
-        vs = obj.Vs(z2, z3, z4, F2, F3, F4);
-
-        %% calc actual input
-        tmp = Uf(x, xd', vf, P) + Us(x, xd', vf, vs, P);
-        %%input of subsystems
-        obj.result.uHL = [vf(1); vs];
-        %differential virtual input first layer
-        obj.result.vf = vf;
-        %state of subsystems
-        obj.result.z1 = z1;
-        obj.result.z2 = z2;
-        obj.result.z3 = z3;
-        obj.result.z4 = z4;
-        % input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-        obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-        result = obj.result;
-
-
-        % obj.agent.plant.do(varargin{:});
-        % obj.motive.getData(obj.agent);
-        % obj.agent.sensor.do(varargin{:});
-        % obj.agent.estimator.do(varargin{:});%EKF
-        % obj.agent.controller.result.input = obj.result.input;
-        % plant_state = obj.agent.plant.state; %plant`
-
-        x = [Rb0' * model.state.p; Quat2Eul(R2q(Rb0' * model.state.getq("rotmat"))); Rb0' * model.state.v; model.state.w]; % [p, q, v, w]に並べ替え
-        
-        
-    
-        % if obj.data_gen_mode
-        %     obj.result.delta_u = 0.001*sin(2*pi*rand(1))*obj.Pn_u + [9.81*(0.4-0.6)+rand(1);0.0;0.0;0.0]; % Sim上で仮定したモデル誤差に基づいて補償入力Δuを算出 → 教師データに使う
-        %     % obj.result.input = obj.result.gened_u;
-        % else
-        %     obj.Pn_p_cur(1:3) = obj.Pn_p_cur(1:3) - obj.Pa_p_pre(1:3);
-        %     obj.Pa_p_cur(1:3) = obj.Pa_p_cur(1:3) - obj.Pa_p_pre(1:3);
-        %     obj.Pn_p_cur(4:end) = 1000*obj.Pn_p_cur(4:end);
-        %     obj.Pa_p_cur(4:end) = 1000*obj.Pa_p_cur(4:end);
-        %     % obj.result.delta_u = cast(predict(obj.param.MECNN, [obj.Pa_p_cur; obj.Pn_p_cur]), "double")';
-        %     obj.result.delta_u = cast(predict(obj.param.MECNN, obj.Pa_p_cur-obj.Pn_p_cur), "double")';
-        % end
-            % obj.Pn_p_cur(1:3) = obj.Pn_p_cur(1:3) - obj.Pa_p_pre(1:3);
-            % obj.Pa_p_cur(1:3) = obj.Pa_p_cur(1:3) - obj.Pa_p_pre(1:3);
-            % obj.Pn_p_cur(4:end) = 1000*obj.Pn_p_cur(4:end);
-            % obj.Pa_p_cur(4:end) = 1000*obj.Pa_p_cur(4:end);
-
-            z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
-            z_n=quaternions_all(ref.state.xd);%ノミナルの状態
+            z_p=quaternions_all(varargin{4}); %観測量z※プラントの状態を入れてる
+            % z_n=quaternions_all(ref.state.xd);%ノミナルの状態
+            z_n=quaternions_all(varargin{3});%ノミナルの状態
             y_p=obj.param.C*z_p;
             y_n=obj.param.C*z_n;
             
@@ -146,11 +73,9 @@ methods
                0 0 0 0 0 0 0 0 0 0 0 0];
 
             D=D_zero+0.1*obj.param.time.t;%ゲイン半自動調整
-            % D=ones(4,12);
             
             S=y_p-y_n;%スライディングモードの曲面　
-            % obj.delta_u = -D*sign(S);%Sを0にするような入力算出(ゲイン×符号関数)
-            % dh=5;%境界層幅　
+    
             % sat = min(1,max(-1,S/dh));
             sat = max(-1,S);%-1と比べて大きい方を返す
             sat=min(1,sat);%1と比べて小さい方を返す
@@ -158,21 +83,10 @@ methods
 
             % obj.delta_u = 0;
             % disp(obj.delta_u);%Δuの値確認用
-            obj.result.input = obj.Pn_u + obj.delta_u; % 最終的な制御入力
-
+            % obj.result.input = varargin{5} + obj.delta_u; % 最終的な制御入力
+            obj.result.input = obj.delta_u; % Δu
             obj.result.delta_u_pre = obj.delta_u; % 前時刻のΔu更新
-        % delta_u
-        % obj.result.plant_.p = obj.agent.plant.state.p;
-        % obj.result.plant_.q = obj.agent.plant.state.q;
-        % obj.result.plant_.v = obj.agent.plant.state.v;
-        % obj.result.plant_.w = obj.agent.plant.state.w;
-        % obj.result.plant_.delta_u = delta_u;
-        %
-        %hosyo
-        %
         
-        % delta_u
-
     end
 
     function show(obj)

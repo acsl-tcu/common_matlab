@@ -22,8 +22,8 @@ for j = 1:1
     in_prog_func = @(app) dfunc(app); % in progress plot
     post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
     motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
-    logger1 = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-    logger2 = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
+    logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
+    % logger2 = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
     initial_state.p = arranged_position([0, 0], 1, 1, 0);
     initial_state.q = [1; 0; 0; 0];
     initial_state.v = [0; 0; 0];
@@ -33,50 +33,23 @@ for j = 1:1
     % agent(1) = ノミナルモデル → 通常のSimHLでの定義と同じ
     % agent(2) = プラントモデル → あえてモデル誤差を与えたモデル
     %----------------------------
-    % agent(1) = DRONE;
-    % agent(2) = DRONE;
+    
     agent = DRONE;
-    % agent(1).parameter = DRONE_PARAM("DIATONE");
-    % agent(2).parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
+    
     % agent.parameter.nominal = DRONE_PARAM("DIATONE");
     agent.parameter = DRONE_PARAM("DIATONE","mass",0.4); % プラントモデルにモデル誤差を与える．DRONE_PARAMのパラメータを上書きしている．
-    % agent(1).plant = MODEL_CLASS(agent(1),Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
-    % agent(2).plant = MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
     agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
-    % agent.plant.mec = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 2)); % Model_Quat13
-
-    agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-    % agent(2).estimator = EKF(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
-    % agent(2).estimator = EKF_4_MEC_learning(agent(2), Estimator_EKF(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));  % ただのEKFと全く同じ
     
-    % agent(2).estimator = NN_ESTIMATOR(agent(2), Estimator_NN(agent(2),dt,MODEL_CLASS(agent(2),Model_EulerAngle(dt, initial_state, 2)),["p", "q"]));
-
-
-    % agent(1).sensor = DIRECT_SENSOR(agent(1), 0.0); % modeファイル内で回すとき
-    % agent(2).sensor = DIRECT_SENSOR(agent(2), 0.0); % modeファイル内で回すとき
+    agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
+    
     agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
     num = j;
     reference_file = strcat("Exp_2_4_", num2str(num));
-    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
-    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
+    % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
-    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0,"i",j},"HL"});
-    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0,"i",j},"HL"});
-    % agent(1).reference = TIME_VARYING_REFERENCE(agent(1),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5],"i",j},"HL"});
-    % agent(2).reference = TIME_VARYING_REFERENCE(agent(2),{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5],"i",j},"HL"});
-    % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','origin'),1));%コマンドでシートを選びたいときは位置2を1にする
-    % agent(2).reference = MY_WAY_POINT_REFERENCE(agent(2),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','origin'),1));%コマンドでシートを選びたいときは位置2を1にする
-    % agent.controller = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-    % agent(1).controller = FUNCTIONAL_HLC(agent(1),Controller_FHL(dt));
-    % agent(2).controller = FUNCTIONAL_MECKC(agent(2),Controller_FHLMECK(time));  % KMEC用のHLコントローラ
-    agent.controller.nominal = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-    agent.controller.mec = FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time));  % KMEC用のHLコントローラ
-    
-    % Pn_estimator.state = initial_state; % いらなさそう 2025.05.07
+    % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
+    agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time)));
+ 
     Pa_estimator.state = initial_state;
     run("ExpBase");
 
@@ -84,190 +57,35 @@ for j = 1:1
     if i < 20 || rem(i, 10) == 0 end
         tic
 
-        %agent(2).controller.Pn_p_pre = [Pn_estimator.state.p;Pn_estimator.state.q;Pn_estimator.state.v;Pn_estimator.state.w];
-        %Pn_estimator = agent(1).estimator.do(time, 'f');
-        % agent(2).controller.Pn_p_cur = [Pn_estimator.state.p;Pn_estimator.state.q;Pn_estimator.state.v;Pn_estimator.state.w];
-        % agent(1).reference.do(time, 'f');
-        % Pn_controller = agent(1).controller.do(time, 'f');
-        % agent(1).plant.do(time, 'f');
-        % agent(2).controller.Pn_u = Pn_controller.input;
-        % 
-        % Pn_estimator.state.p
+        agent.sensor.do(time,'f');
+        agent.estimator.do(time,'f');
+        agent.reference.do(time,'f');
+        agent.controller.do(time,'f');
+        agent.input_transform.do(time,'f');
+        agent.plant.do(time,'f');
 
-
-        % agent(2).controller.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
-        agent.controller.mec.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「プラントのコントローラ」内に格納
-
-
-        % agent(1).plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
-        agent.plant.do(time, 'f');%  xn[k] % 2. ノミナルの状態更新
-        % agent(2).controller.Pn_p_cur = [agent(1).plant.state.p;agent(1).plant.state.q;agent(1).plant.state.v;agent(1).plant.state.w];
-        % 3. 状態更新後のノミナルの出力を「プラントのコントローラ」内に保存
-           
-        agent.controller.mec.Pn_p_cur = [agent.plant.state.p;agent.plant.state.q;agent.plant.state.v;agent.plant.state.w];
-        
-        % agent(2).sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
-        agent.sensor.do(time, 'f'); % 2 hxa[k] % 4. プラントのセンサ情報取得
-
+     
+        % agent.controller.mec.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「mecのコントローラ」内に格納
+        % agent.plant.do(time, 'f');%  xn[k] % 2.状態更新
+        % agent.controller.mec.Pn_p_cur = [agent.plant.state.p;agent.plant.state.q;agent.plant.state.v;agent.plant.state.w];
+        % agent.sensor.do(time, 'f'); % 2 hxa[k] % 4.センサ情報取得
         % Pa_estimator = agent(2).estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
-        Pa_estimator = agent.estimator.do(time, 'f'); % 5. プラントの推定器を回し，情報を取得
-
-        % agent(2).controller.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
-        agent.controller.mec.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
-        % 6. 状態更新後のプラントの推定値を「プラントのコントローラ」内に保存
-
-        % agent(2).reference.do(time, 'f'); % 7. プラントのリファレンス更新
-        agent.reference.do(time, 'f'); % 7. プラントのリファレンス更新
-
-        % agent(1).estimator = agent(2).estimator;%  3 un[k] % 8. プラントの推定値をノミナルの推定値にコピー
-        % agent(1).reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
-        agent.reference.do(time, 'f'); % 9. ノミナルのリファレンス更新
-
-        % Pn_controller = agent(1).controller.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
-        Pn_controller = agent.controller.nominal.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
-        
-        % agent(2).controller.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
-        agent.controller.mec.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
-
-
-        % agent(2).controller.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
-        agent.controller.mec.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
-
-        % agent(2).plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
-        agent.plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
-
-        % logger1.logging(time, 'f', agent(1));
-        % logger2.logging(time, 'f', agent(2));
+        % Pa_estimator = agent.estimator.do(time, 'f'); % 5.推定器を回し，情報を取得
+        % agent.controller.mec.Pa_p_cur = [Pa_estimator.state.p;Pa_estimator.state.q;Pa_estimator.state.v;Pa_estimator.state.w];
+        % agent.reference.do(time, 'f'); % 7. プラントのリファレンス更新
+        % Pn_controller = agent.controller.nominal.do(time, 'f'); % 10. ノミナルのコントローラを回し，情報を取得
+        % agent.controller.mec.Pn_u = Pn_controller.input; % 11. ノミナルのコントローラから得られた制御入力を，プラントの制御入力にコピー
+        % agent.controller.do(time, 'f');% 4, 5 du[k], u[k] % 12. プラントのコントローラ計算
+        % agent.plant.do(time, 'f');% 6 xa[k+1] % 13. プラントの状態更新
         logger.logging(time, 'f', agent);
         time.t = time.t + time.dt;
-        %pause(1)
         all = toc;
         disp([num2str(time.t)])
-        
-        
     end
-    % logger = [logger1 logger2];
-    % logger = logger2; % プラントだけを保存
-    % logger = logger1; % ノミナルだけを保存
-    % save(strcat("Data\learning_data\data", num2str(j), ".mat"),"logger")
+    
     save("Data\test","logger")
-    % save("Data\sprine","logger")
-    
-    % save('Data\MEC_Pn_u_delta_u_1780.mat')
-    % save('Data\MEC_Pn_u.mat')
-    
-    % agent.logger.save(app.data_file_name);
-
-    % load(strcat(reference_file, '.mat'));
-    % startIDX = agent.reference.t.startidx;
-    % endIDX = agent.reference.t.endidx;
-    % timeidx = endIDX - startIDX + 1;
-
-    % for i = 1:te/dt
-    %     % if i < 20 || rem(i, 10) == 0 end
-    %     tic
-    %     agent(1).sensor.do(time, 'f');
-    %     agent(1).estimator.do(time, 'f');
-    % 
-    %     tmpvalue = agent.reference.est(:,i); % 読み込んだ時刻iの状態（初期値みたいな感じ）
-    %     agent(1).estimator.result.state.set_state(tmpvalue);
-    %     agent(1).plant.state.set_state(tmpvalue); % estimatorの書き換え
-    % 
-    %     agent(1).reference.do(time, 'f');
-    %     agent(1).controller.do(time, 'f');
-    %     agent(1).plant.do(time, 'f');
-    %     logger.logging(time, 'f', agent);
-    %     time.t = time.t + time.dt;
-    %     % disp(['N:', num2str(j), '___','t:', num2str(time.t)]);
-    %     %pause(1)
-    %     all = toc;
-    %     % 値の保存
-    %     data.plant(:,i) = agent(1).plant.state.get();
-    %     data.input(:,i) = agent(1).controller.result.input;
-    % end
-    % % logger.plot({1, "p", "er"}, {1, "q", "e"}, {1, "v", "er"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num",1,"row_col",[2 2]);
-    % % log = logger;
-    % save(strcat('Data\HLsim\HL_exp_1007_', num2str(j), '.mat'), 'data');
 end
 
-%%
-% ts = 0; % initial time
-% dt = 0.025; % sampling period
-% te = 20; % terminal time
-% time = TIME(ts,dt,te); % instance of time class
-% in_prog_func = @(app) in_prog(app); % in progress plot
-% post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
-% motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
-% logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-% initial_state.p = arranged_position([0, 0], 1, 1, 1);
-% initial_state.q = [1; 0; 0; 0];
-% initial_state.v = [0; 0; 0];
-% initial_state.w = [0; 0; 0];
-% 
-% agent = DRONE;
-% agent.parameter = DRONE_PARAM("DIATONE","row","mass",0.58);
-% agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
-% agent.parameter.set("mass",struct("mass",0.5))
-% agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-% agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
-% % agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-% % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
-% % agent.reference = MY_WAY_POINT_REFERENCE(agent,generate_spline_curve_ref(te,readmatrix("waypoint.xlsx",'Sheet','Sheet1_15'),5,1));%引数に指定しているシートを使うときは位置3を1にする
-% % agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},"HL"});
-% % agent.reference = MY_POINT_REFERENCE(agent,{struct("f",[1;0;1],"g",[-1.5;0;1],"h",[0;0;1],"j",[-1;0;1]),7});
-% 
-% % (te, reference保存したファイル名, スプライン補間の次元, ポイントを設定するか, 図を表示するか)
-% j = 'z';
-% % agent.reference = MY_WAY_POINT_REFERENCE(agent,generate_spline_curve_ref_koma2(te,"exp_ref.mat",5,1,0,j));
-% 
-% % reference_file = "Exp_2_4_108";
-% % agent.reference = MY_REFERENCE_KOMA2(agent,{reference_file,0,te});
-% 
-% agent.controller = HLC(agent,Controller_HL(dt)); % HL
-% % agent.controller = FUNCTIONAL_HLC(agent,Controller_FHL(dt)); %FHL
-% run("SimBase"); % simulation
-% % 
-%% 毎時刻実機データの状態からのHLを計算する
-% reference_file = strcat("Exp_2_4_", num2str(1));
-% load(strcat(reference_file, '.mat'));
-% startIDX = find(log.Data.phase == 102, 1, "first");
-% endIDX = find(log.Data.phase == 102, 1, "last");
-% timeidx = endIDX - startIDX + 1;
-% for i = 1:timeidx
-%     if i < 20 || rem(i, 10) == 0 end
-%     tic
-%     agent(1).sensor.do(time, 'f');
-%     agent(1).estimator.do(time, 'f'); % 毎回estimatorを実機データに書き換え
-% 
-%     tmpvalue = log.Data.agent.estimator.result{startIDX+i-1}.state.get();
-%     agent(1).estimator.result.state.set_state(tmpvalue);
-%     agent(1).plant.state.set_state(tmpvalue); % estimatorの書き換え
-% 
-%     agent(1).reference.do(time, 'f');
-%     agent(1).controller.do(time, 'f');
-%     agent(1).plant.do(time, 'f'); 
-%     logger.logging(time, 'f', agent);
-%     time.t = time.t + time.dt;
-%     %pause(1)
-%     all = toc;
-%     disp([num2str(time.t)])
-% end
-
-%% default
-% for i = 1:te/dt
-%     if i < 20 || rem(i, 10) == 0 end
-%     tic
-%     agent(1).sensor.do(time, 'f');
-%     agent(1).estimator.do(time, 'f');
-%     agent(1).reference.do(time, 'f');
-%     agent(1).controller.do(time, 'f');
-%     agent(1).plant.do(time, 'f');
-%     logger.logging(time, 'f', agent);
-%     time.t = time.t + time.dt;
-%     %pause(1)
-%     all = toc;
-%     disp([num2str(time.t)])
-% end
 
 %%
 set(0,'defaultAxesFontSize', 10);
@@ -276,32 +94,6 @@ logger.plot({1, "p", "er"}, {1, "input", ""},"xrange",[time.ts,time.t],"fig_num"
 % logger.save('HL_sim_test_1008_sigmoid');
 app.logger = logger;
 result_plot(app)
-% 
-% % 仮想入力の描画
-% imgu = cell2mat(arrayfun(@(N) logger.Data.agent.controller.result{N}.img_input, 1:te/dt, 'UniformOutput', false));
-% figure(10); plot([1:te/dt] .* dt, imgu); legend('z', 'x', 'y', 'yaw');
-%%
-% f(1) = figure(3); f(2) = figure(7);
-% savename1 = 'dataset_spline_z_pos.pdf';
-% savename2 = 'dataset_spline_z_3d.pdf';
-% exportgraphics(f(1), savename1, 'ContentType', 'vector', 'Resolution', 300);
-% exportgraphics(f(2), savename2, 'ContentType', 'vector', 'Resolution', 300);
-%%plot
-% function dfunc(app)
-% app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "e"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% % app.logger.plot({1, "p", "r"},"ax",app.UIAxes_2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
-
-% figure(100);
-% logt = app.logger.Data.t(1:find(app.logger.Data.t(2:end)==0, 1, 'first'));
-% plot(logt(1:end-1), diff(app.logger.Data.t(1:length(logt))), 'LineWidth', 1.5);
-% xlabel("Time [s]"); ylabel("Calculation time [s]");
-
-% animation
-% app.agent(1).animation(app.logger,"target",1,"opt_plot",[]); 
-% end
 
 function result_plot(app)
     app.fExp = 1;
