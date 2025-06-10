@@ -1,20 +1,14 @@
 classdef (StrictDefaults) drone_model < matlab.System
-  % untitled6 Add summary here
-  %
-  % NOTE: When renaming the class name untitled6, the file name
-  % and constructor name must be updated to use the class name.
-  %
-  % This template includes most, but not all, possible properties, attributes,
-  % and methods that you can implement for a System object in Simulink.
+  % drone_model
+  % 
 
   % Public, tunable properties
   properties (Access=private)
-    P
-    A
+    P % parameter
+    A % 
     B
-    parameter
-    controller
     dt
+    model
   end
 
   % Public, non-tunable properties
@@ -48,26 +42,24 @@ end
   methods (Access = protected)
     %% Common functions
     function setupImpl(obj,~)
-      %      disp(a);
+      % Constructor
       setting = coder.load("plant_setting.mat");
       obj.dt = setting.dt;
       obj.P = setting.parameter.values;
       % Perform one-time calculations, such as computing constants
       obj.initial_state = setting.x0;
       obj.state = obj.initial_state;
+      obj.model = str2func(setting.model_name);
     end
 
     function next_state = stepImpl(obj,u)
       % Implement algorithm. Calculate y as a function of input u and
       % internal or discrete states.
-      %obj.state = obj.A*obj.state(1:2,1) + obj.B*u(1);
-      %next_state = obj.state(1:2,1);
-      % %A = eye(2);
       arguments
         obj
         u (4,1) {mustBeNumeric}
       end
-      [~,X] = ode15s(@(t,x)euler_parameter_thrust_torque_physical_parameter_model(x,u,obj.P),[0,obj.dt],obj.state);
+      [~,X] = ode15s(@(t,x) obj.model(x,u,obj.P),[0,obj.dt],obj.state);
       obj.state = X(end,:)';
       next_state = obj.state;
     end

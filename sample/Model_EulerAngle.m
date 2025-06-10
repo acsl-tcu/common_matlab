@@ -12,15 +12,19 @@ end
 Model.id = id;
 Model.type = "EULER_ANGLE_MODEL";                 % model name
 Model.name = "euler";                            % print name
-Setting.dim = [12, 4, 17];
-Setting.method = get_model_name("RPY 12"); % model dynamicsの実体名
-Setting.state_list = ["p", "q", "v", "w"];
+Setting.dim = [13, 4, 17];
+Setting.method = get_model_name("Quat 13"); % model dynamicsの実体名
 Setting.initial = initial;                 % struct('p', [0; 0; 0], 'q', [0; 0; 0], 'v', [0; 0; 0], 'w', [0; 0; 0]);
-Setting.num_list = [3, 3, 3, 3];
 Setting.dt = dt;
-Model.parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4","rotor_r"];
-parameter = DRONE_PARAM("x");
-Setting.param = parameter.get(Model.parameter_name);
+Setting.state_name = "RIGIDBODY_STATE_CLASS";
+parameter_name = {"mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4","rotor_r"};
+parameter = DRONE_PARAM("x","row","mass",1);
+v = zeros(1,length(parameter_name));
+for i = 1:length(parameter_name)
+    v(i) = parameter.(parameter_name{i});
+end
+Setting.param = v;
 Model.param = Setting;
+Model.parameter_name = parameter_name;
 end
 

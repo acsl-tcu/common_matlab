@@ -1,4 +1,4 @@
-classdef MODEL_CLASS < dynamicprops & handle
+classdef MODEL_CLASS < handle
   % general model class
   % obj = MODEL_CLASS(name,param)
   %      name : 名前（obsolete）
@@ -40,19 +40,14 @@ classdef MODEL_CLASS < dynamicprops & handle
         args
       end
       obj.self = self;
-      if ~isempty(self.parameter)
-         obj.param = obj.self.parameter.get("all","row");%varargin{5}.parameter.get();
-      end
-      if isempty(regexp(args.type, "EXP", 'once'))
+      % if ~isempty(self.parameter)
+      %    obj.param = obj.self.parameter.get("all","row");%varargin{5}.parameter.get();
+      % end
         param = args.param;
-        name = args.name;
-        obj.state = STATE_CLASS(param);
+        state_name = str2func(param.state_name);
+        obj.state = state_name(param.initial);
 
-        if isfield(param, 'initial')
-          obj.set_state(param.initial);
-        end
-
-        obj.name = name;
+        obj.name = args.name;
         obj.dim = param.dim;
   
         if isstring(param.method)
@@ -63,7 +58,7 @@ classdef MODEL_CLASS < dynamicprops & handle
 
         obj.time_scale = 'continuous';
 
-        if contains(name, "iscrete")
+        if contains(obj.name, "iscrete")
           obj.time_scale = 'discrete';
         end
 
@@ -71,7 +66,7 @@ classdef MODEL_CLASS < dynamicprops & handle
 
         for j = 1:length(F)
 
-          if ~strcmp(F{j}, 'qlist') && ~strcmp(F{j}, 'initial') && ~strcmp(F{j}, 'state_list') && ~strcmp(F{j}, 'num_list') && ~strcmp(F{j}, 'method') && ~strcmp(F{j}, 'time_scale')
+          if  ~strcmp(F{j}, 'state_name') && ~strcmp(F{j}, 'initial') &&  ~strcmp(F{j}, 'method') && ~strcmp(F{j}, 'time_scale')
 
             if strcmp(F{j}, 'solver')
               obj.solver = str2func(param.solver);
@@ -82,9 +77,6 @@ classdef MODEL_CLASS < dynamicprops & handle
           end
 
         end
-
-      end
-
     end
 
     function [] = show_do_setting(obj)
@@ -105,7 +97,8 @@ classdef MODEL_CLASS < dynamicprops & handle
         result = [];
         return
       end
-      u = obj.self.controller.result.input;
+      % u = varargin{5}.controller.result.input;
+      u = varargin{4};
       if isempty(obj.param)
         obj.param = obj.self.parameter.get("all","row");%varargin{5}.parameter.get();
       end
@@ -126,37 +119,20 @@ classdef MODEL_CLASS < dynamicprops & handle
 
       % 状態更新
       if contains(obj.time_scale, 'discrete')
-        obj.set_state(obj.projection(obj.method(obj.state.get(), u, obj.param)));
+        obj.state.set(obj.method(obj.state.get(), u, obj.param));
       else
 
-        if isfield(obj.param, 'solver_option')
-          [~, tmpx] = obj.solver(@(t, x) obj.method(x, u, obj.param), [obj.ts obj.ts + obj.dt], obj.state.get(), opts.solver_option);
-        else
-          [~, tmpx] = obj.solver(@(t, x) obj.method(x, u, obj.param), [obj.ts obj.ts + obj.dt], obj.state.get());
-        end
-        obj.set_state(obj.projection(tmpx(end, :)'));
+        % if isfield(obj.param, 'solver_option')
+        %   [~, tmpx] = obj.solver(@(t, x) obj.method(x, u, obj.param), [obj.ts obj.ts + obj.dt], obj.state.get(), opts.solver_option);
+        % else
+        %   [~, tmpx] = obj.solver(@(t, x) obj.method(x, u, obj.param), [obj.ts obj.ts + obj.dt], obj.state.get());
+        % end
+        tmpx = obj.state.get()';
+        obj.state.set(tmpx(end, :)');
       end
 
-      obj.result = obj.state;
+      obj.result.state = obj.state;
       result = obj.result;
-    end
-
-    function [] = set_state(obj, varargin)
-        if length(varargin)>1
-            obj.state.set_state(varargin{:});
-        else
-            obj.state.set_state(varargin{1});
-        end
-    end
-
-    function state = get(obj, varargin)
-
-      if strcmp(varargin{1}, "state") % ④
-        state = obj.state;
-      else
-        state = obj.state.get(varargin{1});
-      end
-
     end
 
     function show(obj)

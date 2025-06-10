@@ -10,6 +10,7 @@ classdef CONTROLLER_SYSTEM < matlab.System
   end
 
   properties (Access = public)
+    result
      type
   end
   % Pre-computed constants or internal states
@@ -17,7 +18,6 @@ classdef CONTROLLER_SYSTEM < matlab.System
     param
     dt
     parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
-    result
   end
 methods
   function obj = CONTROLLER_SYSTEM(varargin)
@@ -30,7 +30,6 @@ end
     function setupImpl(obj,dt,cparam)
       obj.param = cparam;
       obj.dt = dt;
-      obj.type = cparam.type;
       obj.result.input = zeros(4,1);
     end
     function result = stepImpl(obj,x,xd)

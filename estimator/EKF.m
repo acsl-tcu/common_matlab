@@ -33,7 +33,9 @@ classdef EKF < handle
             else
                 obj.JacobianF=str2func(ELfile);
             end
-            obj.result.state= state_copy(obj.model.state);
+            gen_state=str2func(obj.model.state.name);
+            obj.result.state= gen_state();
+            obj.result.state.set(obj.model.state.get());
             obj.sensor = param.sensor_func; % output function handle : function of obj.self
             obj.sensor_param = param.sensor_param;
             obj.output_func = param.output_func;

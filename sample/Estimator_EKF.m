@@ -8,14 +8,14 @@ arguments
     agent
     dt
     model
-    output = ["p","q"]
+    output = {"p","q"}
     opts.B = []
     opts.P = []
     opts.Q = []
     opts.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3)]);
 end
 Estimator.model = model;
-p = length(model.state.get(output)); % number of output
+% p = length(model.state.get(output)); % number of output
 %dt = Estimator.model.dt;
 n = Estimator.model.dim(1);% 状態数
 % 出力方程式の拡張線形化行列(JacobianH)の生成
@@ -23,14 +23,11 @@ n = Estimator.model.dim(1);% 状態数
 if class(output)=="function_handle"
     Estimator.JacobianH = output;
 else
-    tmp=arrayfun(@(i) strcmp(Estimator.model.state.list,output(i)),1:length(output),'UniformOutput',false);
-    syms dummy1 dummy2
-    col = Estimator.model.state.num_list;
-    Estimator.JacobianH= matlabFunction(cell2mat(arrayfun(@(k) cell2mat(arrayfun(@(i,j) zeroone( col*tmp{k}',i,j),col,tmp{k},"UniformOutput",false)),1:length(output),"UniformOutput",false)'),"Vars",[dummy1,dummy2]);
+    Estimator.JacobianH= @(x) [x.p;x.q];
 end
 
-Estimator.sensor_param = ["p","q"]; % parameter for sensor_func
-Estimator.sensor_func = @(self,param) [self.sensor.result.state.get('p');self.sensor.result.state.getq('3')]; % function to get sensor value: sometimes some conversion will be done
+Estimator.sensor_param = {"p","q"}; % parameter for sensor_func
+Estimator.sensor_func = @(self,param) [self.sensor.result.state.p;self.sensor.result.state.getq(3)]; % function to get sensor value: sometimes some conversion will be done
 Estimator.output_func = @(state,param) param*state; % output function
 Estimator.output_param = Estimator.JacobianH(0,0); % parameter for output_func
 
@@ -47,96 +44,12 @@ else
 end
 Estimator.R = opts.R;
 if isempty(opts.B)
-    if Estimator.model.state.type == 3 % 姿勢がオイラー角の場合
-        %Estimator.B = [eye(6)*dt^2;eye(6)*dt]; % システムノイズが加わるチャンネル
-        Estimator.B = [eye(6)*0.01;eye(6)*0.1]; % システムノイズが加わるチャンネル
-    elseif  Estimator.model.state.type == 4 % 姿勢がオイラーパラメータの場合
-        Estimator.B = [eye(6)*dt^2;zeros(1,6);eye(6)*dt]; % システムノイズが加わるチャンネル
-    end
+    Estimator.B = [eye(6)*dt^2;eye(6)*dt]; % システムノイズが加わるチャンネル
 else
     Estimator.B = opts.B;
 end
 
 % modelによってEKFのパラメータを調整
-modelName = Estimator.model.name;
-switch modelName
-    case "load"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        %6288で飛んだ。7278でmass足したら飛ばない。EKFにも質量足すことで解決するかを確認する必要がある。ダメなら戻して小さく変更。
-        Estimator.Q = blkdiag(eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-1); % システムノイズ（Modelクラス由来）-2次回-6とか下げてみる
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)]);
-        Estimator.R = blkdiag(eye(3)*1e-10, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);%-8ここはあげたほうが良いかも観測ノイズ
-        % Estimator.Q = blkdiag(eye(3)*1E-3,eye(3)*1E-3,eye(3)*1E-3,eye(3)*1E-8); % システムノイズ（Modelクラス由来）
-        % % Estimator.Q = blkdiag(eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-5); % システムノイズ（Modelクラス由来）
-        % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[zeros(3,3);dt*eye(3)]);
-        disp(modelName)
-    case "Load_mL_HL"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
-        % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1E-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
-        % 観測の分散=0.001
-        % Estimator.Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,0);     % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        % Estimator.R = blkdiag(eye(3)*1e-3, eye(3)*1e-3,eye(3)*1e-3,eye(3)*1e-3);  %観測ノイズ
-        % 観測の分散=1e-8
-        % Estimator.Q = blkdiag(eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,0);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        % Estimator.R = blkdiag(eye(3)*1e-8, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);    %観測ノイズ
-        % % exp標準偏差=1e-6
-        % Estimator.Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1E-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
-        %offline推定
-        % Estimator.Q = blkdiag(eye(3)*0.5*1E2,eye(3)*0.5*1E2,eye(3)*0.5*1E2,eye(3)*0.5*1E2,0);   % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        % Estimator.R = blkdiag(eye(3)*1e-2, eye(3)*1e-2,eye(3)*1e-2,eye(3)*1e-2);                % 観測ノイズ
-        disp(modelName)
-    case "Load_mL_cableL_HL"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],0,0);% 単位の次元を状態に合わせる
-        % 観測の分散=1e-8
-        Estimator.Q = blkdiag(eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,0,0);     % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.R = blkdiag(eye(3)*1e-8, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);    %観測ノイズ
-        disp(modelName)
-    case "Load_mL_fdst_HL"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],0,0);% 単位の次元を状態に合わせる，
-        % 観測の分散=1e-8
-        Estimator.Q = blkdiag(eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,0,0);     % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.R = blkdiag(eye(3)*1e-8, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);    %観測ノイズ
-        disp(modelName)
-    case "Load_mL_dstxy_HL"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],0,0,0);% 単位の次元を状態に合わせる，
-        % 観測の分散=1e-8
-        % Estimator.Q = blkdiag(eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,0,0,0);   % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        % Estimator.R = blkdiag(eye(3)*1e-8, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);    %観測ノイズ
-        % % exp標準偏差=1e-6
-        Estimator.Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,0,0,0);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
-        disp(modelName)
-    case "Load_mL_dstxyz_HL"
-        Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],0,0,0,0);% 単位の次元を状態に合わせる，
-        % 観測の分散=1e-8
-        Estimator.Q = blkdiag(eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,eye(3)*1E0,0,0,0,0); % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-        Estimator.R = blkdiag(eye(3)*1e-8, eye(3)*1e-8,eye(3)*1e-8,eye(3)*1e-8);    %観測ノイズ
-        disp(modelName)
-    case "Expand"
-        % Estimator.Q = blkdiag(eye(3)*1E-3, eye(3)*1E-3,eye(2)*1E-3); % システムノイズ（Modelクラス由来）
-        % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],dt^2*eye(2));
-        % Estimator.Q = blkdiag(2*eye(3)*1E-3, 2*eye(3)*1E-3,eye(2)*1E-3); % システムノイズ（Modelクラス由来）
-        % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],dt*eye(2)*0);%拡大のノイズなしの場合で実験
-        Estimator.Q = blkdiag(2*eye(3)*1E-1, 2*eye(3)*1E-1,eye(2)*1E-1); % システムノイズ（Modelクラス由来）%controller change
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],dt*eye(2)*0);%拡大のノイズなしの場合で実験
-        % Estimator.Q = blkdiag(eye(3)*1E-3, eye(3)*1E-3); % システムノイズ（Modelクラス由来）
-        % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6);zeros(2,6)]);%拡大のノイズなしの場合で実験
-        disp(modelName)
-    case "cable_suspended_rigid_body"
-        N = length(Estimator.model.state.Oi)/3;
-        Estimator.Q = blkdiag(eye(3)*1E-3,eye(3)*1E-3,eye(3*N)*1E-3,eye(3*N)*1E-8); % システムノイズ（Modelクラス由来）
-        Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(6*N);dt*eye(6*N)]);
-        %Estimator.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3), 1e-8*ones(1,3*N), 1e-8*ones(1,3*N)]);
-        Estimator.R = 1e-5*eye(p);
-        disp(modelName)
-end
 Estimator.list=output;
 end
 

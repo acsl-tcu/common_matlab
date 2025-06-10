@@ -15,6 +15,7 @@ function q=R2q(R)
 %         su = (R-R')/(2*sin(th));
 %     end
 %     q = [cos(th/2);iSkew(su)*sin(th/2)];
+
 w = sqrt(R(1,1)+R(2,2)+R(3,3)+1)/2;
 xp = sqrt(R(1,1)-R(2,2)-R(3,3)+1)/2;
 yp = sqrt(-R(1,1)+R(2,2)-R(3,3)+1)/2;

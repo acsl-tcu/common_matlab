@@ -11,8 +11,12 @@ classdef HLC < handle
     function obj = HLC(self,param)
       obj.self = self;
       obj.param = param;
-      obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
+      P = zeros(1,length(obj.parameter_name));
+      for i = 1:length(obj.parameter_name)
+           P(i) = self.parameter.(obj.parameter_name(i));
+      end
+      obj.param.P = P;
+      obj.result.input = zeros(4,1);
     end
 
     function result = do(obj,varargin)

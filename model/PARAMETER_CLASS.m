@@ -1,4 +1,5 @@
-classdef (Abstract) PARAMETER_CLASS < matlab.mixin.SetGetExactNames& dynamicprops
+% classdef (Abstract) PARAMETER_CLASS < matlab.mixin.SetGetExactNames& dynamicprops
+classdef (Abstract) PARAMETER_CLASS < handle
     % Model parameter class
 
     properties
