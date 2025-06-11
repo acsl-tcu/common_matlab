@@ -94,8 +94,8 @@ methods
             z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
             % z_n=quaternions_all(ref.state.xd);%ノミナルの状態
             z_n=quaternions_all(xd);%ノミナルの状態
-            y_p=obj.param.C*z_p;
-            y_n=obj.param.C*z_n;
+            y_p=obj.param.est.C*z_p;
+            y_n=obj.param.est.C*z_n;
             
             D_zero=[1 1 1 0 0 0 0 0 0 0 0 0;%フィードバックゲイン4×12次元にしたい(5/27(火)に決めたテキトーゲイン)
                0 0 0 0 0 0 0 0 0 0 0 0;

@@ -33,14 +33,6 @@ Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);
 %% Koopman
     % modeファイルとファイル名をそろえる
    load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est'); %vzから算出したzで学習、総推力 木山データ(EACHINEで取得)
-  % load("20241110_iflight_randam100_z50_est.mat",'est') %vzから算出したzで学習、総推力 加藤データ(iFlightで取得(1回目))
-  % load("2025KatoGUI3ver.iFlight_Dataset_xyz100_z50_est.mat",'est') %vzから算出したzで学習、総推力 加藤データ(iFlightで取得(2回目:est修正後))
-  % load("2025ver.iFlight_Dataset_xyz200_z100_est.mat",'est') %vzから算出したzで学習、総推力 (木山データ＋加藤データ(1回目))
-  % load("2025ver2.iFlight_Dataset_xyz200_z100_est.mat",'est') %vzから算出したzで学習、総推力 (木山データ＋加藤データ(2回目))
-  % load("EstimationResult_2024-05-03_Exp_Kiyama_code03_2.mat", "est");
-  % load("EstimationResult_2024-06-10_Exp_Kiyama_code03_2.mat", "est");
-  % load("EstimationResult_2024-06-10_code02_Exp_Kiyama_code03_2.mat", "est"); 
-  % load("code03.mat", "est");
 
     %--------------------------------------------------------------------
     % 要チェック!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -48,20 +40,6 @@ Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);
     %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     %--------------------------------------------------------------------
     Controller.est = est;
-    Controller.A = est.A;
-    Controller.B = est.B;
-    Controller.C = est.C;
-    %観測量によってA,B,Cの次元が変わるため，Q,Rも柔軟に次元を変化できるようにする必要がある
-    % n=size(est.A,1);
-    % Q =eye(n);
-    %重み付け
-    % Q(1:4,1:4)     = 10;  % クォータニオン
-    % Q(5:7,5:7)     = 10;  % 位置
-    % Q(8:10,8:10)   = 5;   % 速度
-    % Q(11:13,11:13) = 1;   % 角速度
-    % Controller.Q = Q;
-    % Controller.R = diag([1, 10, 10, 10]); % 4×4
-
 
 syms sz1 [2 1] real
 syms sF1 [1 2] real
