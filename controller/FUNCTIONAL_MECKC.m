@@ -33,10 +33,7 @@ methods
 
         obj.self = self;
         obj.param = param;
-        param_classname = class(self.parameter);%クラス名を取得
-        drone_name = self.parameter.name;%名前取得
-        nominal_parameter = feval(param_classname,drone_name);%string型をクラス型として使いたい
-        obj.param.P = nominal_parameter.get(obj.parameter_name);
+        obj.param.P = self.parameter.get(obj.parameter_name);
         obj.result.input = zeros(self.estimator.model.dim(2),1);
 
         initial_state.p = self.plant.state.p;

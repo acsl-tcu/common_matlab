@@ -16,8 +16,6 @@ methods
         % obj.nominal=class(nominal_controller);
         obj.nominal=nominal_controller;
         obj.mec=mec_controller;
-        % obj.result.input = zeros(self.estimator.model.dim(2),1);
-        % obj.result.input = [0;0;0;0];
     end
 
     function result = do(obj,varargin)

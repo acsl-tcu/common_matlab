@@ -66,7 +66,7 @@ clear; close all; clc;
         agent.controller.do(time,'f');
         agent.input_transform.do(time,'f');
         agent.plant.do(time,'f');
-
+ 
      
         % agent.controller.mec.Pa_p_pre = Pa_estimator.state.p;    % 1. 現時刻のプラントの推定位置を「mecのコントローラ」内に格納
         % agent.plant.do(time, 'f');%  xn[k] % 2.状態更新
