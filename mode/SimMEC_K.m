@@ -27,7 +27,7 @@ clear; close all; clc;
     initial_state.q = [1; 0; 0; 0];
     initial_state.v = [0; 0; 0];
     initial_state.w = [0; 0; 0];
-
+    
     %----------------------------
     % agent(1) = ノミナルモデル → 通常のSimHLでの定義と同じ
     % agent(2) = プラントモデル → あえてモデル誤差を与えたモデル

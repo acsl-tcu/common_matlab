@@ -102,11 +102,11 @@ methods
                0 0 0 0 0 0 0 0 0 0 0 0;
                0 0 0 0 0 0 0 0 0 0 0 0];
 
-            D=D_zero+0.1*varargin{1}.t;%ゲイン半自動調整
+            D=D_zero+0.02*varargin{1}.t;%ゲイン半自動調整
             
             S=y_p-y_n;%スライディングモードの曲面　
     
-            % sat = min(1,max(-1,S/dh));
+            % sat = min(1,max(-1,S/dh));%-1<=S<=1
             sat = max(-1,S);%-1と比べて大きい方を返す
             sat=min(1,sat);%1と比べて小さい方を返す
             obj.delta_u = -D*sat;%Δu計算
