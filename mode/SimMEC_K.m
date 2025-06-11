@@ -48,10 +48,10 @@ clear; close all; clc;
     % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     
     % agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-    % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time));
+    % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
     % agent.cha_allocation.controller=["nominal","mec"];
 
-    agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time)));
+    agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)));
  
     Pa_estimator.state = initial_state;
     run("ExpBase");

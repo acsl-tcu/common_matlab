@@ -44,16 +44,6 @@ methods
         initial_state.v = self.plant.state.v;
         initial_state.w = self.plant.state.w;
 
-        % obj.motive = Connector_Natnet_sim(1, self.plant.dt, 0); % imitation of Motive camera (motion capture system)
-        % obj.agent = DRONE;
-        % obj.agent.plant = MODEL_CLASS(obj.agent,Model_Quat13(self.plant.dt, initial_state, 1));
-        % obj.agent.estimator = EKF(obj.agent, Estimator_EKF(obj.agent,self.plant.dt,MODEL_CLASS(obj.agent,Model_EulerAngle(self.plant.dt, initial_state, 1)),["p", "q"]));
-        % % obj.agent.parameter = DRONE_PARAM("DIATONE","mass",3.0);
-        % obj.agent.parameter = DRONE_PARAM("DIATONE");
-        % 
-        % obj.agent.sensor = MOTIVE(obj.agent, Sensor_Motive(1,0, obj.motive));
-        % obj.agent.controller.result.input = obj.result.input;
-
         obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
         obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル
         obj.delta_u_pre=0;%とりあえず0にした　5\21(水)
@@ -115,7 +105,7 @@ methods
                0 0 0 0 0 0 0 0 0 0 0 0;
                0 0 0 0 0 0 0 0 0 0 0 0];
 
-            D=D_zero+0.1*obj.param.time.t;%ゲイン半自動調整
+            D=D_zero+0.1*varargin{1}.t;%ゲイン半自動調整
             
             S=y_p-y_n;%スライディングモードの曲面　
     
