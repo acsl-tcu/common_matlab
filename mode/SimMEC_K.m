@@ -49,9 +49,9 @@ for j = 1:1
     agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
     % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     
-    agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-    agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time));
-    agent.cha_allocation.controller=["nominal","mec"];
+    % agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
+    % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time));
+    % agent.cha_allocation.controller=["nominal","mec"];
 
     agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(time)));
  
