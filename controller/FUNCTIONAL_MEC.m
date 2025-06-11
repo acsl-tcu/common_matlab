@@ -25,7 +25,7 @@ methods
         % obj.mec.do(obj.nominal.result.input);
         
         % obj.mec.do(varargin{1},varargin{2});
-        obj.mec.do(varargin{1},varargin{2},obj.nominal.xd,obj.nominal.x);%Δu計算にプラントとノミナルの状態必要
+        obj.mec.do(varargin{1},varargin{2});%Δu計算にプラントとノミナルの状態必要
         % obj.result = obj.mec.result.input;
         obj.result = obj.nominal.result.input + obj.mec.result.input;%nominalコントローラーの入力とmecコントローラーの入力の和
         result = obj.result;

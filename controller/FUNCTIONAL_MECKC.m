@@ -104,9 +104,9 @@ methods
 
 
 
-            z_p=quaternions_all(varargin{4}); %観測量z※プラントの状態を入れてる
+            z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
             % z_n=quaternions_all(ref.state.xd);%ノミナルの状態
-            z_n=quaternions_all(varargin{3});%ノミナルの状態
+            z_n=quaternions_all(xd);%ノミナルの状態
             y_p=obj.param.C*z_p;
             y_n=obj.param.C*z_n;
             
