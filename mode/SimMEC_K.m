@@ -12,7 +12,6 @@ userpath('clear');
 end
 %% 20回まとめてシミュレーションする
 clear; close all; clc;
-for j = 1:1
     % fprintf('Initializing... N:%d \n', j);
     clear data
     ts = 0; % initial time
@@ -43,8 +42,7 @@ for j = 1:1
     agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
     
     agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
-    num = j;
-    reference_file = strcat("Exp_2_4_", num2str(num));
+
     % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
     agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
     % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
@@ -89,7 +87,7 @@ for j = 1:1
     end
     
     save("Data\test","logger")
-end
+
 
 
 %%
