@@ -22,13 +22,13 @@ end
 
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 10; % terminal time
+te = 10000; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 in_prog_func = @(app) in_prog(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-initial_state.p = arranged_position([1, 1], 1, 1, 1); % [x, y], 1, 1, z
+initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 1, 1, z
 % initial_state.q = [1; 0; 0; 0];
 initial_state.q = [0; 0; 0];
 initial_state.v = [0; 0; 0];
@@ -40,8 +40,21 @@ initial_state.w = [0; 0; 0];
  % model_file = '2025-03-13_Exp_Kyo1_code00_saddle'; %%%%%%HL+00obs
  % model_file = '2025-03-27_Exp_Kyomo_code00_saddle';% p = p+v*dt
 % vars = mmat_to_mfile_all('2025-03-31_Exp_Kyomo_code00_saddle.mat');  % -> generates yourdata_data.m
+mmatflag = 0;
+filename = '2025-03-31_Exp_Kyomo_code00_saddle';
+matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
+mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
 
-model_file = '2025-03-31_Exp_Kyomo_code00_saddle.mat';
+if ~isempty(matfile_info)
+    mmatflag = 1;
+    model_file = fullfile(matfile_info(1).folder, matfile_info(1).name);
+elseif ~isempty(mfile_info)
+    mmatflag = 2;
+    model_file = fullfile(mfile_info(1).folder, mfile_info(1).name);
+    est = import_vars_from_mfile(model_file);
+else
+    disp('no files');
+end
 
 %model_file = '2025-02-12_Exp_Kato25_code00_saddle'; % kiyama+kato25 =
 % 300data
@@ -59,90 +72,163 @@ agent.estimator = DIRECT_ESTIMATOR(agent, struct("model",MODEL_CLASS(agent,Model
 if modeType; agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive)); % guiから回すとき
 else;         agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 end
-%agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0;0;0]},"HL"});
-agent.reference = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[1;1;1],time},"HL"});
-% agent.reference =LANDING_SIM_REFERENCE(agent,dt,0.1);
-agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
-run("SimBase");
+% %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0;0;0]},"HL"});
+% agent.reference = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[1;1;1],time},"HL"});
+% % agent.reference =LANDING_SIM_REFERENCE(agent,dt,0.1);
+% agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
+% run("SimBase");
 %%
-if ~modeType
-    phase = 'f';
-    for i = 1:te/dt
-        if i < 20 || rem(i, 10) == 0; end
-        tic
-        agent(1).sensor.do(time, phase);
-        agent(1).estimator.do(time, phase);
-        agent(1).reference.do(time, phase);
-        agent(1).controller.do(time, phase);
-        agent(1).plant.do(time, phase);
-        logger.logging(time, phase, agent);
-        time.t = time.t + time.dt;
-        %pause(1)
-        all = toc;
-        % disp([num2str(time.t)])
-        agent.controller.show;
-        if agent.estimator.result.state.p(3) < 0 || ...
-                any(abs(agent.estimator.result.state.p) > 4)
-            disp(";;;;;End 着陸 or 墜落;;;;;;;;");
-            break;
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
+
+%agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+
+%2つのコントローラの設定---------------------------------------------------------------------------------------------------
+agent.controller.hlc = HLC(agent,Controller_HL(dt));
+agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
+%agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
+agent.controller.result.input = [0;0;0;0];
+agent.controller.do = @controller_do;
+%------------------------------------------------------------------------------------------------------------------------
+
+run("SimBase");
+
+function result = controller_do(varargin)
+
+    controller = varargin{5}.controller;
+    if varargin{2} == 'a'
+        result = controller.kmpc.do(varargin{:});
+    elseif varargin{2} == 't'
+        result.hlc = controller.hlc.do(varargin{:});
+        %result.mpc = controller.mpc.do(varargin); % 空で回るだけ
+        result = result.hlc; % hlc:hlcでcontrol
+        disp('controller: MC,  phase: t');
+    elseif varargin{2} == 'f'
+        result = controller.kmpc.do(varargin{:});
+    elseif varargin{2} == 'l'
+        result = controller.hlc.do(varargin{:});
+        disp('controller: MC,  phase: l');
+   end
+    varargin{5}.controller.result = result;
+end
+
+agent.cha_allocation.reference = "timevarying";
+function post(app)
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+end
+function in_prog(app)
+app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
+end
+
+function est =import_vars_from_mfile(mfile)
+   
+    fid = fopen(mfile, 'r');
+    if fid == -1
+        error('Cannot open file: %s', mfile);
+    end
+
+    while ~feof(fid)
+        line = fgetl(fid);
+        if ischar(line) && ~isempty(strtrim(line)) && ~startsWith(strtrim(line), '%')
+            try
+                evalin('base', line); 
+            catch ME
+                warning('Skipped line: %s\nReason: %s\n', line, ME.message);
+            end
         end
     end
-    %% plot
-    close all
-    f = draw(logger, time, dt); pause(1);
-    if mov == 1
-        fprintf('Animation drawing starts\n');
-        tic;
-        gui.logger = logger;
-        P = Controller_MPC_KMC(dt, model_file, agent);
-        mojamoja(gui, P, 'xy')
-        dcal = toc;
-        fprintf('Animation drawing time : %f s \n', dcal);
+
+    fclose(fid);
+    fprintf('Imported variables from %s into workspace.\n', mfile);
+
+     try
+        est = evalin('base', 'est');
+    catch
+        error('Variable ''est'' was not defined in the file.');
     end
-    
 end
-
-
-function f = draw(logger, time, dt)
-    f(1) = figure(1);
-    m = 2; n=2;
-    %% データ取得
-    cost = cell2mat(arrayfun(@(N) logger.Data.agent.controller.result{N}.bestcost(1), 1:round(time.t/dt),'UniformOutput',false));
-    tt = logger.data(0,"t",[]);
-    pe = logger.data(1,"p","e")'; ve = logger.data(1,"v","e")';
-    pr = logger.data(1,"p","r")'; vr = logger.data(1,"v","r")';
-    qe = logger.data(1,"q","e")'; 
-    we = logger.data(1,"w","e")';
-    input = logger.data(1,"input",[])';
-
-    %% 平均値算出(input)
-    input_ave = mean(input,2);
-
-    %% 状態
-    subplot(m,n,1); 
-     plot(tt, pe, "-", tt, pr(1,:), "--x",'MarkerIndices',1:30:length(pr(1,:)));
-     hold on;
-     plot(tt, pr(2,:), "--s",'MarkerIndices',1:50:length(pr(1,:)));
-     plot(tt, pr(3,:), "--c*",'MarkerIndices',1:70:length(pr(1,:)));
-    xlabel('Time [s]', 'Fontsize', 15); ylabel('Position [m]', 'Fontsize', 15); legend('Xe', 'Ye', 'Ze', 'Xr', 'Yr', 'Zr', 'horizontal', 'best'); hold off;grid on;
-     subplot(m,n,3); 
-     plot(tt, ve, "-", tt, vr(1,:), "--x",'MarkerIndices',1:30:length(vr(1,:)));
-     hold on;
-     plot(tt, vr(2,:), "s",'MarkerIndices',1:50:length(vr(1,:)));
-     plot(tt, vr(3,:), "c*",'MarkerIndices',1:70:length(vr(1,:)));
-     xlabel('Time [s]', 'Fontsize', 15); ylabel('Velocity [m/s]', 'Fontsize', 15); legend('Vxe', 'Vye', 'Vze', 'Vxr', 'Vyr', 'Vzr', 'horizontal', 'best');grid on;
-    % subplot(m,n,1); plot(tt, pe, "-", tt, pr, "--"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Position [m]', 'Fontsize', 15); legend('Xe', 'Ye', 'Ze', 'Xr', 'Yr', 'Zr', 'horizontal', 'best');grid on;
-    % subplot(m,n,3); plot(tt, ve, "-", tt, vr, "--"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Velocity [m/s]', 'Fontsize', 15); legend('Vxe', 'Vye', 'Vze', 'Vxr', 'Vyr', 'Vzr', 'horizontal', 'best');grid on;
-    subplot(m,n,2); plot(tt, qe, "-"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Angle [rad]', 'Fontsize', 15); legend('$roll(\phi)$', '$pitch(\theta)$', '$yaw(\psi)$', 'Interpreter','latex');grid on;
-    subplot(m,n,4); plot(tt, we, "-"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Angular velocity [rad/s]', 'Fontsize', 15);legend('$\omega_\phi$', '$\omega_\theta$', '$\omega_\psi$', 'Interpreter','latex'); grid on;  
-    % %% 入力
-    % subplot(m,n,5); plot(tt, input(1,:), tt, repmat(input_ave(1),1,length(tt))); xlabel('Time [s]', 'Fontsize', 15); ylabel('Thrust [N]', 'Fontsize', 15); grid on;
-    % subplot(m,n,6); plot(tt, input(2:4,:), tt, repmat(input_ave(2:4),1,length(tt))); xlabel('Time [s]', 'Fontsize', 15); ylabel('Torque [N]', 'Fontsize', 15); grid on;
-    % %% 評価値
-    % subplot(m,n,7); plot(tt(1:length(cost)), cost); xlabel('Time [s]', 'Fontsize', 15); ylabel('Evaluation', 'Fontsize', 15); grid on;
-    % subplot(m,n,8); logger.plot({1,"controller.result.eflag",""});
-end
-    %% 
+% if ~modeType
+%     phase = 'f';
+%     for i = 1:te/dt
+%         if i < 20 || rem(i, 10) == 0; end
+%         tic
+%         agent(1).sensor.do(time, phase);
+%         agent(1).estimator.do(time, phase);
+%         agent(1).reference.do(time, phase);
+%         agent(1).controller.do(time, phase);
+%         agent(1).plant.do(time, phase);
+%         logger.logging(time, phase, agent);
+%         time.t = time.t + time.dt;
+%         %pause(1)
+%         all = toc;
+%         % disp([num2str(time.t)])
+%         agent.controller.show;
+%         if agent.estimator.result.state.p(3) < 0 || ...
+%                 any(abs(agent.estimator.result.state.p) > 4)
+%             disp(";;;;;End 着陸 or 墜落;;;;;;;;");
+%             break;
+%         end
+%     end
+%     %% plot
+%     close all
+%     f = draw(logger, time, dt); pause(1);
+%     if mov == 1
+%         fprintf('Animation drawing starts\n');
+%         tic;
+%         gui.logger = logger;
+%         P = Controller_MPC_KMC(dt, model_file, agent);
+%         mojamoja(gui, P, 'xy')
+%         dcal = toc;
+%         fprintf('Animation drawing time : %f s \n', dcal);
+%     end
+% 
+% end
+% 
+% 
+% function f = draw(logger, time, dt)
+%     f(1) = figure(1);
+%     m = 2; n=2;
+%     %% データ取得
+%     cost = cell2mat(arrayfun(@(N) logger.Data.agent.controller.result{N}.bestcost(1), 1:round(time.t/dt),'UniformOutput',false));
+%     tt = logger.data(0,"t",[]);
+%     pe = logger.data(1,"p","e")'; ve = logger.data(1,"v","e")';
+%     pr = logger.data(1,"p","r")'; vr = logger.data(1,"v","r")';
+%     qe = logger.data(1,"q","e")'; 
+%     we = logger.data(1,"w","e")';
+%     input = logger.data(1,"input",[])';
+% 
+%     %% 平均値算出(input)
+%     input_ave = mean(input,2);
+% 
+%     %% 状態
+%     subplot(m,n,1); 
+%      plot(tt, pe, "-", tt, pr(1,:), "--x",'MarkerIndices',1:30:length(pr(1,:)));
+%      hold on;
+%      plot(tt, pr(2,:), "--s",'MarkerIndices',1:50:length(pr(1,:)));
+%      plot(tt, pr(3,:), "--c*",'MarkerIndices',1:70:length(pr(1,:)));
+%     xlabel('Time [s]', 'Fontsize', 15); ylabel('Position [m]', 'Fontsize', 15); legend('Xe', 'Ye', 'Ze', 'Xr', 'Yr', 'Zr', 'horizontal', 'best'); hold off;grid on;
+%      subplot(m,n,3); 
+%      plot(tt, ve, "-", tt, vr(1,:), "--x",'MarkerIndices',1:30:length(vr(1,:)));
+%      hold on;
+%      plot(tt, vr(2,:), "s",'MarkerIndices',1:50:length(vr(1,:)));
+%      plot(tt, vr(3,:), "c*",'MarkerIndices',1:70:length(vr(1,:)));
+%      xlabel('Time [s]', 'Fontsize', 15); ylabel('Velocity [m/s]', 'Fontsize', 15); legend('Vxe', 'Vye', 'Vze', 'Vxr', 'Vyr', 'Vzr', 'horizontal', 'best');grid on;
+%     % subplot(m,n,1); plot(tt, pe, "-", tt, pr, "--"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Position [m]', 'Fontsize', 15); legend('Xe', 'Ye', 'Ze', 'Xr', 'Yr', 'Zr', 'horizontal', 'best');grid on;
+%     % subplot(m,n,3); plot(tt, ve, "-", tt, vr, "--"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Velocity [m/s]', 'Fontsize', 15); legend('Vxe', 'Vye', 'Vze', 'Vxr', 'Vyr', 'Vzr', 'horizontal', 'best');grid on;
+%     subplot(m,n,2); plot(tt, qe, "-"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Angle [rad]', 'Fontsize', 15); legend('$roll(\phi)$', '$pitch(\theta)$', '$yaw(\psi)$', 'Interpreter','latex');grid on;
+%     subplot(m,n,4); plot(tt, we, "-"); xlabel('Time [s]', 'Fontsize', 15); ylabel('Angular velocity [rad/s]', 'Fontsize', 15);legend('$\omega_\phi$', '$\omega_\theta$', '$\omega_\psi$', 'Interpreter','latex'); grid on;  
+%     % %% 入力
+%     % subplot(m,n,5); plot(tt, input(1,:), tt, repmat(input_ave(1),1,length(tt))); xlabel('Time [s]', 'Fontsize', 15); ylabel('Thrust [N]', 'Fontsize', 15); grid on;
+%     % subplot(m,n,6); plot(tt, input(2:4,:), tt, repmat(input_ave(2:4),1,length(tt))); xlabel('Time [s]', 'Fontsize', 15); ylabel('Torque [N]', 'Fontsize', 15); grid on;
+%     % %% 評価値
+%     % subplot(m,n,7); plot(tt(1:length(cost)), cost); xlabel('Time [s]', 'Fontsize', 15); ylabel('Evaluation', 'Fontsize', 15); grid on;
+%     % subplot(m,n,8); logger.plot({1,"controller.result.eflag",""});
+% end
+%     %% 
 
 %%
 % function dfunc(app)
@@ -173,3 +259,4 @@ end
 % fprintf('est: %f, %f, %f \n', est(1), est(2), est(3));
 % fprintf('ref: %f, %f, %f \n', ref(1), ref(2), ref(3));
 % end
+
