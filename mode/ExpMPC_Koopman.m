@@ -15,7 +15,21 @@ initial_state.p = sstate.p;
 initial_state.q = sstate.q;
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
+mmatflag = 0;
+filename = '2025-03-31_Exp_Kyomo_code00_saddle';
+matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
+mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
 
+if ~isempty(matfile_info)
+    mmatflag = 1;
+    model_file = fullfile(matfile_info(1).folder, matfile_info(1).name);
+elseif ~isempty(mfile_info)
+    mmatflag = 2;
+    model_file = fullfile(mfile_info(1).folder, mfile_info(1).name);
+    est = import_vars_from_mfile(model_file);
+else
+    disp('no files');
+end
 agent = DRONE;
 %agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1, 252])); %プロポ無線
 agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM11")); %プロポ有線
@@ -69,4 +83,33 @@ end
 
 function in_prog(app)
 app.Label_2.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
+end
+
+
+function est =import_vars_from_mfile(mfile)
+   
+    fid = fopen(mfile, 'r');
+    if fid == -1
+        error('Cannot open file: %s', mfile);
+    end
+
+    while ~feof(fid)
+        line = fgetl(fid);
+        if ischar(line) && ~isempty(strtrim(line)) && ~startsWith(strtrim(line), '%')
+            try
+                evalin('base', line); 
+            catch ME
+                warning('Skipped line: %s\nReason: %s\n', line, ME.message);
+            end
+        end
+    end
+
+    fclose(fid);
+    fprintf('Imported variables from %s into workspace.\n', mfile);
+
+     try
+        est = evalin('base', 'est');
+    catch
+        error('Variable ''est'' was not defined in the file.');
+    end
 end

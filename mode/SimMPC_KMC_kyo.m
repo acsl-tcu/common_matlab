@@ -22,13 +22,13 @@ end
 
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 10; % terminal time
+te = 10000; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 in_prog_func = @(app) in_prog(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-initial_state.p = arranged_position([1, 1], 1, 1, 1); % [x, y], 1, 1, z
+initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 1, 1, z
 % initial_state.q = [1; 0; 0; 0];
 initial_state.q = [0; 0; 0];
 initial_state.v = [0; 0; 0];
