@@ -17,7 +17,7 @@ userpath('clear');
 %%
 % each method's arguments : app.time,app.cha,app.logger,app.env,app.agent,i
 clc
-SimBaseMode = ["SimSuspendedLoad","SimVoronoi", "SimHL","Sim_MEC","SimPointMass", "SimVehicle","SimFHL", "SimFHL_Servo", "SimLiDAR", "SimFT", "SimEL", "SimMPC_Koopman"];
+SimBaseMode = ["SimSuspendedLoad","SimVoronoi", "SimHL","SimMEC_K","SimPointMass", "SimVehicle","SimFHL", "SimFHL_Servo", "SimLiDAR", "SimFT", "SimEL", "SimMPC_Koopman"];
 ExpBaseMode = ["ExpSuspendedLoad","ExpSuspendedLoadCoop","ExpTestMotiveConnection", "ExpHL", "ExpFHL", "ExpFHL_Servo", "ExpFT", "ExpEL", "ExpMPC_Koopman"];
 
 Setting.fDebug = 1; % 1: active : for debug function
