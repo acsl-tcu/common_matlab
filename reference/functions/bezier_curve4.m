@@ -26,9 +26,9 @@ P3 = [-0.55,-0.55,0] ;   %
 %if te.catchflag 
 %T_total = te.catchtime;
 %else
-T_total = te.te-te.t;  % total time 
+T_total = 5;  % total time 
 %end
-dt=te.dt;       % sample period
+dt=0.025;       % sample period
 N = round(T_total/dt);
 
 ref = zeros(N,4);

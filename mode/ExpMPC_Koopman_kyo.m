@@ -3,7 +3,7 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 10000; % termina time
 time = TIME(ts,dt,te);
-time2 = TIME(0,0.025,5);
+
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
@@ -51,7 +51,7 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
 % 
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time2},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
 
 %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
@@ -69,7 +69,7 @@ function result = controller_do(varargin)
 
     controller = varargin{5}.controller;
     if varargin{2} == 'a'
-        result = controller.hlc.do(varargin{:});
+        result = controller.kmpc.do(varargin{:});
     elseif varargin{2} == 't'
         result.hlc = controller.hlc.do(varargin{:});
         %result.mpc = controller.mpc.do(varargin); % 空で回るだけ

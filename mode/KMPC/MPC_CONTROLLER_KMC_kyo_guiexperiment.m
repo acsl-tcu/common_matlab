@@ -124,7 +124,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
 
             %% phaseによるcontrollerの選択
             if phase == 'a' % arming
-                obj.state.ref = repmat([0;0;1;0;0;0;0;0;0;0;0;0;obj.param.ref_input;0;0;0],1,obj.param.H);
+                obj.state.ref = repmat([obj.current_state.p(1:3);0;0;0;0;0;0;0;0;0;obj.param.ref_input;0;0;0],1,obj.param.H);
                 result = obj.controller_KMC(varargin);
                 disp('controller: MC,  phase: a');
 
