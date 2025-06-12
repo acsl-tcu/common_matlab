@@ -12,7 +12,7 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 25; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) dfunc(app); % in progress plot
+% in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 % motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
@@ -34,7 +34,7 @@ agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation.reference = "time_varying";
 agent.cha_allocation.t.reference = "takeoff";
-agent.cha_allocation.l.reference = "landing";
+agent.cha_allocation.l.reference = "landing";%cha_allocationにレファレンス登録
 % agent.cha_allocation = struct("reference",["time_varying"], ...
 %     "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));%この書き方だとcontrollerのこの行より上のcha_allocation消える
 
@@ -43,8 +43,9 @@ agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
 function dfunc(app)
-app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "q", "e"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""}, "xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p1-p2", "er"},"color", 0);
 end
