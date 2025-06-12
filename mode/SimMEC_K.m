@@ -47,7 +47,7 @@ clear; close all; clc;
     agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)));
  
     Pa_estimator.state = initial_state;
-    run("ExpBase");
+    % run("ExpBase");
 
     for i = 1:te/dt
     if i < 20 || rem(i, 10) == 0 end

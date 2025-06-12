@@ -13,6 +13,3 @@ for i = 1:length(agent)
       agent(i).cha_allocation = struct("t",struct("reference","takeoff"),"l",struct("reference","landing"));
   end
 end
-%% SimMEC_Kを動かすために無理やり付けた(mianGUI.mの形に合わせるとき修正必須：工藤6/3(火))
-% takeoff_ref = TAKEOFF_REFERENCE(agent,[]);
-% landing_ref = LANDING_REFERENCE(agent,dt,0.1);
