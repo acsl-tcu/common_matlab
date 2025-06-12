@@ -46,8 +46,11 @@ ts = 0; % initial time
     % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
     % agent.cha_allocation.controller=["nominal","mec"];
 
-    agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)));
- 
+    % agent.controller=FUNCTIONAL_MEC(FUNCTIONAL_HLC(agent,Controller_FHL(dt)),FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)));
+    agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));%mainGUIに合わせるならこの3行必要
+    agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
+    agent.cha_allocation.controller=["nominal","mec"];
+
     Pa_estimator.state = initial_state;
     % run("ExpBase");
 % agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
