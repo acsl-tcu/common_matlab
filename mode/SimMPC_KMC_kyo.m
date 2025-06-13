@@ -1,36 +1,24 @@
-
-clear; close all; clc;%% GUI or Sim
-if exist('app') == 1
-    modeType = 1;
-else
-
-    %% Initialize
-    tmp = matlab.desktop.editor.getActive;
-    dir = fileparts(tmp.Filename);
-    if ~contains(path,dir)
-        cd(erase(dir,'\mode'));
-    [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
-    cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
-    close all hidden; clear ; clc;
-    userpath('clear');
-    end
-    clear;
-    modeType = 0;
-    mov = 0;
-end
-%%
+% tmp = matlab.desktop.editor.getActive;
+% dir = fileparts(tmp.Filename);
+% if ~contains(path,dir)
+%     cd(erase(dir,'\mode'));
+% [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+% cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+% close all hidden; clear ; clc;
+% userpath('clear');
+% end
 
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 10000; % terminal time
+te = 25; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) in_prog(app); % in progress plot
+%in_prog_func = @(app) in_prog(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 1, 1, z
-% initial_state.q = [1; 0; 0; 0];
-initial_state.q = [0; 0; 0];
+initial_state.q = [1; 0; 0; 0];
+%initial_state.q = [0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
@@ -66,62 +54,58 @@ end
 agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 agent.parameter = DRONE_PARAM("DIATONE");
-% agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-agent.estimator = DIRECT_ESTIMATOR(agent, struct("model",MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1))));
+agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
+%agent.estimator = DIRECT_ESTIMATOR(agent, struct("model",MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1))));
+agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 
-if modeType; agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive)); % guiから回すとき
-else;         agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
-end
 % %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0;0;0]},"HL"});
 % agent.reference = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[1;1;1],time},"HL"});
 % % agent.reference =LANDING_SIM_REFERENCE(agent,dt,0.1);
 % agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 % run("SimBase");
 %%
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
 
 %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
-agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
-%agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
+ agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
+% %agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 agent.controller.result.input = [0;0;0;0];
-agent.controller.do = @controller_do;
-%------------------------------------------------------------------------------------------------------------------------
+% agent.controller.do = @controller_do;
+% %------------------------------------------------------------------------------------------------------------------------
+agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+agent.cha_allocation = struct("reference",["time_varying"], ...
+    "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));
+motive.getData(agent);
 
-run("SimBase");
+% function result = controller_do(varargin)
+% 
+%     controller = varargin{5}.controller;
+%     if varargin{2} == 'a'
+%         result = controller.hlc.do(varargin{:});
+%     elseif varargin{2} == 't'
+%         result.hlc = controller.hlc.do(varargin{:});
+%         %result.mpc = controller.mpc.do(varargin); % 空で回るだけ
+%         result = result.hlc; % hlc:hlcでcontrol
+%         disp('controller: MC,  phase: t');
+%     elseif varargin{2} == 'f'
+%         result = controller.kmpc.do(varargin{:});
+%     elseif varargin{2} == 'l'
+%         result = controller.hlc.do(varargin{:});
+%         disp('controller: MC,  phase: l');
+%    end
+%     varargin{5}.controller.result = result;
+% end
 
-function result = controller_do(varargin)
 
-    controller = varargin{5}.controller;
-    if varargin{2} == 'a'
-        result = controller.kmpc.do(varargin{:});
-    elseif varargin{2} == 't'
-        result.hlc = controller.hlc.do(varargin{:});
-        %result.mpc = controller.mpc.do(varargin); % 空で回るだけ
-        result = result.hlc; % hlc:hlcでcontrol
-        disp('controller: MC,  phase: t');
-    elseif varargin{2} == 'f'
-        result = controller.kmpc.do(varargin{:});
-    elseif varargin{2} == 'l'
-        result = controller.hlc.do(varargin{:});
-        disp('controller: MC,  phase: l');
-   end
-    varargin{5}.controller.result = result;
-end
-
-agent.cha_allocation.reference = "timevarying";
-function post(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
-end
-function in_prog(app)
-app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
+function dfunc(app)
+app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end
 
 function est =import_vars_from_mfile(mfile)

@@ -36,9 +36,7 @@ run("ExpBase");
 %aからMPC回すバージョン--------------------------------------
 function result = controller_do(varargin)
     controller = varargin{5}.controller;
-    if varargin{2} == 'a'
-        result = controller.mpc.do(varargin);
-    elseif varargin{2} == 't'
+    if varargin{2} == 't'
         result.hlc = controller.hlc.do(varargin);
         result.mpc = controller.mpc.do(varargin);
         result = result.hlc;

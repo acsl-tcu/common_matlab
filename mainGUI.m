@@ -20,7 +20,7 @@ clc
 SimBaseMode = ["SimSuspendedLoad","SimVoronoi", "SimHL","SimPointMass", "SimVehicle", "SimSuspendedLoad", "SimFHL", "SimFHL_Servo", "SimLiDAR", "SimFT", "SimEL", "SimMPC_KMC_kyo"];
 ExpBaseMode = ["ExpSuspendedLoad","ExpSuspendedLoadCoop","ExpTestMotiveConnection", "ExpHL", "ExpFHL", "ExpFHL_Servo", "ExpFT", "ExpEL", "ExpMPC_Koopman_kyo"];
 
-Setting.fDebug = 0; % 1: active : for debug function
+Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 Setting.mode = SimBaseMode(12);
 % Setting.mode = ExpBaseMode(9);

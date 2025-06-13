@@ -3,10 +3,10 @@ function ref = bezier_curve4(X0,te)
 syms t real
 
 P0 = X0;
-P4 = [-0.6,-0.6,0];
-P1 = [-0.25,-0.25,0.3] ;   % 
-P2 = [-0.45,-0.45,0.2] ;   % 
-P3 = [-0.55,-0.55,0] ;   % 
+P4 = [0.6,0.6,0];
+P1 = [0.25,0.25,0.3] ;   % 
+P2 = [0.45,0.45,0.2] ;   % 
+P3 = [0.55,0.55,0.1] ;   % 
 % P2 = X0 * 0.2;    % 
 % P3 = X0 * 0.1;    % 
 % P4 = [0, 0, 0];
@@ -44,8 +44,7 @@ ref = zeros(N,4);
 %     t = 0.8 + 0.2 * (t - 8) / 2; %time function for p3
 % end
 
-tt = t-te.t;
-tau=tt/T_total;
+tau = min(max((t - te.ts) / T_total, 0), 1); 
 % bezier_curve4
 % reftemp= ((1 - tau)^4 * P0 + 4 * (1 - tau)^3 * tau * P1 + 6 * (1 - tau)^2 * tau^2 * P2 + 4 * (1 - tau) * tau^3 * P3 + tau^4 * P4)';
 % 
