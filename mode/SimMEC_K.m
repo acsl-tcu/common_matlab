@@ -41,14 +41,14 @@ agent.cha_allocation.l.reference = "landing";%cha_allocationにレファレン�
 agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
 agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
-    
+
 function dfunc(app)
 app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",1,"row_col",[1 2]);
 app.logger.plot({1, "q", "e"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te],"fig_num",2);
 app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te],"fig_num",3);
 app.logger.plot({1, "input1", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",4);
 app.logger.plot({1, "input2:4", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",5);
-app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",6);
+% app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",6);
 % app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",7);
 
 % un = app.agent.controller.nominal.result;%ΔuとuHLほしかった6/13(金)

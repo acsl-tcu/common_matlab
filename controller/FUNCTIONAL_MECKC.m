@@ -109,15 +109,15 @@ methods
             % sat = min(1,max(-1,S/dh));%-1<=S<=1
             sat = max(-1,S);%-1と比べて大きい方を返す
             sat=min(1,sat);%1と比べて小さい方を返す
-            % obj.delta_u = -D*sat;%Δu計算
+            obj.delta_u = -D*sat;%Δu計算
 
-            obj.delta_u = [5;0;0;0];
+            % obj.delta_u = [5;0;0;0];
             
             % disp(obj.delta_u);%Δuの値確認用
             % obj.result.input = varargin{5} + obj.delta_u; % 最終的な制御入力
             obj.result.input = obj.delta_u; % Δu
             obj.result.delta_u_pre = obj.delta_u; % 前時刻のΔu更新
-        
+            result=obj.result;
     end
 
     function show(obj)
