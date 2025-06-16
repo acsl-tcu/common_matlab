@@ -110,13 +110,13 @@ methods
             sat = max(-1,S);%-1と比べて大きい方を返す
             sat=min(1,sat);%1と比べて小さい方を返す
             obj.result.delta_u = -D*sat;%Δu計算
-
+            obj.result.delta_u = 0;%unだけ確認したいとき
             % obj.delta_u = [5;0;0;0];
-            
             % disp(obj.delta_u);%Δuの値確認用
-            % obj.result.input = varargin{5} + obj.delta_u; % 最終的な制御入力
-            obj.result.input = obj.result.delta_u; % Δu
-            obj.result.delta_u_pre = obj.delta_u; % 前時刻のΔu更新
+
+            obj.result.delta_u_pre = obj.result.delta_u; % 前時刻のΔu更新
+            
+            obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu
             result=obj.result;
     end
 
