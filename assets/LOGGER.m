@@ -466,7 +466,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         option.yrange = [];
         option.zrange = [];
       end
-
+      
       ranget = option.time; % time range
       fig_num = option.fig_num; % figure number
       frow = option.row_col(1); % subfigure row number
