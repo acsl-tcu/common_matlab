@@ -29,7 +29,7 @@ syms t real
 
 ref=@(t) [x_0 + r*sin(2*pi*t/T); % x
 y_0 + r*cos(2*pi*t/T); % y
-2; % z
+1; % z
 0];%
 
 % ref=@(t) [0;0;0;0];%
