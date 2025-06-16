@@ -9,7 +9,7 @@ post_func = @(app) post(app);
  % logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);%今までのやつ
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.1.4'); % connect to Motive
+motive = Connector_Natnet('192.168.100.4'); % connect to Motive
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load  = motive.result.rigid(2);
@@ -56,8 +56,10 @@ agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agen
 run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";
 agent(1).cha_allocation.estimator = "ekf";
-agent(1).cha_allocation.f.reference = "timevarying";
+agent(1).cha_allocation.t.reference = "takeoff";
 agent(1).cha_allocation.a.reference = "dummy";
+agent(1).cha_allocation.f.reference = "timevarying";
+agent(1).cha_allocation.l.reference = "landing";
 %%
 % clc
 % for i = 1:time.te
