@@ -22,12 +22,8 @@ ExpBaseMode = ["ExpSuspendedLoad","ExpSuspendedLoadCoop","ExpTestMotiveConnectio
 
 Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
-<<<<<<< Updated upstream
-Setting.mode = SimBaseMode(1);
-=======
 % Setting.mode = SimBaseMode(3);
 Setting.mode = ExpBaseMode(4);
->>>>>>> Stashed changes
 if contains(Setting.mode,"Exp")
     Setting.fExp = 1;
 else

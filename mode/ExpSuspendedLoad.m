@@ -28,7 +28,7 @@ initial_state.wL = [0; 0; 0];
 %=============================================================================================
 
 agent = DRONE;
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM7"));%有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM6"));%有線プロポ
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("cableL",0.99);%0.992,0.647,p0.613,0.460
 agent.parameter.set("loadmass",0.05);%0.0968);%0.968
@@ -48,7 +48,7 @@ state = [p;q;pL;pT];
 end
 agent.estimator.model = agent.estimator.ekf.model;
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.1],"size",[1,1,0.2*0]*1},"HL"});
 dummy_state = state_copy(agent.reference.timevarying.result.state);
 
 agent.reference.dummy = struct("do",@(varargin) varargin{5}.reference.dummy.result, "result",struct("state",dummy_state));
@@ -56,9 +56,9 @@ agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agen
 run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";
 agent(1).cha_allocation.estimator = "ekf";
-agent(1).cha_allocation.t.reference = "takeoff";
 agent(1).cha_allocation.a.reference = "dummy";
-agent(1).cha_allocation.f.reference = "timevarying";
+agent(1).cha_allocation.t.reference = "takeoff";
+agent(1).cha_allocation.reference = "timevarying";
 agent(1).cha_allocation.l.reference = "landing";
 %%
 % clc
@@ -90,15 +90,15 @@ agent(1).cha_allocation.l.reference = "landing";
 % end
 
 function post(app)
-app.logger.plot({1, "controller.result.xd1:3", ""},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "controller.result.xd1:3", ""},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "controller.result.x8:10", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "estimator.result.state.mL", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "estimator.result.state.pL", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "p", "ser"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "estimator.result.state.mL", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "estimator.result.state.pL", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % %%
 % app.logger.plot({1, "p", "ser"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
