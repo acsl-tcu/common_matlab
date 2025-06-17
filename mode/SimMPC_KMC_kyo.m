@@ -75,17 +75,24 @@ agent.controller.hlc = HLC(agent,Controller_HL(dt));
 agent.controller.result.input = [0;0;0;0];
 % agent.controller.do = @controller_do;
 % %------------------------------------------------------------------------------------------------------------------------
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
- agent.reference.arming = ARMING_REFERENCE(agent,[]);
- agent.cha_allocation.a.reference = "arming";
-agent.cha_allocation.f.reference = "bezier";
-agent.cha_allocation.t.reference = "takeoff";
-agent.cha_allocation.l.reference = "landing";
- agent.cha_allocation.a.controller = "hlc";
-agent.cha_allocation.f.controller =  "kmpc";
-agent.cha_allocation.t.controller = "hlc";
-agent.cha_allocation.l.controller = "hlc";
+% agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+% agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+% agent.reference.arming = ARMING_REFERENCE(agent,[]);
+run("ExpBase");
+agent.cha_allocation.reference = "bezier";
+% agent.cha_allocation.a.reference = "arming";
+% agent.cha_allocation.f.reference = "bezier";
+% agent.cha_allocation.t.reference = "takeoff";
+% agent.cha_allocation.l.reference = "landing";
+
+agent.cha_allocation.controller = "hlc";
+agent.cha_allocation.f.controller = "kmpc";
+
+% agent.cha_allocation.a.controller = "hlc";
+% agent.cha_allocation.controller =  "kmpc";
+% % >>>>>>> Stashed changes
+% agent.cha_allocation.t.controller = "hlc";
+% agent.cha_allocation.l.controller = "hlc";
 % = struct("reference",["time_varying"], ...
 %     "t",struct("reference",["takeoff"]),"l"
 % 
