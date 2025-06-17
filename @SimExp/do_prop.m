@@ -12,8 +12,8 @@ else
             res = agent.(prop).do(app.time,fCha,app.logger,app.env,app.agent,i);
         else
             res = agent.(prop).(list(1)).do(app.time,fCha,app.logger,app.env,app.agent,i);
-            for i = 2:length(list)
-                res = merge_result(res,agent.(prop).(list(i)).do(app.time,fCha,app.logger,app.env,app.agent,i));
+            for j = 2:length(list)
+                res = merge_result(res,agent.(prop).(list(j)).do(app.time,fCha,app.logger,app.env,app.agent,i));
             end
         end
         agent.(prop).result = res;
