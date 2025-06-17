@@ -5,7 +5,7 @@ classdef TAKEOFF_REFERENCE < handle
     base_time
     base_state
     ts
-    te = 5;
+    te = 5; % 目標高度に到達するまでの時間
     zd = 1; % goal altitude
     result
     th_offset = [];
@@ -19,31 +19,25 @@ classdef TAKEOFF_REFERENCE < handle
       obj.self = self;
       obj.result.state = STATE_CLASS(struct('state_list',["xd","p","v"],'num_list',[20,3,3]));
     end
-    function  result= do(obj,varargin)
+    function  result= do(obj,varargin)      
       % [Input] time,cha,logger,env
-      % if isempty( obj.base_state ) % first take
-      %   fInit = true;
-      %   obj.base_time=varargin{1}.t;
-      %   obj.k =varargin{1}.k;
-      %   obj.base_state = obj.self.estimator.result.state.p;
-      %   obj.result.state.xd = [obj.base_state;zeros(17,1)];
-      %   if isfield(obj.self.input_transform,"param")
-      %       obj.th_offset = obj.self.input_transform.param.th_offset;
-      %   end
-      % end
-      if obj.fInit < 2 || isempty( obj.base_state )
+      if (obj.fInit < 2 || isempty( obj.base_state )) 
           obj.base_time=varargin{1}.t;
           obj.base_state = obj.self.estimator.result.state.p; % x,y : current position, z : reference using at flight phase
           obj.result.state.xd = [obj.base_state;zeros(17,1)];
           if isprop(obj.self.input_transform,"param")
               obj.th_offset = obj.self.input_transform.param.th_offset;
           end
-          obj.fInit = obj.fInit + 1;
+          if varargin{2} == 't'
+            obj.fInit = obj.fInit + 1;
+          end
       end
       obj.result.state.xd = obj.gen_ref_for_take_off(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);
       obj.result.state.v = obj.result.state.xd(5:7,1);
-      obj.self.input_transform.param.th_offset = obj.th_offset0 + (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
+      if obj.fInit >= 2 % 地面効果対策で obj.te の時間で obj.th_offset0 -> obj.th_offset に変化させる。
+        obj.self.input_transform.param.th_offset = obj.th_offset0 + (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
+      end
       result = obj.result;
     end
     function Xd = gen_ref_for_take_off(obj,t)

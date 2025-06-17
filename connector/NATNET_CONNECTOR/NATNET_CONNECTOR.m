@@ -32,6 +32,7 @@ classdef NATNET_CONNECTOR < handle
             obj.NatnetClient.ConnectionType = 'Multicast';
             obj.NatnetClient.connect;
             if obj.NatnetClient.IsConnected == 0
+                disp(info)
                 error( 'ACSL : Please check whether it is connected to the net. Is the IP address correctly specified?' )
             end            
             ModelDescription = obj.NatnetClient.getModelDescription;
