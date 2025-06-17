@@ -123,7 +123,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.state.current = obj.param.F([obj.current_state; obj.input.pre_u(:,1,1)]);
 
             %% phaseによるcontrollerの選択
-           if phase == 'f' % flight
+          
                 if ~isfield(obj.param, 'ts')
                     obj.param.ts= time.t;
                 end
@@ -137,7 +137,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 end
                 result = obj.controller_KMC(varargin);
                 disp('controller: MC,  phase: f');
-            end
+           
              refA = obj.self.reference.result;
              disp(refA.state.p);
 

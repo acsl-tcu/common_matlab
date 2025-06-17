@@ -51,40 +51,28 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
 % 
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
+agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
 %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
-agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
-%agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
+ agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
+% %agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 agent.controller.result.input = [0;0;0;0];
-agent.controller.do = @controller_do;
-%------------------------------------------------------------------------------------------------------------------------
-
-run("ExpBase");
-
-function result = controller_do(varargin)
-
-    controller = varargin{5}.controller;
-    if varargin{2} == 'a'
-        result = controller.kmpc.do(varargin{:});
-    elseif varargin{2} == 't'
-        result.hlc = controller.hlc.do(varargin{:});
-        %result.mpc = controller.mpc.do(varargin); % 空で回るだけ
-        result = result.hlc; % hlc:hlcでcontrol
-        disp('controller: MC,  phase: t');
-    elseif varargin{2} == 'f'
-        result = controller.kmpc.do(varargin{:});
-    elseif varargin{2} == 'l'
-        result = controller.hlc.do(varargin{:});
-        disp('controller: MC,  phase: l');
-   end
-    varargin{5}.controller.result = result;
-end
-
-agent.cha_allocation.reference = "timevarying";
+% agent.controller.do = @controller_do;
+% %------------------------------------------------------------------------------------------------------------------------
+agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+agent.reference.arming = ARMING_REFERENCE(agent,[]);
+agent.cha_allocation.a.reference = "arming";
+agent.cha_allocation.f.reference = "bezier";
+agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.l.reference = "landing";
+agent.cha_allocation.a.controller = "hlc";
+agent.cha_allocation.f.controller =  "kmpc";
+agent.cha_allocation.t.controller = "hlc";
+agent.cha_allocation.l.controller = "hlc";
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
@@ -93,9 +81,7 @@ app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 end
-function in_prog(app)
-app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
-end
+
 
 function est =import_vars_from_mfile(mfile)
    
