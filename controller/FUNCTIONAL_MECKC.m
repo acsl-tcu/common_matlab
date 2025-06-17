@@ -91,7 +91,7 @@ methods
         z_n=quaternions_all(xd);%ノミナルの状態
         y_p=obj.param.est.C*z_p;
         y_n=obj.param.est.C*z_n;
-        
+        eig(obj.param.est.A);%クープマンモデルの安定性：離散時間システムなので固有値の絶対値が1以下なら安定
         D_zero=[1 1 1 0 0 0 0 0 0 0 0 0;%フィードバックゲイン4×12次元にしたい(5/27(火)に決めたテキトーゲイン)
                0 0 0 0 0 0 0 0 0 0 0 0;
                0 0 0 0 0 0 0 0 0 0 0 0;
