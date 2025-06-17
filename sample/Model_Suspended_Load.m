@@ -26,7 +26,7 @@ Setting.param           = agent.parameter.get;                      % モデル�
 
 % EKFで使うモデルがplantと異なる場合の設定isEstLoadMassの値とmodelnameによって変更
 if ~isempty(modelName) 
-      % modelName = "Load_mL_HL";
+       modelName = "Load_mL_HL";
       % modelName = "Load_mL_cableL_HL";
       % modelName = "Load_mL_fdst_HL";
       % modelName = "Load_mL_dstxy_HL";
