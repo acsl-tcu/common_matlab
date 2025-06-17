@@ -46,13 +46,13 @@ methods
             obj.self.estimator.model.do(varargin{:}); % one step prediction using current input
             whn = obj.self.estimator.model.state.w; % predicted state
             obj.self.estimator.model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
-            if cha == 'f'
+            % if cha == 'f'
                 gain = obj.param.gain;
                 th_offset = obj.param.th_offset;
-            else
-                gain = obj.param.gain_tl;
-                th_offset = obj.param.th_offset_tl;
-            end
+            % else
+            %     gain = obj.param.gain_tl;
+            %     th_offset = obj.param.th_offset_tl;
+            % end
             T_thr = input(1); % thrust, torque input 
 
             uroll = gain(1) * (whn(1) - wh(1));

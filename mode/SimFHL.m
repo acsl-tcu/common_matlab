@@ -4,7 +4,7 @@ te = 25; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 initial_state.p = arranged_position([0, 0], 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
@@ -20,7 +20,7 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
+agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
 agent.controller = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
 run("ExpBase");
 function dfunc(app)
