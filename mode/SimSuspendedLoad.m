@@ -115,10 +115,11 @@ agent(1).cha_allocation.sensor = ["motive","direct"];
 agent(1).cha_allocation.estimator = "ekf";
 % agent(1).cha_allocation.reference = "timevarying";
 agent(1).cha_allocation.f.reference = "timevarying";
-agent(1).cha_allocation.a.reference = "dummy";
+agent(1).cha_allocation.a.reference = "takeoff";
 
 agent(2).cha_allocation.sensor = "motive";
 agent(2).cha_allocation.l = [];
+agent(2).cha_allocation.a = [];
 agent(2).cha_allocation.t = [];
 
 %%
