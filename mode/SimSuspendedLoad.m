@@ -152,6 +152,26 @@ app.logger.plot({1, "p", "re"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te
 % figure();
 % app.logger.plot({1, "estimator.result.state.vL", ""},"ax",gca,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+
+%%以下他figureで表示させるもの
+figuure();
+ax1=subplot(2,3,1);
+app.logger.plot({1, "p", "er"},"ax",ax1,"xrange",[app.time.ts,app.time.te]);
+figuure();
+ax2=subplot(2,3,2);
+app.logger.plot({1, "q", "e"},"ax",ax2,"xrange",[app.time.ts,app.time.te]);
+figuure();
+ax3=subplot(2,3,3);
+app.logger.plot({1, "v", "e"},"ax",ax3,"xrange",[app.time.ts,app.time.te]);
+figuure();
+ax4=subplot(2,3,4);
+app.logger.plot({1, "p1-p2", "pre"},"ax",ax4,"xrange",[app.time.ts,app.time.te]);
+figuure();
+ax5=subplot(2,3,5);
+app.logger.plot({1, "q", "s"},"ax",ax5,"xrange",[app.time.ts,app.time.te]);
+figuure();
+ax6=subplot(2,3,6);
+app.logger.plot({1, "input", ""},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
 end
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
