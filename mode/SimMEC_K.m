@@ -33,6 +33,7 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation.reference = "time_varying";
+agent.cha_allocation.a.reference = "takeoff";
 agent.cha_allocation.t.reference = "takeoff";
 agent.cha_allocation.l.reference = "landing";%cha_allocationにレファレンス登録
 % agent.cha_allocation = struct("reference",["time_varying"], ...
