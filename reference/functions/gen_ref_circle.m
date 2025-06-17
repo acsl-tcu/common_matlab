@@ -8,6 +8,7 @@ arguments
 end
 x_0=param.init(1);
 y_0=param.init(2);
+z_0=param.init(3);
 T = param.freq;
 r=param.radius;
 % origin = param.orig;
@@ -31,7 +32,7 @@ syms t real
 
 ref=@(t) [x_0+r*sin(2*pi*t/T); %x
     y_0 + r*cos(2*pi*t/T); %y
-    0.3; %z
+    z_0; %z
     0];
 
 % 圧倒的に遅いので以下のような書き方はしないこと

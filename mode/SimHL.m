@@ -32,11 +32,12 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
-%run("ExpBase");
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference",["time_varying"], ...
-    "a",struct("reference",["takeoff"]), "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));
+run("ExpBase");
+agent.cha_allocation.reference = "time_varying";
+% agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+% agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+% agent.cha_allocation = struct("reference",["time_varying"], ...
+%     "a",struct("reference",["takeoff"]), "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));
 motive.getData(agent);
 
 function dfunc(app)
