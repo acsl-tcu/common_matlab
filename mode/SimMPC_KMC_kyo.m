@@ -77,12 +77,12 @@ agent.controller.result.input = [0;0;0;0];
 % %------------------------------------------------------------------------------------------------------------------------
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.reference.arming = ARMING_REFERENCE(agent,[]);
-agent.cha_allocation.a.reference = "arming";
+ agent.reference.arming = ARMING_REFERENCE(agent,[]);
+ agent.cha_allocation.a.reference = "arming";
 agent.cha_allocation.f.reference = "bezier";
 agent.cha_allocation.t.reference = "takeoff";
 agent.cha_allocation.l.reference = "landing";
-agent.cha_allocation.a.controller = "hlc";
+ agent.cha_allocation.a.controller = "hlc";
 agent.cha_allocation.f.controller =  "kmpc";
 agent.cha_allocation.t.controller = "hlc";
 agent.cha_allocation.l.controller = "hlc";

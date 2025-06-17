@@ -6,10 +6,13 @@ classdef BEZIER_REFERENCE < handle
     T_total = 5.0;
     P1 = [0.45, 0.45, 0.3];
     P2 = [0.55, 0.55, 0.2];
-    P3 = [0.6, 0.6, 0.1];
-    P4 = [0.6,  0.6,  0.0];
+    P3 = [0.6, 0.6, 0.0];
+    P4 = [0.6,  0.6, 0.0];
     ref_generator = [];
     count = 0;
+    count2 = 0;
+    Pz_vec = 0;
+    tss
   end
 
   methods
@@ -22,12 +25,12 @@ classdef BEZIER_REFERENCE < handle
     function result = do(obj, varargin)
         t = varargin{1};
         if (obj.count < 2) 
-             t.ts = t.t;
+           obj.tss = t.t;
         obj.count = obj.count+1;
         end
-        t.ts = t.t;
-       P0 = varargin{1, 5}.estimator.result.state.p ;
-        obj.ref_generator= bezier_curve(obj,P0,t);
+        % obj.tss = t.t;
+        P0 = [0,0,0.6];
+        obj.ref_generator= bezier_curve(obj,P0);
         obj.result.state.xd = obj.ref_generator(t.t); % 目標重心位置（絶対座標）
         obj.result.state.p = obj.result.state.xd(1:3);
         if length(obj.result.state.xd)>4
@@ -39,12 +42,16 @@ classdef BEZIER_REFERENCE < handle
         result = obj.result;
     end
 
-    function ref = bezier_curve(obj, p0, time)
+    function ref = bezier_curve(obj,p0)
       syms t real
-       tt = t-time.ts;
+       tt = min(max(t - obj.tss, 0), 5);
       tau = tt/obj.T_total;
-                          
+      % if obj.count2 < 2 
+      %   obj.Pz_vec=  p0(:)';
+      %   obj.count = obj.count+1;
+      % end
       P0_vec = p0(:)';
+      % P0_vec =obj.Pz_vec;
       Path_sym = (1 - tau)^4 * P0_vec + ...
                  4 * (1 - tau)^3 * tau * obj.P1 + ...
                  6 * (1 - tau)^2 * tau^2 * obj.P2 + ...

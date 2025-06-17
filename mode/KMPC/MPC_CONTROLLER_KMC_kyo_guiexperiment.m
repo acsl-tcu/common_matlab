@@ -14,6 +14,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         result
         self
         sigma
+        tss
     end
     properties
         % よく使うパラメータはobj.○○とする
@@ -124,17 +125,17 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
 
             %% phaseによるcontrollerの選択
           
-                if ~isfield(obj.param, 'ts')
-                    obj.param.ts= time.t;
-                end
-              
+                % if ~isfield(obj.param, 'tss')
+                %     obj.tss= time.t;
+                % end
+                % 
                 obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
-                if   abs(obj.self.estimator.result.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
-                    obj.param.catchflag = 1;
-                    obj.param.catchtime = 2;
-                    obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
-                    %obj.flag.A =1;
-                end
+                % if   abs(obj.self.estimator.result.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
+                %     obj.param.catchflag = 1;
+                %     obj.param.catchtime = 2;
+                %     obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
+                %     %obj.flag.A =1;
+                % end
                 result = obj.controller_KMC(varargin);
                 disp('controller: MC,  phase: f');
            

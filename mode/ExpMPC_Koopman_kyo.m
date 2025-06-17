@@ -1,7 +1,7 @@
 clc
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 10000; % termina time
+te = 100; % termina time
 time = TIME(ts,dt,te);
 
 in_prog_func = @(app) in_prog(app);
@@ -45,7 +45,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 %agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1, 252])); %プロポ無線
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %プロポ有線
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM9")); %プロポ有線
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -61,15 +61,16 @@ agent.controller.hlc = HLC(agent,Controller_HL(dt));
 % %agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 agent.controller.result.input = [0;0;0;0];
 % agent.controller.do = @controller_do;
-% %------------------------------------------------------------------------------------------------------------------------
+% %-run("ExpBase");-----------------------------------------------------------------------------------------------------------------------
+run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.reference.arming = ARMING_REFERENCE(agent,[]);
-agent.cha_allocation.a.reference = "arming";
+ agent.reference.arming = ARMING_REFERENCE(agent,[]);
+ agent.cha_allocation.a.reference = "arming";
 agent.cha_allocation.f.reference = "bezier";
 agent.cha_allocation.t.reference = "takeoff";
 agent.cha_allocation.l.reference = "landing";
-agent.cha_allocation.a.controller = "hlc";
+ agent.cha_allocation.a.controller = "hlc";
 agent.cha_allocation.f.controller =  "kmpc";
 agent.cha_allocation.t.controller = "hlc";
 agent.cha_allocation.l.controller = "hlc";
