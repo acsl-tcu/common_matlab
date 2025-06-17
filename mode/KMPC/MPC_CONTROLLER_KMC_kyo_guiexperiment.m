@@ -123,11 +123,11 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.state.current = obj.param.F([obj.current_state; obj.input.pre_u(:,1,1)]);
 
             %% phaseによるcontrollerの選択
-           if phase == 'g' % flight
+           if phase == 'f' % flight
                 if ~isfield(obj.param, 'ts')
                     obj.param.ts= time.t;
                 end
-                obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
+              
                 obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
                 if   abs(obj.self.estimator.result.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
                     obj.param.catchflag = 1;
@@ -595,7 +595,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             xr = zeros(obj.param.total_size, obj.H);    % initialize
             % 時間関数の取得→時間を代入してリファレンス生成
 
-            RefTime = obj.self.reference.time_varying.func;    % 時間関数の取得
+            RefTime = obj.self.reference.bezier.ref_generator;    % 時間関数の取得
             for h = 0:obj.H-1
                 t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
                 ref = RefTime(t);

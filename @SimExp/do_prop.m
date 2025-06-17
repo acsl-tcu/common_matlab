@@ -7,15 +7,8 @@ else
         return
     else
         list=agent.cha_allocation.(app.cha).(prop);
-        if isempty(list)
-            if app.cha == "g" && prop == "controller"
-                res = agent.(prop).kmpc.do(app.time,app.cha,app.logger,app.env,app.agent,i);
-
-            elseif app.cha ~= "g" && prop == "controller"
-                res = agent.(prop).hlc.do(app.time,app.cha,app.logger,app.env,app.agent,i);
-            else
+        if isempty(list)    
                 res = agent.(prop).do(app.time,app.cha,app.logger,app.env,app.agent,i);
-            end
         else
             res = agent.(prop).(list(1)).do(app.time,app.cha,app.logger,app.env,app.agent,i);
             for i = 2:length(list)

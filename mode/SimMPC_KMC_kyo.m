@@ -64,7 +64,7 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 % agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 % run("SimBase");
 %%
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"bezier_curve4",{[0;0;0.6],time},"HL"});
+agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
 %agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
@@ -77,9 +77,20 @@ agent.controller.result.input = [0;0;0;0];
 % %------------------------------------------------------------------------------------------------------------------------
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference",["time_varying"], ...
-    "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));
-motive.getData(agent);
+agent.reference.arming = ARMING_REFERENCE(agent,[]);
+agent.cha_allocation.a.reference = "arming";
+agent.cha_allocation.f.reference = "bezier";
+agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.l.reference = "landing";
+agent.cha_allocation.a.controller = "hlc";
+agent.cha_allocation.f.controller =  "kmpc";
+agent.cha_allocation.t.controller = "hlc";
+agent.cha_allocation.l.controller = "hlc";
+% = struct("reference",["time_varying"], ...
+%     "t",struct("reference",["takeoff"]),"l"
+% 
+% ,struct("reference","landing"));
+% motive.getData(agent);
 
 % function result = controller_do(varargin)
 % 
