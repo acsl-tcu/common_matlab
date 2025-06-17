@@ -35,7 +35,9 @@ classdef LANDING_REFERENCE < handle
             % end
             if obj.fInit < 2 || isempty( obj.base_state ) % 飛行中にlanding modeに入った時点の情報を保存
               % 空回しの高度を保存
-                    obj.initialz = obj.self.estimator.result.state.p(3);
+                    if obj.fInit ==0
+                        obj.initialz = obj.self.estimator.result.state.p(3);
+                    end
                     obj.base_time=varargin{1}.t;
                     obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
                     obj.base_time=varargin{1}.t;
