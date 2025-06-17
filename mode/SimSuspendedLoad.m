@@ -140,6 +140,11 @@ agent(2).cha_allocation.t = [];
 % logger.plot({1,"plant.result.state.pL","p"})
 %%
 
+%% 動画を出力するためのもの　GUI実行後にコマンドウィンドウでこのコード打てば動画出せる
+% mov= DRAW_DRONE_MOTION(gui.logger,"self",gui.agent,"target",1:1);
+% mov.animation(gui.logger,'target',1:1,"gif",false,"lims",[-3 3;-3 3;0 4],"ntimes",5,"opt_plot",[]);
+%%
+
 function post(app)
 app.logger.plot({1, "controller.result.xd1:3", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "controller.result.x8:10", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
@@ -154,22 +159,17 @@ app.logger.plot({1, "p", "re"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 
 %%以下他figureで表示させるもの
-figuure();
+figure();
 ax1=subplot(2,3,1);
 app.logger.plot({1, "p", "er"},"ax",ax1,"xrange",[app.time.ts,app.time.te]);
-figuure();
 ax2=subplot(2,3,2);
 app.logger.plot({1, "q", "e"},"ax",ax2,"xrange",[app.time.ts,app.time.te]);
-figuure();
 ax3=subplot(2,3,3);
 app.logger.plot({1, "v", "e"},"ax",ax3,"xrange",[app.time.ts,app.time.te]);
-figuure();
 ax4=subplot(2,3,4);
 app.logger.plot({1, "p1-p2", "pre"},"ax",ax4,"xrange",[app.time.ts,app.time.te]);
-figuure();
 ax5=subplot(2,3,5);
 app.logger.plot({1, "q", "s"},"ax",ax5,"xrange",[app.time.ts,app.time.te]);
-figuure();
 ax6=subplot(2,3,6);
 app.logger.plot({1, "input", ""},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
 end
