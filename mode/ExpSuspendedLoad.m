@@ -57,7 +57,6 @@ run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";
 agent(1).cha_allocation.estimator = "ekf";
 agent(1).cha_allocation.f.reference = "timevarying";
-agent(1).cha_allocation.a.reference = "dummy";
 %%
 % clc
 % for i = 1:time.te
@@ -90,8 +89,8 @@ agent(1).cha_allocation.a.reference = "dummy";
 function post(app)
 app.logger.plot({1, "controller.result.xd1:3", ""},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "controller.result.x8:10", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "estimator.result.state.mL", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "estimator.result.state.pL", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "estimator.result.state.mL", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "estimator.result.state.pL", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "p", "ser"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
@@ -106,7 +105,7 @@ app.logger.plot({1, "estimator.result.state.pL", ""},"ax",app.UIAxes3,"xrange",[
 % app.logger.plot({1, "estimator.result.state.pT", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "sensor.result.state.p", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "sensor.result.state.pL", "s"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
 
 % 刻み時間描画
 dt = diff(app.logger.Data.t(1:find(app.logger.Data.phase==0,1,'first')-1));

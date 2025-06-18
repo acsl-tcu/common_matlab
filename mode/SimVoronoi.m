@@ -49,8 +49,8 @@ app.env.show(app.UIAxes);
 VORONOI_BARYCENTER.show_k(app.logger, app.env,"span",1:app.N,"ax",app.UIAxes,"clear",false);
 end
 function post(app) % post procedure
-app.logger.plot({1, "p", "pr"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({2, "p", "pr"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({3, "p", "pr"},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "pr"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({2, "p", "pr"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({3, "p", "pr"},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
 %VORONOI_BARYCENTER.draw_movie(app.logger, app.env,1:app.N,app.UIAxes);
 end

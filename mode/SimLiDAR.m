@@ -5,7 +5,7 @@ time = TIME(ts,dt,te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
-motive = Connector_Natnet_sim(1, dt, 0);              % 3rd arg is a flag for noise (1 : active )
+motive = Connector_Natnet_sim(dt);              % 3rd arg is a flag for noise (1 : active )
 
 %env = stlread('3F.stl');
   a = 1;
