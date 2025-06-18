@@ -246,8 +246,14 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             else
                 filename = tmpname;
                 if obj.fExp == 1
+                    if ~exist("Data/Exp_data","dir")
+                        mkdir("Data/Exp_data");
+                    end
                     list = "Data/Exp_data/" + filename + ".mat";
                 else
+                    if ~exist("Data/Sim_data","dir")
+                        mkdir("Data/Sim_data");
+                    end
                     list = "Data/Sim_data/" + filename + ".mat";
                 end
                 log.Data = obj.Data;
@@ -312,8 +318,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             arguments
                 obj
                 target
-                variable string = "p"
-                attribute string = "e"
+                variable
+                attribute = "e"
                 option.ranget (1, 2) double = [0 0]
                 option.phase = []
             end
@@ -353,7 +359,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             end
 
             [variable, vrange] = obj.full_var_name(variable, attribute);
-            attribute = "";
+            % attribute = "";
             range_max = min(option.ranget(2),max(obj.Data.t));
             range_min = max(option.ranget(1),min(obj.Data.t));
             data_range = find((obj.Data.t - range_min) > 0, 1) - 1:find((obj.Data.t - range_max) >= 0, 1);
@@ -495,7 +501,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             fcolor = option.color; % on/off flag for phase coloring
             fhold = option.hold; % on/off flag for holding (only active to last subfigure)
 
-            t = obj.data(0, "t", [], "ranget", ranget,"phase",option.phase); % time data
+            t = obj.data(0, "t", "", "ranget", ranget,"phase",option.phase); % time data
             if isempty(option.ax)
                 fh = figure(fig_num);
                 %fh.WindowState = 'maximized';
