@@ -48,7 +48,7 @@ end
     if app.fExp
         app.time.dt = toc(tStart);
     end
-    if contains('flt',app.cha)
+    if contains('flts',app.cha)
         app.time.t = app.time.t + app.time.dt;   
     else
         app.time.t = 0;
