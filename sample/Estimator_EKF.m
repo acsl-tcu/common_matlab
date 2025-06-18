@@ -12,10 +12,12 @@ arguments
     opts.B = []
     opts.P = []
     opts.Q = []
-    opts.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3)]);
+    opts.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3)]);   
+    opts.sensor_func = @(self,param) [self.sensor.result.state.get('p');self.sensor.result.state.getq('3')]; % function to get sensor value: sometimes some conversion will be done
+    opts.output_func = @(state,param) param*state; % output function
 end
 Estimator.model = model;
-p = length(model.state.get(output)); % number of output
+% p = length(model.state.get(output)); % number of output
 %dt = Estimator.model.dt;
 n = Estimator.model.dim(1);% 状態数
 % 出力方程式の拡張線形化行列(JacobianH)の生成
@@ -30,8 +32,8 @@ else
 end
 
 Estimator.sensor_param = ["p","q"]; % parameter for sensor_func
-Estimator.sensor_func = @(self,param) [self.sensor.result.state.get('p');self.sensor.result.state.getq('3')]; % function to get sensor value: sometimes some conversion will be done
-Estimator.output_func = @(state,param) param*state; % output function
+Estimator.sensor_func = opts.sensor_func;
+Estimator.output_func = opts.output_func;
 Estimator.output_param = Estimator.JacobianH(0,0); % parameter for output_func
 
 % P, Q, R, B生成

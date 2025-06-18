@@ -17,9 +17,6 @@ classdef SimExp < matlab.apps.AppBase
         TimeSlider                    matlab.ui.control.Slider
         TimeSliderLabel               matlab.ui.control.Label
         CenterPanel                   matlab.ui.container.Panel
-        UIAxes4                       matlab.ui.control.UIAxes
-        UIAxes3                       matlab.ui.control.UIAxes
-        UIAxes2                       matlab.ui.control.UIAxes
         UIAxes                        matlab.ui.control.UIAxes
         TextArea       matlab.ui.control.TextArea
         TextAreaLabel  matlab.ui.control.Label
@@ -79,16 +76,14 @@ classdef SimExp < matlab.apps.AppBase
             % appearance
             app.LampLabel.HorizontalAlignment = 'left';
             app.TextArea.Value = {char("Mode: " + Setting.mode)};
-            %app.UIFigure.WindowState = 'maximized';
+            app.UIFigure.WindowState = 'maximized';
         end
 
         % Button pushed function: DrawgraphButton
         function draw_data(app, event)
             app.clear_axes;
             if isempty(app.post)
-                app.logger.plot({1:app.N, "p", "er"},"FH",app.UIAxes,"xrange",[app.time.ts,app.time.t]);
-                app.logger.plot({1:app.N, "q", "er"},"FH",app.UIAxes2,"xrange",[app.time.ts,app.time.t]);
-                app.logger.plot({1:app.N, "input", ""},"FH",app.UIAxes3,"xrange",[app.time.ts,app.time.t]);
+                app.logger.plot({1:app.N, "p", "er"},{1:app.N, "q", "er"},{1:app.N, "input", ""},"FH",app.UIAxes,"xrange",[app.time.ts,app.time.t]);
             else
                 app.post(app);
             end
@@ -119,25 +114,6 @@ classdef SimExp < matlab.apps.AppBase
             app.reset_app();
         end
 
-        % Changes arrangement of the app based on UIFigure width
-        % function updateAppLayout(app, event)
-        %         currentFigureWidth = app.UIFigure.Position(3);
-        %         if(currentFigureWidth <= app.onePanelWidth)
-        %             % Change to a 2x1 grid
-        %       app.GridLayout.RowHeight = {494, 494};
-        %             app.GridLayout.ColumnWidth = {'1x'};
-        %             app.RightPanel.Layout.Row = 2;
-        %             app.RightPanel.Layout.Column = 1;
-        %         else
-        %             % Change to a 1x2 grid
-        %             app.GridLayout.RowHeight = {'1x'};
-        %       app.GridLayout.ColumnWidth = {210, '1x'};
-        %             app.RightPanel.Layout.Row = 1;
-        %             app.RightPanel.Layout.Column = 2;
-        %         end
-        %         app.UIAxes.Position = [7 203 274 229];
-        %
-        % end
     end
 
     % Component initialization
@@ -147,7 +123,7 @@ classdef SimExp < matlab.apps.AppBase
         function createComponents(app)
 
             % Create UIFigure and hide until all components are created
-            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure = uifigure('Visible', 'on');
             app.UIFigure.AutoResizeChildren = 'off';
             app.UIFigure.Position = [94 294 1100 494];
             app.UIFigure.Name = 'MATLAB App';
@@ -159,7 +135,7 @@ classdef SimExp < matlab.apps.AppBase
             app.GridLayout.ColumnSpacing = 0;
             app.GridLayout.RowSpacing = 0;
             app.GridLayout.Padding = [0 0 0 0];
-            app.GridLayout.Scrollable = 'off';
+            app.GridLayout.Scrollable = 'on';
 
             % Create LeftPanel
             app.LeftPanel = uipanel(app.GridLayout);
@@ -226,6 +202,7 @@ classdef SimExp < matlab.apps.AppBase
             app.RightPanel = uipanel(app.GridLayout);
             app.RightPanel.Layout.Row = 1;
             app.RightPanel.Layout.Column = 2;
+            app.RightPanel.AutoResizeChildren = 'off';
 
             % Create UIAxes
             app.UIAxes = uiaxes(app.RightPanel);
@@ -233,51 +210,38 @@ classdef SimExp < matlab.apps.AppBase
             xlabel(app.UIAxes, 'X')
             ylabel(app.UIAxes, 'Y')
             zlabel(app.UIAxes, 'Z')
-            app.UIAxes.Position = [7 203 274 229];
-
-            % Create UIAxes2
-            app.UIAxes2 = uiaxes(app.RightPanel);
-            title(app.UIAxes2, 'Title')
-            xlabel(app.UIAxes2, 'X')
-            ylabel(app.UIAxes2, 'Y')
-            zlabel(app.UIAxes2, 'Z')
-            app.UIAxes2.Position = [301 300 249 146];
-
-            % Create UIAxes3
-            app.UIAxes3 = uiaxes(app.RightPanel);
-            title(app.UIAxes3, 'Title')
-            xlabel(app.UIAxes3, 'X')
-            ylabel(app.UIAxes3, 'Y')
-            zlabel(app.UIAxes3, 'Z')
-            app.UIAxes3.Position = [301 163 250 146];
-
-            % % Create UIAxes4
-            % app.UIAxes4 = uiaxes(app.RightPanel);
-            % title(app.UIAxes4, 'Title')
-            % xlabel(app.UIAxes4, 'X')
-            % ylabel(app.UIAxes4, 'Y')
-            % zlabel(app.UIAxes4, 'Z')
-            % app.UIAxes4.Position = [401 93 251 131];
 
             % Create TimeSliderLabel
             app.TimeSliderLabel = uilabel(app.RightPanel);
             app.TimeSliderLabel.HorizontalAlignment = 'right';
-            app.TimeSliderLabel.Position = [7 454 31 22];
             app.TimeSliderLabel.Text = 'Time';
 
             % Create TimeSlider
             app.TimeSlider = uislider(app.RightPanel);
             app.TimeSlider.ValueChangingFcn = createCallbackFcn(app, @set_current_time, true);
-            app.TimeSlider.Position = [59 474 284 3];
 
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
+            % disp(app.RightPanel.Position);
+            % pause(1);
+            % disp(app.RightPanel.Position);
+            % app.TimeSliderLabel.Position = [7 454 31 22];
+            % app.TimeSlider.Position = [7 1 app.RightPanel.Position(3) app.RightPanel.Position(4)-44];
+            % app.UIAxes.Position = [10, app.RightPanel.Position(4)/3, app.RightPanel.Position(3)*3/5, app.RightPanel.Position(4)*3/5];
         end
     end
 
     % App creation and deletion
     methods (Access = public)
+
+        function mySizeChangedFcn(app, ~) % ウインドウサイズ変更イベントハンドラ関数
+            pause(0.5);
+            position = app.RightPanel.Position; % [Left, Bottom, Width, Height];
+            app.TimeSliderLabel.Position = [7,position(4)-22, 50, 22];
+            app.TimeSlider.Position = [70,position(4)-12, 284, app.TimeSlider.Position(4)];           
+            app.UIAxes.Position = [10, position(4)/3, position(3)*3/5, position(4)*2/3-70];
+        end
 
         % Construct app
         function app = SimExp(varargin)
@@ -287,6 +251,9 @@ classdef SimExp < matlab.apps.AppBase
 
             % Register the app with App Designer
             registerApp(app, app.UIFigure)
+
+            % resize 
+            set(app.UIFigure,'SizeChangedFcn',@(src, event) app.mySizeChangedFcn(src));
 
             % Execute the startup function
             runStartupFcn(app, @(app)startupFcn(app, varargin{:}))
