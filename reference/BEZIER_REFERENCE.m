@@ -3,16 +3,17 @@ classdef BEZIER_REFERENCE < handle
     self
     dt
     result   
-    T_total = 5.0;
-    P1 = [0.45, 0.45, 0.3];
-    P2 = [0.55, 0.55, 0.2];
-    P3 = [0.6, 0.6, 0.0];
+    T_total = 20.0;
+    P1 = [0.25, 0.25, 0.5];
+    P2 = [0.35, 0.35, 0.5];
+    P3 = [0.5, 0.5, 0.3];
     P4 = [0.6,  0.6, 0.0];
     ref_generator = [];
     count = 0;
     count2 = 0;
     Pz_vec = 0;
     tss
+    P0
   end
 
   methods
@@ -29,8 +30,12 @@ classdef BEZIER_REFERENCE < handle
         obj.count = obj.count+1;
         end
         % obj.tss = t.t;
-        P0 = [0,0,0.6];
-        obj.ref_generator= bezier_curve(obj,P0);
+        if isempty(obj.P0)
+            obj.P0 = obj.self.estimator.result.state.p;
+        else
+            obj.P0 = [obj.self.estimator.result.state.p(1:2);0.6];  
+        end
+        obj.ref_generator= bezier_curve(obj,obj.P0);
         obj.result.state.xd = obj.ref_generator(t.t); % 目標重心位置（絶対座標）
         obj.result.state.p = obj.result.state.xd(1:3);
         if length(obj.result.state.xd)>4

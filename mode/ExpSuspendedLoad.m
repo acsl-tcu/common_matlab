@@ -9,7 +9,7 @@ post_func = @(app) post(app);
  % logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);%今までのやつ
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.1.4'); % connect to Motive
+motive = Connector_Natnet('192.168.100.4'); % connect to Motive
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load  = motive.result.rigid(2);

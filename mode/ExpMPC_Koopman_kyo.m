@@ -45,7 +45,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 %agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1, 252])); %プロポ無線
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM9")); %プロポ有線
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %プロポ有線
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -63,22 +63,20 @@ agent.controller.result.input = [0;0;0;0];
 % agent.controller.do = @controller_do;
 % %-run("ExpBase");-----------------------------------------------------------------------------------------------------------------------
 run("ExpBase");
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
- agent.reference.arming = ARMING_REFERENCE(agent,[]);
- agent.cha_allocation.a.reference = "arming";
-agent.cha_allocation.f.reference = "bezier";
-agent.cha_allocation.t.reference = "takeoff";
-agent.cha_allocation.l.reference = "landing";
- agent.cha_allocation.a.controller = "hlc";
-agent.cha_allocation.f.controller =  "kmpc";
-agent.cha_allocation.t.controller = "hlc";
-agent.cha_allocation.l.controller = "hlc";
+agent.cha_allocation.reference = "bezier";
+% agent.cha_allocation.a.reference = "arming";
+% agent.cha_allocation.f.reference = "bezier";
+% agent.cha_allocation.t.reference = "takeoff";
+% agent.cha_allocation.l.reference = "landing";
+
+agent.cha_allocation.controller = "hlc";
+agent.cha_allocation.f.controller = "kmpc";
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 end
