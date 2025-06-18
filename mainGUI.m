@@ -29,4 +29,4 @@ if contains(Setting.mode,"Exp")
 else
     Setting.fExp = 0;
 end
-app = SimExp(Setting);
+gui = SimExp(Setting);
