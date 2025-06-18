@@ -39,15 +39,15 @@ agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントロ
 
 function dfunc(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",1);
-app.logger.plot({1, "q", "e"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",2);
-app.logger.plot({1, "v", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",3);
+app.logger.plot({1, "q", "e"},"xrange",[app.time.ts,app.time.te],"fig_num",2);
+app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
 % app.logger.plot({1, "input1", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",4);%スラスト
 % app.logger.plot({1, "input2:4", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",5);
 app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
 app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
 
 app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
-% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
+app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
 
 % un = app.agent.controller.nominal.result;%ΔuとuHLほしかった6/13(金)
 % du = app.agent.controller.mec.result;
