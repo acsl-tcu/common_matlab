@@ -71,6 +71,14 @@ classdef BEZIER_REFERENCE < handle
       Xd_sym(9:11)  = Acc_sym.';
        calc_handle = matlabFunction(Xd_sym, 'Vars', {t_local});
         ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
+    %  Path_sym=[Path_sym';0];           
+     % xd=Path_sym(t_local);
+     % dxd =diff(xd,t_local);
+     % ddxd = diff(dxd,t_local);
+     % dddxd =diff(ddxd,t_local);
+     % ddddxd =diff(dddxd,t_local);
+     % calc_handle = matlabFunction([xd;dxd;ddxd;dddxd;ddddxd], 'Vars', {t_local});
+     % ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
     end
   end
 end

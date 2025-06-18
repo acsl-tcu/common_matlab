@@ -87,7 +87,7 @@ agent.cha_allocation.reference = "bezier";
 % agent.cha_allocation.l.reference = "landing";
 
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = "kmpc";
+agent.cha_allocation.f.controller = ["kmpc"];%,"hlc"];
 
 % agent.cha_allocation.a.controller = "hlc";
 % agent.cha_allocation.controller =  "kmpc";
