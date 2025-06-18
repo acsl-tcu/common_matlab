@@ -15,7 +15,7 @@ te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 %in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 initial_state.p = arranged_position([0, 0], 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
@@ -32,17 +32,17 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
-run("ExpBase");
-agent.cha_allocation.reference = "time_varying";
-% agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-% agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-% agent.cha_allocation = struct("reference",["time_varying"], ...
-%     "a",struct("reference",["takeoff"]), "t",struct("reference",["takeoff"]),"l",struct("reference","landing"));
+%run("ExpBase");
+agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+agent.cha_allocation = struct("reference","time_varying", ...
+    "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"phase",'fl');
+app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 %app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end
