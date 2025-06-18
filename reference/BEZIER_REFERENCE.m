@@ -43,9 +43,9 @@ classdef BEZIER_REFERENCE < handle
     end
 
     function ref = bezier_curve(obj,p0)
-      syms t real
-       tt = min(max(t - obj.tss, 0), 5);
-      tau = tt/obj.T_total;
+      syms t_local real
+       % tt = min(max(t - obj.tss, 0), 5);
+      tau = t_local/obj.T_total;
       % if obj.count2 < 2 
       %   obj.Pz_vec=  p0(:)';
       %   obj.count = obj.count+1;
@@ -58,14 +58,14 @@ classdef BEZIER_REFERENCE < handle
                  4 * (1 - tau) * tau^3 * obj.P3 + ...
                  tau^4 * obj.P4;
                  
-      Vel_sym = diff(Path_sym, t);
-      Acc_sym = diff(Vel_sym, t);
+      Vel_sym = diff(Path_sym, t_local);
+      Acc_sym = diff(Vel_sym, t_local);
       Xd_sym = sym(zeros(20, 1));
       Xd_sym(1:3)   = Path_sym.';
       Xd_sym(5:7)   = Vel_sym.';
       Xd_sym(9:11)  = Acc_sym.';
-      
-      ref = matlabFunction(Xd_sym, 'Vars', {t});
+       calc_handle = matlabFunction(Xd_sym, 'Vars', {t_local});
+        ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
     end
   end
 end
