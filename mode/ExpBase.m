@@ -3,7 +3,7 @@ for i = 1:length(agent)
   agent(i).reference.landing = LANDING_REFERENCE(agent(i),dt,0.1);
   if isfield(agent,"cha_allocation")
      if  isfield(agent(i).cha_allocation,"a")
-        agent(i).cha_allocation.t.reference = "takeoff";
+        agent(i).cha_allocation.a.reference = "takeoff";
      end   
      if  isfield(agent(i).cha_allocation,"t")
         agent(i).cha_allocation.t.reference = "takeoff";

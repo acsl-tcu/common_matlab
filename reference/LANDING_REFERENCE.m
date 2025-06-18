@@ -33,7 +33,7 @@ classdef LANDING_REFERENCE < handle
             %   obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
             %   fInit = (obj.self.reference.result.state.p(3) - obj.result.state.xd(3)) > 0.5;
             % end
-            if obj.fInit < 2 || isempty( obj.base_state ) % 飛行中にlanding modeに入った時点の情報を保存
+            if obj.fInit < 10 || isempty( obj.base_state ) % 飛行中にlanding modeに入った時点の情報を保存
               % 空回しの高度を保存
                     if obj.fInit ==0
                         obj.initialz = obj.self.estimator.result.state.p(3);
@@ -55,7 +55,7 @@ classdef LANDING_REFERENCE < handle
             obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
             obj.result.state.p = obj.result.state.xd(1:3,1);
             obj.result.state.v = obj.result.state.xd(5:7,1);
-            if obj.fInit == 2 % 地面効果対策で obj.te の時間で obj.th_offset -> obj.th_offset0 に変化させる。
+            if obj.fInit >= 2 % 地面効果対策で obj.te の時間で obj.th_offset -> obj.th_offset0 に変化させる。
                 obj.self.input_transform.param.th_offset = obj.th_offset - (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
             end
             result = obj.result;
@@ -79,6 +79,7 @@ classdef LANDING_REFERENCE < handle
                 Zd = curve_interpolation_9order(t,obj.te,obj.base_state(3),0,obj.initialz,0);
             elseif t> obj.te
                 Zd = zeros(1,5);
+                Zd(1) = obj.initialz;
             end
             Xd(1:3,1) = obj.base_state(1:3);
             Xd(3,1) = Zd(1);

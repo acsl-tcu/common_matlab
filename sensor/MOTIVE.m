@@ -29,8 +29,9 @@ methods
         obj.rigid_id = args.rigid_id;
         %obj.initq = quaternion(Eul2Quat([args.initial_yaw_angle;0;0])');
         obj.initq = quaternion(Eul2Quat([0;0;args.initial_yaw_angle])');
-
-        obj.result.state = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 4]));
+        for i = 1:length(obj.rigid_id)
+            obj.result.state(i) = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 4]));
+        end
         % if sum(contains(self.estimator.result.state.list, "q")) == 1
         %     obj.result.state.num_list = [3, length(self.estimator.result.state.q)]; % modelと合わせる
         %     obj.result.state.type = length(self.estimator.result.state.q);
@@ -49,16 +50,16 @@ methods
             obj.old_time = data.time;
         end
 
-        id = obj.rigid_id;
-
-        if sum(contains(obj.result.state.list, "q")) == 1
-            tmpq = quaternion(data.rigid(id).q');
-            tmpq = conj(obj.initq) * tmpq;
-            [Q(1) Q(2) Q(3) Q(4)] = parts(tmpq);
-            obj.result.state.set_state('q', Q');
+        for i = 1:length(obj.rigid_id)
+            id = obj.rigid_id(i);
+            if sum(contains(obj.result.state(i).list, "q")) == 1
+                tmpq = quaternion(data.rigid(id).q');
+                tmpq = conj(obj.initq) * tmpq;
+                [Q(1) Q(2) Q(3) Q(4)] = parts(tmpq);
+                obj.result.state(i).set_state('q', Q');
+            end
+            obj.result.state(i).set_state('p', data.rigid(id).p);
         end
-
-        obj.result.state.set_state('p', data.rigid(id).p);
         obj.result.rigid = data.rigid;
         obj.result.feature = data.marker;
         obj.result.feature_num = data.marker_num;

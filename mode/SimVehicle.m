@@ -24,7 +24,7 @@ for i = [1:4,9:12]
 end
 env = triangulation(Tri,Points);
 
-motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 fExp = 0;
 logger = LOGGER(1, size(ts:dt:te, 2), fExp, [],[]);
 
@@ -77,8 +77,8 @@ end
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 %app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 end
