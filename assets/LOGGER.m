@@ -553,10 +553,10 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                                 plot3(ax,tmpx, tmpy, tmpz,LineStyle=lt, LineWidth=option.Linewidth);
                             else
                                 plot(ax,tmpx, tmpy(:, :, 1),LineStyle=lt, LineWidth=option.Linewidth); % tmpy(1:size(tmpx,1),:,1)
-                                if option.xrange
-                                    xlim(ax,option.xrange);
-                                else
+                                if isempty(option.xrange)
                                     xlim(ax,[min(tmpx), max(tmpx)]);
+                                else
+                                    xlim(ax,option.xrange);
                                 end
                                 ylim(ax,[min(tmpy,[],'all'), max(tmpy,[],'all')+0.01]);
                             end

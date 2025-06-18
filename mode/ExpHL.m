@@ -30,12 +30,26 @@ agent.controller = HLC(agent,Controller_HL(dt));
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 function post(app)
-app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "inner_input1:4", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
+tmprange_t = [app.time.ts, app.logger.Data.t(find(app.logger.Data.phase=='l',1,"last"))];
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "xrange", tmprange_t);
+app.logger.plot({1, "inner_input1:4", ""}, "fig_num",1, "xrange", tmprange_t);
+app.logger.plot({1, "input", ""}, "fig_num",2, "xrange", tmprange_t);
+app.logger.plot({1, "v", "er"},"fig_num",3, "xrange", tmprange_t);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+
+% % 刻み時間描画
+% dt = diff(app.logger.Data.t(1:find(app.logger.Data.phase==0,1,'first')-1));
+% t = app.logger.data(0,'t',[]);
+% figure(100)
+% plot(t(1:end-1),dt);
+% hold on
+% yline(0.025,"LineWidth",0.5)
+% ylim([0 0.05])
+% hold off
+% grid on
+% legend("dt","upper limit")
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
