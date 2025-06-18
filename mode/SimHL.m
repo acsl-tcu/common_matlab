@@ -13,7 +13,7 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) dfunc(app); % in progress plot
+%in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
@@ -32,8 +32,7 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
-% run("ExpBase");
-% agent.cha_allocation.f.reference = "time_varying";
+%run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation = struct("reference","time_varying", ...
@@ -41,13 +40,9 @@ agent.cha_allocation = struct("reference","time_varying", ...
 motive.getData(agent);
 
 function dfunc(app)
-% app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"phase",'fl');
-app.logger.plot({1, "p", "per"},"ax",app.UIAxes);
-app.logger.plot({1, "q", "s"},"fig_num",1);
-app.logger.plot({1, "v", "er"},"fig_num",2);
-app.logger.plot({1, "input", ""},"fig_num",3);
-% app.logger.plot({1, "p1-p2", "er"},"color",0,"fig_num",4);
-app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",5);
-app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",6);
-app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
+% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end
