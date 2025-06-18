@@ -9,7 +9,6 @@ end
 x_0=param.init(1);
 y_0=param.init(2);
 z_0=param.init(3);
-
 T = param.freq;
 r=param.radius;
 % origin = param.orig;

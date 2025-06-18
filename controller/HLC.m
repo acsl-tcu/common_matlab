@@ -50,12 +50,13 @@ classdef HLC < handle
       %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
-      obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-      %スイープ周波数追加
-      % obj.result.delta_u = 1.0*chirp(varargin{1}.t,0,varargin{1}.te,5,'linear');
-      obj.result.delta_u = 0;
-      obj.result.input = obj.result.delta_u+obj.result.nominal;
-      
+      % obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+      % %スイープ周波数追加
+      % % obj.result.delta_u = 1.0*chirp(varargin{1}.t,0,varargin{1}.te,5,'linear');
+      % obj.result.delta_u = 0;
+      % obj.result.input = obj.result.delta_u+obj.result.nominal;
+      obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+
       result = obj.result;
     end
   end
