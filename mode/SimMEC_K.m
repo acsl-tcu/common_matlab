@@ -48,9 +48,4 @@ app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.
 
 app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
 app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
-
-% un = app.agent.controller.nominal.result;%ΔuとuHLほしかった6/13(金)
-% du = app.agent.controller.mec.result;
-% plot([app.time.ts,app.time.te], un, [app.time.ts,app.time.te], du)
-% legend('u_nominal', 'delta_u')
 end
