@@ -113,7 +113,6 @@ classdef HLC_SUSPENDED_LOAD < handle
             P = obj.P;
             p = model.state.p;
             pL = model.state.pL;
-            pT = model.state.pT; 
             L = obj.self.parameter.get("cableL");
             if isprop(model.state,"mL")
                 mL = max(0,model.state.mL); % load mass
@@ -125,7 +124,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                 obj.pL0 = pL; % 初期の牽引物位置
             end
             if strcmp(cha,'t') % take off
-                % % 質量推定が進んだら or 
+                % % 質量推定が進んだら or
                 % 牽引物の初期高さ+機体の全高より高くなったら
                 % センサ値を使い始める
                 if mL > 0.1 || p(3)> obj.pL0(3) + L*0.9
@@ -161,21 +160,20 @@ classdef HLC_SUSPENDED_LOAD < handle
             end
             %l = sqrt(L^2 - sum((p(1:2)-pL(1:2)).^2));
             P(6) = mL;
-            if strcmp(cha,'f') % 
+            if strcmp(cha,'f') %
                 P = obj.P;
                 pL = model.state.pL;
                 pT = model.state.pT;
             else
-                l = L;
-                pL(3) = p(3) - l;
-                nxy(3) = xd(3) - l;
+                pL(3) = p(3) - L;
                 ttt = pL - p;
                 pT = ttt/norm(ttt);
                 if isprop(model.state,"dst") && strcmp(cha,'f')
                     P(end-1:end)  = model.state.dst';
-                end
-                xd(1:3) = nxy;
+                end               
             end
+            nxy(3) = xd(3) - L;
+            xd(1:3) = nxy;
         end
     end
 end

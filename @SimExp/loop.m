@@ -48,7 +48,11 @@ end
     if app.fExp
         app.time.dt = toc(tStart);
     end
-    app.time.t = app.time.t + app.time.dt;   
+    if contains('flt',app.cha)
+        app.time.t = app.time.t + app.time.dt;   
+    else
+        app.time.t = 0;
+    end
     if ~app.isReady || app.time.t >= app.time.te
       break
     end
