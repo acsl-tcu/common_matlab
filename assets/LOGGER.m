@@ -315,20 +315,27 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 variable string = "p"
                 attribute string = "e"
                 option.ranget (1, 2) double = [0 0]
+                option.phase = []
             end
             if obj.k == 0
                 data = [];
                 vrange = [];
             else
+                ranget = option.ranget;
                 if option.ranget(2) ==0
-                    option.ranget(2) = obj.Data.t(obj.k);
+                    ranget(2) = max(obj.Data.t);
+                end
+                if ~isempty(option.phase)
+                    phase = char(option.phase);
+                    ids=contains(string(char(obj.Data.phase)),string(phase(:)));
+                    ranget = obj.Data.t(4+[find(ids(5:end),1),find(ids(5:end),1,'last')])';
                 end
                 if sum(strcmp(target, {'time', 't'}))
-                    data = obj.data_org(0, 't', '', "ranget", option.ranget);
+                    data = obj.data_org(0, 't', '', "ranget", ranget);
                 elseif target == 0
-                    data = obj.data_org(0, variable, attribute, "ranget", option.ranget);
+                    data = obj.data_org(0, variable, attribute, "ranget", ranget);
                 else
-                    data = cell2mat(arrayfun(@(i) obj.data_org(i, variable, attribute, "ranget", option.ranget), target, 'UniformOutput', false));
+                    data = cell2mat(arrayfun(@(i) obj.data_org(i, variable, attribute, "ranget", ranget), target, 'UniformOutput', false));
                 end
 
                 [~, vrange] = obj.full_var_name(variable, attribute);
@@ -347,7 +354,9 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
             [variable, vrange] = obj.full_var_name(variable, attribute);
             attribute = "";
-            data_range = find((obj.Data.t - option.ranget(1)) > 0, 1) - 1:find((obj.Data.t - option.ranget(2)) >= 0, 1);
+            range_max = min(option.ranget(2),max(obj.Data.t));
+            range_min = max(option.ranget(1),min(obj.Data.t));
+            data_range = find((obj.Data.t - range_min) > 0, 1) - 1:find((obj.Data.t - range_max) >= 0, 1);
             if isempty(data_range)
                 data_range = [1];
             end
@@ -474,6 +483,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 option.xrange = [];
                 option.yrange = [];
                 option.zrange = [];
+                option.phase = [];
                 option.FontSize {mustBeNumeric} = 11;
                 option.Linewidth {mustBeNumeric} = 0.5;
             end
@@ -485,7 +495,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             fcolor = option.color; % on/off flag for phase coloring
             fhold = option.hold; % on/off flag for holding (only active to last subfigure)
 
-            t = obj.data(0, "t", [], "ranget", ranget); % time data
+            t = obj.data(0, "t", [], "ranget", ranget,"phase",option.phase); % time data
             if isempty(option.ax)
                 fh = figure(fig_num);
                 %fh.WindowState = 'maximized';
@@ -530,14 +540,14 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                             switch length(ps)
                                 case 1 % 時間応答（時間を省略）
                                     tmpx = t;
-                                    [tmpy, vrange] = obj.data(n, ps, att, "ranget", ranget);
+                                    [tmpy, vrange] = obj.data(n, ps, att, "ranget", ranget,"phase",option.phase);
                                 case 2 % 縦横軸明記
-                                    tmpx = obj.data(n, ps(1), att, "ranget", ranget);
-                                    tmpy = obj.data(n, ps(2), att, "ranget", ranget);
+                                    tmpx = obj.data(n, ps(1), att, "ranget", ranget,"phase",option.phase);
+                                    tmpy = obj.data(n, ps(2), att, "ranget", ranget,"phase",option.phase);
                                 case 3 % ３次元プロット
-                                    tmpx = obj.data(n, ps(1), att, "ranget", ranget);
-                                    tmpy = obj.data(n, ps(2), att, "ranget", ranget);
-                                    tmpz = obj.data(n, ps(3), att, "ranget", ranget);
+                                    tmpx = obj.data(n, ps(1), att, "ranget", ranget,"phase",option.phase);
+                                    tmpy = obj.data(n, ps(2), att, "ranget", ranget,"phase",option.phase);
+                                    tmpz = obj.data(n, ps(3), att, "ranget", ranget,"phase",option.phase);
                             end
 
                             % plot
@@ -553,7 +563,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                                 plot3(ax,tmpx, tmpy, tmpz,LineStyle=lt, LineWidth=option.Linewidth);
                             else
                                 plot(ax,tmpx, tmpy(:, :, 1),LineStyle=lt, LineWidth=option.Linewidth); % tmpy(1:size(tmpx,1),:,1)
-                                if option.xrange
+                                if length(option.xrange) ==2
                                     xlim(ax,option.xrange);
                                 else
                                     xlim(ax,[min(tmpx), max(tmpx)]);
