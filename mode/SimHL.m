@@ -32,17 +32,22 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
-%run("ExpBase");
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference","time_varying", ...
-    "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
+run("ExpBase");
+agent.cha_allocation.f.reference = "time_varying";
+% agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
+% agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
+% agent.cha_allocation = struct("reference","time_varying", ...
+%     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"phase",'fl');
-app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "p", "per"},"ax",app.UIAxes,"phase",'fl');
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
 % app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+app.logger.plot({1, "input", ""},"fig_num",1);
+app.logger.plot({1, "p1-p2", "er"},"color",0,"fig_num",2);
+app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",3);
+app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",4);
+app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",5);
 end
