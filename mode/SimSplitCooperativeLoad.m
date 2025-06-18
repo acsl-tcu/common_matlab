@@ -8,7 +8,7 @@ dt           = 0.025;%刻み時間
 te           = 100/2;%シミュレーション時間
 tn           = length(ts:dt:te);%mainloopで繰り返す回数
 time         = TIME(ts, dt, te);%時刻のクラス
-motive       = Connector_Natnet_sim(1, dt, 0); % 3rd arg is a flag for noise (1 : active )
+motive       = Connector_Natnet_sim(1, dt); % 3rd arg is a flag for noise (1 : active )
 logger       = LOGGER(1:N+1, size(ts:dt:te, 2), 0, [], []);%logをとるクラス%分割前1,分割後N個
 in_prog_func = @(app) dfunc(app);%gui関連
 post_func    = @(app) dfunc(app);%gui関連
@@ -109,10 +109,10 @@ end
 % take off landing の設定
 run("ExpBase");
 
-% %観測値に加えるガウスノイズ
-%     noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
-%     noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
-% clc
+%観測値に加えるガウスノイズ
+    noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
+    noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
+clc
 % % main loop
 % % ~ doは各クラスで現在時刻の計算を行う
 % for tc = 1:tn

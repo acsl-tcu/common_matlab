@@ -24,17 +24,3 @@ natnet_param.state_name = opts.state_name;
 %     [ 0.075, -0.075,  0.015;-0.075, -0.075, -0.015; -0.075,  0.075,  0.015; 0.075,  0.075, -0.015; 0.075,  0.07, -0.015]};
 motive = NATNET_CONNECTOR_SIM(natnet_param);
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%SimSplitCooperaiveLoad.mを回す用
-% function motive = Connector_Natnet_sim(N, dt, noise)
-% 
-% natnet_param.dt = dt;
-% natnet_param.rigid_num = N;
-% if noise == 1
-%     natnet_param.Flag = struct('Noise',1);
-% end
-% 
-% natnet_param.sigmaw = 0.0004 * [1; 1; 1];
-% motive = NATNET_CONNECTOR_SIM(natnet_param);
-% end

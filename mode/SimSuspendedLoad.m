@@ -173,6 +173,7 @@ ax5=subplot(2,3,5);
 app.logger.plot({1, "q", "s"},"ax",ax5,"xrange",[app.time.ts,app.time.te]);
 ax6=subplot(2,3,6);
 app.logger.plot({1, "input", ""},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "plant.result.state.pL", "e"},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
 end
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
