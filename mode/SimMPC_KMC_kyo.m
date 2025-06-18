@@ -13,7 +13,8 @@ dt = 0.025; % sampling period
 te = 25; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 %in_prog_func = @(app) in_prog(app); % in progress plot
-post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
+% in_prog_func = @(app) in_prog(app);
+post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 1, 1, z
@@ -120,15 +121,13 @@ agent.cha_allocation.f.controller = "kmpc";
 
 
 function post(app)
-% app.logger.plot({{1,"p","er"},{1,"estimator.result.state.pL","e"}},{1, "input", ""},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({{1,"p","er"},{1,"estimator.result.state.pL","e"}},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-% figure();
-% app.logger.plot({1, "estimator.result.state.wL", ""},"ax",gca,"xrange",[app.time.ts,app.time.te]);
-% figure();
-% app.logger.plot({1, "estimator.result.state.vL", ""},"ax",gca,"xrange",[app.time.ts,app.time.te]);
-end
-function in_prog(app)
-app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 end
 function est =import_vars_from_mfile(mfile)
    
