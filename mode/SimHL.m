@@ -46,7 +46,7 @@ app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
 % app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 app.logger.plot({1, "input", ""},"fig_num",4);
 app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",6);
-app.logger.plot({1, "controller.result.u_nominal", ""}, "fig_num",7);
-app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",8);
+app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
+app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
 
 end

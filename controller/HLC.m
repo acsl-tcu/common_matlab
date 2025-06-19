@@ -52,7 +52,8 @@ classdef HLC < handle
       % max,min are applied for the safty
       obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       % %スイープ周波数追加
-      obj.result.delta_u = 1.0*chirp(varargin{1}.t,0,varargin{1}.te,10,'linear');
+      %chirp(初期時刻，初期周波数，指定時間，指定周波数)
+      obj.result.delta_u = 1.0*chirp(varargin{1}.t,0,varargin{1}.te,5,'linear')*[1;0;0;0];%スラスト以外に入れると不安定になりやすい
       % obj.result.delta_u = 0;
       obj.result.input = obj.result.delta_u+obj.result.nominal;
       result = obj.result;
