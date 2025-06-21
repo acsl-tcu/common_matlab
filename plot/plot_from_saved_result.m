@@ -46,18 +46,20 @@ fsave = 0;
 % 3:save as ".pdf"
 % 4:save as ".eps"
 
-ftitle = 1; % defalt=1 -> グラフタイトルあり
+ftitle = 0; % defalt=1 -> グラフタイトルあり
 settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-settings.target = ["p"];
+settings.target = ["p", "p1-p2"];
+% settings.target = ["inner_input1:4"];
 % プロットしたいグラフの情報                                          %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input                                           %
 % p1-p2: x-y 2D plot    p1-p2-p3: x-y-z 3D plot                     %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+settings.phase = "atfl";
 settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
@@ -95,6 +97,11 @@ for i=1:length(settings.target)
             ylabel = "Controller input [N]";
             tmp = settings.attribute;
             tmp(2:3) = [];
+        case "inner_input"
+            ylabel = "Transmitter input [Nm], [N]";
+            tmp = settings.attribute;
+            tmp(:) = [];
+            tmp = "";
         case "p1-p2"
             xlabel = "x [m]";
             ylabel = "y [m]";
@@ -109,7 +116,7 @@ for i=1:length(settings.target)
     end
     att = select_attribute(settings.target(i), tmp);
     logger.plot({settings.agent_id, settings.target(i), att}, ...
-        'fig_num',i, 'color',fcolor, ...
+        'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
         'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
 
     fig = gcf;
@@ -133,19 +140,19 @@ for i=1:length(settings.target)
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location', 'northwest', 'FontSize', settings.fontsize-4);
+    set(ax.Legend, 'Location', 'southwest', 'FontSize', settings.fontsize-8);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
     if fsave == 1
-        savefig(['plot/fig/', erase(filename, '.mat'), char(settings.target(i)), '.fig']);
+        savefig(['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i)), '.fig']);
     elseif fsave == 2
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), char(settings.target(i))], 'png');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'png');
     elseif fsave == 3
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), char(settings.target(i))], 'pdf');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'pdf');
     elseif fsave == 4
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), char(settings.target(i))], 'epsc');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'epsc');
     end
 end
 
@@ -220,6 +227,13 @@ switch target
             legend{4*i-2} = "$roll$ " + att_map(chars(i));
             legend{4*i-1} = "$pitch$ " + att_map(chars(i));
             legend{4*i} = "$yaw$ " + att_map(chars(i));
+        end
+    case "inner_input1:4"
+        for i=1:4
+            legend{4*i-3} = "$roll$";
+            legend{4*i-2} = "$pitch$";
+            legend{4*i-1} = "$thrust$";
+            legend{4*i} = "$yaw$";
         end
 end
 end
