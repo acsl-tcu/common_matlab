@@ -115,10 +115,11 @@ agent(1).cha_allocation.sensor = ["motive","direct"];
 agent(1).cha_allocation.estimator = "ekf";
 % agent(1).cha_allocation.reference = "timevarying";
 agent(1).cha_allocation.f.reference = "timevarying";
-agent(1).cha_allocation.a.reference = "dummy";
+agent(1).cha_allocation.a.reference = "takeoff";
 
 agent(2).cha_allocation.sensor = "motive";
 agent(2).cha_allocation.l = [];
+agent(2).cha_allocation.a = [];
 agent(2).cha_allocation.t = [];
 
 %%
@@ -140,6 +141,11 @@ agent(2).cha_allocation.t = [];
 % logger.plot({1,"plant.result.state.pL","p"})
 %%
 
+%% 動画を出力するためのもの　GUI実行後にコマンドウィンドウでこのコード打てば動画出せる
+% mov= DRAW_DRONE_MOTION(gui.logger,"self",gui.agent,"target",1:1);
+% mov.animation(gui.logger,'target',1:1,"gif",false,"lims",[-3 3;-3 3;0 4],"ntimes",5,"opt_plot",[]);
+%%
+
 function post(app)
 app.logger.plot({1, "controller.result.xd1:3", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "controller.result.x8:10", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
@@ -152,6 +158,22 @@ app.logger.plot({1, "p", "re"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te
 % figure();
 % app.logger.plot({1, "estimator.result.state.vL", ""},"ax",gca,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+
+%%以下他figureで表示させるもの
+figure();
+ax1=subplot(2,3,1);
+app.logger.plot({1, "p", "er"},"ax",ax1,"xrange",[app.time.ts,app.time.te]);
+ax2=subplot(2,3,2);
+app.logger.plot({1, "q", "e"},"ax",ax2,"xrange",[app.time.ts,app.time.te]);
+ax3=subplot(2,3,3);
+app.logger.plot({1, "v", "e"},"ax",ax3,"xrange",[app.time.ts,app.time.te]);
+ax4=subplot(2,3,4);
+app.logger.plot({1, "p1-p2", "pre"},"ax",ax4,"xrange",[app.time.ts,app.time.te]);
+ax5=subplot(2,3,5);
+app.logger.plot({1, "q", "s"},"ax",ax5,"xrange",[app.time.ts,app.time.te]);
+ax6=subplot(2,3,6);
+app.logger.plot({1, "input", ""},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "plant.result.state.pL", "e"},"ax",ax6,"xrange",[app.time.ts,app.time.te]);
 end
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];

@@ -22,6 +22,7 @@ else % to start
         app.fStart = 1;
         app.LampLabel.Text = "Ready! Press 'a' to start";          
     end
+    
     app.StartButton.Text = "Stop";
     app.Lamp.Color = [0 1 0];
     app.update_timer = timer('Period', app.PInterval,... % poling interval

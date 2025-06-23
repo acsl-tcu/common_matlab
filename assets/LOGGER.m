@@ -200,7 +200,11 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       end
 
       if opt.separate
-        dirname = "Data/" + tmpname;
+        if obj.fExp == 1
+          dirname = "Data/Exp_data/" + tmpname;
+        else
+          dirname = "Data/Sim_data/" + tmpname;
+        end
         mkdir(dirname);
         filename = dirname + "/Data.mat";
         Data.t = obj.Data.t;
@@ -241,7 +245,11 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         save(dirname + "/plant.mat", "plant");
       else
         filename = tmpname;
-        list = "Data/" + filename + ".mat";
+        if obj.fExp == 1
+            list = "Data/Exp_data/" + filename + ".mat";
+        else
+            list = "Data/Sim_data/" + filename + ".mat";
+        end
         log.Data = obj.Data;
         fn = fieldnames(obj);
 
@@ -439,7 +447,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
       %         row_col : row and column number of subplot
       %
       % usage plot({1,"p1:2:3","ser"},{2,"input",""},{1,"q","e"},
-      %               {2,"p1-p2"},"time",[4 10], "fig_num",2,"row_col",[2 2])
+      %               {2,"p1-p2"},"time",[4 10], "fig_num",2,"row_col",[2 2],
+      %                 "FontSize",18, "Linewidth",2)
       %       fig1 = agent1's p1,p3 data w.r.t sensor, estimator and reference
       %       fig2 = agent2's input
       %       fig3 = agent1's estimator q
@@ -465,6 +474,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         option.xrange = [];
         option.yrange = [];
         option.zrange = [];
+        option.FontSize {mustBeNumeric} = 11;
+        option.Linewidth {mustBeNumeric} = 0.5;
       end
 
       ranget = option.time; % time range
@@ -532,9 +543,9 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 lt = '-'; % line
             end
             if length(ps) == 3
-              plot3(ax,tmpx, tmpy, tmpz,LineStyle=lt);
+              plot3(ax,tmpx, tmpy, tmpz,LineStyle=lt, LineWidth=option.Linewidth);
             else
-              plot(ax,tmpx, tmpy(:, :, 1),LineStyle=lt); % tmpy(1:size(tmpx,1),:,1)
+              plot(ax,tmpx, tmpy(:, :, 1),LineStyle=lt, LineWidth=option.Linewidth); % tmpy(1:size(tmpx,1),:,1)
               if option.xrange
                 xlim(ax,option.xrange);
               else
@@ -543,6 +554,10 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
               ylim(ax,[min(tmpy,[],'all'), max(tmpy,[],'all')+0.01]);
             end
 
+            set(ax.XAxis, fontsize=option.FontSize-2)
+            set(ax.YAxis, fontsize=option.FontSize-2)
+            if length(ps)==3; set(ax.ZAxis, fontsize=option.FontSize-2); end
+            
             hold(ax, "on");
             grid(ax, "on");
 
@@ -554,26 +569,26 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             % set title label legend
             if length(ps) == 1
               ps = ["t", ps];
-              xlabel(ax,"Time [s]");
+              xlabel(ax,"Time [s]", Fontsize=option.FontSize);
             else
-              xlabel(ax,ps(1));
+              xlabel(ax,ps(1), Fontsize=option.FontSize);
             end
 
             switch ps(2)
               case "p"
-                title(ax,strcat("Position p of agent", string(n)));
+                title(ax,strcat("Position p of agent", string(n)), Fontsize=option.FontSize);
               case "q"
-                title(ax,strcat("Attitude q of agent", string(n)));
+                title(ax,strcat("Attitude q of agent", string(n)), Fontsize=option.FontSize);
               case "v"
-                title(ax,strcat("Velocity v of agent", string(n)));
+                title(ax,strcat("Velocity v of agent", string(n)), Fontsize=option.FontSize);
               case "w"
-                title(ax,strcat("Angular velocity w of agent", string(n)));
+                title(ax,strcat("Angular velocity w of agent", string(n)), Fontsize=option.FontSize);
               case "z"
-                title(ax,strcat("Position error integration of agent", string(n)));
+                title(ax,strcat("Position error integration of agent", string(n)), Fontsize=option.FontSize);
               case "input"
-                title(ax,strcat("Input u of agent", string(n)));
+                title(ax,strcat("Input u of agent", string(n)), Fontsize=option.FontSize);
               otherwise
-                title(ax,ps(2));
+                title(ax,ps(2), FontSize=option.FontSize);
             end
 
             if ps(1) ~= "t"
@@ -604,8 +619,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
               plegend = [plegend, append(vrange, att)];
             end
 
-            ylabel(ax, ps(2));
-            if length(ps) == 3; zlabel(ax, ps(3)); end
+            ylabel(ax, ps(2), Fontsize=option.FontSize);
+            if length(ps) == 3; zlabel(ax, ps(3), Fontsize=option.FontSize); end
           end
 
         end
@@ -637,7 +652,6 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
           text(ax,ax.XLim(2) - (ax.XLim(2) - ax.XLim(1)) * 0.25, ax.YLim(2) + (ax.YLim(2) - ax.YLim(1)) * yoffset, txt);
         end
-
       end
 
     end
