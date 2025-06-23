@@ -37,7 +37,7 @@ logger = LOGGER(fullpath);
 %% プロット
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fsave = 0;
+fsave = 2;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -52,10 +52,10 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
 settings.target = ["p", "p1-p2"];
-% settings.target = ["inner_input1:4"];
-% プロットしたいグラフの情報                                          %
+settings.target = ["input", "inner_input1:4"];
+% プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %
-% input: controller input                                           %
+% input: controller input    inner_input1:4: transmitter input      %
 % p1-p2: x-y 2D plot    p1-p2-p3: x-y-z 3D plot                     %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -146,13 +146,13 @@ for i=1:length(settings.target)
         mkdir('plot/fig')
     end
     if fsave == 1
-        savefig(['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i)), '.fig']);
+        savefig(['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
     elseif fsave == 2
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'png');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'png');
     elseif fsave == 3
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'pdf');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'pdf');
     elseif fsave == 4
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', char(settings.target(i))], 'epsc');
+        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'epsc');
     end
 end
 
