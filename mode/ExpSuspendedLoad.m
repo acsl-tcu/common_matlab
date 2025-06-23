@@ -9,7 +9,7 @@ post_func = @(app) post(app);
  % logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);%今までのやつ
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.1.4'); % connect to Motive
+motive = Connector_Natnet('192.168.100.4'); % connect to Motive
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load  = motive.result.rigid(2);
@@ -28,10 +28,10 @@ initial_state.wL = [0; 0; 0];
 %=============================================================================================
 
 agent = DRONE;
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM7"));%有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));%有線プロポ
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
-agent.parameter.set("cableL",0.99);%0.992,0.647,p0.613,0.460
-agent.parameter.set("loadmass",0.05);%0.0968);%0.968
+agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
+agent.parameter.set("loadmass",0.075);%0.0968);%0.968
 agent.sensor.motive = MOTIVE(agent, Sensor_Motive(1,0, motive)); % rigid_id,initial_yaw_angle,motive
 Estimator = Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")), ["p", "q", "pL", "pT"]);
 Estimator.sensor_func = @EKF_sensor_multi_rigid;
