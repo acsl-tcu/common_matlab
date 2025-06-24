@@ -102,6 +102,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             obj.result.input = [max(0,min(20,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];%+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1;%入力にノイズを付与可能
             obj.result.xd = xd;
             obj.result.x = x;
+            obj.result.sus = obj.result.input;
             result = obj.result;
         end
         function show(obj)
