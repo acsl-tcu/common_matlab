@@ -136,11 +136,13 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 %     obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
                 %     %obj.flag.A =1;
                 % end
-                result = obj.controller_KMC(varargin);
-                disp('controller: MC,  phase: f');
+                result= obj.controller_KMC(varargin);
+                obj.result.kmpc = obj.result.input;
+                disp('controller: MC,  phase: ');
+                disp(phase);
+                disp(obj.self.reference.result.state.p);
             % end
-             refA = obj.self.reference.result;
-             disp(refA.state.p);
+            
             
         end
         function result = controller_KMC(obj,varargin)

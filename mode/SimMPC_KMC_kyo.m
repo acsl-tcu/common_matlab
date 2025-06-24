@@ -73,7 +73,9 @@ agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
  agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
 % %agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
-agent.controller.result.input = [0;0;0;0];
+% agent.controller.result.input = [0;0;0;0];
+% agent.controller.result.input_kmpc= [0;0;0;0];
+
 % agent.controller.do = @controller_do;
 % %------------------------------------------------------------------------------------------------------------------------
 % agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
@@ -87,7 +89,7 @@ agent.cha_allocation.reference = "bezier";
 % agent.cha_allocation.l.reference = "landing";
 
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["kmpc"];%,"hlc"];
+agent.cha_allocation.f.controller = ["kmpc","hlc"];
 
 % agent.cha_allocation.a.controller = "hlc";
 % agent.cha_allocation.controller =  "kmpc";
@@ -121,6 +123,7 @@ agent.cha_allocation.f.controller = ["kmpc"];%,"hlc"];
 
 
 function post(app)
+
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
@@ -128,6 +131,8 @@ app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te]
 app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
+app.logger.plot({1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""},"fig_num", 4,"phase","f");
 end
 function est =import_vars_from_mfile(mfile)
    

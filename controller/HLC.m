@@ -4,6 +4,7 @@ classdef HLC < handle
     self
     result
     param
+    H=12;
     parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
   end
 
@@ -16,9 +17,20 @@ classdef HLC < handle
     end
 
     function result = do(obj,varargin)
+        
+        % time = varargin{1};
+         phase = varargin{2};
+        % obj.param.t = time.t;
+        % if phase == 'f'
+        %     ref = obj.generate_reference();
+        % else
+             
+        % end
       model = obj.self.estimator.result;
-      ref = obj.self.reference.result;
+     ref = obj.self.reference.result;
       xd = ref.state.xd;
+      disp('controller: HLC,  phase: ');
+      disp(phase);
       disp(ref.state.p);
       xd0 =xd;
       P = obj.param.P;
@@ -51,8 +63,27 @@ classdef HLC < handle
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
       obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+      obj.result.hlc = obj.result.input;
       result = obj.result;
+       
+              
     end
+    function [xr] = generate_reference(obj)
+            total_size=16;
+            xr = zeros(total_size, obj.H);    % initialize
+            % 時間関数の取得→時間を代入してリファレンス生成
+
+            RefTime = obj.self.reference.bezier.ref_generator;    % 時間関数の取得
+            for h = 0:obj.H-1
+                t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
+                ref = RefTime(t);
+                xr(1:3, h+1) = ref(1:3);
+                xr(7:9, h+1) = ref(5:7);
+                xr(4:6, h+1) =   [0;0;ref(4)]; % 姿勢角
+                xr(10:12, h+1) = [0;0;0];
+                xr(13:16, h+1) = [0;0;0;0]; % MC -> 0.6597,   HL -> 0
+            end
+        end
   end
 end
 
