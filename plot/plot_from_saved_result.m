@@ -51,8 +51,8 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-settings.target = ["p", "p1-p2"];
-settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
+settings.target = ["q", "p1-p2"];
+% settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
 % プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input    inner_input1:4: transmitter input      %
