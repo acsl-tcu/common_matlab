@@ -19,7 +19,9 @@ classdef HLC < handle
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p);
+      % disp(ref.state.p);
+      disp(model.state.p')
+      disp(xd(1:3)')
       xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;
@@ -49,7 +51,7 @@ classdef HLC < handle
       end
       %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
-      tmp' %実入力 thrust, roll, pitch, yaw
+      fprintf('input: %f\n', tmp') %実入力 thrust, roll, pitch, yaw
       % max,min are applied for the safty
       obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       result = obj.result;
