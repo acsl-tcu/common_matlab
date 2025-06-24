@@ -63,22 +63,22 @@ classdef BEZIER_REFERENCE < handle
                  4 * (1 - tau) * tau^3 * obj.P3 + ...
                  tau^4 * obj.P4;
                  
-      Vel_sym = diff(Path_sym, t_local);
-      Acc_sym = diff(Vel_sym, t_local);
-      Xd_sym = sym(zeros(20, 1));
-      Xd_sym(1:3)   = Path_sym.';
-      Xd_sym(5:7)   = Vel_sym.';
-      Xd_sym(9:11)  = Acc_sym.';
-       calc_handle = matlabFunction(Xd_sym, 'Vars', {t_local});
-        ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
-    %  Path_sym=[Path_sym';0];           
-     % xd=Path_sym(t_local);
-     % dxd =diff(xd,t_local);
-     % ddxd = diff(dxd,t_local);
-     % dddxd =diff(ddxd,t_local);
-     % ddddxd =diff(dddxd,t_local);
-     % calc_handle = matlabFunction([xd;dxd;ddxd;dddxd;ddddxd], 'Vars', {t_local});
-     % ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
+      % Vel_sym = diff(Path_sym, t_local);
+      % Acc_sym = diff(Vel_sym, t_local);
+      % Xd_sym = sym(zeros(20, 1));
+      % Xd_sym(1:3)   = Path_sym.';
+      % Xd_sym(5:7)   = Vel_sym.';
+      % Xd_sym(9:11)  = Acc_sym.';
+      %  calc_handle = matlabFunction(Xd_sym, 'Vars', {t_local});
+      %   ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
+     Path_sym=[Path_sym';0];           
+     xd=Path_sym;
+     dxd =diff(xd,t_local);
+     ddxd = diff(dxd,t_local);
+     dddxd =diff(ddxd,t_local);
+     ddddxd =diff(dddxd,t_local);
+     calc_handle = matlabFunction([xd;dxd;ddxd;dddxd;ddddxd], 'Vars', {t_local});
+     ref = @(t_global) calc_handle(min(max(t_global - obj.tss, 0), obj.T_total));
     end
   end
 end
