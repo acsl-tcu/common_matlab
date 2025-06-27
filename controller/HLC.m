@@ -53,8 +53,10 @@ classdef HLC < handle
       obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       % %スイープ周波数追加
       %chirp(初期時刻，初期周波数，指定時間，指定周波数)※周波数は指定周波数÷指定時間の割合で増えていく
-      obj.result.delta_u = 3.0*chirp(varargin{1}.t,0,varargin{1}.te,50,'linear')*[1;0;0;0];
+      obj.result.delta_u_thrust = 3.0*chirp(varargin{1}.t,0,varargin{1}.te,2,'linear')*[1;0;0;0];%スラスト
+      obj.result.delta_u_torque = 0.1*chirp(varargin{1}.t,0,varargin{1}.te,0.1,'linear')*[0;1;1;1];%トルク
       % obj.result.delta_u = 0;
+      obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_torque;
       obj.result.input = obj.result.delta_u+obj.result.nominal;
       result = obj.result;
     end
