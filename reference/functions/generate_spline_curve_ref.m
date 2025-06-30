@@ -1,4 +1,6 @@
-function ref = generate_spline_curve_ref(te,filename,order,isManualSetting)
+% function ref = generate_spline_curve_ref(te,filename,order,isManualSetting)
+function ref = generate_spline_curve_ref(param)
+%% この関数でやりたい処理
 %% この関数でやりたい処理
 % isManualSetting = 1のときにここでwaypointを設定する
 % 保存したmatファイルからway_point_refを呼び出す
@@ -7,7 +9,14 @@ function ref = generate_spline_curve_ref(te,filename,order,isManualSetting)
 % filename: 読み込む目標軌道
 % order: 何次までのスプラインか(default:5)
 % isManualSetting: 手動で設定するか、読み込むか
+arguments
+    param.order = 5;
+    param.te
+    param.filename
+    param.isManualSetting
+end
 
+isManualSetting = param.isManualSetting;
 %% ここから処理開始
     if ~isManualSetting 
         disp('Loading reference data from mat');
