@@ -10,21 +10,21 @@ function ref = generate_spline_curve_ref(param)
 % order: 何次までのスプラインか(default:5)
 % isManualSetting: 手動で設定するか、読み込むか
 arguments
-    param.order = 5;
+    param.order
     param.te
     param.filename
-    param.isManualSetting
+    param.ManualSetting
 end
 
-isManualSetting = param.isManualSetting;
+ManualSetting = param.ManualSetting;
 %% ここから処理開始
-    if ~isManualSetting 
+    if ManualSetting ==1
         disp('Loading reference data from mat');
         % load(strcat('../Data/reference/', filename));
         load(strcat('Data/reference/', filename)); % for exp
         fshowfig = 0; % 読み込んだ時はグラフは描画しない
     else
-        pointN = 7; %waypointの数 default:5, y方向のみの時は7
+        pointN = 5; %waypointの数 default:5, y方向のみの時は7
         dt = 6;%waypoint間の時間
         time =  (0:dt:dt*(pointN-1))';
 
@@ -43,12 +43,12 @@ isManualSetting = param.isManualSetting;
 
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
-
+        order = param.order;
         fshowfig = 1;      
     end
     ref=MY_WAY_POINT_REFERENCE.way_point_ref(waypoints,order,fshowfig);
 
-    if isManualSetting
+    if  exist('ManualSetting','var') 
         isSaved = input("Save spline curve : '1'\nNo save : '0'\nFill in : ");
         % isSaved = 0; % fixed
         if isSaved==0||isempty(isSaved)
