@@ -10,25 +10,19 @@ classdef DNNMEC < handle
         param
         parameter_name = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
         agent
-        % motive
-        % % MECNN       % DNNアーキテクチャ
-        % Pn_p_pre    % 前時刻のノミナルの位置←なんか使ってない…
-        % Pa_p_pre    % 前時刻のプラントの推定位置
-        % Pn_p_cur    % 状態更新後のノミナルの出力（位置p，速度v，角度q，各速度w）
-        % Pa_p_cur    % 状態更新後のプラントの推定値
-        % Pn_u        % ノミナルのコントローラから得られた制御入力
+        DNN_model_filename
         pre_input
     end
     
     methods
-        function obj = DNNMEC(self, param)
+        function obj = DNNMEC(self, DNN_model_filename)
             %HLC_DNNMECインスタンス
-            %   self: agentを指す
-            %   param: Controllerのパラメータ(フィードバックゲイン)
-
+            %   [Inputs]
+            %    self: agentを指す
+            %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
             obj.self = self;
-            obj.param = param;
-            obj.param.P = self.parameter.get(obj.parameter_name);
+            obj.param = self.parameter.get(obj.parameter_name);
+            obj.DNN_model_filename = DNN_model_filename;
             obj.result.input = zeros(self.estimator.model.dim(2),1);
             obj.result.delta_input = zeros(self.estimator.model.dim(2),1);
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
@@ -40,12 +34,16 @@ classdef DNNMEC < handle
             obj.pre_input = varargin{3}.Data.agent.controller.result{end}; % LOGGERの中から前時刻の入力を取得
             dt = varargin{1}.dt;
             x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から前時刻の状態を取得
-            y_nominal = euler_approximation_drone(x_pre, obj.pre_input, obj.param.P, dt);
+            y_nominal = euler_approximation_drone(x_pre, obj.pre_input, obj.param, dt);
 
+            % プラント値取得
             y_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [w; q; p; v];
 
-            obj.result.delta_input = 
+            % DNN関係
+            DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename);
+            DNN_model.Initialized;
+            obj.result.delta_input = predict(DNN_model, [y_plant; y_nominal]);
 
             obj.result.input = varargin{5}.controller.nominal.result.input + obj.result.delta_input;
             result = obj.result;

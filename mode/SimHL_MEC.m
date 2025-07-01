@@ -34,7 +34,7 @@ run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-agent.controller.mec = HLC_DNNMEC(agent, Controller_HL(dt));
+agent.controller.mec = DNNMEC(agent, "DNNMEC.onnx");
 % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)); % KMECブランチより
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
