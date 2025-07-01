@@ -65,9 +65,9 @@ classdef MY_WAY_POINT_REFERENCE < handle
                     obj.i = length(obj.time);
                     obj.t_ref = obj.dtime(end);
                     %繰り返し用:最後のポイントになったら次を最初のポイントにする．これにするときは最初と最後のポイントを一致させる
-                    % obj.i = 1;
-                    % obj.t_ref0 = round(t_f,4);
-                    % obj.t_ref=0;
+                    obj.i = 1;
+                    obj.t_ref0 = round(t_f,4);
+                    obj.t_ref=0;
                 else
                     obj.t_ref0 = round(t_f,4);
                     obj.t_ref=0;
@@ -206,7 +206,7 @@ classdef MY_WAY_POINT_REFERENCE < handle
             t_ref0=0;
             i=1;
             j=1;
-            delta=0.02;
+            delta=0.025;
             end_time=time(end)+1;
             length_time = length(0:delta:end_time);
             xyz = zeros(3,length_time);
@@ -235,7 +235,7 @@ classdef MY_WAY_POINT_REFERENCE < handle
             ref.xyz=xyz;
             ref.vxyz=vxyz;
             ref.axyz=axyz;
-
+            
             % グラフを表示
             if fdrowfig
                 close all

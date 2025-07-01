@@ -14,6 +14,7 @@ arguments
     param.te
     param.filename
     param.ManualSetting
+    param.controller_time
 end
 
 ManualSetting = param.ManualSetting;
@@ -43,17 +44,26 @@ ManualSetting = param.ManualSetting;
 
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
-        order = param.order;
-        fshowfig = 1;      
+        order = param.order;%多項式の次数
+        fshowfig = 1;
     end
-    ref=MY_WAY_POINT_REFERENCE.way_point_ref(waypoints,order,fshowfig);
+    
+    ref_initial=MY_WAY_POINT_REFERENCE.way_point_ref(waypoints,order,fshowfig);
+    ref=@(t) ref_initial.xyz(:, mod(floor(t/param.controller_time.dt), size(ref_initial.xyz,2)) + 1);
 
-    if  exist('ManualSetting','var') 
-        isSaved = input("Save spline curve : '1'\nNo save : '0'\nFill in : ");
-        % isSaved = 0; % fixed
-        if isSaved==0||isempty(isSaved)
+    if  exist('ManualSetting','var') %waypointを保存するか選べる
+        isSaved = [];
+        while ~any(ismember(isSaved, [0, 1]))
+            isSaved = input("Save spline curve : '1'\nNo save : '0'\nFill in : ",'s');
+            isSaved = str2double(isSaved);
+         if isnan(isSaved) || ~ismember(isSaved,[0,1])
+            disp('0または1を入力してください');
+            isSaved = [];
+         end
+        end
+        if isSaved==0
             disp("No save")
-        elseif isSaved==1
+        else
             % save('../Data/reference/exp_ref.mat', 'waypoints');
             save('Data\reference\exp_ref.mat', 'waypoints');
         end
