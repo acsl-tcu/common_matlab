@@ -54,10 +54,10 @@ classdef DNNMEC < handle
             % DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename);
             % DNN_model.Initialized;
             % obj.result.delta_input = predict(DNN_model, [y_plant; y_nominal]);
-            
-            obj.result.delta_input = [5; 0; 0; 0]; % 定数を入れてお試し
+
+            obj.result.delta_input = [-5; 0; 0; 0]; % 定数を入れてお試し
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
-            obj.result.input = obj.result.nominal_input + obj.result.delta_input;
+            obj.result.input = obj.result.nominal_input - obj.result.delta_input;
             result = obj.result;
         end
     end
