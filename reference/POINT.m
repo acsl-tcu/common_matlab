@@ -1,4 +1,4 @@
-classdef MY_WAY_POINT_REFERENCE < handle
+classdef POINT < handle
     properties
         param
         self
@@ -16,7 +16,7 @@ classdef MY_WAY_POINT_REFERENCE < handle
     end
     
     methods
-        function obj = MY_WAY_POINT_REFERENCE(self,varargin)
+        function obj = POINT(self,varargin)
             %縦ベクトルで書く
             %最初のコマンドは"f"で始める
             %===method===
@@ -204,131 +204,11 @@ classdef MY_WAY_POINT_REFERENCE < handle
             for i = 1:length(names)
                 t_powers.(names{i}) = @(t) (t).^(0:n+1-i)';
             end
-            t_ref0=0;
-            i=1;
-            j=1;
-            delta=0.025;
-            end_time=time(end)+1;
-            length_time = length(0:delta:end_time);
-            xyz = zeros(3,length_time);
-            vxyz = zeros(3,length_time);
-            axyz = zeros(3,length_time);
-            for t_f = 0:delta:end_time
-            
-                t_ref= t_f - t_ref0;%目標地点が定められた時間からの経過時間
-            
-                if round(t_ref,4) >= dtime(i) 
-                   i=i+1;
-                    if i >length(ref.t) 
-                        i = length(ref.t);
-                        t_ref = dtime(end);
-                    else
-                        t_ref0 = round(t_f,4);
-                        t_ref=0;
-                    end
-                end
-                xyz(:,j) = coefficients.(names{1})(:,:,i)*t_powers.(names{1})(t_ref);
-                vxyz(:,j) = coefficients.(names{2})(:,:,i)*t_powers.(names{2})(t_ref);
-                axyz(:,j) = coefficients.(names{3})(:,:,i)*t_powers.(names{3})(t_ref);
-                j=j+1;
-            end
-            %返り値に格納
-            ref.xyz=xyz;
-            ref.vxyz=vxyz;
-            ref.axyz=axyz;
-            
-            % グラフを表示
-            if fdrowfig
-                close all
-                i=1;
-                figure(i)
-                plot3(xyz(1,:),xyz(2,:),xyz(3,:),"LineWidth",2);
-                hold on
-                plot3(point(1,:),point(2,:),point(3,:),"LineStyle","none","Marker","o","LineWidth",2)
-                text(point(1,1),point(2,1),point(3,1),"\quad start","interpreter","latex",'FontSize',14)
-                grid on
-                xlabel('$x$ (m)','FontSize',18,'Interpreter','latex')
-                ylabel('$y$ (m)','FontSize',18,'Interpreter','latex')
-                zlabel('$z$ (m)','FontSize',18,'Interpreter','latex')
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                hold off
-                i=i+1;
-    
-                figure(i)
-%                 tiledlayout("horizontal")
-                nexttile
-                plot(xyz(1,:),xyz(2,:),"LineWidth",2)
-                xlabel('$x$ (m)','FontSize',18,'Interpreter','latex')
-                ylabel('$y$ (m)','FontSize',18,'Interpreter','latex')
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                daspect([1,1,1])
-                pbaspect( [1,0.78084714548803,0.78084714548803]);
-                hold on
-                plot(point(1,:),point(2,:),'Marker','o','LineStyle','none',"LineWidth",2)
-                text(point(1,1),point(2,1),"\quad start","interpreter","latex",'FontSize',14)
-                grid on
-
-                nexttile
-                plot(xyz(1,:),xyz(3,:),"LineWidth",2)
-                xlabel('$x$ (m)','FontSize',18,'Interpreter','latex')
-                ylabel('$z$ (m)','FontSize',18,'Interpreter','latex')
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                daspect([1,1,1])
-                pbaspect( [1,0.78084714548803,0.78084714548803]);
-                hold on
-                plot(point(1,:),point(3,:),'Marker','o','LineStyle','none',"LineWidth",2)
-                text(point(1,1),point(3,1),"\quad start","interpreter","latex",'FontSize',14)
-                grid on
-
-                nexttile
-                plot(xyz(2,:),xyz(3,:),"LineWidth",2)
-                daspect([1,1,1])
-                pbaspect( [1,0.78084714548803,0.78084714548803]);
-                hold on
-                plot(point(2,:),point(3,:),'Marker','o','LineStyle','none',"LineWidth",2)
-                text(point(2,1),point(3,1),"\quad start","interpreter","latex",'FontSize',14)
-                xlabel('$y$ (m)','FontSize',18,'Interpreter','latex')
-                ylabel('$z$ (m)','FontSize',18,'Interpreter','latex')
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                grid on
-                i=i+1;
-                
-                figure(i)
-                plot(0:delta:end_time,xyz,"LineWidth",2)
-                grid on
-                xlabel('$t$ (s)','FontSize',18,'Interpreter','latex')
-                ylabel('$p$ (m)','FontSize',18,'Interpreter','latex')
-                legend({"$x$","$y$","$z$"},'Interpreter','latex')
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                i=i+1;
-    
-                figure(i)
-                plot(0:delta:end_time,vxyz,"LineWidth",2)
-                hold on
-                grid on
-                v_norm=sum(vxyz.^2).^0.5;
-                plot(0:delta:end_time,v_norm,"LineWidth",2)
-                xlabel('$t$ (s)','FontSize',18,'Interpreter','latex')
-                ylabel('$v$ (m/s)','FontSize',18,'Interpreter','latex')
-                legend({"$x$","$y$","$z$","$|v|$"},"Interpreter","latex")
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-                i=i+1;
-    
-                figure(i)
-                plot(0:delta:end_time,axyz,"LineWidth",2)
-                hold on
-                grid on
-                a_norm=sum(axyz.^2).^0.5;
-                plot(0:delta:end_time,a_norm,"LineWidth",2)
-                xlabel('$t$ (s)','FontSize',18,'Interpreter','latex')
-                ylabel('$a$ (m/$\mathrm{s^2}$)','FontSize',18,'Interpreter','latex')
-                legend({"$x$","$y$","$z$","$|a|$"},"Interpreter","latex")
-                set(gca,"TickLabelInterpreter","latex","FontSize",18)
-    
-                fprintf("If you confirmed trajectory, push the Enter key.");
-                input("");
-                close all
-            end
+            %一般式作る
+            t_start = [0,ref.t];%各区間の開始時間
+            period = t_start(end);%軌道の周期
+            t_mod = mod(t,period);
+       
         end
     end
 end

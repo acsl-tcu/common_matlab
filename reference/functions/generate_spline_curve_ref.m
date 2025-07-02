@@ -48,8 +48,8 @@ ManualSetting = param.ManualSetting;
         fshowfig = 1;
     end
     
-    ref_initial=MY_WAY_POINT_REFERENCE.way_point_ref(waypoints,order,fshowfig);
-    ref=@(t) ref_initial.xyz(:, mod(floor(t/param.controller_time.dt), size(ref_initial.xyz,2)) + 1);
+    ref_initial=POINT.way_point_ref(waypoints,order,fshowfig);
+    % ref=@(t) ref_initial.xyz(:, mod(floor(t/param.controller_time.dt), size(ref_initial.xyz,2)) + 1);
 
     if  exist('ManualSetting','var') %waypointを保存するか選べる
         isSaved = [];
