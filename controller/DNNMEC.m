@@ -45,13 +45,18 @@ classdef DNNMEC < handle
             y_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [p; q; v; w];
 
-            % DNN関係
+            % % DNN関係
+            % if ~exist("controller/DNN_MODEL", "dir")
+            %     error("ACSL: Do not exist <DNN_MODEL> folder in controller folder.")
+            % elseif isempty(dir("controller/DNN_MODEL/*.onnx"))
+            %     error("ACSL: Do not exist <onnx> file in controller/DNN_MODEL. ")
+            % end
             % DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename);
             % DNN_model.Initialized;
             % obj.result.delta_input = predict(DNN_model, [y_plant; y_nominal]);
-            obj.result.delta_input = [5; 0; 0; 0];
+            
+            obj.result.delta_input = [5; 0; 0; 0]; % 定数を入れてお試し
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
-
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
         end
