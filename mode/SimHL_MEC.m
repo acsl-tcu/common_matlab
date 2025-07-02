@@ -22,33 +22,29 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE"); %ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
+agent.parameter = DRONE_PARAM("DIATONE"); % ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.5]},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
-% agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"});
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
-% agent.controller.nominal = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 agent.controller.mec = DNNMEC(agent, "DNNMEC.onnx");
-% agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt)); % KMECブランチより
-agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
+agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",1);
-app.logger.plot({1, "q", "e"},"xrange",[app.time.ts,app.time.te],"fig_num",2);
-app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "fig_num",1);
+app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2);
+app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
-%     {1, "controller.result.delta_input", ""}}, "xrange",[app.time.ts,app.time.te],"fig_num",4); % inputをまとめて見る
-app.logger.plot({1, "input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",5);
-app.logger.plot({1, "controller.result.nominal_input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
-app.logger.plot({1, "controller.result.delta_input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
+%     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",4); % inputをまとめて見る
+app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",5);
+app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",6);
+app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",7);
 
-app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
-app.logger.plot({1, "p1-p2-p3", "er"},"color", 0,"fig_num",9);
+app.logger.plot({1, "p1-p2", "er"}, "color", 0, "fig_num",8);
+app.logger.plot({1, "p1-p2-p3", "er"}, "color", 0, "fig_num",9);
 end
