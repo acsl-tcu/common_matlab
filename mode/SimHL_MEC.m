@@ -32,7 +32,7 @@ run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "DNNMEC.onnx");
+agent.controller.mec = DNNMEC(agent, "epoch_100000.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
