@@ -3,9 +3,10 @@ function x_plus = euler_approximation_drone(x_pre, input, params, dt)
 %   1次オイラー近似による状態更新
 %   2025/07 作成者:小関      学番:2212044
 %   [Inputs]
-%    x_pre=[w; q; p; v]: 現時刻の状態
+%    x_pre=[p; q; v; w]: 現時刻の状態
 %    input: 制御入力
-%    params: ドローンの物理パラメータ
+%    params : ドローンの物理パラメータ
+%    =["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"]
 %    dt: 刻み時間
 %   [Output]
 %    x_plus: 次時刻の状態
@@ -16,28 +17,28 @@ end
 function dx = call_dx(x_pre, input, params)
 % 状態微分 dx を計算するローカル関数
 
-    dp1 = x_pre(10, :);
-    dp2 = x_pre(11, :);
-    dp3 = x_pre(12, :); % 速度項
+    dp1 = x_pre(7);
+    dp2 = x_pre(8);
+    dp3 = x_pre(9); % 速度項
 
-    gravity = params.gravity;
-    jx = params.jx;
-    jy = params.jy;
-    jz = params.jz;
-    m = params.mass;
+    gravity = params(9);
+    jx = params(6);
+    jy = params(7);
+    jz = params(8);
+    m = params(1);
 
-    o1 = x_pre(1, :);
-    o2 = x_pre(2, :);
-    o3 = x_pre(3, :); % 角速度項
+    o1 = x_pre(10);
+    o2 = x_pre(11);
+    o3 = x_pre(12); % 角速度項
 
-    pitch = x_pre(5, :);
-    roll = x_pre(4, :);
-    yaw = x_pre(6, :);
+    pitch = x_pre(5);
+    roll = x_pre(4);
+    yaw = x_pre(6);
 
-    u1 = input(1, :);
-    u2 = input(2, :);
-    u3 = input(3, :);
-    u4 = input(4, :);
+    u1 = input(1);
+    u2 = input(2);
+    u3 = input(3);
+    u4 = input(4);
 
     t2 = cos(pitch);
     t3 = cos(roll);
