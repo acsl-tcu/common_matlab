@@ -208,22 +208,46 @@ classdef POINT < handle
                 t_powers.(names{i}) = @(t) (t).^(0:n+1-i)';
             end
             ref.t_powers = t_powers;
+
             %一般式作る
             period = time(end);%軌道の周期
             t_mod = mod(t,period);
+            interpolation = sym(zeros(3, Sn));
+            for i=1:Sn
+            interpolation_x(:,i) = ref.coefficients.d0(:,:,i)*t_powers.d0(t_mod-time(i));
+            end
+            conds = sym([]); % 条件式用の空配列
+            exprs_x = sym([]); % x方向の式
+            exprs_y = sym([]); % y方向の式
+            exprs_z = sym([]); % z方向の式
             
             for i = 1:Sn-1
-            % 各区間の条件式とスプライン式
-            conds(i) = t_mod >= time(i) & t < time(i+1);
-            interpolation(:,i) = ref.coefficients.d0(1,:,i)*t_powers.d0(t_mod-time(i));
+                conds = [conds, (t_mod >= time(i)) & (t_mod < time(i+1))];
+                exprs_x = [exprs_x, interpolation(1, i)];
+                exprs_y = [exprs_y, interpolation(2, i)];
+                exprs_z = [exprs_z, interpolation(3, i)];
             end
+            
+            % 最終区間の条件と式
+            conds = [conds, (t_mod >= time(Sn))];
+            exprs_x = [exprs_x, interpolation(1, Sn)];
+            exprs_y = [exprs_y, interpolation(2, Sn)];
+            exprs_z = [exprs_z, interpolation(3, Sn)];
+            
+            % argsセル配列作成関数（便利化のため関数化しても良い）
+            make_args = @(conds, exprs) ...
+                reshape([num2cell(conds); num2cell(exprs)], 1, []);
+            
+            % piecewise関数用の引数セル配列作成
+            args_x = make_args(conds, exprs_x);
+            args_y = make_args(conds, exprs_y);
+            args_z = make_args(conds, exprs_z);
+            
+            % ref構造体に登録
+            ref.x_t = piecewise(args_x{:});
+            ref.y_t = piecewise(args_y{:});
+            ref.z_t = piecewise(args_z{:});
 
-            % 最終区間
-            conds(Sn) = t_mod >= time(Sn);
-            interpolation(:,Sn) = ref.coefficients.d0(1,:,Sn) * t_powers.d0(t - time(Sn));
-
-            % piecewise関数で式を生成
-            xyz_t = piecewise(conds, interpolation);        
         end
     end
 end

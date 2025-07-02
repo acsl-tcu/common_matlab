@@ -49,7 +49,7 @@ ManualSetting = param.ManualSetting;
     end
     syms t real
     ref_initial=POINT.way_point_ref(waypoints,order,fshowfig,t);
-    % ref=@(t) equation(t);
+    ref = [ref_initial.x_t;ref_initial.y_t;ref_initial.z_t];
 
 
     if  exist('ManualSetting','var') %waypointを保存するか選べる
