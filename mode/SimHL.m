@@ -31,7 +31,7 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"generate_spline_curve_ref",{"te",20,"order",7,"ManualSetting",0,"controller_time",time},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"generate_spline_curve_ref",{"te",20,"order",3,"ManualSetting",0,"controller_time",time},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
 %run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);

@@ -25,7 +25,7 @@ ManualSetting = param.ManualSetting;
         load(strcat('Data/reference/', filename)); % for exp
         fshowfig = 0; % 読み込んだ時はグラフは描画しない
     else
-        pointN = 5; %waypointの数 default:5, y方向のみの時は7
+        pointN = 8; %waypointの数 default:5, y方向のみの時は7
         dt = 6;%waypoint間の時間
         time =  (0:dt:dt*(pointN-1))';
 
@@ -47,9 +47,10 @@ ManualSetting = param.ManualSetting;
         order = param.order;%多項式の次数
         fshowfig = 1;
     end
-    
-    ref_initial=POINT.way_point_ref(waypoints,order,fshowfig);
-    % ref=@(t) ref_initial.xyz(:, mod(floor(t/param.controller_time.dt), size(ref_initial.xyz,2)) + 1);
+    syms t real
+    ref_initial=POINT.way_point_ref(waypoints,order,fshowfig,t);
+    % ref=@(t) equation(t);
+
 
     if  exist('ManualSetting','var') %waypointを保存するか選べる
         isSaved = [];

@@ -13,6 +13,7 @@ classdef POINT < handle
         i
         fref
         result
+        interpolation
     end
     
     methods
@@ -100,7 +101,7 @@ classdef POINT < handle
     end
 
     methods (Static)
-        function ref = way_point_ref(val,n,fdrowfig)
+        function ref = way_point_ref(val,n,fdrowfig,t)
             % val         %時間とwaypoint
             % n           %多項式次数
             % fdrowfig=1  %図を描画するか
@@ -111,6 +112,7 @@ classdef POINT < handle
                 val         %時間とwaypoint
                 n           %多項式次数
                 fdrowfig  %図を描画するか
+                t
             end
             time = val(:,1)';
             point = val(:,2:end)';
@@ -118,6 +120,7 @@ classdef POINT < handle
             Sn=length(time(1:end-1)); %求める多項式の数
             D(1,:)=ones(1,n+1);%多項式の係数行列1に初期化
             
+
             for i = 1:n-1%多項式の階数ごとの微分係数計算
                 D(i+1,:)=[zeros(1,i), 1:n-i+1].*D(i,:);
                 % D(i+1,:)=[zeros(1,i), polyder(D(i,i:end))];
@@ -204,11 +207,23 @@ classdef POINT < handle
             for i = 1:length(names)
                 t_powers.(names{i}) = @(t) (t).^(0:n+1-i)';
             end
+            ref.t_powers = t_powers;
             %一般式作る
-            t_start = [0,ref.t];%各区間の開始時間
-            period = t_start(end);%軌道の周期
+            period = time(end);%軌道の周期
             t_mod = mod(t,period);
-       
+            
+            for i = 1:Sn-1
+            % 各区間の条件式とスプライン式
+            conds(i) = t_mod >= time(i) & t < time(i+1);
+            interpolation(:,i) = ref.coefficients.d0(1,:,i)*t_powers.d0(t_mod-time(i));
+            end
+
+            % 最終区間
+            conds(Sn) = t_mod >= time(Sn);
+            interpolation(:,Sn) = ref.coefficients.d0(1,:,Sn) * t_powers.d0(t - time(Sn));
+
+            % piecewise関数で式を生成
+            xyz_t = piecewise(conds, interpolation);        
         end
     end
 end
