@@ -14,6 +14,7 @@ initial_state.p = sstate.p;
 initial_state.q = sstate.q;
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
+rigid_num = motive.result.rigid_num;          % 剛体数
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));

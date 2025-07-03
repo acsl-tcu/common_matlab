@@ -1,4 +1,4 @@
-%plot_and_close(rigid_num,agent)をもとに作成単機牽引のmotive確認用
+%plot_and_close(rigid_num,agent)をもとに作成，単機牽引のmotive確認用
 function Suspended_plot_and_close(rigid_num,agent)
 % 初期設定
 check_rigid = rigid_num; % とりあえずそのまま持ってくる.剛体中心基点をやめたときはいじる必要あり．
@@ -17,17 +17,17 @@ check_rigid = rigid_num; % とりあえずそのまま持ってくる.剛体中�
 
     % プロットのループ
     for check_i = 1:check_rigid
-        x = check_position(check_i).p(1);
-        y = check_position(check_i).p(2);
+        y = check_position(check_i).p(1);
+        x = check_position(check_i).p(2);
 
         if check_i == 1
               % check_iが1のときDroneとして表示
             plot(x, y, 's', 'MarkerSize', 10, 'DisplayName', ['Quadcopter ' num2str(check_i)]);
-            text(x + 0.2, y, ['Drone ' num2str(check_i)], 'FontSize', 12, 'Color', 'black'); % 番号を表示
+            text(x + 0.1, y, ['Drone ' num2str(check_i)], 'FontSize', 12, 'Color', 'black'); % 番号を表示
         else %check_i == 2
               % check_iが2のときpayloadとして表示
-            plot(x, y, 'p', 'MarkerSize', 10, 'DisplayName', ['Point ' num2str(check_i)]);
-            text(x + 0.2, y, num2str(check_i), 'FontSize', 12, 'Color', 'black'); % 番号を表示
+            plot(x, y, 'p', 'MarkerSize', 10, 'DisplayName', ['Payload ' num2str(check_i)]);
+            text(x + 0.1, y, num2str(check_i), 'FontSize', 12, 'Color', 'black'); % 番号を表示
 
             if check_i==1 && check_rigid>=2
                 % 次の奇数の座標へ矢印を表示(単機牽引のロープの方向)
@@ -40,8 +40,8 @@ check_rigid = rigid_num; % とりあえずそのまま持ってくる.剛体中�
     end
 
     % グラフの設定
-    xlabel('X座標');
-    ylabel('Y座標');
+    xlabel('Z座標');
+    ylabel('X座標');
     title('Motiveのセンサー結果 Enterで閉じる');
     legend('Location', 'northeastoutside'); % 凡例を外側に表示
     legend show;

@@ -21,6 +21,8 @@ initial_state.w = [0; 0; 0];
 initial_state.vL = [0; 0; 0];
 initial_state.pT = [0; 0; -1];
 initial_state.wL = [0; 0; 0];
+rigid_num           = motive.result.rigid_num;          % 剛体数
+
  %=推定方法を変える場合==========================================================================
 %-拡張質量システム：
 % Model_Suspended_Load(dt,initial,id,agent,isEstLoadMass):isEstLoadMass=1
@@ -28,7 +30,7 @@ initial_state.wL = [0; 0; 0];
 %=============================================================================================
 
 agent = DRONE;
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM6"));%有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));%有線プロポ
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
 agent.parameter.set("loadmass",0.075);%0.0968);%0.968
@@ -51,7 +53,8 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.1],"size",[1,1,0.2*0]*1},"HL"});
 dummy_state = state_copy(agent.reference.timevarying.result.state);
 
-% plot_and_close(rigid_num,agent);%Motive入れ替わり対策グラフ．plot_and_close.mで設定してる
+agent(1).sensor.motive.do([], 'f');
+Suspended_plot_and_close(rigid_num,agent);%Motive入れ替わり対策グラフ．plot_and_close.mで設定してる
 
 agent.reference.dummy = struct("do",@(varargin) varargin{5}.reference.dummy.result, "result",struct("state",dummy_state));
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
