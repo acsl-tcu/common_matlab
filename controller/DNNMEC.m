@@ -44,6 +44,7 @@ classdef DNNMEC < handle
             obj.result.input = zeros(self.estimator.model.dim(2),1);
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
+            disp('obj.result.delta_inputを表示します')
         end
         
         function result = do(obj, varargin)
@@ -61,7 +62,9 @@ classdef DNNMEC < handle
             % -> size = 12*1, contents = [p; q; v; w];
 
             % DNN関係
-            obj.result.delta_input = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
+            tmp = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
+            % max,min are applied for the safty
+            obj.result.delta_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
 
             % obj.result.delta_input = [-5; 0; 0; 0]; % 定数を入れてお試し
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
