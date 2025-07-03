@@ -28,7 +28,7 @@ classdef DNNMEC < handle
             % DNN model import & define
             obj.DNN_model_filename = DNN_model_filename;
             if ~exist("controller/DNN_MODEL", "dir")
-                error("ACSL: Do not exist <DNN_MODEL> folder in controller folder.")
+                mkdir("controller\DNN_MODEL")
             elseif isempty(dir("controller/DNN_MODEL/*.onnx"))
                 error("ACSL: Do not exist <onnx> file in controller/DNN_MODEL. ")
             end
