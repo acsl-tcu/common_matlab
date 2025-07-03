@@ -51,6 +51,8 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.1],"size",[1,1,0.2*0]*1},"HL"});
 dummy_state = state_copy(agent.reference.timevarying.result.state);
 
+% plot_and_close(rigid_num,agent);%Motive入れ替わり対策グラフ．plot_and_close.mで設定してる
+
 agent.reference.dummy = struct("do",@(varargin) varargin{5}.reference.dummy.result, "result",struct("state",dummy_state));
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
 run("ExpBase");
