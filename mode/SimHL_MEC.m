@@ -22,8 +22,9 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE"); % ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
-agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
+agent.parameter = DRONE_PARAM("DIATONE", mass=1.0); % プラントモデル．DRONE_PARAMのパラメータを上書きしている．
+% agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
@@ -32,7 +33,7 @@ run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "epoch_100000.onnx");
+agent.controller.mec = DNNMEC(agent, "epoch_100000_coef_1_0.5_0.5_0.5_0.5.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
