@@ -65,9 +65,9 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 % agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 % run("SimBase");
 %%
-agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
+%agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
-%agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
@@ -82,14 +82,14 @@ agent.controller.hlc = HLC(agent,Controller_HL(dt));
 % agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 % agent.reference.arming = ARMING_REFERENCE(agent,[]);
 run("ExpBase");
-agent.cha_allocation.reference = "bezier";
+agent.cha_allocation.reference = "time_var";
 % agent.cha_allocation.a.reference = "arming";
 % agent.cha_allocation.f.reference = "bezier";
 % agent.cha_allocation.t.reference = "takeoff";
 % agent.cha_allocation.l.reference = "landing";
 
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["kmpc","hlc"];
+agent.cha_allocation.f.controller = ["kmpc"];
 
 % agent.cha_allocation.a.controller = "hlc";
 % agent.cha_allocation.controller =  "kmpc";
@@ -132,7 +132,7 @@ app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te])
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
-app.logger.plot({1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""},"fig_num", 4,"phase","f");
+%app.logger.plot({1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""},"fig_num", 4,"phase","f");
 end
 function est =import_vars_from_mfile(mfile)
    

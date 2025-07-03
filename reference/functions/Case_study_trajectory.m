@@ -36,22 +36,22 @@ z = z0(3);
 % T = 12;
 % x = sin(2*pi*t/T);
 % y = cos(2*pi*t/T);
-% z = 1;
+% z = 0.6;
 %%
 % 円旋回 KMPC
 % T = 20;
 % x = sin(2*pi*t/T);
 % y = cos(2*pi*t/T);
-% z = 1;
+% z = 0.6;
 %% 
 % x = cos(2*pi*t/T) - cos(pi*t/T);
 % y = sin(2*pi*t/T);
 % z = 1;
 %%
 %ホバリング
-% x = 0;
-% y = 0;
-% z = 1;
+x = 0;
+y = 0;
+z = 0.6;
 %%
 %縦円旋回
 % x = 0.5*sin(2*pi*t/T);
