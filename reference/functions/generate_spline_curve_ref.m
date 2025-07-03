@@ -47,10 +47,25 @@ ManualSetting = param.ManualSetting;
         order = param.order;%多項式の次数
         fshowfig = 1;
     end
-    syms t real
-    ref_initial=POINT.way_point_ref(waypoints,order,fshowfig,t);
-    ref = [ref_initial.x_t;ref_initial.y_t;ref_initial.z_t];
+    t = param.controller_time.t;
+    ref_data = POINT.way_point_ref(waypoints,order,fshowfig);%補間式の係数など計算
 
+    function trajectory = spline_curve(ref_data,t)
+            %区間ごとの補間式を作成
+            t_mod = mod(t,ref_data.period);
+            for i=1:ref_data.Sn
+            interpolation(:,i) = ref_data.coefficients.d0(:,:,i)*ref_data.t_powers.d0(t_mod-ref_data.time(i));
+            end
+            %どの区間か判断
+            trajectory = zeros(3,1); % 3×1のゼロベクトル
+            for i = 1:ref_data.Sn
+                h1 = heaviside(t_mod - ref_data.time(i));
+                h2 = heaviside(ref_data.time(i+1) - t_mod);
+                trajectory = trajectory + interpolation(:,i).*h1.*h2;
+            end
+    end
+
+    ref=@(t) spline_curve(ref_data,t);
 
     if  exist('ManualSetting','var') %waypointを保存するか選べる
         isSaved = [];
