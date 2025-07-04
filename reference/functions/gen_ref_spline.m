@@ -1,4 +1,4 @@
-function ref = generate_spline_curve_ref(param)
+function ref = gen_ref_spline(param)
 %% この関数でやりたい処理
 % isManualSetting = 1のときにここでwaypointを設定する
 % 保存したmatファイルからway_point_refを呼び出す
@@ -12,6 +12,7 @@ arguments
     param.order
     param.filename
     param.ManualSetting
+    param.point_dt
 end
 
 ManualSetting = param.ManualSetting;
@@ -23,7 +24,7 @@ ManualSetting = param.ManualSetting;
         fshowfig = 0; % 読み込んだ時はグラフは描画しない
     else
         pointN = param.point; %waypointの数 
-        dt = 6;%waypoint間の時間
+        dt = param.point_dt;%waypoint間の時間
         time =  (0:dt:dt*(pointN-1))';
 
         %% ランダムな軌道の生成
@@ -38,7 +39,7 @@ ManualSetting = param.ManualSetting;
         % xyz-directional xyz方向のランダムな軌道
         wp_xy = max(-1.2, min(1.2, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
         wp_z  = max(0.5, min(1.5, round(0.5*randn(pointN-2,1)+1,3)));
-
+        
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数※3次までしかできない

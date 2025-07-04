@@ -26,9 +26,9 @@ classdef TIME_VARYING_REFERENCE < handle
             param_for_gen_func = args{2};
             obj.func = gen_func_name(param_for_gen_func{:});
             %関数を微分
-            % if length(args) > 2
-            %     obj.func = gen_ref_for_HL(obj.func);
-            % end
+            if length(args) > 2
+                obj.func = gen_ref_for_HL(obj.func);
+            end
 
             %微分しない
             % syms t real
