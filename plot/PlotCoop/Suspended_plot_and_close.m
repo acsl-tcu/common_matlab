@@ -23,11 +23,11 @@ check_rigid = rigid_num; % とりあえずそのまま持ってくる.剛体中�
         if check_i == 1
               % check_iが1のときDroneとして表示
             plot(x, y, 's', 'MarkerSize', 10, 'DisplayName', ['Quadcopter ' num2str(check_i)]);
-            text(x + 0.1, y, ['Drone ' num2str(check_i)], 'FontSize', 12, 'Color', 'black'); % 番号を表示
+            text(y - 0.05, y, ['Drone ' num2str(check_i)], 'FontSize', 12, 'Color', 'black'); % 番号を表示
         else %check_i == 2
               % check_iが2のときpayloadとして表示
             plot(x, y, 'p', 'MarkerSize', 10, 'DisplayName', ['Payload ' num2str(check_i)]);
-            text(x + 0.1, y, num2str(check_i), 'FontSize', 12, 'Color', 'black'); % 番号を表示
+            text(y - 0.05, y, num2str(check_i), 'FontSize', 12, 'Color', 'black'); % 番号を表示
 
             if check_i==1 && check_rigid>=2
                 % 次の奇数の座標へ矢印を表示(単機牽引のロープの方向)
