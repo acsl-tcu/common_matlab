@@ -29,11 +29,11 @@ classdef TIME_VARYING_REFERENCE < handle
             % if length(args) > 2
             %     obj.func = gen_ref_for_HL(obj.func);
             % end
-            
-            %微分しない
-            syms t real
-            obj.func = matlabFunction(obj.func,'Vars',t);
 
+            %微分しない
+            % syms t real
+            % obj.func = matlabFunction(obj.func,'Vars',t);
+            % 
             obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [length(obj.func(0)), 3, 3, 3]));                    
             obj.result.state.set_state("xd",obj.func(0));
             if isprop(obj.self.estimator.result.state,"p"), obj.result.state.set_state("p",obj.self.estimator.result.state.get("p"));end
