@@ -49,7 +49,10 @@ ManualSetting = param.ManualSetting;
     end
     t = param.controller_time.t;
     ref_data = POINT.way_point_ref(waypoints,order,fshowfig);%補間式の係数など計算
-
+    information = make_reference(ref_data);
+    function information = make_reference(ref_data)
+        information = @(t) spline_curve(ref_data,t)
+    end
     function trajectory = spline_curve(ref_data,t)
             %区間ごとの補間式を作成
             t_mod = mod(t,ref_data.period);
@@ -64,8 +67,8 @@ ManualSetting = param.ManualSetting;
                 trajectory = trajectory + interpolation(:,i).*h1.*h2;
             end
     end
-
-    ref=@(t) spline_curve(ref_data,t);
+    ref = @(t) information(t);
+    % ref=@(t) spline_curve(ref_data,t);
 
     if  exist('ManualSetting','var') %waypointを保存するか選べる
         isSaved = [];

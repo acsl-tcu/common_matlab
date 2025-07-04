@@ -66,7 +66,8 @@ classdef HLC < handle
       obj.result.delta_u_yaw = 0;
       end
       
-      obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_roll+obj.result.delta_u_pitch+obj.result.delta_u_yaw;
+      % obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_roll+obj.result.delta_u_pitch+obj.result.delta_u_yaw;
+      obj.result.delta_u = 0;
       obj.result.input = obj.result.delta_u+obj.result.nominal;
       result = obj.result;
     end
