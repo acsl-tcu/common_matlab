@@ -24,9 +24,10 @@ initial_state.w = [0; 0; 0];
 
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE", mass=1.0);
+agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
-agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
+agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 %agent.parameter.set("mass",struct("mass",0.5))
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -40,7 +41,7 @@ agent.cha_allocation = struct("reference","time_varying", ...
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "Linewidth",2, "Fontsize",24);
 % app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);

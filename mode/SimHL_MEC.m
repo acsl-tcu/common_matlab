@@ -22,9 +22,9 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE", mass=1.0); % プラントモデル．DRONE_PARAMのパラメータを上書きしている．
-% agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
-agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
+agent.parameter = DRONE_PARAM("DIATONE"); % プラントモデル．DRONE_PARAMのパラメータを上書きしている．
+agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
