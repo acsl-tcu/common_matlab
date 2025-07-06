@@ -1,15 +1,17 @@
 function x_plus = euler_approximation_drone(x_pre, input, params, dt)
 %EULER_APPROXIMATION_DRONE
 %   1次オイラー近似による状態更新
-%   2025/07 作成者:小関      学番:2212044
 %   [Inputs]
 %    x_pre=[p; q; v; w]: 現時刻の状態
-%    input: 制御入力
+%    input=[Thrust, roll, pitch, yaw]: 制御入力
 %    params : ドローンの物理パラメータ
 %    =["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"]
 %    dt: 刻み時間
 %   [Output]
 %    x_plus: 次時刻の状態
+
+%   2025/07 作成者:小関      学番:2212044
+
 dx = call_dx(x_pre, input, params);
 x_plus = x_pre + dt*dx;
 end

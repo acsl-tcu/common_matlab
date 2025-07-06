@@ -1,8 +1,12 @@
 classdef DNNMEC < handle
-    %HLC_DNNMEC
-    %   2025/07 作成者:小関  学番:2212044
+    %DNNMEC
     %   クアッドコプター用モデル誤差補償器(MEC)のプログラム
-    %   ディープニューラルネットワーク(DNN)で補償器を設計した
+    %   ディープニューラルネットワーク(DNN)で補償器を設計
+    %   [Inputs]
+    %    self: ドローンのagent
+    %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
+    
+    %   2025/07 作成者:小関      学番:2212044
     
     properties
         self
@@ -19,9 +23,6 @@ classdef DNNMEC < handle
     methods
         function obj = DNNMEC(self, DNN_model_filename)
             %HLC_DNNMECインスタンス
-            %   [Inputs]
-            %    self: agentを指す
-            %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
             obj.self = self;
             obj.param = self.parameter.get(obj.parameter_name);
 
@@ -48,7 +49,6 @@ classdef DNNMEC < handle
         end
         
         function result = do(obj, varargin)
-            %doメソッド
             % ノミナル状態更新 ※状態更新の手法は学習時のものと合わせる
             if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
                 obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
