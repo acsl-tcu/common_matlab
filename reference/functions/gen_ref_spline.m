@@ -37,37 +37,37 @@ ManualSetting = param.ManualSetting;
         order = param.order;%多項式の次数
         fshowfig = 1;
     end
-    ref_data = way_point_ref(waypoints,order,fshowfig,t);%補間式の係数など計算
+    ref_data = way_point_ref(waypoints,order,fshowfig);%補間式の係数など計算
     
     function ref = spline_curve(ref_data,t)
         
             %区間ごとの補間式を作成
             t_mod = mod(t,ref_data.period);
+            names = fieldnames(ref_data.coefficients);
+            N=5;%HLが4階微分までだから5まで
+            
             for i=1:ref_data.Sn
-            interpolation_p(:,i) = ref_data.coefficients.d0(:,:,i)*ref_data.t_powers.d0(t_mod-ref_data.time(i));
-            interpolation_v(:,i) = ref_data.coefficients.d1(:,:,i)*ref_data.t_powers.d1(t_mod-ref_data.time(i));
-            interpolation_a(:,i) = ref_data.coefficients.d2(:,:,i)*ref_data.t_powers.d2(t_mod-ref_data.time(i));
-            interpolation_j(:,i) = ref_data.coefficients.d3(:,:,i)*ref_data.t_powers.d3(t_mod-ref_data.time(i));
-            interpolation_s(:,i) = ref_data.coefficients.d4(:,:,i)*ref_data.t_powers.d4(t_mod-ref_data.time(i));
+                for j=1:N   
+                interpolation.(names{j})(:,i) = ref_data.coefficients.(names{j})(:,:,i)*ref_data.t_powers.(names{j})(t_mod-ref_data.time(i));
+                end
             end
-
-            p_ref = zeros(3,1); % 初期化
-            v_ref = zeros(3,1);
-            a_ref = zeros(3,1);
-            j_ref = zeros(3,1);
-            s_ref = zeros(3,1);
+            
+            for j =1:N
+            ref_initial.(names{j}) = zeros(3,1); % 初期化
+            end
 
             %どの区間か判断
             for i = 1:ref_data.Sn
                 h1 = heaviside(t_mod - ref_data.time(i));
                 h2 = heaviside(ref_data.time(i+1) - t_mod);
-                p_ref = p_ref + interpolation_p(:,i).*h1.*h2;
-                v_ref = v_ref + interpolation_v(:,i).*h1.*h2;
-                a_ref = a_ref + interpolation_a(:,i).*h1.*h2;
-                j_ref = j_ref + interpolation_j(:,i).*h1.*h2;
-                s_ref = s_ref + interpolation_s(:,i).*h1.*h2;
+                for j=1:N
+                ref_initial.(names{j}) = ref_initial.(names{j}) + interpolation.(names{j})(:,i).*h1.*h2;
+                end
             end
-            ref = [p_ref;0;v_ref;0;a_ref;0;j_ref;0;s_ref;0];%refに4階微分まで登録
+            ref = [];
+            for j=1:N
+            ref = [ref;ref_initial.(names{j});0];%refに4階微分まで登録
+            end
     end
     ref=@(t) spline_curve(ref_data,t);
 
