@@ -1,11 +1,6 @@
     %スプラインの係数計算
             function ref = way_point_ref(val,n,fdrowfig)
             % val         %時間とwaypoint
-            % n           %多項式次数
-            % fdrowfig=1  %図を描画するか
-            % time=[0,2,5,12];%time
-            % point = [0,4,6,2;0,2,-1,4;0,3,5,2];%way points
-            % n=5;%多項式次数
             arguments
                 val         %時間とwaypoint
                 n           %多項式次数
@@ -17,7 +12,6 @@
             Sn=length(time(1:end-1)); %求める多項式の数
             D(1,:)=ones(1,n+1);%多項式の係数行列1に初期化
             
-
             for i = 1:n-1%多項式の階数ごとの微分係数計算
                 D(i+1,:)=[zeros(1,i), 1:n-i+1].*D(i,:);
                 % D(i+1,:)=[zeros(1,i), polyder(D(i,i:end))];
@@ -35,7 +29,6 @@
             %P:求める係数
             %Xp:時間とt^nの微分係数の積の行列
             %Y:waypoint
-    
             %Xpの生成
             X=zeros((n+1)*Sn);
             
@@ -82,7 +75,11 @@
             
             %係数の格納
             %n次次多項式にしても係数は3次までしか保存できない
-            co = ["d0","d1","d2","d3"];
+            % co = ["d0","d1","d2","d3"];
+            co=[];
+            for i = 0:n
+            co = [co,"d"+num2str(i)];
+            end
             index = length(co);
             for i = 1:index
                 coefficients.(co(i))=zeros(3,n+2-i ,Sn);
@@ -108,7 +105,6 @@
             ref.time = time;
             %一般式作る
             ref.period = time(end);%軌道の周期
-            
             ref.Sn = Sn;%区間数
            
         end
