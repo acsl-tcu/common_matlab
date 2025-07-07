@@ -68,7 +68,7 @@ classdef DNNMEC < handle
 
             % obj.result.delta_input = [-5; 0; 0; 0]; % 定数を入れてお試し
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
-            obj.result.input = obj.result.nominal_input - obj.result.delta_input;
+            obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
             disp(obj.result.delta_input')
         end
