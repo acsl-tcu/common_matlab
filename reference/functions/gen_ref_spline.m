@@ -28,30 +28,19 @@ ManualSetting = param.ManualSetting;
         time =  (0:dt:dt*(pointN-1))';
 
         %% ランダムな軌道の生成
-        % only x-directional
-        % wp_xy = max(-1.2, min(1.2, [zeros(pointN-2,1), round(1*randn(pointN-2,1),3)]));
-        % wp_z  = ones(pointN-2,1);
-
-        % only z-directional z方向の上下移動の軌道
-        % wp_xy = max(-1.2, min(1.2, [zeros(pointN-2,1), zeros(pointN-2,1)]));
-        % wp_z  = max(0.5, min(1.5, round(0.5*randn(pointN-2,1)+1,3)));
-
         % xyz-directional xyz方向のランダムな軌道
         wp_xy = max(-1.2, min(1.2, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
         wp_z  = max(0.5, min(1.5, round(0.5*randn(pointN-2,1)+1,3)));
-        
+       
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
-        order = param.order;%多項式の次数※3次までしかできない
+        order = param.order;%多項式の次数
         fshowfig = 1;
     end
     ref_data = way_point_ref(waypoints,order,fshowfig,t);%補間式の係数など計算
-    % information = make_reference(ref_data);
-    % function information = make_reference(ref_data)
-    %     information = @(t) spline_curve(ref_data,t);
-    % end
     
     function ref = spline_curve(ref_data,t)
+        
             %区間ごとの補間式を作成
             t_mod = mod(t,ref_data.period);
             for i=1:ref_data.Sn
@@ -78,7 +67,7 @@ ManualSetting = param.ManualSetting;
                 j_ref = j_ref + interpolation_j(:,i).*h1.*h2;
                 s_ref = s_ref + interpolation_s(:,i).*h1.*h2;
             end
-            ref = [p_ref;0;v_ref;0;a_ref;0;j_ref;0;s_ref;0];
+            ref = [p_ref;0;v_ref;0;a_ref;0;j_ref;0;s_ref;0];%refに4階微分まで登録
     end
     ref=@(t) spline_curve(ref_data,t);
 
