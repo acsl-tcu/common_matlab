@@ -1,4 +1,5 @@
 function ref = gen_ref_spline(param)
+%スプライン軌道用
 %% この関数でやりたい処理
 % isManualSetting = 1のときにここでwaypointを設定する
 % 保存したmatファイルからway_point_refを呼び出す
