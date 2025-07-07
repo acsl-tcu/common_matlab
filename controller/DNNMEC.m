@@ -55,7 +55,9 @@ classdef DNNMEC < handle
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から前時刻の状態を取得
             end
             dt = varargin{1}.dt;
-            y_nominal = euler_approximation_drone(obj.x_pre, obj.pre_input, obj.param, dt);
+            dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param);
+            y_nominal = obj.x_pre + dx*dt;
+            % y_nominal = euler_approximation_drone(obj.x_pre, obj.pre_input, obj.param, dt);
 
             % プラント値取得
             y_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
@@ -64,7 +66,8 @@ classdef DNNMEC < handle
             % DNN関係
             tmp = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
             % max,min are applied for the safty
-            obj.result.delta_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+            % obj.result.delta_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+            obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
 
             % obj.result.delta_input = [-5; 0; 0; 0]; % 定数を入れてお試し
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
