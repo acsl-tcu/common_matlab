@@ -1,10 +1,9 @@
     %スプラインの係数計算
-            function ref = way_point_ref(val,n,fdrowfig)
+            function ref = way_point_ref(val,n)
             % val         %時間とwaypoint
             arguments
                 val         %時間とwaypoint
                 n           %多項式次数
-                fdrowfig  %図を描画するか
             end
             time = val(:,1)';
             point = val(:,2:end)';

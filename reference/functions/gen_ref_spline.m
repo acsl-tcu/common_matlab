@@ -35,9 +35,8 @@ ManualSetting = param.ManualSetting;
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数
-        fshowfig = 1;
     end
-    ref_data = way_point_ref(waypoints,order,fshowfig);%補間式の係数など計算
+    ref_data = way_point_ref(waypoints,order);%補間式の係数など計算
     
     function ref = spline_curve(ref_data,t)
         
@@ -71,7 +70,7 @@ ManualSetting = param.ManualSetting;
     end
     ref=@(t) spline_curve(ref_data,t);
 
-    if  exist('ManualSetting','var') %waypointを保存するか選べる
+    if  ManualSetting ==1 %waypointを保存するか選べる
         isSaved = [];
         while ~any(ismember(isSaved, [0, 1]))
             isSaved = input("Save spline curve : '1'\nNo save : '0'\nFill in : ",'s');
