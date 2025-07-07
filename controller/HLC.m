@@ -61,8 +61,8 @@ classdef HLC < handle
       % %スイープ周波数追加
       %chirp(初期時刻，初期周波数，指定時間，指定周波数)※周波数は指定周波数÷指定時間の割合で増えていく
       obj.result.delta_u_thrust = 2.0*chirp(varargin{1}.t,0,varargin{1}.te,2,'linear')*[1;0;0;0];%thrust
-      obj.result.delta_u_roll = 0.3*chirp(varargin{1}.t,0,varargin{1}.te,10,'linear')*[0;1;0;0];%roll
-      obj.result.delta_u_pitch = 0.3*chirp(varargin{1}.t,0,varargin{1}.te,10,'linear')*[0;0;1;0];%pitch
+      obj.result.delta_u_roll = 0.5*chirp(varargin{1}.t,0,varargin{1}.te,0.05,'linear')*[0;1;0;0];%roll
+      obj.result.delta_u_pitch = 0.5*chirp(varargin{1}.t,0,varargin{1}.te,0.05,'linear')*[0;0;1;0];%pitch
       obj.result.delta_u_yaw = 0.3*chirp(varargin{1}.t,0,varargin{1}.te,2,'linear')*[0;0;0;1];%yaw
       else
       obj.result.delta_u_thrust = 0;
@@ -70,9 +70,10 @@ classdef HLC < handle
       obj.result.delta_u_pitch = 0;
       obj.result.delta_u_yaw = 0;
       end
-      
-      % obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_roll+obj.result.delta_u_pitch+obj.result.delta_u_yaw;
-      obj.result.delta_u = 0;
+      obj.result.delta_u_thrust = 0;
+      obj.result.delta_u_yaw = 0;
+      obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_roll+obj.result.delta_u_pitch+obj.result.delta_u_yaw;
+      % obj.result.delta_u = 0;
       obj.result.input = obj.result.delta_u+obj.result.nominal;
       result = obj.result;
     end
