@@ -22,13 +22,32 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE"); % プラントモデル．DRONE_PARAMのパラメータを上書きしている．
-agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを使うときはノミナルモデル
+
+% プラントモデル定義 ================================================================================================================================
+plant_model = Model_EulerAngle(dt, initial_state, 1);
+% デフォルト物理パラメータ(DRONE_PARAM準拠: 2025/07/07時点)
+% 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
+% 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
+
+% ↓パラメータの上書き モデル誤差をプラントに与える
+% plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
+% plant_model.param.param(6) = 0.22; % 0.18<jx,jy<0.22ぐらいが良き
+% plant_model.param.param(7) = 0.22; % 
+% plant_model.param.param(8) = 0.6; % 0.18 < jz
+% plant_model.param.param(10) = 0.3; % ５％減->0.028595
+% plant_model.param.param(13) = 0.3;
+
+agent.plant = MODEL_CLASS(agent,plant_model);
 % agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
+%===================================================================================================================================================
+
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
@@ -37,15 +56,16 @@ agent.controller.mec = DNNMEC(agent, "epoch_100000.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "fig_num",1);
-app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2);
-app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "fig_num",1, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",2, "Fontsize",24);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
-%     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",4); % inputをまとめて見る
-app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",5);
-app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",6);
-app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",7);
+%     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",5); % inputをまとめて見る
+app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",2, "Fontsize",24);
+% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",7, "Linewidth",2, "Fontsize",24);
+% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",2, "Fontsize",24);
 
-app.logger.plot({1, "p1-p2", "er"}, "color", 0, "fig_num",8);
-app.logger.plot({1, "p1-p2-p3", "er"}, "color", 0, "fig_num",9);
+app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",9, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",2, "Fontsize",24);
 end
