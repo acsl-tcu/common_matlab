@@ -50,16 +50,18 @@ ftitle = 1; % defalt=1 -> グラフタイトルあり
 settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "controller.result.delta_u"]
+% settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_u"];
 % settings.target = ["p", "v", "input"];
+settings.target = ["p", "p1-p2-p3"];
 % プロットしたいグラフの情報                                          %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input                                           %
-% p1-p2: x-y 2D plot    p1-p2-p3: x-y-z 3D plot                     %
+    % p1-p2: x-y 2D plot    p1-p2-p3: x-y-z 3D plot                     %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-settings.fontsize = 11;    % default=11 オススメ=18
-settings.linewidth = 0.5;    % default=0.5 オススメ=1.5
+settings.fontsize = 18;    % default=11 オススメ=18
+settings.linewidth = 2;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 
 % estimator, sensor, reference, (plant) どの値を表示するかは

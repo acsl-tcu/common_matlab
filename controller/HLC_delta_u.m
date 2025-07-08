@@ -1,4 +1,4 @@
-classdef HLC < handle
+classdef HLC_delta_u < handle
   % Hierarchical linearization based controller for a quadcopter
   properties
     self
@@ -8,7 +8,7 @@ classdef HLC < handle
   end
 
   methods
-      function obj = HLC(self,param)
+    function obj = HLC_delta_u(self,param)
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
@@ -50,8 +50,33 @@ classdef HLC < handle
       %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
-      obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+      obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       
+      if (norm(model.state.v) < 1.0) && ...%速度制限
+         (norm(model.state.p-ref.state.p)<0.4) && ...%距離制限
+         (model.state.q(1)>-0.5)&&(model.state.q(1)<0.5)&&...%roll角制限
+         (model.state.q(2)>-0.5)&&(model.state.q(2)<0.5)%pitch角制限
+      
+      % %スイープ周波数追加
+      %chirp(初期時刻，初期周波数，指定時間，指定周波数)※周波数は指定周波数÷指定時間の割合で増えていく
+      spline_te = 50;
+      obj.result.delta_u_thrust = 1.0*chirp(varargin{1}.t,0,spline_te,1,'linear')*[1;0;0;0];%thrust
+      obj.result.delta_u_roll = 0.6*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;1;0;0];%roll
+      obj.result.delta_u_pitch = 0.6*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;0;1;0];%pitch
+      obj.result.delta_u_yaw = 0.5*chirp(varargin{1}.t,0,spline_te,0.5,'linear')*[0;0;0;1];%yaw%振幅1.05で発散
+      else
+      obj.result.delta_u_thrust = 0;
+      obj.result.delta_u_roll = 0;
+      obj.result.delta_u_pitch = 0;
+      obj.result.delta_u_yaw = 0;
+      end
+      % obj.result.delta_u_thrust = 0;
+      % obj.result.delta_u_roll = 0;
+      % obj.result.delta_u_pitch = 0;
+      % obj.result.delta_u_yaw = 0;
+      obj.result.delta_u = obj.result.delta_u_thrust+obj.result.delta_u_roll+obj.result.delta_u_pitch+obj.result.delta_u_yaw;
+      % obj.result.delta_u = 0;
+      obj.result.input = obj.result.delta_u+obj.result.nominal;
       result = obj.result;
     end
   end
