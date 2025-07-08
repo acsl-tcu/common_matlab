@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 25; % terminal time
+te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -35,7 +35,7 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model.param.param(6) = 0.22; % 0.18<jx,jy<0.22ぐらいが良き
 % plant_model.param.param(7) = 0.22; % 
 % plant_model.param.param(8) = 0.6; % 0.18 < jz
-% plant_model.param.param(10) = 0.3; % ５％減->0.028595
+plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
 
 agent.plant = MODEL_CLASS(agent,plant_model);
@@ -48,6 +48,7 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}}); % random 9th spline
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
