@@ -1,3 +1,4 @@
+%本来のExpBaseは一つ目のセクションのみ
 for i = 1:length(agent)
   agent(i).reference.takeoff = TAKEOFF_REFERENCE(agent(i),[]);
   agent(i).reference.landing = LANDING_REFERENCE(agent(i),dt,0.1);
