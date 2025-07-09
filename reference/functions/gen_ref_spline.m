@@ -40,22 +40,18 @@ ManualSetting = param.ManualSetting;
     
     function ref = spline_curve(ref_data,t)
         
-            %区間ごとの補間式を作成
             t_mod = mod(t,ref_data.period);
             names = fieldnames(ref_data.coefficients);
-            N=5;%HLが4階微分までだから5まで
+            N=5;%HLが4階微分までだから0~4次式まで
 
-            % 区間選定（安全）
-            idx = find(t_mod >= ref_data.time(1:end-1) & t_mod < ref_data.time(2:end), 1);
+            % 区間選定
+            segment = find(t_mod >= ref_data.time(1:end-1) & t_mod < ref_data.time(2:end), 1);
             
-            % t_modがちょうど最後の時刻なら、最後の区間に含める
-            if isempty(idx) && t_mod == ref_data.time(end)
-                idx = ref_data.Sn;
-            end
+            %該当区間の補間式生成
             for j = 1:N
-                ref_initial.(names{j}) = ref_data.coefficients.(names{j})(:,:,idx) * ref_data.t_powers.(names{j})(t_mod - ref_data.time(idx));
+                ref_initial.(names{j}) = ref_data.coefficients.(names{j})(:,:,segment) * ref_data.t_powers.(names{j})(t_mod - ref_data.time(segment));
             end
-
+            %refに式をまとめる
             ref = [];
             for j=1:N
             ref = [ref;ref_initial.(names{j});0];%refに4階微分まで登録
