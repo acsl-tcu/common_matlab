@@ -63,13 +63,21 @@ classdef DNNMEC < handle
             y_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [p; q; v; w];
 
-            % DNN関係
-            tmp = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
-            % max,min are applied for the safty
-            % obj.result.delta_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-            obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
+            % % DNN関係 上下限値での制限
+            % tmp = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
+            % % max,min are applied for the safty
+            % obj.result.delta_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));...
+            %                             max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
 
-            % obj.result.delta_input = [-5; 0; 0; 0]; % 定数を入れてお試し
+            % DNN関係　閾値での制限
+            obj.result.delta_input = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
+            if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
+            if abs(obj.result.delta_input(2))>0.5, obj.result.delta_input(2) = 0; end
+            if abs(obj.result.delta_input(3))>0.5, obj.result.delta_input(3) = 0; end
+            if abs(obj.result.delta_input(4))>0.5, obj.result.delta_input(4) = 0; end
+
+            % obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
+
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
