@@ -31,7 +31,7 @@ ManualSetting = param.ManualSetting;
         % xyz-directional xyz方向のランダムな軌道
         wp_xy = max(-1.0, min(1.0, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
         wp_z  = max(0.7, min(1.3, round(0.5*randn(pointN-2,1)+1,3)));
-       
+        
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数
@@ -44,25 +44,18 @@ ManualSetting = param.ManualSetting;
             t_mod = mod(t,ref_data.period);
             names = fieldnames(ref_data.coefficients);
             N=5;%HLが4階微分までだから5まで
+
+            % 区間選定（安全）
+            idx = find(t_mod >= ref_data.time(1:end-1) & t_mod < ref_data.time(2:end), 1);
             
-            for i=1:ref_data.Sn
-                for j=1:N   
-                interpolation.(names{j})(:,i) = ref_data.coefficients.(names{j})(:,:,i)*ref_data.t_powers.(names{j})(t_mod-ref_data.time(i));
-                end
+            % t_modがちょうど最後の時刻なら、最後の区間に含める
+            if isempty(idx) && t_mod == ref_data.time(end)
+                idx = ref_data.Sn;
             end
-            
-            for j =1:N
-            ref_initial.(names{j}) = zeros(3,1); % 初期化
+            for j = 1:N
+                ref_initial.(names{j}) = ref_data.coefficients.(names{j})(:,:,idx) * ref_data.t_powers.(names{j})(t_mod - ref_data.time(idx));
             end
 
-            %どの区間か判断
-            for i = 1:ref_data.Sn
-                h1 = heaviside(t_mod - ref_data.time(i));
-                h2 = heaviside(ref_data.time(i+1) - t_mod);
-                for j=1:N
-                ref_initial.(names{j}) = ref_initial.(names{j}) + interpolation.(names{j})(:,i).*h1.*h2;
-                end
-            end
             ref = [];
             for j=1:N
             ref = [ref;ref_initial.(names{j});0];%refに4階微分まで登録
