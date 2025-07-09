@@ -13,6 +13,7 @@ arguments
     param.filename
     param.ManualSetting
     param.point_dt
+    param.check
 end
 
 ManualSetting = param.ManualSetting;
@@ -35,8 +36,9 @@ ManualSetting = param.ManualSetting;
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数
+        check = param.check;
     end
-    ref_data = way_point_ref(waypoints,order);%補間式の係数など計算
+    ref_data = way_point_ref(waypoints,order,check);%補間式の係数など計算
     
     function ref = spline_curve(ref_data,t)
         
