@@ -36,7 +36,7 @@ classdef TIME_VARYING_REFERENCE < handle
             %syms t real
             %obj.dfunc = matlabFunction(diff(obj.func,t),"Vars",t);
         end
-        function result = do(obj, varargin)  
+        function result = do(obj, varargin)             
            obj.cha = varargin{2};
            if obj.cha=='f'
                if isempty(obj.t)    %flightからreferenceの時間を開始

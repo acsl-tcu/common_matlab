@@ -59,3 +59,49 @@ t42 = t20+t27+t30+t36;
 t43 = t28+t31+t32+t38;
 out1 = [z0+t.*v0-t3.^3.*t16.*t39-t5.*t9.*t40+t6.*t10.*t42-t7.*t11.*t43+t8.*t15.*t41,v0-t4.*t9.*t40.*5.0+t5.*t10.*t42.*6.0-t6.*t11.*t43.*7.0+t7.*t15.*t41.*8.0-t8.*t16.*t39.*9.0,t3.*t9.*t40.*-2.0e+1+t4.*t10.*t42.*3.0e+1-t5.*t11.*t43.*4.2e+1+t6.*t15.*t41.*5.6e+1-t7.*t16.*t39.*7.2e+1,t2.*t9.*t40.*-6.0e+1+t3.*t10.*t42.*1.2e+2-t4.*t11.*t43.*2.1e+2+t5.*t15.*t41.*3.36e+2-t6.*t16.*t39.*5.04e+2,t.*t9.*t40.*-1.2e+2+t2.*t10.*t42.*3.6e+2-t3.*t11.*t43.*8.4e+2+t4.*t15.*t41.*1.68e+3-t5.*t16.*t39.*3.024e+3];
 end
+%% derivation and verification of curve_interpolation_9order
+% clear
+% n = 20;
+% syms t z0 v0 te ve ze real
+% syms a [1,n] real
+% syms A [1,n] real
+% A
+% %%
+% tra = 0;
+% for i = 1:n
+% tra = tra + a(i)*t^(i-1);
+% end
+% t1 = diff(tra,t,1);
+% t2 = diff(tra,t,2);
+% t3 = diff(tra,t,3);
+% t4 = diff(tra,t,4);
+% t0 = tra;
+% [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20]= solve([subs(t0,t,0) == z0;subs(t1,t,0) == v0;subs(t2,t,0)==0;subs(t3,t,0)==0;subs(t4,t,0)==0;...
+% subs(t0,t,te) == ze;subs(t1,t,te) == ve;subs(t2,t,te)==0;subs(t3,t,te)==0;subs(t4,t,te)==0],a);
+% B = [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20];
+% tra2 = subs(tra,a,B);
+% %%
+% dtra = diff(tra2,t,1);
+% ddtra = diff(tra2,t,2);
+% dddtra = diff(tra2,t,3);
+% ddddtra = diff(tra2,t,4);
+%
+% comm = ["  curve interpolation function with both edge constraints wrt position and veloctiy",
+%   "  9-th order polynomial of time",
+%   "  [input] t,te,z0,v0,ze,ve",
+%   "     t : current time",
+%   "     te : interpolating length",
+%   "     z0 : initial position",
+%   "     v0 : initial velocity",
+%   "     ze : terminal position",
+%   "     ve : terminal velocity",
+%   "  [output] [z,dz,ddz,dddz,ddddz] : position at time t and its higher time derivative"];
+% matlabFunction([tra2,dtra,ddtra,dddtra,ddddtra],"File","test_curve_interpolation_9order.m","vars",{t,te,z0,v0,ze,ve},"Comments",comm)
+%
+% clear Z
+% Te = 3;
+% T = 0:0.1:Te;
+% for i = 1:length(T)
+% Z(i,:) = curve_interpolation_9order(T(i),Te,1,0,0,0);
+% end
+% plot(T,Z)

@@ -132,8 +132,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             %   obj.Data.t(obj.k) = t;
             %   obj.Data.phase(obj.k) = cha;
             %   for n = obj.target
-            %     obj.Data.agent(n).estimator.result{1}.state = state_copy(agent(n).estimator.result.state);
-            %     obj.Data.agent(n).plant.result{1}.state = state_copy(agent(n).plant.state);
+            %     obj.Data.agent(n).estimator{1}.result.state = state_copy(agent(n).estimator.result.state);
+            %     obj.Data.agent(n).plant{1}.result.state = state_copy(agent(n).plant.state);
             %   end
             % else
             obj.k = obj.k + 1;
@@ -153,27 +153,27 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                     obj.Data.agent(n).(str{1}){obj.k} = tmp.(str{1});
                 end
 
-                obj.Data.agent(n).sensor.result{obj.k} = agent(N).sensor.result;
-                obj.Data.agent(n).estimator.result{obj.k} = agent(N).estimator.result;
-                obj.Data.agent(n).reference.result{obj.k} = agent(N).reference.result;
-                obj.Data.agent(n).controller.result{obj.k} = agent(N).controller.result;
+                obj.Data.agent(n).sensor{obj.k}.result = agent(N).sensor.result;
+                obj.Data.agent(n).estimator{obj.k}.result = agent(N).estimator.result;
+                obj.Data.agent(n).reference{obj.k}.result = agent(N).reference.result;
+                obj.Data.agent(n).controller{obj.k}.result = agent(N).controller.result;
 
                 if isfield(agent(N).sensor.result, "state")
-                    obj.Data.agent(n).sensor.result{obj.k}.state = state_copy(agent(N).sensor.result.state);
+                    obj.Data.agent(n).sensor{obj.k}.result.state = state_copy(agent(N).sensor.result.state);
                 end
 
                 if isfield(agent(N).estimator.result,'state')
-                    obj.Data.agent(n).estimator.result{obj.k}.state = state_copy(agent(N).estimator.result.state);
+                    obj.Data.agent(n).estimator{obj.k}.result.state = state_copy(agent(N).estimator.result.state);
                 end
                 if isfield(agent(N).reference.result,'state')
-                    obj.Data.agent(n).reference.result{obj.k}.state = state_copy(agent(N).reference.result.state);
+                    obj.Data.agent(n).reference{obj.k}.result.state = state_copy(agent(N).reference.result.state);
                 end
                 obj.Data.agent(n).input{obj.k} = agent(N).controller.result.input;
 
                 if obj.fExp
                     obj.Data.agent(n).inner_input{obj.k} = agent(N).input_transform.result;
                 else
-                    obj.Data.agent(n).plant.result{obj.k}.state = state_copy(agent(N).plant.state);
+                    obj.Data.agent(n).plant{obj.k}.result.state = state_copy(agent(N).plant.state);
                 end
 
             end
@@ -281,19 +281,19 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
                 switch str
                     case "sensor"
-                        agent(n).sensor.result = obj.Data.agent(n).sensor.result{tidx};
-                        agent(n).sensor.result.state = state_copy(obj.Data.agent(n).sensor.result{tidx}.state);
+                        agent(n).sensor.result = obj.Data.agent(n).sensor{tidx}.result;
+                        agent(n).sensor.result.state = state_copy(obj.Data.agent(n).sensor{tidx}.result.state);
                     case "estimator"
-                        agent(n).estimator.result = obj.Data.agent(n).estimator.result{tidx};
-                        agent(n).estimator.result.state = state_copy(obj.Data.agent(n).estimator.result{tidx}.state);
+                        agent(n).estimator.result = obj.Data.agent(n).estimator{tidx}.result;
+                        agent(n).estimator.result.state = state_copy(obj.Data.agent(n).estimator{tidx}.result.state);
                     case "reference"
-                        agent(n).reference.result = obj.Data.agent(n).reference.result{tidx};
-                        agent(n).reference.result.state = state_copy(obj.Data.agent(n).reference.result{tidx}.state);
+                        agent(n).reference.result = obj.Data.agent(n).reference{tidx}.result;
+                        agent(n).reference.result.state = state_copy(obj.Data.agent(n).reference{tidx}.result.state);
                     case "controller"
-                        agent(n).controller.result = obj.Data.agent(n).controller.result{tidx};
+                        agent(n).controller.result = obj.Data.agent(n).controller{tidx}.result;
                         agent(n).input = obj.Data.agent(n).input{tidx};
                     case "plant"
-                        agent(n).plant.state = state_copy(obj.Data.agent(n).plant.result{tidx}.state);
+                        agent(n).plant.state = state_copy(obj.Data.agent(n).plant{tidx}.result.state);
                 end
 
             end
@@ -414,7 +414,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             for j = 1:length(variable)
                 fn = fieldnames(data); % フィールド名に数字を含む場合のケア
                 %data = [data.(variable(j))];
-
+                clear ndata;
                 if strcmp(variable(j), 'state')
                     data = vertcat(data.(fn{strcmp(fn,variable(j))}));
 

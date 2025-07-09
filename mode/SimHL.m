@@ -35,13 +35,15 @@ agent.controller = HLC(agent,Controller_HL(dt));
 %run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference","time_varying", ...
+agent.reference.smoothener = SMOOTHENER_REFERENCE(agent);
+agent.cha_allocation = struct("reference",["time_varying","smoothener"], ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tf");
-% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({{1,"smoothener.state.p","r"}},"ax",app.UIAxes,"phase","f");
+% app.logger.plot({{1,"smoothener.state.p","r"}},"ax",app.UIAxes,"phase","f");
+app.logger.plot({1, "p", "r"},"phase","tf");
 % app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 %app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
