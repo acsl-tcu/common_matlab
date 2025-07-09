@@ -22,7 +22,6 @@ ManualSetting = param.ManualSetting;
         disp('Loading reference data from mat');
         % load(strcat('../Data/reference/', filename));
         load(strcat('Data/reference/', filename)); % for exp
-        fshowfig = 0; % 読み込んだ時はグラフは描画しない
     else
         pointN = param.point; %waypointの数 
         dt = param.point_dt;%waypoint間の時間
@@ -38,6 +37,7 @@ ManualSetting = param.ManualSetting;
         order = param.order;%多項式の次数
         check = param.check;
     end
+
     ref_data = way_point_ref(waypoints,order,check);%補間式の係数など計算
     
     function ref = spline_curve(ref_data,t)
@@ -45,10 +45,8 @@ ManualSetting = param.ManualSetting;
             t_mod = mod(t,ref_data.period);
             names = fieldnames(ref_data.coefficients);
             N=5;%HLが4階微分までだから0~4次式まで
-
             % 区間選定
             segment = find(t_mod >= ref_data.time(1:end-1) & t_mod < ref_data.time(2:end), 1);
-            
             %該当区間の補間式生成
             for j = 1:N
                 ref_initial.(names{j}) = ref_data.coefficients.(names{j})(:,:,segment) * ref_data.t_powers.(names{j})(t_mod - ref_data.time(segment));
@@ -59,6 +57,7 @@ ManualSetting = param.ManualSetting;
             ref = [ref;ref_initial.(names{j});0];%refに4階微分まで登録
             end
     end
+
     ref=@(t) spline_curve(ref_data,t);
 
     if  ManualSetting ==1 %waypointを保存するか選べる
