@@ -31,14 +31,17 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
-agent.controller = HLC(agent,Controller_HL(dt));
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
+agent.controller.hl = HLC(agent,Controller_HL(dt));
+agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
 %run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation = struct("reference","time_varying", ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 motive.getData(agent);
+agent.cha_allocation.controller = "hl";
+agent.cha_allocation.f.controller = "delta";
 
 function dfunc(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
