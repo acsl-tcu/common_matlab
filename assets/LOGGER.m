@@ -331,17 +331,20 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 if option.ranget(2) ==0
                     ranget(2) = max(obj.Data.t);
                 end
+                ranget_max = min(option.ranget(2),max(obj.Data.t));
+                ranget_min = max(option.ranget(1),min(obj.Data.t));
+                data_range = find((obj.Data.t - ranget_min) > 0, 1) - 1:find((obj.Data.t - ranget_max) >= 0, 1);
                 if ~isempty(option.phase)
                     phase = char(option.phase);
                     ids=contains(string(char(obj.Data.phase)),string(phase(:)));
-                    ranget = obj.Data.t(4+[find(ids(5:end),1),find(ids(5:end),1,'last')])';
+                    data_range = 4+find(ids(5:end),1):4+find(ids(5:end),1,'last');% 空回しの4つ分を除く
                 end
                 if sum(strcmp(target, {'time', 't'}))
-                    data = obj.data_org(0, 't', '', "ranget", ranget);
+                    data = obj.data_org(0, 't', '', "data_range", data_range);
                 elseif target == 0
-                    data = obj.data_org(0, variable, attribute, "ranget", ranget);
+                    data = obj.data_org(0, variable, attribute, "data_range", data_range);
                 else
-                    data = cell2mat(arrayfun(@(i) obj.data_org(i, variable, attribute, "ranget", ranget), target, 'UniformOutput', false));
+                    data = cell2mat(arrayfun(@(i) obj.data_org(i, variable, attribute, "data_range", data_range), target, 'UniformOutput', false));
                 end
 
                 [~, vrange] = obj.full_var_name(variable, attribute);
@@ -355,14 +358,11 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 n
                 variable string = "p"
                 attribute string = "e"
-                option.ranget (1, 2) double = [0 obj.Data.t(obj.k)]
+                option.data_range int16
             end
 
             [variable, vrange] = obj.full_var_name(variable, attribute);
-            % attribute = "";
-            range_max = min(option.ranget(2),max(obj.Data.t));
-            range_min = max(option.ranget(1),min(obj.Data.t));
-            data_range = find((obj.Data.t - range_min) > 0, 1) - 1:find((obj.Data.t - range_max) >= 0, 1);
+            data_range = option.data_range;
             if isempty(data_range)
                 data_range = [1];
             end
