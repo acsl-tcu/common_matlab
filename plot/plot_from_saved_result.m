@@ -37,7 +37,7 @@ logger = LOGGER(fullpath);
 %% プロット
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fsave = 2;
+fsave = 0;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -51,7 +51,7 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-settings.target = ["q", "p1-p2"];
+% settings.target = ["q", "p1-p2"];
 % settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
 % プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %

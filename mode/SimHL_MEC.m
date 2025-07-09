@@ -64,8 +64,8 @@ app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",2, "Fonts
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",5); % inputをまとめて見る
 app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",2, "Fontsize",24);
-% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",7, "Linewidth",2, "Fontsize",24);
-% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",7, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",2, "Fontsize",24);
 
 app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",9, "Linewidth",2, "Fontsize",24);
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",2, "Fontsize",24);

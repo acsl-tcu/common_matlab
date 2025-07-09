@@ -83,6 +83,7 @@ ManualSetting = param.ManualSetting;
         if isSaved==0
             disp("No save")
         else
+            if ~exist("Data\reference", "dir") mkdir("Data\reference"); end
             % save('../Data/reference/exp_ref.mat', 'waypoints');
             save('Data\reference\exp_ref.mat', 'waypoints');
         end
