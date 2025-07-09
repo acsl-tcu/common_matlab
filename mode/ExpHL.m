@@ -39,11 +39,12 @@ app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",LW, "Font
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",5); % inputをまとめて見る
 app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",LW, "Fontsize",24);
-% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",7, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "inner_input1:4", ""}, "phase","tfl", "fig_num",7, "Linewidth",LW, "Fontsize",24);
+% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",9, "Linewidth",LW, "Fontsize",FS);
 
-app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();

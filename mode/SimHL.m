@@ -25,30 +25,29 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
-% agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
-% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
-%agent.parameter.set("mass",struct("mass",0.5))
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
 agent.controller = HLC(agent,Controller_HL(dt));
-%run("ExpBase");
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference","time_varying", ...
-    "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}}); % random 9th spline
+run("ExpBase");
+
+agent.cha_allocation.reference = "time_varying";
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "Linewidth",2, "Fontsize",24);
-% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "q", "e"},"fig_num",3);
-app.logger.plot({1, "v", "er"},"fig_num",4);
-% app.logger.plot({1, "input", ""},"fig_num",5);
-app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",6);
-% app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
-% app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
+LW = 1.0; % Linewidth 
+FS = 20; % Fontsize
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl", "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",LW, "Fontsize",24);
+
+app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
 
 end
