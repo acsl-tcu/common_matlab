@@ -11,39 +11,14 @@ Controller.F3=lqrd(Ac4,Bc4,diag([100,10,10,1]),[0.01],dt); % ydiag([100,10,10,1]
 Controller.F4=lqrd(Ac2,Bc2,diag([100,10]),[0.1],dt);                       % ヨー角
 Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);    % フィードバックゲインをまとめる
 
-
-% % MECNN = importNetworkFromONNX("..\VarietyPack\Takano\HLNN_MEC\Result\MECNN_model.onnx");
-% MECNN = importNetworkFromONNX("MECNN_model.onnx"); % 「一部の入力レイヤーにおいてデータ形式や画像サイズが不明確であるためdlnetworkを初期化できませんでした」という警告が出る．
-% % ここで定義されたMECNNは「dlnetworkオブジェクト」というMATLAB用のDNNアーキテクチャ
-% % 層構造やハイパーパラメータ情報が入っている．
-% % ここでは，事前学習済みのONNXネットワークをインポートしている
-% MECNN.Initialized;
-% disp('MECNN.Initialized:')
-% disp(MECNN.Initialized) % 確かに初期化できていないことが確認できる
-
-% % load("./Data/OriginalData/Ad_Bd_F.mat")
-% load("Data\Ad_Bd_F.mat")
-% Controller.Ad = Ad;
-% Controller.Bd = Bd;
-
-% % layer =inputLayer([24 1], "SC");
-% layer = inputLayer([12 1], "SC");               % DNNの入力層 12個（カスタム入力層）
-% Controller.MECNN = addInputLayer(MECNN,layer);  % コントローラにDNNの情報を入れる
-
 %% Koopman
-    % modeファイルとファイル名をそろえる
-   load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est'); %vzから算出したzで学習、総推力 木山データ(EACHINEで取得)
-
-    %--------------------------------------------------------------------
-    % 要チェック!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     % torque = 1; % 1:クープマンモデルが総推力のとき
-    %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    %--------------------------------------------------------------------
-    Controller.est = est;
+% modeファイルとファイル名をそろえる
+load("koopman.mat",'est'); 
+Controller.est = est;
 
 syms sz1 [2 1] real
 syms sF1 [1 2] real
-[Ad1,Bd1,~,~] = ssdata(c2d(ss(Ac2,Bc2,[1,0],[0]),dt));  % 状態空間表現から係数行列A, Bを取得
+[Ad1,Bd1,~,~] = ssdata(c2d(ss(Ac2,Bc2,[1,0],0),dt));  % 状態空間表現から係数行列A, Bを取得
 Controller.Vf = matlabFunction([-sF1*sz1, -sF1*(Ad1-Bd1*sF1)*sz1, -sF1*(Ad1-Bd1*sF1)^2*sz1, -sF1*(Ad1-Bd1*sF1)^3*sz1],"Vars",{sz1,sF1});
 % Controller.HLNN2 = addInputLayer(HLNN2,layer);
 
