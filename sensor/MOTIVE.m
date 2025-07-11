@@ -55,7 +55,7 @@ methods
             if sum(contains(obj.result.state(i).list, "q")) == 1
                 tmpq = quaternion(data.rigid(id).q');
                 tmpq = conj(obj.initq) * tmpq;
-                [Q(1) Q(2) Q(3) Q(4)] = parts(tmpq);
+                [Q(1),Q(2),Q(3),Q(4)] = parts(tmpq);
                 obj.result.state(i).set_state('q', Q');
             end
             obj.result.state(i).set_state('p', data.rigid(id).p);

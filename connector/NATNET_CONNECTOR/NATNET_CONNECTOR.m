@@ -49,11 +49,11 @@ classdef NATNET_CONNECTOR < handle
                 obj.on_marker_nums(i) = ModelDescription.MarkerSet(i).MarkerCount;
                 obj.on_marker{i} = zeros(obj.on_marker_nums(i),3);
                 for k = 1:obj.on_marker_nums(i)
-                    marker=Frame.LabeledMarker(omnum+k);
+                    marker=Frame.LabeledMarkers(omnum+k);
 %                    marker=Frame.UnlabeledMarker(omnum+k);
                     obj.on_marker{i}(k,:) = [marker.x, -marker.z, marker.y];
                 end
-                body = Frame.RigidBody(i);
+                body = Frame.RigidBodies(i);
                 obj.result.local_marker_nums(i) = ModelDescription.MarkerSet(i).MarkerCount;
                 %obj.result.local_marker{i} = double(rotmat(quaternion([body.qw body.qx -body.qz body.qy]),'frame')'*(obj.on_marker{i}-double([body.x, -body.z, body.y]))')';
                 obj.result.local_marker{i} = double(RodriguesQuaternion([body.qw body.qx -body.qz body.qy]')'*(obj.on_marker{i}-double([body.x, -body.z, body.y]))')';
@@ -83,18 +83,18 @@ classdef NATNET_CONNECTOR < handle
             Frame = obj.NatnetClient.getFrame;
             %Acquire time data from motive
             if isempty(obj.init_time)
-                obj.init_time = Frame.Timestamp;
+                obj.init_time = Frame.fTimestamp;
             end
-            obj.result.time    = Frame.Timestamp - obj.init_time;
+            obj.result.time    = Frame.fTimestamp - obj.init_time;
             
             % %Count number of marker and rigid body
-            obj.result.marker_num = System.Array.IndexOf(Frame.LabeledMarker, []);
+            obj.result.marker_num = System.Array.IndexOf(Frame.LabeledMarkers, []);
 %            obj.result.marker_num = System.Array.IndexOf(Frame.UnlabeledMarker, []);
             
             % %Get obj.Data and Organize
             % %also organizing obj.Data in the same way in main.m
             for i = 1:obj.result.rigid_num
-                body = Frame.RigidBody(i);
+                body = Frame.RigidBodies(i);
                 obj.result.rigid(i).p = double([body.x; -body.z; body.y]); % 軸の対応関係注意
                 
                 %% quaternion
@@ -102,7 +102,7 @@ classdef NATNET_CONNECTOR < handle
             end
             obj.result.marker = zeros(obj.result.marker_num,3);
             for i = 1:obj.result.marker_num
-                marker = Frame.LabeledMarker(i);
+                marker = Frame.LabeledMarkers(i);
 %                marker = Frame.UnlabeledMarker(i);
                 obj.result.marker(i,:) = [marker.x -marker.z marker.y];
             end
