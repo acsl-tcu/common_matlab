@@ -14,6 +14,7 @@ Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);
 %% Koopman
 % modeファイルとファイル名をそろえる
 load("koopman.mat",'est'); 
+% load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 Controller.est = est;
 
 syms sz1 [2 1] real

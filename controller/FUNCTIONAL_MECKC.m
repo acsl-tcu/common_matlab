@@ -48,6 +48,7 @@ methods
         model = obj.self.estimator.result;
         ref = obj.self.reference.result;
         xd = ref.state.xd;
+        disp(ref.state.p);
         P = obj.param.P;
         F1 = obj.param.F1;
         F2 = obj.param.F2;
