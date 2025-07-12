@@ -19,7 +19,7 @@ classdef DIRECT_ESTIMATOR < handle
             % 【Output】void
             F = fieldnames(obj.result.state);
             for i = 1:length(F)
-                if ~strcmp(F{i},'list') && ~strcmp(F{i},'num_list') && ~strcmp(F{i},'type')
+                if ~strcmp(F{i},'list') && ~strcmp(F{i},'num_list') && ~strcmp(F{i},'type')&& ~strcmp(F{i},'qlist')
                     if contains(F{i}, fieldnames(obj.self.sensor.result.state))
                         obj.result.state.set_state(F{i},obj.self.sensor.result.state.(F{i}));
                     end
