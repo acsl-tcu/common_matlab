@@ -65,7 +65,7 @@ classdef HLC_SUSPENDED_LOAD < handle
 
             [pL,pT,P,xd]= obj.calc_pL(t,model,cha,xd);
 
-            x = [model.state.getq('compact');model.state.w;pL;model.state.vL;pT;model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
+            x = [model.state.getq('compact');model.state.w;pL;model.state.vL;pT;model.state.wL*0]; % [q, w ,pL, vL, pT, wL]に並べ替え
             x(8:10)
             % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
             % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
