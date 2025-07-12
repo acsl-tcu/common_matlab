@@ -1,6 +1,7 @@
 function do_calculation(app)
 % profile on
 for i = 1:app.N
+    app.agent(i).cha = app.cha;
   app.do_prop(app.agent(i),"sensor",i);
   app.do_prop(app.agent(i),"estimator",i);
   app.do_prop(app.agent(i),"reference",i);

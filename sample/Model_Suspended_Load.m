@@ -40,6 +40,7 @@ if ~isempty(modelName)
               Setting.num_list        = [3,3,3,3,3,3,3,3,1];        
               Setting.state_list      = ["p","q","v","w","pL","vL","pT","wL","mL"];         % paramのmLはモデルではmLDummyの変数に入れられモデルには使われない
               Setting.initial.mL      = agent.parameter.loadmass;                       % 初期牽引物質量
+              Setting.projection = @(x) [x(1:end-1);max(0,x(end))]; % 質量は非負
           % 牽引物質量と紐の長さを推定       
           case "Load_mL_cableL_HL"      
               Model.name              = modelName;                                          % print name

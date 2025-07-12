@@ -31,14 +31,54 @@ motive.getData(agent);
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 agent(1).estimator.ekf = EKF(agent(1), Estimator_EKF(agent(1),dt,...
-    MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
+    MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_HL")),...
     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
-function y = sensor_func(self,~)
+function y = sensor_func(self,dt,~)
 p = self.sensor.result.state(1).get('p');
 q = self.sensor.result.state(1).getq('3');
-pL = self.sensor.result.state(2).get('p');
-pT = (pL - p);
-pT = pT/vecnorm(pT);
+switch self.cha
+    case 't'
+        pL = p;
+        pL(3) = pL(3) - self.parameter.get("cableL");
+        pT = [0;0;-1];
+        if self.estimator.ekf.Q(end,end) ~= 1e3
+            % B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e3);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)]);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            R = 100*blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
+            self.estimator.ekf.B = B;
+            self.estimator.ekf.Q = Q;
+            self.estimator.ekf.R = R;
+            self.estimator.ekf.result.P = eye(24);
+            % self.estimator.ekf.result.P = eye(25);
+        end
+    case {'a','l'}
+        pL = p;
+        pL(3) = pL(3) - self.parameter.get("cableL");
+        pT = [0;0;-1];
+    otherwise
+        pL = self.sensor.result.state(2).get('p');
+        pT = (pL - p);
+        pT = pT/vecnorm(pT);
+        % self.cha
+        % pL'
+        % pT'
+        % p'
+        if self.estimator.ekf.Q(end,end) ~= 1e-2
+            % B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);%
+            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)]);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            self.estimator.ekf.B = B;
+            self.estimator.ekf.Q = Q;
+            self.estimator.ekf.R = R;
+            self.estimator.ekf.result.P = eye(24);
+            % self.estimator.ekf.result.P = eye(25);
+        end
+end
+% self.estimator.result.state.mL
 y = [p;q;pL;pT];
 end
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
@@ -68,22 +108,29 @@ agent(1).cha_allocation.f.reference = "timevarying";
 %%
 
 function post(app)
-app.logger.plot({1, "input", ""},"ax",app.UIAxes);
+app.logger.plot({{1, "p", "re"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
+app.logger.plot({1, "input", ""},"phase","tf");
+figure(2)
+ax=gca;
+app.logger.plot({1, "estimator.result.state.mL", "e"},"phase","tf","ax",ax);
+figure(3)
+ax=gca;
+app.logger.plot({1, "q", "e"},"phase","tf","ax",ax);
 % 刻み時間描画
-t0id = find(app.logger.Data.phase==97,1,'last')+1;
-teid = find(app.logger.Data.phase==0,1,'first')-1;
-dt = diff(app.logger.Data.t(t0id:teid));
-t = app.logger.Data.t(t0id:teid-1);
-figure(100)
-[t,dt]
-plot(t,dt);
-% app.logger.plot({1,"p","e"})
-hold on
-% yline(0.025,"LineWidth",0.5)
-% ylim([0 0.05])
-hold off
-grid on
-legend("dt","upper limit")
+% t0id = find(app.logger.Data.phase==97,1,'last')+1;
+% teid = find(app.logger.Data.phase==0,1,'first')-1;
+% dt = diff(app.logger.Data.t(t0id:teid));
+% t = app.logger.Data.t(t0id:teid-1);
+% figure(100)
+% [t,dt]
+% plot(t,dt);
+% % app.logger.plot({1,"p","e"})
+% hold on
+% % yline(0.025,"LineWidth",0.5)
+% % ylim([0 0.05])
+% hold off
+% grid on
+% legend("dt","upper limit")
 % app.logger.plot({{1,"p","er"},{1,"estimator.result.state.pL","e"}},{1, "input", ""},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({{1,"estimator.result.state.mL","e"},{1,"estimator.result.state.pL","e"},{1,"p","r"}},"ax",app.UIAxes);
 % app.logger.plot({{1,"estimator.result.state.mL","e"},{1,"p","re"}},"ax",app.UIAxes);

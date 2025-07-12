@@ -11,6 +11,7 @@ classdef DRONE < handle
     input_transform
     cha_allocation
     id = 1
+    cha = 's'
   end
 
   methods
