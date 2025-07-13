@@ -31,7 +31,6 @@ motive.getData(agent);
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
-agent(1).estimator.direct = DIRECT_ESTIMATOR(agent,est);
 agent(1).estimator.ekf = EKF(agent(1), Estimator_EKF(agent(1),dt,...
     MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_HL")),...
     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
@@ -41,12 +40,10 @@ q = self.sensor.result.state(1).getq('3');
 switch self.cha
     case 't'
         pL = p;
-        pL(3) = pL(3) - self.parameter.get("cableL");
-        pL = self.sensor.result.state(1).get('pL');
+        pL(3) = pL(3) - self.parameter.get("cableL");       
         pT = [0;0;-1];
         pT = (pL - p);
         pT = pT/norm(pT);
-        pT-self.sensor.result.state(1).get('pT')
         if self.estimator.ekf.Q(end,end) == 1e-2
             % B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
             % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e3);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
@@ -64,8 +61,8 @@ switch self.cha
         pL(3) = pL(3) - self.parameter.get("cableL");
         pT = [0;0;-1];
     otherwise
-        % pL = self.sensor.result.state(2).get('p');
-        pL = self.sensor.result.state(1).get('pL');
+        pL = self.sensor.result.state(2).get('p');
+        % pL = self.sensor.result.state(1).get('pL');
         pT = (pL - p);
         pT = pT/vecnorm(pT);
         % self.cha
@@ -88,14 +85,13 @@ end
 % self.estimator.result.state.mL
 y = [p;q;pL;pT];
 end
-% agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
-agent(1).sensor = DIRECT_SENSOR(agent(1));
+agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
 agent(1).reference.timevarying = TIME_VARYING_REFERENCE(agent(1),...
     {"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[2,2,0.2]},"HL"});
 agent(1).controller = HLC_SUSPENDED_LOAD(agent(1),Controller_HL_Suspended_Load(dt,agent(1)));
 run("ExpBase");
-% agent(1).cha_allocation.sensor = "motive";
-agent(1).cha_allocation.estimator = ["direct","ekf"];
+agent(1).cha_allocation.sensor = "motive";
+agent(1).cha_allocation.estimator = "ekf";
 agent(1).cha_allocation.f.reference = "timevarying";
 
 
