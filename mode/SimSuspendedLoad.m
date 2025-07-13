@@ -32,7 +32,7 @@ motive.getData(agent);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
 agent(1).estimator.ekf = EKF(agent(1), Estimator_EKF(agent(1),dt,...
-    MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_HL")),...
+    MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
 function y = sensor_func(self,dt,~)
 p = self.sensor.result.state(1).get('p');
@@ -44,17 +44,14 @@ switch self.cha
         pT = [0;0;-1];
         pT = (pL - p);
         pT = pT/norm(pT);
-        if self.estimator.ekf.Q(end,end) == 1e-2
-            % B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e3);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)]);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+        if self.estimator.ekf.Q(end,end) ~= 1e-2
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
             R = 100*blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
             self.estimator.ekf.B = B;
             self.estimator.ekf.Q = Q;
-            self.estimator.ekf.R = R;
-            self.estimator.ekf.result.P = eye(24);
-            % self.estimator.ekf.result.P = eye(25);
+            self.estimator.ekf.R = R;            
+            self.estimator.ekf.result.P = eye(25);
         end
     case {'a','l'}
         pL = p;
@@ -62,27 +59,23 @@ switch self.cha
         pT = [0;0;-1];
     otherwise
         pL = self.sensor.result.state(2).get('p');
-        % pL = self.sensor.result.state(1).get('pL');
         pT = (pL - p);
         pT = pT/vecnorm(pT);
         % self.cha
         % pL'
         % pT'
         % p'
-        if self.estimator.ekf.Q(end,end) ~= 1e1
-            % B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);%
-            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)]);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+        if self.estimator.ekf.Q(end,end) ~= 1e-2
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,1e-2);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
             R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
             self.estimator.ekf.B = B;
             self.estimator.ekf.Q = Q;
             self.estimator.ekf.R = R;
-            self.estimator.ekf.result.P = eye(24);
-            % self.estimator.ekf.result.P = eye(25);
+            self.estimator.ekf.result.P = eye(25);
         end
 end
-% self.estimator.result.state.mL
+self.estimator.result.state.mL
 y = [p;q;pL;pT];
 end
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
