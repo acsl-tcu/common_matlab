@@ -52,7 +52,7 @@ classdef EKF < handle
             obj.B = param.B;
             obj.result.P = param.P;
             obj.result.G = zeros(obj.n,size(obj.R,2));
-            if isempty(obj.self.estimator)
+            if ~isfield(obj.self.estimator,"result")
               obj.self.estimator.result = obj.result;
             end
         end
