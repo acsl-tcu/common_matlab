@@ -49,9 +49,9 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
                 data.startIndex = find(data.phase==112,1,'first');
                 data.endIndex = find(data.phase == 108,1,'last');
             else
-                range = input('\n＜データ範囲の初めを設定してください＞\n 1:take off + idx 2:flight + idx：','s');
+                range = input('\n＜データ範囲の初めを設定してください＞\n 1:take off + 何ステップ進めるか 2:flight + 何ステップ進めるか：','s');
                 data.range = str2double(range);
-                IDX = input('\n＜idxを入力してください＞ ：','s');
+                IDX = input('\n＜進めたい分のステップ数を入力してください＞ ：','s');
                 data.IDX = str2double(IDX);
                 if data.range == 1
                     data.startIndex = find(data.phase==116,1,'first') + data.IDX;
