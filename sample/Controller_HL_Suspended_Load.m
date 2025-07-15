@@ -12,8 +12,8 @@ function Controller = Controller_HL_Suspended_Load(dt,agent)
         % sim用これでないと上手く飛ばない
         % 仮想状態の並び順番は微分階数が小さいものから([h,dh,ddh,...]')
         Controller.F1 = lqrd(A2,B2,diag([100,1]),1,dt);                        % z方向サブシステム, h1^(i) i = 0~1
-        Controller.F2 = lqrd(A6,B6,diag([1500,1000,100,10,10,10]),0.01,dt);   % x方向サブシステム, h2^(i) i = 0~5 
-        Controller.F3 = lqrd(A6,B6,diag([1500,1000,100,10,10,10]),0.01,dt);   % y方向サブシステム, h3^(i) i = 0~5
+        Controller.F2 = lqrd(A6,B6,diag([1500,1000,100,10,10,10]),0.001,dt);   % x方向サブシステム, h2^(i) i = 0~5 
+        Controller.F3 = lqrd(A6,B6,diag([1500,1000,100,10,10,10]),0.001,dt);   % y方向サブシステム, h3^(i) i = 0~5
         Controller.F4 = lqrd(A2,B2,diag([10,1]),0.1,dt);                        % yaw方向サブシステム, h4^(i) i = 0~1
     else
         % exp用
