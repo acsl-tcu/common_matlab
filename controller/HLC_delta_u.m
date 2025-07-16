@@ -63,9 +63,9 @@ classdef HLC_delta_u < handle
       % %スイープ周波数追加
       %chirp(初期時刻，初期周波数，指定時間，指定周波数)※周波数は指定周波数÷指定時間の割合で増えていく
       spline_te = 50;
-      obj.result.delta_u_thrust = 1.1*chirp(varargin{1}.t,0,spline_te,1.2,'linear')*[1;0;0;0];%thrust
-      obj.result.delta_u_roll = 0.725*chirp(varargin{1}.t,0,spline_te,0.35,'linear')*[0;1;0;0];%roll
-      obj.result.delta_u_pitch = 0.725*chirp(varargin{1}.t,0,spline_te,0.35,'linear')*[0;0;1;0];%pitch
+      obj.result.delta_u_thrust = 1.1*chirp(varargin{1}.t,0,spline_te,1.25,'linear')*[1;0;0;0];%thrust
+      obj.result.delta_u_roll = 0.7*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;1;0;0];%roll
+      obj.result.delta_u_pitch = 0.7*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;0;1;0];%pitch
       obj.result.delta_u_yaw = 0.6*chirp(varargin{1}.t,0,spline_te,0.5,'linear')*[0;0;0;1];%yaw%振幅1.05で発散
       else
       obj.result.delta_u_thrust = 0;
