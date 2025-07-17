@@ -18,6 +18,16 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_experiment < handle
         result
         self
         flag_anti_spike_f
+        weight
+        weightF
+        weightR
+        weightRp
+          A
+        B
+        C
+        H
+        parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+        qpparam
     end
 
     methods
@@ -26,7 +36,22 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_experiment < handle
             obj.self = self; %agentへの接続
             %---MPCパラメータ設定---%
             obj.param = param.param; %Controller_MPC_Koopmanの値を保存
+              obj.weight = blkdiag(obj.param.weight.P, obj.param.weight.Q, obj.param.weight.V, obj.param.weight.W);
+            obj.weightF = blkdiag(obj.param.weight.Pf, obj.param.weight.Qf, obj.param.weight.Vf, obj.param.weight.Wf);
+            obj.weightR = obj.param.weight.R;
+            obj.weightRp = obj.param.weight.RP;
+             obj.param = param; %Controller_MPC_Koopmanの値を保存
+            obj.H = obj.param.H;
+            obj.A = obj.param.A;
+            obj.B = obj.param.B;
+            obj.C = obj.param.C;
 
+            %%
+            obj.param.P = self.parameter.get(obj.parameter_name);
+            obj.input = obj.param.input;
+            obj.model = self.plant;
+            
+         
             %%
             obj.input = obj.param.input;
             obj.model = self.plant;
@@ -45,58 +70,58 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_experiment < handle
             % varargin 
             % 1:TIME,  2:flight phase,  3:LOGGER,  4:?,  5:agent,  6:1?
             vara = varargin{1};
-            obj.param.t = vara{1}.t;
+            obj.param.t = vara.t;
             rt = obj.param.t; %時間
             % idx = round(rt/vara{1}.dt+1); %プログラムの周回数
 
             %各phaseでのリファレンスと現在状態の更新--------------------------------------------------
             % arming，take offではリファレンスと現在状態の値を固定することで計算破綻を防いでいる
-            if vara{2} == 'a'
-                obj.state.ref = repmat([0;0;1;0;0;0;0;0;0;0;0;0;obj.param.ref_input],1,obj.param.H);
-                obj.current_state = [0;0;1;0;0;0;0;0;0;0;0;0];
-            elseif vara{2} == 't'
-                obj.state.ref = repmat([0;0;1;0;0;0;0;0;0;0;0;0;obj.param.ref_input],1,obj.param.H);
-                obj.current_state = [0;0;1;0;0;0;0;0;0;0;0;0];
-                fprintf('take off')
-            elseif vara{2} == 'f'
+            % if vara{2} == 'a'
+            %     obj.state.ref = repmat([0;0;1;0;0;0;0;0;0;0;0;0;obj.param.ref_input],1,obj.param.H);
+            %     obj.current_state = [0;0;1;0;0;0;0;0;0;0;0;0];
+            % elseif vara{2} == 't'
+            %     obj.state.ref = repmat([0;0;1;0;0;0;0;0;0;0;0;0;obj.param.ref_input],1,obj.param.H);
+            %     obj.current_state = [0;0;1;0;0;0;0;0;0;0;0;0];
+            %     fprintf('take off')
+            % elseif vara{2} == 'f'
                 obj.state.ref = obj.Reference(rt); %リファレンスの更新
                 obj.current_state = obj.self.estimator.result.state.get(); %現在状態
-                fprintf('flight')
-            end
+                % fprintf('flight')
+            % end
             %---------------------------------------------------------------------------------------
 
-            Param = obj.param;
-            Param.current = obj.current_state;
-            Param.ref = obj.state.ref;        
-            obj.previous_state = repmat(obj.current_state, 1, obj.param.H);
-            
-            % MPC設定(problem)
-            options = optimoptions('quadprog');
-            options = optimoptions(options,'MaxIterations',      1.e+9); % 最大反復回数
-            options = optimoptions(options,'ConstraintTolerance',1.e-5);     % 制約違反に対する許容誤差
-
-            %-- quadprog設定
-            options.Display = 'none';   % 計算結果の表示
-            problem.solver = 'quadprog'; % solver
-
-            [H, f] = change_equation(Param); %change_equation：評価関数の式変形を行う関数
-            A = [];
-            b = [];
-            Aeq = [];
-            beq = [];
-            lb = repmat([0;-1;-1;-1], obj.param.H, 1);
-            ub = repmat([10;1;1;1], obj.param.H, 1);
-            x0 = [obj.previous_input(:)];
-              
-            [var, fval, exitflag, ~, ~] = quadprog(H, f, A, b, Aeq, beq, lb, ub, x0, options, problem); %最適化計算
-      
-            %%
-            obj.previous_input = var;
-            if vara{2} == 'a'
-                obj.result.input = [0;0;0;0]; %arming時には入力0で固定
-            else
-                obj.result.input = var(1:4, 1); % 印加する入力 4入力
-            end
+            % Param = obj.param;
+            % Param.current = obj.current_state;
+            % Param.ref = obj.state.ref;        
+            % obj.previous_state = repmat(obj.current_state, 1, obj.param.H);
+            % 
+            % % MPC設定(problem)
+            % options = optimoptions('quadprog');
+            % options = optimoptions(options,'MaxIterations',      1.e+9); % 最大反復回数
+            % options = optimoptions(options,'ConstraintTolerance',1.e-5);     % 制約違反に対する許容誤差
+            % 
+            % %-- quadprog設定
+            % options.Display = 'none';   % 計算結果の表示
+            % problem.solver = 'quadprog'; % solver
+            % 
+            % [H, f] = change_equation(Param); %change_equation：評価関数の式変形を行う関数
+            % A = [];
+            % b = [];
+            % Aeq = [];
+            % beq = [];
+            % lb = repmat([0;-1;-1;-1], obj.param.H, 1);
+            % ub = repmat([10;1;1;1], obj.param.H, 1);
+            % x0 = [obj.previous_input(:)];
+            % 
+            % [var, fval, exitflag, ~, ~] = quadprog(H, f, A, b, Aeq, beq, lb, ub, x0, options, problem); %最適化計算
+            % 
+            % %%
+            % obj.previous_input = var;
+            % if vara{2} == 'a'
+            %     obj.result.input = [0;0;0;0]; %arming時には入力0で固定
+            % else
+            %     obj.result.input = var(1:4, 1); % 印加する入力 4入力
+            % end
 
            %%
            % cha = vara{2}; %KMPC
@@ -107,6 +132,16 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_experiment < handle
            %         obj.flag_anti_spike_f = obj.flag_anti_spike_f + 1;
            %      end
            %  end
+            Param = struct('A',obj.param.A,'B',obj.param.B,'C',obj.param.C,'weight',obj.weight,'weightF',obj.weightF,'weightR',obj.weightR,'weightRp',obj.weightRp,'H',obj.H);
+            [obj.qpparam.H, obj.qpparam.F] = change_equation_drone(Param);
+              Param = struct('current_state',obj.current_state,'ref',obj.state.ref,'u',obj.input.u,'qpH', obj.qpparam.H, 'qpF', obj.qpparam.F,'lb',obj.param.input.lb,'ub',obj.param.input.ub,'previous_input',obj.previous_input,'H',obj.H,'F',obj.param.F);
+            [var, fval, exitflag] = obj.param.quad_drone(Param); %自PCでcontroller:0.6ms, 全体:2.7ms
+      
+            %%
+            obj.previous_input = var;
+            u = var(1:4, 1); % 印加する入力 4入力
+            % obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+            obj.result.input = max(obj.param.input.lb, min(obj.param.input.ub, u));
 
             %% データ表示用
             obj.input.u = obj.result.input; 
@@ -149,7 +184,7 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_experiment < handle
             % params.dt = 0.1;
             xr = zeros(obj.param.total_size, obj.param.H);    % initialize
             % 時間関数の取得→時間を代入してリファレンス生成
-            RefTime = obj.self.reference.func;    % 時間関数の取得
+            RefTime = obj.self.reference.bezier.ref_generator;    % 時間関数の取得
             for h = 0:obj.param.H-1
                 t = T + obj.param.dt * h; % reference生成の時刻をずらす
                 ref = RefTime(t);

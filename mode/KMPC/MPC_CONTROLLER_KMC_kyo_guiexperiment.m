@@ -100,7 +100,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             % obj.koopman.ExB = obj.model.B;
             obj.flag.A = 0;
             obj.result.bestcost = obj.input.Bestcost_now;
-
+        
             %% 勾配MPCとの併用を見据えてのQP(Quadratic Programming:二次計画法)の式変換
             %-- M2鬼澤がやっていたと思う
             % Q = reshape(obj.Weight(:,:,1), obj.param.state_size, []);
@@ -109,7 +109,8 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             % Param = struct('A',A,'B',B,'C',C,'weight',Q,'weightF',Qf,'weightR',R,'H',obj.param.H);
             % [obj.qpparam.H, obj.qpparam.F] = change_equation_HLMCMPC(Param);
         end
-
+        
+        
         %-- main()的な
         function result = do(obj,varargin)
 
@@ -188,6 +189,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             %% 値の保存　実験時は取り出す変数に気を付ける->ファイルサイズが大きくなりすぎる
 
             result = obj.result;
+            obj.show();
 
         end
         function result2input(obj)
@@ -598,7 +600,8 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             xr = zeros(obj.param.total_size, obj.H);    % initialize
             % 時間関数の取得→時間を代入してリファレンス生成
 
-            RefTime = obj.self.reference.time_var.func;    % 時間関数の取得
+            % RefTime = obj.self.reference.bezier.ref_generator;  
+             RefTime = obj.self.reference.time_var.func;% 時間関数の取得
             for h = 0:obj.H-1
                 t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
                 ref = RefTime(t);
@@ -625,7 +628,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-            var(4*(1:obj.H))= 0;
+             var(4*(1:obj.H))= 0;
             % fval
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.eflag = eflag;
@@ -679,7 +682,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             tildeUref = U - obj.state.ref(13:16,:);
 
             stageState = tildeX(:,1:end-1)' * blkdiag(obj.weight.stagestate,0*eye(n-12))    * tildeX(:,1:end-1);
-            stageInputPre  = tildeUpre(:,1:end-1)' * obj.weight.refinputdif * tildeUpre(:,1:end-1);
+            stageInputPre  = tildeUpre(:,1:end-1)' * obj.weight.preinputdif * tildeUpre(:,1:end-1);
             stageInputRef  = tildeUref(:,1:end-1)' * obj.weight.input  * tildeUref(:,1:end-1);
             terminalState = tildeX(1:12,end)' * obj.weight.terminalstate * tildeX(1:12,end);
 
@@ -749,13 +752,14 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 est_print.p(1), est_print.p(2), est_print.p(3),...
                 est_print.v(1), est_print.v(2), est_print.v(3),...
                 est_print.q(1), est_print.q(2), est_print.q(3)); % s:state 現在状態
-            % fprintf("pr: %f %f %f \t vr: %f %f %f \t qr: %f %f %f \n", ...
-            %   obj.state.ref(1,1), obj.state.ref(2,1), obj.state.ref(3,1),...
-            %   obj.state.ref(7,1), obj.state.ref(8,1), obj.state.ref(9,1),...
-            %   0, 0, obj.state.ref(6,1))                             % r:reference 目標状態
-            % fprintf("t: %f \t input: %f %f %f %f \t J: %f \t sigma: %f", ...
-            %   obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
-            % fprintf("\n");
+            fprintf("pr: %f %f %f \t vr: %f %f %f \t qr: %f %f %f \n", ...
+              obj.state.ref(1,1), obj.state.ref(2,1), obj.state.ref(3,1),...
+              obj.state.ref(7,1), obj.state.ref(8,1), obj.state.ref(9,1),...
+              0, 0, obj.state.ref(6,1))                             % r:reference 目標状態
+            fprintf("t: %f \t input: %f %f %f %f \t J: %f \t sigma: %f", ...
+              obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
+            fprintf("\n");
         end
+      
     end
 end

@@ -18,9 +18,9 @@ function [H, f] = change_equation(Param)
     B = Param.B; %入力ベクトル
     C = Param.C; %出力ベクトル
 
-    Q = blkdiag(Param.weight.P, Param.weight.V, Param.weight.QW); %状態のステージコスト
+    Q = blkdiag(Param.weight.P, Param.weight.V, Param.weight.Q,Param.weight.W); %状態のステージコスト
     R = Param.weight.R; %入力の重み
-    Qf = blkdiag(Param.weight.Pf, Param.weight.Vf, Param.weight.QWf); %状態の終端コスト
+    Qf = blkdiag(Param.weight.Pf, Param.weight.Vf, Param.weight.Qf,Param.weight.Wf); %状態の終端コスト
     Horizon = Param.H; %ホライズン数
 
     Xc = observables_quaternion_base(Param.current); %現在状態,観測量：状態+非線形項

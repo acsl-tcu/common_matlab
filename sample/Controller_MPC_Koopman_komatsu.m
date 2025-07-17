@@ -1,4 +1,4 @@
-function Controller = Controller_MPC_Koopman(dt, model, agent)
+function Controller = Controller_MPC_Koopman_komatsu(dt, model, agent)
 %UNTITLED この関数の概要をここに記述
 %   各種値
 
@@ -27,12 +27,12 @@ function Controller = Controller_MPC_Koopman(dt, model, agent)
     [Controller.F, code] = select_observable(model);
 
     % %% 木山による重み
-    % Controller.weight.P = diag([20; 1; 30]);    % 位置　10,20刻み  20;1;30
-    % Controller.weight.Q = diag([30; 20; 10]);    % 速度  10,20刻み  30;20;10
-    % Controller.weight.V = diag([10; 1; 1]); % 15良い気がする
-    % Controller.weight.W = diag([1; 1; 1]);  % 姿勢角，角速度　1,2刻み 
-    % Controller.weight.R = diag([1; 1; 1; 1]); % 入力
-    % Controller.weight.RP = 0 * diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    Controller.weight.P = diag([20; 1; 30]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = diag([30; 20; 10]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = diag([10; 1; 1]); % 15良い気がする
+    Controller.weight.W = diag([1; 1; 1]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = diag([1; 1; 1; 1]); % 入力
+    Controller.weight.RP = 0 * diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
 
     if strcmp(code, '23')
         % ちょっと良かったやつ

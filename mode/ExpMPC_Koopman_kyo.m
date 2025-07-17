@@ -51,9 +51,9 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
 % 
-agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
+% agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
-% agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
@@ -63,14 +63,14 @@ agent.controller.result.input = [0;0;0;0];
 % agent.controller.do = @controller_do;
 % %-run("ExpBase");-----------------------------------------------------------------------------------------------------------------------
 run("ExpBase");
-agent.cha_allocation.reference = "bezier";
+agent.cha_allocation.reference = "time_var";
 % agent.cha_allocation.a.reference = "arming";
 % agent.cha_allocation.f.reference = "bezier";
 % agent.cha_allocation.t.reference = "takeoff";
 % agent.cha_allocation.l.reference = "landing";
 
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["hlc"];
+agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);

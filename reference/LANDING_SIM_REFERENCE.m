@@ -6,11 +6,13 @@ classdef LANDING_SIM_REFERENCE < handle
     dt
     result
     base_state
-    base_time
+    base_time = 0
     te = 3
     th_offset
     func
     th_offset0 = 200;
+    initialz % 初期時刻高度（takeoffする前の高度）
+     fInit = 0;
   end
 
   methods
@@ -24,19 +26,31 @@ classdef LANDING_SIM_REFERENCE < handle
     function  result= do(obj,varargin)
       % [Input] time,cha,logger,env
        
-      if isempty(obj.result.state.xd) % first take
-        obj.base_time=varargin{1}.t;
-        obj.base_state = [obj.self.estimator.result.state.p(1:3)]; % x,y : current position, z : reference using at flight phase
-        obj.result.state.xd = [obj.base_state;zeros(17,1)];
-        % obj.th_offset = obj.self.input_transform.param.th_offset;
+      if obj.fInit < 10 || isempty( obj.base_state )
+          if obj.fInit ==0
+              obj.initialz = obj.self.estimator.result.state.p(3);
+          end% first take
+          obj.base_time=varargin{1}.t;
+          obj.base_state = [obj.self.estimator.result.state.p(1:3)]; % x,y : current position, z : reference using at flight phase
+          obj.result.state.xd = [obj.base_state;zeros(17,1)];
+          if isprop(obj.self.input_transform,"param")
+              obj.th_offset = obj.self.input_transform.param.th_offset;
+          else
+              obj.th_offset = obj.th_offset0;
+          end
+          obj.fInit = obj.fInit + 1;
+          disp(obj.fInit)
+          % obj.th_offset = obj.self.input_transform.param.th_offset;
       end
-      obj.func = @(t)[obj.result.state.xd];
-      obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [length(obj.func(0)), 3, 3, 3]));
+      % obj.func = @(t)[obj.result.state.xd];
+      % obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [length(obj.func(0)), 3, 3, 3]));
       obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);
       obj.result.state.v = obj.result.state.xd(5:7,1);
       % obj.self.input_transform.param.th_offset = obj.th_offset - (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
-      
+      if obj.fInit >= 2 % 地面効果対策で obj.te の時間で obj.th_offset -> obj.th_offset0 に変化させる。
+                obj.self.input_transform.param.th_offset = obj.th_offset - (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
+            end
       result = obj.result;
     end
     function Xd = gen_ref_for_landing(obj,t)

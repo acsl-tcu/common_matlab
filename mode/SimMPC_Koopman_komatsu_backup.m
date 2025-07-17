@@ -17,18 +17,17 @@ ts = 0; % initial timefghj
 dt = 0.025; % sampling period
 te = 100; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-% in_prog_func = @(app) dfunc(app); % in progress plot
-post_func = @(app) post(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
+in_prog_func = @(app) dfunc(app); % in progress plot
+post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
+motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 機数，1, z (初期位置)
+initial_state.p = arranged_position([0, 0], 1, 1, 0.6); % [x, y], 機数，1, z (初期位置)
 initial_state.q = [0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 %% クープマンモデルの設定
-% model_file = "2025-01-12_Exp_Kiyama_code00_saddle_increased.mat";
-model_file = "2025-03-31_Exp_Kyomo_code00_saddle.mat";
+model_file = "2025-01-12_Exp_Kiyama_code00_saddle_increased.mat";
 % model_file = '2024-12-23_Exp_Kiyama_code23_saddle_increased_weight10.mat';
 load(model_file,'est'); % main
 % [A,B,C] = AB_transfer(est.A, est.B, est.C, dt, 0.08);
@@ -53,45 +52,41 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 
 % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
-agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference = MY_POINT_REFERENCE(agent,{struct("f",[1;0;1],"g",[-1.5;0;1],"h",[0;0;1],"j",[-1;0;1]),7});
 % agent.reference = MY_REFERENCE_KOMA2(agent,{"",2,te}); % 1:from mat, 2:9-order polynomial
 
 % KMPC & HLC
-
-agent.controller.hlc = HLC(agent,Controller_HL(dt));
-agent.controller.kmpc = MPC_CONTROLLER_KOOPMAN_quadprog_experiment(agent,Controller_MPC_Koopman_komatsu(dt, model_file, agent)); %最適化手法：QP
+agent.controller = MPC_CONTROLLER_KOOPMAN_quadprog_experiment_HL(agent,Controller_MPC_Koopman_komatsu(dt, model_file, agent)); %最適化手法：QP
 
 %%
 % run("ExpBase");
-run("ExpBase");
-agent.cha_allocation.reference = "time_var";
-agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["hlc"];
+run("SimBase");
+
 %% modeファイル内でプログラムを回す
-% phase = 'f'
-% for i = 1:te/dt
-%     % if i < 20 || rem(i, 10) == 0 end
-%     tic
-%     pre_est = agent.estimator.result;
-%     agent(1).sensor.do(time, phase);
-%     agent(1).estimator.do(time, phase);
-%     agent(1).reference.do(time, phase);
-%     agent(1).controller.do(time, phase);
-%     agent(1).plant.do(time, phase);
-%     logger.logging(time, phase, agent);
-%     time.t = time.t + time.dt;
-%     %pause(1)
-%     toc
-% 
-%     agent.controller.show(agent.controller.result.mpc.fval, agent.controller.result.mpc.exitflag);
-%     est = agent(1).estimator.result.state.p;
-%     if est(3) < 0 || est(3) > 2 %終了判定
-%         break
-%     end
-% end
-% %%
-% experiment_figure_case_study;
+phase = 'f'
+for i = 1:te/dt
+    % if i < 20 || rem(i, 10) == 0 end
+    tic
+    pre_est = agent.estimator.result;
+    agent(1).sensor.do(time, phase);
+    agent(1).estimator.do(time, phase);
+    agent(1).reference.do(time, phase);
+    agent(1).controller.do(time, phase);
+    agent(1).plant.do(time, phase);
+    logger.logging(time, phase, agent);
+    time.t = time.t + time.dt;
+    %pause(1)
+    toc
+
+    agent.controller.show(agent.controller.result.mpc.fval, agent.controller.result.mpc.exitflag);
+    est = agent(1).estimator.result.state.p;
+    if est(3) < 0 || est(3) > 2 %終了判定
+        break
+    end
+end
+%%
+experiment_figure_case_study;
 %%
 % app.logger = logger;
 % result_plot(app, model_file);
@@ -110,15 +105,7 @@ agent.cha_allocation.f.controller = ["hlc"];
 %     % fig.main_animation();
 % end
 
-function post(app)
-
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
-%app.logger.plot({1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""},"fig_num", 4,"phase","f");
+function dfunc(app)
+    experiment_figure_case_study;
+    % result_plot(app, '');
 end

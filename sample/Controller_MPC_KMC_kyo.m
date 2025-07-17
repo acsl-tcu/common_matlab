@@ -1,4 +1,4 @@
-function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent,mmatflag,est)
+function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
  %% HL param
     Controller = Controller_HL(dt);
     Controller.dt_drone = Controller.dt;
@@ -27,9 +27,8 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent,mmatflag,est)
     Controller.input.lb = [0; -1; -1; -1];
     Controller.input.ub = [10; 1;  1;  1];
     %% load model from koopman setting in the simxxx & change sampling time
-   if mmatflag ==1
+   
     load(model_file, 'est');
-   end
     [Controller.koopman.A, Controller.koopman.B, Controller.koopman.C]  = AB_transfer(est.A, est.B, est.C, dt, Controller.dt);
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択

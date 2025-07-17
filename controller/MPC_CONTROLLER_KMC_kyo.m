@@ -61,7 +61,7 @@ classdef MPC_CONTROLLER_KMC_kyo< handle
       obj.param = param; % param = Controller_MPC_HLMC.mで設定したパラメーター
       obj.param.catchflag = 0;
       %%flag defination
-      obj.flag.mcflag = 0 ;%qp input mc flag| 0 = qpmpc; 1 = qpmpc+mc; 2=qpmpc+mc+stl;
+      obj.flag.mcflag = 1 ;%qp input mc flag| 0 = qpmpc; 1 = qpmpc+mc; 2=qpmpc+mc+stl;
       obj.flag.stlhard_flag = 0;% stl hard or soft  now it`s no sense
       obj.flag.resampling_flag = 0;% auto change when all samples are not satisfied
       obj.flag.reinputflag = 0; % uesd to go to resampling now it is not be used

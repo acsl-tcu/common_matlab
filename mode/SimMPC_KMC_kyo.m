@@ -10,7 +10,7 @@
 
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 25; % terminal time
+te = 250; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 %in_prog_func = @(app) in_prog(app); % in progress plot
 % in_prog_func = @(app) in_prog(app);
@@ -30,27 +30,27 @@ initial_state.w = [0; 0; 0];
  % model_file = '2025-03-27_Exp_Kyomo_code00_saddle';% p = p+v*dt
 % vars = mmat_to_mfile_all('2025-03-31_Exp_Kyomo_code00_saddle.mat');  % -> generates yourdata_data.m
 mmatflag = 0;
-filename = '2025-03-31_Exp_Kyomo_code00_saddle';
-matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
-mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
-
-if ~isempty(matfile_info)
-    mmatflag = 1;
-    model_file = fullfile(matfile_info(1).folder, matfile_info(1).name);
-elseif ~isempty(mfile_info)
-    mmatflag = 2;
-    model_file = fullfile(mfile_info(1).folder, mfile_info(1).name);
-    est = import_vars_from_mfile(model_file);
-else
-    disp('no files');
-end
+% filename = '2025-07-15_Exp_Kyo_code00_randompp';
+% matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
+% mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
+% 
+% if ~isempty(matfile_info)
+%     mmatflag = 1;
+%     model_file = fullfile(matfile_info(1).folder, matfile_info(1).name);
+% elseif ~isempty(mfile_info)
+%     mmatflag = 2;
+%     model_file = fullfile(mfile_info(1).folder, mfile_info(1).name);
+%     est = import_vars_from_mfile(model_file);
+% else
+%     disp('no files');
+% end
 
 %model_file = '2025-02-12_Exp_Kato25_code00_saddle'; % kiyama+kato25 =
 % 300data
 % model_file = '2025-02-12_Exp_Kato15_code00_saddle'; % kato25=150data
-%model_file = '2025-02-14_Exp_Kato15_code00_saddle_increased';
-%model_file = '2025-01-12_Exp_Kiyama_code00_saddle_increased';
-
+ % model_file = 'EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出';
+% model_file = '2025-01-12_Exp_Kiyama_code00_saddle_increased';
+  model_file = '2025-07-15_Exp_Kyo_code00_randompp';
 %%
 agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
@@ -65,13 +65,13 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 % agent.controller = MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 % run("SimBase");
 %%
-%agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
+% agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
-agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+ agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
- agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent,mmatflag,est)); %最適化手法：QP
+ agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent)); %最適化手法：QP
 % %agent.controller.kmpc =  MPC_CONTROLLER_KMC_kyo(agent, Controller_MPC_KMC_kyo(dt, model_file, agent));
 % agent.controller.result.input = [0;0;0;0];
 % agent.controller.result.input_kmpc= [0;0;0;0];
@@ -81,7 +81,7 @@ agent.controller.hlc = HLC(agent,Controller_HL(dt));
 % agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 % agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 % agent.reference.arming = ARMING_REFERENCE(agent,[]);
-run("ExpBase");
+run("SimBase");
 agent.cha_allocation.reference = "time_var";
 % agent.cha_allocation.a.reference = "arming";
 % agent.cha_allocation.f.reference = "bezier";
