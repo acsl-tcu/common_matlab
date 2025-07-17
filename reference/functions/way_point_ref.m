@@ -128,7 +128,9 @@
                 xyz(:,j) = coefficients.(names{1})(:,:,i)*t_powers.(names{1})(t_ref);
                 j=j+1;
             end
+            
             figure(101)
+            clf
             plot3(xyz(1,:), xyz(2,:), xyz(3,:), 'LineWidth', 2)
             hold on
             grid on
@@ -141,7 +143,8 @@
             set(gca, 'TickLabelInterpreter', 'latex', 'FontSize', 14)
             axis equal
             legend(h_start, {'始点'},  'FontSize', 14)
-
+            
+            
             end
 
 
