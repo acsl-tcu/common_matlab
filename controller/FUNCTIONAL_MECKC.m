@@ -48,6 +48,7 @@ methods
         model = obj.self.estimator.result;
         ref = obj.self.reference.result;
         xd = ref.state.xd;
+        disp(ref.state.p);
         P = obj.param.P;
         F1 = obj.param.F1;
         F2 = obj.param.F2;
@@ -92,19 +93,34 @@ methods
         y_p=obj.param.est.C*z_p;
         y_n=obj.param.est.C*z_n;
         eig(obj.param.est.A);%クープマンモデルが安定かどうか
-        D_zero=[1 1 1 0 0 0 0 0 0 0 0 0;%フィードバックゲイン4×12次元にしたい(5/27(火)に決めたテキトーゲイン)
-               0 0 0 0 0 0 0 0 0 0 0 0;
-               0 0 0 0 0 0 0 0 0 0 0 0;
-               0 0 0 0 0 0 0 0 0 0 0 0];
+        % D_zero=[1 1 1 0 0 0 0 0 0 0 0 0;%フィードバックゲイン4×12次元にしたい(5/27(火)に決めたテキトーゲイン)
+        %        0 0 0 0 0 0 0 0 0 0 0 0;
+        %        0 0 0 0 0 0 0 0 0 0 0 0;
+        %        0 0 0 0 0 0 0 0 0 0 0 0];
         
+        
+        dh=0.1;
         % D=D_zero+0.02*varargin{1}.t;%ゲイン半自動調整
         
-        S=y_p-y_n;%スライディングモードの曲面　
-    
-        % sat = min(1,max(-1,S/dh));%-1<=S<=1
-        sat = max(-1,S);%-1と比べて大きい方を返す
-        sat=min(1,sat);%1と比べて小さい方を返す
-        obj.result.delta_u = -D_zero*sat;%Δu計算
+        e=y_p-y_n;
+        D_1 = [1,1,1,1,1,1,1,1,1,1,1,1];
+        D_2 = [1,1,1,1,1,1,1,1,1,1,1,1];
+        D_3 = [1,1,1,1,1,1,1,1,1,1,1,1];
+        D_4 = [1,1,1,1,1,1,1,1,1,1,1,1];
+        sig_1 = D_1*e;
+        sig_2 = D_2*e;
+        sig_3 = D_3*e;
+        sig_4 = D_4*e;
+        sig = [sig_1,sig_2,sig_3,sig_4];
+        fai = sig/dh;
+        if (fai <=1) & (fai>=-1)
+            sat = fai;
+        else
+            sat = min(1,max(-1,fai));%-1<=S<=1
+        end
+        u_equal = -inv(sig*obj.param.est.B)*sig*obj.param.est.A*e;
+        u_controll = -inv(sig*obj.param.est.B)*diag(4)*sat;
+        obj.result.delta_u = u_equal+u_controll;%Δu計算
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
         obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu

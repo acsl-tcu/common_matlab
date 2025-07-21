@@ -52,18 +52,21 @@ classdef HLC_delta_u < handle
       % max,min are applied for the safty
       obj.result.nominal = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       
-      if (norm(model.state.v) < 1.0) && ...%速度制限
-         (norm(model.state.p-ref.state.p)<0.4) && ...%距離制限
+      %制限内ならΔu入力
+      if (norm(model.state.v) < 1.5) && ...%速度制限
+         ((model.state.p(1)-ref.state.p(1))>-0.5)&&((model.state.p(1)-ref.state.p(1))<0.5)&&...%x制限
+         ((model.state.p(2)-ref.state.p(2)>-0.5)&&((model.state.p(2)-ref.state.p(2))<0.5)&&...%y制限
+         ((model.state.p(3)-ref.state.p(3)))>-0.2)&&((model.state.p(3)-ref.state.p(3))<0.2)&&...%z制限
          (model.state.q(1)>-0.5)&&(model.state.q(1)<0.5)&&...%roll角制限
          (model.state.q(2)>-0.5)&&(model.state.q(2)<0.5)%pitch角制限
       
       % %スイープ周波数追加
       %chirp(初期時刻，初期周波数，指定時間，指定周波数)※周波数は指定周波数÷指定時間の割合で増えていく
       spline_te = 50;
-      obj.result.delta_u_thrust = 1.0*chirp(varargin{1}.t,0,spline_te,1,'linear')*[1;0;0;0];%thrust
-      obj.result.delta_u_roll = 0.6*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;1;0;0];%roll
-      obj.result.delta_u_pitch = 0.6*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;0;1;0];%pitch
-      obj.result.delta_u_yaw = 0.5*chirp(varargin{1}.t,0,spline_te,0.5,'linear')*[0;0;0;1];%yaw%振幅1.05で発散
+      obj.result.delta_u_thrust = 1.1*chirp(varargin{1}.t,0,spline_te,1.25,'linear')*[1;0;0;0];%thrust
+      obj.result.delta_u_roll = 0.7*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;1;0;0];%roll
+      obj.result.delta_u_pitch = 0.7*chirp(varargin{1}.t,0,spline_te,0.4,'linear')*[0;0;1;0];%pitch
+      obj.result.delta_u_yaw = 0.6*chirp(varargin{1}.t,0,spline_te,0.5,'linear')*[0;0;0;1];%yaw%振幅1.05で発散
       else
       obj.result.delta_u_thrust = 0;
       obj.result.delta_u_roll = 0;

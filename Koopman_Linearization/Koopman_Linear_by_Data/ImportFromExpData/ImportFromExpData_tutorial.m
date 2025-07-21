@@ -12,7 +12,8 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
     % 実験データ読み込み
     logger = load(expData_Filename);
     logger = logger.(string(fieldnames(logger)));
-    clear data % 読み込んだファイル内のdataと同名の変数を初期化
+    clear data % 読み込んだファイル内のda3
+    % taと同名の変数を初期化
     
     %データの個数をチェック
     data.N = find(logger.Data.t,1,'last');
@@ -48,9 +49,9 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
                 data.startIndex = find(data.phase==112,1,'first');
                 data.endIndex = find(data.phase == 108,1,'last');
             else
-                range = input('\n＜データ範囲の初めを設定してください＞\n 1:take off + idx 2:flight + idx：','s');
+                range = input('\n＜データ範囲の初めを設定してください＞\n 1:take off + 何ステップ進めるか 2:flight + 何ステップ進めるか：','s');
                 data.range = str2double(range);
-                IDX = input('\n＜idxを入力してください＞ ：','s');
+                IDX = input('\n＜進めたい分のステップ数を入力してください＞ ：','s');
                 data.IDX = str2double(IDX);
                 if data.range == 1
                     data.startIndex = find(data.phase==116,1,'first') + data.IDX;
@@ -114,7 +115,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
         if setting == 1
             % vz_z = input('\n＜zの速度からzを算出して学習に使用しますか？＞\n 0:使用しない 1:使用する：','s');
             % data.vz_z = str2double(vz_z);
-            vxyz = input('\n＜速度からx,y,zを算出して学習に使用しますか？＞\n 0:zのみ 1:x,y,zで使用する：','s');
+            vxyz = input('\n＜速度から位置を算出して学習に使用しますか？＞\n 0:zのみ \n 1:x,y,zで使用する \n 2:使用しない \n 選択された値:','s');
             data.vxyz = str2double(vxyz);
         else
             data.vxyz = vxyz;
@@ -126,11 +127,15 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
         elseif data.vxyz == 1 %xyz
             data.est.z(1:3,1) = data.est.p(1,1:3); 
             tmpv = data.est.v(:, 1:3)'; % 3 * length(t)
+        elseif data.vxyz == 2  % 速度から位置を算出しない
+            data.est.z = data.est.p(:, 1:3)'; 
         end
         %速度から算出
+        if data.vxyz==1||data.vxyz==0
         for i = 1:data.N-1
             % data.est.z(:,i+1) = data.est.z(:,i) + (tmpv(:,i)'*(data.t(i+1,:)-data.t(i,:)))'; % z[k+1] = z[k] + vz[k]*(t[k+1]-t[k])
-            data.est.z(:,i+1) = data.est.z(:,i) + (tmpv(:,i).*(data.t(i+1,1)-data.t(i,1)))';
+            data.est.z(:,i+1) = data.est.z(:,i) + tmpv(:,i).*(data.t(i+1,1)-data.t(i,1));
+        end
         end
         %---------------------------------------------------------------------------------------------------
     else

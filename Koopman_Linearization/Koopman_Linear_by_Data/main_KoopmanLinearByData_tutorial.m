@@ -17,7 +17,9 @@ clear all
 clc
 %---------------------------------------------
 flg.bilinear = 0; %1:双線形モデルへの切り替え 木山は実機のデータではうまくいかなかった
-flg.normalize = 0;
+flg.normalize = 0; %正規化するかどうか
+flg.without_pos = 0; %位置無観測量
+flg.weight = 0; %重み付き最小2乗法
 setting = 0; %この値はいじらない
 %---------------------------------------------
 
@@ -78,7 +80,8 @@ for i = 1:Data.HowmanyDataset
             range = Dataset.range;
             IDX = Dataset.IDX;
             phase2 = Dataset.phase2;
-            vz_z = Dataset.vz_z;
+            % vz_z = Dataset.vz_z;
+            vz_z = Dataset.vxyz;
             fprintf('\n')
         else
             setting = 0;
@@ -100,12 +103,12 @@ end
 fprintf('\n＜データセットの結合が完了しました＞\n')
 
 flg.normalize = input('\n＜正規化を行いますか＞\n はい:1，いいえ:0：','s');
-if flg.normalize == 1 %正規化を行うか(正規化については自分で調べて！)
+if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
     Ndata = Normalization(Data);
     Data.X = Ndata.x;
     Data.Y = Ndata.y;
     Data.U = Ndata.u;
-    disp('Normalization is complete')
+    disp('正規化が完了しました')
 end
 
 %% クォータニオンのノルムをチェック(クォータニオンのノルムは1にならなければいけないという制約がある)
@@ -135,7 +138,7 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-    est = KL(Data.X,Data.U,Data.Y,F); %クープマン線形化の具体的な計算をしてる部分
+    est = KL(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
 end
 
 est.observable = F;
@@ -147,7 +150,7 @@ fprintf('\n＜クープマン線形化が完了しました＞\n')
 fprintf('\n＜推定精度検証用データに設定するファイル名を選択してください＞\n')
 [fileName, filePath] = uigetfile('*.mat');
 verification_data = fileName;
-simResult.reference = ImportFromExpData_estimation(verification_data); %検証用データを格納
+simResult.reference = ImportFromExpData_estimation_tutorial(verification_data); %検証用データを格納
 
 %arming時の実験データがうまく取れていないのを強引に解消
 if simResult.reference.fExp == 1
@@ -187,7 +190,7 @@ end
 simResult.Xhat = est.C * simResult.Z; %出力方程式 x[k] = Cz[k]，次元を元の12状態に戻してる
 
 %正規化した場合には逆変換を行う必要がある
-if flg.normalize == 1 %逆変換
+if str2double(flg.normalize) == 1 %逆変換
     for i = 1:size(simResult.Xhat,1)
         simResult.Xhat(i,:) = (simResult.Xhat(i,:) * Ndata.stdValue.x(i)) + Ndata.meanValue.x(i);
     end

@@ -13,6 +13,7 @@ arguments
     param.filename
     param.ManualSetting
     param.point_dt
+    param.check
 end
 
 ManualSetting = param.ManualSetting;
@@ -21,7 +22,6 @@ ManualSetting = param.ManualSetting;
         disp('Loading reference data from mat');
         % load(strcat('../Data/reference/', filename));
         load(strcat('Data/reference/', filename)); % for exp
-        fshowfig = 0; % 読み込んだ時はグラフは描画しない
     else
         pointN = param.point; %waypointの数 
         dt = param.point_dt;%waypoint間の時間
@@ -29,45 +29,35 @@ ManualSetting = param.ManualSetting;
 
         %% ランダムな軌道の生成
         % xyz-directional xyz方向のランダムな軌道
-        wp_xy = max(-1.2, min(1.2, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
-        wp_z  = max(0.6, min(1.5, round(0.5*randn(pointN-2,1)+1,3)));
-       
+        wp_xy = max(-1.0, min(1.0, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
+        wp_z  = max(0.7, min(1.3, round(0.5*randn(pointN-2,1)+1,3)));
+        
         wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数
+        check = param.check;
     end
-    ref_data = way_point_ref(waypoints,order);%補間式の係数など計算
+
+    ref_data = way_point_ref(waypoints,order,check);%補間式の係数など計算
     
     function ref = spline_curve(ref_data,t)
         
-            %区間ごとの補間式を作成
             t_mod = mod(t,ref_data.period);
             names = fieldnames(ref_data.coefficients);
-            N=5;%HLが4階微分までだから5まで
-            
-            for i=1:ref_data.Sn
-                for j=1:N   
-                interpolation.(names{j})(:,i) = ref_data.coefficients.(names{j})(:,:,i)*ref_data.t_powers.(names{j})(t_mod-ref_data.time(i));
-                end
+            N=5;%HLが4階微分までだから0~4次式まで
+            % 区間選定
+            segment = find(t_mod >= ref_data.time(1:end-1) & t_mod < ref_data.time(2:end), 1);
+            %該当区間の補間式生成
+            for j = 1:N
+                ref_initial.(names{j}) = ref_data.coefficients.(names{j})(:,:,segment) * ref_data.t_powers.(names{j})(t_mod - ref_data.time(segment));
             end
-            
-            for j =1:N
-            ref_initial.(names{j}) = zeros(3,1); % 初期化
-            end
-
-            %どの区間か判断
-            for i = 1:ref_data.Sn
-                h1 = heaviside(t_mod - ref_data.time(i));
-                h2 = heaviside(ref_data.time(i+1) - t_mod);
-                for j=1:N
-                ref_initial.(names{j}) = ref_initial.(names{j}) + interpolation.(names{j})(:,i).*h1.*h2;
-                end
-            end
+            %refに式をまとめる
             ref = [];
             for j=1:N
             ref = [ref;ref_initial.(names{j});0];%refに4階微分まで登録
             end
     end
+
     ref=@(t) spline_curve(ref_data,t);
 
     if  ManualSetting ==1 %waypointを保存するか選べる
@@ -83,7 +73,6 @@ ManualSetting = param.ManualSetting;
         if isSaved==0
             disp("No save")
         else
-            if ~exist("Data\reference", "dir") mkdir("Data\reference"); end
             % save('../Data/reference/exp_ref.mat', 'waypoints');
             save('Data\reference\exp_ref.mat', 'waypoints');
         end

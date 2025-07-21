@@ -1,9 +1,10 @@
     %スプラインの係数計算
-            function ref = way_point_ref(val,n)
+            function ref = way_point_ref(val,n,check)
             % val         %時間とwaypoint
             arguments
                 val         %時間とwaypoint
                 n           %多項式次数
+                check       %事前に軌道確認
             end
             time = val(:,1)';
             point = val(:,2:end)';
@@ -103,6 +104,50 @@
             %一般式作る
             ref.period = time(end);%軌道の周期
             ref.Sn = Sn;%区間数
-           
+            
+            if check == 1   %軌道事前確認※2024年度のそのまま移植
+            t_ref0=0;
+            i=1;
+            j=1;
+            delta=0.025;
+            end_time=time(end)+1;
+            length_time = length(0:delta:end_time);
+            xyz = zeros(3,length_time);
+            for t_f = 0:delta:end_time
+                t_ref= t_f - t_ref0;%目標地点が定められた時間からの経過時間
+                if round(t_ref,4) >= dtime(i) 
+                   i=i+1;
+                    if i >length(ref.t) 
+                        i = length(ref.t);
+                        t_ref = dtime(end);
+                    else
+                        t_ref0 = round(t_f,4);
+                        t_ref=0;
+                    end
+                end
+                xyz(:,j) = coefficients.(names{1})(:,:,i)*t_powers.(names{1})(t_ref);
+                j=j+1;
+            end
+            
+            figure(101)
+            clf
+            plot3(xyz(1,:), xyz(2,:), xyz(3,:), 'LineWidth', 2)
+            hold on
+            grid on
+            plot3(val(1:end,2),val(1:end,3),val(1:end,4), 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
+            h_start = plot3(val(1,2), val(1,3), val(1,4), 'gp', 'MarkerSize', 12, 'MarkerFaceColor', 'g');
+            xlabel('$x$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
+            ylabel('$y$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
+            zlabel('$z$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
+            title('3次元軌道', 'FontSize', 14)
+            set(gca, 'TickLabelInterpreter', 'latex', 'FontSize', 14)
+            axis equal
+            legend(h_start, {'始点'},  'FontSize', 14)
+            
+            
+            end
+
+
+
         end
    
