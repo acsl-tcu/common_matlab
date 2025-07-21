@@ -18,7 +18,7 @@ fF=10;%flightのみは１
 frmse = 10;%rmseのみ知りたい場合
 startTime = 0;
 endTime = 7400;
-fnowdata = 1;
+fnowdata = 0;%GUIで保存したデータをloadするときは0,実験後すぐに使う場合は1にする。LOGGERで使うときは1でもいいかも
 %どの時間の範囲を描画するか指定   
 % startTime = [10,10,10,80];%モデル誤差用
 % endTime = [30,30,30,100];
