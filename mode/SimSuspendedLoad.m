@@ -78,7 +78,7 @@ y = [p;q;pL;pT];
 end
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
 agent(1).reference.timevarying = TIME_VARYING_REFERENCE(agent(1),...
-    {"gen_ref_saddle",{"freq",10,"orig",[1;0;1],"size",[0,0,0]},"HL"});
+    {"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[1,1,0]},"HL"});
 agent(1).controller = HLC_SUSPENDED_LOAD(agent(1),Controller_HL_Suspended_Load(dt,agent(1)));
 run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";
