@@ -25,8 +25,8 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;1],"size",[1,1,0.4]},"HL"}); % saddle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}); % spline
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}); % spline
 agent.controller = HLC(agent,Controller_HL(dt));
 
 run("ExpBase");
@@ -38,12 +38,8 @@ app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl", "Linewidth",LW, "F
 app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
-%     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",5); % inputをまとめて見る
-app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",LW, "Fontsize",24);
-app.logger.plot({1, "inner_input1:4", ""}, "phase","tfl", "fig_num",7, "Linewidth",LW, "Fontsize",24);
-% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",9, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",5, "Linewidth",LW, "Fontsize",24);
+app.logger.plot({1, "inner_input1:4", ""}, "phase","tfl", "fig_num",6, "Linewidth",LW, "Fontsize",24);
 
 % app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
