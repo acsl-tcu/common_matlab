@@ -30,19 +30,61 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
 agent.parameter.set("loadmass",0.075);%0.0968);%0.968
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));%有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM8"));%有線プロポ
 agent.sensor.motive = MOTIVE(agent, Sensor_Motive([1,2],0, motive)); % rigid_id,initial_yaw_angle,motive
-agent.estimator = EKF(agent, Estimator_EKF(agent,dt,...
-    MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")),...
-    ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用
-function y = sensor_func(self,~)
+
+est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
+agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,...
+    MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
+    ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
+
+
+% agent.estimator = EKF(agent, Estimator_EKF(agent,dt,...
+%     MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")),...
+%     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用
+
+function y = sensor_func(self,dt,~)
 p = self.sensor.result.state(1).p;
 q = self.sensor.result.state(1).getq('3');
-pL = self.sensor.result.state(2).p;
-pT = (pL - p);
-pT = pT/norm(pT);
+switch self.cha
+    case 't'
+        pL = p;
+        pL(3) = pL(3) - self.parameter.get("cableL");       
+        pT = [0;0;-1];
+        pT = (pL - p);
+        pT = pT/norm(pT);
+        QmL = 1e-3; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
+        if self.estimator.Q(end,end) ~= QmL
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
+            self.estimator.B = B;
+            self.estimator.Q = Q;
+            self.estimator.R = R;            
+            self.estimator.result.P = eye(25);
+        end
+    case {'a','l'}
+        pL = p;
+        pL(3) = pL(3) - self.parameter.get("cableL");
+        pT = [0;0;-1];
+    otherwise
+        pL = self.sensor.result.state(2).get('p');
+        pT = (pL - p);
+        pT = pT/norm(pT);
+        QmL = 1e-3;
+        if self.estimator.Q(end,end) ~= QmL
+            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
+            self.estimator.B = B;
+            self.estimator.Q = Q;
+            self.estimator.R = R;
+            self.estimator.result.P = eye(25);
+        end
+end
 y = [p;q;pL;pT];
 end
+
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,...
     {"gen_ref_saddle",{"freq",12,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
