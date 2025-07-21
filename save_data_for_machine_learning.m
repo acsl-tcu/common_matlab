@@ -3,7 +3,8 @@
 
 phase = 'tfl';
 
-folder_path = 'Data/Exp_data/'; % 参照したいデータが保存されているフォルダのパス
+% folder_path = 'Data/Exp_data/'; % 参照したいデータが保存されているフォルダのパス
+folder_path = 'Data/Exp_data/2025.07.09_Exp/'; % 参照したいデータが保存されているフォルダのパス
 learning_folder = 'Data/learning_data/'; % 学習データ保存用フォルダのパス
 
 matfiles = dir(fullfile(folder_path, '*.mat'));

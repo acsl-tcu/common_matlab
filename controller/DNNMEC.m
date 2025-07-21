@@ -22,7 +22,7 @@ classdef DNNMEC < handle
     
     methods
         function obj = DNNMEC(self, DNN_model_filename)
-            %HLC_DNNMECインスタンス
+            %DNNMECインスタンス
             obj.self = self;
             obj.param = self.parameter.get(obj.parameter_name);
 
@@ -72,11 +72,11 @@ classdef DNNMEC < handle
             % DNN関係　閾値での制限
             obj.result.delta_input = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
             if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
-            if abs(obj.result.delta_input(2))>0.5, obj.result.delta_input(2) = 0; end
-            if abs(obj.result.delta_input(3))>0.5, obj.result.delta_input(3) = 0; end
-            if abs(obj.result.delta_input(4))>0.5, obj.result.delta_input(4) = 0; end
+            if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
+            if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
+            if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
 
-            % obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
+            obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
