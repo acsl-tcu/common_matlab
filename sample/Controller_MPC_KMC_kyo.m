@@ -33,7 +33,7 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
-    Controller.weight.P = diag([500;500;200]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.P = diag([500;500;500]);    % 位置　10,20刻み  20;1;30
     Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
     Controller.weight.V = diag([50;50;100]); % 15良い気がする
     Controller.weight.W = diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 

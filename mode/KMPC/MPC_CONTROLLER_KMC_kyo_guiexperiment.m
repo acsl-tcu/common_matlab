@@ -189,7 +189,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             %% 値の保存　実験時は取り出す変数に気を付ける->ファイルサイズが大きくなりすぎる
 
             result = obj.result;
-            obj.show();
+            % obj.show();
 
         end
         function result2input(obj)
