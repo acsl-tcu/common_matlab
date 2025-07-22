@@ -113,13 +113,13 @@ methods
         sig_4 = D_4*e;
         sig = [sig_1,sig_2,sig_3,sig_4];
         fai = sig/dh;
-        if (fai <=1) & (fai>=-1)
+        if (fai <=1) && (fai>=-1)
             sat = fai;
         else
-            sat = min(1,max(-1,fai));%-1<=S<=1
+            sat = min(1,max(-1,sig));%-1<=S<=1
         end
-        u_equal = -inv(sig*obj.param.est.B)*sig*obj.param.est.A*e;
-        u_controll = -inv(sig*obj.param.est.B)*diag(4)*sat;
+        u_equal = -inv(sig*obj.param.est.C*obj.param.est.B)*sig*obj.param.est.C*obj.param.est.A*e;
+        u_controll = -inv(sig*obj.param.est.C*obj.param.est.B)*diag(4)*sat;
         obj.result.delta_u = u_equal+u_controll;%Δu計算
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
