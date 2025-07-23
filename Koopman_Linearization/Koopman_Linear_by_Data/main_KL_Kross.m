@@ -4,7 +4,7 @@ initialize = input('＜main.mのInitialize settingsを実行しましたか？�
 initialize = str2double(initialize);
 if initialize == 0
     error('main.m の Initialize settings を実行してください')
-end
+end 
 clear all
 clc
 %---------------------------------------------

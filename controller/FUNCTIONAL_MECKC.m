@@ -99,27 +99,23 @@ methods
         %        0 0 0 0 0 0 0 0 0 0 0 0];
         
         
-        dh=0.1;
+        dh=1;
         % D=D_zero+0.02*varargin{1}.t;%ゲイン半自動調整
         
         e=y_p-y_n;
-        D_1 = [1,1,1,1,1,1,1,1,1,1,1,1];
-        D_2 = [1,1,1,1,1,1,1,1,1,1,1,1];
-        D_3 = [1,1,1,1,1,1,1,1,1,1,1,1];
-        D_4 = [1,1,1,1,1,1,1,1,1,1,1,1];
-        sig_1 = D_1*e;
-        sig_2 = D_2*e;
-        sig_3 = D_3*e;
-        sig_4 = D_4*e;
-        sig = [sig_1,sig_2,sig_3,sig_4];
-        fai = sig/dh;
-        if (fai <=1) && (fai>=-1)
-            sat = fai;
+        S_1 = [0,0,1,0,0,2,0,0,0,0,0,0];
+        S_2 = [0,0,0,0,0,0,1,0,0,2,0,0];
+        S_3 = [0,0,0,0,0,0,0,1,0,0,2,0];
+        S_4 = [0,0,0,0,0,0,0,0,1,0,0,2];
+        S_all = [S_1;S_2;S_3;S_4];
+        sig = S_all*e;
+        if (sig <=dh) & (sig>=-dh)
+            sat = sig/dh;
         else
-            sat = min(1,max(-1,sig));%-1<=S<=1
+            sat = sign(sig);
         end
-        u_equal = -inv(sig*obj.param.est.C*obj.param.est.B)*sig*obj.param.est.C*obj.param.est.A*e;
-        u_controll = -inv(sig*obj.param.est.C*obj.param.est.B)*diag(4)*sat;
+        u_equal = -pinv(S_all*obj.param.est.C*obj.param.est.B)*S_all*obj.param.est.C*obj.param.est.A*(z_p-z_n);
+        u_controll = -pinv(S_all*obj.param.est.C*obj.param.est.B)*diag(4)*sat;
         obj.result.delta_u = u_equal+u_controll;%Δu計算
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
