@@ -10,7 +10,7 @@
 
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 250; % terminal time
+te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 %in_prog_func = @(app) in_prog(app); % in progress plot
 % in_prog_func = @(app) in_prog(app);
@@ -50,7 +50,7 @@ mmatflag = 0;
 % model_file = '2025-02-12_Exp_Kato15_code00_saddle'; % kato25=150data
  % model_file = 'EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出';
 % model_file = '2025-01-12_Exp_Kiyama_code00_saddle_increased';
-  model_file = '2025-07-15_Exp_Kyo_code00_randompp';
+  model_file = '2025-07-15_Exp_Kyo_code00_randompp2';
 %%
 agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));

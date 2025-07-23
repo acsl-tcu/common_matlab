@@ -64,6 +64,7 @@ classdef HLC < handle
       % max,min are applied for the safty
       obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       obj.result.hlc = obj.result.input;
+      obj.result.pre_u = obj.result.input;
       result = obj.result;
       % est_print = obj.self.estimator.result.state;
       % fprintf("==================================================================\n")

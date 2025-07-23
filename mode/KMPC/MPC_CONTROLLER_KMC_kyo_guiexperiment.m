@@ -50,7 +50,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.self = self; % agent
             obj.param = param; % param = Controller_MPC_HLMC.mで設定したパラメーター
             obj.param.catchflag = 0;
-            obj.flag.gpuflag = 1;
+            obj.flag.gpuflag = 0;
             %%flag defination
             obj.flag.mcflag = 0 ;%qp input mc flag| 0 = qpmpc; 1 = qpmpc+mc; 2=qpmpc+mc+stl;
             obj.flag.stlhard_flag = 0;% stl hard or soft  now it`s no sense
@@ -629,12 +629,15 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
              var(4*(1:obj.H))= 0;
+             
             % fval
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.eflag = eflag;
             obj.result.var = var;
             obj.result.Bestcost_pre = obj.result.bestcost;
             obj.result.bestcost = [fval;0];
+            obj.input.pre_u = obj.result.input; 
+            obj.result.pre_u = obj.input.pre_u;
             % obj.result.bestcost=obj.input.Bestcost_now ;
         end
         function fmincon_mpc(obj)

@@ -33,12 +33,27 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
-    Controller.weight.P = diag([500;500;500]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
-    Controller.weight.V = diag([50;50;100]); % 15良い気がする
-    Controller.weight.W = diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = diag([1; 1; 1; 1000]); % 入力
-    Controller.weight.RP = 1*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    % Controller.weight.P = diag([500;500;500]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
+    % Controller.weight.V = diag([50;50;100]); % 15良い気がする
+    % Controller.weight.W = diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = diag([1; 1; 1; 1000]); % 入力
+    % Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+   
+    %%　実験　hovering
+    % Controller.weight.P = 0.01*diag([5; 5; 5]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 0.001*diag([30; 20; 10]);    % 速度  10,20刻み  30;20;10
+    % Controller.weight.V = diag([15; 10; 10]); % 15良い気がする
+    % Controller.weight.W = 10*diag([1; 1; 0]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = 10*diag([1; 1; 1; 1]); % 入力
+    % Controller.weight.RP = 0 * diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    %%
+    Controller.weight.P = 0.01*diag([5; 5; 5]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 0.001*diag([30; 20; 10]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = diag([15; 10; 10]); % 15良い気がする
+    Controller.weight.W = 10*diag([1; 1; 0]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = 10*diag([1; 1; 1; 1]); % 入力
+    Controller.weight.RP = 0 * diag([1; 1; 1; 1]);  % 1ステップ前の入力との差
     Controller.weight.Pf = Controller.weight.P;
     Controller.weight.Vf = Controller.weight.V;
     Controller.weight.Qf = Controller.weight.Q;

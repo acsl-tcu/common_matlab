@@ -8,7 +8,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 mmatflag = 0;
-model_file = '2025-07-18_Exp_Kyo_code00_randompp';
+model_file = '2025-07-15_Exp_Kyo_code00_randompp2';
 % matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
 % mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
 % 
@@ -50,8 +50,8 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
-agent.input_transform.param.pitch_offset = 510;
-agent.input_transform.param.roll_offset = 490;
+% agent.input_transform.param.pitch_offset = 510;
+% agent.input_transform.param.roll_offset = 490;
 % agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
  agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
@@ -71,6 +71,7 @@ agent.cha_allocation.reference = "time_var";
 % agent.cha_allocation.l.reference = "landing";
 
 agent.cha_allocation.controller = "hlc";
+ % agent.cha_allocation.f.controller = ["kmpc","hlc"];
 agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
