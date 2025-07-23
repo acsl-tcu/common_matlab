@@ -26,9 +26,9 @@ for k = 1:size(est.A,1)
     err = norm(vk - proj);
 
     if err < tol
-        fprintf('固有値 λ = %.4f は可制御\n', lambda);
+        fprintf('[%2d]固有値 λ = %.4f は可制御\n',k, lambda);
     else
-        fprintf('固有値 λ = %.4f は不可制御', lambda);
+        fprintf('[%2d]固有値 λ = %.4f は不可制御',k, lambda);
         if abs(lambda) >= 1
             fprintf('かつ不安定\n');
         else
@@ -36,3 +36,19 @@ for k = 1:size(est.A,1)
         end
     end
 end
+fprintf('\n=== モード方向への制御感度（B^T * v） ===\n');
+
+control_sensitivity = zeros(n, 1);
+
+for k = 1:n
+    vk = V(:,k);
+    sensitivity = norm(est.B' * vk);  % 感度（スカラー）
+    control_sensitivity(k) = sensitivity;
+    fprintf('[%2d] |B^T * v| = %.4e\n', k, sensitivity);
+end
+figure;
+stem(1:n, control_sensitivity, 'filled');
+xlabel('モード番号（固有値のインデックス）');
+ylabel('制御感度 |B^T v|');
+title('各モードに対する制御感度');
+grid on;

@@ -93,29 +93,29 @@ methods
         y_p=obj.param.est.C*z_p;
         y_n=obj.param.est.C*z_n;
         eig(obj.param.est.A);%クープマンモデルが安定かどうか
-        % D_zero=[1 1 1 0 0 0 0 0 0 0 0 0;%フィードバックゲイン4×12次元にしたい(5/27(火)に決めたテキトーゲイン)
-        %        0 0 0 0 0 0 0 0 0 0 0 0;
-        %        0 0 0 0 0 0 0 0 0 0 0 0;
-        %        0 0 0 0 0 0 0 0 0 0 0 0];
-        
-        
+        Z = z_n-z_p;
         dh=1;
-        % D=D_zero+0.02*varargin{1}.t;%ゲイン半自動調整
-        
         e=y_p-y_n;
-        S_1 = [0,0,1,0,0,2,0,0,0,0,0,0];
-        S_2 = [0,0,0,0,0,0,1,0,0,2,0,0];
-        S_3 = [0,0,0,0,0,0,0,1,0,0,2,0];
-        S_4 = [0,0,0,0,0,0,0,0,1,0,0,2];
+        S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
+        S_2 = [0,0,0,0,0,0,1,0,0,0,0,0];
+        S_3 = [0,0,0,0,0,0,0,1,0,0,0,0];
+        S_4 = [0,0,0,0,0,0,0,0,1,0,0,0];
         S_all = [S_1;S_2;S_3;S_4];
         sig = S_all*e;
-        if (sig <=dh) & (sig>=-dh)
-            sat = sig/dh;
+        for i = 1:length(sig)
+        if abs(sig(i)) <= dh
+            sat(i,1) = sig(i)/dh;
         else
-            sat = sign(sig);
+            sat(i,1) = sign(sig(i));
         end
-        u_equal = -pinv(S_all*obj.param.est.C*obj.param.est.B)*S_all*obj.param.est.C*obj.param.est.A*(z_p-z_n);
-        u_controll = -pinv(S_all*obj.param.est.C*obj.param.est.B)*diag(4)*sat;
+        end
+        SCB = S_all * obj.param.est.C * obj.param.est.B;
+        rank_SCB = rank(SCB);
+        disp(['rank(SCB) = ', num2str(rank_SCB)]);
+        pinv_SCB = pinv(SCB, 1e-2); % 数値的安定化
+
+        u_equal = -pinv_SCB*S_all*obj.param.est.C*obj.param.est.A*Z;
+        u_controll = -pinv_SCB*diag([0.2 0.2 0.2 0.2])*sat;
         obj.result.delta_u = u_equal+u_controll;%Δu計算
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
