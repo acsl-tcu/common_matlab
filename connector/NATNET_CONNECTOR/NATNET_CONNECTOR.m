@@ -27,10 +27,12 @@ classdef NATNET_CONNECTOR < handle
             %-- connection takes about 0.3 seconds
             %-- setting ClientIP
             obj.NatnetClient = natnet;
-            obj.NatnetClient.HostIP	= info.HostIP;
-            obj.NatnetClient.ClientIP = info.ClientIP;
-            obj.NatnetClient.ConnectionType = 'Multicast';
-            obj.NatnetClient.connect;
+            % obj.NatnetClient.HostIP	= info.HostIP;
+            % obj.NatnetClient.ClientIP = info.ClientIP;
+            % obj.NatnetClient.ConnectionType = 'Multicast';
+            % obj.NatnetClient.connect;
+            ConnectionType = 'Multicast';
+            [~] = ConnectToNatNet(obj.NatnetClient, info.ClientIP, info.HostIP, ConnectionType);
             if obj.NatnetClient.IsConnected == 0
                 disp(info)
                 error( 'ACSL : Please check whether it is connected to the net. Is the IP address correctly specified?' )
