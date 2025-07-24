@@ -17,6 +17,8 @@ properties
     Pa_p_cur    % 状態更新後のプラントの推定値
     Pn_u        % ノミナルのコントローラから得られた制御入力
     delta_u
+    pre_input
+    x_pre
 end
 
 methods
@@ -49,13 +51,7 @@ methods
         ref = obj.self.reference.result;
         xd = ref.state.xd;
         disp(ref.state.p);
-        P = obj.param.P;
-        F1 = obj.param.F1;
-        F2 = obj.param.F2;
-        F3 = obj.param.F3;
-        F4 = obj.param.F4;
         xd = [xd; zeros(20 - size(xd, 1), 1)]; % 足りない分は０で埋める．
-
         Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd(4)]));
         x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
         xd(1:3) = Rb0' * xd(1:3);
@@ -64,54 +60,40 @@ methods
         xd(9:11) = Rb0' * xd(9:11);
         xd(13:15) = Rb0' * xd(13:15);
         xd(17:19) = Rb0' * xd(17:19);
-
-        %% calc Z
-        z1 = Z1(x, xd', P);%z
-        vf = obj.Vf(z1, F1);
-        z2 = Z2(x, xd', vf, P);%x
-        z3 = Z3(x, xd', vf, P);%y
-        z4 = Z4(x, xd', vf, P);%yaw
-        vs = obj.Vs(z2, z3, z4, F2, F3, F4);
-
-        %% calc actual input
-       tmp = Uf(x, xd', vf, P) + Us(x, xd', vf, vs, P);
-        %%input of subsystems
-        obj.result.uHL = [vf(1); vs];
-        %differential virtual input first layer
-        obj.result.vf = vf;
-        %state of subsystems
-        obj.result.z1 = z1;
-        obj.result.z2 = z2;
-        obj.result.z3 = z3;
-        obj.result.z4 = z4;
-        obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-
+        x_n = [xd(1:3);xd(5:7);xd()];
         %%MECK
+        if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
+                obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から前時刻の状態を取得
+        end
+        dt = varargin{1}.dt;
+        dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(xd, varargin{5}.controller.nominal.result.u_nominal, obj.param.P);
+        % x_n_future = xd + dx*dt;
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
-        % z_n=quaternions_all(ref.state.xd);%ノミナルの状態
         z_n=quaternions_all(xd);%ノミナルの状態
         y_p=obj.param.est.C*z_p;
         y_n=obj.param.est.C*z_n;
         eig(obj.param.est.A);%クープマンモデルが安定かどうか
         Z = z_n-z_p;
-        dh=1;
+        fai=1;
         e=y_p-y_n;
+        % e=y_p-xd;
         S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
-        S_2 = [0,0,0,0,0,0,1,0,0,0,0,0];
-        S_3 = [0,0,0,0,0,0,0,1,0,0,0,0];
-        S_4 = [0,0,0,0,0,0,0,0,1,0,0,0];
+        S_2 = [0,0,0,0,0,0,0.4,0,0,0,0,0];
+        S_3 = [0,0,0,0,0,0,0,0.4,0,0,0,0];
+        S_4 = [0,0,0,0,0,0,0,0,0.5,0,0,0];
         S_all = [S_1;S_2;S_3;S_4];
         sig = S_all*e;
         for i = 1:length(sig)
-        if abs(sig(i)) <= dh
-            sat(i,1) = sig(i)/dh;
+        if abs(sig(i)) <= fai
+            sat(i,1) = sig(i)/fai;
         else
             sat(i,1) = sign(sig(i));
         end
         end
         SCB = S_all * obj.param.est.C * obj.param.est.B;
-        rank_SCB = rank(SCB);
-        disp(['rank(SCB) = ', num2str(rank_SCB)]);
+        % rank_SCB = rank(SCB);
+        % disp(['rank(SCB) = ', num2str(rank_SCB)]);
         pinv_SCB = pinv(SCB, 1e-2); % 数値的安定化
 
         u_equal = -pinv_SCB*S_all*obj.param.est.C*obj.param.est.A*Z;
