@@ -47,7 +47,7 @@ methods
         disp(ref.state.p);
         xd = [xd; zeros(20 - size(xd, 1), 1)]; % 足りない分は０で埋める．
         Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd(4)]));
-        x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
+        % x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
         %%MECK
         if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
                 obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から現時刻の入力を取得
@@ -56,15 +56,19 @@ methods
         dt = varargin{1}.dt;
         dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
         x_n_future = obj.x_pre + dx*dt;%x_nominal[k+1]
+        x = [model.state.p;model.state.v;model];
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
-        z_n=quaternions_all(x_n_future);%ノミナルの状態
-        y_p=obj.param.est.C*z_p;
-        y_n=obj.param.est.C*z_n;
+        % z_n=quaternions_all(x_n_future);%ノミナルの状態
+        % y_p=obj.param.est.C*z_p;
+        % y_n=obj.param.est.C*z_n;
         eig(obj.param.est.A);%クープマンモデルが安定かどうか
-        Z = z_n-z_p;
+        
         fai=1;
-        e=y_p-y_n;
-        % e=y_p-xd;
+        
+        A = obj.param.est.A;
+        B = obj.param.est.B;
+        C = obj.param.est.C;
+        e=obj.x_pre-C*z_p;
         S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
         S_2 = [0,0,0,0,0,0,0.4,0,0,0,0,0];
         S_3 = [0,0,0,0,0,0,0,0.4,0,0,0,0];
@@ -78,13 +82,13 @@ methods
             sat(i,1) = sign(sig(i));
         end
         end
-        SCB = S_all * obj.param.est.C * obj.param.est.B;
+        SCB = S_all * C*B;
         % rank_SCB = rank(SCB);
         % disp(['rank(SCB) = ', num2str(rank_SCB)]);
         pinv_SCB = pinv(SCB, 1e-2); % 数値的安定化
 
-        u_equal = -pinv_SCB*S_all*obj.param.est.C*obj.param.est.A*Z;
-        u_controll = -pinv_SCB*diag([0.2 0.2 0.2 0.2])*sat;
+        u_equal = -pinv_SCB*(S_all*x_n_future-S_all*C*A*z_p);
+        u_controll = -pinv_SCB*diag([1 1 1 1])*sat;
         obj.result.delta_u = u_equal+u_controll;%Δu計算
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
