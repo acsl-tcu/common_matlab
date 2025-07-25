@@ -23,7 +23,25 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE"); %ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
-agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)); % Model_Quat13
+% プラントモデル定義 ================================================================================================================================
+plant_model = Model_EulerAngle(dt, initial_state, 1);
+% デフォルト物理パラメータ(DRONE_PARAM準拠: 2025/07/07時点)
+% 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
+% 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
+
+% ↓パラメータの上書き モデル誤差をプラントに与える
+% plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
+plant_model.param.param(1) = 0.4; % ５％減->0.7125 ５％増->0.7875
+% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+% plant_model.param.param(7) = 0.2; % 
+% plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
+% plant_model.param.param(10) = 0.6; % ５％減->0.028595
+% plant_model.param.param(13) = 0.3;
+% plant_model.param.param(14) = 0.008;
+agent.plant = MODEL_CLASS(agent,plant_model);
+% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
+%===================================================================================================================================================
+
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 

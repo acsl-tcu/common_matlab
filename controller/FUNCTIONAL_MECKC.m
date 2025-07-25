@@ -10,12 +10,6 @@ properties
     Vs
     agent
     motive
-    % MECNN       % DNNアーキテクチャ
-    Pn_p_pre    % 前時刻のノミナルの位置←なんか使ってない…
-    Pa_p_pre    % 前時刻のプラントの推定位置
-    Pn_p_cur    % 状態更新後のノミナルの出力（位置p，速度v，角度q，各速度w）
-    Pa_p_cur    % 状態更新後のプラントの推定値
-    Pn_u        % ノミナルのコントローラから得られた制御入力
     delta_u
     pre_input
     x_pre
