@@ -11,8 +11,8 @@ properties
     agent
     motive
     delta_u
-    pre_input
-    x_pre
+    pre_input = [0;0;0;0];
+    x_pre = [0;0;0;0;0;0;0;0;0;0;0;0];
 end
 
 methods
@@ -48,20 +48,13 @@ methods
         xd = [xd; zeros(20 - size(xd, 1), 1)]; % 足りない分は０で埋める．
         Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd(4)]));
         x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
-        xd(1:3) = Rb0' * xd(1:3);
-        xd(4) = 0;
-        xd(5:7) = Rb0' * xd(5:7);
-        xd(9:11) = Rb0' * xd(9:11);
-        xd(13:15) = Rb0' * xd(13:15);
-        xd(17:19) = Rb0' * xd(17:19);
-        x_n = [xd(1:3);xd(5:7);xd()];
         %%MECK
         if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
-                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から現時刻の入力を取得
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から現時刻の状態を取得
         end
         dt = varargin{1}.dt;
-        dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(xd, varargin{5}.controller.nominal.result.u_nominal, obj.param.P);
+        dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
         x_n_future = obj.x_pre + dx*dt;%x_nominal[k+1]
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
         z_n=quaternions_all(x_n_future);%ノミナルの状態
