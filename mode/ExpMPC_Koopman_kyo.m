@@ -72,7 +72,7 @@ agent.cha_allocation.reference = "time_var";
 
 agent.cha_allocation.controller = "hlc";
  % agent.cha_allocation.f.controller = ["kmpc","hlc"];
-agent.cha_allocation.f.controller = ["kmpc"];
+agent.cha_allocation.f.controller = ["kmpc","hlc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
@@ -82,7 +82,7 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
 % app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
-% app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 4,"phase","f");
+ app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 4,"phase","f");
 end
 
 
