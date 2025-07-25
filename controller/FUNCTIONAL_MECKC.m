@@ -47,6 +47,18 @@ methods
         disp(ref.state.p);
         xd = [xd; zeros(20 - size(xd, 1), 1)]; % 足りない分は０で埋める．
         Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd(4)]));
+        x = [model.state.p(1);
+             model.state.p(2);
+             model.state.p(3);
+             model.state.q(1);
+             model.state.q(2);
+             model.state.q(3);
+             model.state.v(1);
+             model.state.v(2);
+             model.state.v(3);
+             model.state.w(1);
+             model.state.w(2);
+             model.state.w(3);];
         % x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
         %%MECK
         if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
@@ -56,7 +68,6 @@ methods
         dt = varargin{1}.dt;
         dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
         x_n_future = obj.x_pre + dx*dt;%x_nominal[k+1]
-        x = [model.state.p;model.state.v;model];
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
         % z_n=quaternions_all(x_n_future);%ノミナルの状態
         % y_p=obj.param.est.C*z_p;

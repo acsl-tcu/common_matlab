@@ -65,7 +65,7 @@ app.logger.plot({1, "q", "e"},"fig_num",3);
 app.logger.plot({1, "v", "er"},"fig_num",4);
 % app.logger.plot({1, "input", ""},"fig_num",5);
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",6);
-% app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
-% app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
+app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
+app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
 
 end
