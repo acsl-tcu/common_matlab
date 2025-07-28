@@ -12,7 +12,7 @@ properties
     motive
     delta_u
     pre_input = [0;0;0;0];
-    x_pre = [0;0;0;0;0;0;0;0;0;0;0;0];
+    x_now = [0;0;0;0;0;0;0;0;0;0;0;0];
 end
 
 methods
@@ -62,28 +62,29 @@ methods
         % x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
         %%MECK
         if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
-                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から現時刻の入力を取得
-                obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から現時刻の状態を取得
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
+                obj.x_now = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から現在時刻の状態を取得
         end
         dt = varargin{1}.dt;
-        dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
-        x_n_future = obj.x_pre + dx*dt;%x_nominal[k+1]
+        dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_now, varargin{5}.controller.nominal.result.u_nominal, obj.param.P);
+        x_n_future = obj.x_now + dx*dt;%x_nominal[k+1]
+
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
         % z_n=quaternions_all(x_n_future);%ノミナルの状態
         % y_p=obj.param.est.C*z_p;
         % y_n=obj.param.est.C*z_n;
-        eig(obj.param.est.A);%クープマンモデルが安定かどうか
+        % eig(obj.param.est.A);%クープマンモデルが安定かどうか
         
         fai=1;
         
         A = obj.param.est.A;
         B = obj.param.est.B;
         C = obj.param.est.C;
-        e=obj.x_pre-C*z_p;
-        S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
-        S_2 = [0,0,0,0,0,0,0.4,0,0,0,0,0];
-        S_3 = [0,0,0,0,0,0,0,0.4,0,0,0,0];
-        S_4 = [0,0,0,0,0,0,0,0,0.5,0,0,0];
+        e=obj.x_now-C*z_p;
+        S_1 = [0,0,0,0,0,0,0,0,0,0,0,0];
+        S_2 = [0,0,0,0,0,0,0,0,0,0,0,0];
+        S_3 = [0,0,0,0,0,0,0,0,0,0,0,0];
+        S_4 = [0,0,0,0,0,0,0,0,0,0,0,0];
         S_all = [S_1;S_2;S_3;S_4];
         sig = S_all*e;
         for i = 1:length(sig)
