@@ -33,12 +33,12 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
-    Controller.weight.P = 1*diag([400;400;60]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 0.1*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
-    Controller.weight.V = 1*diag([15;15;10]); % 15良い気がする
-    Controller.weight.W = 0.1*diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = 0.1*diag([20; 1; 1; 300]); % 入力
-    Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    Controller.weight.P = 1*diag([200;200;100]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
+    Controller.weight.W = 0.1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = 0.01*diag([1000; 100; 100; 3500]); % 入力
+    Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
    
     %%　実験　hovering
     % Controller.weight.P = 0.01*diag([5; 5; 5]);    % 位置　10,20刻み  20;1;30
