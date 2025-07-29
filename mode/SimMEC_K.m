@@ -64,6 +64,6 @@ app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
 app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
 app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
 
-app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
+% app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
 app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
 end
