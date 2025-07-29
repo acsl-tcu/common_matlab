@@ -61,9 +61,9 @@ methods
              model.state.w(3);];
         % x = [R2q(Rb0' * model.state.getq("rotmat")); Rb0' * model.state.p; Rb0' * model.state.v; model.state.w]; % [q, p, v, w]に並べ替え
         %%MECK
-        if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
+        if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") &&(numel(varargin{3}.Data.agent.estimator.result) >= 2)% ループの最初はLoggingされていなくて，参照できないのを回避
                 obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
-                obj.x_now = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から現在時刻の状態を取得
+                obj.x_now = varargin{3}.Data.agent.estimator.result{:,end-1}.state.get; % LOGGERの中から現在時刻の状態を取得
         end
         dt = varargin{1}.dt;
         dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_now, varargin{5}.controller.nominal.result.u_nominal, obj.param.P);
@@ -83,36 +83,39 @@ methods
         
         %-----スライディングモード制御-----%
         % e=obj.x_now-C*z_p;
-        % fai=1;
-        % S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
-        % S_2 = [0,0,0,1,0,0,0,0,0,0,0,0];
-        % S_3 = [0,0,0,0,0.1,0,0,0,0,0,0,0];
-        % S_4 = [0,0,0,0,0,1,0,0,0,0,0,0];
-        % S_all = [S_1;S_2;S_3;S_4];
-        % sig = S_all*e;
-        % sat = zeros(4,1);
-        % for i = 1:length(sig)
-        % if abs(sig(i)) <= fai
-        %     sat(i,1) = sig(i)/fai;
-        % else
-        %     sat(i,1) = sign(sig(i));
-        % end
-        % end
-        % SCB = S_all * C*B;
-        % rank(SCB)
-        % cond(SCB)
-        % pinv_SCB = pinv(SCB,1e-3);
+        e = C*(z_n-z_p);
+        fai=1;
+        S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
+        S_2 = [0,0,0,1,0,0,0,0,0,0,0,0];
+        S_3 = [0,0,0,0,0.1,0,0,0,0,0,0,0];
+        S_4 = [0,0,0,0,0,1,0,0,0,0,0,0];
+        S_all = [S_1;S_2;S_3;S_4];
+        sig = S_all*e;
+        sat = zeros(4,1);
+        for i = 1:length(sig)
+        if abs(sig(i)) <= fai
+            sat(i,1) = sig(i)/fai;
+        else
+            sat(i,1) = sign(sig(i));
+        end
+        end
+        SCB = S_all * C*B;
+        rank(SCB)
+        cond(SCB)
+        pinv_SCB = pinv(SCB,1e-3);
         % u_equal = -pinv_SCB*(S_all*x_n_future-S_all*C*A*z_p);
-        % u_controll = -pinv_SCB*diag([1 1 1 1])*sat;
-        % obj.result.delta_u = u_equal+u_controll;%Δu計算
+        u_equal = -pinv_SCB*S_all*C*A*(z_n-z_p);
+        u_controll = -pinv_SCB*diag([1 1 1 1])*sat;
+        obj.result.delta_u = u_equal+u_controll;%Δu計算
         %-----スライディングモード終わり-----%
         
         %-----lqr法-----%
-        Q = diag([100, 100, 100, ones(1,23)]); 
-        R = 0.5 * eye(4);
-
-        [K,~,~] = dlqr(A,B,Q,R);
-        obj.result.delta_u = -K*(z_n-z_p);
+        % Q = diag([100, 100, 100, ones(1,23)]); 
+        % R = 0.5 * eye(4);
+        % 
+        % [K,~,~] = dlqr(A,B,Q,R);
+        % e = z_n-z_p;
+        % obj.result.delta_u = -K*e;
         %-----lqr法終わり-----%
 
         % obj.result.delta_u = 0;%unだけ確認したいとき

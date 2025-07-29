@@ -1,7 +1,7 @@
 clear;
 clc;
-load("without_w1.mat");
-% load("koopman_model_first.mat",'est');
+% load("without_w1.mat");
+load("koopman_model_first.mat",'est');
 % load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % 固有値と固有ベクトル
@@ -37,19 +37,19 @@ for k = 1:size(est.A,1)
         end
     end
 end
-fprintf('\n=== モード方向への制御感度（B^T * v） ===\n');
-
-control_sensitivity = zeros(n, 1);
-
-for k = 1:n
-    vk = V(:,k);
-    sensitivity = norm(est.B' * vk);  % 感度（スカラー）
-    control_sensitivity(k) = sensitivity;
-    fprintf('[%2d] |B^T * v| = %.4e\n', k, sensitivity);
-end
-figure;
-stem(1:n, control_sensitivity, 'filled');
-xlabel('モード番号（固有値のインデックス）');
-ylabel('制御感度 |B^T v|');
-title('各モードに対する制御感度');
-grid on;
+% fprintf('\n=== モード方向への制御感度（B^T * v） ===\n');
+% 
+% control_sensitivity = zeros(n, 1);
+% 
+% for k = 1:n
+%     vk = V(:,k);
+%     sensitivity = norm(est.B' * vk);  % 感度（スカラー）
+%     control_sensitivity(k) = sensitivity;
+%     fprintf('[%2d] |B^T * v| = %.4e\n', k, sensitivity);
+% end
+% figure;
+% stem(1:n, control_sensitivity, 'filled');
+% xlabel('モード番号（固有値のインデックス）');
+% ylabel('制御感度 |B^T v|');
+% title('各モードに対する制御感度');
+% grid on;

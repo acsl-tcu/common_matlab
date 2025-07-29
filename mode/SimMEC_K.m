@@ -31,7 +31,7 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(1) = 0.4; % ５％減->0.7125 ５％増->0.7875
+plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
 % plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
 % plant_model.param.param(7) = 0.2; % 
 % plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
