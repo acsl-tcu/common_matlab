@@ -8,7 +8,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 mmatflag = 0;
-model_file = '2025-07-15_Exp_Kyo_code00_randompp2';
+model_file = '2025-07-30_exp_koseki_code00_randompp';
 % matfile_info = dir(fullfile(pwd, '**', [filename, '.mat']));
 % mfile_info = dir(fullfile(pwd, '**', [filename, '.m']));
 % 
@@ -54,7 +54,7 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 % agent.input_transform.param.roll_offset = 490;
 % agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
- agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",[0;0;0.8],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
@@ -76,13 +76,13 @@ agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+ app.logger.plot({1, "q", "e"},"fig_num", 4,"phase","tfl");
 app.logger.plot({1, "input", ""},"fig_num", 1,"phase","tfl");
 app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
 % app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
- % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 4,"phase","f");
+   % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 5,"phase","f");
 end
 
 

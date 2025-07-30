@@ -50,7 +50,7 @@ mmatflag = 0;
 % model_file = '2025-02-12_Exp_Kato15_code00_saddle'; % kato25=150data
  % model_file = 'EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出';
 % model_file = '2025-01-12_Exp_Kiyama_code00_saddle_increased';
-  model_file = '2025-07-15_Exp_Kyo_code00_randompp2';
+  model_file = '2025-07-30_exp_koseki_code00_randompp';
 %%
 agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
@@ -67,8 +67,7 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 %%
 % agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
 
- agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0.6]},"HL"});
-
+ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",[0;0;0.8],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
  agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent)); %最適化手法：QP
