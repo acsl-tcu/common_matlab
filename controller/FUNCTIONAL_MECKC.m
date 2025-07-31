@@ -105,8 +105,9 @@ methods
         %-----スライディングモード終わり-----%
         
         %-----lqr法-----%
-        Q = diag([100, 100, 100, ones(1,23)]); 
-        R = 0.5 * eye(4);
+        % Q = diag([100, 100, 100, ones(1,23)]); 
+        % R = 0.5 * eye(4);
+        % [K_full,~,~] = dlqr(A,B,Q,R);
 
         % 可制御性行列
         Uc = ctrb(A, B);
@@ -118,16 +119,16 @@ methods
         B_ctrl = Bc(1:k, :);
         
         % DLQRの設計
-        % Q = diag([1,100,1,10,10,1,ones(1,k-6)]);            % 状態重み
-        % R = 0.5*eye(size(B,2));    % 入力重み
-        % K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
+        Q = diag([1,100,1,1,1,1,ones(1,k-6)]);            % 状態重み
+        R = 0.5*eye(size(B,2));    % 入力重み
+        K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
         
         % 可制御部分だけのゲイン → 全空間（26次元）に拡張
-        % K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];
+        K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];
         
         % 変換行列 Tc を使って元の座標系に戻す
-        % K_full = K_aug/Tc;   % 最終的な状態フィードバックゲイン
-        [K_full,~,~] = dlqr(A,B,Q,R);
+        K_full = K_aug/Tc;   % 最終的な状態フィードバックゲイン
+        
 
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
