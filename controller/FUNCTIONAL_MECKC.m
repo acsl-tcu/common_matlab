@@ -119,7 +119,7 @@ methods
         B_ctrl = Bc(1:k, :);
         
         % DLQRの設計
-        Q = diag([1,100,1,1,1,1,ones(1,k-6)]);            % 状態重み
+        Q = diag([100,100,100,1,1,1,ones(1,k-6)]);            % 状態重み
         R = 0.5*eye(size(B,2));    % 入力重み
         K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
         
