@@ -68,8 +68,8 @@ methods
         delta_x = x-x_n_now;
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
         z_n=quaternions_all(x_n_now);%ノミナルの状態
-        % y_p=obj.param.est.C*z_p;
-        % y_n=obj.param.est.C*z_n;
+        % y_p=obj.param.C*z_p;
+        % y_n=obj.param.C*z_n;
 
         A = obj.param.est.A;%クープマンモデルのA,B,C
         B = obj.param.est.B;
@@ -108,9 +108,29 @@ methods
         Q = diag([100, 100, 100, ones(1,23)]); 
         R = 0.5 * eye(4);
 
-        [K,~,~] = dlqr(A,B,Q,R);
+        % 可制御性行列
+        Uc = ctrb(A, B);
+        k=rank(Uc);
+        % A, B：元のシステム行列
+        [Ac, Bc, Cc, Tc] = ctrbf(A, B,C);
+        % 可制御部分（上の左上ブロック）を抽出
+        A_ctrl = Ac(1:k, 1:k);
+        B_ctrl = Bc(1:k, :);
+        
+        % DLQRの設計
+        % Q = diag([1,100,1,10,10,1,ones(1,k-6)]);            % 状態重み
+        % R = 0.5*eye(size(B,2));    % 入力重み
+        % K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
+        
+        % 可制御部分だけのゲイン → 全空間（26次元）に拡張
+        % K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];
+        
+        % 変換行列 Tc を使って元の座標系に戻す
+        % K_full = K_aug/Tc;   % 最終的な状態フィードバックゲイン
+        [K_full,~,~] = dlqr(A,B,Q,R);
+
         e = z_n-z_p;
-        obj.result.delta_u = -K*e;
+        obj.result.delta_u = -K_full*e;
         %-----lqr法終わり-----%
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
