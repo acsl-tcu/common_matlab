@@ -32,12 +32,13 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.2; % 
-% plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
+plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.2; % 同上
+plant_model.param.param(8) = 0.2; % 0.18<jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
 % plant_model.param.param(14) = 0.008;
+% 2~5,10~18はplant_model.param.method='roll_pitch_yaw_thrust_torque_physical_parameter_model'を使っている限り意味が無い
 
 agent.plant = MODEL_CLASS(agent,plant_model);
 % agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
@@ -49,25 +50,45 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0}}); % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}}); % random 9th spline
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_200000.onnx");
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase","tfl", "fig_num",1, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",2, "Fontsize",24);
+LW = 2; % LineWidth
+FS = 24; % FontSize
+% phase = "tfl";
+phase = "f";
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
-%     {1, "controller.result.delta_input", ""}}, "phase","tfl","fig_num",5); % inputをまとめて見る
-app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",6, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "controller.result.nominal_input", ""}, "phase","tfl", "fig_num",7, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "controller.result.delta_input", ""}, "phase","tfl", "fig_num",8, "Linewidth",2, "Fontsize",24);
+%     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
+app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "controller.result.delta_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
 
-app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",9, "Linewidth",2, "Fontsize",24);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",2, "Fontsize",24);
+app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+
+% app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({{1, "v", "e"},{1, "controller.result.nominal_v", "p"}}, "phase",phase, "fig_num",13, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({{1, "w", "e"},{1, "controller.result.nominal_w", "p"}}, "phase",phase, "fig_num",14, "Linewidth",LW, "Fontsize",FS);
+
+% Calcurate RMSE
+target = ["p", "v"];
+for i=1:length(target)
+    ref = app.logger.data(1,target(i),"r", "phase",phase);
+    data = app.logger.data(1,target(i),"e", "phase",phase);
+    RMSE = rmse(ref, data, 1);
+    fprintf('%s RMSE:\n', target(i))
+    disp(RMSE)
+end
 end

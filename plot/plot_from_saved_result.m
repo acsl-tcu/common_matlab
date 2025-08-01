@@ -47,10 +47,13 @@ fsave = 0;
 % 4:save as ".eps"
 
 ftitle = 0; % defalt=1 -> グラフタイトルあり
-settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
+settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "input", "p1-p2"];
+settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
+% "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["q", "p1-p2"];
 % settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
 % プロットしたいグラフの情報                                        %
@@ -60,6 +63,7 @@ settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 settings.phase = "atfl";
+settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
@@ -140,7 +144,7 @@ for i=1:length(settings.target)
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location', 'southwest', 'FontSize', settings.fontsize-8);
+    set(ax.Legend, 'Location', 'southwest', 'FontSize', settings.fontsize-4);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
@@ -220,20 +224,14 @@ switch target
             legend{3*i} = "$\omega_{yaw}$ " + att_map(chars(i));
         end
     case "input"
-        legend_num = numel(chars) * 4;
-        legend = cell(1, legend_num);
-        for i=1:numel(chars)
-            legend{4*i-3} = "$Thrust$ " + att_map(chars(i));
-            legend{4*i-2} = "$roll$ " + att_map(chars(i));
-            legend{4*i-1} = "$pitch$ " + att_map(chars(i));
-            legend{4*i} = "$yaw$ " + att_map(chars(i));
-        end
+        legend{1} = "$u_{thrust}$";
+        legend{2} = "$u_{roll}$";
+        legend{3} = "$u_{pitch}$";
+        legend{4} = "$u_{yaw}$";
     case "inner_input1:4"
-        for i=1:4
-            legend{4*i-3} = "$roll$";
-            legend{4*i-2} = "$pitch$";
-            legend{4*i-1} = "$thrust$";
-            legend{4*i} = "$yaw$";
-        end
+        legend{1} = "$u_{roll}$";
+        legend{2} = "$u_{pitch}$";
+        legend{3} = "$u_{thrust}$";
+        legend{4} = "$u_{yaw}$";
 end
 end
