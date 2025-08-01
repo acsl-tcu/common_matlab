@@ -33,13 +33,17 @@ classdef DNNMEC < handle
             elseif isempty(dir("controller/DNN_MODEL/*.onnx"))
                 error("ACSL: Do not exist <onnx> file in controller/DNN_MODEL. ")
             end
-            DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename);
-            % input_layer = dlarray(rand(1, 24), 'CS');
-            % obj.DNNMEC_model = initialize(DNN_model, input_layer);
-            numerical_input_layer = inputLayer([1, 24], "CS"); % "SC"の意味が分かってない(2025/07/02時点)
-            obj.DNNMEC_model = addInputLayer(DNN_model, numerical_input_layer);
+            DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename,... % ONNXファイルインポート
+                                                "InputDataFormats", "BC", ... % 入力層定義
+                                                "OutputDataFormats", "BC");   % 出力層定義 "BC" -> [バッチサイズ, 特徴量]の意味
+            dummyInput = dlarray(randn(24,1,'single'), 'CB'); % 初期化のためのdummy入力
+            obj.DNNMEC_model = initialize(DNN_model, dummyInput); % モデルの初期化
             summary(obj.DNNMEC_model)
 
+            obj.result.nominal_p = zeros(3,1);
+            obj.result.nominal_q = zeros(3,1);
+            obj.result.nominal_v = zeros(3,1);
+            obj.result.nominal_w = zeros(3,1);
             obj.result.nominal_input = zeros(self.estimator.model.dim(2),1);
             obj.result.delta_input = zeros(self.estimator.model.dim(2),1);
             obj.result.input = zeros(self.estimator.model.dim(2),1);
@@ -50,17 +54,21 @@ classdef DNNMEC < handle
         
         function result = do(obj, varargin)
             % ノミナル状態更新 ※状態更新の手法は学習時のものと合わせる
-            if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") % ループの最初はLoggingされていなくて，参照できないのを回避
-                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
-                obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERの中から前時刻の状態を取得
+            if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator")... % ループの最初はLoggingされていなくて，参照できないのを回避
+            && length(varargin{3}.Data.agent.estimator.result)>=2
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERから前時刻の入力を取得
+                obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERから前時刻の状態を取得
             end
             dt = varargin{1}.dt;
             dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param);
-            y_nominal = obj.x_pre + dx*dt;
-            % y_nominal = euler_approximation_drone(obj.x_pre, obj.pre_input, obj.param, dt);
+            x_nominal = obj.x_pre + dx*dt;
+            obj.result.nominal_p = x_nominal(1:3);
+            obj.result.nominal_q = x_nominal(4:6);
+            obj.result.nominal_v = x_nominal(7:9);
+            obj.result.nominal_w = x_nominal(10:12);
 
             % プラント値取得
-            y_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
+            x_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [p; q; v; w];
 
             % % DNN関係 上下限値での制限
@@ -70,7 +78,7 @@ classdef DNNMEC < handle
             %                             max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
 
             % DNN関係　閾値での制限
-            obj.result.delta_input = double(predict(obj.DNNMEC_model, [y_plant; y_nominal]'))';
+            obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, [x_plant; x_nominal]'))';
             if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
             if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end

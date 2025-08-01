@@ -1,4 +1,4 @@
-classdef Gemm_To_GemmLayer1019 < nnet.layer.Layer & nnet.layer.Formattable
+classdef Softplus_To_MulLayer1015 < nnet.layer.Layer & nnet.layer.Formattable
     % A custom layer auto-generated while importing an ONNX network.
 
     %#codegen
@@ -8,14 +8,10 @@ classdef Gemm_To_GemmLayer1019 < nnet.layer.Layer & nnet.layer.Formattable
     %#ok<*VARARG>
 
     properties (Learnable)
-        linears_0_bias
-        linears_0_weight
         linears_1_bias
         linears_1_weight
         linears_2_bias
         linears_2_weight
-        linears_3_bias
-        linears_3_weight
     end
 
     properties
@@ -23,95 +19,82 @@ classdef Gemm_To_GemmLayer1019 < nnet.layer.Layer & nnet.layer.Formattable
     end
 
     methods
-        function this = Gemm_To_GemmLayer1019(name, onnxParams)
+        function this = Softplus_To_MulLayer1015(name, onnxParams)
             this.Name = name;
-            this.NumInputs = 2;
-            this.OutputNames = {'output'};
+            this.OutputNames = {'x_activation_func_6'};
             this.ONNXParams = onnxParams;
-            this.linears_0_bias = onnxParams.Learnables.linears_0_bias;
-            this.linears_0_weight = onnxParams.Learnables.linears_0_weight;
             this.linears_1_bias = onnxParams.Learnables.linears_1_bias;
             this.linears_1_weight = onnxParams.Learnables.linears_1_weight;
             this.linears_2_bias = onnxParams.Learnables.linears_2_bias;
             this.linears_2_weight = onnxParams.Learnables.linears_2_weight;
-            this.linears_3_bias = onnxParams.Learnables.linears_3_bias;
-            this.linears_3_weight = onnxParams.Learnables.linears_3_weight;
         end
 
-        function [output] = predict(this, input, inputNumDims)
-            if isdlarray(input)
-                input = stripdims(input);
+        function [x_activation_func_6] = predict(this, x_linears_0_Gemm_out)
+            if isdlarray(x_linears_0_Gemm_out)
+                x_linears_0_Gemm_out = stripdims(x_linears_0_Gemm_out);
             end
-            inputNumDims = numel(inputNumDims);
+            x_linears_0_Gemm_outNumDims = 2;
             onnxParams = this.ONNXParams;
-            onnxParams.Learnables.linears_0_bias = this.linears_0_bias;
-            onnxParams.Learnables.linears_0_weight = this.linears_0_weight;
             onnxParams.Learnables.linears_1_bias = this.linears_1_bias;
             onnxParams.Learnables.linears_1_weight = this.linears_1_weight;
             onnxParams.Learnables.linears_2_bias = this.linears_2_bias;
             onnxParams.Learnables.linears_2_weight = this.linears_2_weight;
-            onnxParams.Learnables.linears_3_bias = this.linears_3_bias;
-            onnxParams.Learnables.linears_3_weight = this.linears_3_weight;
-            [output, outputNumDims] = Gemm_To_GemmFcn(input, inputNumDims, onnxParams, 'Training', false, ...
-                'InputDataPermutation', {['as-is'], ['as-is']}, ...
-                'OutputDataPermutation', {['as-is'], ['as-is']});
-            if any(cellfun(@(A)~isnumeric(A) && ~islogical(A), {output}))
-                fprintf('Runtime error in network. At least one output of custom layer ''%s'' is a non-numeric, non-logical value.\n', 'Gemm_To_GemmLayer1019');
-                error(message('nnet_cnn_onnx:onnx:BadCustomLayerRuntimeOutput', 'Gemm_To_GemmLayer1019'));
+            [x_activation_func_6, x_activation_func_6NumDims] = Softplus_To_MulFcn(x_linears_0_Gemm_out, x_linears_0_Gemm_outNumDims, onnxParams, 'Training', false, ...
+                'InputDataPermutation', {[2 1], ['as-is']}, ...
+                'OutputDataPermutation', {[2 1], ['as-is']});
+            if any(cellfun(@(A)~isnumeric(A) && ~islogical(A), {x_activation_func_6}))
+                fprintf('Runtime error in network. At least one output of custom layer ''%s'' is a non-numeric, non-logical value.\n', 'Softplus_To_MulLayer1015');
+                error(message('nnet_cnn_onnx:onnx:BadCustomLayerRuntimeOutput', 'Softplus_To_MulLayer1015'));
             end
-            output = dlarray(single(output), repmat('U', 1, max(2, outputNumDims)));
+            x_activation_func_6 = dlarray(single(x_activation_func_6), 'CB');
             if ~coder.target('MATLAB')
-                output = extractdata(output);
+                x_activation_func_6 = extractdata(x_activation_func_6);
             end
         end
 
-        function [output] = forward(this, input, inputNumDims)
-            if isdlarray(input)
-                input = stripdims(input);
+        function [x_activation_func_6] = forward(this, x_linears_0_Gemm_out)
+            if isdlarray(x_linears_0_Gemm_out)
+                x_linears_0_Gemm_out = stripdims(x_linears_0_Gemm_out);
             end
-            inputNumDims = numel(inputNumDims);
+            x_linears_0_Gemm_outNumDims = 2;
             onnxParams = this.ONNXParams;
-            onnxParams.Learnables.linears_0_bias = this.linears_0_bias;
-            onnxParams.Learnables.linears_0_weight = this.linears_0_weight;
             onnxParams.Learnables.linears_1_bias = this.linears_1_bias;
             onnxParams.Learnables.linears_1_weight = this.linears_1_weight;
             onnxParams.Learnables.linears_2_bias = this.linears_2_bias;
             onnxParams.Learnables.linears_2_weight = this.linears_2_weight;
-            onnxParams.Learnables.linears_3_bias = this.linears_3_bias;
-            onnxParams.Learnables.linears_3_weight = this.linears_3_weight;
-            [output, outputNumDims] = Gemm_To_GemmFcn(input, inputNumDims, onnxParams, 'Training', true, ...
-                'InputDataPermutation', {['as-is'], ['as-is']}, ...
-                'OutputDataPermutation', {['as-is'], ['as-is']});
-            if any(cellfun(@(A)~isnumeric(A) && ~islogical(A), {output}))
-                fprintf('Runtime error in network. At least one output of custom layer ''%s'' is a non-numeric, non-logical value.\n', 'Gemm_To_GemmLayer1019');
-                error(message('nnet_cnn_onnx:onnx:BadCustomLayerRuntimeOutput', 'Gemm_To_GemmLayer1019'));
+            [x_activation_func_6, x_activation_func_6NumDims] = Softplus_To_MulFcn(x_linears_0_Gemm_out, x_linears_0_Gemm_outNumDims, onnxParams, 'Training', true, ...
+                'InputDataPermutation', {[2 1], ['as-is']}, ...
+                'OutputDataPermutation', {[2 1], ['as-is']});
+            if any(cellfun(@(A)~isnumeric(A) && ~islogical(A), {x_activation_func_6}))
+                fprintf('Runtime error in network. At least one output of custom layer ''%s'' is a non-numeric, non-logical value.\n', 'Softplus_To_MulLayer1015');
+                error(message('nnet_cnn_onnx:onnx:BadCustomLayerRuntimeOutput', 'Softplus_To_MulLayer1015'));
             end
-            output = dlarray(single(output), repmat('U', 1, max(2, outputNumDims)));
+            x_activation_func_6 = dlarray(single(x_activation_func_6), 'CB');
             if ~coder.target('MATLAB')
-                output = extractdata(output);
+                x_activation_func_6 = extractdata(x_activation_func_6);
             end
         end
     end
 end
 
-function [output, outputNumDims, state] = Gemm_To_GemmFcn(input, inputNumDims, params, varargin)
-%GEMM_TO_GEMMFCN Function implementing an imported ONNX network.
+function [x_activation_func_6, x_activation_func_6NumDims, state] = Softplus_To_MulFcn(x_linears_0_Gemm_out, x_linears_0_Gemm_outNumDims, params, varargin)
+%SOFTPLUS_TO_MULFCN Function implementing an imported ONNX network.
 %
 % THIS FILE WAS AUTO-GENERATED BY importONNXFunction.
 % ONNX Operator Set Version: 11
 %
 % Variable names in this function are taken from the original ONNX file.
 %
-% [OUTPUT] = Gemm_To_GemmFcn(INPUT, PARAMS)
-%			- Evaluates the imported ONNX network GEMM_TO_GEMMFCN with input(s)
-%			INPUT and the imported network parameters in PARAMS. Returns
-%			network output(s) in OUTPUT.
+% [X_ACTIVATION_FUNC_6] = Softplus_To_MulFcn(X_LINEARS_0_GEMM_OUT, PARAMS)
+%			- Evaluates the imported ONNX network SOFTPLUS_TO_MULFCN with input(s)
+%			X_LINEARS_0_GEMM_OUT and the imported network parameters in PARAMS. Returns
+%			network output(s) in X_ACTIVATION_FUNC_6.
 %
-% [OUTPUT, STATE] = Gemm_To_GemmFcn(INPUT, PARAMS)
+% [X_ACTIVATION_FUNC_6, STATE] = Softplus_To_MulFcn(X_LINEARS_0_GEMM_OUT, PARAMS)
 %			- Additionally returns state variables in STATE. When training,
 %			use this form and set TRAINING to true.
 %
-% [__] = Gemm_To_GemmFcn(INPUT, PARAMS, 'NAME1', VAL1, 'NAME2', VAL2, ...)
+% [__] = Softplus_To_MulFcn(X_LINEARS_0_GEMM_OUT, PARAMS, 'NAME1', VAL1, 'NAME2', VAL2, ...)
 %			- Specifies additional name-value pairs described below:
 %
 % 'Training'
@@ -153,10 +136,10 @@ function [output, outputNumDims, state] = Gemm_To_GemmFcn(input, inputNumDims, p
 %
 % Inputs:
 % -------
-% INPUT
+% X_LINEARS_0_GEMM_OUT
 %			- Input(s) to the ONNX network.
 %			  The input size(s) expected by the ONNX file are:
-%				  INPUT:		[1, 24]				Type: DOUBLE
+%				  X_LINEARS_0_GEMM_OUT:		[Unknown, Unknown]				Type: FLOAT
 %			  By default, the function will try to permute the input(s)
 %			  into this dimension ordering. If the default is incorrect,
 %			  use the 'InputDataPermutation' argument to control the
@@ -168,10 +151,10 @@ function [output, outputNumDims, state] = Gemm_To_GemmFcn(input, inputNumDims, p
 %
 % Outputs:
 % --------
-% OUTPUT
+% X_ACTIVATION_FUNC_6
 %			- Output(s) of the ONNX network.
 %			  Without permutation, the size(s) of the outputs are:
-%				  OUTPUT:		[batch_size, 4]				Type: DOUBLE
+%				  X_ACTIVATION_FUNC_6:		[Unknown, Unknown]				Type: FLOAT
 %			  By default, the function will try to permute the output(s)
 %			  from this dimension ordering into a conventional MATLAB
 %			  ordering. If the default is incorrect, use the
@@ -184,68 +167,81 @@ function [output, outputNumDims, state] = Gemm_To_GemmFcn(input, inputNumDims, p
 %  See also importONNXFunction
 
 % Preprocess the input data and arguments:
-[input, Training, outputDataPerms, anyDlarrayInputs] = preprocessInput(input, params, varargin{:});
+[x_linears_0_Gemm_out, Training, outputDataPerms, anyDlarrayInputs] = preprocessInput(x_linears_0_Gemm_out, params, varargin{:});
 % Put all variables into a single struct to implement dynamic scoping:
-[Vars, NumDims] = packageVariables(params, {'input'}, {input}, [inputNumDims]);
+[Vars, NumDims] = packageVariables(params, {'x_linears_0_Gemm_out'}, {x_linears_0_Gemm_out}, [x_linears_0_Gemm_outNumDims]);
 % Call the top-level graph function:
-[output, outputNumDims, state] = Gemm_To_GemmGraph1008(input, NumDims.input, Vars, NumDims, Training, params.State);
+[x_activation_func_6, x_activation_func_6NumDims, state] = Softplus_To_MulGraph1008(x_linears_0_Gemm_out, NumDims.x_linears_0_Gemm_out, Vars, NumDims, Training, params.State);
 % Postprocess the output data
-[output] = postprocessOutput(output, outputDataPerms, anyDlarrayInputs, Training, varargin{:});
+[x_activation_func_6] = postprocessOutput(x_activation_func_6, outputDataPerms, anyDlarrayInputs, Training, varargin{:});
 end
 
-function [output, outputNumDims1018, state] = Gemm_To_GemmGraph1008(input, inputNumDims1017, Vars, NumDims, Training, state)
-% Function implementing the graph 'Gemm_To_GemmGraph1008'
+function [x_activation_func_6, x_activation_func_6NumDims1014, state] = Softplus_To_MulGraph1008(x_linears_0_Gemm_out, x_linears_0_Gemm_outNumDims1013, Vars, NumDims, Training, state)
+% Function implementing the graph 'Softplus_To_MulGraph1008'
 % Update Vars and NumDims from the graph's formal input parameters. Note that state variables are already in Vars.
-Vars.input = input;
-NumDims.input = inputNumDims1017;
+Vars.x_linears_0_Gemm_out = x_linears_0_Gemm_out;
+NumDims.x_linears_0_Gemm_out = x_linears_0_Gemm_outNumDims1013;
 
 % Execute the operators:
-% Gemm:
-[A, B, C, alpha, beta, NumDims.x_linears_0_Gemm_out] = prepareGemmArgs(Vars.input, Vars.linears_0_weight, Vars.linears_0_bias, Vars.Gemmalpha1009, Vars.Gemmbeta1010, 0, 1, NumDims.linears_0_bias);
-Vars.x_linears_0_Gemm_out = alpha*B*A + beta*C;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_1, NumDims.x_activation_func_1] = PLACEHOLDER(Vars.x_linears_0_Gemm_out);
 
-% Relu:
-Vars.x_activation_Relu_ou = relu(Vars.x_linears_0_Gemm_out);
-NumDims.x_activation_Relu_ou = NumDims.x_linears_0_Gemm_out;
+% Tanh:
+Vars.x_activation_func_2 = tanh(Vars.x_activation_func_1);
+NumDims.x_activation_func_2 = NumDims.x_activation_func_1;
+
+% Mul:
+Vars.x_activation_functio = Vars.x_linears_0_Gemm_out .* Vars.x_activation_func_2;
+NumDims.x_activation_functio = max(NumDims.x_linears_0_Gemm_out, NumDims.x_activation_func_2);
 
 % Gemm:
-[A, B, C, alpha, beta, NumDims.x_linears_1_Gemm_out] = prepareGemmArgs(Vars.x_activation_Relu_ou, Vars.linears_1_weight, Vars.linears_1_bias, Vars.Gemmalpha1011, Vars.Gemmbeta1012, 0, 1, NumDims.linears_1_bias);
+[A, B, C, alpha, beta, NumDims.x_linears_1_Gemm_out] = prepareGemmArgs(Vars.x_activation_functio, Vars.linears_1_weight, Vars.linears_1_bias, Vars.Gemmalpha1009, Vars.Gemmbeta1010, 0, 1, NumDims.linears_1_bias);
 Vars.x_linears_1_Gemm_out = alpha*B*A + beta*C;
 
-% Relu:
-Vars.x_activation_1_Relu_ = relu(Vars.x_linears_1_Gemm_out);
-NumDims.x_activation_1_Relu_ = NumDims.x_linears_1_Gemm_out;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_4, NumDims.x_activation_func_4] = PLACEHOLDER(Vars.x_linears_1_Gemm_out);
+
+% Tanh:
+Vars.x_activation_func_5 = tanh(Vars.x_activation_func_4);
+NumDims.x_activation_func_5 = NumDims.x_activation_func_4;
+
+% Mul:
+Vars.x_activation_func_3 = Vars.x_linears_1_Gemm_out .* Vars.x_activation_func_5;
+NumDims.x_activation_func_3 = max(NumDims.x_linears_1_Gemm_out, NumDims.x_activation_func_5);
 
 % Gemm:
-[A, B, C, alpha, beta, NumDims.x_linears_2_Gemm_out] = prepareGemmArgs(Vars.x_activation_1_Relu_, Vars.linears_2_weight, Vars.linears_2_bias, Vars.Gemmalpha1013, Vars.Gemmbeta1014, 0, 1, NumDims.linears_2_bias);
+[A, B, C, alpha, beta, NumDims.x_linears_2_Gemm_out] = prepareGemmArgs(Vars.x_activation_func_3, Vars.linears_2_weight, Vars.linears_2_bias, Vars.Gemmalpha1011, Vars.Gemmbeta1012, 0, 1, NumDims.linears_2_bias);
 Vars.x_linears_2_Gemm_out = alpha*B*A + beta*C;
 
-% Relu:
-Vars.x_activation_2_Relu_ = relu(Vars.x_linears_2_Gemm_out);
-NumDims.x_activation_2_Relu_ = NumDims.x_linears_2_Gemm_out;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_7, NumDims.x_activation_func_7] = PLACEHOLDER(Vars.x_linears_2_Gemm_out);
 
-% Gemm:
-[A, B, C, alpha, beta, NumDims.output] = prepareGemmArgs(Vars.x_activation_2_Relu_, Vars.linears_3_weight, Vars.linears_3_bias, Vars.Gemmalpha1015, Vars.Gemmbeta1016, 0, 1, NumDims.linears_3_bias);
-Vars.output = alpha*B*A + beta*C;
+% Tanh:
+Vars.x_activation_func_8 = tanh(Vars.x_activation_func_7);
+NumDims.x_activation_func_8 = NumDims.x_activation_func_7;
+
+% Mul:
+Vars.x_activation_func_6 = Vars.x_linears_2_Gemm_out .* Vars.x_activation_func_8;
+NumDims.x_activation_func_6 = max(NumDims.x_linears_2_Gemm_out, NumDims.x_activation_func_8);
 
 % Set graph output arguments from Vars and NumDims:
-output = Vars.output;
-outputNumDims1018 = NumDims.output;
+x_activation_func_6 = Vars.x_activation_func_6;
+x_activation_func_6NumDims1014 = NumDims.x_activation_func_6;
 % Set output state from Vars:
 state = updateStruct(state, Vars);
 end
 
-function [inputDataPerms, outputDataPerms, Training] = parseInputs(input, numDataOutputs, params, varargin)
-% Function to validate inputs to Gemm_To_GemmFcn:
+function [inputDataPerms, outputDataPerms, Training] = parseInputs(x_linears_0_Gemm_out, numDataOutputs, params, varargin)
+% Function to validate inputs to Softplus_To_MulFcn:
 p = inputParser;
 isValidArrayInput = @(x)isnumeric(x) || isstring(x);
 isValidONNXParameters = @(x)isa(x, 'ONNXParameters');
-addRequired(p, 'input', isValidArrayInput);
+addRequired(p, 'x_linears_0_Gemm_out', isValidArrayInput);
 addRequired(p, 'params', isValidONNXParameters);
 addParameter(p, 'InputDataPermutation', 'auto');
 addParameter(p, 'OutputDataPermutation', 'auto');
 addParameter(p, 'Training', false);
-parse(p, input, params, varargin{:});
+parse(p, x_linears_0_Gemm_out, params, varargin{:});
 inputDataPerms = p.Results.InputDataPermutation;
 outputDataPerms = p.Results.OutputDataPermutation;
 Training = p.Results.Training;
@@ -263,25 +259,25 @@ if isstring(outputDataPerms) && isscalar(outputDataPerms) || ischar(outputDataPe
 end
 end
 
-function [input, Training, outputDataPerms, anyDlarrayInputs] = preprocessInput(input, params, varargin)
+function [x_linears_0_Gemm_out, Training, outputDataPerms, anyDlarrayInputs] = preprocessInput(x_linears_0_Gemm_out, params, varargin)
 % Parse input arguments
-[inputDataPerms, outputDataPerms, Training] = parseInputs(input, 1, params, varargin{:});
-anyDlarrayInputs = any(cellfun(@(x)isa(x, 'dlarray'), {input}));
+[inputDataPerms, outputDataPerms, Training] = parseInputs(x_linears_0_Gemm_out, 1, params, varargin{:});
+anyDlarrayInputs = any(cellfun(@(x)isa(x, 'dlarray'), {x_linears_0_Gemm_out}));
 % Make the input variables into unlabelled dlarrays:
-input = makeUnlabeledDlarray(input);
+x_linears_0_Gemm_out = makeUnlabeledDlarray(x_linears_0_Gemm_out);
 % Permute inputs if requested:
-input = permuteInputVar(input, inputDataPerms{1}, 2);
+x_linears_0_Gemm_out = permuteInputVar(x_linears_0_Gemm_out, inputDataPerms{1}, 2);
 end
 
-function [output] = postprocessOutput(output, outputDataPerms, anyDlarrayInputs, Training, varargin)
+function [x_activation_func_6] = postprocessOutput(x_activation_func_6, outputDataPerms, anyDlarrayInputs, Training, varargin)
 % Set output type:
 if ~anyDlarrayInputs && ~Training
-    if isdlarray(output)
-        output = extractdata(output);
+    if isdlarray(x_activation_func_6)
+        x_activation_func_6 = extractdata(x_activation_func_6);
     end
 end
 % Permute outputs if requested:
-output = permuteOutputVar(output, outputDataPerms{1}, 2);
+x_activation_func_6 = permuteOutputVar(x_activation_func_6, outputDataPerms{1}, 2);
 end
 
 

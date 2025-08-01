@@ -204,28 +204,49 @@ NumDims.input = inputNumDims1017;
 [A, B, C, alpha, beta, NumDims.x_linears_0_Gemm_out] = prepareGemmArgs(Vars.input, Vars.linears_0_weight, Vars.linears_0_bias, Vars.Gemmalpha1009, Vars.Gemmbeta1010, 0, 1, NumDims.linears_0_bias);
 Vars.x_linears_0_Gemm_out = alpha*B*A + beta*C;
 
-% Relu:
-Vars.x_activation_Relu_ou = relu(Vars.x_linears_0_Gemm_out);
-NumDims.x_activation_Relu_ou = NumDims.x_linears_0_Gemm_out;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_1, NumDims.x_activation_func_1] = PLACEHOLDER(Vars.x_linears_0_Gemm_out);
+
+% Tanh:
+Vars.x_activation_func_2 = tanh(Vars.x_activation_func_1);
+NumDims.x_activation_func_2 = NumDims.x_activation_func_1;
+
+% Mul:
+Vars.x_activation_functio = Vars.x_linears_0_Gemm_out .* Vars.x_activation_func_2;
+NumDims.x_activation_functio = max(NumDims.x_linears_0_Gemm_out, NumDims.x_activation_func_2);
 
 % Gemm:
-[A, B, C, alpha, beta, NumDims.x_linears_1_Gemm_out] = prepareGemmArgs(Vars.x_activation_Relu_ou, Vars.linears_1_weight, Vars.linears_1_bias, Vars.Gemmalpha1011, Vars.Gemmbeta1012, 0, 1, NumDims.linears_1_bias);
+[A, B, C, alpha, beta, NumDims.x_linears_1_Gemm_out] = prepareGemmArgs(Vars.x_activation_functio, Vars.linears_1_weight, Vars.linears_1_bias, Vars.Gemmalpha1011, Vars.Gemmbeta1012, 0, 1, NumDims.linears_1_bias);
 Vars.x_linears_1_Gemm_out = alpha*B*A + beta*C;
 
-% Relu:
-Vars.x_activation_1_Relu_ = relu(Vars.x_linears_1_Gemm_out);
-NumDims.x_activation_1_Relu_ = NumDims.x_linears_1_Gemm_out;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_4, NumDims.x_activation_func_4] = PLACEHOLDER(Vars.x_linears_1_Gemm_out);
+
+% Tanh:
+Vars.x_activation_func_5 = tanh(Vars.x_activation_func_4);
+NumDims.x_activation_func_5 = NumDims.x_activation_func_4;
+
+% Mul:
+Vars.x_activation_func_3 = Vars.x_linears_1_Gemm_out .* Vars.x_activation_func_5;
+NumDims.x_activation_func_3 = max(NumDims.x_linears_1_Gemm_out, NumDims.x_activation_func_5);
 
 % Gemm:
-[A, B, C, alpha, beta, NumDims.x_linears_2_Gemm_out] = prepareGemmArgs(Vars.x_activation_1_Relu_, Vars.linears_2_weight, Vars.linears_2_bias, Vars.Gemmalpha1013, Vars.Gemmbeta1014, 0, 1, NumDims.linears_2_bias);
+[A, B, C, alpha, beta, NumDims.x_linears_2_Gemm_out] = prepareGemmArgs(Vars.x_activation_func_3, Vars.linears_2_weight, Vars.linears_2_bias, Vars.Gemmalpha1013, Vars.Gemmbeta1014, 0, 1, NumDims.linears_2_bias);
 Vars.x_linears_2_Gemm_out = alpha*B*A + beta*C;
 
-% Relu:
-Vars.x_activation_2_Relu_ = relu(Vars.x_linears_2_Gemm_out);
-NumDims.x_activation_2_Relu_ = NumDims.x_linears_2_Gemm_out;
+% PLACEHOLDER FUNCTION FOR UNSUPPORTED OPERATOR (Softplus):
+[Vars.x_activation_func_7, NumDims.x_activation_func_7] = PLACEHOLDER(Vars.x_linears_2_Gemm_out);
+
+% Tanh:
+Vars.x_activation_func_8 = tanh(Vars.x_activation_func_7);
+NumDims.x_activation_func_8 = NumDims.x_activation_func_7;
+
+% Mul:
+Vars.x_activation_func_6 = Vars.x_linears_2_Gemm_out .* Vars.x_activation_func_8;
+NumDims.x_activation_func_6 = max(NumDims.x_linears_2_Gemm_out, NumDims.x_activation_func_8);
 
 % Gemm:
-[A, B, C, alpha, beta, NumDims.output] = prepareGemmArgs(Vars.x_activation_2_Relu_, Vars.linears_3_weight, Vars.linears_3_bias, Vars.Gemmalpha1015, Vars.Gemmbeta1016, 0, 1, NumDims.linears_3_bias);
+[A, B, C, alpha, beta, NumDims.output] = prepareGemmArgs(Vars.x_activation_func_6, Vars.linears_3_weight, Vars.linears_3_bias, Vars.Gemmalpha1015, Vars.Gemmbeta1016, 0, 1, NumDims.linears_3_bias);
 Vars.output = alpha*B*A + beta*C;
 
 % Set graph output arguments from Vars and NumDims:
