@@ -31,10 +31,10 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.2; % 
-% plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
+% plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
+plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.2; % 
+plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
 % plant_model.param.param(14) = 0.008;
@@ -45,8 +45,8 @@ agent.plant = MODEL_CLASS(agent,plant_model);
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1.5],"size",[1,1,0.5]},"HL"});
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1.5],"size",[1,1,0.5]},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
 % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
@@ -64,6 +64,6 @@ app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
 app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
 app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
 
-% app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
-app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
+app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
+% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",9);
 end
