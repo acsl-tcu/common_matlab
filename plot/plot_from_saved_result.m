@@ -52,7 +52,8 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "input", "p1-p2"];
-settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
+% settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
+settings.target = "p1-p2";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["q", "p1-p2"];
 % settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
@@ -159,8 +160,9 @@ for i=1:length(settings.target)
         saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'epsc');
     end
 end
+disp_rmse(logger,settings.phase)
 
-%% function
+% % function
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
 text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n', 
@@ -233,5 +235,18 @@ switch target
         legend{2} = "$u_{pitch}$";
         legend{3} = "$u_{thrust}$";
         legend{4} = "$u_{yaw}$";
+end
+end
+
+
+function disp_rmse(logger, phase)
+target = ["p","v"];
+for i=1:length(target)
+    ref = logger.data(1,target(i),"r", "phase",phase);
+    data = logger.data(1,target(i),"e", "phase",phase);
+    RMSE = rmse(ref, data, 1);
+    fprintf('%s RMSE:\n', target(i))
+    disp(RMSE)
+    disp(sum(RMSE))
 end
 end
