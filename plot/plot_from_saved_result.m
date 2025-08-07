@@ -51,11 +51,11 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-% settings.target = ["p", "input", "p1-p2"];
+settings.target = ["p", "input", "p1-p2"];
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
-settings.target = "p1-p2";
+% settings.target = "p1-p2";
 % "controller.result.nominal_input","controller.result.delta_input"
-% settings.target = ["q", "p1-p2"];
+% settings.target = "p1-p2-p3";
 % settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
 % プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %
@@ -133,19 +133,34 @@ for i=1:length(settings.target)
         case "p1-p2"
             set(ax.XLabel, 'String', xlabel)
             set(ax.YLabel, 'String', ylabel)
+            data = logger.data(1,"p","e","phase",settings.phase);
+            xlim([min(data(:,1)) max(data(:,1))])
+            ylim([min(data(:,2)) max(data(:,2))])
         case "p1-p2-p3"
             set(ax.XLabel, 'String', xlabel)
             set(ax.YLabel, 'String', ylabel)
             set(ax.ZLabel, 'String', zlabel)
+            data = logger.data(1,"p","e","phase",settings.phase);
+            xlim([min(data(:,1)) max(data(:,1))])
+            ylim([min(data(:,2)) max(data(:,2))])
+            zlim([min(data(:,3)) max(data(:,3))])
         otherwise
             set(ax.YLabel, 'String', ylabel)
             legend = set_legend(settings.target(i), chars);
             set(ax.Legend, 'String', legend, 'Interpreter','latex');
+            data = logger.data(1,settings.target(i),"e","phase",settings.phase);
+            y_min=0;
+            y_max=0;
+            for j=1:size(data,2)
+                if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+            end
+            ylim([y_min y_max])
     end
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location', 'southwest', 'FontSize', settings.fontsize-4);
+    set(ax.Legend, 'Location', 'best', 'FontSize', settings.fontsize-4);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
