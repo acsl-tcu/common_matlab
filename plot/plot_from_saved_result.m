@@ -37,23 +37,24 @@ logger = LOGGER(fullpath);
 %% プロット
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fsave = 0;
+fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
 % 1:save as ".fig"
 % 2:save as ".png"
-% 3:save as ".pdf"
-% 4:save as ".eps"
+% 3:save as ".jpg"
+% 4:save as ".pdf"
+% 5:save as ".eps"
 
 ftitle = 0; % defalt=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-settings.target = ["p", "input", "p1-p2"];
-% settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
-% settings.target = "p1-p2";
+% settings.target = ["p", "input", "p1-p2"];
+settings.target = ["p", "q", "v", "w", "input", "inner_input1:4", "p1-p2"];
+% settings.target = "p1-p2-p3";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = "p1-p2-p3";
 % settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
@@ -68,6 +69,8 @@ settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
+% settings.savefolder = 'plot/fig/';  % default
+settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\exp4data\';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -86,66 +89,91 @@ for i=1:length(settings.target)
         case "p"
             ylabel = "Position [m]";
             tmp = settings.attribute;
+            att = select_attribute(settings.target(i), tmp);
         case "q"
             ylabel = "Attitude [rad]";
             tmp = settings.attribute;
             tmp(3) = []; % "esr"の内，無いものを消去
+            att = select_attribute(settings.target(i), tmp);
         case "v"
             ylabel = "Velocity [m/s]";
             tmp = settings.attribute;
             tmp(2) = [];
+            att = select_attribute(settings.target(i), tmp);
         case "w"
             ylabel = "Angular velocity [rad/s]";
             tmp = settings.attribute;
             tmp(2:3) = [];
+            att = select_attribute(settings.target(i), tmp);
         case "input"
             ylabel = "Controller input [N]";
             tmp = settings.attribute;
             tmp(2:3) = [];
+            att = "";
         case "inner_input"
             ylabel = "Transmitter input [Nm], [N]";
             tmp = settings.attribute;
             tmp(:) = [];
             tmp = "";
+            att = "";
+        case "inner_input1:4"
+            ylabel = "Transmitter input [Nm], [N]";
+            tmp = settings.attribute;
+            tmp(:) = [];
+            tmp = "";
+            att = "";
         case "p1-p2"
-            xlabel = "x [m]";
-            ylabel = "y [m]";
+            xlabel = "$x$ [m]";
+            ylabel = "$y$ [m]";
             tmp = settings.attribute;
             fcolor = 0;
+            att = select_attribute(settings.target(i), tmp);
         case "p1-p2-p3"
-            xlabel = "x [m]";
-            ylabel = "y [m]";
-            zlabel = "z [m]";
+            xlabel = "$x$ [m]";
+            ylabel = "$y$ [m]";
+            zlabel = "$z$ [m]";
             tmp = settings.attribute;
             fcolor = 0;
+            att = select_attribute(settings.target(i), tmp);
     end
-    att = select_attribute(settings.target(i), tmp);
     logger.plot({settings.agent_id, settings.target(i), att}, ...
         'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
         'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
 
     fig = gcf;
     ax = gca;
-
+    
     chars = string(split(att, ""));
     chars(chars == "") = [];
     switch settings.target(i)
         case "p1-p2"
-            set(ax.XLabel, 'String', xlabel)
-            set(ax.YLabel, 'String', ylabel)
+            set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
             data = logger.data(1,"p","e","phase",settings.phase);
             xlim([min(data(:,1)) max(data(:,1))])
             ylim([min(data(:,2)) max(data(:,2))])
         case "p1-p2-p3"
-            set(ax.XLabel, 'String', xlabel)
-            set(ax.YLabel, 'String', ylabel)
-            set(ax.ZLabel, 'String', zlabel)
+            set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+            set(ax.ZLabel, 'String', zlabel, 'Interpreter','latex')
             data = logger.data(1,"p","e","phase",settings.phase);
             xlim([min(data(:,1)) max(data(:,1))])
             ylim([min(data(:,2)) max(data(:,2))])
             zlim([min(data(:,3)) max(data(:,3))])
+        case "inner_input1:4"
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+            legend = set_legend(settings.target(i), chars);
+            set(ax.Legend, 'String', legend, 'Interpreter','latex');
+            data = logger.data(1,settings.target(i),"","phase",settings.phase);
+            y_min=0;
+            y_max=0;
+            for j=1:size(data,2)
+                if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+            end
+            ylim([y_min y_max])
         otherwise
-            set(ax.YLabel, 'String', ylabel)
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
             legend = set_legend(settings.target(i), chars);
             set(ax.Legend, 'String', legend, 'Interpreter','latex');
             data = logger.data(1,settings.target(i),"e","phase",settings.phase);
@@ -160,19 +188,21 @@ for i=1:length(settings.target)
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location', 'best', 'FontSize', settings.fontsize-4);
+    set(ax.Legend, 'Location','southeast', 'FontSize',settings.fontsize-4);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
     if fsave == 1
-        savefig(['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
+        savefig([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
     elseif fsave == 2
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'png');
+        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png']);
     elseif fsave == 3
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'pdf');
+        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg']);
     elseif fsave == 4
-        saveas(fig, ['plot/fig/', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':')], 'epsc');
+        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf']);
+    elseif fsave == 5
+        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
     end
 end
 disp_rmse(logger,settings.phase)
