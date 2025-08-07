@@ -25,23 +25,22 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを使うときはノミナルモデル
 
 % プラントモデル定義 ================================================================================================================================
-plant_model = Model_EulerAngle(dt, initial_state, 1);
-% デフォルト物理パラメータ(DRONE_PARAM準拠: 2025/07/07時点)
+% agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
+
+% デフォルト物理パラメータ(DRONE_PARAM.m準拠: 2025/07/07時点)
 % 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-% plant_model.param.param(1) = 0.7875; % ５％増->0.7875
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% plant_model.param.param(7) = 0.2; % 同上
-% plant_model.param.param(8) = 0.2; % 0.18<jzぐらいが良き
-% plant_model.param.param(6) = 0.12; % 0.1<jx,jy<0.12 frequency=2.5の時
-% plant_model.param.param(7) = 0.12; % 
-% plant_model.param.param(8) = 0.1; % 
-% 2~5,10~18はplant_model.param.method='roll_pitch_yaw_thrust_torque_physical_parameter_model'を使っている限り意味が無い
-
-agent.plant = MODEL_CLASS(agent,plant_model);
-% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
+agent.plant.param(1) = 0.7875; % ５％増->0.7875
+agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+agent.plant.param(7) = 0.2; % 同上
+agent.plant.param(8) = 0.2; % 0.18<jzぐらいが良き
+% agent.plant.param(6) = 0.12; % 0.1<jx,jy<0.12 frequency=2.5の時
+% agent.plant.param(7) = 0.12; % 
+% agent.plant.param(8) = 0.1; % 
+% 2~5,10~18はagent.plant.method='@roll_pitch_yaw_thrust_torque_physical_parameter_model'を使っている限り意味が無い
 %===================================================================================================================================================
 
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
@@ -67,7 +66,7 @@ function dfunc(app)
 LW = 2; % LineWidth
 FS = 24; % FontSize
 % phase = "tfl";
-phase = "f";
+phase = "tf";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
