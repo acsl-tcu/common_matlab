@@ -31,13 +31,13 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.2; % 同上
-plant_model.param.param(8) = 0.2; % 0.18<jzぐらいが良き
-% plant_model.param.param(10) = 0.6; % ５％減->0.028595
-% plant_model.param.param(13) = 0.3;
-% plant_model.param.param(14) = 0.008;
+% plant_model.param.param(1) = 0.7875; % ５％増->0.7875
+% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+% plant_model.param.param(7) = 0.2; % 同上
+% plant_model.param.param(8) = 0.2; % 0.18<jzぐらいが良き
+% plant_model.param.param(6) = 0.12; % 0.1<jx,jy<0.12 frequency=2.5の時
+% plant_model.param.param(7) = 0.12; % 
+% plant_model.param.param(8) = 0.1; % 
 % 2~5,10~18はplant_model.param.method='roll_pitch_yaw_thrust_torque_physical_parameter_model'を使っている限り意味が無い
 
 agent.plant = MODEL_CLASS(agent,plant_model);
@@ -51,11 +51,16 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}}); % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,)
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7.onnx"); % 中間報告会でメイン使用したもの
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
+
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",0); % この重みの方が直感的に分かりやすい気がする
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",1); % この重みの方が直感的に分かりやすい気がする
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
@@ -90,5 +95,10 @@ for i=1:length(target)
     RMSE = rmse(ref, data, 1);
     fprintf('%s RMSE:\n', target(i))
     disp(RMSE)
+    disp(sum(RMSE))
 end
+
+% data = app.logger.data(1,"p","e","phase","f");
+% min_z = min(data(:,3))
+% max_z = max(data(:,3))
 end

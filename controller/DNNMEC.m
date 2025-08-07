@@ -18,10 +18,11 @@ classdef DNNMEC < handle
         DNNMEC_model
         x_pre
         pre_input
+        fMEC = 1
     end
     
     methods
-        function obj = DNNMEC(self, DNN_model_filename)
+        function obj = DNNMEC(self, DNN_model_filename, fMEC)
             %DNNMECインスタンス
             obj.self = self;
             obj.param = self.parameter.get(obj.parameter_name);
@@ -50,6 +51,7 @@ classdef DNNMEC < handle
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
             disp('obj.result.delta_inputを表示します')
+            if exist('fMEC', 'var'), obj.fMEC = fMEC; end
         end
         
         function result = do(obj, varargin)
@@ -84,7 +86,7 @@ classdef DNNMEC < handle
             if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
 
-            obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0
+            if obj.fMEC==0, obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); end % Δu=0
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
