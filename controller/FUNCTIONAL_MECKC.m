@@ -133,7 +133,7 @@ methods
         K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];   % m x n
         
         % ☆ 修正：変換行列 Tc を右掛けする（逆はダメ）
-        K_full = K_aug * Tc;   % 正しいマッピング: u = -K_full * x
+        K_full = K_aug / Tc;   % 正しいマッピング: u = -K_full * x
         
 
         e = z_n-z_p;
