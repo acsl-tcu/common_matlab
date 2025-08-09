@@ -106,35 +106,30 @@ methods
         
         %-----lqr法-----%
         %不可制御を含んだdlqr%
-        % Q = diag([1, 1, 1, ones(1,23)]); 
-        % Q2 = diag([0.01, 0.01, 0.01, ones(1,23)]); 
-        % R = 1 * eye(4);
-        % [K_full,~,~] = dlqr(A,B,Q,R);
-        % 
-        % K1 = dlqr(A,B,Q,R);
-        % K2 = dlqr(A,B,Q2,R);
-        % % ノルム差／相対差
-        % disp(norm(K1-K2,'fro'));
+        Q = 0.1*diag([1, 1, 1, 1,1,1,ones(1,20)]);
+        R = 0.1 * eye(4);
+        [K_full,~,~] = dlqr(A,B,Q,R);
 
+        
        % 可制御部分をデカップリング
-        Uc = ctrb(A, B);
-        k = rank(Uc);
-        [Ac, Bc, Cc, Tc] = ctrbf(A, B, C);   % x_c = Tc * x
-        
-        A_ctrl = Ac(1:k, 1:k);
-        B_ctrl = Bc(1:k, :);
-        
-        % DLQRの設計（Q は k x k にすること）
-        Q = diag([100,100,100,1,1,1, ones(1, k-6)]);   % ここは k>=6 を仮定
-        R = 0.5 * eye(size(B,2));
-        K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
-        
-        % 可制御部分だけのゲイン → 全空間（n次元）に拡張
-        K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];   % m x n
-        
-        % ☆ 修正：変換行列 Tc を右掛けする（逆はダメ）
-        K_full = K_aug / Tc;   % 正しいマッピング: u = -K_full * x
-        
+        % Uc = ctrb(A, B);
+        % k = rank(Uc);
+        % [Ac, Bc, Cc, Tc] = ctrbf(A, B, C);   % x_c = Tc * x
+        % 
+        % A_ctrl = Ac(1:k, 1:k);
+        % B_ctrl = Bc(1:k, :);
+        % 
+        % % DLQRの設計（Q は k x k にすること）
+        % Q = diag([100,100,100,1,1,1, ones(1, k-6)]);   % ここは k>=6 を仮定
+        % R = 0.5 * eye(size(B,2));
+        % K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
+        % 
+        % % 可制御部分だけのゲイン → 全空間（n次元）に拡張
+        % K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];   % m x n
+        % 
+        % % ☆ 修正：変換行列 Tc を右掛けする（逆はダメ）
+        % K_full = K_aug / Tc;   % 正しいマッピング: u = -K_full * x
+
 
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
