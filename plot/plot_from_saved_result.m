@@ -52,26 +52,24 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-% settings.target = ["p", "input", "p1-p2"];
-settings.target = ["p", "q", "v", "w", "input", "inner_input1:4", "p1-p2"];
+settings.target = ["input", "inner_input1:4"];
+% settings.target = ["p", "q", "v", "w", "input", "inner_input1:4", "p1-p2"];
 % settings.target = "p1-p2-p3";
 % "controller.result.nominal_input","controller.result.delta_input"
-% settings.target = "p1-p2-p3";
-% settings.target = ["p", "p1-p2", "input", "inner_input1:4"];
 % プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input    inner_input1:4: transmitter input      %
 % p1-p2: x-y 2D plot    p1-p2-p3: x-y-z 3D plot                     %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-settings.phase = "atfl";
+% settings.phase = "atfl";
 settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 % settings.savefolder = 'plot/fig/';  % default
 settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\';
-settings.savename = 0; %default
+% settings.savename = 0; %default
 settings.savename = '1M_epoch';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
@@ -108,12 +106,12 @@ for i=1:length(settings.target)
             tmp(2:3) = [];
             att = select_attribute(settings.target(i), tmp);
         case "input"
-            ylabel = "Controller input [N]";
+            ylabel = "Controller input [N],[Nm]";
             tmp = settings.attribute;
             tmp(2:3) = [];
             att = "";
         case "inner_input"
-            ylabel = "Transmitter input [Nm], [N]";
+            ylabel = "Transmitter input [N],[Nm]";
             tmp = settings.attribute;
             tmp(:) = [];
             tmp = "";
@@ -213,7 +211,7 @@ for i=1:length(settings.target)
 end
 disp_rmse(logger,settings.phase)
 
-% % function
+% % functions
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
 text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n', 
