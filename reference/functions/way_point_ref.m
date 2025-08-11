@@ -136,13 +136,13 @@
             grid on
             plot3(val(1:end,2),val(1:end,3),val(1:end,4), 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
             h_start = plot3(val(1,2), val(1,3), val(1,4), 'gp', 'MarkerSize', 12, 'MarkerFaceColor', 'g');
-            xlabel('$x$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
-            ylabel('$y$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
-            zlabel('$z$ (m)', 'FontSize', 14, 'Interpreter', 'latex')
-            title('3次元軌道', 'FontSize', 14)
+            xlabel('$x$ [m]', 'FontSize', 14, 'Interpreter', 'latex')
+            ylabel('$y$ [m]', 'FontSize', 14, 'Interpreter', 'latex')
+            zlabel('$z$ [m]', 'FontSize', 14, 'Interpreter', 'latex')
+            title('Check reference', 'FontSize', 14)
             set(gca, 'TickLabelInterpreter', 'latex', 'FontSize', 14)
             axis equal
-            legend(h_start, {'始点'},  'FontSize', 14)
+            legend(h_start, {'Start Point'},  'FontSize', 14)
             
             
             end

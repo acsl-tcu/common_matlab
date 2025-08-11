@@ -5,6 +5,7 @@ classdef DNNMEC < handle
     %   [Inputs]
     %    self: ドローンのagent
     %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
+    %    fMEC=0: MECなしでΔu=0
     
     %   2025/07 作成者:小関      学番:2212044
     
