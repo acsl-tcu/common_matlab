@@ -70,7 +70,9 @@ settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 % settings.savefolder = 'plot/fig/';  % default
-settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\exp4data\';
+settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\';
+settings.savename = 0; %default
+settings.savename = '1M_epoch';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -193,16 +195,20 @@ for i=1:length(settings.target)
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
-    if fsave == 1
-        savefig([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
-    elseif fsave == 2
-        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png']);
-    elseif fsave == 3
-        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg']);
-    elseif fsave == 4
-        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf']);
-    elseif fsave == 5
-        saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
+    if settings.savename==1
+        if fsave == 1, savefig([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
+        elseif fsave == 2, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png']);
+        elseif fsave == 3, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg']);
+        elseif fsave == 4, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf']);
+        elseif fsave == 5, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
+        end
+    else
+        if fsave == 1, savefig([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.fig']);
+        elseif fsave == 2, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.png']);
+        elseif fsave == 3, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg']);
+        elseif fsave == 4, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf']);
+        elseif fsave == 5, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
+        end
     end
 end
 disp_rmse(logger,settings.phase)
