@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 25; % terminal time
+te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -33,10 +33,10 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Qua
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-agent.plant.param(1) = 0.7125; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.2; % 同上
-% agent.plant.param(8) = 0.2; % 0.18<jzぐらいが良き
+agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
+agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+agent.plant.param(7) = 0.2; % 同上
+% agent.plant.param(8) = 0.36; % 0.18<jzぐらいが良き
 % agent.plant.param(6) = 0.12; % 0.1<jx,jy<0.12 frequency=2.5の時
 % agent.plant.param(7) = 0.12; % 
 % agent.plant.param(8) = 0.1; % 
@@ -56,20 +56,21 @@ agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7.onnx"); % 中間報告会でメイン使用したもの
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
 
 % この重みの方が直感的に分かりやすい気がする
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",0); % 100万epoch
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",1); % 100万epoch
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",0); % 2万epoch
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",1); % 2万epoch
+fMEC = 0;
+% fMEC = 1;
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",fMEC); % 100万epoch
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
 LW = 2; % LineWidth
 FS = 24; % FontSize
-phase = "tfl";
+% phase = "tfl";
 % phase = "tf";
+phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
@@ -78,7 +79,7 @@ app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Font
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
 app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "controller.result.delta_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
 
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
@@ -91,13 +92,14 @@ app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Lin
 
 % Calcurate RMSE
 target = ["p", "v"];
+RMSE = [];
 for i=1:length(target)
     ref = app.logger.data(1,target(i),"r", "phase",phase);
     data = app.logger.data(1,target(i),"e", "phase",phase);
-    RMSE = rmse(ref, data, 1);
+    RMSE = [RMSE; rmse(ref, data, 1)];
     fprintf('%s RMSE:\n', target(i))
-    disp(RMSE)
-    disp(sum(RMSE))
+    disp(RMSE(i,:))
+    disp(sum(RMSE(i,:)))
 end
 
 % data = app.logger.data(1,"p","e","phase","f");
