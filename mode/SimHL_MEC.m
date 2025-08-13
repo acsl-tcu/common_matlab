@@ -56,13 +56,14 @@ agent.cha_allocation.reference = "time_varying";
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7.onnx"); % 中間報告会でメイン使用したもの
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
 
 % この重みの方が直感的に分かりやすい気がする
 fMEC = 0;
-% fMEC = 1;
+fMEC = 1;
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",fMEC); % 100万epoch
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch（中間報告書に記載）
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
