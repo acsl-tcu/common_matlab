@@ -62,16 +62,22 @@ agent.controller.nominal = HLC(agent,Controller_HL(dt));
 fMEC = 0;
 fMEC = 1;
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",fMEC); % 100万epoch
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch（中間報告書に記載）
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch（中間報告書に記載）
+
+% % ↓2025/08/25 お試し
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_900000_0.00001_0.01_0.01_0.8.onnx");
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_800000_0.00001_0.01_0.01_0.8.onnx");
+%        ↑↑↑ thrust過剰? Flightフェーズになると始めだけ暴れる．そのあとは収束
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_330000_0.00001_0.01_0.01_0.8.onnx");
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
 LW = 2; % LineWidth
 FS = 24; % FontSize
-% phase = "tfl";
+phase = "tfl";
 % phase = "tf";
-phase = "f";
+% phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
