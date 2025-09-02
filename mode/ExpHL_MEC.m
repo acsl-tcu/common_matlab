@@ -31,8 +31,10 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
-agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
+agent.controller.mec = DNNMEC_behind(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
+agent.cha_allocation.controller = "nominal";
+agent.cha_allocation.f.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function post(app)
 LW = 2; % LineWidth
@@ -41,13 +43,13 @@ phase = "tfl";
 % phase = "tf";
 % phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
-app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({{1, "input", ""},{1, "controller.result.nominal_input", ""}}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "inner_input1:4", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "controller.result.delta_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
