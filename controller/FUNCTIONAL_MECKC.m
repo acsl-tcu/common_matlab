@@ -75,7 +75,7 @@ methods
         B = obj.param.est.B;
         C = obj.param.est.C;
         
-        %-----スライディングモード制御-----%
+        %%-----スライディングモード制御-----%%
         % e=obj.x_pre-C*z_p;
         % e = C*(z_n-z_p);
         % Z=z_n-z_p;
@@ -102,38 +102,41 @@ methods
         % u_equal = -pinv_SCB*S_all*C*A*(z_n-z_p);
         % u_controll = -pinv_SCB*diag([1 1 1 1])*sat;
         % obj.result.delta_u = u_equal+u_controll;%Δu計算
-        %-----スライディングモード終わり-----%
+        %%-----スライディングモード終わり-----%%
         
-        %-----lqr法-----%
-        %不可制御を含んだdlqr%
+        %%-----lqr法-----%%
+        
         Q = 0.1*diag([1, 1, 1, 1,1,1,ones(1,20)]);
         R = 0.1 * eye(4);
-        [K_full,~,~] = dlqr(A,B,Q,R);
+        %---不可制御を含んだdlqr---%
+        % [K_full,~,~] = dlqr(A,B,Q,R);
+        % K_direct=K_full ;
+        %---不可制御を含んだdlqr終わり---%
 
         
-       % 可制御部分をデカップリング
+       %---可制御部分をデカップリング---%
         Uc = ctrb(A, B);
         k = rank(Uc);
-        [Ac, Bc, Cc, Tc] = ctrbf(A, B, C);   % x_c = Tc * x
+        [Abar, Bbar, Cbar, Tc] = ctrbf(A, B, C);
+        Qbar = Tc'\(Q/Tc);
 
-        A_ctrl = Ac(1:k, 1:k);
-        B_ctrl = Bc(1:k, :);
-
-        % DLQRの設計（Q は k x k にすること）
-        Q = diag([100,100,100,1,1,1, ones(1, k-6)]);   % ここは k>=6 を仮定
-        R = 0.5 * eye(size(B,2));
-        K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
+        Ac = Abar(end-(k-1):end, end-(k-1):end);%Abarの右下部分(可制御部分)
+        Bc = Bbar(end-(k-1):end, :);%Bbarの下部分
+        Qc = Qbar(end-(k-1):end,end-(k-1):end);
+        %dlqr
+        
+        Kc = dlqr(Ac, Bc, Qc, R);
 
         % 可制御部分だけのゲイン → 全空間（n次元）に拡張
-        K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(A,1) - k)];   % m x n
-
-        % ☆ 修正：変換行列 Tc を右掛けする（逆はダメ）
-        K_full = K_aug / Tc;   % 正しいマッピング: u = -K_full * x
+        % K_all = [zeros(size(Kc,1), size(A,1)-k),Kc];   % m x n
+        K_all = [Kc,zeros(size(Kc,1), size(A,1)-k)];   % m x n
+        K_full = K_all / Tc;   % 正しいマッピング: u = -K_full * x
+        %---デカップリング終わり---%
 
 
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
-        %-----lqr法終わり-----%
+        %%-----lqr法終わり-----%%
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         

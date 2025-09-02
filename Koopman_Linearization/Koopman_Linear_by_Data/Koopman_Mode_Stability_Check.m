@@ -11,7 +11,9 @@ load("koopman_common_z_.mat");
 Uc = ctrb(est.A, est.B);
 k=rank(Uc);
 % A, B：元のシステム行列
-[Ac, Bc, Cc, Tc] = ctrbf(est.A, est.B,est.C);
+[Ac, Bc, Cc, Tc,P] = ctrbf(est.A, est.B,est.C);
+% max(size(est.A))*eps(norm(est.A))
+sum(P)
 % 可制御部分（上の左上ブロック）を抽出
 A_ctrl = Ac(1:k, 1:k);
 B_ctrl = Bc(1:k, :);
@@ -61,19 +63,3 @@ for k = 1:size(est.A,1)
         end
     end
 end
-% fprintf('\n=== モード方向への制御感度（B^T * v） ===\n');
-% 
-% control_sensitivity = zeros(n, 1);
-% 
-% for k = 1:n
-%     vk = V(:,k);
-%     sensitivity = norm(est.B' * vk);  % 感度（スカラー）
-%     control_sensitivity(k) = sensitivity;
-%     fprintf('[%2d] |B^T * v| = %.4e\n', k, sensitivity);
-% end
-% figure;
-% stem(1:n, control_sensitivity, 'filled');
-% xlabel('モード番号（固有値のインデックス）');
-% ylabel('制御感度 |B^T v|');
-% title('各モードに対する制御感度');
-% grid on;
