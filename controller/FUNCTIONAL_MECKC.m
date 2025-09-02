@@ -106,8 +106,8 @@ methods
         
         %%-----lqr法-----%%
         
-        Q = 0.1*diag([1, 1, 1, 1,1,1,ones(1,20)]);
-        R = 0.1 * eye(4);
+        Q = diag([100, 100, 100, 1,1,1,ones(1,20)]);
+        R = 1 * eye(4);
         %---不可制御を含んだdlqr---%
         % [K_full,~,~] = dlqr(A,B,Q,R);
         % K_direct=K_full ;
