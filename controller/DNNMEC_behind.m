@@ -8,7 +8,7 @@ classdef DNNMEC_BEHIND < handle
     %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
     %    fMEC=0: MECなしでΔu=0
     
-    %   2025/07 作成者:小関      学番:2212044
+    %   2025/09 作成者:小関      学番:2212044
     
     properties
         self
@@ -56,6 +56,7 @@ classdef DNNMEC_BEHIND < handle
             if obj.fMEC==1, fprintf('Model file name: %s\n', obj.DNN_model_filename);
             else, disp('No DNNMEC'); end
             disp('obj.result.delta_inputを表示します')
+            disp('Front:HL   Behind:HL+MEC')
         end
         
         function result = do(obj, varargin)
@@ -89,10 +90,10 @@ classdef DNNMEC_BEHIND < handle
     
                 % DNN関係　閾値での制限
                 obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, [x_plant; x_nominal]'))';
-                if abs(obj.result.delta_input(1))>3, obj.result.delta_input(1) = 0; end
-                if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
-                if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
-                if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
+                if abs(obj.result.delta_input(1))>1, obj.result.delta_input(1) = 0; end
+                if abs(obj.result.delta_input(2))>0.2, obj.result.delta_input(2) = 0; end
+                if abs(obj.result.delta_input(3))>0.2, obj.result.delta_input(3) = 0; end
+                if abs(obj.result.delta_input(4))>0.2, obj.result.delta_input(4) = 0; end
 
             else
                 obj.result.delta_input = zeros(obj.self.estimator.model.dim(2),1); % Δu=0

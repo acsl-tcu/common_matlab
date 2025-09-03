@@ -32,9 +32,11 @@ run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
-agent.controller.mec = DNNMEC_behind(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
+agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7.onnx");
+% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
 agent.cha_allocation.controller = "nominal";
-agent.cha_allocation.f.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
+% agent.cha_allocation.f.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
+agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function post(app)
 LW = 2; % LineWidth
@@ -49,14 +51,15 @@ app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fon
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
-app.logger.plot({{1, "input", ""},{1, "controller.result.nominal_input", ""}}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({{1, "input", ""},{1, "controller.result.nominal_input", ""}}, "phase","f", "fig_num",6, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "inner_input1:4", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
-if class(app.agent.controller.mec)=="DNNMEC_behind",    app.logger.plot({1, "controller.result.mec_input", ""}, "phase","f", "fig_num",9, "Linewidth",LW, "Fontsize",FS);
+if class(app.agent.controller.mec)=="DNNMEC_BEHIND",    app.logger.plot({1, "controller.result.mec_input", ""}, "phase","f", "fig_num",9, "Linewidth",LW, "Fontsize",FS);
 elseif class(app.agent.controller.mec)=="DNNMEC",       app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",9, "Linewidth",LW, "Fontsize",FS); end
+% app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
-app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",20, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",21, "Linewidth",LW, "Fontsize",FS);
 
 % app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);

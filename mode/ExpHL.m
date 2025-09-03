@@ -33,17 +33,21 @@ agent.controller = HLC(agent,Controller_HL(dt));
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 function post(app)
-LW = 1.0; % Linewidth 
-FS = 20; % Fontsize
+LW = 1.5; % Linewidth 
+FS = 24; % Fontsize
+% phase = "tfl";
+phase = "tl";
+% phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl", "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "v", "er"}, "phase","tfl", "fig_num",3, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "w", "e"}, "phase","tfl", "fig_num",4, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "input", ""}, "phase","tfl", "fig_num",5, "Linewidth",LW, "Fontsize",24);
-app.logger.plot({1, "inner_input1:4", ""}, "phase","tfl", "fig_num",6, "Linewidth",LW, "Fontsize",24);
+app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "inner_input1:4", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
 
-% app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 
 
 % 刻み時間描画
