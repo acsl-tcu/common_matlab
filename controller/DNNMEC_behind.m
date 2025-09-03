@@ -1,6 +1,7 @@
-classdef DNNMEC < handle
-    %DNNMEC
+classdef DNNMEC_BEHIND < handle
+    %DNNMEC_BEHIND
     %   クアッドコプター用モデル誤差補償器(MEC)のプログラム
+    %   !!! 表:ノミナル入力，裏:ノミナル+補償入力 !!!
     %   ディープニューラルネットワーク(DNN)で補償器を設計
     %   [Inputs]
     %    self: ドローンのagent
@@ -15,16 +16,16 @@ classdef DNNMEC < handle
         param
         parameter_name = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
         agent
-        DNN_model_filename
-        DNNMEC_model
-        x_pre
-        pre_input
+        DNN_model_filename  % 読み込みたいONNXモデルのファイル名
+        DNNMEC_model        % コード内でのモデル名
+        x_pre               % 前時刻の状態
+        pre_input           % 前時刻の制御入力
         fMEC = 1
     end
     
     methods
-        function obj = DNNMEC(self, DNN_model_filename, fMEC)
-            %DNNMECインスタンス
+        function obj = DNNMEC_BEHIND(self, DNN_model_filename, fMEC)
+            % インスタンス
             obj.self = self;
             obj.param = self.parameter.get(obj.parameter_name);
             if exist('fMEC', 'var'), obj.fMEC = fMEC; end
@@ -62,7 +63,10 @@ classdef DNNMEC < handle
                 % ノミナル状態更新 ※状態更新の手法は学習時のものと合わせる
                 if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator")... % ループの最初はLoggingされていなくて，参照できないのを回避
                 && length(varargin{3}.Data.agent.estimator.result)>=2
-                    obj.pre_input = varargin{3}.Data.agent.controller.result{end}.mec_input; % LOGGERから前時刻の入力を取得
+                    if numel(fieldnames(varargin{3}.Data.agent.controller.result{end}))>=2 % フェーズ切り替え時にmec_inputが存在してなく，参照できないのを回避
+                        obj.pre_input = varargin{3}.Data.agent.controller.result{end}.mec_input; % LOGGERから前時刻のノミナル+補償入力を取得
+                    else, obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERから前時刻のノミナル入力を取得
+                    end
                     obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERから前時刻の状態を取得
                 end
                 dt = varargin{1}.dt;
@@ -95,8 +99,8 @@ classdef DNNMEC < handle
             end
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input;
-            obj.result.input = obj.result.nominal_input;
-            obj.result.mec_input = obj.result.nominal_input + obj.result.delta_input;
+            obj.result.input = obj.result.nominal_input;                                % ノミナル入力を制御入力とする
+            obj.result.mec_input = obj.result.nominal_input + obj.result.delta_input;   % 裏でノミナル+補償入力を保存
             result = obj.result;
             disp(obj.result.delta_input')
         end
