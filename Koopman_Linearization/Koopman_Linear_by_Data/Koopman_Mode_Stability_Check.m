@@ -10,6 +10,12 @@ load("koopman_common_z_.mat");
 % 可制御性行列
 Uc = ctrb(est.A, est.B);
 k=rank(Uc);
+Ob = obsv(est.A,est.C);
+ImMc = orth(Uc);
+KerMo = null(Ob);
+
+
+
 % A, B：元のシステム行列
 [Ac, Bc, Cc, Tc,P] = ctrbf(est.A, est.B,est.C);
 % max(size(est.A))*eps(norm(est.A))
