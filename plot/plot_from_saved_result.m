@@ -38,6 +38,7 @@ logger = LOGGER(fullpath);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
+fsave = 2;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -54,8 +55,8 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["input", "inner_input1:4"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2"];
-settings.target = "p1-p2";
-% settings.target = ["p", "v", "q", "w", "input", "p1-p2"];
+% settings.target = "p1-p2";
+settings.target = ["p", "v", "q", "w", "input", "p1-p2"];
 % settings.target = ["q", "w"];
 % settings.target = ["p", "v"];
 % "controller.result.nominal_input","controller.result.delta_input"
@@ -70,13 +71,14 @@ settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
-% settings.savefolder = 'plot/fig/';  % default
+settings.savefolder = 'plot\fig\';  % default
 % settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\model_error\';
-settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\DNNMEC\';
+% settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\DNNMEC\';
 
 % settings.savename = 0; %default
-% settings.savename = '1M_epoch';
-settings.savename = 'No5_2k_DNNMEC';
+% settings.savename = '2-1_HL_only';
+% settings.savename = '2-2_HL_DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8';
+settings.savename = '2-3_HL_DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
