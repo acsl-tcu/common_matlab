@@ -6,14 +6,48 @@ load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % 固有値と固有ベクトル
 [V, D] = eig(est.A);
+est.A = [1 0 0 0;0 -1 0 1;0 0 -1 0;2 0 -1 -1];
+est.B = [-1;1;0;-1];
+est.C = [1 0 1 0];
 
 % 可制御性行列
-Uc = ctrb(est.A, est.B);
-k=rank(Uc);
-Ob = obsv(est.A,est.C);
-ImMc = orth(Uc);
-KerMo = null(Ob);
+Mc = ctrb(est.A, est.B);
+k=rank(Mc);
+Mo = obsv(est.A,est.C);
+% [R_Mc, p_Mc] = rref(Mc);
+% ImMc = Mc(:, p_Mc);
+% ImMc = orth(Mc);
+[~, pivots] = rref(Mc);   % ピボット列の番号を取得
+ImMc = Mc(:, pivots);
 
+KerMo = null(Mo,'rational');
+Rn = eye(size(est.A,1));
+Xa = [];
+for i = 1:size(ImMc,2)
+    v = ImMc(:,i);
+    % v が KerMo の張る部分空間に含まれるかを判定
+    coeff = KerMo \ v;
+    if norm(KerMo*coeff - v) < 1e-10
+        Xa = [Xa, v];
+    end
+end
+Xb = [];
+for i = 1:size(ImMc,2)
+    v = ImMc(:,i);
+    % Xa の張る部分空間に含まれるか確認
+    if isempty(Xa)
+        inXa = false;
+    else
+        coeff = Xa \ v;
+        inXa = (norm(Xa*coeff - v) < 1e-10);
+    end
+    
+    if ~inXa
+        Xb = [Xb, v];
+    end
+end
+Xc = KerMo - Xa;
+Xd = Rn - Xa - Xb - Xc;
 
 
 % A, B：元のシステム行列
@@ -40,9 +74,9 @@ K_full = K_aug * inv(Tc);   % 最終的な状態フィードバックゲイン
 % 許容誤差
 tol = 1e-6;
 n=size(est.A,1);
-rank_Uc=rank(Uc);
+rank_Mc=rank(Mc);
 fprintf('システムの次数（状態数）: %d\n', n);
-fprintf('可制御性行列 Uc のランク: %d\n', rank_Uc);
+fprintf('可制御性行列 Mc のランク: %d\n', rank_Mc);
 fprintf('=== 不安定かつ不可制御なモードのチェック ===\n\n');
 % eigvals = eig(est.A);
 % if all(abs(eigvals) < 1) % 離散系の場合
@@ -55,7 +89,7 @@ for k = 1:size(est.A,1)
     vk = V(:,k);
 
     % vk を可制御性空間に射影
-    proj = Uc * (Uc \ vk);
+    proj = Mc * (Mc \ vk);
     err = norm(vk - proj);
 
     if err < tol
