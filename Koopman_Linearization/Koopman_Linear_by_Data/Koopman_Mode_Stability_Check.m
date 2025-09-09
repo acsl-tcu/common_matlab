@@ -14,13 +14,26 @@ est.C = [1 0 1 0];
 Mc = ctrb(est.A, est.B);
 k=rank(Mc);
 Mo = obsv(est.A,est.C);
-% [R_Mc, p_Mc] = rref(Mc);
-% ImMc = Mc(:, p_Mc);
-% ImMc = orth(Mc);
-[~, pivots] = rref(Mc);   % ピボット列の番号を取得
-ImMc = Mc(:, pivots);
-ImMc = [1,0;0,1;0,0;1,0];
-
+% [~, pivots] = rref(Mc);   % ピボット列の番号を取得
+% ImMc = Mc(:, pivots);
+% ImMc = [1,0;0,1;0,0;1,0];
+ImMc = [];
+for j = 1:size(Mc,2)
+    v = Mc(:,j);
+    if isempty(ImMc)
+        if norm(v) > 1e-12
+            ImMc = v;
+        end
+    else
+        % v が ImMc に線形独立なら追加
+        if rank([ImMc, v]) > rank(ImMc)
+            ImMc = [ImMc, v];
+        end
+    end
+    if size(ImMc,2) == rank(Mc)  % 必要な基底数に達したら終了
+        break
+    end
+end
 KerMo = null(Mo,'rational');
 Rn = eye(size(est.A,1));
 tol = 1e-10;
@@ -67,32 +80,16 @@ if ~isempty(Known)
     coln = vecnorm(Known,2,1);
     Known = Known(:, coln > tol);
 end
-
 n = size(Known,1);
+Known = [Xa,Xb,Xc];
+n = size(est.A,1);
 if isempty(Known)
-    % Known が空なら補空間は全空間
-    Xd = eye(n);
+    Xd = eye(n);   % 全空間が補空間
 else
-    % 通常解: Known の列空間の直和補空間を求める
-    Xd = null(Known', 'r');   % 再現性のある基底を返す
-    % null が空（数値問題等）ならフォールバックで標準基底から組み立て
-    if isempty(Xd)
-        Xd = zeros(n,0);
-        for i = 1:n
-            e = zeros(n,1); e(i)=1;
-            if rank([Known, Xd, e], tol) > rank([Known, Xd], tol)
-                Xd = [Xd, e];
-            end
-            if rank([Known, Xd], tol) == n
-                break;
-            end
-        end
-        if isempty(Xd)
-            % 補空間が存在しない場合（Known が全空間を張る）
-            Xd = zeros(n,1);
-        end
-    end
+    Xd = null(Known','r');  % Known の直和補空間
 end
+T_inv = [Xa,Xb,Xc,Xd]; 
+
 T_inv = [Xa,Xb,Xc,Xd];
 T = inv(T_inv);
 F = T*est.A*T_inv;
