@@ -19,15 +19,17 @@ Mo = obsv(est.A,est.C);
 % ImMc = orth(Mc);
 [~, pivots] = rref(Mc);   % ピボット列の番号を取得
 ImMc = Mc(:, pivots);
+ImMc = [1,0;0,1;0,0;1,0];
 
 KerMo = null(Mo,'rational');
 Rn = eye(size(est.A,1));
+tol = 1e-10;
 Xa = [];
 for i = 1:size(ImMc,2)
     v = ImMc(:,i);
     % v が KerMo の張る部分空間に含まれるかを判定
     coeff = KerMo \ v;
-    if norm(KerMo*coeff - v) < 1e-10
+    if norm(KerMo*coeff - v) < tol
         Xa = [Xa, v];
     end
 end
@@ -39,16 +41,63 @@ for i = 1:size(ImMc,2)
         inXa = false;
     else
         coeff = Xa \ v;
-        inXa = (norm(Xa*coeff - v) < 1e-10);
+        inXa = (norm(Xa*coeff - v) < tol);
     end
     
     if ~inXa
         Xb = [Xb, v];
     end
 end
-Xc = KerMo - Xa;
-Xd = Rn - Xa - Xb - Xc;
+Xc = [];
+for i = 1:size(KerMo,2)
+    v = KerMo(:,i);
+    if isempty(Xa)
+        inXa = false;
+    else
+        coeff = Xa \ v;
+        inXa = (norm(Xa*coeff - v) < tol);
+    end
+    
+    if ~inXa
+        Xc = [Xc, v];   % そのまま追加
+    end
+end
+Known = [Xa, Xb, Xc];
+if ~isempty(Known)
+    coln = vecnorm(Known,2,1);
+    Known = Known(:, coln > tol);
+end
 
+n = size(Known,1);
+if isempty(Known)
+    % Known が空なら補空間は全空間
+    Xd = eye(n);
+else
+    % 通常解: Known の列空間の直和補空間を求める
+    Xd = null(Known', 'r');   % 再現性のある基底を返す
+    % null が空（数値問題等）ならフォールバックで標準基底から組み立て
+    if isempty(Xd)
+        Xd = zeros(n,0);
+        for i = 1:n
+            e = zeros(n,1); e(i)=1;
+            if rank([Known, Xd, e], tol) > rank([Known, Xd], tol)
+                Xd = [Xd, e];
+            end
+            if rank([Known, Xd], tol) == n
+                break;
+            end
+        end
+        if isempty(Xd)
+            % 補空間が存在しない場合（Known が全空間を張る）
+            Xd = zeros(n,1);
+        end
+    end
+end
+T_inv = [Xa,Xb,Xc,Xd];
+T = inv(T_inv);
+F = T*est.A*T_inv;
+G = T*est.B;
+H = est.C*T_inv;
 
 % A, B：元のシステム行列
 [Ac, Bc, Cc, Tc,P] = ctrbf(est.A, est.B,est.C);
