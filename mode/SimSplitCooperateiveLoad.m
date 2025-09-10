@@ -10,7 +10,9 @@ tn = length(ts:dt:te);
 time = TIME(ts, dt, te);
 in_prog_func = @(app) dfunc(app);
 post_func = @(app) dfunc(app);
-motive = Connector_Natnet_sim(1, dt, 0); % 3rd arg is a flag for noise (1 : active )
+% motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
+% motive.getData(agent);
+% motive = Connector_Natnet_sim(1, dt, 0); % 3rd arg is a flag for noise (1 : active )
 logger = LOGGER(1:N+1, size(ts:dt:te, 2), 0, [], []);%分割前1,分割後N個
 
 %複数機牽引のplantモデルで使うファイル===========================================================
@@ -114,6 +116,9 @@ for i = 2:N+1
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
 
+motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
+motive.getData(agent);
+
 function y = sensor_func(self,dt,~)
 p = self.sensor.result.state(1).get('p');
 q = self.sensor.result.state(1).getq('3');
@@ -174,8 +179,8 @@ end
 run("ExpBase");
 
 % %観測値に加えるガウスノイズ
-%     noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
-%     noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
+    noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
+    noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
 clc
 
 for tc=1:tn
