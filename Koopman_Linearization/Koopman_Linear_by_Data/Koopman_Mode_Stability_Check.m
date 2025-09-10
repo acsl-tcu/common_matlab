@@ -56,7 +56,7 @@ for i = 1:size(ImMc,2)
         coeff = Xa \ v;
         inXa = (norm(Xa*coeff - v) < tol);
     end
-    
+
     if ~inXa
         Xb = [Xb, v];
     end
@@ -70,7 +70,7 @@ for i = 1:size(KerMo,2)
         coeff = Xa \ v;
         inXa = (norm(Xa*coeff - v) < tol);
     end
-    
+
     if ~inXa
         Xc = [Xc, v];   % そのまま追加
     end
@@ -88,7 +88,6 @@ if isempty(Known)
 else
     Xd = null(Known','r');  % Known の直和補空間
 end
-T_inv = [Xa,Xb,Xc,Xd]; 
 
 T_inv = [Xa,Xb,Xc,Xd];
 T = inv(T_inv);
@@ -99,7 +98,7 @@ H = est.C*T_inv;
 % A, B：元のシステム行列
 [Ac, Bc, Cc, Tc,P] = ctrbf(est.A, est.B,est.C);
 % max(size(est.A))*eps(norm(est.A))
-sum(P)
+k = sum(P);
 % 可制御部分（上の左上ブロック）を抽出
 A_ctrl = Ac(1:k, 1:k);
 B_ctrl = Bc(1:k, :);
