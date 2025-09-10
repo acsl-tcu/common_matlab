@@ -15,9 +15,14 @@ classdef DRONE_PARAM_COOPERATIVE_LOAD < PARAMETER_CLASS
         m0 % load mass
         J0 % load inertia
         rho % 
+        rhoc %接続点を頂点とする図形の重心位置から接続点までの距離
+        rhoini %
         li
         mi
         Ji
+        pUp
+        pDown
+        G
     end
 
     methods
