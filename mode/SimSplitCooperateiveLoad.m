@@ -109,7 +109,8 @@ for i = 2:N+1
     agent(i).parameter  = DRONE_PARAM_SUSPENDED_LOAD("DIATONE","cableL",li,"mass",mi,"loadmass",0,"jx",jx,"jy",jy,"jz",jz);%単機牽引モデルのパラメータクラス設定（複数モデルの機体と同じパラメータに設定）
     agent(i).plant      = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i),1,agent(i)));%単機牽引モデルのプラントクラス設定id,dt,type,initial,varargin
     agent(i).sensor     = DIRECT_SENSOR(agent(i),0.0); %単機牽引モデルのクラス設定 sensor to capture plant position : second arg is noise
-    agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),1)), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
+    % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
+    agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),"Load_mL_HL")), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
     agent(i).controller = HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i)));%単機牽引モデルのコントローラクラス設定
     agent(i).reference.timevarying = TIME_VARYING_REFERENCE_SPLIT(agent(i), ...
         {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
