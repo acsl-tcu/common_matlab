@@ -1,5 +1,6 @@
 %=====================
 %ペイロードの仮想分割モデル
+%SimSplitCooperateiveLoad
 %=====================
 % clc; clear; close all
 N = 6;%機体数
@@ -43,6 +44,15 @@ else
     pT_sgn              = 1;
 end
 
+% if contains(qtype, "eul")
+%     initial_state(1).q  = [0; 0; 0];%牽引物の姿勢
+%     initial_state(1).qi = repmat([0;0;0],N,1);%機体の姿勢
+% else
+%     initial_state(1).q  = Eul2Quat([0;0;0*pi/180]);%牽引物の姿勢
+%     initial_state(1).qi = repmat([1; 0; 0; 0], N, 1);%機体の姿勢
+% end
+
+%droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？
 if contains(qtype, "eul")
     initial_state(1).Q  = [0; 0; 0];%牽引物の姿勢
     initial_state(1).Qi = repmat([0;0;0],N,1);%機体の姿勢
