@@ -3,7 +3,7 @@
 %SimSplitCooperateiveLoad
 %=====================
 % clc; clear; close all
-N = 6;%機体数
+N = 4;%機体数
 ts = 0;
 dt = 0.025;
 te = 3;
