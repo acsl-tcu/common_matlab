@@ -11,85 +11,77 @@ est.B = [-1;1;0;-1];
 est.C = [1 0 1 0];
 
 % 可制御性行列
+n = size(est.A, 1);
+tol = 1e-9; % 許容誤差
 Mc = ctrb(est.A, est.B);
 k=rank(Mc);
 Mo = obsv(est.A,est.C);
-% [~, pivots] = rref(Mc);   % ピボット列の番号を取得
-% ImMc = Mc(:, pivots);
-% ImMc = [1,0;0,1;0,0;1,0];
-ImMc = [];
-for j = 1:size(Mc,2)
-    v = Mc(:,j);
-    if isempty(ImMc)
-        if norm(v) > 1e-12
-            ImMc = v;
-        end
-    else
-        % v が ImMc に線形独立なら追加
-        if rank([ImMc, v]) > rank(ImMc)
-            ImMc = [ImMc, v];
-        end
-    end
-    if size(ImMc,2) == rank(Mc)  % 必要な基底数に達したら終了
-        break
-    end
-end
-KerMo = null(Mo,'rational');
+KerMo_orth = null(Mo,'rational');
 Rn = eye(size(est.A,1));
-tol = 1e-10;
-Xa = [];
-for i = 1:size(ImMc,2)
-    v = ImMc(:,i);
-    % v が KerMo の張る部分空間に含まれるかを判定
-    coeff = KerMo \ v;
-    if norm(KerMo*coeff - v) < tol
-        Xa = [Xa, v];
-    end
-end
-Xb = [];
-for i = 1:size(ImMc,2)
-    v = ImMc(:,i);
-    % Xa の張る部分空間に含まれるか確認
-    if isempty(Xa)
-        inXa = false;
-    else
-        coeff = Xa \ v;
-        inXa = (norm(Xa*coeff - v) < tol);
-    end
+T_inv = [];
+ImMc_orth = [1,0;0,1;0,0;1,0];
 
-    if ~inXa
-        Xb = [Xb, v];
+% Xa: 可制御かつ不可観測
+% ImMc の基底から KerMo の空間に属するものを抽出
+if ~isempty(ImMc_orth) && ~isempty(KerMo_orth)
+    for i = 1:size(ImMc_orth, 2)
+        v = ImMc_orth(:, i);
+        % v が KerMo の列空間に含まれるか判定
+        if norm(KerMo_orth * (KerMo_orth' * v) - v) < tol
+            % 既に T_inv に含まれていないか確認
+            if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+                T_inv = [T_inv, v];
+            end
+        end
     end
 end
-Xc = [];
-for i = 1:size(KerMo,2)
-    v = KerMo(:,i);
-    if isempty(Xa)
-        inXa = false;
-    else
-        coeff = Xa \ v;
-        inXa = (norm(Xa*coeff - v) < tol);
-    end
+Xa = T_inv; % ここまでが Xa
 
-    if ~inXa
-        Xc = [Xc, v];   % そのまま追加
+% Xb: 可制御かつ可観測
+% ImMc の基底のうち、Xa と線形独立なものを抽出
+for i = 1:size(ImMc_orth, 2)
+    v = ImMc_orth(:, i);
+    % T_inv に含まれていないか確認
+    if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+        T_inv = [T_inv, v];
     end
 end
-Known = [Xa, Xb, Xc];
-if ~isempty(Known)
-    coln = vecnorm(Known,2,1);
-    Known = Known(:, coln > tol);
+Xb = T_inv(:, size(Xa,2)+1:size(T_inv,2));
+
+% Xc: 不可制御かつ可観測
+% KerMo の基底のうち、Xa, Xb と線形独立なものを抽出
+for i = 1:size(KerMo_orth, 2)
+    v = KerMo_orth(:, i);
+    % T_inv に含まれていないか確認
+    if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+        T_inv = [T_inv, v];
+    end
 end
-n = size(Known,1);
-Known = [Xa,Xb,Xc];
-n = size(est.A,1);
-if isempty(Known)
-    Xd = eye(n);   % 全空間が補空間
-else
-    Xd = null(Known','r');  % Known の直和補空間
+Xc = T_inv(:, size(Xa,2)+size(Xb,2)+1:size(T_inv,2));
+
+% Xd: 不可制御かつ不可観測
+% T_inv に残りの次元を埋める基底を追加
+if size(T_inv, 2) < n
+    % T_invの列空間の直交補空間をnullで計算
+    Xd = null(T_inv');
+    T_inv = [T_inv, Xd];
+end
+% 最終的なXb, Xc, Xdの抽出
+Xd = T_inv(:, size(Xa,2)+size(Xb,2)+size(Xc,2)+1:end);
+
+% 3. 変換行列 T の作成と分解の実行
+%--------------------------------------------------------------------------
+% T_inv の列数がnになっているか確認
+if size(T_inv, 2) ~= n
+    error('変換行列の列数が状態空間の次元と一致しません。');
 end
 
-T_inv = [Xa,Xb,Xc,Xd];
+% 正則性を最終確認
+if abs(det(T_inv)) < tol
+    error('変換行列が特異行列です。');
+end
+
+
 T = inv(T_inv);
 F = T*est.A*T_inv;
 G = T*est.B;
