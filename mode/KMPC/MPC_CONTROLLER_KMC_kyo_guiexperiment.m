@@ -633,7 +633,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-             % var(4*(1:obj.H))= 0;
+             var(4*(1:obj.H))= 0;
              
             % fval
             obj.result.input =var(1:4, 1); % 算出された入力
