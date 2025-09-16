@@ -4,22 +4,23 @@ clc;
 % load("koopman_model_first.mat",'est');
 load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
-% 固有値と固有ベクトル
-[V, D] = eig(est.A);
-est.A = [1 0 0 0;0 -1 0 1;0 0 -1 0;2 0 -1 -1];
-est.B = [-1;1;0;-1];
-est.C = [1 0 1 0];
+
+%%例題
+% est.A = [1 0 0 0;0 -1 0 1;0 0 -1 0;2 0 -1 -1];
+% est.B = [-1;1;0;-1];
+% est.C = [1 0 1 0];
 
 % 可制御性行列
 n = size(est.A, 1);
-tol = 1e-9; % 許容誤差
+tol = 1e-14; % 許容誤差
 Mc = ctrb(est.A, est.B);
 k=rank(Mc);
 Mo = obsv(est.A,est.C);
+ImMc_orth = orth(Mc);
+% ImMc_orth = [1,0;0,1;0,0;1,0];
 KerMo_orth = null(Mo,'rational');
-Rn = eye(size(est.A,1));
 T_inv = [];
-ImMc_orth = [1,0;0,1;0,0;1,0];
+
 
 % Xa: 可制御かつ不可観測
 % ImMc の基底から KerMo の空間に属するものを抽出
@@ -83,60 +84,53 @@ end
 
 
 T = inv(T_inv);
-F = T*est.A*T_inv;
-G = T*est.B;
+F = T_inv\est.A*T_inv;
+G = T_inv\est.B;
 H = est.C*T_inv;
+%可制御部分抜き出し
+Ac = F(1:k, 1:k);
+Bc = G(1:k, :);
 
-% A, B：元のシステム行列
-[Ac, Bc, Cc, Tc,P] = ctrbf(est.A, est.B,est.C);
-% max(size(est.A))*eps(norm(est.A))
-k = sum(P);
-% 可制御部分（上の左上ブロック）を抽出
-A_ctrl = Ac(1:k, 1:k);
-B_ctrl = Bc(1:k, :);
-
-% DLQRの設計
-Q = eye(k);            % 状態重み
-R = eye(size(est.B,2));    % 入力重み
-K_ctrl = dlqr(A_ctrl, B_ctrl, Q, R);
-
-% 可制御部分だけのゲイン → 全空間（26次元）に拡張
-K_aug = [K_ctrl, zeros(size(K_ctrl,1), size(est.A,1) - k)];
-
-% 変換行列 Tc を使って元の座標系に戻す
-K_full = K_aug * inv(Tc);   % 最終的な状態フィードバックゲイン
+Qc = diag([ones(1,size(Ac,1))]);
+Rc = 1*eye(4);
+Kc = dlqr(Ac, Bc, Qc, Rc);
+K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
+K_full = K_all/T_inv;
 
 
 
-% 許容誤差
-tol = 1e-6;
-n=size(est.A,1);
-rank_Mc=rank(Mc);
-fprintf('システムの次数（状態数）: %d\n', n);
-fprintf('可制御性行列 Mc のランク: %d\n', rank_Mc);
-fprintf('=== 不安定かつ不可制御なモードのチェック ===\n\n');
-% eigvals = eig(est.A);
-% if all(abs(eigvals) < 1) % 離散系の場合
-%     disp('全体システムは安定');
-% else
-%     disp('不安定な極あり');
+%%%%%-----モードチェック-----%%%%%
+% % 固有値と固有ベクトル
+% [V, D] = eig(est.A);
+% % 許容誤差
+% tol = 1e-6;
+% n=size(est.A,1);
+% rank_Mc=rank(Mc);
+% fprintf('システムの次数（状態数）: %d\n', n);
+% fprintf('可制御性行列 Mc のランク: %d\n', rank_Mc);
+% fprintf('=== 不安定かつ不可制御なモードのチェック ===\n\n');
+% % eigvals = eig(est.A);
+% % if all(abs(eigvals) < 1) % 離散系の場合
+% %     disp('全体システムは安定');
+% % else
+% %     disp('不安定な極あり');
+% % end
+% for k = 1:size(est.A,1)
+%     lambda = D(k,k);
+%     vk = V(:,k);
+% 
+%     % vk を可制御性空間に射影
+%     proj = Mc * (Mc \ vk);
+%     err = norm(vk - proj);
+% 
+%     if err < tol
+%         fprintf('[%2d]固有値 λ = %.4f は可制御\n',k, lambda);
+%     else
+%         fprintf('[%2d]固有値 λ = %.4f は不可制御',k, lambda);
+%         if abs(lambda) >= 1
+%             fprintf('かつ不安定\n');
+%         else
+%             fprintf('ただし安定\n');
+%         end
+%     end
 % end
-for k = 1:size(est.A,1)
-    lambda = D(k,k);
-    vk = V(:,k);
-
-    % vk を可制御性空間に射影
-    proj = Mc * (Mc \ vk);
-    err = norm(vk - proj);
-
-    if err < tol
-        fprintf('[%2d]固有値 λ = %.4f は可制御\n',k, lambda);
-    else
-        fprintf('[%2d]固有値 λ = %.4f は不可制御',k, lambda);
-        if abs(lambda) >= 1
-            fprintf('かつ不安定\n');
-        else
-            fprintf('ただし安定\n');
-        end
-    end
-end
