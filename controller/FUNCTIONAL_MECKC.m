@@ -115,8 +115,6 @@ methods
 
         
        %---可制御部分をデカップリング---%
-     
-       %%%%%-----ここから可制御抜き出し9/16(火)-----%%%%%
         load('kalman_gain.mat','K_full');
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
