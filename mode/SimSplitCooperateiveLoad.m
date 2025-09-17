@@ -44,12 +44,17 @@ else
     pT_sgn              = 1;
 end
 
+
 % if contains(qtype, "eul")
-%     initial_state(1).q  = [0; 0; 0];%牽引物の姿勢
-%     initial_state(1).qi = repmat([0;0;0],N,1);%機体の姿勢
+%     % オイラー角姿勢
+%     initial_state(1).q  = [0; 0; 0];                     % オイラー角 [roll; pitch; yaw]
+%     initial_state(1).Q  = Eul2Quat(initial_state(1).q);  % クォータニオン
+%     initial_state(1).Qi = repmat([0;0;0],N,1);           % 各機体の姿勢 (オイラー角)
 % else
-%     initial_state(1).q  = Eul2Quat([0;0;0*pi/180]);%牽引物の姿勢
-%     initial_state(1).qi = repmat([1; 0; 0; 0], N, 1);%機体の姿勢
+%     % クォータニオン姿勢を初期値として使うけど q(3x1) も保持する
+%     initial_state(1).Q  = Eul2Quat([0;0;0*pi/180]);      % クォータニオン
+%     initial_state(1).q  = Quat2Eul(initial_state(1).Q);  % オイラー角 (必ず追加)
+%     initial_state(1).Qi = repmat([0;0;0],N,1);           % 各機体の姿勢 (オイラー角)
 % end
 
 %droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？
@@ -127,7 +132,8 @@ for i = 2:N+1
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
 
-motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim_multi(dt, 1:(N+1));
+% motive =Connector_Natnet_sim_multi(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
 motive.getData(agent);
 
 function y = sensor_func(self,dt,~)
@@ -260,6 +266,7 @@ for i=2:N
     agent(i).cha_allocation.estimator = "ekf";
     agent(i).cha_allocation.f.reference = "timevarying";
 end
+
 
 
 
