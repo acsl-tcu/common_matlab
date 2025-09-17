@@ -1,7 +1,6 @@
 classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
 
     properties
-
         options % QP
         param
         current_state
@@ -24,18 +23,14 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         N % 現時刻のパーティクル数
         H % horizon
         weight
-
         koopman
-
         qpparam % 二次計画法QPのパラメータ
         previous_input % 前時刻入力
-
         gen_beq
         removeN
         survive
         removeX
         flag
-
         reinput
         reEva
         StageStateSTLsum
@@ -51,19 +46,17 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.param = param; % param = Controller_MPC_HLMC.mで設定したパラメーター
             obj.param.catchflag = 0;
             obj.flag.gpuflag = 0;
-            %%flag defination
+            %% flag defination
             obj.flag.mcflag = 0 ;%qp input mc flag| 0 = qpmpc; 1 = qpmpc+mc; 2=qpmpc+mc+stl;
             obj.flag.stlhard_flag = 0;% stl hard or soft  now it`s no sense
             obj.flag.resampling_flag = 0;% auto change when all samples are not satisfied
             obj.flag.reinputflag = 0; % uesd to go to resampling now it is not be used
             obj.flag.stl_flag = 0; % 1 means in stl period ;0 out
             %%
-
             obj.modelf = obj.self.plant.method;
             obj.P = obj.self.parameter.get(); % ドローンのパラメータ（質量，ロータ間距離，慣性モーメントなど）
             obj.N = param.particle_num; % サンプル数
             obj.H = param.H; % ホライズン
-
             % 重みの配列サイズ変換
             obj.weight = param.weight; % 重みを変数に保存
             obj.weight.stagestate = blkdiag(obj.weight.P, obj.weight.Q, obj.weight.V, obj.weight.W); % blkdiagで配列同士を結合
@@ -71,8 +64,6 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.weight.input = param.weight.R;  % 目標入力
             obj.weight.preinputdif = param.weight.RP; % 前ステップとの入力
             obj.weight.weightstl = 10;
-
-
             % 入力の初期化
             obj.result.input = obj.param.ref_input; % 目標入力 初期時刻にresultを定義しておかないと実行時にエラー出る
             obj.input = obj.param.input; %入力関連のみ
@@ -89,72 +80,35 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.StageStateSTLsum = 0;
             obj.result.pre_u = obj.input.pre_u;
             % obj.input.mu = param.ref_input;
-
             % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
             obj.koopman = param.koopman;
             C = repmat({obj.koopman.C}, 1, obj.H);
             obj.koopman.ExC = blkdiag(C{:});
-
             [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
-            % obj.koopman.ExA = obj.model.A;
-            % obj.koopman.ExB = obj.model.B;
+            %%Koopman予測に基づく拡張行列
             obj.flag.A = 0;
             obj.result.bestcost = obj.input.Bestcost_now;
-        
-            %% 勾配MPCとの併用を見据えてのQP(Quadratic Programming:二次計画法)の式変換
-            %-- M2鬼澤がやっていたと思う
-            % Q = reshape(obj.Weight(:,:,1), obj.param.state_size, []);
-            % Qf = reshape(obj.WeightF(:,:,1), obj.param.state_size, []);
-            % R = reshape(obj.WeightR(:,:,1), obj.param.input_size, []);
-            % Param = struct('A',A,'B',B,'C',C,'weight',Q,'weightF',Qf,'weightR',R,'H',obj.param.H);
-            % [obj.qpparam.H, obj.qpparam.F] = change_equation_HLMCMPC(Param);
         end
-        
-        
         %-- main()的な
         function result = do(obj,varargin)
-
             obj.result2input();
             time = varargin{1};
             phase = varargin{2};
-          
             obj.param.t = time.t;
-
             obj.current_state = obj.self.estimator.result.state.get(); % 現在状態の取得
-            %   obj.state.current = obj.param.F([obj.current_state;obj.input.mu(:,1,1)]);
             obj.state.current = obj.param.F([obj.current_state; obj.input.pre_u(:,1,1)]);
-
-            %% phaseによるcontrollerの選択
-            % if phase ~= "0"
-                % if ~isfield(obj.param, 'tss')
-                %     obj.tss= time.t;
-                % end
-                % 
-                obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
-                % if   abs(obj.self.estimator.result.state.p(3)-obj.state.ref(3))>0.05 && obj.flag.A == 0 && ~obj.flag.stl_flag
-                %     obj.param.catchflag = 1;
-                %     obj.param.catchtime = 2;
-                %     obj.self.reference.func =  gen_ref_for_HL(bezier_curve4([obj.self.estimator.result.state.p(1:3)],obj.param));
-                %     %obj.flag.A =1;
-                % end
-                result= obj.controller_KMC(varargin);
-                obj.result.kmpc = obj.result.input;
-                disp('controller: MC,  phase: ');
-                disp(phase);
-                disp(obj.self.reference.result.state.p);
-            % end
-            
-            
-        end
+            obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
+            result= obj.controller_KMC(varargin);
+            obj.result.kmpc = obj.result.input;
+            disp('controller: MC,  phase: ');
+            disp(phase);
+            disp(obj.self.reference.result.state.p);
+       end
         function result = controller_KMC(obj,varargin)
             obj.param.t = varargin{1}{1}.t; % 現在時刻
             obj.param.te = varargin{1}{1}.te; % 終了時間(default : 10s)
-            % obj.input.mu = obj.input.pre_u; % 採択入力を平均
             %% データ表示用
             obj.QP_MPC();%qp
-            %obj.input.u = obj.result.input; %%%%%%% use without qp->output+mc
-            % obj.input.mu = obj.param.ref_input;%%%%
-            % 目標入力
             if obj.flag.mcflag == 1%qp+mc
                 % 状態予測
                 % QP 出った結果を入力生成
@@ -164,9 +118,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 obj.normalize();        %d    % 評価値の正規化
                 %obj.Resampling_LVS();%Low Variance Sampling
                 obj.Resampling_IS();  % Important Samplingリサンプリング
-                obj.get_input();  % 最適入力の取得および標準偏差のリサンプリング
-                % obj.result.bestcostID = obj.input.BestcostID;
-
+                obj.get_input();  % 最適入力の取得および標準偏差のリサンプリン
             elseif obj.flag.mcflag == 2%qp+mc+resampling+stl
                 if obj.param.t >obj.STL_period(1) - obj.param.H*obj.param.dt && obj.param.t <obj.STL_period(2)
                     %obj.removeX= find(any(squeeze(obj.state.state_data(1:2, 1:end-1, :))<0.0,[1,2]));
@@ -192,12 +144,62 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
               % obj.show();
 
         end
+        function QP_MPC(obj)
+            n = size(obj.state.current,1); % number of observables
+            %qp def
+            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
+            R = kron(eye(obj.param.H),obj.weight.input);
+            RP = kron(eye(obj.param.H),obj.weight.preinputdif);
+            Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
+            Ur = reshape(obj.state.ref(13:16,:),[],1);
+            [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
+            %qp
+            A = []; b = [];
+            % Aeq = zeros(obj.param.H, 4*obj.param.H);
+            % for i = 1:obj.param.H
+            %     Aeq(i, 4*i) = 1; 
+            % end
+            % beq = zeros(obj.param.H, 1);
+             Aeq = []; beq = [];
+            lb = repmat(obj.param.input_min,1,obj.param.H);
+            ub = repmat(obj.param.input_max,1,obj.param.H);
+            obj.options = optimset('Display', 'off');
+            [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
+             % var(4*(1:obj.H))= 0;
+             if eflag ~= 1
+                 disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
+             end
+            % fval
+            obj.result.input =var(1:4, 1); % 算出された入力
+            obj.result.eflag = eflag;
+            obj.result.var = var;
+            obj.result.Bestcost_pre = obj.result.bestcost;
+            obj.result.bestcost = [fval;0];
+            obj.input.pre_u = obj.result.input; 
+            obj.result.pre_u = obj.input.pre_u;
+            % obj.result.bestcost=obj.input.Bestcost_now ;
+        end
+       
+       
+        function [H,f] = gen_Hf(obj,A,B,x0,Q,R,Rp,Xr,Ur,Up)
+            % calc H and f matrices for quadprog
+            % x0: current state
+            % Xn = A*x0+B*U % prediction in horizon
+            % dX = Xn-Xr
+            % dX'*Q*dX = U'*B'*Q*B*U + 2(A*x0-Xr)'*Q*B*U + (x0'*x0 term)
+            % dU = U - Ur
+            % dU'*R*dU = U'*R*U - 2*Ur*R*U
+            % dpU = U - Up
+            % U'*Rp*U - 2*Up*Rp*U
+
+            H = 2*(B'*Q*B+R+Rp);
+            H = (H+H')/2;
+            f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
+
+        end
         function result2input(obj)
-            % obj.input.u = obj.result.input;
-            % obj.input.var = obj.result.var;
             obj.input.pre_u = obj.result.pre_u;
         end
-
         function processStep(obj,resumping_num,s,e,STLOK)
             obj.flag.resampling_flag = 0;
             U = obj.generate_input(resumping_num,STLOK);
@@ -208,23 +210,15 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.get_input();
 
             if obj.flag.resampling_flag && resumping_num < 10
-                % obj.input.u=obj.reinput;
-                % obj.result.Evaluationtra=obj.reEva;
-                % obj.normalize();
-                % obj.Resampling_HVS();
-                % disp("goback to input...");
                 processStep(obj,resumping_num+1,s,e,1);
             end
         end
         function U = generate_input(obj, num,STLOK)
-            % ksigma_max = si * obj.H;
             if STLOK
                 mu =  obj.input.var; % QP input
             else
                 mu =  repmat(obj.param.ref_input,1,obj.H); % hovering input
             end
-
-
             ksigma_max = 1;
             ksigma = linspace(1, ksigma_max, obj.H); % 1~1+ksigma_maxまでH個の配列を作成
             %  inputSigma = ksigma .* obj.input.sigma;
@@ -239,16 +233,11 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 mu=obj.input.pre_u;
             end
             if obj.result.Bestcost_STL > 0
-
                 disp(obj.result.Bestcost_STL);
                 sigma = [inputSigma(1)*min(min(10,1.2^num),max(1,1+obj.result.Bestcost_STL*1e-4));inputSigma(2:4)];
-
             else
                 sigma = inputSigma;
             end
-            % obj.input.u = randn(4,obj.H,obj.N) .* inputSigma + mu; % 制約なし
-            % obj.input.u = max(-obj.input.input_TH(:), min(obj.input.input_TH(:), randn(4,obj.H,obj.N) .* inputSigma + mu)); 可変制約
-            %%%%%%%% 4 x obj.H xobj.N
             if obj.flag.gpuflag == 0
                 obj.input.u(1:4,1:obj.H,2:obj.N) = max(obj.param.input.lb, min(obj.param.input.ub, randn(4,obj.H,obj.N-1) .* sigma + reshape(mu,4,[])));
                 obj.input.u(:,:,1) = reshape(obj.input.var,4,[]);
@@ -612,144 +601,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
                 xr(13:16, h+1) = obj.param.ref_input(:,1); % MC -> 0.6597,   HL -> 0
             end
         end
-        function QP_MPC(obj)
-            n = size(obj.state.current,1); % number of observables
-            %qp def
-            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
-            R = kron(eye(obj.param.H),obj.weight.input);
-            RP = kron(eye(obj.param.H),obj.weight.preinputdif);
-            Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
-            Ur = reshape(obj.state.ref(13:16,:),[],1);
-            [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
-            %qp
-            A = []; b = [];
-            Aeq = zeros(obj.param.H, 4*obj.param.H);
-            for i = 1:obj.param.H
-                Aeq(i, 4*i) = 1; 
-            end
-            beq = zeros(obj.param.H, 1);
-             % Aeq = []; beq = [];
-            lb = repmat(obj.param.input_min,1,obj.param.H);
-            ub = repmat(obj.param.input_max,1,obj.param.H);
-            obj.options = optimset('Display', 'off');
-            [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-             % var(4*(1:obj.H))= 0;
-             
-            % fval
-            obj.result.input =var(1:4, 1); % 算出された入力
-            obj.result.eflag = eflag;
-            obj.result.var = var;
-            obj.result.Bestcost_pre = obj.result.bestcost;
-            obj.result.bestcost = [fval;0];
-            obj.input.pre_u = obj.result.input; 
-            obj.result.pre_u = obj.input.pre_u;
-            % obj.result.bestcost=obj.input.Bestcost_now ;
-        end
-        function fmincon_mpc(obj)
-            %%fmincon
-            obj.previous_input = repmat(obj.input.pre_u, 1, obj.param.H);%qp-mpc
-            obj.options = optimoptions('fmincon');
-            obj.options = optimoptions(obj.options,'MaxIterations',1.e+12); % 最大反復回数
-            obj.options = optimoptions(obj.options,'ConstraintTolerance',1.e-4);     % 制約違反に対する許容誤差
-
-            obj.options.Algorithm = 'sqp';  % 逐次二次計画法
-            obj.options.Display = 'none';   % 計算結果の表示
-
-            % conditions
-            fun = @obj.objectivefmincon;
-            % x0 = obj.previous_input;
-            x0 = obj.input.var;
-            A = []; b = [];
-            Aeq = []; beq = [];
-            lb = repmat(obj.param.input_min, 1,obj.param.H); % min
-            ub = repmat(obj.param.input_max, 1,obj.param.H); % max
-            nonlcon = [];
-            [var, fval, eflag, ~, ~, ~, ~] = fmincon(fun,x0,A,b,Aeq,beq,lb,ub,nonlcon,obj.options);
-            var(4*(1:obj.H))= 0;
-            % fval
-            obj.result.input =var(1:4, 1); % 算出された入力
-            obj.result.eflag = eflag;
-            obj.result.var = var;
-            obj.result.Bestcost_pre = obj.result.bestcost;
-            obj.result.bestcost = [fval;0];
-            % obj.result.bestcost=obj.input.Bestcost_now ;
-        end
-        function [eval] = objectivefmincon(obj,x)   % obj.~とする
-            % x(4*(1:obj.H)) = 0;
-            U = reshape(x,4,[]);
-            % X(:,1) = obj.current_state;
-            % for L = 2:obj.param.H
-            % X(:,L) = X(:,L-1) + obj.param.dt *obj.modelf(X(:,L-1),U(:,L-1), obj.P);
-            % end
-            n = size(obj.state.current,1); % number of observables
-            X = obj.koopman.ExA*obj.state.current + obj.koopman.ExB*x;
-            ids = [1:12]' + n*(0:obj.param.H-1);
-            % tildeX = X(ids) - obj.state.ref(1:12,:);
-            tildeX = reshape(X,n,[]) - [obj.state.ref(1:12,:);zeros(n-12,obj.param.H)];
-            tildeUpre = U - reshape(obj.input.var,4,[]);
-            tildeUref = U - obj.state.ref(13:16,:);
-
-            stageState = tildeX(:,1:end-1)' * blkdiag(obj.weight.stagestate,0*eye(n-12))    * tildeX(:,1:end-1);
-            stageInputPre  = tildeUpre(:,1:end-1)' * obj.weight.preinputdif * tildeUpre(:,1:end-1);
-            stageInputRef  = tildeUref(:,1:end-1)' * obj.weight.input  * tildeUref(:,1:end-1);
-            terminalState = tildeX(1:12,end)' * obj.weight.terminalstate * tildeX(1:12,end);
-
-            eval = trace(stageState + stageInputPre + stageInputRef) + terminalState;
-        end
-        function [H,f] = gen_Hf(obj,A,B,x0,Q,R,Rp,Xr,Ur,Up)
-            % calc H and f matrices for quadprog
-            % x0: current state
-            % Xn = A*x0+B*U % prediction in horizon
-            % dX = Xn-Xr
-            % dX'*Q*dX = U'*B'*Q*B*U + 2(A*x0-Xr)'*Q*B*U + (x0'*x0 term)
-            % dU = U - Ur
-            % dU'*R*dU = U'*R*U - 2*Ur*R*U
-            % dpU = U - Up
-            % U'*Rp*U - 2*Up*Rp*U
-
-            H = 2*(B'*Q*B+R+Rp);
-            H = (H+H')/2;
-            f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
-
-        end
-
-        function result = controller_HL(obj,varargin) % HLCそのままもってきた．もしアップデートされたら逐次更新
-            model = obj.self.estimator.result;
-            ref = obj.self.reference.result;
-            xd = ref.state.xd;
-            xd0 =xd;
-            P = obj.P;
-            F1 = obj.param.F1;
-            F2 = obj.param.F2;
-            F3 = obj.param.F3;
-            F4 = obj.param.F4;
-            xd=[xd;zeros(20-size(xd,1),1)];% 足りない分は０で埋める．
-
-            % yaw 角についてボディ座標に合わせることで目標姿勢と現在姿勢の間の2pi問題を緩和
-            % TODO : 本質的にはx-xdを受け付ける関数にして，x-xdの状態で2pi問題を解決すれば良い．
-            Rb0 = RodriguesQuaternion(Eul2Quat([0;0;xd(4)]));
-            x = [R2q(Rb0'*model.state.getq("rotmat"));Rb0'*model.state.p;Rb0'*model.state.v;model.state.w]; % [q, p, v, w]に並べ替え
-            xd(1:3)=Rb0'*xd(1:3);
-            xd(4) = 0;
-            xd(5:7)=Rb0'*xd(5:7);
-            xd(9:11)=Rb0'*xd(9:11);
-            xd(13:15)=Rb0'*xd(13:15);
-            xd(17:19)=Rb0'*xd(17:19);
-            %if isfield(obj.param,'dt')
-            if isfield(varargin{1},'dt') && varargin{1}.dt <= obj.param.dt
-                dt = varargin{1}.dt;
-            else
-                dt = obj.param.dt;
-            end
-            vf = Vfd(dt,x,xd',P,F1);
-            vs = Vsd(dt,x,xd',vf,P,F2,F3,F4);
-            tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
-            % max,min are applied for the safty
-            obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-            %obj.result.bestcost = obj.result.Bestcost_now;
-            result = obj.result;
-        end
-
+        
         function show(obj)
             % clc;
             % est_print = obj.self.estimator.result.state;
@@ -768,6 +620,54 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
               obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
             fprintf("\n");
         end
-      
+        % function [eval] = objectivefmincon(obj,x)   % obj.~とする
+        %     % x(4*(1:obj.H)) = 0;
+        %     U = reshape(x,4,[]);
+        %     % X(:,1) = obj.current_state;
+        %     % for L = 2:obj.param.H
+        %     % X(:,L) = X(:,L-1) + obj.param.dt *obj.modelf(X(:,L-1),U(:,L-1), obj.P);
+        %     % end
+        %     n = size(obj.state.current,1); % number of observables
+        %     X = obj.koopman.ExA*obj.state.current + obj.koopman.ExB*x;
+        %     ids = [1:12]' + n*(0:obj.param.H-1);
+        %     % tildeX = X(ids) - obj.state.ref(1:12,:);
+        %     tildeX = reshape(X,n,[]) - [obj.state.ref(1:12,:);zeros(n-12,obj.param.H)];
+        %     tildeUpre = U - reshape(obj.input.var,4,[]);
+        %     tildeUref = U - obj.state.ref(13:16,:);
+        %     stageState = tildeX(:,1:end-1)' * blkdiag(obj.weight.stagestate,0*eye(n-12))    * tildeX(:,1:end-1);
+        %     stageInputPre  = tildeUpre(:,1:end-1)' * obj.weight.preinputdif * tildeUpre(:,1:end-1);
+        %     stageInputRef  = tildeUref(:,1:end-1)' * obj.weight.input  * tildeUref(:,1:end-1);
+        %     terminalState = tildeX(1:12,end)' * obj.weight.terminalstate * tildeX(1:12,end);
+        %     eval = trace(stageState + stageInputPre + stageInputRef) + terminalState;
+        % end
+        %  function fmincon_mpc(obj)
+        %     %%fmincon
+        %     obj.previous_input = repmat(obj.input.pre_u, 1, obj.param.H);%qp-mpc
+        %     obj.options = optimoptions('fmincon');
+        %     obj.options = optimoptions(obj.options,'MaxIterations',1.e+12); % 最大反復回数
+        %     obj.options = optimoptions(obj.options,'ConstraintTolerance',1.e-4);     % 制約違反に対する許容誤差
+        % 
+        %     obj.options.Algorithm = 'sqp';  % 逐次二次計画法
+        %     obj.options.Display = 'none';   % 計算結果の表示
+        % 
+        %     % conditions
+        %     fun = @obj.objectivefmincon;
+        %     % x0 = obj.previous_input;
+        %     x0 = obj.input.var;
+        %     A = []; b = [];
+        %     Aeq = []; beq = [];
+        %     lb = repmat(obj.param.input_min, 1,obj.param.H); % min
+        %     ub = repmat(obj.param.input_max, 1,obj.param.H); % max
+        %     nonlcon = [];
+        %     [var, fval, eflag, ~, ~, ~, ~] = fmincon(fun,x0,A,b,Aeq,beq,lb,ub,nonlcon,obj.options);
+        %     var(4*(1:obj.H))= 0;
+        %     % fval
+        %     obj.result.input =var(1:4, 1); % 算出された入力
+        %     obj.result.eflag = eflag;
+        %     obj.result.var = var;
+        %     obj.result.Bestcost_pre = obj.result.bestcost;
+        %     obj.result.bestcost = [fval;0];
+        %     % obj.result.bestcost=obj.input.Bestcost_now ;
+        % end
     end
 end
