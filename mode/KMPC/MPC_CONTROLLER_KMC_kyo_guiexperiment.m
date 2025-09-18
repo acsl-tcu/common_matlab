@@ -82,6 +82,11 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             % obj.input.mu = param.ref_input;
             % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
             obj.koopman = param.koopman;
+            eigA=eig(obj.koopman.A);
+            eiga=abs(eigA);
+            maxa = max(eiga);
+            disp(maxa);
+           
             C = repmat({obj.koopman.C}, 1, obj.H);
             obj.koopman.ExC = blkdiag(C{:});
             [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
@@ -165,7 +170,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-             % var(4*(1:obj.H))= 0;
+             var(4*(1:obj.H))= 0;
              if eflag ~= 1
                  disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
              end
