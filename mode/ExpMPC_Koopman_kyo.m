@@ -7,7 +7,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 mmatflag = 0;
-model_file = '2025-09-18_exp_h_code00_hovering';
+model_file = '2025-07-30_exp_koseki_code00_randompp';
 motive = Connector_Natnet('192.168.100.4'); % connect to Motive　
 motive.getData([], []); % get data from Motive
 rigid_ids = 1; % rigid-body number on Motive

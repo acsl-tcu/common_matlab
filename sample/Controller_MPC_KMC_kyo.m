@@ -41,12 +41,18 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     % Controller.weight.R = 0.01*diag([900; 100; 100; 3500]); % 入力
     % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験　hovering
-    Controller.weight.P = 1*diag([50;50;80]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 1*diag([10;10;10]);    %   10,20刻み  30;20;10
-    Controller.weight.V = 1*diag([15;15;200]); % 15良い気がする
-    Controller.weight.W = 1*diag([10;30;200]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = 1*diag([20; 80; 80; 400]); % 入力
-    Controller.weight.RP = 0*diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    % Controller.weight.P = 1*diag([50;50;80]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 1*diag([10;10;10]);    %   10,20刻み  30;20;10
+    % Controller.weight.V = 1*diag([15;15;200]); % 15良い気がする
+    % Controller.weight.W = 1*diag([10;30;200]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = 1*diag([20; 80; 80; 400]); % 入力
+    % Controller.weight.RP = 0*diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+    Controller.weight.P = diag([1500;1500;1500]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 10*diag([1;1;1]);    % 姿勢角  10,20刻み  30;20;10
+    Controller.weight.V = diag([100;100;100]); % 速度15良い気がする
+    Controller.weight.W = diag([1;1;1]);  % 角速度　1,2刻み 
+    Controller.weight.R = diag([1; 2000; 2500; 200]); % 入力
+    Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
     %%
     Controller.weight.Pf = Controller.weight.P;
     Controller.weight.Vf = Controller.weight.V;
