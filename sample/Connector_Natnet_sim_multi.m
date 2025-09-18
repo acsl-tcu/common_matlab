@@ -25,8 +25,8 @@ for i=1:Nactors
     else %ドローン
         assign{i} = {i, "p", "q"}; % qを使う
     end
+end
 
-end 
 natnet_param.assignment = assign;
 % NATNET_CONNECTOR_SIM を作成
 motive = NATNET_CONNECTOR_SIM(natnet_param);

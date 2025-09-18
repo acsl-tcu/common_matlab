@@ -127,6 +127,10 @@ for i = 2:N+1
     % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
     agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),"Load_mL_HL")), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
     agent(i).controller = HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i)));%単機牽引モデルのコントローラクラス設定
+    %SinSuspendedLoadを参考に
+    % agent(i).reference.timevarying =TIME_VARYING_REFERENCE(agent(i), ...
+    %     {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
+    %drone レポジトリー参考
     agent(i).reference.timevarying = TIME_VARYING_REFERENCE_SPLIT(agent(i), ...
         {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
@@ -196,8 +200,8 @@ end
 run("ExpBase");
 
 % %観測値に加えるガウスノイズ
-    noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
-    noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
+noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
+noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
 clc
 
 for tc=1:tn
