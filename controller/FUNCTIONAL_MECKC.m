@@ -106,16 +106,15 @@ methods
         
         %%%%%-----lqr法-----%%%%%
         
-        % Q = diag([100, 100, 100, 1,1,1,ones(1,20)]);
-        % R = 1 * eye(4);
-        % %---不可制御を含んだdlqr---%
-        % [K_full,~,~] = dlqr(A,B,Q,R);
-        % K_direct=K_full ;
+        Q = diag([1, 1, 1, 1,1,1,ones(1,20)]);
+        R = 1 * eye(4);
+        %---不可制御を含んだdlqr---%
+        [K_direct,~,~] = dlqr(A,B,Q,R);
+        K_full=K_direct ;
         %---不可制御を含んだdlqr終わり---%
 
-        
-       %---可制御部分をデカップリング---%
-        load('kalman_gain.mat','K_full');
+        %---可制御部分をデカップリング---%
+        % load('kalman_gain.mat','K_full');
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
