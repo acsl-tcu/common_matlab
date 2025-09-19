@@ -56,7 +56,18 @@ R13 = ( 2.*(cos(Q2/2).*cos(Q1/2).*cos(Q3/2) + sin(Q2/2).*sin(Q1/2).*sin(Q3/2)).*
 R23 = (-2.*(cos(Q2/2).*cos(Q1/2).*cos(Q3/2) + sin(Q2/2).*sin(Q1/2).*sin(Q3/2)).*(cos(Q2/2).*cos(Q3/2).*sin(Q1/2) - cos(Q1/2).*sin(Q2/2).*sin(Q3/2)) - 2.*(cos(Q1/2).*cos(Q3/2).*sin(Q2/2) + cos(Q2/2).*sin(Q1/2).*sin(Q3/2)).*(cos(Q2/2).*cos(Q1/2).*sin(Q3/2) - cos(Q3/2).*sin(Q2/2).*sin(Q1/2)));
 R33 = (cos(Q2).*cos(Q1));
 % if size(x,1) == 12+4
-common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
+common_z = [P1;
+            P2;
+            P3;
+            Q1;
+            Q2;
+            Q3;
+            V1;
+            V2;
+            V3;
+            W1;
+            W2;
+            W3;
             R13;
             R23;
             R33;
@@ -86,7 +97,7 @@ isobe_z = [W1*W2;
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
             W2*sin(Q1)*sin(Q2)/cos(Q1);
-            W3*cos(Q1)*sin(Q2)/cos(Q1)
+            W3*cos(Q1)*sin(Q2)/cos(Q1) %26番目
             ];
 % isobe_z = [ W2*W3;
 % 
@@ -108,12 +119,12 @@ kmec_R_z=[sin(Q1);
         cos(Q1)*cos(Q2);
         cos(Q2)*cos(Q3);
         cos(Q3)*cos(Q1);%ccの組
-        sin(Q1)*cos(Q2);
+        sin(Q1)*cos(Q2);%35番目
         sin(Q1)*cos(Q3);
         sin(Q2)*cos(Q1);
         sin(Q2)*cos(Q3);
         sin(Q3)*cos(Q1);
-        sin(Q3)*cos(Q2);%scの組
+        sin(Q3)*cos(Q2);%scの組40番目
         sin(Q1)*sin(Q2)*sin(Q3);%sssの組
         sin(Q1)*sin(Q2)*cos(Q3);
         sin(Q1)*sin(Q3)*cos(Q2);
