@@ -4,7 +4,7 @@
 
 phase = 'f';
 
-folder_path = 'Data/Exp_data/2025.07.21_Exp/'; % 参照したいデータが保存されているフォルダのパス
+folder_path = 'Data/Sim_data/'; % 参照したいデータが保存されているフォルダのパス
 learning_folder = 'Data/Learning_data/'; % 学習データ保存用フォルダのパス
 if ~exist(learning_folder, "dir"), mkdir(learning_folder); end
 
