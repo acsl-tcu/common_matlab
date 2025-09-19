@@ -59,28 +59,36 @@ agent.cha_allocation.reference = "time_varying";
 
 % この重みの方が直感的に分かりやすい気がする
 fMEC = 0;
-fMEC = 1;
+% fMEC = 1;
 % agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",fMEC); % 100万epoch
 % agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch（中間報告書に記載）
+
 
 % % ↓2025/08/25 お試し
 % agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
 % agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_900000_0.00001_0.01_0.01_0.8.onnx");
-agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_800000_0.00001_0.01_0.01_0.8.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_800000_0.00001_0.01_0.01_0.8.onnx");
 %        ↑↑↑ thrust過剰? Flightフェーズになると始めだけ暴れる．そのあとは収束
 % agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_330000_0.00001_0.01_0.01_0.8.onnx");
 
+
+% % 2025/09/18 Step数変更
+agent.controller.mec = DNNMEC(agent, "Step_1_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_2_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_3_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_5_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_6_DNNMEC_epoch_100000.onnx");
+
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.cha_allocation.controller = "nominal";
-agent.cha_allocation.f.controller=["nominal","mec"]; % flightのみHL+MEC
-% agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
+agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
-LW = 2; % LineWidth
-FS = 24; % FontSize
+LW = 1.5; % LineWidth
+FS = 18; % FontSize
 phase = "tfl";
 % phase = "tf";
-% phase = "f";
+phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
@@ -90,8 +98,8 @@ app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Font
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
 app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
-if class(app.agent.controller.mec)=="DNNMEC_BEHIND",    app.logger.plot({1, "controller.result.mec_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
-elseif class(app.agent.controller.mec)=="DNNMEC",       app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS); end
+% if class(app.agent.controller.mec)=="DNNMEC_BEHIND",    app.logger.plot({1, "controller.result.mec_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
+% elseif class(app.agent.controller.mec)=="DNNMEC",       app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS); end
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
