@@ -12,7 +12,6 @@ Mc = ctrb(est.A, est.B);
 k=rank(Mc);
 Mo = obsv(est.A,est.C);
 ImMc_orth = orth(Mc);
-% ImMc_orth = [1,0;0,1;0,0;1,0];
 KerMo_orth = null(Mo,'rational');
 T_inv = [];
 
