@@ -82,7 +82,7 @@ agent(1).plant      = MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt,
 agent(1).sensor     = DIRECT_SENSOR(agent(1),0.0);%センサークラスを設定,plantの状態をそのまま取得．sensor to capture plant position : second arg is noise
 agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
 % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
-agent(1).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定
+agent(1).reference.timevarying  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定 こんな設定方法でよいのか？？？
 agent(1).controller = CSLC(agent(1), Controller_Cooperative_Load(dt, N));%コントローラのクラスを設定．単機牽引モデルで設計するので必要ない．
 
 %単機牽引モデルの設定
@@ -131,7 +131,7 @@ for i = 2:N+1
     % agent(i).reference.timevarying =TIME_VARYING_REFERENCE(agent(i), ...
     %     {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
     %drone レポジトリー参考
-    agent(i).reference.timevarying = TIME_VARYING_REFERENCE_SPLIT(agent(i), ...
+    agent(i).reference.timevarying= TIME_VARYING_REFERENCE_SPLIT(agent(i), ...
         {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
