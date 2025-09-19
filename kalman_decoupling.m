@@ -5,11 +5,6 @@ clc;
 load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 
-%%例題
-% est.A = [1 0 0 0;0 -1 0 1;0 0 -1 0;2 0 -1 -1];
-% est.B = [-1;1;0;-1];
-% est.C = [1 0 1 0];
-
 % 可制御性行列
 n = size(est.A, 1);
 tol = 1e-14; % 許容誤差
