@@ -57,7 +57,7 @@ end
 %     initial_state(1).Qi = repmat([0;0;0],N,1);           % 各機体の姿勢 (オイラー角)
 % end
 
-%droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？
+%droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？→解決
 if contains(qtype, "eul")
     initial_state(1).Q  = [0; 0; 0];%牽引物の姿勢
     initial_state(1).Qi = repmat([0;0;0],N,1);%機体の姿勢
@@ -136,8 +136,8 @@ for i = 2:N+1
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
 
-motive = Connector_Natnet_sim_multi(dt, 1:(N+1));
-% motive =Connector_Natnet_sim_multi(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
+motive = Connector_Natnet_sim_multi(dt, N);
+% motive =Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
 motive.getData(agent);
 
 function y = sensor_func(self,dt,~)
