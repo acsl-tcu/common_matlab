@@ -84,6 +84,9 @@ H = est.C*T_inv;
 %可制御部分抜き出し
 Ac = F(1:k, 1:k);
 Bc = G(1:k, :);
+%不可制御部分抜き出し
+Acbar = F(k+1:end,k+1:end);
+Bcbar = G(k+1:end,:);
 
 Qc = diag([ones(1,size(Ac,1))]);
 Rc = 1*eye(4);

@@ -61,6 +61,7 @@ common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
             R23;
             R33;
             1];
+
 % common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W2;W3;
 %             R13;
 %             R23;
@@ -99,22 +100,44 @@ isobe_z = [W1*W2;
 %             ];
 %% KMEC観測量（テイラー展開の微分項）
 %G(x)に出てくるRの微分項
-kmec_R_z=[sin(Q1);cos(Q1);%sin,cos
-        sin(Q1)*sin(Q2);sin(Q2)*sin(Q3);sin(Q3)*sin(Q1);%ssの組
-        cos(Q1)*cos(Q2);cos(Q2)*cos(Q3);cos(Q3)*cos(Q1);%ccの組
-        sin(Q1)*cos(Q2);sin(Q1)*cos(Q3);sin(Q2)*cos(Q1);sin(Q2)*cos(Q3);sin(Q3)*cos(Q1);sin(Q3)*cos(Q2);%scの組
+kmec_R_z=[sin(Q1);
+        cos(Q1);%sin,cos
+        sin(Q1)*sin(Q2);
+        sin(Q2)*sin(Q3);
+        sin(Q3)*sin(Q1);%ssの組
+        cos(Q1)*cos(Q2);
+        cos(Q2)*cos(Q3);
+        cos(Q3)*cos(Q1);%ccの組
+        sin(Q1)*cos(Q2);
+        sin(Q1)*cos(Q3);
+        sin(Q2)*cos(Q1);
+        sin(Q2)*cos(Q3);
+        sin(Q3)*cos(Q1);
+        sin(Q3)*cos(Q2);%scの組
         sin(Q1)*sin(Q2)*sin(Q3);%sssの組
-        sin(Q1)*sin(Q2)*cos(Q3);sin(Q1)*sin(Q3)*cos(Q2);sin(Q2)*sin(Q3)*cos(Q1);%sscの組
-        sin(Q1)*cos(Q2)*cos(Q3);sin(Q2)*cos(Q1)*cos(Q3);sin(Q3)*cos(Q1)*cos(Q2);%sccの組
+        sin(Q1)*sin(Q2)*cos(Q3);
+        sin(Q1)*sin(Q3)*cos(Q2);
+        sin(Q2)*sin(Q3)*cos(Q1);%sscの組
+        sin(Q1)*cos(Q2)*cos(Q3);
+        sin(Q2)*cos(Q1)*cos(Q3);
+        sin(Q3)*cos(Q1)*cos(Q2);%sccの組
         cos(Q1)*cos(Q2)*cos(Q3)%cccの組
         ];
 %F(x)に出てくる微分項
-kmec_qodt_z=[W1*W2;W2*W3;W3*W1;%I^-1wIwの項
-             W2*cos(Q2);W2*sin(Q2);W3*sin(Q2);W3*cos(Q2);
-             cos(Q2);sin(Q2);
-             W2*sin(Q2)*tan(Q1);W2*cos(Q2)*tan(Q1);
-             W3*sin(Q2)*tan(Q1);W3*cos(Q2)*tan(Q1);
-             cos(Q2)*tan(Q1);sin(Q2)*tan(Q1);
+kmec_qodt_z=[W1*W2;
+             W2*W3;W3*W1;%I^-1wIwの項
+             W2*cos(Q2);
+             W2*sin(Q2);
+             W3*sin(Q2);
+             W3*cos(Q2);
+             cos(Q2);
+             sin(Q2);
+             W2*sin(Q2)*tan(Q1);
+             W2*cos(Q2)*tan(Q1);
+             W3*sin(Q2)*tan(Q1);
+             W3*cos(Q2)*tan(Q1);
+             cos(Q2)*tan(Q1);
+             sin(Q2)*tan(Q1);
              ];
 
 %% まとめ
