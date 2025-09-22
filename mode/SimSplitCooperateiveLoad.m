@@ -274,14 +274,18 @@ end
 
 
 
-%% movie
-mov = DRAW_COOPERATIVE_DRONES(logger, "self", agent, "target", 1:4);
-mov.animation(logger, 'target', 1:4, "gif",1,"lims",[-4 4;-4 4;0 7],"ntimes",5);%dataフォルダに保存される
-% mov.animation(logger, 'target', 1:4,"lims",[-4 4;-4 4;0 7]*1,"ntimes",5);%保存されない
+% %% movie
+% mov = DRAW_COOPERATIVE_DRONES(logger, "self", agent, "target", 1:4);
+% mov.animation(logger, 'target', 1:4, "gif",1,"lims",[-4 4;-4 4;0 7],"ntimes",5);%dataフォルダに保存される
+% % mov.animation(logger, 'target', 1:4,"lims",[-4 4;-4 4;0 7]*1,"ntimes",5);%保存されない
 %% function
 function dfunc(app)
 app.logger.plot({1, "p", "er"}, "ax", app.UIAxes, "xrange", [app.time.ts, app.time.t]);
 app.logger.plot({1, "q", "e"}, "ax", app.UIAxes2, "xrange", [app.time.ts, app.time.t]);
 app.logger.plot({1, "input", ""}, "ax", app.UIAxes3, "xrange", [app.time.ts, app.time.t]);
+%% movie
+mov = DRAW_COOPERATIVE_DRONES(logger, "self", agent, "target", 1:4);
+mov.animation(logger, 'target', 1:4, "gif",1,"lims",[-4 4;-4 4;0 7],"ntimes",5);%dataフォルダに保存される
+% mov.animation(logger, 'target', 1:4,"lims",[-4 4;-4 4;0 7]*1,"ntimes",5);%保存されない
 end
 
