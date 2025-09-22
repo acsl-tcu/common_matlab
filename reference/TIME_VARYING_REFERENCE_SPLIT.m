@@ -160,10 +160,10 @@ classdef TIME_VARYING_REFERENCE_SPLIT < handle
                    constd               = constp - constTargetp;
                    
                    % 制約に関する情報の表示
-                   minDroneDistance
-                   constp=0 % 制約入れない場合は0を代入　代入する際はコメントアウト
-                   constTargetp
-                   constd
+                   minDroneDistance;
+                   constp=0 ;% 制約入れない場合は0を代入　代入する際はコメントアウト
+                   constTargetp;
+                   constd;
                 %flight
                    if obj.cha == 'f'
                        obj.isTakeoff = 0;                                       % take off条件分岐用フラグ

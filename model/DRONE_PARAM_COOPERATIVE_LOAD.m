@@ -124,8 +124,8 @@ classdef DRONE_PARAM_COOPERATIVE_LOAD < PARAMETER_CLASS
                 ylabel('$y$ (m)','Interpreter','latex')
                 zlabel('$z$ (m)','Interpreter','latex')
                 
-                input("Confirm the figure and press Enter.")%enter keyを押すまでプログラムを止める
-                close
+                % input("Confirm the figure and press Enter.")%enter keyを押すまでプログラムを止める
+                % close
             elseif isempty(param.rho)
             %正六角形
                 if contains(type,"zup")
