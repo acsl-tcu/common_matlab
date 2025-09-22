@@ -210,7 +210,7 @@ for tc=1:tn
             %複数機牽引
             agent(1).sensor.do(time, 'f');
             agent(1).estimator.do(time, 'f');
-            agent(1).reference.do(time, 'f',agent(1));
+            agent(1).reference.timevarying.do(time, 'f',agent(1));
             agent(1).controller.result.Qeul = Quat2Eul(agent(1).estimator.result.state.Q);%牽引物の角度をquotからeulにするのみ使用
             input = zeros(4*N,1);
         else
@@ -232,7 +232,7 @@ for tc=1:tn
             agent(i).estimator.do(time, 'f');
 
             %単機牽引モデルの目標軌道
-            agent(i).reference.do(time, 'f',agent(1));
+            agent(i).reference.timevarying.do(time, 'f',agent(1));
 
             %単機牽引モデルの入力
             agent(i).controller.do(time, 'f',0,0,agent(i),i);

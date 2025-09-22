@@ -28,7 +28,7 @@ classdef HLC_SPLIT_SUSPENDED_LOAD < handle
             end
             Param       = obj.param;                    % param (optional) : 構造体：物理パラメータP，ゲインF1-F4 
             model       = obj.self.estimator.result;    % 推定した状態
-            ref         = obj.self.reference.result;    % 目標値
+            ref         = obj.self.reference.timevarying.result;    % 目標値
             x           = [model.state.getq('compact');model.state.w;model.state.pL;model.state.vL;model.state.pT;model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
         % 目標値を取得
             if isprop(ref.state,'xd')

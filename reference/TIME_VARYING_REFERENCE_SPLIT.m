@@ -135,9 +135,9 @@ classdef TIME_VARYING_REFERENCE_SPLIT < handle
                    epDronei     = obj.self.estimator.result.state.p;            % 機体位置
                    % emL          = obj.self.estimator.result.state.mL;           % 分割後牽引物の質量
                % reference 
-                   spDrones     = obj.agent1.reference.result.spDrones;         % 全ての機体位置
-                   ref0         = obj.agent1.reference.result.state.xd(1:24);   % 分割前の牽引物目標軌道[xd;dxd;d2xd;d3xd;d4xd;d5xd]
-                   rotms        = obj.agent1.reference.result.rotms;            % rhoiを目標位置に向ける回転行列
+                   spDrones     = obj.agent1.reference.timevarying.result.spDrones;         % 全ての機体位置
+                   ref0         = obj.agent1.reference.timevarying.result.state.xd(1:24);   % 分割前の牽引物目標軌道[xd;dxd;d2xd;d3xd;d4xd;d5xd]
+                   rotms        = obj.agent1.reference.timevarying.result.rotms;            % rhoiを目標位置に向ける回転行列
                    %いらないかも
                    % alpi12       = real_pL(1:2) - obj.agent1.sensor.result.state.p(1:2);
                    % alpiUnit12   = alpi12/norm(alpi12);%牽引物が垂直に傾かないと仮定
