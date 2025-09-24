@@ -31,9 +31,9 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;-1;1.5],"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"}); % circle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"}); % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}); % spline
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd], "h",[0;0;takeoff_zd+0.5]), 15}); % P2P
+agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd], "h",[0;0;takeoff_zd+0.5]), 15}); % P2P
 agent.cha_allocation.reference = "time_varying";
 function post(app)
 LW = 1.5; % Linewidth 
@@ -41,14 +41,14 @@ FS = 24; % Fontsize
 phase = "tfl";
 % phase = "t";
 % phase = "f";
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl", "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase",phase, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",5, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "inner_input1:4", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "input2:4", ""}, "phase","f", "fig_num",7, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "input2:4", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 
 app.logger.plot({1, "p1-p2", "er"}, "phase","tfl", "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tfl", "color", 0, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
