@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 100; % terminal time
+te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -37,8 +37,8 @@ agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
 % agent.plant.param(7) = 0.2; % 同上
 % agent.plant.param(8) = 0.36; % 0.18<jzぐらいが良き
-agent.plant.param(6) = 0.18; % 0.1<jx,jy<0.12 frequency=2.5の時
-agent.plant.param(7) = 0.18; % 
+% agent.plant.param(6) = 0.18; % 0.1<jx,jy<0.12 frequency=2.5の時
+% agent.plant.param(7) = 0.18; % 
 % agent.plant.param(8) = 0.1; % 
 % 2~5,10~18はagent.plant.method='@roll_pitch_yaw_thrust_torque_physical_parameter_model'を使っている限り意味が無い
 %===================================================================================================================================================
@@ -83,6 +83,9 @@ fMEC = 0;
 agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
 % agent.controller.mec = DNNMEC(agent, "Step_5_DNNMEC_epoch_100000.onnx");
 % agent.controller.mec = DNNMEC(agent, "Step_6_DNNMEC_epoch_100000.onnx");
+
+
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_100000_0.0001_0.01_0.01_0.8.onnx"); % thrust coef=0.00001 -> 0.0001
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
