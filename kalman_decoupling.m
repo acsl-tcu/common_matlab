@@ -2,8 +2,11 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("koopman_common_z_.mat");
+% load("koopman_common_z_.mat");
+% load("second_model.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
+load("third_model.mat",'est');
+
 
 % 可制御性行列
 n = size(est.A, 1);
@@ -85,12 +88,6 @@ U_uc = T(:,k+1:end);
 contrib = abs(U_uc);
 score = sum(contrib,2);
 
-% 大きい順に並べる
-[sorted, idx] = sort(score,'descend');
-fprintf('不可制御部分に強く寄与する観測量:\n');
-for j = 1:min(10,length(idx))
-    fprintf('観測量 %d: %.3f\n', idx(j), sorted(j));
-end
 
 %可制御部分抜き出し
 Ac = F(1:k, 1:k);
@@ -105,3 +102,4 @@ Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
 save('kalman_gain.mat','K_full');
+fprintf("ゲインをkalman_gain.matとして保存しました");

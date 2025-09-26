@@ -2,8 +2,10 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("koopman_common_z_.mat");
+% load("second_model.mat",'est');
+% load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
+load("third_model.mat",'est');
 
 
 %%%%%-----モードチェック-----%%%%%
