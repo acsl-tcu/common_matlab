@@ -103,11 +103,11 @@ isobe_z = [W1*W2;
             W3*W1;
             W2*cos(Q1);
             W3*sin(Q1);
-            W1*cos(Q2)/cos(Q1);
+            W1*cos(Q2)/cos(Q1);%これが関係ない
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
-            W2*sin(Q1)*sin(Q2)/cos(Q1);
-            W3*cos(Q1)*sin(Q2)/cos(Q1) %26番目
+            W2*sin(Q1)*tan(Q2);
+            W3*cos(Q1)*tan(Q2) %26番目
             ];
 % isobe_z = [ W2*W3;
 % 
