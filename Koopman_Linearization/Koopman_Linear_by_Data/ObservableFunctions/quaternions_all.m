@@ -97,8 +97,8 @@ isobe_z = [W1*W2;
 
 %% KMEC観測量（テイラー展開の微分項）
 %G(x)に出てくるRの微分項
-kmec_R_z=[sin(Q1);
-        cos(Q1);%sin,cos
+Rdot  =[sin(Q2);
+        cos(Q2);%sin,cos
         sin(Q1)*sin(Q2);
         sin(Q2)*sin(Q3);
         sin(Q3)*sin(Q1);%ssの組
@@ -121,24 +121,32 @@ kmec_R_z=[sin(Q1);
         cos(Q1)*cos(Q2)*cos(Q3)%cccの組
         ];
 %F(x)に出てくる微分項
-kmec_qodt_z=[
-             W2*cos(Q2);
-             W2*sin(Q2);
-             W3*sin(Q2);
-             W3*cos(Q2);
-             cos(Q2);
-             sin(Q2);
+qdotdot=[    %qdotの一階微分の項
+             cos(Q1)*tan(Q2);
+             sin(Q1)*tan(Q2);
+             W2*sin(Q1);
+             W3*cos(Q1);
+             cos(Q1);
+             sin(Q1);
+             W2*cos(Q1)*tan(Q2);
+             W3*sin(Q1)*tan(Q2);
+             cos(Q1)/cos(Q2);
+             sin(Q1)/cos(Q2);
+             W3*sin(Q1)/cos(Q2);
+             W2*cos(Q1)/cos(Q2);
+             %qdotの二階微分の項
              W2*sin(Q2)*tan(Q1);
-             W2*cos(Q2)*tan(Q1);
-             W3*sin(Q2)*tan(Q1);
              W3*cos(Q2)*tan(Q1);
-             cos(Q2)*tan(Q1);
-             sin(Q2)*tan(Q1);
+             W3*cos(Q1)/cos(Q2);
+             W2*sin(Q1)/cos(Q2);
+
+
+             
              ];
 
 %% まとめ
 z = [common_z; isobe_z]; % 00
-% z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
+% z = [common_z; isobe_z;Rdot;qdotdot]; % 01
 
 end
 
