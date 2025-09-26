@@ -83,20 +83,6 @@ common_z = [P1;
             R33;
             1];
 
-% common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W2;W3;
-%             R13;
-%             R23;
-%             R33;
-%             1];
-
-% common_2z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3]; % code06用
-% % end
-% common_except_pos_z = [Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
-%             R13;
-%             R23;
-%             R33;
-%             1]; % 位置を除いたcommon_z
-
 %% 磯部先輩観測量 code = 00
 isobe_z = [W1*W2;
             W2*W3;
@@ -109,16 +95,7 @@ isobe_z = [W1*W2;
             W2*sin(Q1)*tan(Q2);
             W3*cos(Q1)*tan(Q2) %26番目
             ];
-% isobe_z = [ W2*W3;
-% 
-%             W2*cos(Q1);
-%             W3*sin(Q1);
-% 
-%             W2*sin(Q1)/cos(Q2);
-%             W3*cos(Q1)/cos(Q2);
-%             W2*sin(Q1)*sin(Q2)/cos(Q1);
-%             W3*cos(Q1)*sin(Q2)/cos(Q1)
-%             ];
+
 %% KMEC観測量（テイラー展開の微分項）
 %G(x)に出てくるRの微分項
 kmec_R_z=[sin(Q1);
