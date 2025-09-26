@@ -33,21 +33,29 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
-    %2025-07-15_Exp_Kyo_code00_randompp2 model 用重み
+   
+    %% 2025-07-15_Exp_Kyo_code00_randompp2 model 用重み
     % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
     % Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
     % Controller.weight.W = 0.1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
     % Controller.weight.R = 0.01*diag([900; 100; 100; 3500]); % 入力
     % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
-    %%　実験　hovering
-    Controller.weight.P = 1*diag([50;50;80]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 1*diag([10;10;10]);    %   10,20刻み  30;20;10
-    Controller.weight.V = 1*diag([15;15;200]); % 15良い気がする
-    Controller.weight.W = 1*diag([10;30;200]);  % 姿勢角，角速度　1,2刻み 
+    %%　2025-07-30_exp_koseki_code00_randompp　用重み
+    Controller.weight.P = 0.1*diag([50;50;50]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 10*diag([10;10;10]);    %   10,20刻み  30;20;10
+    Controller.weight.V = 0.1*diag([15;15;20]); % 15良い気がする
+    Controller.weight.W = 0.1*diag([10;30;20]);  % 姿勢角，角速度　1,2刻み 
     Controller.weight.R = 1*diag([20; 80; 80; 400]); % 入力
     Controller.weight.RP = 0*diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
-    %%
+    %%　実験　hovering
+    % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
+    % Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
+    % Controller.weight.W = 0.1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = 0.1*diag([900; 100; 100; 3500]); % 入力
+    % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
+    
     Controller.weight.Pf = Controller.weight.P;
     Controller.weight.Vf = Controller.weight.V;
     Controller.weight.Qf = Controller.weight.Q;

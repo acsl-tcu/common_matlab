@@ -113,6 +113,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.param.t = varargin{1}{1}.t; % 現在時刻
             obj.param.te = varargin{1}{1}.te; % 終了時間(default : 10s)
             %% データ表示用
+            % obj.K_linear();
             obj.QP_MPC();%qp
             if obj.flag.mcflag == 1%qp+mc
                 % 状態予測
@@ -148,6 +149,27 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             result = obj.result;
               % obj.show();
 
+        end
+        function K_linear(obj)
+            A = obj.koopman.A;
+            B = obj.koopman.B;
+            Q_states = obj.weight.stagestate;
+            Q_lifted = eye(14) * 1e-3; 
+            Q = blkdiag(Q_states, Q_lifted);
+            R = obj.weight.input*100;
+            [K, ~, ~] = dlqr(A, B, Q, R);
+            z_current = obj.state.current;
+            z_ref = zeros(size(z_current));
+            z_ref(1:12) = obj.state.ref(1:12, 1);
+            state_error = z_current - z_ref;
+            u_unconstrained = -K * state_error;
+            u = max(obj.param.input_min, min(obj.param.input_max, u_unconstrained));
+            obj.result.input = u; 
+            obj.result.eflag = 1; 
+            obj.input.pre_u = obj.result.input; 
+            obj.result.pre_u = obj.input.pre_u;
+            obj.result.K_lqr = K;
+            obj.result.bestcost = state_error' * Q * state_error + u' * R * u; 
         end
         function QP_MPC(obj)
             n = size(obj.state.current,1); % number of observables
