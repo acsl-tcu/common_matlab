@@ -89,7 +89,6 @@ isobe_z = [W1*W2;
             W3*W1;
             W2*cos(Q1);
             W3*sin(Q1);
-            W1*cos(Q2)/cos(Q1);%これが関係ない
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
             W2*sin(Q1)*tan(Q2);
@@ -122,8 +121,7 @@ kmec_R_z=[sin(Q1);
         cos(Q1)*cos(Q2)*cos(Q3)%cccの組
         ];
 %F(x)に出てくる微分項
-kmec_qodt_z=[W1*W2;
-             W2*W3;W3*W1;%I^-1wIwの項
+kmec_qodt_z=[
              W2*cos(Q2);
              W2*sin(Q2);
              W3*sin(Q2);
