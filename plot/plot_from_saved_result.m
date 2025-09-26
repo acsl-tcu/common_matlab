@@ -38,7 +38,7 @@ logger = LOGGER(fullpath);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-fsave = 2;
+% fsave = 2;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -53,10 +53,10 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-% settings.target = ["input", "inner_input1:4"];
-% settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2"];
-% settings.target = "p1-p2";
-settings.target = ["p", "v", "q", "w", "input", "p1-p2"];
+% settings.target = ["p", "input", "p1-p2"];
+settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2-p3"];
+% settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
+% settings.target = "input";
 % settings.target = ["q", "w"];
 % settings.target = ["p", "v"];
 % "controller.result.nominal_input","controller.result.delta_input"
