@@ -44,7 +44,7 @@ agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,...
 %     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用
 
 function y = sensor_func(self,dt,~)
-p = self.sensor.result.state(1).p;
+p = self.sensor.result.state(1).get('p');
 q = self.sensor.result.state(1).getq('3');
 switch self.cha
     case 't'
@@ -100,6 +100,15 @@ agent.cha_allocation.f.reference = "timevarying";
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
 app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","t");
+
+app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1,"inner_input",""},"phase","tf", "fig_num",6); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
 
 % 刻み時間描画
 t0id = find(app.logger.Data.phase==97,1,'last')+1;
