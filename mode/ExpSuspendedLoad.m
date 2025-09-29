@@ -30,7 +30,7 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
 agent.parameter.set("loadmass",0.075);%0.0968);%0.968
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM8"));%有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM7"));%有線プロポ
 agent.sensor.motive = MOTIVE(agent, Sensor_Motive([1,2],0, motive)); % rigid_id,initial_yaw_angle,motive
 
 est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
@@ -99,7 +99,7 @@ agent.cha_allocation.f.reference = "timevarying";
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
-app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","t");
+app.logger.plot({{1, "estimator.result.state.pL", "er"}},"ax",app.UIAxes,"phase","t");
 
 app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
@@ -116,7 +116,7 @@ teid = find(app.logger.Data.phase==0,1,'first')-1;
 dt = diff(app.logger.Data.t(t0id:teid));
 t = app.logger.Data.t(t0id:teid-1);
 figure(100)
-[t,dt]
+[t,dt];
 plot(t,dt);
 % app.logger.plot({1,"p","e"})
 hold on
