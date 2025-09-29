@@ -6,8 +6,8 @@ Bc2 = [0;1];
 Ac4 = diag([1,1,1],1);
 Bc4 = [0;0;0;1];
 Controller.F1=lqrd(Ac2,Bc2,diag([100,1]),[0.1],dt);                                % 
-Controller.F2=lqrd(Ac4,Bc4,diag([100,10,10,1]),[0.01],dt); % xdiag([100,10,10,1])
-Controller.F3=lqrd(Ac4,Bc4,diag([100,10,10,1]),[0.01],dt); % ydiag([100,10,10,1])
+Controller.F2=lqrd(Ac4,Bc4,diag([100,10,10,1]),[0.1],dt); % xdiag([100,10,10,1])
+Controller.F3=lqrd(Ac4,Bc4,diag([100,10,10,1]),[0.1],dt); % ydiag([100,10,10,1])
 Controller.F4=lqrd(Ac2,Bc2,diag([100,10]),[0.1],dt);                       % ヨー角
 Controller.F = blkdiag(Controller.F1,Controller.F2,Controller.F3,Controller.F4);    % フィードバックゲインをまとめる
 

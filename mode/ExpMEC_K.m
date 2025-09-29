@@ -27,7 +27,7 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;1.1],"size",[1,1,0]},"HL"});
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1.3],"radius",1.0},"HL"});
-agent.controller.nominal=HLC(agent,Controller_HL(dt));
+agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
 agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
