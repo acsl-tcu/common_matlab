@@ -10,7 +10,7 @@ initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 mmatflag = 0;
- model_file = '2025-09-25_exp_renew_code00_randompp';
+ model_file = '2025-09-29_exp_renew_code00_randompp59';
  % model_file = '2025-07-15_Exp_Kyo_code00_randompp2';
 %%
 agent = DRONE;

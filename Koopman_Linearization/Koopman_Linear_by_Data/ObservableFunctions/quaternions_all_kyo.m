@@ -56,7 +56,7 @@ common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
             R13;
             R23;
             R33;
-            1];
+            1];% 16
 
 %% 磯部先輩観測量 code = 00
 kyo_z = [W1*W2;
@@ -64,13 +64,51 @@ kyo_z = [W1*W2;
             W3*W1;
             W2*cos(Q1);
             W3*sin(Q1);
-            W1*cos(Q2)/cos(Q1);%??どこから
+             % W1*cos(Q2)/cos(Q1);%??どこから
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
             W2*sin(Q1)*sin(Q2)/cos(Q2);
             W3*cos(Q1)*sin(Q2)/cos(Q2)
-            ];
+            ]; %9
+kudo_z =[sin(Q1);
+        cos(Q1);%sin,cos
+        sin(Q1)*sin(Q2);
+        sin(Q2)*sin(Q3);
+        sin(Q3)*sin(Q1);%ssの組
+        cos(Q1)*cos(Q2);
+        cos(Q2)*cos(Q3);
+        cos(Q3)*cos(Q1);%ccの組
+        sin(Q1)*cos(Q2);%35番目
+        sin(Q1)*cos(Q3);
+        sin(Q2)*cos(Q1);
+        sin(Q2)*cos(Q3);
+        sin(Q3)*cos(Q1);
+        sin(Q3)*cos(Q2);%scの組40番目
+        sin(Q1)*sin(Q2)*sin(Q3);%sssの組
+        sin(Q1)*sin(Q2)*cos(Q3);
+        sin(Q1)*sin(Q3)*cos(Q2);
+        sin(Q2)*sin(Q3)*cos(Q1);%sscの組
+        sin(Q1)*cos(Q2)*cos(Q3);
+        sin(Q2)*cos(Q1)*cos(Q3);
+        sin(Q3)*cos(Q1)*cos(Q2);%sccの組
+        cos(Q1)*cos(Q2)*cos(Q3)%cccの組
+         ]; %22
 
-z = [common_z; kyo_z]; % 00
+kmec_qodt_z=[%I^-1wIwの項
+             W2*cos(Q2);
+             W2*sin(Q2);
+             W3*sin(Q2);
+             W3*cos(Q2);
+             cos(Q2);
+             sin(Q2);
+             W2*sin(Q2)*tan(Q1);
+             W2*cos(Q2)*tan(Q1);
+             W3*sin(Q2)*tan(Q1);
+             W3*cos(Q2)*tan(Q1);
+             cos(Q2)*tan(Q1);
+             sin(Q2)*tan(Q1);
+             ]; %12  総計59
+
+z = [common_z; kyo_z ;kudo_z;kmec_qodt_z]; % 00
 end
 

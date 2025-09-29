@@ -154,9 +154,9 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             A = obj.koopman.A;
             B = obj.koopman.B;
             Q_states = obj.weight.stagestate;
-            Q_lifted = eye(14) * 1e-3; 
+            Q_lifted = eye(59-12) * 1e-3; 
             Q = blkdiag(Q_states, Q_lifted);
-            R = obj.weight.input*100;
+            R = obj.weight.input;
             [K, ~, ~] = dlqr(A, B, Q, R);
             z_current = obj.state.current;
             z_ref = zeros(size(z_current));
@@ -182,17 +182,17 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
             %qp
             A = []; b = [];
-            % Aeq = zeros(obj.param.H, 4*obj.param.H);
-            % for i = 1:obj.param.H
-            %     Aeq(i, 4*i) = 1; 
-            % end
-            % beq = zeros(obj.param.H, 1);
-             Aeq = []; beq = [];
+            Aeq = zeros(obj.param.H, 4*obj.param.H);
+            for i = 1:obj.param.H
+                Aeq(i, 4*i) = 1; 
+            end
+            beq = zeros(obj.param.H, 1);
+             % Aeq = []; beq = [];
             lb = repmat(obj.param.input_min,1,obj.param.H);
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-             var(4*(1:obj.H))= 0;
+             % var(4*(1:obj.H))= 0;
              if eflag ~= 1
                  disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
              end
