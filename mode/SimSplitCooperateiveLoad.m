@@ -137,6 +137,10 @@ for i = 2:N+1
 end
 
 motive = Connector_Natnet_sim_multi(dt, N);
+motive =Connector_Natnet_sim(dt, {1,"p","v"});
+for i=2:N+1
+    motive =Connector_Natnet_sim(dt, {{i,"p","q"},{i,"pL","pT"}});
+end
 % motive =Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
 motive.getData(agent);
 
