@@ -75,44 +75,6 @@ methods
         B = obj.param.est.B;
         C = obj.param.est.C;
         
-        %%-----スライディングモード制御-----%%
-        % e=obj.x_pre-C*z_p;
-        % e = C*(z_n-z_p);
-        % Z=z_n-z_p;
-        % fai=1;
-        % S_1 = [0,0,1,0,0,0,0,0,0,0,0,0];
-        % S_2 = [0,0,0,1,0,0,0,0,0,0,0,0];
-        % S_3 = [0,0,0,0,0.1,0,0,0,0,0,0,0];
-        % S_4 = [0,0,0,0,0,1,0,0,0,0,0,0];
-        % S_all = [S_1;S_2;S_3;S_4];
-        % sig = S_all*e;
-        % sat = zeros(4,1);
-        % for i = 1:length(sig)
-        % if abs(sig(i)) <= fai
-        %     sat(i,1) = sig(i)/fai;
-        % else
-        %     sat(i,1) = sign(sig(i));
-        % end
-        % end
-        % SCB = S_all * C*B;
-        % rank(SCB);
-        % cond(SCB);
-        % pinv_SCB = pinv(SCB,1e-3);
-        % % u_equal = -pinv_SCB*(S_all*x_n_now-S_all*C*A*z_p);
-        % u_equal = -pinv_SCB*S_all*C*A*(z_n-z_p);
-        % u_controll = -pinv_SCB*diag([1 1 1 1])*sat;
-        % obj.result.delta_u = u_equal+u_controll;%Δu計算
-        %%-----スライディングモード終わり-----%%
-        
-        %%%%%-----lqr法-----%%%%%
-        
-        % Q = diag([1, 1, 1, 1,1,1,ones(1,20)]);
-        % R = 1 * eye(4);
-        % %---不可制御を含んだdlqr---%
-        % [K_direct,~,~] = dlqr(A,B,Q,R);
-        % K_full=K_direct ;
-        %---不可制御を含んだdlqr終わり---%
-
         %---可制御部分をデカップリング---%
         load('kalman_gain.mat','K_full');
         e = z_n-z_p;
