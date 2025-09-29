@@ -79,7 +79,13 @@ initial_state(1).qi = pT_sgn*reshape(pTpre./vecnorm(pTpre),[],1) ;%紐の初期�
 
 %agent の設定
 agent(1).plant      = MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype));%plantのモデルのクラスを設定
-agent(1).sensor     = DIRECT_SENSOR(agent(1),0.0);%センサークラスを設定,plantの状態をそのまま取得．sensor to capture plant position : second arg is noise
+
+%motiveとsensor.motiveの設定
+motive =Connector_Natnet_sim(dt, {1,"Q","p"});
+motive.getData(agent);
+agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
+
+% agent(1).sensor     = DIRECT_SENSOR(agent(1),0.0);%センサークラスを設定,plantの状態をそのまま取得．sensor to capture plant position : second arg is noise
 agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
 % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
 agent(1).reference.timevarying  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定 こんな設定方法でよいのか？？？
@@ -123,7 +129,13 @@ for i = 2:N+1
     jz = agent(1).parameter.Ji(3,i-1);%機体慣性モーメントzz
     agent(i).parameter  = DRONE_PARAM_SUSPENDED_LOAD("DIATONE","cableL",li,"mass",mi,"loadmass",0,"jx",jx,"jy",jy,"jz",jz);%単機牽引モデルのパラメータクラス設定（複数モデルの機体と同じパラメータに設定）
     agent(i).plant      = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i),1,agent(i)));%単機牽引モデルのプラントクラス設定id,dt,type,initial,varargin
-    agent(i).sensor     = DIRECT_SENSOR(agent(i),0.0); %単機牽引モデルのクラス設定 sensor to capture plant position : second arg is noise
+
+    motive =Connector_Natnet_sim(dt, {{i,"p","q"},{i,"pL","pT"}});
+    motive.getData(agent);
+    motiveid=[2*(i-1),2*(i-1)+1]; %i=2,[2,3] i=3,[4,5] i=4,[6,7] i=5,[8,9]
+    agent(i).sensor.motive=MOTIVE(agent(i),Sensor_Motive(motiveid ,0,motive));
+
+    % agent(i).sensor     = DIRECT_SENSOR(agent(i),0.0); %単機牽引モデルのクラス設定 sensor to capture plant position : second arg is noise
     % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
     agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),"Load_mL_HL")), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
     agent(i).controller = HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i)));%単機牽引モデルのコントローラクラス設定
@@ -136,57 +148,8 @@ for i = 2:N+1
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
 
-motive = Connector_Natnet_sim_multi(dt, N);
-motive =Connector_Natnet_sim(dt, {1,"p","v"});
-for i=2:N+1
-    motive =Connector_Natnet_sim(dt, {{i,"p","q"},{i,"pL","pT"}});
-end
-% motive =Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
-motive.getData(agent);
 
-function y = sensor_func(self,dt,~)
-p = self.sensor.result.state(1).get('p');
-q = self.sensor.result.state(1).getq('3');
 
-switch self.cha
-    case 't'
-        pL = p;
-        pL(3) = pL(3) - self.parameter.get("cableL");
-        pT = [0;0;-1];
-        pT = (pL - p);
-        pT = pT/norm(pT);
-        QmL = 1e4;
-        if self.estimator.ekf.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
-            self.estimator.ekf.B = B;
-            self.estimator.ekf.Q = Q;
-            self.estimator.ekf.R = R;
-            self.estimator.ekf.result.P = eye(25);
-        end
-    case {'a','l'}
-        pL = p;
-        pL(3) = pL(3) - self.parameter.get("cableL");
-        pT = [0;0;-1];
-    otherwise
-        pL = self.sensor.result.state(2).get('p');
-        pT = (pL - p);
-        pT = pT/norm(pT);
-        QmL = 1e-3;
-        if self.estimator.ekf.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
-            self.estimator.ekf.B = B;
-            self.estimator.ekf.Q = Q;
-            self.estimator.ekf.R = R;
-            self.estimator.ekf.result.P = eye(25);
-        end
-end
-self.estimator.result.state.mL
-y = [p;q;pL;pT];
-end
 
 %疑問点===================================================================================
 % for i=2;N
@@ -275,7 +238,49 @@ for i=2:N
     agent(i).cha_allocation.f.reference = "timevarying";
 end
 
+function y = sensor_func(self,dt,~)
+    p = self.sensor.result.state(1).get('p');
+    q = self.sensor.result.state(1).getq('3');
 
+    switch self.cha
+        case 't'
+            pL = p;
+            pL(3) = pL(3) - self.parameter.get("cableL");
+            pT = [0;0;-1];
+            pT = (pL - p);
+            pT = pT/norm(pT);
+            QmL = 1e4;
+            if self.estimator.ekf.Q(end,end) ~= QmL
+                B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+                Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+                R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
+                self.estimator.ekf.B = B;
+                self.estimator.ekf.Q = Q;
+                self.estimator.ekf.R = R;
+                self.estimator.ekf.result.P = eye(25);
+            end
+        case {'a','l'}
+            pL = p;
+            pL(3) = pL(3) - self.parameter.get("cableL");
+            pT = [0;0;-1];
+        otherwise
+            pL = self.sensor.result.state(2).get('p');
+            pT = (pL - p);
+            pT = pT/norm(pT);
+            QmL = 1e-3;
+            if self.estimator.ekf.Q(end,end) ~= QmL
+                B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+                Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+                R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
+                self.estimator.ekf.B = B;
+                self.estimator.ekf.Q = Q;
+                self.estimator.ekf.R = R;
+                self.estimator.ekf.result.P = eye(25);
+            end
+    end
+    self.estimator.result.state.mL
+    y = [p;q;pL;pT];
+    end
 
 
 % %% movie
