@@ -42,5 +42,6 @@ function Controller = Controller_HL_Suspended_Load(dt,agent)
     end
     
     Controller.dt = dt;
+    eig(diag([1,1,1,1,1],1)-[0;0;0;0;0;1]*Controller.F2)
 
 end

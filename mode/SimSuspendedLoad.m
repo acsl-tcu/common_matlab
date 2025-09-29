@@ -104,7 +104,14 @@ agent(1).cha_allocation.f.reference = "timevarying";
 
 function post(app)
 app.logger.plot({{1, "p", "rep"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
-app.logger.plot({1, "state.wL", "ep"},"phase","tf");
+% app.logger.plot({1, "state.wL", "ep"},"phase","tf");
+app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",6); % x-y軌跡
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",7); % x-y-z軌跡
 % figure(2)
 % ax=gca;
 % app.logger.plot({1, "estimator.result.state.mL", "e"},"phase","tf","ax",ax);
