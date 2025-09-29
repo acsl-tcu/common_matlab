@@ -30,10 +30,10 @@ methods
         obj.param.P = self.parameter.get(obj.parameter_name);
         obj.result.input = zeros(self.estimator.model.dim(2),1);
 
-        initial_state.p = self.plant.state.p;
-        initial_state.q = self.plant.state.q;
-        initial_state.v = self.plant.state.v;
-        initial_state.w = self.plant.state.w;
+        % initial_state.p = self.plant.state.p;
+        % initial_state.q = self.plant.state.q;
+        % initial_state.v = self.plant.state.v;
+        % initial_state.w = self.plant.state.w;
 
         obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
         obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル

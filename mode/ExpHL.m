@@ -17,23 +17,24 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM6"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-agent.input_transform.param.pitch_offset = 535;
+% agent.input_transform.param.pitch_offset = 535;
 
-% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;1.1],"size",[1,1,0]},"HL"});
+% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
+% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",15,"init",[0;0;1],"radius",1.0},"HL"});
 agent.controller.hl = HLC(agent,Controller_HL(dt));
-agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
+% agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
 
 
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 agent.cha_allocation.controller = "hl";
-agent.cha_allocation.f.controller = "delta";
+% agent.cha_allocation.f.controller = "delta";
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
@@ -44,7 +45,7 @@ app.logger.plot({1, "v", "er"},"fig_num",4);
 app.logger.plot({1, "input", ""},"fig_num",5,"phase","tfl");
 app.logger.plot({1, "inner_input", ""},"fig_num",6,"phase","tfl");
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",7);
-app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[20 65]);
+% app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[20 65]);
 
 % % 刻み時間描画
 % dt = diff(app.logger.Data.t(1:find(app.logger.Data.phase==0,1,'first')-1));
