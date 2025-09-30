@@ -24,8 +24,8 @@ Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 % Setting.mode = SimBaseMode(3); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
-% Setting.mode = SimBaseMode(4); % SimMEC_K
-Setting.mode = ExpBaseMode(1); % ExpMEC_K
+Setting.mode = SimBaseMode(4); % SimMEC_K
+% Setting.mode = ExpBaseMode(1); % ExpMEC_K
 
 % Setting.mode = ExpBaseMode(5); % ExpHL
 

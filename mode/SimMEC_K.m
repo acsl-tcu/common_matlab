@@ -51,8 +51,8 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
-agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
+agent.controller.nominal=HLC(agent,Controller_HL(dt));
+agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
 function dfunc(app)
