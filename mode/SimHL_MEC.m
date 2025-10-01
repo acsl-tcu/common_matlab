@@ -49,12 +49,13 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 run("ExpBase");
 takeoff_zd = agent.reference.takeoff.zd; % だいたい1m
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"}); % circle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"}); % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"}); % hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0.2]},"HL"}); % saddle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}}); % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}}); % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5}); % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10}); % P2P
 
 agent.cha_allocation.reference = "time_varying";
 
@@ -85,7 +86,7 @@ fMEC = 0;
 % agent.controller.mec = DNNMEC(agent, "Step_6_DNNMEC_epoch_100000.onnx");
 
 
-agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_850000.onnx");
+agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
@@ -108,7 +109,7 @@ app.logger.plot({1, "controller.result.nominal_input", ""}, "phase",phase, "fig_
 if class(app.agent.controller.mec)=="DNNMEC_BEHIND",    app.logger.plot({1, "controller.result.mec_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS);
 elseif class(app.agent.controller.mec)=="DNNMEC",       app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",8, "Linewidth",LW, "Fontsize",FS); end
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
 % app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);
