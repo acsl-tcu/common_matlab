@@ -153,23 +153,28 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         function K_linear(obj)
             A = obj.koopman.A;
             B = obj.koopman.B;
-            Q_states = obj.weight.stagestate;
-            Q_lifted = eye(59-12) * 1e-3; 
-            Q = blkdiag(Q_states, Q_lifted);
-            R = obj.weight.input;
-            [K, ~, ~] = dlqr(A, B, Q, R);
+            C =obj.koopman.C;
+            n= size(A,1);
+            m = size(B,2);
+           
+            Q = obj.weight.stagestate;
+            R =obj.weight.input;
+            Q_lift = [eye(12),zeros(12,n-12)]' * Q *[eye(12),zeros(12,n-12)];
+            [K, ~, ~] = dlqr(A, B, Q_lift, R);
+            
             z_current = obj.state.current;
-            z_ref = zeros(size(z_current));
-            z_ref(1:12) = obj.state.ref(1:12, 1);
+            z_ref = obj.param.F(obj.state.ref(1:12,1));
             state_error = z_current - z_ref;
-            u_unconstrained = -K * state_error;
+            u_unconstrained = -K * state_error +obj.result.pre_u(:,1);
+            z_next_pred = A * z_current + B * u_unconstrained; 
+            x_next_pred = C * z_next_pred;
             u = max(obj.param.input_min, min(obj.param.input_max, u_unconstrained));
             obj.result.input = u; 
             obj.result.eflag = 1; 
             obj.input.pre_u = obj.result.input; 
             obj.result.pre_u = obj.input.pre_u;
             obj.result.K_lqr = K;
-            obj.result.bestcost = state_error' * Q * state_error + u' * R * u; 
+            obj.result.bestcost = state_error' * Q_lift * state_error + u' * R * u; 
         end
         function QP_MPC(obj)
             n = size(obj.state.current,1); % number of observables

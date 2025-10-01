@@ -42,12 +42,12 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     % Controller.weight.R = 0.01*diag([900; 100; 100; 3500]); % 入力
     % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
     %%　2025-07-30_exp_koseki_code00_randompp　用重み
-    Controller.weight.P = 10*diag([50;50;10]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 1*diag([10;10;10]);    %   10,20刻み  30;20;10
-    Controller.weight.V = 1*diag([15;15;20]); % 15良い気がする
-    Controller.weight.W = 1*diag([10;30;20]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = 10*diag([100; 80; 80; 80]); % 入力
-    Controller.weight.RP = 0*diag([1; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
+     Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 1*diag([80;80;80]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
+    Controller.weight.W = 1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = 1*diag([100; 100; 100; 80]); % 入力
+    Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験　hovering
     % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10

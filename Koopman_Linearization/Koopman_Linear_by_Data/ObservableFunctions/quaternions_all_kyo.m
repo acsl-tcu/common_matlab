@@ -109,6 +109,7 @@ kmec_qodt_z=[%I^-1wIwの項
              sin(Q2)*tan(Q1);
              ]; %12  総計59
 
-z = [common_z; kyo_z ;kudo_z;kmec_qodt_z]; % 00
+% z = [common_z; kyo_z ;kudo_z;kmec_qodt_z]; % 00
+z = [common_z; kyo_z];
 end
 
