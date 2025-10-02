@@ -649,6 +649,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                     end
                 end
                 lgd = legend(ax,plegend);
+                set(ax.Legend, 'FontSize',option.FontSize-4);
 
                 if ~fhold
                     hold(ax,"off");
