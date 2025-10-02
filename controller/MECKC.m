@@ -56,7 +56,7 @@ classdef MECKC < handle
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
 
-        obj.result.delta_u = 0;%unだけ確認したいとき
+        % obj.result.delta_u = 0;%unだけ確認したいとき
       obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu      
       result = obj.result;
     end
