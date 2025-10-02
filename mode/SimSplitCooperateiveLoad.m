@@ -33,7 +33,7 @@ initial_state(1).wi = repmat([0; 0; 0], N, 1);%紐の角速度
 initial_state(1).Oi = repmat([0; 0; 0], N, 1);%機体の角速度
 initial_state(1).a  = [0;0;0];%牽引物加速度，状態ではないが値を取得可能
 initial_state(1).dO = [0;0;0];%牽引物角加速度，状態ではないが値を取得可能
-
+%牽引物にあるのはp,v,O
 
 qtype = "zup"; % "eul":euler angle, "":euler parameter%元の論文がzdown
 if contains(qtype, "zup")
@@ -44,20 +44,7 @@ else
     pT_sgn              = 1;
 end
 
-
-% if contains(qtype, "eul")
-%     % オイラー角姿勢
-%     initial_state(1).q  = [0; 0; 0];                     % オイラー角 [roll; pitch; yaw]
-%     initial_state(1).Q  = Eul2Quat(initial_state(1).q);  % クォータニオン
-%     initial_state(1).Qi = repmat([0;0;0],N,1);           % 各機体の姿勢 (オイラー角)
-% else
-%     % クォータニオン姿勢を初期値として使うけど q(3x1) も保持する
-%     initial_state(1).Q  = Eul2Quat([0;0;0*pi/180]);      % クォータニオン
-%     initial_state(1).q  = Quat2Eul(initial_state(1).Q);  % オイラー角 (必ず追加)
-%     initial_state(1).Qi = repmat([0;0;0],N,1);           % 各機体の姿勢 (オイラー角)
-% end
-
-%droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？→解決
+%droneから引っ張って来たものだとSTATE_CLASSの"q"が認識されなくなる？→元の
 if contains(qtype, "eul")
     initial_state(1).Q  = [0; 0; 0];%牽引物の姿勢
     initial_state(1).Qi = repmat([0;0;0],N,1);%機体の姿勢
@@ -81,7 +68,10 @@ initial_state(1).qi = pT_sgn*reshape(pTpre./vecnorm(pTpre),[],1) ;%紐の初期�
 agent(1).plant      = MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype));%plantのモデルのクラスを設定
 
 %motiveとsensor.motiveの設定
-motive =Connector_Natnet_sim(dt, {1,"Q","p"});
+% motive =Connector_Natnet_sim(dt);
+motive = Connector_Natnet_sim(dt, {{1,"p","Q"},{2,"p","q"},{2,"pL","pT"},{3,"p","q"},{3,"pL","pT"},{4,"p","q"},{4,"pL","pT"},{5,"p","q"},{5,"pL","pT"}}); 
+%ドローンを追加するなら, {i,"p","q"},{i,"pL","pT"}で追加
+    motive.getData(agent);
 motive.getData(agent);
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
 
@@ -130,8 +120,6 @@ for i = 2:N+1
     agent(i).parameter  = DRONE_PARAM_SUSPENDED_LOAD("DIATONE","cableL",li,"mass",mi,"loadmass",0,"jx",jx,"jy",jy,"jz",jz);%単機牽引モデルのパラメータクラス設定（複数モデルの機体と同じパラメータに設定）
     agent(i).plant      = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i),1,agent(i)));%単機牽引モデルのプラントクラス設定id,dt,type,initial,varargin
 
-    motive =Connector_Natnet_sim(dt, {{i,"p","q"},{i,"pL","pT"}});
-    motive.getData(agent);
     motiveid=[2*(i-1),2*(i-1)+1]; %i=2,[2,3] i=3,[4,5] i=4,[6,7] i=5,[8,9]
     agent(i).sensor.motive=MOTIVE(agent(i),Sensor_Motive(motiveid ,0,motive));
 
