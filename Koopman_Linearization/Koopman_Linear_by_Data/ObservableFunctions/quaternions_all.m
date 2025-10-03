@@ -111,8 +111,8 @@ isobe_z = [W1*W2;
             W3*sin(Q1);
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
-            W2*sin(Q1)*tan(Q2);
-            W3*cos(Q1)*tan(Q2) %26番目
+            W2*sin(Q1)*sin(Q2)/cos(Q1);
+            W3*cos(Q1)*sin(Q2)/cos(Q1) %26番目
             ];
 
 %% KMEC観測量（テイラー展開の微分項）
