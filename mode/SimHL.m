@@ -13,9 +13,9 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) dfunc(app); % in progress plot
+% in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
+% motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 initial_state.p = arranged_position([0, 0], 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
@@ -44,11 +44,12 @@ agent.plant = MODEL_CLASS(agent,plant_model);
 % agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
 %===================================================================================================================================================
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"point_dt",5,"check",1,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
+% agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
+agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"point_dt",5,"check",1,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
 agent.controller.hl = HLC(agent,Controller_HL(dt));
-agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
+% agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
 %run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
@@ -56,7 +57,7 @@ agent.cha_allocation = struct("reference","time_varying", ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 motive.getData(agent);
 agent.cha_allocation.controller = "hl";
-agent.cha_allocation.f.controller = "delta";
+% agent.cha_allocation.f.controller = "delta";
 
 function dfunc(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes);
@@ -65,7 +66,7 @@ app.logger.plot({1, "q", "e"},"fig_num",3);
 app.logger.plot({1, "v", "er"},"fig_num",4);
 % app.logger.plot({1, "input", ""},"fig_num",5);
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",6);
-app.logger.plot({1, "controller.result.nominal", ""}, "fig_num",7);
-app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
+app.logger.plot({1, "controller.result.u_nominal", ""}, "fig_num",7);
+% app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8);
 
 end
