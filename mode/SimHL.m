@@ -33,9 +33,9 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(1) = 0.4; % ５％減->0.7125 ５％増->0.7875
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.2; % 
+% plant_model.param.param(1) = 0.4; % ５％減->0.7125 ５％増->0.7875
+plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.2; % 
 % plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
@@ -50,12 +50,12 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"point_dt",5,"check",1,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
 agent.controller.hl = HLC(agent,Controller_HL(dt));
 % agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
-%run("ExpBase");
+run("ExpBase");
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation = struct("reference","time_varying", ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
-motive.getData(agent);
+% motive.getData(agent);
 agent.cha_allocation.controller = "hl";
 % agent.cha_allocation.f.controller = "delta";
 
