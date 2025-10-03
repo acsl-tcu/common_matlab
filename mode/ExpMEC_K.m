@@ -34,8 +34,8 @@ agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントロ
 
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
-agent.cha_allocation.controller = "nominal";
-agent.cha_allocation.f.controller = "mec";
+% agent.cha_allocation.controller = "nominal";
+% agent.cha_allocation.f.controller = "mec";
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
