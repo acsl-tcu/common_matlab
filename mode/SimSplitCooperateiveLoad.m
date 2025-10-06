@@ -4,17 +4,14 @@
 %=====================
 % clc; clear; close all
 N = 4;%機体数
-ts = 0;
-dt = 0.025;
-te = 3;
-tn = length(ts:dt:te);
-time = TIME(ts, dt, te);
-in_prog_func = @(app) dfunc(app);
-post_func = @(app) dfunc(app);
-% motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
-% motive.getData(agent);
-% motive = Connector_Natnet_sim(1, dt, 0); % 3rd arg is a flag for noise (1 : active )
-logger = LOGGER(1:N+1, size(ts:dt:te, 2), 0, [], []);%分割前1,分割後N個
+ts = 0; % initial time
+dt = 0.025; % sampling period
+te = 50; % termina time
+tn = length(ts:dt:te);%mainloopで繰り返す回数
+time = TIME(ts,dt,te);
+in_prog_func = @(app) in_prog(app);
+post_func = @(app) post(app);
+logger = LOGGER(1:N+1, size(ts:dt:te, 2), 0, [], []); % target, number, fExp, items, agent_items, option
 
 %複数機牽引のplantモデルで使うファイル===========================================================
 % example       : CLASS NAME / function in sample folder
@@ -67,23 +64,8 @@ initial_state(1).qi = pT_sgn*reshape(pTpre./vecnorm(pTpre),[],1) ;%紐の初期�
 %agent の設定
 agent(1).plant      = MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype));%plantのモデルのクラスを設定
 
-%motiveとsensor.motiveの設定
-% motive =Connector_Natnet_sim(dt);
-motive = Connector_Natnet_sim(dt, {{1,"p","Q"},{2,"p","q"},{2,"pL","pT"},{3,"p","q"},{3,"pL","pT"},{4,"p","q"},{4,"pL","pT"},{5,"p","q"},{5,"pL","pT"}}); 
-%ドローンを追加するなら, {i,"p","q"},{i,"pL","pT"}で追加
-    motive.getData(agent);
-motive.getData(agent);
-agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
 
-% agent(1).sensor     = DIRECT_SENSOR(agent(1),0.0);%センサークラスを設定,plantの状態をそのまま取得．sensor to capture plant position : second arg is noise
-agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
-% agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
-agent(1).reference.timevarying  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定 こんな設定方法でよいのか？？？
-agent(1).controller = CSLC(agent(1), Controller_Cooperative_Load(dt, N));%コントローラのクラスを設定．単機牽引モデルで設計するので必要ない．
-
-%単機牽引モデルの設定
-for i = 2:N+1
-    %=DRONE==================================================================================================================
+%=DRONE==================================================================================================================
     % parameter     : DRONE_PARAM_SUSPENDED_LOAD
     % plant         : MODEL_CLASS / Model_Suspended_Load
     % sensor        : DIRECT_SENSOR
@@ -96,6 +78,7 @@ for i = 2:N+1
     %-牽引物質量や外乱などを推定しない： isEstLoadMass = 0
     %-牽引物質量や外乱などを推定する　： isEstLoadMass = 1
     %========================================================================================================================
+for i = 2:N+1
     %Drone_Initial_Stat
     rho     = agent(1).parameter.rho; %牽引物上の点から紐の接続点までの距離
     R_load  = RodriguesQuaternion(initial_state(1).Q);%牽引物座標からのグローバル座標への回転行列
@@ -110,7 +93,6 @@ for i = 2:N+1
     %Generate instance
     agent(i)            = DRONE;%機体のクラスの設定
     agent(i).id         = i;%単機牽引のインデックスはid = 2から
-
     % パラメータの設定
     li = agent(1).parameter.li(i-1);%紐の長さ
     mi = agent(1).parameter.mi(i-1);%機体質量
@@ -119,10 +101,24 @@ for i = 2:N+1
     jz = agent(1).parameter.Ji(3,i-1);%機体慣性モーメントzz
     agent(i).parameter  = DRONE_PARAM_SUSPENDED_LOAD("DIATONE","cableL",li,"mass",mi,"loadmass",0,"jx",jx,"jy",jy,"jz",jz);%単機牽引モデルのパラメータクラス設定（複数モデルの機体と同じパラメータに設定）
     agent(i).plant      = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i),1,agent(i)));%単機牽引モデルのプラントクラス設定id,dt,type,initial,varargin
+end
 
+
+%motiveとsensor.motiveの設定
+motive = Connector_Natnet_sim(dt, {{1,"p","Q"},{2,"p","q"},{2,"pL","pT"},{3,"p","q"},{3,"pL","pT"},{4,"p","q"},{4,"pL","pT"},{5,"p","q"},{5,"pL","pT"}}); %ドローンを追加するなら, {i,"p","q"},{i,"pL","pT"}で追加
+motive.getData(agent);
+agent(1).sensor = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
+
+% agent(1).sensor     = DIRECT_SENSOR(agent(1),0.0);%センサークラスを設定,plantの状態をそのまま取得．sensor to capture plant position : second arg is noise
+agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
+% agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
+agent(1).reference.timevarying  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定 こんな設定方法でよいのか？？？
+agent(1).controller = CSLC(agent(1), Controller_Cooperative_Load(dt, N));%コントローラのクラスを設定．単機牽引モデルで設計するので必要ない．
+
+%単機牽引モデルの設定
+for i = 2:N+1
     motiveid=[2*(i-1),2*(i-1)+1]; %i=2,[2,3] i=3,[4,5] i=4,[6,7] i=5,[8,9]
     agent(i).sensor.motive=MOTIVE(agent(i),Sensor_Motive(motiveid ,0,motive));
-
     % agent(i).sensor     = DIRECT_SENSOR(agent(i),0.0); %単機牽引モデルのクラス設定 sensor to capture plant position : second arg is noise
     % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
     agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),"Load_mL_HL")), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
@@ -135,9 +131,6 @@ for i = 2:N+1
         {"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
     % agent(i).reference  = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));%目標軌道のクラス設定
 end
-
-
-
 
 %疑問点===================================================================================
 % for i=2;N
@@ -159,13 +152,13 @@ noize_sp = normrnd(0,0.001,[3,tn])*1*0;%機体位置
 noize_sqDrone = 1*normrnd(0,0.0017,[3,tn])*1*0;%紐の接続点，degで0.1くらいの標準偏差
 clc
 
-for tc=1:tn
+for tc=1:tn   %=========================ここのtnを編集
     for i=1:N
         if i==1
             %複数機牽引
-            agent(1).sensor.do(time, 'f');
-            agent(1).estimator.do(time, 'f');
-            agent(1).reference.timevarying.do(time, 'f',agent(1));
+            agent(1).sensor.do(time, 'f'); %sensorのdoにあるflightフェーズの観測値を更新
+            agent(1).estimator.do(time, 'f'); %状態推定の更新
+            agent(1).reference.timevarying.do(time, 'f',agent(1)); %目標経路の生成
             agent(1).controller.result.Qeul = Quat2Eul(agent(1).estimator.result.state.Q);%牽引物の角度をquotからeulにするのみ使用
             input = zeros(4*N,1);
         else
@@ -173,7 +166,7 @@ for tc=1:tn
             sensor1 = agent(1).sensor.result.state;%複数機モデルから機体と接続点の位置を計測
             %分割前牽引物
             sp      = sensor1.p;
-            sR      = RodriguesQuaternion(sensor1.Q);%回転行列
+            sR      = RodriguesQuaternion(sensor1.q);%回転行列
             %分割後牽引物
             spL     = sp + sR*rho(:,i-1) + noize_sp(:,tc);%分割後の質量重心位置
             spT     = sensor1.qi(3*i-5:3*i-3,1);%分割後の紐の方向ベクトル
@@ -270,11 +263,6 @@ function y = sensor_func(self,dt,~)
     y = [p;q;pL;pT];
     end
 
-
-% %% movie
-% mov = DRAW_COOPERATIVE_DRONES(logger, "self", agent, "target", 1:4);
-% mov.animation(logger, 'target', 1:4, "gif",1,"lims",[-4 4;-4 4;0 7],"ntimes",5);%dataフォルダに保存される
-% % mov.animation(logger, 'target', 1:4,"lims",[-4 4;-4 4;0 7]*1,"ntimes",5);%保存されない
 %% function
 function dfunc(app)
 app.logger.plot({1, "p", "er"}, "ax", app.UIAxes, "xrange", [app.time.ts, app.time.t]);
