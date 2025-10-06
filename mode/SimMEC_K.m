@@ -32,8 +32,8 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.2; % 
+plant_model.param.param(6) = 0.19; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.19; % 
 % plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
@@ -51,10 +51,10 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
-% agent.controller.nominal=HLC(agent,Controller_HL(dt));
-% agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
-agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
+agent.controller.nominal=HLC(agent,Controller_HL(dt));
+agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
+% agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
+% agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
 function dfunc(app)
