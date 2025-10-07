@@ -86,7 +86,8 @@ fMEC = 0;
 % agent.controller.mec = DNNMEC(agent, "Step_6_DNNMEC_epoch_100000.onnx");
 
 
-agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
 
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
