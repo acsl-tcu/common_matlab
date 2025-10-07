@@ -151,7 +151,7 @@ for i=1:length(settings.target)
         saveas(fig, ['plot/fig/', erase(filename, '.mat'), char(settings.target(i))], 'epsc');
     end
 end
-
+disp_rmse(logger,settings.phase)
 %% function
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
@@ -224,5 +224,17 @@ switch target
             legend{4*i-1} = "$pitch$ " + att_map(chars(i));
             legend{4*i} = "$yaw$ " + att_map(chars(i));
         end
+end
+end
+
+function disp_rmse(logger, phase)
+target = ["p","v"];
+for i=1:length(target)
+    ref = logger.data(1,target(i),"r", "phase",phase);
+    data = logger.data(1,target(i),"e", "phase",phase);
+    RMSE = rmse(ref, data, 1);
+    fprintf('%s RMSE:\n', target(i))
+    disp(RMSE)
+    disp(sum(RMSE))
 end
 end
