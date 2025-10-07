@@ -24,20 +24,20 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
 % agent.input_transform.param.pitch_offset = 535;
 
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;1.1],"size",[1,1,0]},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.3],"size",[1,1,0]},"HL"});
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1.3],"radius",1.0},"HL"});
-% agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-% agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
-agent.controller.nominal=HLC(agent,Controller_HL(dt));
-agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
-agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 
 
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 % agent.cha_allocation.controller = "nominal";
 % agent.cha_allocation.f.controller = "mec";
+% agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
+% agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
+agent.controller.nominal=HLC(agent,Controller_HL(dt));
+agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
+agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);

@@ -23,7 +23,7 @@ classdef MECKC < handle
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p);
+      % disp(ref.state.p);
       x = [model.state.p(1);
              model.state.p(2);
              model.state.p(3);
@@ -56,7 +56,7 @@ classdef MECKC < handle
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
 
-        obj.result.delta_u = 0;%unだけ確認したいとき
+        % obj.result.delta_u = 0;%unだけ確認したいとき
       obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu      
       result = obj.result;
     end
