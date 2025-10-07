@@ -103,11 +103,15 @@ for i = 2:N+1
     agent(i).plant      = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i),1,agent(i)));%単機牽引モデルのプラントクラス設定id,dt,type,initial,varargin
 end
 
+%agent(1)の設定続き
 motive = Connector_Natnet_sim(dt, {{1,"p","Q"},{2,"p","q"},{2,"pL","pT"},{3,"p","q"},{3,"pL","pT"},{4,"p","q"},{4,"pL","pT"},{5,"p","q"},{5,"pL","pT"}}); 
-%ドローンを追加するなら, {i,"p","q"},{i,"pL","pT"}で追加
+%ドローンの台数を増やすなら, {i,"p","q"},{i,"pL","pT"}で追加
 motive.getData(agent);
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
-agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
+% agent(1).estimator  = DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))));%推定のクラスを設定，plantの状態をそのまま取得
+
+agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,...
+    MODEL_CLASS(agent(1),Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype)),["p", "Q", "Qi"]));%expの流用 質量推定有
 % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
 agent(1).reference.timevarying  = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",10,"orig",[0;0;2],"size",[2,2,1]},"Cooperative",N},agent(1));%目標軌道のクラスを設定 こんな設定方法でよいのか？？？
 agent(1).controller = CSLC(agent(1), Controller_Cooperative_Load(dt, N));%コントローラのクラスを設定．単機牽引モデルで設計するので必要ない．
@@ -116,8 +120,6 @@ agent(1).controller = CSLC(agent(1), Controller_Cooperative_Load(dt, N));%コン
 for i = 2:N+1
     motiveid=[2*(i-1),2*(i-1)+1]; %i=2,[2,3] i=3,[4,5] i=4,[6,7] i=5,[8,9]
     agent(i).sensor.motive=MOTIVE(agent(i),Sensor_Motive(motiveid ,0,motive));
-
-    % agent(i).sensor     = DIRECT_SENSOR(agent(i),0.0); %単機牽引モデルのクラス設定 sensor to capture plant position : second arg is noise
     % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
     agent(i).estimator  = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state(i), 1,agent(i),"Load_mL_HL")), ["p", "q", "pL", "pT"]));%単機牽引モデルの推定クラス設定（EKF）
     agent(i).controller = HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i)));%単機牽引モデルのコントローラクラス設定
