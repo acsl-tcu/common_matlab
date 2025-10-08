@@ -156,19 +156,20 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             C =obj.koopman.C;
             n= size(A,1);
             m = size(B,2);
-           
-            Q = obj.weight.stagestate;
-            R =obj.weight.input;
-            Q_lift = [eye(12),zeros(12,n-12)]' * Q *[eye(12),zeros(12,n-12)];
+            Q =obj.weight.stagestate;
+            R =1*obj.weight.input;
+            Q_lift = diag([diag(Q); ones(n - 12, 1)]);
+            % Q_lift = [eye(12), zeros(12, n - 12)]' * Q * [eye(12), zeros(12, n - 12)];
             [K, ~, ~] = dlqr(A, B, Q_lift, R);
             
             z_current = obj.state.current;
-            z_ref = obj.param.F(obj.state.ref(1:12,1));
+            z_ref = obj.param.F(obj.state.ref(1:16,1));
             state_error = z_current - z_ref;
             u_unconstrained = -K * state_error +obj.result.pre_u(:,1);
             z_next_pred = A * z_current + B * u_unconstrained; 
             x_next_pred = C * z_next_pred;
-            u = max(obj.param.input_min, min(obj.param.input_max, u_unconstrained));
+             u = max(obj.param.input_min, min(obj.param.input_max, u_unconstrained));
+             % u= u_unconstrained;
             obj.result.input = u; 
             obj.result.eflag = 1; 
             obj.input.pre_u = obj.result.input; 

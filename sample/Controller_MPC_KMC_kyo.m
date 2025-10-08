@@ -34,20 +34,20 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
    
-    %% 2025-07-15_Exp_Kyo_code00_randompp2 model 用重み
-    % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
-    % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
-    % Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
-    % Controller.weight.W = 0.1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
-    % Controller.weight.R = 0.01*diag([900; 100; 100; 3500]); % 入力
-    % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
+    %% 
+    Controller.weight.P = 1*diag([100;500;1200]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = diag([100;100;100]); % 15良い気がする
+    Controller.weight.W = diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = diag([100; 100; 100; 100]); % 入力
+    Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
     %%　2025-07-30_exp_koseki_code00_randompp　用重み
-     Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 1*diag([80;80;80]);    % 速度  10,20刻み  30;20;10
-    Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
-    Controller.weight.W = 1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = 1*diag([100; 100; 100; 80]); % 入力
-    Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
+    % Controller.weight.P = diag([500;500;200]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
+    % Controller.weight.V = diag([50;50;100]); % 15良い気がする
+    % Controller.weight.W = diag([1;1;0]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = diag([1; 1; 1; 1000]); % 入力
+    % Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験　hovering
     % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
