@@ -180,7 +180,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         function QP_MPC(obj)
             n = size(obj.state.current,1); % number of observables
             %qp def
-            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
+            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,1*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
             R = kron(eye(obj.param.H),obj.weight.input);
             RP = kron(eye(obj.param.H),obj.weight.preinputdif);
             Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
@@ -188,12 +188,12 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
             %qp
             A = []; b = [];
-            Aeq = zeros(obj.param.H, 4*obj.param.H);
-            for i = 1:obj.param.H
-                Aeq(i, 4*i) = 1; 
-            end
-            beq = zeros(obj.param.H, 1);
-             % Aeq = []; beq = [];
+            % Aeq = zeros(obj.param.H, 4*obj.param.H);
+            % for i = 1:obj.param.H
+            %     Aeq(i, 4*i) = 1; 
+            % end
+            % beq = zeros(obj.param.H, 1);
+             Aeq = []; beq = [];
             lb = repmat(obj.param.input_min,1,obj.param.H);
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
