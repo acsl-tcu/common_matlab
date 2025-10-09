@@ -27,9 +27,9 @@ Controller.F4=lqrd([0 1;0 0],[0;1],diag([300,10]),[0.1],dt);                    
 % modeファイルとファイル名をそろえる
 % load("without_w1.mat",'est'); 
 % load("koopman_model_first.mat",'est');
-load("koopman_common_z_.mat");
+% load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
-Controller.est = est;
+% Controller.est = est;
 
 % 設定確認
 Controller.dt = dt;

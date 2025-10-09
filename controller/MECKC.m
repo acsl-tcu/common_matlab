@@ -21,9 +21,6 @@ classdef MECKC < handle
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
-      ref = obj.self.reference.result;
-      xd = ref.state.xd;
-      % disp(ref.state.p);
       x = [model.state.p(1);
              model.state.p(2);
              model.state.p(3);
@@ -36,19 +33,16 @@ classdef MECKC < handle
              model.state.w(1);
              model.state.w(2);
              model.state.w(3);];
-      if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") &&(numel(varargin{3}.Data.agent.estimator.result) >= 2)% ループの最初はLoggingされていなくて，参照できないのを回避
+        if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") &&(numel(varargin{3}.Data.agent.estimator.result) >= 2)% ループの最初はLoggingされていなくて，参照できないのを回避
                 obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{:,end-1}.state.get; % LOGGERの中から前時刻の状態を取得
         end
         dt = varargin{1}.dt;
         dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
         x_n_now = obj.x_pre + dx*dt;%x_nominal[k+1]
-        delta_x = x-x_n_now;
+        % delta_x = x-x_n_now;
         z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
         z_n=quaternions_all(x_n_now);%ノミナルの状態
-        A = obj.param.est.A;%クープマンモデルのA,B,C
-        B = obj.param.est.B;
-        C = obj.param.est.C;
         
         %---可制御部分をデカップリング---%
         load('kalman_gain.mat','K_full');

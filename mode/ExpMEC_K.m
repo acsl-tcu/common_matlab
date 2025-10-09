@@ -37,7 +37,7 @@ agent.cha_allocation.reference = "timevarying";
 % agent.controller.nominal=FUNCTIONAL_HLC(agent,Controller_FHL(dt));
 % agent.controller.mec=FUNCTIONAL_MECKC(agent,Controller_FHLMECK(dt));
 agent.controller.nominal=HLC(agent,Controller_HL(dt));
-agent.controller.mec=MECKC(agent,Controller_HLKMEC(dt));
+agent.controller.mec=MECKC(agent,Controller_HL(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
