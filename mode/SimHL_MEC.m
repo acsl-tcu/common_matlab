@@ -37,13 +37,15 @@ agent.plant = MODEL_CLASS(agent, plant);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.2; % 同上
+% agent.plant.param(1) = 0.7125;
+% agent.plant.param(6) = 0.18; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+% agent.plant.param(7) = 0.18; % 同上
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
-agent.plant.param(4) = 0.06;
+% agent.plant.param(4) = 0.075;
+% agent.plant.param(10) = 0.003;
 %===================================================================================================================================================
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-if contains(func2str(agent.plant.method), 'force') % 上書き
+if contains(func2str(agent.plant.method), 'force') % 'thrust_force modelを使っている場合に上書き
     EKF_model               = Model_EulerAngle(dt, initial_state, 1);
     EKF_model.param.method  = "roll_pitch_yaw_thrust_force_physical_parameter_model";
     agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,EKF_model),["p", "q"]));
@@ -54,52 +56,31 @@ run("ExpBase");
 takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"}); % circle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"}); % hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"}); % saddle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}}); % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"});                       % center hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0.5;0.5;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
-%                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5}); % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10}); % P2P
+%                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10});                                       % P2P
 
 agent.cha_allocation.reference = "time_varying";
 
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7.onnx"); % 中間報告会でメイン使用したもの
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_20000_0.0005_0.01_0.01_0.7.onnx");
-
-% この重みの方が直感的に分かりやすい気がする
-fMEC = 0;
-% fMEC = 1;
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.001_0.01_0.01_0.1.onnx",fMEC); % 100万epoch
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_20000_0.001_0.01_0.01_0.1.onnx",fMEC); % 2万epoch（中間報告書に記載）
-
-
-% % ↓2025/08/25 お試し
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8.onnx");
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_900000_0.00001_0.01_0.01_0.8.onnx");
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_epoch_800000_0.00001_0.01_0.01_0.8.onnx");
-%        ↑↑↑ thrust過剰? Flightフェーズになると始めだけ暴れる．そのあとは収束
-% agent.controller.mec = DNNMEC_BEHIND(agent, "DNNMEC_epoch_330000_0.00001_0.01_0.01_0.8.onnx");
-
-
-% % 2025/09/18 Step数変更
-% agent.controller.mec = DNNMEC(agent, "Step_1_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Step_2_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Step_3_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Step_5_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Step_6_DNNMEC_epoch_100000.onnx");
-
-
-% agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-% agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
 if contains(func2str(agent.plant.method), 'force')
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Step_4_DNNMEC_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
     agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
+else
+    % agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
+    agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
 end
 
-agent.controller.nominal = HLC(agent,Controller_HL(dt));
-if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt)); end
+if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
+else                                              , agent.controller.nominal = HLC(agent,Controller_HL(dt)); end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)

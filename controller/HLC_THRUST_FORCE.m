@@ -15,13 +15,14 @@ classdef HLC_THRUST_FORCE < handle
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(self.estimator.model.dim(2),1);
       [obj.torque2thrusts_matrix, ~] = input_transform_thrust_torque2thrust_force(obj.self.parameter);
+      disp('input = [T1; T2; T3; T4]')
     end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      % disp(ref.state.p');
+      disp(ref.state.p');
       % % % disp(model.state.p')
       % % % disp(xd(1:3)')
       xd0 =xd;
@@ -57,8 +58,12 @@ classdef HLC_THRUST_FORCE < handle
       % % % fprintf('\n')
       % max,min are applied for the safty
       obj.result.before_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))]; % [Thrust; roll; pitch; yaw]
-      obj.result.input = obj.torque2thrusts_matrix*obj.result.before_input; % [T1; T2; T3; T4]
-      disp(obj.result.before_input')
+      tmp_input = obj.torque2thrusts_matrix*obj.result.before_input; % [T1; T2; T3; T4]
+
+      % thrusts_coef = [1; 1; 1; 1];        % モデル誤差無し
+      thrusts_coef = [0.9; 0.9; 1; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
+      obj.result.input = tmp_input.*thrusts_coef;
+      % disp(obj.result.before_input')
       result = obj.result;
     end
   end

@@ -55,6 +55,7 @@ classdef DNNMEC_THRUST_FORCE < handle
             [obj.torque2thrusts_matrix, obj.thrusts2torque_matrix] = input_transform_thrust_torque2thrust_force(obj.self.parameter);
             fprintf('Model file name: %s\n', obj.DNN_model_filename);
             disp('obj.result.delta_inputを表示します')
+            disp('input = [T1; T2; T3; T4]')
         end
         
         function result = do(obj, varargin)
@@ -83,10 +84,13 @@ classdef DNNMEC_THRUST_FORCE < handle
             if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
-            % obj.result.delta_input = [0;0;0;0];
+            obj.result.delta_input = [0;0;0;0]; % Δu = 0にしたい場合に使用
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存 thrust force
-            obj.result.input = obj.result.nominal_input + obj.torque2thrusts_matrix*obj.result.delta_input; % thrust forceに変換
+            tmp_input = obj.result.nominal_input + obj.torque2thrusts_matrix*obj.result.delta_input; % thrust forceに変換
+            thrusts_coef = [1; 1; 1; 1];        % モデル誤差無し
+            % thrusts_coef = [0.9; 0.9; 1; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
+            obj.result.input = tmp_input.*thrusts_coef;
             result = obj.result;
             disp(obj.result.delta_input')
         end
