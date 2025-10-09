@@ -34,12 +34,19 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
    
-    %% 
-    Controller.weight.P = 1*diag([100;300;500]);    % 位置　10,20刻み  20;1;30
+    %% sim用　重み
+    % Controller.weight.P = 1*diag([100;300;500]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
+    % Controller.weight.V = diag([100;100;100]); % 15良い気がする
+    % Controller.weight.W = diag([1;1;1]);  % 姿勢角，角速度　1,2刻み 
+    % Controller.weight.R = diag([100; 100; 100; 100]); % 入力
+    % Controller.weight.RP = 0*diag([100; 100; 100; 100]);  % 1ステップ前の入力との差    0*(無効化)
+    %%　実験用　重み
+    Controller.weight.P = 1.3*diag([300;300;500]);    % 位置　10,20刻み  20;1;30
     Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
     Controller.weight.V = diag([100;100;100]); % 15良い気がする
     Controller.weight.W = diag([1;1;1]);  % 姿勢角，角速度　1,2刻み 
-    Controller.weight.R = diag([100; 100; 100; 100]); % 入力
+    Controller.weight.R = diag([100; 150; 150; 100]); % 入力
     Controller.weight.RP = 0*diag([100; 100; 100; 100]);  % 1ステップ前の入力との差    0*(無効化)
     %%　2025-07-30_exp_koseki_code00_randompp　用重み
     % Controller.weight.P = diag([500;500;200]);    % 位置　10,20刻み  20;1;30
