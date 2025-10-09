@@ -24,10 +24,10 @@ agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
 % agent.input_transform.param.pitch_offset = 535;
 
-% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.3],"size",[1,1,0]},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.3],"size",[1,1,0]},"HL"});
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1.3],"radius",1.0},"HL"});
-agent.reference.timevarying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1.3], "g", [1;1;1.3], "h",[0;0;1.3]), 15}); % P2P
+% agent.reference.timevarying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1.3], "g", [1;1;1.3], "h",[0;0;1.3]), 15}); % P2P
 
 
 run("ExpBase");
