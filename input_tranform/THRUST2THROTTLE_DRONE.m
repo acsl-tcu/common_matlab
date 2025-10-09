@@ -30,6 +30,13 @@ methods
     end
 
     function u = do(obj, varargin)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        persistent prev_dwh
+            if isempty(prev_dwh)
+                prev_dwh=zeros(3,1);
+            end
+            alpha=0.1;
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% u = [uroll, upitch, uthr, uyaw]
         % [Input] varargin : time, cha, logger, env, agent, i
 
@@ -53,6 +60,13 @@ methods
             %     gain = obj.param.gain_tl;
             %     th_offset = obj.param.th_offset_tl;
             % end
+    
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            dwh=whn-wh;
+            dwh=alpha*dwh+(1-alpha)*prev_dwh;
+            prev_dwh=dwh;
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
             T_thr = input(1); % thrust, torque input 
 
             uroll = gain(1) * (whn(1) - wh(1));

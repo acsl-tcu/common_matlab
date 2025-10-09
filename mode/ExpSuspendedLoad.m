@@ -86,7 +86,7 @@ y = [p;q;pL;pT];
 end
 
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,...
-    {"gen_ref_saddle",{"freq",12,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
+    {"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
 % agent.controller.hl = HLC(agent,Controller_HL(dt));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
