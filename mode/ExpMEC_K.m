@@ -52,16 +52,22 @@ app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",7);
 app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[20 65]);
 
 % % 刻み時間描画
-% dt = diff(app.logger.Data.t(1:find(app.logger.Data.phase==0,1,'first')-1));
-% t = app.logger.data(0,'t');
-% figure(100)
-% plot(t(1:end-1),dt);
-% hold on
-% yline(0.025,"LineWidth",0.5)
-% ylim([0 0.05])
-% hold off
-% grid on
-% legend("dt","upper limit")
+ t0id = find(app.logger.Data.phase==97,1,'last')+1;
+teid = find(app.logger.Data.phase==0,1,'first')-1;
+dt = diff(app.logger.Data.t(t0id:teid));
+t = app.logger.Data.t(t0id:teid-1);
+figure(100)
+ax = gca;
+[t,dt];
+plot(t,dt);
+hold on
+yline(0.025)
+hold off
+grid on
+legend("dt","25 ms")
+% set(ax.XAxis, fontsize=FS-2)
+% set(ax.YAxis, fontsize=FS-2)
+% set(ax.Legend, 'FontSize',FS-4);
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
