@@ -60,8 +60,9 @@ classdef HLC_THRUST_FORCE < handle
       obj.result.before_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))]; % [Thrust; roll; pitch; yaw]
       tmp_input = obj.torque2thrusts_matrix*obj.result.before_input; % [T1; T2; T3; T4]
 
-      % thrusts_coef = [1; 1; 1; 1];        % モデル誤差無し
-      thrusts_coef = [0.9; 0.9; 1; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
+      thrusts_coef = [1; 1; 1; 1];        % モデル誤差無し
+      % thrusts_coef = [0.9; 0.9; 1; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
+      % thrusts_coef = [1; 1; 0.9; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
       obj.result.input = tmp_input.*thrusts_coef;
       % disp(obj.result.before_input')
       result = obj.result;

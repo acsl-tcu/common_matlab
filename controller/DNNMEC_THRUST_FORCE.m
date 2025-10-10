@@ -84,7 +84,7 @@ classdef DNNMEC_THRUST_FORCE < handle
             if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
-            obj.result.delta_input = [0;0;0;0]; % Δu = 0にしたい場合に使用
+            % obj.result.delta_input = [0;0;0;0]; % Δu = 0にしたい場合に使用
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存 thrust force
             tmp_input = obj.result.nominal_input + obj.torque2thrusts_matrix*obj.result.delta_input; % thrust forceに変換
