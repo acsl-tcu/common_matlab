@@ -38,11 +38,15 @@ agent.plant = MODEL_CLASS(agent, plant);
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-% agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.2; % 同上
-% agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
-% agent.plant.param(4) = 0.06;
+agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
+% agent.plant.param(1) = 0.7125;
+agent.plant.param(4) = 0.07;
+agent.plant.param(5) = 0.07;
+agent.plant.param(6) = 0.22; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+agent.plant.param(7) = 0.22; % 同上
+% agent.plant.param(10:13) = 0.003;
+% agent.plant.param(10) = 0.0301*0.3;
+% agent.plant.param(13) = 0.0301*0.3;
 %===================================================================================================================================================
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 if contains(func2str(agent.plant.method), 'force')
@@ -61,10 +65,10 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0.5;0.5;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",3, "ManualSetting",0, "check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
-agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5});                                       % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
 
 agent.cha_allocation.reference = "time_varying";
 motive.getData(agent);

@@ -6,8 +6,9 @@ phase = 'f';
 
 folder_path = 'Data/Sim_data/'; % 参照したいデータが保存されているフォルダのパス
 learning_folder = 'Data/Learning_data/'; % 学習データ保存用フォルダのパス
-if ~exist(learning_folder, "dir"), mkdir(learning_folder); end
 
+
+if ~isfolder(learning_folder), mkdir(learning_folder); end
 matfiles = dir(fullfile(folder_path, '*.mat'));
 file_names = {matfiles.name};
 variables = ["input", "p", "q", "v", "w"];
@@ -31,4 +32,5 @@ for i=1:length(file_names)
     save(fullfile(learning_folder, file_names{i}), "input", "p", "q", "v", "w")
 end
 
+disp('The end of generating data for machine learning')
 logger.plot({1,"p","e"}, "fig_num",1, "phase",phase) % for check

@@ -62,11 +62,11 @@ classdef DNNMEC_THRUST_FORCE < handle
             %-%-%-% ノミナル状態更新 ※状態更新の手法は学習時のものと合わせる %-%-%-%
             if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator")... % ループの最初はLoggingされていなくて，参照できないのを回避
             && length(varargin{3}.Data.agent.estimator.result)>=2
-                obj.pre_input = obj.thrusts2torque_matrix*varargin{3}.Data.agent.controller.result{end}.input; % torqueに変換
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERから前時刻の入力を取得
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERから前時刻の状態を取得
             end
             dt = varargin{1}.dt;
-            dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param);
+            dx = roll_pitch_yaw_thrust_force_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param);
             x_nominal = obj.x_pre + dx*dt;
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
             obj.result.nominal_p = x_nominal(1:3);
