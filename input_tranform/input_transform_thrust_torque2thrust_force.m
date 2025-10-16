@@ -17,6 +17,9 @@ arguments
     parameter % paremeter class
 end
 
+jx = parameter.jx;
+jy = parameter.jy;
+jz = parameter.jz;
 Lx = parameter.Lx;
 Ly = parameter.Ly;
 lx = parameter.lx;
@@ -26,9 +29,13 @@ km2 = parameter.km2;
 km3 = parameter.km3;
 km4 = parameter.km4;
 
-thrusts2torque_matrix =   [[              1,                      1,                     1,                      1]
-                            [-(2^(1/2)*ly)/2,        -(2^(1/2)*ly)/2, (2^(1/2)*(Ly - ly))/2,  (2^(1/2)*(Ly - ly))/2]
-                            [ (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2,        (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2]
-                            [            km1,                   -km2,                  -km3,                    km4]];
+% thrusts2torque_matrix =   [[              1,                      1,                     1,                      1]
+%                             [-(2^(1/2)*ly)/2,        -(2^(1/2)*ly)/2, (2^(1/2)*(Ly - ly))/2,  (2^(1/2)*(Ly - ly))/2]
+%                             [ (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2,        (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2]
+%                             [            km1,                   -km2,                  -km3,                    km4]];
+thrusts2torque_matrix =   [ [                   1,                           1,                          1,                           1]
+                            [-(2^(1/2)*ly)/(2*jx),        -(2^(1/2)*ly)/(2*jx), (2^(1/2)*(Ly - ly))/(2*jx),  (2^(1/2)*(Ly - ly))/(2*jx)]
+                            [ (2^(1/2)*lx)/(2*jy), -(2^(1/2)*(Lx - lx))/(2*jy),        (2^(1/2)*lx)/(2*jy), -(2^(1/2)*(Lx - lx))/(2*jy)]
+                            [              km1/jz,                     -km2/jz,                    -km3/jz,                      km4/jz]];
 torque2thrusts_matrix = inv(thrusts2torque_matrix);
 end
