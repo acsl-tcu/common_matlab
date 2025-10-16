@@ -25,9 +25,10 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
-agent.parameter.parameter(6) = 0.0124;
-agent.parameter.parameter(7) = 0.0130;
-agent.parameter.parameter(8) = 0.0237;
+agent.parameter.parameter(6:8) = 0.02;
+% agent.parameter.parameter(6) = 0.0124;
+% agent.parameter.parameter(7) = 0.0130;
+% agent.parameter.parameter(8) = 0.0237;
 
 % プラントモデル定義 ================================================================================================================================
 plant = Model_Quat13(dt, initial_state, 1);
@@ -64,8 +65,8 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"});                       % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0.5;0.5;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",3, "ManualSetting",0, "check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
@@ -77,7 +78,7 @@ motive.getData(agent);
 
 function dfunc(app)
 LW = 1.5; % Linewidth 
-FS = 20; % Fontsize
+FS = 16; % Fontsize
 phase = "tfl";
 % phase = "f";
 % phase = "t";
