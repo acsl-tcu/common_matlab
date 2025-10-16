@@ -52,9 +52,9 @@ ftitle = 0; % defalt=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+settings.target = ["p", "q", "v", "w", "input", "p1-p2"];
 % settings.target = ["p", "input", "p1-p2"];
-settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2-p3"];
+% settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = "input";
 % settings.target = ["q", "w"];
@@ -72,13 +72,10 @@ settings.fontsize = 18;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig\';  % default
-% settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\model_error\';
-% settings.savefolder = 'C:\Users\hiyou\Github\Research_report\thesis\fig\simulation\DNNMEC\';
+settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.07_DNNMEC_5~with load\6_fig\";
 
 % settings.savename = 0; %default
-% settings.savename = '2-1_HL_only';
-% settings.savename = '2-2_HL_DNNMEC_epoch_1000000_0.00001_0.01_0.01_0.8';
-settings.savename = '2-3_HL_DNNMEC_epoch_1000000_0.0005_0.01_0.01_0.7';
+settings.savename = '6_DNNMEC_circle_with_load';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -157,14 +154,18 @@ for i=1:length(settings.target)
         case "p1-p2"
             set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            data = logger.data(1,"p","e","phase",settings.phase);
+            est_data = logger.data(1,"p","e","phase",settings.phase);
+            ref_data = logger.data(1,"p","r","phase",settings.phase);
+            data = [est_data;ref_data];
             xlim([min(data(:,1)) max(data(:,1))])
             ylim([min(data(:,2)) max(data(:,2))])
         case "p1-p2-p3"
             set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
             set(ax.ZLabel, 'String', zlabel, 'Interpreter','latex')
-            data = logger.data(1,"p","e","phase",settings.phase);
+            est_data = logger.data(1,"p","e","phase",settings.phase);
+            ref_data = logger.data(1,"p","r","phase",settings.phase);
+            data = [est_data;ref_data];
             xlim([min(data(:,1)) max(data(:,1))])
             ylim([min(data(:,2)) max(data(:,2))])
             zlim([min(data(:,3)) max(data(:,3))])
@@ -176,6 +177,20 @@ for i=1:length(settings.target)
             y_min=0;
             y_max=0;
             for j=1:size(data,2)
+                if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+            end
+            ylim([y_min y_max])
+        case "p"
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+            legend = set_legend(settings.target(i), chars);
+            set(ax.Legend, 'String', legend, 'Interpreter','latex');
+            est_data = logger.data(1,settings.target(i),"e","phase",settings.phase);
+            ref_data = logger.data(1,settings.target(i),"r","phase",settings.phase);
+            data = [est_data;ref_data];
+            y_min=0;
+            y_max=0;
+            for j=1:size(est_data,2)
                 if y_min>min(data(:,j)), y_min=min(data(:,j)); end
                 if y_max<max(data(:,j)), y_max=max(data(:,j)); end
             end
@@ -203,17 +218,17 @@ for i=1:length(settings.target)
     end
     if settings.savename==1
         if fsave == 1, savefig([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
-        elseif fsave == 2, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png']);
-        elseif fsave == 3, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg']);
-        elseif fsave == 4, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf']);
-        elseif fsave == 5, saveas(fig, [settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
+        elseif fsave == 2, saveas(fig, strjoin([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png'],''));
+        elseif fsave == 3, saveas(fig, strjoin([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg'],''));
+        elseif fsave == 4, saveas(fig, strjoin([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf'],''));
+        elseif fsave == 5, saveas(fig, strjoin([settings.savefolder, erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'],''),'epsc2');
         end
     else
         if fsave == 1, savefig([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.fig']);
-        elseif fsave == 2, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.png']);
-        elseif fsave == 3, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg']);
-        elseif fsave == 4, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf']);
-        elseif fsave == 5, saveas(fig, [settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'],'epsc2');
+        elseif fsave == 2, saveas(fig, strjoin([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.png'],''));
+        elseif fsave == 3, saveas(fig, strjoin([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg'],''));
+        elseif fsave == 4, saveas(fig, strjoin([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf'],''));
+        elseif fsave == 5, saveas(fig, strjoin([settings.savefolder, settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'],''),'epsc2');
         end
     end
 end

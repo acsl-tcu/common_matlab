@@ -36,12 +36,12 @@ agent.plant = MODEL_CLASS(agent, plant);
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-% agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
+agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7125;
-% agent.plant.param(6) = 0.18; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.18; % 同上
+% agent.plant.param(6) = 0.16; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+% agent.plant.param(7) = 0.16; % 同上
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
-% agent.plant.param(4) = 0.07;
+agent.plant.param(4) = 0.07;
 % agent.plant.param(10) = 0.003;
 %===================================================================================================================================================
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
@@ -74,12 +74,14 @@ if contains(func2str(agent.plant.method), 'force')
     % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
     agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_No_coef_DNNMEC_epoch_50000.onnx");
 else
     % agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-    agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
+    agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_50000.onnx");
 end
 
 if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
