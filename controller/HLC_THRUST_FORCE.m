@@ -5,7 +5,6 @@ classdef HLC_THRUST_FORCE < handle
     result
     param
     parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
-    torque2thrusts_matrix % input transform matrix [Thrust;roll;pitch;yaw] -> [T1;T2;T3;T4]
   end
 
   methods
@@ -13,8 +12,7 @@ classdef HLC_THRUST_FORCE < handle
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
-      [obj.torque2thrusts_matrix, ~] = input_transform_thrust_torque2thrust_force(obj.self.parameter);
+      obj.result.input = zeros(self.estimator.model.dim(2),1); % each rotor thrust [T1;T2;T3;T4]
       disp('input = [T1; T2; T3; T4]')
     end
 
@@ -46,25 +44,24 @@ classdef HLC_THRUST_FORCE < handle
       %if isfield(obj.param,'dt')
       if isfield(varargin{1},'dt') && varargin{1}.dt <= obj.param.dt
         dt = varargin{1}.dt;
-         vf = Vfd(dt,x,xd',P,F1);
-        vs = Vsd(dt,x,xd',vf,P,F2,F3,F4);
+         vf = thrust_force_Vfd(dt,x,xd',P,F1);
+        vs = thrust_force_Vsd(dt,x,xd',vf,P,F2,F3,F4);
       else
-        vf = Vf(x,xd',P,F1);
-        vs = Vs(x,xd',vf,P,F2,F3,F4);
+        vf = thrust_force_Vf(x,xd',P,F1);
+        vs = thrust_force_Vs(x,xd',vf,P,F2,F3,F4);
       end
       %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
-      tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
+      tmp = thrust_force_Uf(x,xd',vf,P) + thrust_force_Us(x,xd',vf,vs',P);
       % % % disp(tmp') %実入力を表示 thrust, roll, pitch, yaw
       % % % fprintf('\n')
       % max,min are applied for the safty
-      obj.result.before_input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))]; % [Thrust; roll; pitch; yaw]
-      tmp_input = obj.torque2thrusts_matrix*obj.result.before_input; % [T1; T2; T3; T4]
+      tmp_input = [max(0,min(3,tmp(1)));max(0,min(3,tmp(2)));max(0,min(3,tmp(3)));max(0,min(3,tmp(4)))];
 
       thrusts_coef = [1; 1; 1; 1];        % モデル誤差無し
       % thrusts_coef = [0.9; 0.9; 1; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
       % thrusts_coef = [1; 1; 0.9; 1];    % 各ロータ推力に掛ける係数＝モデル誤差の表現
       obj.result.input = tmp_input.*thrusts_coef;
-      % disp(obj.result.before_input')
+      % disp(obj.result.input')
       result = obj.result;
     end
   end

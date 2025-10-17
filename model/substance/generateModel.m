@@ -36,27 +36,27 @@ T = [T1; T2; T3; T4]; %Input
 % beta flight のdefault の場合
 % T1 : 右後，T2：右前，T3：左後，T4：左前
 % T2, T3 の回転方向は軸 zb,  T1, T4 : -zb      [1,0,0,1] で 正のyaw回転
-% tau = [(Ly - ly)*(T3+T4)-ly*(T1+T2); lx*(T1+T3)-(Lx-lx)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
+tau = [(Ly - ly)*(T3+T4)-ly*(T1+T2); lx*(T1+T3)-(Lx-lx)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
 %tau = [(Lx - lx)*(T3+T4)-lx*(T1+T2); ly*(T1+T3)-(Ly-ly)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
 %tau = [sqrt(2)*l*(T3+T4-T1-T2)/2; sqrt(2)*l*(T1+T3-T2-T4)/2; km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
-% IT=inv([1, 1, 1, 1;simplify(mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),tau,'UniformOutput',false)),1:3,1:4))])
+IT=inv([1, 1, 1, 1;simplify(mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),tau,'UniformOutput',false)),1:3,1:4))])
 % [1, 1, 1, 1;simplify(mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),tau,'UniformOutput',false)),1:3,1:4))]
 %% Translational model
 
 ddpf = [0; 0; -gravity];
-%ddpg = Rb0*[0;0;(T1+T2+T3+T4)/m];
-%ddpG = simplify(Mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),ddpg,'UniformOutput',false)),1:3,1:4));%*IT;
-ddpg = Rb0 * [0; 0; u1 / m]; % u1 = total thrust
-ddpG = [Rb0 * [0; 0; 1 / m], zeros(3)];
+ddpg = Rb0*[0;0;(T1+T2+T3+T4)/m];
+ddpG = simplify(Mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),ddpg,'UniformOutput',false)),1:3,1:4));%*IT;
+% ddpg = Rb0 * [0; 0; u1 / m]; % u1 = total thrust
+% ddpG = [Rb0 * [0; 0; 1 / m], zeros(3)];
 % ddpg=ddpG*T
 %% Rotational model
 Ib = diag([jx, jy, jz]);
 dq = L' * ob / 2;
-%T2T = simplify(Mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),tau,'UniformOutput',false)),1:3,1:4));
+T2T = simplify(Mtake(cell2sym(arrayfun(@(A) fliplr(coeffs(A, T)),tau,'UniformOutput',false)),1:3,1:4));
 %simplify(tau - T2T*T)
 dobf = inv(Ib) * (-Skew(ob) * Ib * ob);
-%dobg = simplify(inv(Ib)*T2T);
-dobg = simplify([zeros(3, 1), inv(Ib)]);
+dobg = simplify(inv(Ib)*T2T);
+% dobg = simplify([zeros(3, 1), inv(Ib)]);
 %% SS equation
 % % Usage: dx=f+g*u
 x = [q; p; dp; ob]; % 13 states
@@ -71,13 +71,15 @@ g = [zeros(4, 4); zeros(3, 4); ddpG; dobg];
 % rank([Bc,Ac*Bc,Ac*Ac*Bc])
 %% Make function of the quadrotor model : if model is modified, then evaluate this section.
 clc
-matlabFunction(f, 'file', 'F.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxf'});
-matlabFunction(g, 'file', 'G.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxg'});
+% matlabFunction(f, 'file', 'F.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxf'});
+% matlabFunction(g, 'file', 'G.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxg'});
+matlabFunction(f, 'file', 'F_thrust_force.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxf'});
+matlabFunction(g, 'file', 'G_thrust_force.m', 'vars', {x cell2sym(physicalParam)}, 'outputs', {'dxg'});
 %%
 %nonlinearModel = subs(f+g*[u1;u2;u3;u4], physicalParam, physicalParamV);
 %matlabFunction(nonlinearModel,'file','euler_parameter_thrust_force_model','vars',{x u},'outputs',{'dx'});
-%matlabFunction(f+g*[u1;u2;u3;u4],'file','euler_parameter_thrust_force_physical_parameter_model','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
-matlabFunction(f + g * [u1; u2; u3; u4], 'file', 'euler_parameter_thrust_torque_physical_parameter_model', 'vars', {x u cell2sym(physicalParam)}, 'outputs', {'dx'});
+matlabFunction(f+g*[u1;u2;u3;u4],'file','euler_parameter_thrust_force_physical_parameter_model','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
+% matlabFunction(f + g * [u1; u2; u3; u4], 'file', 'euler_parameter_thrust_torque_physical_parameter_model', 'vars', {x u cell2sym(physicalParam)}, 'outputs', {'dx'});
 
 %% euler angle model : roll-pitch-yaw(ZYX) euler angle
 syms roll pitch yaw droll dpitch dyaw real
