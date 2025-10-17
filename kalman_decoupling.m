@@ -7,7 +7,7 @@ load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
 % load("z.mat",'est');
-
+load("without1.mat");
 
 % 可制御性行列
 n = size(est.A, 1);
