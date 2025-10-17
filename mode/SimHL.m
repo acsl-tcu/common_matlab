@@ -25,6 +25,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
+agent.parameter.parameter(6:8) = 0.02;
 % agent.parameter.parameter(6) = 0.0124;
 % agent.parameter.parameter(7) = 0.0130;
 % agent.parameter.parameter(8) = 0.0237;
@@ -56,20 +57,17 @@ if contains(func2str(agent.plant.method), 'force')
     agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,EKF_model),["p", "q"]));
 else, agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 end
-if contains(func2str(agent.plant.method), 'force')
-    agent.controller = HLC_THRUST_FORCE(agent, Controller_HL(dt));
-else
-    agent.controller = HLC(agent,Controller_HL(dt));
-end
+if contains(func2str(agent.plant.method), 'force'), agent.controller = HLC_THRUST_FORCE(agent, Controller_HL(dt));
+else                                              , agent.controller = HLC(agent,Controller_HL(dt)); end
 agent.sensor    = MOTIVE(agent, Sensor_Motive(1,0, motive));
 run("ExpBase");
 takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"});                       % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0.5;0.5;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",3, "ManualSetting",0, "check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
@@ -80,7 +78,7 @@ motive.getData(agent);
 
 function dfunc(app)
 LW = 1.5; % Linewidth 
-FS = 20; % Fontsize
+FS = 16; % Fontsize
 phase = "tfl";
 % phase = "f";
 % phase = "t";
@@ -90,6 +88,7 @@ app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Font
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "controller.result.before_input", ""}, "phase",phase, "fig_num",7, "Linewidth",LW, "Fontsize",FS);
 
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",8, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
