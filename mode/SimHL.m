@@ -31,7 +31,7 @@ agent.parameter.parameter(8) = 0.0237;
 
 % プラントモデル定義 ================================================================================================================================
 plant = Model_Quat13(dt, initial_state, 1);
-plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
+% plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
 agent.plant = MODEL_CLASS(agent, plant);
 % agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 
@@ -56,8 +56,13 @@ if contains(func2str(agent.plant.method), 'force')
     agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,EKF_model),["p", "q"]));
 else, agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 end
-if contains(func2str(agent.plant.method), 'force'), agent.controller = HLC_THRUST_FORCE(agent, Controller_HL(dt));
-else                                              , agent.controller = HLC(agent,Controller_HL(dt)); end
+if contains(func2str(agent.plant.method), 'force')
+    agent.controller = HLC_THRUST_FORCE(agent, Controller_HL(dt));
+    % agent.controller        = HLC(agent,Controller_HL(dt));
+    % agent.input_transform   = THRUST2FORCE_TORQUE(agent,0); % <-使えなさそう…
+else
+    agent.controller = HLC(agent,Controller_HL(dt));
+end
 agent.sensor    = MOTIVE(agent, Sensor_Motive(1,0, motive));
 run("ExpBase");
 takeoff_zd = 1; % だいたい1m

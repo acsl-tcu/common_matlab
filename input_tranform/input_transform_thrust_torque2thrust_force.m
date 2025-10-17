@@ -33,9 +33,9 @@ km4 = parameter.km4;
 %                             [-(2^(1/2)*ly)/2,        -(2^(1/2)*ly)/2, (2^(1/2)*(Ly - ly))/2,  (2^(1/2)*(Ly - ly))/2]
 %                             [ (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2,        (2^(1/2)*lx)/2, -(2^(1/2)*(Lx - lx))/2]
 %                             [            km1,                   -km2,                  -km3,                    km4]];
-thrusts2torque_matrix =   [ [                   1,                           1,                          1,                           1]
-                            [-(2^(1/2)*ly)/(2*jx),        -(2^(1/2)*ly)/(2*jx), (2^(1/2)*(Ly - ly))/(2*jx),  (2^(1/2)*(Ly - ly))/(2*jx)]
-                            [ (2^(1/2)*lx)/(2*jy), -(2^(1/2)*(Lx - lx))/(2*jy),        (2^(1/2)*lx)/(2*jy), -(2^(1/2)*(Lx - lx))/(2*jy)]
-                            [              km1/jz,                     -km2/jz,                    -km3/jz,                      km4/jz]];
+thrusts2torque_matrix =   [ [  1,       1,       1,       1]
+                            [-ly,     -ly, Ly - ly, Ly - ly]
+                            [ lx, lx - Lx,      lx, lx - Lx]
+                            [km1,    -km2,    -km3,     km4]];
 torque2thrusts_matrix = inv(thrusts2torque_matrix);
 end
