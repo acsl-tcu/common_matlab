@@ -180,7 +180,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         function QP_MPC(obj)
             n = size(obj.state.current,1); % number of observables
             %qp def
-            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,1*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
+            Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
             R = kron(eye(obj.param.H),obj.weight.input);
             RP = kron(eye(obj.param.H),obj.weight.preinputdif);
             Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
