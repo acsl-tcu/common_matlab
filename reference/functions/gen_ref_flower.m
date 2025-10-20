@@ -1,6 +1,6 @@
 function ref = gen_ref_flower(param)
 arguments
-    param.freq = 10% 周期
+    param.freq = 15 % 周期は最低15s
     param.orig = [0 0 1]% 中心
     param.radius = 1.0 % 原点(orig)から大体の半径.少しだけ大きくなる
     param.phase = 0.0 % 位相    

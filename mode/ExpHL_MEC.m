@@ -28,17 +28,22 @@ run("ExpBase");
 takeoff_zd = 1.0; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;takeoff_zd],"size",[0,0,0]},"HL"});            % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;1;takeoff_zd],"size",[0,0,0]},"HL"});            % hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});                     % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});                   % saddle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % spline
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
-%                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd], "h",[0;0;takeoff_zd+0.5]), 15});             % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[-1;0;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
-agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-1;-1;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",15,"orig",center,"size",1.0},"HL"});                           % heart
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
+%                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10});                                       % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;-1;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",[1;1;takeoff_zd]...
+%                                                                 , "k",[-1;-1;takeoff_zd+0.5], "l",[-1;1;takeoff_zd-0.5], "z",center), 10}); % learge P2P
 
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
@@ -50,7 +55,7 @@ agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコン�
 
 function post(app)
 LW = 1.5; % LineWidth
-FS = 24; % FontSize
+FS = 18; % FontSize
 phase = "tfl";
 % phase = "t";
 % phase = "f";
@@ -90,6 +95,7 @@ yline(0.025,"LineWidth",LW)
 hold off
 grid on
 legend("dt","25 ms")
+title("Calculation time")
 
 target = ["p", "v"];
 RMSE = [];
