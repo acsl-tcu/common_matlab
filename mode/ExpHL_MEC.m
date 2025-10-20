@@ -25,20 +25,27 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 
 run("ExpBase");
 
-takeoff_zd = 1.3; % だいたい1m
+takeoff_zd = 1.0; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-1;-1;takeoff_zd],"size",[0,0,0]},"HL"}); % hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;takeoff_zd],"size",[1,1,0]},"HL"}); % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;takeoff_zd],"size",[1,1,0.2]},"HL"}); % saddle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}); % spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;takeoff_zd],"size",[0,0,0]},"HL"});            % center hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;1;takeoff_zd],"size",[0,0,0]},"HL"});            % hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});                     % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});                   % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
-agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd], "h",[0;0;takeoff_zd+0.5]), 15}); % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd], "h",[0;0;takeoff_zd+0.5]), 15});             % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[-1;0;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
+agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
 
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
+agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
 agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function post(app)
@@ -83,6 +90,17 @@ yline(0.025,"LineWidth",LW)
 hold off
 grid on
 legend("dt","25 ms")
+
+target = ["p", "v"];
+RMSE = [];
+for i=1:length(target)
+    ref = app.logger.data(1,target(i),"r", "phase",phase);
+    data = app.logger.data(1,target(i),"e", "phase",phase);
+    RMSE = [RMSE; rmse(ref, data, 1)];
+    fprintf('%s RMSE:\n', target(i))
+    disp(RMSE(i,:))
+    disp(sum(RMSE(i,:)))
+end
 
 end
 function in_prog(app)
