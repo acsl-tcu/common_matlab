@@ -171,8 +171,8 @@ if str2double(flg.normalize) == 1 %逆変換
         simResult.Xhat(i,:) = (simResult.Xhat(i,:) * Ndata.stdValue.x(i)) + Ndata.meanValue.x(i);
     end
 end
-error = simResult.Xhat - simResult.reference.X;
-rmse_each_state{j} = sqrt(mean(error.^2, 2));  % 状態ごとのRMSE（縦方向）
+
+rmse_each_state{j} = rmse(simResult.Xhat,simResult.reference.X);  % 状態ごとのRMSE（縦方向）
 fprintf('\n＜%d回目の推定精度検証が完了しました(推定したA,B,C行列を用いた状態推定)＞\n',j)
 end
 %% Save Estimation Result(結果保存場所)
