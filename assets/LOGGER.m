@@ -105,6 +105,15 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 obj.agent_items = agent_items;
                 obj.Data.agent = struct();
             end
+            if obj.fExp == 1
+                if ~exist("Data/Exp_data","dir")
+                    mkdir("Data/Exp_data");
+                end
+            else
+                if ~exist("Data/Sim_data","dir")
+                    mkdir("Data/Sim_data");
+                end
+            end
 
         end
 
@@ -246,14 +255,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             else
                 filename = tmpname;
                 if obj.fExp == 1
-                    if ~exist("Data/Exp_data","dir")
-                        mkdir("Data/Exp_data");
-                    end
                     list = "Data/Exp_data/" + filename + ".mat";
                 else
-                    if ~exist("Data/Sim_data","dir")
-                        mkdir("Data/Sim_data");
-                    end
                     list = "Data/Sim_data/" + filename + ".mat";
                 end
                 log.Data = obj.Data;
