@@ -97,7 +97,7 @@ Bc = G(1:k, :);
 Acbar = F(k+1:end,k+1:end);
 Bcbar = G(k+1:end,:);
 
-Qc = diag([ones(1,size(Ac,1))]);
+Qc = diag([10,10,10,ones(1,size(Ac,1)-3)]);
 Rc = 0.1*eye(4);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
