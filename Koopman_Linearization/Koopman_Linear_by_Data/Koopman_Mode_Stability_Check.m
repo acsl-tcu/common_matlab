@@ -3,11 +3,11 @@ clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
 % load("second_model.mat",'est');
-load("koopman_common_z_.mat");
+% load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
 % load("z.mat",'est');
-% load("without1.mat");
+load("without1.mat");
 
 
 %%%%%-----モードチェック-----%%%%%
@@ -37,6 +37,11 @@ for k = 1:size(est.A,1)
 
     if err < tol
         fprintf('[%2d]固有値 λ = %.4f は可制御\n',k, lambda);
+        if abs(lambda) >= 1
+            fprintf('かつ不安定！！！\n');
+        else
+            fprintf('ただし安定\n');
+        end
     else
         fprintf('[%2d]固有値 λ = %.4f は不可制御',k, lambda);
         if abs(lambda) >= 1
