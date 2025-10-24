@@ -54,12 +54,12 @@ ftitle = 0; % default=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "input", "p1-p2"];
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = "p1-p2-p3";
-% settings.target = "input2:4";
+settings.target = "input2:4";
 % settings.target = "controller.result.nominal_p";
 % settings.target = ["q", "w"];
 % settings.target = ["p", "v"];
@@ -191,8 +191,8 @@ for i=1:length(settings.target)
             zlim([min(data(:,3)) max(data(:,3))])
         case "inner_input1:4"
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            legend = set_legend(settings.target(i), chars);
-            set(ax.Legend, 'String', legend, 'Interpreter','latex');
+            plegend = set_legend(settings.target(i), chars);
+            set(ax.Legend, 'String', plegend, 'Interpreter','latex');
             data = logger.data(1,settings.target(i),"","phase",settings.phase);
             y_min=0;
             y_max=0;
@@ -203,8 +203,8 @@ for i=1:length(settings.target)
             ylim([y_min y_max])
         case "p"
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            legend = set_legend(settings.target(i), chars);
-            set(ax.Legend, 'String', legend, 'Interpreter','latex');
+            plegend = set_legend(settings.target(i), chars);
+            set(ax.Legend, 'String', plegend, 'Interpreter','latex');
             est_data = logger.data(1,settings.target(i),"e","phase",settings.phase);
             ref_data = logger.data(1,settings.target(i),"r","phase",settings.phase);
             data = [est_data;ref_data];
@@ -218,8 +218,8 @@ for i=1:length(settings.target)
         otherwise
             if contains(settings.target(i), '2:4') % target = "input2:4"用
                 set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-                legend = set_legend(settings.target(i), chars);
-                set(ax.Legend, 'String', legend, 'Interpreter','latex');
+                plegend = set_legend(settings.target(i), chars);
+                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
                 h = findobj(ax, 'Type', 'line');
                 set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
                 set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
@@ -235,8 +235,8 @@ for i=1:length(settings.target)
                 ylim([y_min y_max])
             else
                 set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-                legend = set_legend(settings.target(i), chars);
-                set(ax.Legend, 'String', legend, 'Interpreter','latex');
+                plegend = set_legend(settings.target(i), chars);
+                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
                 data = logger.data(1,settings.target(i),"e","phase",settings.phase);
                 y_min=0;
                 y_max=0;
@@ -291,6 +291,56 @@ for i=1:length(settings.target)
     end
 end
 disp_rmse(logger,settings.phase)
+
+%% Frequency Analysis
+phase = "f";
+FS = 24;
+time = logger.data(0,'t',"", "phase",phase);
+% data_name = "estimator.result.state.p";
+% data_name = "estimator.result.state.q";
+% data_name = "estimator.result.state.v";
+data_name = "estimator.result.state.w";
+data_name = "controller.result.input";
+data_name = "controller.result.delta_input";
+data = logger.data(1,data_name,"", "phase",phase);
+
+Y = fft(data);
+lenY = size(Y,2);
+
+dt = logger.data(1,"sensor.result.dt","", "phase",phase);
+dt_ave = sum(dt)/length(dt);
+% dt_ave=0.025;
+Fs = 1/dt_ave;
+L = length(dt);
+f = Fs*(0:(L/2))/L; % 周波数軸の作成
+f = f(1:end-1);
+P = zeros(length(f),lenY);
+for i=1:lenY, P(:,i) = abs(Y(1:floor(L/2),i))./(L/2); end % 片側スペクトルの計算
+fig = figure;
+ax = gca;
+plot(f,P(:,1))
+hold on
+for i=2:lenY, plot(f,P(:,i)); end
+set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
+
+% plot(f,Y(:,1))
+% hold on
+% for i=2:size(Y,2)
+%     plot(f,Y(:,i))
+% end
+% set(ax.YLabel, 'String', 'Fourier Transform', 'Interpreter','latex', 'FontSize',FS)
+
+% plot(f,10*log10(P.^2))
+% set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
+
+legend
+ylim([0 0.02])
+set(ax.Legend, 'FontSize',FS-4)
+title(ax, data_name, Fontsize=FS);
+set(ax.XLabel, 'String', 'Frequency $f$ [Hz]', 'Interpreter','latex', 'FontSize',FS)
+set(ax.XAxis, fontsize=FS-2)
+set(ax.YAxis, fontsize=FS-2)
+grid on;
 
 %% Local functions
 function att = select_attribute(target, attribute)
