@@ -39,7 +39,7 @@ clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-% fsave = 2;
+fsave = 2;
 % fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
@@ -54,9 +54,9 @@ ftitle = 0; % default=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% settings.target = ["p", "v", "q", "w", "input", "p1-p2", "p1-p2-p3"];
+settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "input", "p1-p2"];
-settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = "p1-p2-p3";
 % settings.target = "input2:4";
@@ -64,7 +64,7 @@ settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input"
 % settings.target = ["q", "w"];
 % settings.target = ["p", "v"];
 % "controller.result.nominal_input","controller.result.delta_input"
-% settings.target = ["input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
+% settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
 % プロットしたいグラフの情報                                        %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input    inner_input1:4: transmitter input      %
@@ -74,16 +74,18 @@ settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input"
 % settings.phase = "tfl";
 settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18
-% settings.fontsize = 28;    % default=11 オススメ=18
+settings.fontsize = 28;    % default=11 オススメ=18
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
-% settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\2_fig";
+% settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.23_DNNMEC P2P\3_fig";
 
 % settings.savename = '2_HLonly_triangle';
-settings.savename = '6_DNNMEC_triangle';
+% settings.savename = '6_DNNMEC_triangle';
 % settings.savename = '11_HLonly_saddle';
 % settings.savename = '13_DNNMEC_saddle';
+% settings.savename = '3_HLonly_P2P';
+% settings.savename = '5_DNNMEC_P2P';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -254,19 +256,37 @@ for i=1:length(settings.target)
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
-    if isfield(settings, 'savename') && (ischar(settings.savename) || isstring(settings.savename))
-        if fsave == 1, savefig([settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.fig']);
-        elseif fsave == 2, exportgraphics(fig, strjoin({settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.png'},''));
-        elseif fsave == 3, exportgraphics(fig, strjoin({settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg'},''));
-        elseif fsave == 4, exportgraphics(fig, strjoin({settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf'},''));
-        elseif fsave == 5, exportgraphics(fig, strjoin({settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'},''));
+    if isfield(settings, 'savename') && (ischar(settings.savename) || isstring(settings.savename)) % settings.savenameの存在確認
+        if fsave==1,    filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.fig'};
+        elseif fsave==2,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.png'};
+        elseif fsave==3,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg'};
+        elseif fsave==4,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf'};
+        elseif fsave==5,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'};
+        else,           filename_cell = {""};
+        end % ファイルのフルパスをcell配列化
+        string_cell     = cellfun(@string, filename_cell, 'UniformOutput', false);
+        string_array    = [string_cell{:}];
+        str             = strjoin(string_array,''); % str型に変更
+        if fsave==1
+            savefig(str);
+        elseif fsave==2 || fsave==3 || fsave==4 || fsave==5
+            exportgraphics(fig, str);
         end
     else
-        if fsave == 1, savefig([settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig']);
-        elseif fsave == 2, exportgraphics(fig, strjoin({settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png'},''));
-        elseif fsave == 3, exportgraphics(fig, strjoin({settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg'},''));
-        elseif fsave == 4, exportgraphics(fig, strjoin({settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf'},''));
-        elseif fsave == 5, exportgraphics(fig, strjoin({settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'},''));
+        if fsave==1,    filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig'};
+        elseif fsave==2,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png'};
+        elseif fsave==3,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg'};
+        elseif fsave==4,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf'};
+        elseif fsave==5,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'};
+        else,           filename_cell = {""};
+        end
+        string_cell     = cellfun(@string, filename_cell, 'UniformOutput', false);
+        string_array    = [string_cell{:}];
+        str             = strjoin(string_array,'');
+        if fsave==1
+            savefig(str);
+        elseif fsave==2 || fsave==3 || fsave==4 || fsave==5
+            exportgraphics(fig, str);
         end
     end
 end
