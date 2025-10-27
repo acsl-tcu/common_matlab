@@ -178,7 +178,7 @@ for tc=1:tn
             agent(i).controller.do(time, 'f',0,0,agent(i),i);
             input(4*(i-1)-3:4*(i-1),1)  = agent(i).controller.result.input;% agent(1)に入れる入力
 
-            %単機牽引モデルのplantの真値
+            %単機牽引モデルのplantの真値 ここからわかれる
             load        = agent(1).estimator.result.state;%推定をしていない
             %分割前牽引物
             p_load      = load.p;%牽引物位置
