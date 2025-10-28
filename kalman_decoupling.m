@@ -2,12 +2,12 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-% load("koopman_common_z_.mat");
+load("koopman_common_z_.mat");
 % load("second_model.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
 % load("z.mat",'est');
-load("without1.mat");
+% load("without1.mat");
 
 % 可制御性行列
 n = size(est.A, 1);
@@ -97,7 +97,8 @@ Bc = G(1:k, :);
 Acbar = F(k+1:end,k+1:end);
 Bcbar = G(k+1:end,:);
 
-Qc = diag([5,5,5,0.1,0.1,0.1,ones(1,size(Ac,1)-6)]);
+% Qc = diag([5,5,5,0.1,0.1,0.1,ones(1,size(Ac,1)-6)]);
+Qc = diag([ones(1,size(Ac,1))]);
 Rc = 0.1*eye(4);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
