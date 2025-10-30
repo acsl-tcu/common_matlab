@@ -256,12 +256,20 @@ for i=1:length(settings.target)
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
+    figname_att = erase(char(settings.target(i)),':');
+    start_idx = 0; % 初期化
+    start_idx = strfind(figname_att, 'result.');
+    if ~isempty(start_idx)
+        % target="~~.result.~~"があったらresult.を含めてその前を削除
+        end_of_match = start_idx + length('result.');
+        figname_att = figname_att(end_of_match:end);
+    end
     if isfield(settings, 'savename') && (ischar(settings.savename) || isstring(settings.savename)) % settings.savenameの存在確認
-        if fsave==1,    filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.fig'};
-        elseif fsave==2,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.png'};
-        elseif fsave==3,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.jpg'};
-        elseif fsave==4,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.pdf'};
-        elseif fsave==5,filename_cell = {settings.savefolder, '\', settings.savename, '_', erase(char(settings.target(i)),':'), '.eps'};
+        if fsave==1,    filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.fig'};
+        elseif fsave==2,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.png'};
+        elseif fsave==3,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.jpg'};
+        elseif fsave==4,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.pdf'};
+        elseif fsave==5,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.eps'};
         else,           filename_cell = {""};
         end % ファイルのフルパスをcell配列化
         string_cell     = cellfun(@string, filename_cell, 'UniformOutput', false);
@@ -273,11 +281,11 @@ for i=1:length(settings.target)
             exportgraphics(fig, str);
         end
     else
-        if fsave==1,    filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.fig'};
-        elseif fsave==2,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.png'};
-        elseif fsave==3,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.jpg'};
-        elseif fsave==4,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.pdf'};
-        elseif fsave==5,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', erase(char(settings.target(i)),':'), '.eps'};
+        if fsave==1,    filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', figname_att, '.fig'};
+        elseif fsave==2,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', figname_att, '.png'};
+        elseif fsave==3,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', figname_att, '.jpg'};
+        elseif fsave==4,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', figname_att, '.pdf'};
+        elseif fsave==5,filename_cell = {settings.savefolder, '\', erase(filename, '.mat'), '_', figname_att, '.eps'};
         else,           filename_cell = {""};
         end
         string_cell     = cellfun(@string, filename_cell, 'UniformOutput', false);
