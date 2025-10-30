@@ -39,8 +39,8 @@ clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-fsave = 2;
-% fsave = 5;
+% fsave = 4;
+fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -54,15 +54,13 @@ ftitle = 0; % default=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p", "input", "p1-p2"];
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
-% settings.target = "p1-p2-p3";
-settings.target = "input2:4";
-% settings.target = "controller.result.nominal_p";
-% settings.target = ["q", "w"];
-% settings.target = ["p", "v"];
+% settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
+settings.target = ["p", "controller.result.delta_input"];
+% settings.target = "input2:4";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
 % プロットしたいグラフの情報                                        %
@@ -73,12 +71,13 @@ settings.target = "input2:4";
 
 % settings.phase = "tfl";
 settings.phase = "f";
-settings.fontsize = 18;    % default=11 オススメ=18
-settings.fontsize = 28;    % default=11 オススメ=18
+% settings.fontsize = 18;    % default=11 オススメ=18　
+settings.fontsize = 22;    % 報告書向け
+% settings.fontsize = 28;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
-% settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.23_DNNMEC P2P\3_fig";
+settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For October report\DNNMEC verification\m=1.0";
 
 % settings.savename = '2_HLonly_triangle';
 % settings.savename = '6_DNNMEC_triangle';
@@ -86,6 +85,22 @@ settings.savefolder = 'plot\fig';  % default
 % settings.savename = '13_DNNMEC_saddle';
 % settings.savename = '3_HLonly_P2P';
 % settings.savename = '5_DNNMEC_P2P';
+
+% settings.savename = 'sim_HL_only_Standard';
+% settings.savename = 'sim_HL_only_m=0.7125';
+% settings.savename = 'sim_HL_only_Ix=0.01';
+% settings.savename = 'sim_HL_only_Iy=0.21';
+% settings.savename = 'sim_HL_only_Iy=0.19_add';
+
+% settings.savename = 'No1_m_Ix_Iy_DNNMEC';
+% settings.savename = 'No1_m_Ix_Iy_HLonly';
+% settings.savename = 'No2_m+_DNNMEC';
+% settings.savename = 'No3_m-_DNNMEC';
+% settings.savename = 'No4_Ix_DNNMEC';
+% settings.savename = 'No5_Iy_DNNMEC';
+% settings.savename = 'No6_Ix_Iy_DNNMEC';
+% settings.savename = 'No6_Ix_Iy_HLonly';
+settings.savename = 'm=1.0_DNNMEC';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -106,7 +121,7 @@ for i=1:length(settings.target)
             tmp = settings.attribute;
             att = select_attribute(settings.target(i), tmp);
         case "q"
-            ylabel = "Attitude [rad]";
+            ylabel = "Angle [rad]";
             tmp = settings.attribute;
             tmp(3) = []; % "esr"の内，無いものを消去
             att = select_attribute(settings.target(i), tmp);
@@ -151,12 +166,20 @@ for i=1:length(settings.target)
             fcolor = 0;
             att = select_attribute(settings.target(i), tmp);
         otherwise
-            if contains(settings.target(i), 'input')
-                if contains(settings.target(i), '2:4'), ylabel = "Torque input [Nm]";
-                else                                  , ylabel = "Input [N] [Nm]"; end
+            if contains(settings.target(i), 'input') % "input"が入っていたら
+                if contains(settings.target(i), 'delta_input') % MEC用
+                    if contains(settings.target(i), '2:4'), ylabel = "Compensation torque input [Nm]";
+                    else                                  , ylabel = "Compensation input [N] [Nm]"; end
+                elseif contains(settings.target(i), 'nominal_input') % MECのノミナル入力用
+                    if contains(settings.target(i), '2:4'), ylabel = "Nominal torque input [Nm]";
+                    else                                  , ylabel = "Nominal input [N] [Nm]"; end
+                else % 知らない"input"用
+                    if contains(settings.target(i), '2:4'), ylabel = "Torque input [Nm]";
+                    else                                  , ylabel = "Input [N] [Nm]"; end
+                end
                 tmp = "";
                 att = "";
-            else
+            else % 例外来たらこれ↓
                 tmp = settings.attribute;
                 att = select_attribute(settings.target(i), tmp);
             end
@@ -221,9 +244,9 @@ for i=1:length(settings.target)
                 plegend = set_legend(settings.target(i), chars);
                 set(ax.Legend, 'String', plegend, 'Interpreter','latex');
                 h = findobj(ax, 'Type', 'line');
-                set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
-                set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
-                set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+                set(h(1), 'Color', [0.4940, 0.1840, 0.5560]) % デフォルト紫
+                set(h(2), 'Color', [0.9290, 0.6940, 0.1250]) % デフォルト黄色
+                set(h(3), 'Color', [0.8500, 0.3250, 0.0980]) % デフォルト赤　　なぜか順番は逆
                 data = logger.data(1,settings.target(i),"e","phase",settings.phase);
                 y_min=0;
                 y_max=0;
@@ -461,7 +484,30 @@ switch target
         legend{3} = "$u_{thrust}$";
         legend{4} = "$u_{yaw}$";
     otherwise
-        for i=1:legend_num, legend{i} = string(i); end
+        for i=1:legend_num, legend{i} = string(i); end % 例外が入ってきたら適当に入れる
+        if contains(target, 'delta_input') % MEC用
+            if contains(target, '2:4')
+                legend{1} = "$\Delta u_{roll}$";
+                legend{2} = "$\Delta u_{pitch}$";
+                legend{3} = "$\Delta u_{yaw}$";
+            else
+                legend{1} = "$\Delta u_{thrust}$";
+                legend{2} = "$\Delta u_{roll}$";
+                legend{3} = "$\Delta u_{pitch}$";
+                legend{4} = "$\Delta u_{yaw}$";
+            end
+        elseif contains(target, 'nominal_input') % MECのノミナル入力用
+            if contains(target, '2:4')
+                legend{1} = "$u_{n,roll}$";
+                legend{2} = "$u_{n,pitch}$";
+                legend{3} = "$u_{n,yaw}$";
+            else
+                legend{1} = "$u_{n,thrust}$";
+                legend{2} = "$u_{n,roll}$";
+                legend{3} = "$u_{n,pitch}$";
+                legend{4} = "$u_{n,yaw}$";
+            end
+        end
 end
 end
 
