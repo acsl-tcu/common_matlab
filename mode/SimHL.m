@@ -32,7 +32,7 @@ agent.parameter.parameter(6:8) = 0.02;
 
 % プラントモデル定義 ================================================================================================================================
 plant = Model_Quat13(dt, initial_state, 1);
-plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
+% plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
 agent.plant = MODEL_CLASS(agent, plant);
 % agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 
@@ -65,8 +65,8 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"});                       % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});         % point hovering
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",3, "ManualSetting",0, "check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...

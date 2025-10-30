@@ -16,7 +16,12 @@ time = TIME(ts,dt,te); % instance of time class
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
 % motive = Connector_Natnet_sim(1, dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-initial_state.p = arranged_position([0, 0], 1, 1, 0);
+
+
+base = [0,0]; % center
+base = [1,0]; % base position for Triangle
+base = [-1,0]; % base position for w.r.t Saddle
+initial_state.p = arranged_position(base, 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
@@ -38,8 +43,29 @@ agent.plant = MODEL_CLASS(agent, plant);
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7125;
-% agent.plant.param(6) = 0.14; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.14; % 同上
+agent.plant.param(1) = 1.0;
+
+% agent.plant.param(6) = 0.12; % x2
+% % agent.plant.param(6) = 0.15; % x2.5
+% agent.plant.param(6) = 0.18; % x3
+% agent.plant.param(6) = 0.03; % x1/2
+% agent.plant.param(6) = 0.015; % x1/4
+% agent.plant.param(6) = 0.01; % x1/6
+
+% agent.plant.param(7) = 0.12; % x2
+% agent.plant.param(7) = 0.15; % x2.5
+% agent.plant.param(7) = 0.18; % x3
+% agent.plant.param(7) = 0.19;
+% agent.plant.param(7) = 0.20;
+% agent.plant.param(7) = 0.21; % x3.5
+% agent.plant.param(7) = 0.03; % x1/2
+% agent.plant.param(7) = 0.015; % x1/4
+% agent.plant.param(7) = 0.01; % x1/6
+
+% agent.plant.param(6) = 0.18; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
+% agent.plant.param(7) = 0.18; % 同上
+% agent.plant.param(6) = 0.14;
+% agent.plant.param(7) = 0.14;
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
 % agent.plant.param(4) = 0.07;
 % agent.plant.param(10) = 0.003;
@@ -56,14 +82,14 @@ run("ExpBase");
 takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,0,0]},"HL"});                       % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[-1;-1;takeoff_zd],"size",[0,0,0]},"HL"});           % point hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-1;-1;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                      % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
