@@ -302,33 +302,39 @@ disp_rmse(logger,settings.phase)
 
 %% Frequency Analysis
 phase = "f";
-FS = 24;
+FS = settings.fontsize;
+LW = settings.linewidth;
 time = logger.data(0,'t',"", "phase",phase);
 % data_name = "estimator.result.state.p";
 % data_name = "estimator.result.state.q";
 % data_name = "estimator.result.state.v";
 data_name = "estimator.result.state.w";
-data_name = "controller.result.input";
-data_name = "controller.result.delta_input";
+% data_name = "controller.result.input";
+data_name = "controller.result.input2:4";
+% data_name = "controller.result.delta_input";
+% data_name = "controller.result.delta_input2:4";
 data = logger.data(1,data_name,"", "phase",phase);
 
 Y = fft(data);
 lenY = size(Y,2);
-
-dt = logger.data(1,"sensor.result.dt","", "phase",phase);
-dt_ave = sum(dt)/length(dt);
+if logger.fExp==1
+    dt = logger.data(1,"sensor.result.dt","", "phase",phase);
+    dt_ave = sum(dt)/length(dt);
+elseif logger.fExp==0
+    dt_ave = 0.025; % Simデータの場合dt=25msで固定
+end
 % dt_ave=0.025;
 Fs = 1/dt_ave;
-L = length(dt);
+L = length(data);
 f = Fs*(0:(L/2))/L; % 周波数軸の作成
 f = f(1:end-1);
 P = zeros(length(f),lenY);
 for i=1:lenY, P(:,i) = abs(Y(1:floor(L/2),i))./(L/2); end % 片側スペクトルの計算
 fig = figure;
 ax = gca;
-plot(f,P(:,1))
+plot(f,P(:,1),LineWidth=LW)
 hold on
-for i=2:lenY, plot(f,P(:,i)); end
+for i=2:lenY, plot(f,P(:,i),LineWidth=LW); end
 set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
 
 % plot(f,Y(:,1))
@@ -341,14 +347,41 @@ set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
 % plot(f,10*log10(P.^2))
 % set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
 
-legend
-ylim([0 0.02])
+if data_name == "estimator.result.state.p", legend('$x$', '$y$', '$z$', 'Interpreter','latex');
+elseif data_name == "estimator.result.state.v", legend('$v_x$', '$v_y$', '$v_z$', 'Interpreter','latex');
+elseif data_name == "estimator.result.state.q", legend('$\theta_{roll}$', '$\theta_{pitch}$', '$\theta_{yaw}$', 'Interpreter','latex');
+elseif data_name == "estimator.result.state.w", legend('$\omega_{roll}$', '$\omega_{pitch}$', '$\omega_{yaw}$', 'Interpreter','latex');
+elseif data_name == "controller.result.input", legend('$u_{thrust}$','$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
+elseif data_name == "controller.result.input2:4"
+    legend('$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
+    h = findobj(gca, 'Type', 'line');
+    set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
+    set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
+    set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+elseif data_name == "controller.result.delta_input", legend('$\Delta u_{thrust}$','$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
+elseif data_name == "controller.result.delta_input2:4"
+    legend('$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
+    h = findobj(gca, 'Type', 'line');
+    set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
+    set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
+    set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+else, legend;
+end
+xlim([0 2])
+% ylim([0 0.5])
 set(ax.Legend, 'FontSize',FS-4)
-title(ax, data_name, Fontsize=FS);
+% title(ax, data_name, Fontsize=FS);
 set(ax.XLabel, 'String', 'Frequency $f$ [Hz]', 'Interpreter','latex', 'FontSize',FS)
 set(ax.XAxis, fontsize=FS-2)
 set(ax.YAxis, fontsize=FS-2)
 grid on;
+
+%% TODO
+% % % % % ↓このプロットの仕方にも対応できるようにしたい↓
+% % % % logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", ""}}, "phase",settings.phase, "fig_num",100, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
+% % % % logger.plot({{1, "v", "e"},{1, "controller.result.nominal_v", ""}}, "phase",settings.phase, "fig_num",101, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
+% % % % logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", ""}}, "phase",settings.phase, "fig_num",102, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
+% % % % logger.plot({{1, "w", "e"},{1, "controller.result.nominal_w", ""}}, "phase",settings.phase, "fig_num",103, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
 
 %% Local functions
 function att = select_attribute(target, attribute)
