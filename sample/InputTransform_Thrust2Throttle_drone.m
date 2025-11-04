@@ -13,9 +13,6 @@ function u_trans_param = InputTransform_Thrust2Throttle_drone(varargin)
     u_trans_param.th_offset_tl  = 335;  %テークオフとランディング初期オフセット。
     u_trans_param.gain          = [200;200;300;30];%　
     u_trans_param.gain_tl       = [200;200;300;30];%
-    % 手動切替: 1 = オフセット探索, 2 = ゲイン探索, 0 = autotune off
-    % 飛行前にここを変更してください（または呼び出し側で上書き）
-    u_trans_param.mode = 1;
 
     %droneにあった単機牽引の値↓
     % u_trans_param.th_offset     = 331;%機体質量と釣り合うスロットルオフセット
