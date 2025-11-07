@@ -107,7 +107,8 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.result.kmpc = obj.result.input;
             disp('controller: MC,  phase: ');
             disp(phase);
-            disp(obj.self.reference.result.state.p);
+            % disp(obj.self.reference.result.state.p);
+            obj.show();
        end
         function result = controller_KMC(obj,varargin)
             obj.param.t = varargin{1}{1}.t; % 現在時刻

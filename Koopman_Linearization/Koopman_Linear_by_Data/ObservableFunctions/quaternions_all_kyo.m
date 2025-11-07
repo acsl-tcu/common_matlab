@@ -58,16 +58,16 @@ R33 = cos(Q2).*cos(Q1);
 common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
             R13;
             R23;
-            R33];
-             % 1];% 16
+            R33
+             -1*gravity];% 16
 
 %% 磯部先輩観測量 code = 00
 kyo_z = [W1*W2;
             W2*W3;
-            W3*W1;
+           -1*W3*W1;
             W2*cos(Q1);
             W3*sin(Q1);
-            W1*cos(Q2)/cos(Q1);%??どこから
+            % W1*cos(Q2)/cos(Q1);%??どこから
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
             W2*sin(Q1)*sin(Q2)/cos(Q2);
