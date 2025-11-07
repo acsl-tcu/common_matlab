@@ -167,8 +167,8 @@ methods
         % If autotune mode requests zero-start behavior, override starting values:
         if obj.autotune_mode == 1
             % offset tuning: gains fixed to zero, offsets start at 0
-            obj.param.gain = zeros(4,1);
-            obj.param.gain_tl = zeros(4,1);
+            obj.param.gain = [100;100;100;10];
+            obj.param.gain_tl = [100;100;100;10];
             obj.param.th_offset = 0;
             obj.param.th_offset_tl = 0;
         elseif obj.autotune_mode == 2
