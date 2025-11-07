@@ -141,7 +141,7 @@ methods
         if ~isfield(obj.param,'P'), obj.param.P = self.parameter.get(); end
 
         obj.flight_phase = 's';
-        P = obj.parameter.get;
+        P = obj.param.P;
         obj.hover_thrust_force = P(1) * P(9);
         obj.state = state_copy(self.estimator.result.state);
 
