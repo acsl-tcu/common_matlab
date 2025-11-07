@@ -182,7 +182,13 @@ methods
 
     function u = do(obj, varargin)
         % [Input] varargin : time, cha, logger, env, agent, i
-        % produce u = [uroll, upitch, uthr, uyaw, ...]
+        % produce u = [uroll, upitch, uthr, uyaw, ...]      
+        % AutoTune用カウンタ管理
+        if ~isfield(obj, 'tune_counter') || isempty(obj.tune_counter)
+            obj.tune_counter = 0;
+        else
+            obj.tune_counter = obj.tune_counter + 1;
+        end
         cha = varargin{2};
         input = varargin{5}(varargin{6}).controller.result.input;
         if (cha ~= 'q' && cha ~= 's' && cha ~= 'a' && cha ~= 'f' && cha ~= 'l' && cha ~= 't')
@@ -325,32 +331,90 @@ methods
 
                 % ------------------ TUNING LOGIC ------------------
                 if obj.autotune_mode == 1
-                    % OFFSET TUNING:
-                    % gains remain zero; offset increases gradually,
-                    % but we apply small proportional correction using altitude error as well.
-                    % Primary: step-wise increase; secondary: small correction by altitude error.
-                    % Step increase
-                    if obj.param.th_offset < obj.max_offset
-                        obj.param.th_offset = min(obj.max_offset, obj.param.th_offset + obj.offset_step);
-                        obj.param.th_offset_tl = obj.param.th_offset; % keep tl synced for takeoff phase
+                % OFFSET TUNING:
+                % gains remain zero; offset increases gradually,
+                % 主にオフセットを0から少しずつ上げていき、機体が浮き始める値を探す
+
+                % --- 現在高度の取得 ---
+                try
+                    alt = obj.self.estimator.result.state.position(3);
+                catch
+                    alt = NaN;
+                end
+
+                % --- 段階的オフセット上昇 ---
+                % まずは静止状態でも一定周期で少しずつ上昇
+                if obj.param.th_offset < obj.max_offset
+                    % 初期は小さく、だんだん大きく
+                    if obj.param.th_offset < 50
+                        obj.param.th_offset = obj.param.th_offset + 10;   % 最初はゆっくり(初期２)　%最初大きく（変更）
+                    elseif obj.param.th_offset < 200
+                        obj.param.th_offset = obj.param.th_offset + 5;   % 中盤は普通に（初期５）　%途中から普通に（変更）
+                    % else
+                    %     obj.param.th_offset = obj.param.th_offset + 5;  % ある程度上がってきたら速めに（初期10）
                     end
-                    % small altitude-based fine tuning:
-                    try
-                        target_z = obj.self.reference.takeoff.zd; % TAKEOFF_REFERENCE provides zd
-                    catch
-                        target_z = 0.5;
-                    end
-                    % use current altitude deviation to slightly adjust offset
-                    if ~isnan(alt)
-                        err_h = (alt - target_z);
-                        % small corrective term
-                        corr = -0.5 * err_h; % if below target (err negative) -> increase offset
-                        if abs(corr) > 0.1
-                            corr = sign(corr) * 0.1;
-                        end
-                        obj.param.th_offset = min(max(obj.param.th_offset + corr, 0), obj.max_offset);
-                        obj.param.th_offset_tl = obj.param.th_offset;
-                    end
+                end
+
+                % --- 高度に応じた微調整 ---
+                % 少しでも浮き始めたら微調整モードに移行
+                if ~isnan(alt) && alt > 0.1 %初期設定値0.05
+                    target_z = 0.5;  % 目標高度（例: 0.5 m）
+                    err_h = target_z - alt;
+                    corr = 2.0 * err_h;  % 下がっていればオフセット増加，上がりすぎなら減少
+                    corr = max(min(corr, 5), -5);  % 補正量を制限
+                    obj.param.th_offset = obj.param.th_offset + corr;
+                end
+
+                % --- 上限制限 & 同期 ---
+                obj.param.th_offset = min(max(obj.param.th_offset, 0), obj.max_offset);
+                obj.param.th_offset_tl = obj.param.th_offset;
+                end
+                
+                %一番最初のもの
+                % % if obj.autotune_mode == 1
+                % %     % OFFSET TUNING:
+                % %     % gains remain zero; offset increases gradually,
+                % %     % but we apply small proportional correction using altitude error as well.
+                % %     % Primary: step-wise increase; secondary: small correction by altitude error.
+                % %     % Step increase
+                % %     if obj.param.th_offset < obj.max_offset
+                % %         obj.param.th_offset = min(obj.max_offset, obj.param.th_offset + obj.offset_step);
+                % %         obj.param.th_offset_tl = obj.param.th_offset; % keep tl synced for takeoff phase
+                % %     end
+                % %     % small altitude-based fine tuning:
+                % %     try
+                % %         target_z = obj.self.reference.takeoff.zd; % TAKEOFF_REFERENCE provides zd
+                % %     catch
+                % %         target_z = 0.5;
+                % %     end
+                % %     % use current altitude deviation to slightly adjust offset
+                % %     if ~isnan(alt)
+                % %         err_h = (alt - target_z);
+                % %         % small corrective term
+                % %         corr = -0.5 * err_h; % if below target (err negative) -> increase offset
+                % %         if abs(corr) > 0.1
+                % %             corr = sign(corr) * 0.1;
+                % %         end
+                % %         obj.param.th_offset = min(max(obj.param.th_offset + corr, 0), obj.max_offset);
+                % %         obj.param.th_offset_tl = obj.param.th_offset;
+                % %     end
+                    % % % % % 追加したもの（必要ない？）
+                    % % % % % % 安全対策: 高度安定までチューニング停止 & 初期緩和ステップ
+                    % % % % % alt = obj.state.position(3);
+                    % % % % % if isnan(alt) || alt < 0.05 %
+                    % % % % % % 高度が低すぎるときはチューニングスキップ
+                    % % % % % return;
+                    % % % % % end
+                    % % % % % 
+                    % % % % % if obj.tune_counter < 5
+                    % % % % %     obj.param.th_offset = obj.param.th_offset + 1; % 初期は小刻み
+                    % % % % % else
+                    % % % % %     obj.param.th_offset = obj.param.th_offset + obj.offset_step;
+                    % % % % % end
+                    % % % % % 
+                    % % % % % % 上限制限
+                    % % % % % obj.param.th_offset = min(obj.param.th_offset, obj.max_offset);
+                    % % % % % obj.param.th_offset_tl = obj.param.th_offset;
 
                 elseif obj.autotune_mode == 2
                     % GAIN TUNING:
@@ -422,6 +486,15 @@ methods
                 end
 
                 % ---------- stability detection & auto-lock ----------
+                % ---- 追加ここから ----
+                % モータが動いていない時はスコア更新をスキップ
+                if isfield(obj.result, 'input')
+                    thr_mean = mean(obj.result.input(4,:));
+                    if thr_mean < 50
+                    return;
+                    end
+                end
+
                 if isfinite(obj.best_param.score)
                     % if recent scores stable (small stddev), increment stable_counter
                     if isfinite(obj.last_score)
