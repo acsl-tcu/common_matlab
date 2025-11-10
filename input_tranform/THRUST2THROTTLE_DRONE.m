@@ -110,7 +110,7 @@ properties
     gain_step = [10;10;10;1];   % increment step for gains [roll;pitch;yaw;thrust]
     % maxima (use your provided "current" values + margin)
     max_gain_tl = [600;600;600;40];
-    max_gain =    [400;400;400;40];
+    max_gain =    [600;600;600;40];
     max_offset_tl = 335;
     max_offset =    335;
 
@@ -173,8 +173,8 @@ methods
             obj.param.th_offset_tl = 0;
         elseif obj.autotune_mode == 2
             % gain tuning: gains start at zero, offsets expected to be set manually
-            obj.param.gain = zeros(4,1);
-            obj.param.gain_tl = zeros(4,1);
+            obj.param.gain = [100;100;100;10];
+            obj.param.gain_tl = [100;100;100;10];
             % param.th_offset / th_offset_tl should be set by user before run
         end
     end

@@ -29,12 +29,20 @@ agent.controller = HLC(agent,Controller_HL(dt));
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 function post(app)
-app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"phase","tfl");
+% app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1,"inner_input",""},"phase","tf", "fig_num",6); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
