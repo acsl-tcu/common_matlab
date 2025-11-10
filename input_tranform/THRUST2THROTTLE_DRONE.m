@@ -368,7 +368,7 @@ methods
                 % --- 上限制限 & 同期 ---
                 obj.param.th_offset = min(max(obj.param.th_offset, 0), obj.max_offset);
                 obj.param.th_offset_tl = obj.param.th_offset;
-                end
+               
                 
                 %一番最初のもの
                 % % if obj.autotune_mode == 1
