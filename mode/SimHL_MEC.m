@@ -19,8 +19,8 @@ logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for 
 
 
 base = [0,0]; % center
-base = [1,0]; % base position for Triangle
-base = [-1,0]; % base position for w.r.t Saddle
+% base = [1,0]; % base position for Triangle
+% base = [-1,0]; % base position for Saddle
 initial_state.p = arranged_position(base, 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
@@ -41,31 +41,11 @@ agent.plant = MODEL_CLASS(agent, plant);
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-% agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7125;
-agent.plant.param(1) = 1.0;
-
-% agent.plant.param(6) = 0.12; % x2
-% % agent.plant.param(6) = 0.15; % x2.5
+agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(6) = 0.18; % x3
-% agent.plant.param(6) = 0.03; % x1/2
-% agent.plant.param(6) = 0.015; % x1/4
-% agent.plant.param(6) = 0.01; % x1/6
-
-% agent.plant.param(7) = 0.12; % x2
-% agent.plant.param(7) = 0.15; % x2.5
-% agent.plant.param(7) = 0.18; % x3
 % agent.plant.param(7) = 0.19;
-% agent.plant.param(7) = 0.20;
-% agent.plant.param(7) = 0.21; % x3.5
-% agent.plant.param(7) = 0.03; % x1/2
-% agent.plant.param(7) = 0.015; % x1/4
-% agent.plant.param(7) = 0.01; % x1/6
 
-% agent.plant.param(6) = 0.18; % 0.18<jx,jy<0.22ぐらいが良き frequency=5の時
-% agent.plant.param(7) = 0.18; % 同上
-% agent.plant.param(6) = 0.14;
-% agent.plant.param(7) = 0.14;
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
 % agent.plant.param(4) = 0.07;
 % agent.plant.param(10) = 0.003;
@@ -82,9 +62,9 @@ run("ExpBase");
 takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-1;-1;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                      % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                      % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -111,8 +91,9 @@ else
     % agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
     % agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
-    agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
+    agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx");
     % agent.controller.mec = DNNMEC(agent, "delta_u_step=1_No_losscoef_DNNMEC_epoch_100000.onnx");
 end
 
@@ -128,6 +109,7 @@ phase = "tfl";
 % phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+% ylim([0.9 1.1])
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS);
