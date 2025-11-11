@@ -120,6 +120,9 @@ properties
     stable_threshold = 5; % number of consecutive windows for auto-lock
     kill_flag = false;
     last_score = Inf;
+
+    last_t = [];
+    time_accum = 0;
 end
 
 methods
@@ -335,33 +338,40 @@ methods
                 % gains remain zero; offset increases gradually,
                 % 主にオフセットを0から少しずつ上げていき、機体が浮き始める値を探す
 
+                % 時間の取得
+                tnow = varargin{1}.t;
+                if isempty(obj.last_t)
+                    obj.last_t = tnow;
+                    obj.time_accum = 0;
+                end
+
+                % 経過時間を積算
+                dt = tnow - obj.last_t;
+                obj.last_t = tnow;
+                obj.time_accum = obj.time_accum + dt;
+
+                % --- 1秒ごとに+5ずつオフセットを増加 ---
+                if obj.time_accum >= 1.0
+                    obj.time_accum = obj.time_accum - 1.0;  % 次の1秒へ
+                    if obj.param.th_offset < obj.max_offset
+                        obj.param.th_offset = obj.param.th_offset + 5;
+                    end
+                end
+
                 % --- 現在高度の取得 ---
                 try
                     alt = obj.self.estimator.result.state.position(3);
                 catch
                     alt = NaN;
                 end
-
-                % --- 段階的オフセット上昇 ---
-                % まずは静止状態でも一定周期で少しずつ上昇
-                if obj.param.th_offset < obj.max_offset
-                    % 初期は小さく、だんだん大きく
-                    if obj.param.th_offset < 50
-                        obj.param.th_offset = obj.param.th_offset + 10;   % 最初はゆっくり(初期２)　%最初大きく（変更）
-                    elseif obj.param.th_offset < 200
-                        obj.param.th_offset = obj.param.th_offset + 5;   % 中盤は普通に（初期５）　%途中から普通に（変更）
-                    % else
-                    %     obj.param.th_offset = obj.param.th_offset + 5;  % ある程度上がってきたら速めに（初期10）
-                    end
-                end
-
+                               
                 % --- 高度に応じた微調整 ---
                 % 少しでも浮き始めたら微調整モードに移行
                 if ~isnan(alt) && alt > 0.1 %初期設定値0.05
                     target_z = 0.5;  % 目標高度（例: 0.5 m）
                     err_h = target_z - alt;
                     corr = 2.0 * err_h;  % 下がっていればオフセット増加，上がりすぎなら減少
-                    corr = max(min(corr, 5), -5);  % 補正量を制限
+                    corr = max(min(corr, 1), -1);  % 補正量を制限
                     obj.param.th_offset = obj.param.th_offset + corr;
                 end
 
