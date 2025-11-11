@@ -45,8 +45,10 @@ classdef MECKC < handle
         z_n=quaternions_all(x_n_now);%ノミナルの状態
         
         %---可制御部分をデカップリング---%
+        % K_full=[zeros(4,24)];
         load('kalman_gain.mat','K_full');
         e = z_n-z_p;
+        K_full = Kfull*0.1;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
 
