@@ -127,60 +127,176 @@ end
 
 methods
 
+    % function obj = THRUST2THROTTLE_DRONE(self, param)
+    %     % constructor: keep original param, initialize autotune state
+    %     obj.self = self;
+    %     obj.param = param;
+    %     % keep original offsets from arming msg if exist
+    %     if isprop(self.plant,'arming_msg')
+    %         obj.param.roll_offset = self.plant.arming_msg(1);
+    %         obj.param.pitch_offset = self.plant.arming_msg(2);
+    %         obj.param.yaw_offset = self.plant.arming_msg(4);
+    %     else
+    %         if ~isfield(obj.param,'roll_offset'), obj.param.roll_offset = 1500; end
+    %         if ~isfield(obj.param,'pitch_offset'), obj.param.pitch_offset = 1500; end
+    %         if ~isfield(obj.param,'yaw_offset'), obj.param.yaw_offset = 1500; end
+    %     end
+    %     if ~isfield(obj.param,'P'), obj.param.P = self.parameter.get(); end
+    % 
+    %     obj.flight_phase = 's';
+    %     P = obj.param.P;
+    %     obj.hover_thrust_force = P(1) * P(9);
+    %     obj.state = state_copy(self.estimator.result.state);
+    % 
+    %     % autotune init
+    %     if isfield(param,'mode'), obj.autotune_mode = param.mode; else obj.autotune_mode = 0; end
+    %     if obj.autotune_mode > 0
+    %         try
+    %             obj.autotune_handle = AutoTuneMonitor(); % optional GUI
+    %         catch
+    %             obj.autotune_handle = [];
+    %         end
+    %     else
+    %         obj.autotune_handle = [];
+    %     end
+    % 
+    %     obj.best_param = obj.param;
+    %     obj.best_param.score = Inf;
+    %     obj.tune_counter = 0;
+    %     obj.last_gui_update_t = -inf;
+    %     buflen = ceil(3 / 0.025); % circular buffer of ~3s
+    %     obj.log_buf = struct('t', nan(1,buflen), 'w', nan(3,buflen), 'wn', nan(3,buflen), 'uthr', nan(1,buflen), 'idx',1, 'len', buflen);
+    % 
+    %     % If autotune mode requests zero-start behavior, override starting values:
+    %     if obj.autotune_mode == 1
+    %         % offset tuning: gains fixed to zero, offsets start at 0
+    %         obj.param.gain = [100;100;100;10];
+    %         obj.param.gain_tl = [100;100;100;10];
+    %         obj.param.th_offset = 0;
+    %         obj.param.th_offset_tl = 0;
+    %     elseif obj.autotune_mode == 2
+    %         % gain tuning: gains start at zero, offsets expected to be set manually
+    %         obj.param.gain = [100;100;100;10];
+    %         obj.param.gain_tl = [100;100;100;10];
+    %         % param.th_offset / th_offset_tl should be set by user before run
+    %     end
+    % end
+
     function obj = THRUST2THROTTLE_DRONE(self, param)
-        % constructor: keep original param, initialize autotune state
-        obj.self = self;
-        obj.param = param;
-        % keep original offsets from arming msg if exist
-        if isprop(self.plant,'arming_msg')
-            obj.param.roll_offset = self.plant.arming_msg(1);
-            obj.param.pitch_offset = self.plant.arming_msg(2);
-            obj.param.yaw_offset = self.plant.arming_msg(4);
-        else
-            if ~isfield(obj.param,'roll_offset'), obj.param.roll_offset = 1500; end
-            if ~isfield(obj.param,'pitch_offset'), obj.param.pitch_offset = 1500; end
-            if ~isfield(obj.param,'yaw_offset'), obj.param.yaw_offset = 1500; end
+    % constructor: keep original param, initialize autotune state
+    obj.self = self;
+
+    % --- もし既に agent.input_transform が存在すれば値を引き継ぐ ---
+    prev_exists = false;
+    try
+        if isprop(self, 'input_transform') && isa(self.input_transform, 'THRUST2THROTTLE_DRONE')
+            prev = self.input_transform;
+            prev_exists = true;
         end
-        if ~isfield(obj.param,'P'), obj.param.P = self.parameter.get(); end
+    catch
+        prev_exists = false;
+    end
 
-        obj.flight_phase = 's';
-        P = obj.param.P;
-        obj.hover_thrust_force = P(1) * P(9);
-        obj.state = state_copy(self.estimator.result.state);
-
-        % autotune init
-        if isfield(param,'mode'), obj.autotune_mode = param.mode; else obj.autotune_mode = 0; end
-        if obj.autotune_mode > 0
-            try
-                obj.autotune_handle = AutoTuneMonitor(); % optional GUI
-            catch
-                obj.autotune_handle = [];
+    if prev_exists
+        % 引き継ぎ（以前のチューニングの継続を期待）
+        obj.param = prev.param;
+        % もし外から param が与えられていて、それでオーバーライドしたければここで上書き
+        if exist('param','var') && ~isempty(param)
+            % ただしparamに入っているフィールドのみ上書きする（完全上書きはしない）
+            f = fieldnames(param);
+            for ii = 1:length(f)
+                obj.param.(f{ii}) = param.(f{ii});
             end
-        else
-            obj.autotune_handle = [];
         end
-
+        % 時刻積算等も引き継ぎ
+        if isprop(prev,'last_t'), obj.last_t = prev.last_t; else obj.last_t = []; end
+        if isprop(prev,'time_accum'), obj.time_accum = prev.time_accum; else obj.time_accum = 0; end
+        if isprop(prev,'best_param'), obj.best_param = prev.best_param; else obj.best_param = []; end
+    else
+        % 初回生成時：param を使って初期化（安全なデフォルトを入れる）
+        if exist('param','var') && ~isempty(param)
+            obj.param = param;
+        else
+            obj.param = struct();
+        end
+        % 不足フィールドにデフォルトを設定（必要に応じて追記）
+        if ~isfield(obj.param,'roll_offset');  obj.param.roll_offset = 1500; end
+        if ~isfield(obj.param,'pitch_offset'); obj.param.pitch_offset = 1500; end
+        if ~isfield(obj.param,'yaw_offset');   obj.param.yaw_offset = 1500; end
+        if ~isfield(obj.param,'P')
+            try
+                obj.param.P = self.parameter.get();
+            catch
+                obj.param.P = zeros(1,10); % フォールバック（必要に応じて修正）
+            end
+        end
+        % autotune用の内部時刻初期化
+        obj.last_t = [];
+        obj.time_accum = 0;
         obj.best_param = obj.param;
         obj.best_param.score = Inf;
-        obj.tune_counter = 0;
-        obj.last_gui_update_t = -inf;
-        buflen = ceil(3 / 0.025); % circular buffer of ~3s
-        obj.log_buf = struct('t', nan(1,buflen), 'w', nan(3,buflen), 'wn', nan(3,buflen), 'uthr', nan(1,buflen), 'idx',1, 'len', buflen);
-
-        % If autotune mode requests zero-start behavior, override starting values:
-        if obj.autotune_mode == 1
-            % offset tuning: gains fixed to zero, offsets start at 0
-            obj.param.gain = [100;100;100;10];
-            obj.param.gain_tl = [100;100;100;10];
-            obj.param.th_offset = 0;
-            obj.param.th_offset_tl = 0;
-        elseif obj.autotune_mode == 2
-            % gain tuning: gains start at zero, offsets expected to be set manually
-            obj.param.gain = [100;100;100;10];
-            obj.param.gain_tl = [100;100;100;10];
-            % param.th_offset / th_offset_tl should be set by user before run
-        end
     end
+
+    % 以下は共通の初期化
+    obj.flight_phase = 's';
+    P = obj.param.P;
+    % P が不正な場合は safemode
+    if numel(P) >= 9
+        obj.hover_thrust_force = P(1) * P(9);
+    else
+        obj.hover_thrust_force = 0;
+    end
+    obj.state = state_copy(self.estimator.result.state);
+
+    % autotune init
+    if isfield(obj.param,'mode'), obj.autotune_mode = obj.param.mode; else obj.autotune_mode = 0; end
+    if obj.autotune_mode > 0
+        try
+            obj.autotune_handle = AutoTuneMonitor(); % optional GUI
+        catch
+            obj.autotune_handle = [];
+        end
+    else
+        obj.autotune_handle = [];
+    end
+
+    % log buffer
+    obj.tune_counter = 0;
+    obj.last_gui_update_t = -inf;
+    buflen = ceil(3 / 0.025); % circular buffer of ~3s
+    obj.log_buf = struct('t', nan(1,buflen), 'w', nan(3,buflen), 'wn', nan(3,buflen), 'uthr', nan(1,buflen), 'idx',1, 'len', buflen);
+
+    % If autotune mode requests zero-start behavior, set safe starting values
+    % （ここで0にするか既存値を保持するかは mode による）
+    if obj.autotune_mode == 1
+        % offset tuning: gains are set small (or zero if desired), offsets start at 0
+        obj.param.gain = [0;0;0;0];       % ゼロスタートにするなら 0
+        obj.param.gain_tl = [0;0;0;0];
+        if ~isfield(obj.param,'th_offset'), obj.param.th_offset = 0; end
+        if ~isfield(obj.param,'th_offset_tl'), obj.param.th_offset_tl = 0; end
+    elseif obj.autotune_mode == 2
+        % gain tuning: gains start at 0 (offsets should be set manually beforehand)
+        obj.param.gain = [0;0;0;0];
+        obj.param.gain_tl = [0;0;0;0];
+        % do NOT override th_offset if user set it in InputTransform_Thrust2Throttle_drone
+        if ~isfield(obj.param,'th_offset'), obj.param.th_offset = 335; end
+        if ~isfield(obj.param,'th_offset_tl'), obj.param.th_offset_tl = 335; end
+    else
+        % autotune off: keep provided values or defaults
+        if ~isfield(obj.param,'gain'), obj.param.gain = [200;200;300;30]; end
+        if ~isfield(obj.param,'gain_tl'), obj.param.gain_tl = [200;200;300;30]; end
+        if ~isfield(obj.param,'th_offset'), obj.param.th_offset = 335; end
+        if ~isfield(obj.param,'th_offset_tl'), obj.param.th_offset_tl = 335; end
+    end
+
+    % best_param 初期化が未設定なら設定
+    if ~isfield(obj,'best_param') || isempty(obj.best_param)
+        obj.best_param = obj.param;
+        obj.best_param.score = Inf;
+    end
+
+end
+
 
 
     function u = do(obj, varargin)
