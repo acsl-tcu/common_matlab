@@ -48,7 +48,7 @@ classdef MECKC < handle
         % K_full=[zeros(4,24)];
         load('kalman_gain.mat','K_full');
         e = z_n-z_p;
-        K_full = K_full*0.4;
+        K_full = K_full*0;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
 
