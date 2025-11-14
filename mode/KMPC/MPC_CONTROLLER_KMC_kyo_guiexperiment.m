@@ -37,6 +37,9 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         STL_period = [2,4]
         quadH
         quadf
+        sw
+        drf
+        act
     end
 
     methods
@@ -88,11 +91,21 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             disp(maxa);
            
             C = repmat({obj.koopman.C}, 1, obj.H);
+            % obj.koopman.A(7:12,13:end) = 0.95 * obj.koopman.A(7:12,13:end);  % 0.6 可再调
+            % obj.koopman.B(7:12,:)      = 1.05 * obj.koopman.B(7:12,:);      % 小步放大输入施力
             obj.koopman.ExC = blkdiag(C{:});
             [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
             %%Koopman予測に基づく拡張行列
             obj.flag.A = 0;
             obj.result.bestcost = obj.input.Bestcost_now;
+            obj.sw.on = false;    
+            obj.sw.k = 0;          
+            obj.sw.Nsw = round(1/obj.param.dt);   
+            obj.sw.u_warm = [];    
+            obj.drf.beta = 0.8;  
+            obj.drf.du_max = 0.35;    
+            obj.act.u_prev = zeros(size(obj.input.pre_u(:,1,1))); 
+            
         end
         %-- main()的な
         function result = do(obj,varargin)
@@ -100,11 +113,43 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             time = varargin{1};
             phase = varargin{2};
             obj.param.t = time.t;
+            obj.input.pre_u(:,1,1) = obj.act.u_prev;
             obj.current_state = obj.self.estimator.result.state.get(); % 現在状態の取得
             obj.state.current = obj.param.F([obj.current_state; obj.input.pre_u(:,1,1)]);
             obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
             result= obj.controller_KMC(varargin);
             obj.result.kmpc = obj.result.input;
+            u_kmpc_raw = obj.result.input;
+            if ~isfield(obj.sw,'drf_flag') || isempty(obj.sw.drf_flag)
+                obj.sw.drf_flag = 0;
+            elseif obj.sw.drf_flag == 0
+                obj.sw.drf_flag = 1;
+                obj.sw.on       = true;
+                obj.sw.k        = 0;
+                obj.sw.u_warm   = obj.result.pre_u(:,1);  
+            end
+            if obj.sw.on
+                alpha = (min(1, obj.sw.k / obj.sw.Nsw))^2;
+                w = 3*alpha^2 - 2*alpha^3;
+                u_mix = (1-w)*obj.sw.u_warm + w*u_kmpc_raw;
+
+                obj.sw.k = obj.sw.k + 1;
+                if obj.sw.k >= obj.sw.Nsw
+                    obj.sw.on = false;                 
+                end
+                du     = u_mix - obj.act.u_prev;
+                du     = max(min(du, obj.drf.du_max), -obj.drf.du_max);
+                u_step = obj.act.u_prev + du;
+                u_cmd  = obj.drf.beta*obj.act.u_prev + (1-obj.drf.beta)*u_step;
+                obj.result.input        = u_mix;
+                obj.result.kmpc         = u_mix;
+                obj.act.u_prev          = u_mix;
+                obj.input.pre_u(:,1,1)  = u_mix;        
+                disp('controller: DRF,  phase: ');
+                disp(phase);
+            else
+                obj.act.u_prev = obj.result.input;        
+            end
             disp('controller: MC,  phase: ');
             disp(phase);
             % disp(obj.self.reference.result.state.p);
@@ -185,8 +230,8 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             R = kron(eye(obj.param.H),obj.weight.input);
             RP = kron(eye(obj.param.H),obj.weight.preinputdif);
             Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
-            Ur = reshape(obj.state.ref(13:16,:),[],1);
-            [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
+            Ur = reshape(obj.state.ref(13:16,:),[],1);        
+           [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
             %qp
             A = []; b = [];
             % Aeq = zeros(obj.param.H, 4*obj.param.H);
@@ -199,7 +244,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             ub = repmat(obj.param.input_max,1,obj.param.H);
             obj.options = optimset('Display', 'off');
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-             % var(4*(1:obj.H))= 0;
+            var(4*(1:obj.H))= 0;
              if eflag ~= 1
                  disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
              end

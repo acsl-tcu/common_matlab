@@ -10,6 +10,7 @@ classdef MY_POINT_REFERENCE < handle
         t0
         i
         result
+        func
     end
     
     methods
@@ -35,6 +36,7 @@ classdef MY_POINT_REFERENCE < handle
                     obj.param.(obj.fns(j))= [obj.param.(obj.fns(j));0];
                 end
             end
+            obj.func = @gen_ref_for_HL;
             obj.i=1;%目標地点を自動で更新するためのインデックスの初期値
             obj.result.state = STATE_CLASS(struct('state_list',["xd","p", "q","v"],'num_list',[20,3,3,3]));
             obj.result.state.set_state("xd",zeros(6,1));
@@ -49,7 +51,7 @@ classdef MY_POINT_REFERENCE < handle
                     obj.t0=varargin{1}.t;%目標地点が定められた時刻
                 end
                 t = varargin{1}.t - obj.t0;%目標地点が定められた時間からの経過時間
-            
+               
             %指定した時刻を過ぎた場合に実行
                 if t > obj.ref_t 
                     obj.i=obj.i+1;%目標地点の場所を定義された順番に更新していく
@@ -60,7 +62,7 @@ classdef MY_POINT_REFERENCE < handle
                         obj.i=obj.length_fns;
                     end
                 end
-
+                     
                     obj.result.state.p = obj.param.(obj.fns(obj.i))(1:3);%xyz
                     obj.result.state.q(3,1) = obj.param.(obj.fns(obj.i))(4);%yaw
 

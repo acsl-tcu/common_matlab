@@ -20,7 +20,7 @@ classdef TAKEOFF_SIM_REFERENCE < handle
       obj.result.state = STATE_CLASS(struct('state_list',["xd","p","v"],'num_list',[20,3,3]));
     end
     function result = do(obj,varargin)
-       if (obj.fInit < 2 || isempty( obj.base_state )) 
+       if (obj.fInit < 2 || isempty(obj.base_state )) 
             obj.base_time=varargin{1}.t;
             obj.base_state = obj.self.estimator.result.state.p;
             obj.result.state.xd = [obj.base_state;zeros(17,1)];

@@ -3,7 +3,7 @@
 clear; clc;
 
 % === 修改这里为你的文件名 ===
-load('2025-10-08_exp_ob25_1_code00_randompp.mat', 'est');  
+load('2025-11-07_exp_ob25_1_code00_random', 'est');  
 
 A = est.A;
 B = est.B;

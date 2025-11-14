@@ -44,6 +44,7 @@ classdef LANDING_SIM_REFERENCE < handle
       end
       % obj.func = @(t)[obj.result.state.xd];
       % obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [length(obj.func(0)), 3, 3, 3]));
+      
       obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);
       obj.result.state.v = obj.result.state.xd(5:7,1);
@@ -73,7 +74,7 @@ classdef LANDING_SIM_REFERENCE < handle
       elseif t> obj.te
         Zd = zeros(1,5);
       end
-      Xd(1:3,1) = obj.base_state(1:3);
+      Xd(1:3,1) = [0;0;obj.base_state(3)];
       Xd(3,1) = Zd(1);
       Xd(7,1) = Zd(2);
       Xd(11,1) = Zd(3);

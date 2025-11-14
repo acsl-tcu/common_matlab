@@ -66,6 +66,7 @@ classdef HLC < handle
       obj.result.hlc = obj.result.input;
       obj.result.pre_u = obj.result.input;
       result = obj.result;
+      obj.show();
       % est_print = obj.self.estimator.result.state;
       % fprintf("==================================================================\n")
       % fprintf("==================================================================\n")
@@ -82,27 +83,28 @@ classdef HLC < handle
       % fprintf("\n");
               
     end
-    function [xr] = generate_reference(obj)
-            total_size=16;
-            xr = zeros(total_size, obj.H);    % initialize
-            % 時間関数の取得→時間を代入してリファレンス生成
-
-            RefTime = obj.self.reference.bezier.ref_generator;    % 時間関数の取得
-            for h = 0:obj.H-1
-                t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
-                ref = RefTime(t);
-                xr(1:3, h+1) = ref(1:3);
-                xr(7:9, h+1) = ref(5:7);
-                xr(4:6, h+1) =   [0;0;ref(4)]; % 姿勢角
-                xr(10:12, h+1) = [0;0;0];
-                xr(13:16, h+1) = [0;0;0;0]; % MC -> 0.6597,   HL -> 0
-            end
-    end
+    
    
             % clc;
             % est_print = obj.self.estimator.result.state;
            
-        
+      function show(obj)
+            % clc;
+            % est_print = obj.self.estimator.result.state;
+            est_print = obj.self.estimator.result.state;
+            ref_print =obj.self.reference.result.state;
+            fprintf("==================================================================\n")
+            fprintf("==================================================================\n")
+            fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \n",...
+                est_print.p(1), est_print.p(2), est_print.p(3),...
+                est_print.v(1), est_print.v(2), est_print.v(3),...
+                est_print.q(1), est_print.q(2), est_print.q(3)); % s:state 現在状態
+            fprintf("pr: %f %f %f \t vr: %f %f %f \t qr: %f %f %f \n", ...
+             ref_print.p(1), ref_print.p(2), ref_print.p(3),...
+                ref_print.v(1), ref_print.v(2), ref_print.v(3),...
+                ref_print.xd(4), ref_print.xd(5), ref_print.xd(6)); % r:reference 目標状態
+            
+        end  
   end
 end
 

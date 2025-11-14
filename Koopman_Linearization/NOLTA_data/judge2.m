@@ -10,7 +10,7 @@ clear; clc; close all;
 % 确保您的 'system_matrices.mat' 文件在此文件夹中
 % 该文件应包含 A, B, C 三个矩阵
 try
-    load('2025-10-08_exp_ob25_1_code00_randompp.mat');
+    load('2025-10-10_exp_ob108_code00_randompp.mat');
 catch
     error('请确保 2025-10-08_exp_ob25_1_code00_randompp.mat 文件在当前文件夹中。');
 end
