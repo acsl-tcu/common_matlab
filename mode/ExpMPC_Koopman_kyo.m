@@ -1,7 +1,7 @@
 clc
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 100; % termina time
+te = 150; % termina time
 time = TIME(ts,dt,te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
@@ -26,11 +26,11 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 % agent.input_transform.param.pitch_offset = 510;
 % agent.input_transform.param.roll_offset = 490;
 % agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
- agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[-1,1,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
+% agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
                                                                 % , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", [0,0,0.6], "g", [-1;-1;0.6], "h",[0;0;1.1]), 15}); % P2P
+% agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", [0;0;0.6], "g", [0;0;0.5], "h",[0;0;0.8],"j",[0;0;1.0],"k",[0;0;1.2],"z",[0;0;0.4],"x",[0;0;0.5],"c",[0;0;0.7],"v",[0;0;0.6]), 7.5}); % P2P
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
 agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent)); %最適化手法：QP
@@ -38,8 +38,9 @@ agent.controller.result.input = [0;0;0;0];
 run("ExpBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
+agent.cha_allocation.f.controller = ["hlc"];
 % agent.cha_allocation.f.controller = ["kmpc","hlc"];
-agent.cha_allocation.f.controller = ["kmpc"];
+%agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
@@ -48,7 +49,7 @@ app.logger.plot({1, "input", ""},"fig_num", 1,"phase","tfl");
 app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
-% app.logger.plot({1, "controller.result.input_kmpc", ""}, "fig_num", 4);
+ app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 5,"phase","f");
 end
 
