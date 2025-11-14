@@ -39,8 +39,8 @@ clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-% fsave = 4;
-fsave = 5;
+fsave = 2;
+% fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -54,13 +54,14 @@ ftitle = 0; % default=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
+settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p", "input", "p1-p2"];
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
-settings.target = ["p", "controller.result.delta_input"];
+% settings.target = ["p", "controller.result.delta_input"];
 % settings.target = "input2:4";
+settings.target = "p1-p2";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
 % プロットしたいグラフの情報                                        %
@@ -72,14 +73,14 @@ settings.target = ["p", "controller.result.delta_input"];
 % settings.phase = "tfl";
 settings.phase = "f";
 % settings.fontsize = 18;    % default=11 オススメ=18　
-settings.fontsize = 22;    % 報告書向け
-% settings.fontsize = 28;    % スライド向け
+% settings.fontsize = 22;    % 報告書向け
+settings.fontsize = 24;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
-settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For October report\DNNMEC verification\m=1.0";
+% settings.savefolder = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\6_fig\png";
 
-% settings.savename = '2_HLonly_triangle';
+settings.savename = '2_HLonly_triangle';
 % settings.savename = '6_DNNMEC_triangle';
 % settings.savename = '11_HLonly_saddle';
 % settings.savename = '13_DNNMEC_saddle';
@@ -100,7 +101,9 @@ settings.savefolder = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_d
 % settings.savename = 'No5_Iy_DNNMEC';
 % settings.savename = 'No6_Ix_Iy_DNNMEC';
 % settings.savename = 'No6_Ix_Iy_HLonly';
-settings.savename = 'm=1.0_DNNMEC';
+% settings.savename = 'm=1.0_DNNMEC';
+
+% settings.savename = 'Exp_data_for_learing_dt=2.5';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -324,80 +327,80 @@ end
 disp_rmse(logger,settings.phase)
 
 %% Frequency Analysis
-phase = "f";
-FS = settings.fontsize;
-LW = settings.linewidth;
-time = logger.data(0,'t',"", "phase",phase);
-% data_name = "estimator.result.state.p";
-% data_name = "estimator.result.state.q";
-% data_name = "estimator.result.state.v";
-data_name = "estimator.result.state.w";
-% data_name = "controller.result.input";
-data_name = "controller.result.input2:4";
-% data_name = "controller.result.delta_input";
-% data_name = "controller.result.delta_input2:4";
-data = logger.data(1,data_name,"", "phase",phase);
-
-Y = fft(data);
-lenY = size(Y,2);
-if logger.fExp==1
-    dt = logger.data(1,"sensor.result.dt","", "phase",phase);
-    dt_ave = sum(dt)/length(dt);
-elseif logger.fExp==0
-    dt_ave = 0.025; % Simデータの場合dt=25msで固定
-end
-% dt_ave=0.025;
-Fs = 1/dt_ave;
-L = length(data);
-f = Fs*(0:(L/2))/L; % 周波数軸の作成
-f = f(1:end-1);
-P = zeros(length(f),lenY);
-for i=1:lenY, P(:,i) = abs(Y(1:floor(L/2),i))./(L/2); end % 片側スペクトルの計算
-fig = figure;
-ax = gca;
-plot(f,P(:,1),LineWidth=LW)
-hold on
-for i=2:lenY, plot(f,P(:,i),LineWidth=LW); end
-set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
-
-% plot(f,Y(:,1))
-% hold on
-% for i=2:size(Y,2)
-%     plot(f,Y(:,i))
-% end
-% set(ax.YLabel, 'String', 'Fourier Transform', 'Interpreter','latex', 'FontSize',FS)
-
-% plot(f,10*log10(P.^2))
-% set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
-
-if data_name == "estimator.result.state.p", legend('$x$', '$y$', '$z$', 'Interpreter','latex');
-elseif data_name == "estimator.result.state.v", legend('$v_x$', '$v_y$', '$v_z$', 'Interpreter','latex');
-elseif data_name == "estimator.result.state.q", legend('$\theta_{roll}$', '$\theta_{pitch}$', '$\theta_{yaw}$', 'Interpreter','latex');
-elseif data_name == "estimator.result.state.w", legend('$\omega_{roll}$', '$\omega_{pitch}$', '$\omega_{yaw}$', 'Interpreter','latex');
-elseif data_name == "controller.result.input", legend('$u_{thrust}$','$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
-elseif data_name == "controller.result.input2:4"
-    legend('$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
-    h = findobj(gca, 'Type', 'line');
-    set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
-    set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
-    set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
-elseif data_name == "controller.result.delta_input", legend('$\Delta u_{thrust}$','$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
-elseif data_name == "controller.result.delta_input2:4"
-    legend('$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
-    h = findobj(gca, 'Type', 'line');
-    set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
-    set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
-    set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
-else, legend;
-end
-xlim([0 2])
-% ylim([0 0.5])
-set(ax.Legend, 'FontSize',FS-4)
-% title(ax, data_name, Fontsize=FS);
-set(ax.XLabel, 'String', 'Frequency $f$ [Hz]', 'Interpreter','latex', 'FontSize',FS)
-set(ax.XAxis, fontsize=FS-2)
-set(ax.YAxis, fontsize=FS-2)
-grid on;
+% % % phase = "f";
+% % % FS = settings.fontsize;
+% % % LW = settings.linewidth;
+% % % time = logger.data(0,'t',"", "phase",phase);
+% % % % data_name = "estimator.result.state.p";
+% % % % data_name = "estimator.result.state.q";
+% % % % data_name = "estimator.result.state.v";
+% % % data_name = "estimator.result.state.w";
+% % % % data_name = "controller.result.input";
+% % % data_name = "controller.result.input2:4";
+% % % % data_name = "controller.result.delta_input";
+% % % % data_name = "controller.result.delta_input2:4";
+% % % data = logger.data(1,data_name,"", "phase",phase);
+% % % 
+% % % Y = fft(data);
+% % % lenY = size(Y,2);
+% % % if logger.fExp==1
+% % %     dt = logger.data(1,"sensor.result.dt","", "phase",phase);
+% % %     dt_ave = sum(dt)/length(dt);
+% % % elseif logger.fExp==0
+% % %     dt_ave = 0.025; % Simデータの場合dt=25msで固定
+% % % end
+% % % % dt_ave=0.025;
+% % % Fs = 1/dt_ave;
+% % % L = length(data);
+% % % f = Fs*(0:(L/2))/L; % 周波数軸の作成
+% % % f = f(1:end-1);
+% % % P = zeros(length(f),lenY);
+% % % for i=1:lenY, P(:,i) = abs(Y(1:floor(L/2),i))./(L/2); end % 片側スペクトルの計算
+% % % fig = figure;
+% % % ax = gca;
+% % % plot(f,P(:,1),LineWidth=LW)
+% % % hold on
+% % % for i=2:lenY, plot(f,P(:,i),LineWidth=LW); end
+% % % set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
+% % % 
+% % % % plot(f,Y(:,1))
+% % % % hold on
+% % % % for i=2:size(Y,2)
+% % % %     plot(f,Y(:,i))
+% % % % end
+% % % % set(ax.YLabel, 'String', 'Fourier Transform', 'Interpreter','latex', 'FontSize',FS)
+% % % 
+% % % % plot(f,10*log10(P.^2))
+% % % % set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
+% % % 
+% % % if data_name == "estimator.result.state.p", legend('$x$', '$y$', '$z$', 'Interpreter','latex');
+% % % elseif data_name == "estimator.result.state.v", legend('$v_x$', '$v_y$', '$v_z$', 'Interpreter','latex');
+% % % elseif data_name == "estimator.result.state.q", legend('$\theta_{roll}$', '$\theta_{pitch}$', '$\theta_{yaw}$', 'Interpreter','latex');
+% % % elseif data_name == "estimator.result.state.w", legend('$\omega_{roll}$', '$\omega_{pitch}$', '$\omega_{yaw}$', 'Interpreter','latex');
+% % % elseif data_name == "controller.result.input", legend('$u_{thrust}$','$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
+% % % elseif data_name == "controller.result.input2:4"
+% % %     legend('$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
+% % %     h = findobj(gca, 'Type', 'line');
+% % %     set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
+% % %     set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
+% % %     set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+% % % elseif data_name == "controller.result.delta_input", legend('$\Delta u_{thrust}$','$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
+% % % elseif data_name == "controller.result.delta_input2:4"
+% % %     legend('$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
+% % %     h = findobj(gca, 'Type', 'line');
+% % %     set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
+% % %     set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
+% % %     set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+% % % else, legend;
+% % % end
+% % % xlim([0 2])
+% % % % ylim([0 0.5])
+% % % set(ax.Legend, 'FontSize',FS-4)
+% % % % title(ax, data_name, Fontsize=FS);
+% % % set(ax.XLabel, 'String', 'Frequency $f$ [Hz]', 'Interpreter','latex', 'FontSize',FS)
+% % % set(ax.XAxis, fontsize=FS-2)
+% % % set(ax.YAxis, fontsize=FS-2)
+% % % grid on;
 
 %% TODO
 % % % % % ↓このプロットの仕方にも対応できるようにしたい↓
