@@ -19,6 +19,10 @@ properties
     agent           % 親となるエージェント構造体
     mode = 0        % 自動調整モード（0:off, 1:offset, 2:gain）
     monitor         % AutoTuneMonitor のインスタンス（任意）
+    result_ch=zeros(1,8);
+    result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
+    last_score = [];
+
 
     % ------------------------------------------------------------
     % 自動調整対象のパラメータ（origin のものを継承する場合がある）
@@ -205,16 +209,16 @@ methods
         % 飛行フェーズに応じて TL 用ゲイン or 通常ゲインを選択
         % ------------------------------------------------------------
         if cha == 't' || cha == 'l'
-            gain = obj.gain_tl;
-            th_offset = obj.th_offset_tl;
+            g = obj.gain_tl;
+            offset = obj.th_offset_tl;
         else
-            gain = obj.gain;
-            th_offset = obj.th_offset;
+            g = obj.gain;
+            offset = obj.th_offset;
         end
 
         % shape を揃える
-        if numel(gain) ~= 4
-            gain = reshape(gain,4,1);
+        if numel(g) ~= 4
+            g = reshape(g,4,1);
         end
 
         % ------------------------------------------------------------
@@ -223,12 +227,12 @@ methods
         T_thr = input(1);
 
         % 角速度誤差に基づく P 制御
-        uroll  = gain(1) * (whn(1) - wh(1));
-        upitch = gain(2) * (whn(2) - wh(2));
-        uyaw   = gain(3) * (whn(3) - wh(3));
+        uroll  = g(1) * (whn(1) - wh(1));
+        upitch = g(2) * (whn(2) - wh(2));
+        uyaw   = g(3) * (whn(3) - wh(3));
 
         % スロットル：ホバーフォースとの差分 × ゲイン + オフセット
-        uthr = max(0, gain(4) * (T_thr - hover_thrust_force) + th_offset);
+        uthr = max(0, g(4) * (T_thr - hover_thrust_force) + offset);
 
         % ------------------------------------------------------------
         % スムージングフィルタ（THRUST2 と同じ）
@@ -262,8 +266,8 @@ methods
         % ------------------------------------------------------------
         % 最終 CH ベクトル（THRUST2 と同じ形式）
         % ------------------------------------------------------------
-        obj.result_autotune = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
-        u = obj.result_autotune;
+        obj.result_ch = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
+        u = obj.result_ch;
 
         % ------------------------------------------------------------
         % ---------- ここから AutoTune モード専用処理 ----------
@@ -303,8 +307,8 @@ methods
                 [tvec,wvec,wnvec,uthrvec] = obj.getRecentWindow(obj.eval_window_sec);
 
                 % スコア（安定度）評価
-                score = obj.evaluate_stability(wnvec, wvec);
-
+                % score = obj.evaluate_stability(wnvec, wvec);
+                score = obj.evaluate_stability(tvec,wnvec, wvec,uthrvec);
                 % --- 安全チェック（姿勢・高度） ---
                 try
                     p_est = obj.agent.estimator.result.state.p; % 高度などの推定位置
@@ -488,7 +492,17 @@ methods
                     if obj.stable_counter >= obj.stable_threshold
                         obj.mode = 0; % lock (調整終了)
                         obj.showFinalAndLock();
+                    % ===============================
+                    % AutoTune 成功 → 最終パラメータを result_autotune に保存
+                    % ===============================
 
+                    obj.result_autotune = struct( ...
+                        "gain",       obj.gain, ...       % チューニング結果のゲイン
+                        "offset",     obj.th_offset, ...  % チューニング結果のオフセット
+                        "score",      obj.best_score, ... % 最良スコア
+                        "mode",       obj.mode ...        % 実行したモード
+                    );
+                       
                         % モニタにもロック状態を表示
                         if ~isempty(obj.monitor)
                             obj.monitor.update('AutoTune: LOCKED (stable)');
@@ -501,7 +515,7 @@ methods
                 obj.updateMonitor(score);
 
                 % last_t, last_score update
-                % --- 次回の評価のために時刻とスコアを記録 ---
+                % --- 次回の評価のために時刻とスコアをp記録 ---
                 obj.last_t = tnow;
                 obj.last_score = score;
             end
@@ -554,7 +568,8 @@ methods
     end
 
 
-    function s = evaluate_stability(obj, wn, w)
+    % function s = evaluate_stability(obj, wn, w)
+      function s = evaluate_stability(~, wn, w)
         % --- 安定度スコアを計算：目標 vs 実測の差 + 振動成分 ---
         if isempty(wn) || isempty(w)
             s = Inf; return;
@@ -585,18 +600,18 @@ methods
         if isempty(obj.monitor), return; end
 
         try
-            gain = obj.gain;
-            gain_tl = obj.gain_tl;
+            g = obj.gain;
+            g_tl = obj.gain_tl;
             off = obj.th_offset;
             off_tl = obj.th_offset_tl;
         catch
             % 取得に失敗した場合は NaN を入れる
-            gain = [nan;nan;nan;nan];
-            gain_tl = gain;
+            g = [nan;nan;nan;nan];
+            g_tl = g;
             off = nan; off_tl = nan;
         end
 
-        best_score = obj.best_score;
+        b_score = obj.best_score;
 
         % 表示フォーマットにまとめる
         s = sprintf(['AutoTune Mode: %d   Phase: %s\n\n' ...
@@ -607,9 +622,9 @@ methods
             'Current Score: %.4f\nBest Score   : %.4f\n' ...
             '(eval every %.1f s)'], ...
             obj.mode, 'autotune', ...
-            gain(1),gain(2),gain(3),gain(4), ...
-            gain_tl(1),gain_tl(2),gain_tl(3),gain_tl(4), ...
-            off, off_tl, score, best_score, obj.eval_window_sec);
+            g(1),g(2),g(3),g(4), ...
+            g_tl(1),g_tl(2),g_tl(3),g_tl(4), ...
+            off, off_tl, score, b_score, obj.eval_window_sec);
 
         % モニターへ送る
         try
@@ -633,7 +648,7 @@ methods
             ro = 1500; po = 1500; yo = 1500;
         end
 
-        obj.result_autotune = [ro, po, 0, yo, 1000, 0, 0, 0];
+        obj.result_ch = [ro, po, 0, yo, 1000, 0, 0, 0];
 
         fprintf('\n*** AUTOTUNE KILLED: %s ***\n', reason);
 
