@@ -22,6 +22,7 @@ properties
     result_ch=zeros(1,8);
     result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
     last_score = [];
+    % ladt_score=Inf;
 
 
     % ------------------------------------------------------------
@@ -304,11 +305,12 @@ methods
 
             if tnow - obj.last_t >= obj.eval_window_sec
                 % 直近 eval_window_sec 秒間のログ取得
-                [tvec,wvec,wnvec,uthrvec] = obj.getRecentWindow(obj.eval_window_sec);
+                % [tvec,wvec,wnvec,uthrvec] = obj.getRecentWindow(obj.eval_window_sec);
+                [~,wvec,wnvec,~] = obj.getRecentWindow(obj.eval_window_sec);
 
                 % スコア（安定度）評価
                 % score = obj.evaluate_stability(wnvec, wvec);
-                score = obj.evaluate_stability(tvec,wnvec, wvec,uthrvec);
+                score = obj.evaluate_stability(wnvec, wvec);
                 % --- 安全チェック（姿勢・高度） ---
                 try
                     p_est = obj.agent.estimator.result.state.p; % 高度などの推定位置
@@ -443,7 +445,12 @@ methods
                             % 改善 → 採用
                             obj.best_score = score;
                             obj.best_param.th_offset = obj.th_offset;
-                            obj.best_param.gain = (cha=='t') - obj.gain_tl : obj.gain;
+                            if cha == 't'
+                                obj.best_param.gain = obj.gain_tl;
+                            else
+                                obj.best_param.gain = obj.gain;
+                            end
+                            % obj.best_param.gain = (cha=='t') - obj.gain_tl : obj.gain;
                         else
                             % 改善しない → 元に戻す
                             if cha == 't'
@@ -597,7 +604,7 @@ methods
 
     function updateMonitor(obj, score)
         % --- モニター表示更新（オフセット・ゲイン・スコアなど） ---
-        if isempty(obj.monitor), return; end
+        if ~isempty(obj.monitor), return; end
 
         try
             g = obj.gain;
@@ -670,7 +677,7 @@ methods
         end
 
         % GUI モニターにも最終結果を表示
-        if isempty(obj.monitor)
+        if ~isempty(obj.monitor)
             obj.monitor.update(sprintf( ...
                 'AutoTune LOCKED\nBestOffset=%.1f\nBestGain=[%.1f %.1f %.1f %.1f]\nScore=%.4f', ...
                 obj.best_param.th_offset, obj.best_param.gain(1), obj.best_param.gain(2), ...
