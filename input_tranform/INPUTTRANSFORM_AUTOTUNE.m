@@ -16,11 +16,13 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 %   agent.cha_allocation.input_transform = ["origin","autotune"];
 
 properties
-    agent           % 親となるエージェント構造体
+    self
     mode = 0        % 自動調整モード（0:off, 1:offset, 2:gain）
     monitor         % AutoTuneMonitor のインスタンス（任意）
-    result_ch=zeros(1,8);
-    result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
+    result
+    % result_ch=zeros(1,8);
+    % result_ch=struct("roll",[],"pitch",[],"thrust",[],"yaw",[],"aux1",[],"aux2",[],"aux3",[],"aux4",[]);
+    % result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
     last_score = [];
     % ladt_score=Inf;
 
@@ -80,7 +82,7 @@ end
 
 
 methods
-    function obj = INPUTTRANSFORM_AUTOTUNE(agent, mode)
+    function obj = INPUTTRANSFORM_AUTOTUNE(self, mode)
         % コンストラクタ
         % mode が指定されていればセット
         if nargin >= 2
@@ -88,16 +90,16 @@ methods
         else
             obj.mode = 0;
         end
-        obj.agent = agent;
+        obj.self = self;
 
         % ------------------------------------------------------------
         % origin のパラメータが存在すればコピーする（初期値継承）
         % ------------------------------------------------------------
         try
-            if isfield(agent.input_transform,'origin') && ...
-               isprop(agent.input_transform.origin,'param')
+            if isfield(self.input_transform,'origin') && ...
+               isprop(self.input_transform.origin,'param')
 
-                p = agent.input_transform.origin.param;
+                p = self.input_transform.origin.param;
                 if isfield(p,'th_offset'),    obj.th_offset = p.th_offset; end
                 if isfield(p,'th_offset_tl'), obj.th_offset_tl = p.th_offset_tl; end
                 if isfield(p,'gain'),         obj.gain = p.gain; end
@@ -156,10 +158,10 @@ methods
          && cha ~= 'f' && cha ~= 'l' && cha ~= 't')
 
             try
-                if isfield(obj.agent.input_transform,'origin') && ...
-                   isprop(obj.agent.input_transform.origin,'flight_phase')
+                if isfield(obj.self.input_transform,'origin') && ...
+                   isprop(obj.self.input_transform.origin,'flight_phase')
 
-                    cha = obj.agent.input_transform.origin.flight_phase;
+                    cha = obj.self.input_transform.origin.flight_phase;
                 else
                     cha = 's';
                 end
@@ -172,7 +174,7 @@ methods
         % コントローラの算出した入力値を取得（失敗時はゼロ）
         % ------------------------------------------------------------
         try
-            input = obj.agent.controller.result.input;
+            input = obj.self.controller.result.input;
         catch
             input = [0;0;0;0];
         end
@@ -181,7 +183,7 @@ methods
         % ホバースラスト計算（P(1) = mass, P(9) = gravity）
         % ------------------------------------------------------------
         try
-            P = obj.agent.parameter.get();
+            P = obj.self.parameter.get();
             hover_thrust_force = P(1) * P(9);
         catch
             hover_thrust_force = 0;
@@ -191,15 +193,15 @@ methods
         % 推定角速度 wh と 1ステップ予測値 whn を取得
         % ------------------------------------------------------------
         try
-            wh = obj.agent.estimator.result.state.w; % 推定角速度
+            wh = obj.self.estimator.result.state.w; % 推定角速度
 
             % モデルで1ステップ未来を予測（内部状態維持のため保存→復元）
-            obj.agent.estimator.model.do(varargin{:});
-            whn = obj.agent.estimator.model.state.w;
+            obj.self.estimator.model.do(varargin{:});
+            whn = obj.self.estimator.model.state.w;
 
             % 内部状態を復元
-            obj.agent.estimator.model.state.set_state( ...
-                obj.agent.estimator.result.state.get );
+            obj.self.estimator.model.state.set_state( ...
+                obj.self.estimator.result.state.get );
 
         catch
             wh = zeros(3,1);
@@ -252,9 +254,9 @@ methods
         % arming offset を加算（実機出力に変換）
         % ------------------------------------------------------------
         try
-            ro = obj.agent.plant.arming_msg(1);
-            po = obj.agent.plant.arming_msg(2);
-            yo = obj.agent.plant.arming_msg(4);
+            ro = obj.self.plant.arming_msg(1);
+            po = obj.self.plant.arming_msg(2);
+            yo = obj.self.plant.arming_msg(4);
         catch
             ro = 1500; po = 1500; yo = 1500;
         end
@@ -267,8 +269,9 @@ methods
         % ------------------------------------------------------------
         % 最終 CH ベクトル（THRUST2 と同じ形式）
         % ------------------------------------------------------------
-        obj.result_ch = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
-        u = obj.result_ch;
+        obj.result = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
+        % obj.result_ch =struct("roll",uroll,"pitch",upitch,"thrust",uthr,"yaw",uyaw,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
+        u = obj.result;
 
         % ------------------------------------------------------------
         % ---------- ここから AutoTune モード専用処理 ----------
@@ -313,8 +316,8 @@ methods
                 score = obj.evaluate_stability(wnvec, wvec);
                 % --- 安全チェック（姿勢・高度） ---
                 try
-                    p_est = obj.agent.estimator.result.state.p; % 高度などの推定位置
-                    q_est = obj.agent.estimator.result.state.q; % 姿勢（Euler or Quaternion）
+                    p_est = obj.self.estimator.result.state.p; % 高度などの推定位置
+                    q_est = obj.self.estimator.result.state.q; % 姿勢（Euler or Quaternion）
                     
                     % Euler 3成分 or クォータニオンの処理分岐
                     if numel(q_est) == 3
@@ -503,12 +506,12 @@ methods
                     % AutoTune 成功 → 最終パラメータを result_autotune に保存
                     % ===============================
 
-                    obj.result_autotune = struct( ...
-                        "gain",       obj.gain, ...       % チューニング結果のゲイン
-                        "offset",     obj.th_offset, ...  % チューニング結果のオフセット
-                        "score",      obj.best_score, ... % 最良スコア
-                        "mode",       obj.mode ...        % 実行したモード
-                    );
+                    % obj.result_autotune = struct( ...
+                    %     "gain",       obj.gain, ...       % チューニング結果のゲイン
+                    %     "offset",     obj.th_offset, ...  % チューニング結果のオフセット
+                    %     "score",      obj.best_score, ... % 最良スコア
+                    %     "mode",       obj.mode ...        % 実行したモード
+                    % );
                        
                         % モニタにもロック状態を表示
                         if ~isempty(obj.monitor)
@@ -647,15 +650,16 @@ methods
 
         % throttle = 0 になる安全な出力をセット
         try
-            ro = obj.agent.plant.arming_msg(1);
-            po = obj.agent.plant.arming_msg(2);
-            yo = obj.agent.plant.arming_msg(4);
+            ro = obj.self.plant.arming_msg(1);
+            po = obj.self.plant.arming_msg(2);
+            yo = obj.self.plant.arming_msg(4);
         catch
             % arming_msg が取得できない場合のフォールバック
             ro = 1500; po = 1500; yo = 1500;
         end
 
-        obj.result_ch = [ro, po, 0, yo, 1000, 0, 0, 0];
+        obj.result = [ro, po, 0, yo, 1000, 0, 0, 0];
+        % obj.result_ch =struct("roll",ro,"pitch",po,"thrust",0,"yaw",yo,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
 
         fprintf('\n*** AUTOTUNE KILLED: %s ***\n', reason);
 
