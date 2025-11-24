@@ -17,7 +17,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -45,7 +45,7 @@ app.logger.plot({1, "v", "er"},"fig_num",4);
 app.logger.plot({1, "input", ""},"fig_num",5,"phase","tfl");
 app.logger.plot({1, "inner_input", ""},"fig_num",6,"phase","tfl");
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",7);
-app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[20 65]);
+app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[0 65]);
 
 % % 刻み時間描画
  t0id = find(app.logger.Data.phase==97,1,'last')+1;
