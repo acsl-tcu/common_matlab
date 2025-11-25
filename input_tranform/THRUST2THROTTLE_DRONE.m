@@ -65,8 +65,10 @@ methods
             upitch = sign(upitch) * min(abs(upitch), 500) + obj.param.pitch_offset;
             uyaw = -sign(uyaw) * min(abs(uyaw), 300) + obj.param.yaw_offset; % Need minus : positive rotation is clockwise in betaflight
             obj.result = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000]; % CH8 = 1000 required for autonomous flight 
+            % obj.result=struct("roll",uroll,"pitch",upitch,"thrust",uthr,"yaw",uyaw,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
         else
             obj.result = [obj.param.roll_offset, obj.param.pitch_offset, 0, obj.param.yaw_offset, 1000, 0, 0, 0];
+            % obj.result=struct("roll",obj.param.roll_offset,"pitch",obj.param.pitch_offset,"thrust",0,"yaw",obj.param.yaw_offset,"aux1",1000,"aux2",0,"aux3",0,"aux4",0);
         end
 
         u = obj.result;

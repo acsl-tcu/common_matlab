@@ -17,12 +17,12 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 
 properties
     self
-    mode = 0        % 自動調整モード（0:off, 1:offset, 2:gain）
+    mode        % 自動調整モード（0:off, 1:offset, 2:gain）
     monitor         % AutoTuneMonitor のインスタンス（任意）
     result
     % result_ch=zeros(1,8);
-    % result_ch=struct("roll",[],"pitch",[],"thrust",[],"yaw",[],"aux1",[],"aux2",[],"aux3",[],"aux4",[]);
-    % result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
+    result_ch=struct("roll",[],"pitch",[],"thrust",[],"yaw",[],"aux1",[],"aux2",[],"aux3",[],"aux4",[]);
+    result_autotune=struct("gain",[],"offset",[],"score",[],"mode",[]);
     last_score = [];
     % ladt_score=Inf;
 
@@ -141,6 +141,7 @@ methods
         obj.best_param.th_offset = obj.th_offset;
         obj.best_param.gain = obj.gain;
         obj.best_score = Inf;
+        obj.result_autotune = struct("gain", [], "offset", [], "score", [], "mode", []);
     end
 
 
@@ -269,9 +270,9 @@ methods
         % ------------------------------------------------------------
         % 最終 CH ベクトル（THRUST2 と同じ形式）
         % ------------------------------------------------------------
-        obj.result = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
-        % obj.result_ch =struct("roll",uroll,"pitch",upitch,"thrust",uthr,"yaw",uyaw,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
-        u = obj.result;
+        % obj.result_ch = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
+        obj.result_ch =struct("roll",uroll,"pitch",upitch,"thrust",uthr,"yaw",uyaw,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
+        u = obj.result_ch;
 
         % ------------------------------------------------------------
         % ---------- ここから AutoTune モード専用処理 ----------
@@ -385,7 +386,7 @@ methods
 
                     % --- 高度に応じて微調整（浮き始めたら補正） ---
                     if ~isnan(alt) && alt > 0.05
-                        target_z = 0.5;                 % 目標 0.5m
+                        target_z = 0.4;                 % 目標 0.4m
                         err_h = target_z - alt;         % 高度誤差
                         corr = 0.5 * err_h;             % 緩めの補正
                         corr = max(min(corr, 1), -1);   % -1〜1に制限
@@ -473,7 +474,7 @@ methods
                 end
 
 
-                               % update best score/bookkeeping
+                % update best score/bookkeeping
                 % --- 現在の score がこれまでの best_score を更新した場合、
                 %     ベスト値として記録しておく（オフセットとゲインも保存）
                 if score < obj.best_score
@@ -506,12 +507,12 @@ methods
                     % AutoTune 成功 → 最終パラメータを result_autotune に保存
                     % ===============================
 
-                    % obj.result_autotune = struct( ...
-                    %     "gain",       obj.gain, ...       % チューニング結果のゲイン
-                    %     "offset",     obj.th_offset, ...  % チューニング結果のオフセット
-                    %     "score",      obj.best_score, ... % 最良スコア
-                    %     "mode",       obj.mode ...        % 実行したモード
-                    % );
+                    obj.result_autotune = struct( ...
+                        "gain",       obj.gain, ...       % チューニング結果のゲイン
+                        "offset",     obj.th_offset, ...  % チューニング結果のオフセット
+                        "score",      obj.best_score, ... % 最良スコア
+                        "mode",       obj.mode ...        % 実行したモード
+                    );
                        
                         % モニタにもロック状態を表示
                         if ~isempty(obj.monitor)
@@ -658,8 +659,8 @@ methods
             ro = 1500; po = 1500; yo = 1500;
         end
 
-        obj.result = [ro, po, 0, yo, 1000, 0, 0, 0];
-        % obj.result_ch =struct("roll",ro,"pitch",po,"thrust",0,"yaw",yo,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
+        % obj.result_ch = [ro, po, 0, yo, 1000, 0, 0, 0];
+        obj.result_ch =struct("roll",ro,"pitch",po,"thrust",0,"yaw",yo,"aux1",1000,"aux2",0,"aux3",0,"aux4",1000);
 
         fprintf('\n*** AUTOTUNE KILLED: %s ***\n', reason);
 
