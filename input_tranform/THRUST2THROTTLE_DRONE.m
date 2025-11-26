@@ -86,10 +86,10 @@ methods
             u_filtered = alpha_u * u_current + (1 - alpha_u) * prev_u;
             prev_u = u_filtered;
 
-            uroll = u_filtered(1);
-            upitch = u_filtered(2);
-            uthr = u_filtered(3);
-            uyaw = u_filtered(4);
+            % uroll = u_filtered(1);
+            % upitch = u_filtered(2);
+            % uthr = u_filtered(3);
+            % uyaw = u_filtered(4);
 
             %% === 制限とオフセット ===
             uroll = sign(uroll) * min(abs(uroll), 500) + obj.param.roll_offset;

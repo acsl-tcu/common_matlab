@@ -30,13 +30,12 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
 agent.parameter.set("loadmass",0.075);%0.0968);%0.968
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM7"));%有線プロポ
-agent.sensor.motive = MOTIVE(agent, Sensor_Motive([1,2],0, motive)); % rigid_id,initial_yaw_angle,motive
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));%有線プロポ
+agent.sensor.motive = MOTIVE(agent, Sensor_Motive([2,1],0, motive)); % rigid_id,initial_yaw_angle,motive
 
-est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
+% est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
 agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,...
-    MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
-    ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
+    MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
 
 
 % agent.estimator = EKF(agent, Estimator_EKF(agent,dt,...
@@ -54,9 +53,11 @@ switch self.cha
         pT = (pL - p);
         pT = pT/norm(pT);
         QmL = 1e-3; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
+        % QmL = 0.07; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
         if self.estimator.Q(end,end) ~= QmL
             B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
             Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E5,eye(3)*1E5,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
             R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
             self.estimator.B = B;
             self.estimator.Q = Q;
@@ -99,16 +100,18 @@ agent.cha_allocation.f.reference = "timevarying";
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
-app.logger.plot({{1, "estimator.result.state.pL", "er"}},"ax",app.UIAxes,"phase","t");
+app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","t");
 
 app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
 app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
 app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
-app.logger.plot({1,"inner_input",""},"phase","tf", "fig_num",6); % 制御入力: Thrust, roll, pitch, yaw
-app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
+app.logger.plot({1,"inner_input1:4",""},"phase","tf", "fig_num",6); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
+
+% app.logger.plot({1, "sensor.result.", "er"},"phase","tf", "fig_num",10);
 
 % 刻み時間描画
 t0id = find(app.logger.Data.phase==97,1,'last')+1;

@@ -2,7 +2,10 @@ function do_prop(app,agent,prop,i)
 if ~app.isReady && strcmp(prop,"plant")
     return
 else
-    if ~app.isReady; fCha = "0"; else fCha = app.cha; end
+    if ~app.isReady 
+        fCha = "0";
+        app.time.t = 0;
+    else fCha = app.cha; end
     if ~contains("ftla", app.cha) || strcmp(app.cha,"")
         app.cha = "s";
         return

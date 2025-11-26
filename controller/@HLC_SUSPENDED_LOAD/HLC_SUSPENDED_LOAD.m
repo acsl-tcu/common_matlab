@@ -104,6 +104,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             obj.result.x = x;
             obj.result.sus = obj.result.input;
             result = obj.result;
+            
         end
         function show(obj)
             obj.result
@@ -124,7 +125,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             if isempty(obj.pL0)
                 obj.pL0 = pL; % 初期の牽引物位置
             end
-            if strcmp(cha,'t') % take off
+            if strcmp(cha,'t') || strcmp(cha, '0') || strcmp(cha, 'a') % take off
                 % % 質量推定が進んだら or
                 % 牽引物の初期高さ+機体の全高より高くなったら
                 % センサ値を使い始める
@@ -141,6 +142,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                     pL = p;
                 end
                 nxy = pL;
+                nxy(3) = xd(3) - L;
             elseif strcmp(cha,'l') % landing
                 if isempty(obj.cableLL) || isempty(obj.mLL)
                     obj.cableLL = norm(p - pL);  % landing開始時の機体と牽引物の距離
@@ -157,7 +159,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                     obj.mLL = (1 - k)*obj.mLL;
                     mL = min(mL, obj.mLL);  % 傾いて着陸した時に推定が吹っ飛ばないように制限
                 end
-
+                nxy(3) = xd(3) - L;
             end
             %l = sqrt(L^2 - sum((p(1:2)-pL(1:2)).^2));
             P(6) = mL;
@@ -173,7 +175,6 @@ classdef HLC_SUSPENDED_LOAD < handle
                     P(end-1:end)  = model.state.dst';
                 end               
             end
-            nxy(3) = xd(3) - L;
             xd(1:3) = nxy;
         end
     end

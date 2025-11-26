@@ -74,6 +74,7 @@ switch modelName
         disp(modelName)
     case "Load_mL_HL"
         Estimator.sensor_param = ["p", "q", "pL", "pT"]; % parameter for sensor_func
+        % Estimator.sensor_param = ["pL", "pT", "p", "q"]; % parameter for sensor_func
         Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
         % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1E-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
         % 観測の分散=0.001

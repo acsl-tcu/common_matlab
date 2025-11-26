@@ -51,6 +51,7 @@ methods
         end
 
         for i = 1:length(obj.rigid_id)
+        % for i = length(obj.rigid_id):-1:1
             id = obj.rigid_id(i);
             if sum(contains(obj.result.state(i).list, "q")) == 1
                 tmpq = quaternion(data.rigid(id).q');
