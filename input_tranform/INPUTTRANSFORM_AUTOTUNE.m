@@ -87,11 +87,37 @@ methods
     end
 
 
-    % ============================================================
-    % メイン処理（入力変換 + 自動調整）
-    % ============================================================
-    function u = do(obj, t_struct, cha)
-
+        % ============================================================
+        % メイン処理（入力変換 + 自動調整）
+        % ============================================================
+        function  u = do(obj, varargin)
+        % ============================================================
+        %   do() : INPUTTRANSFORM_AUTOTUNE のメイン処理
+        %   ・外部互換性維持のため varargin を使用
+        %   ・内部では t_struct, cha の2引数に統一
+        % ============================================================
+        
+        %% ------------------------------------------------------------
+        % 引数の取り出し（最重要：ここで互換性確保）
+        % ------------------------------------------------------------
+        % 許可された最小構成：
+        %   do(obj, t_struct)
+        %   do(obj, t_struct, cha)
+        %   do(obj, t_struct, cha, 追加引数...)
+        %
+        % cha は使うのは第2引数のみ、他は無視する。
+        
+        if nargin < 2
+            error("do(): t_struct が指定されていません");
+        else
+            t_struct = varargin{1};
+        end
+        
+        if nargin < 3
+            cha = 's';      % デフォルト
+        else
+            cha = varargin{2};
+        end
         % cha が誤っていた場合の対策
         if ~ismember(cha,{'q','s','a','f','l','t'})
             cha='s';
@@ -186,8 +212,33 @@ methods
 
                 % スコアを計算（揺れ + 不安定性）
                 score = obj.evaluate_stability(wnvec, wvec);
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % if obj.mode==1
+                % % 少しずつオフセットを増やす（浮き始める点を探す）
+                % obj.th_offset = min(350, obj.th_offset + obj.offset_step);
+                % end
+               % if obj.mode==2
+               %      % 改善しやすい軸から順番にゲインを試す
+               %      persistent axis_idx
+               %      if isempty(axis_idx), axis_idx=1; end
+               % 
+               %      trial = g;
+               % 
+               %      step = min(obj.gain_step(axis_idx), obj.gain_max(axis_idx) - trial(axis_idx));
+               %      trial(axis_idx) = trial(axis_idx) + step;   % 試すゲイン増加案
+               % 
+               %      g = trial;
+               % 
+               %      % スコアが改善すれば採用
+               %      if score < obj.best_score
+               %          obj.best_score = score;
+               %          obj.gain = g;
+               %      end
+               % 
+               %      % 次の軸へ移動
+               %      axis_idx = mod(axis_idx,4) + 1;
+               %  end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % ============================
                 %   MODE 1 & MODE 2 (改良版)
                 % ============================
@@ -230,7 +281,7 @@ methods
                 end
             
                 return;
-            end
+                end
 
 
             % ----------------------------
@@ -349,20 +400,65 @@ methods
     % ============================================================
     % スコア計算（揺れ + 不安定性）
     % ============================================================
-    function s = evaluate_stability(~, wn, w)
-        if isempty(wn) || isempty(w)
-            s = Inf;
-            return;
-        end
+    % function s = evaluate_stability(~, wn, w)
+    %     if isempty(wn) || isempty(w)
+    %         s = Inf;
+    %         return;
+    %     end
+    % 
+    %     % モデルとの差の大きさ（不安定性）
+    %     stability = sum( mean( (wn - w).^2 , 2) );
+    % 
+    %     % ローパス前後の揺れ量
+    %     vibration = sum( var([w; wn],0,2) );
+    % 
+    %     % 合計（重み0.5）
+    %     s = stability + 0.5*vibration;
+    % end
 
-        % モデルとの差の大きさ（不安定性）
-        stability = sum( mean( (wn - w).^2 , 2) );
 
-        % ローパス前後の揺れ量
-        vibration = sum( var([w; wn],0,2) );
+    function s = evaluate_stability(~, wn, w, pos, pos_ref)
+    % wn  = LPF後データ（NxM）
+    % w   = LPF前データ（NxM）
+    % pos = 現在位置  [x; y; z]
+    % pos_ref = 目標位置 [x_ref; y_ref; z_ref]
 
-        % 合計（重み0.5）
-        s = stability + 0.5*vibration;
+    % データが足りないときは無限大（最悪評価）
+    if isempty(wn) || isempty(w) || isempty(pos) || isempty(pos_ref)
+        s = Inf;
+        return;
     end
+
+    % --------------------------
+    % 1. モデルとの差の大きさ（あなたの従来ロジックそのまま）
+    % --------------------------
+    stability = sum( mean( (wn - w).^2 , 2) );
+
+    % --------------------------
+    % 2. ローパス前後の揺れ量（あなたの従来ロジック）
+    % --------------------------
+    vibration = sum( var([w; wn], 0, 2) );
+
+    % --------------------------
+    % 3. 位置誤差（今回追加する部分） 
+    % --------------------------
+    % pos=obj.self.sensor.result.state.p;
+    % pos_ref=obj.self.reference.result.state.p;
+    e_pos = pos_ref - pos;
+    pos_err = sum( e_pos.^2 );  % 二乗誤差
+
+    % --- 初期状態の "地面停止で最高点" を防ぐ処理 ---
+    % 高さが低すぎると正しく評価できないので無効化
+    if pos(3) < 0.1  
+        pos_err = 1000;  % 大きめの罰則（0 だと地面状態の方が優位になる）
+    end
+
+    % --------------------------
+    % 4. 総合スコア
+    %     （重みは必要に応じて変更可能）
+    % --------------------------
+    s = stability + 0.5*vibration + 2.0*pos_err;
+end
+
 end
 end
