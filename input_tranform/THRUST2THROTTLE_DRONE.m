@@ -30,13 +30,6 @@ methods
     end
 
     function u = do(obj, varargin)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        persistent prev_dwh
-            if isempty(prev_dwh)
-                prev_dwh=zeros(3,1);
-            end
-            alpha=0.2;
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% u = [uroll, upitch, uthr, uyaw]
         % [Input] varargin : time, cha, logger, env, agent, i
 
@@ -61,12 +54,6 @@ methods
             %     th_offset = obj.param.th_offset_tl;
             % end
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            dwh=whn-wh;
-            dwh=alpha*dwh+(1-alpha)*prev_dwh;
-            prev_dwh=dwh;
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
             T_thr = input(1); % thrust, torque input 
 
             uroll = gain(1) * (whn(1) - wh(1));
@@ -75,23 +62,6 @@ methods
             % apply gain to (thrust - hovering_thrust)
             uthr = max(0, gain(4) * (T_thr - obj.hover_thrust_force) + th_offset); 
             uyaw = gain(3) * (whn(3) - wh(3));
-
-            %% === 出力スムージング用ローパスフィルタ ===
-            persistent prev_u
-            alpha_u = 0.3; % 0.2～0.5の範囲で調整
-            if isempty(prev_u)
-                prev_u = zeros(4,1);
-            end
-            u_current = [uroll; upitch; uthr; uyaw];
-            u_filtered = alpha_u * u_current + (1 - alpha_u) * prev_u;
-            prev_u = u_filtered;
-
-            % uroll = u_filtered(1);
-            % upitch = u_filtered(2);
-            % uthr = u_filtered(3);
-            % uyaw = u_filtered(4);
-
-            %% === 制限とオフセット ===
             uroll = sign(uroll) * min(abs(uroll), 500) + obj.param.roll_offset;
             upitch = sign(upitch) * min(abs(upitch), 500) + obj.param.pitch_offset;
             uyaw = -sign(uyaw) * min(abs(uyaw), 300) + obj.param.yaw_offset; % Need minus : positive rotation is clockwise in betaflight
