@@ -100,11 +100,45 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.show();
         end
         function result = controller_KMC(obj,varargin)
-            obj.param.t = varargin{1}{1}.t; % 現在時刻
-            obj.param.te = varargin{1}{1}.te; % 終了時間(default : 10s)
-            obj.koopman.B=obj.get_Koopman_B(obj.current_state,obj.state.current,obj.m,obj.n,obj.param);
-            obj.K_MPC();%qp
+            persistent firstRun
+            if isempty(firstRun)
+                firstRun = true;
+                result = obj.result;
+                return   
+            end
+            obj.param.t  = varargin{1}{1}.t;
+            obj.param.te = varargin{1}{1}.te;
+            obj.koopman.B = obj.get_Koopman_B(obj.current_state,obj.state.current,obj.m,obj.n,obj.param);
+            obj.K_LQR();  
             result = obj.result;
+        end
+
+        function K_LQR(obj)
+            n = size(obj.state.current,1);
+            Q = 5 * eye(n);
+            Q(1:3, 1:3) = 2000 * eye(3);
+            Q(4:6, 4:6) = 1000 * eye(3);
+            idx_v = 10;
+            Q(idx_v : idx_v+2, idx_v : idx_v+2) = 200 * eye(3);
+            idx_v_high = 13;
+            Q(idx_v_high : idx_v_high+2, idx_v_high : idx_v_high+2) = 100 * eye(3);
+            idx_r = 28;
+            Q(idx_r : idx_r+8, idx_r : idx_r+8) = 1000 * eye(9);
+            idx_w = 37;
+            Q(idx_w : idx_w+8, idx_w : idx_w+8) = 1000 * eye(9);
+            R = 10*diag([0.1; 0.1; 0.1; 0.1]);
+            Q = 0.001*Q;
+            A_d = 0.995*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
+            B_d = obj.koopman.B * obj.param.dt;
+            ok = all(eig(Q)>=-1e-9) && all(eig(R)>0) && rank(ctrb(A_d,B_d))==size(A_d,1) && all(abs(eig(A_d-B_d*dare(A_d,B_d,Q,R)))<1);
+            disp(ok);
+            [K, ~, ~] = lqrd(A_d,  B_d, Q, R);
+            z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
+            u_feedback = -K * z_err;
+            u_ff = [obj.param.m * obj.param.gravity; 0; 0; 0];
+            obj.result.input = u_feedback + u_ff;
+            obj.input.pre_u = obj.result.input;
+            obj.result.pre_u = obj.input.pre_u;
         end
         function K_MPC(obj)
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.koopman.A,obj.koopman.B,obj.H,obj.param.state_size});
@@ -310,15 +344,15 @@ classdef KQ_LMPC_CONTROLLER< handle
         function [xr] = generate_reference(obj)
             xr = zeros(obj.param.total_size, obj.H);    % initialize
             RefTime = obj.self.reference.time_var.func; % 時間関数の取得
-            for h = 0:obj.param.H-1
-                t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
-                ref = RefTime(t);
-                xr(1:3, h+1) = ref(1:3);
-                xr(7:9, h+1) = ref(5:7);
-                xr(4:6, h+1) =   [0;0;0]; % 姿勢角
-                xr(10:12, h+1) = [0;0;0];
-                xr(13:16, h+1) = obj.param.ref_input; % MC -> 0.6597,   HL -> 0
-            end
+            % for h = 0:obj.param.H-1
+            %     t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
+            %     ref = RefTime(t);
+            %     xr(1:3, h+1) = ref(1:3);
+            %     xr(7:9, h+1) = ref(5:7);
+            %     xr(4:6, h+1) =   [0;0;0]; % 姿勢角
+            %     xr(10:12, h+1) = [0;0;0];
+            %     xr(13:16, h+1) = obj.param.ref_input; % MC -> 0.6597,   HL -> 0
+            % end
             g = 9.81;
             prev_euler = zeros(3,1);
             for h = 0:obj.H-1
@@ -401,32 +435,32 @@ classdef KQ_LMPC_CONTROLLER< handle
             fprintf("\n");
         end
         function [ExA,ExB] = ExtendedCoefficientMatrix(obj,Param)
-    % ECM:Extended Coeifficient Matrix
-    A = Param{1};
-    B = Param{2};
-    
-    Horizon = Param{3};
-    Xnum = Param{4};
+            % ECM:Extended Coeifficient Matrix
+            A = Param{1};
+            B = Param{2};
 
-    S = zeros(Horizon*Xnum, Horizon*length(B(1,:)));
+            Horizon = Param{3};
+            Xnum = Param{4};
 
-    % ホライズンの値によらない
-    % A行列
-    Am = [];
-    for i = 1:Horizon
-        Am = [Am; A^i]; %A
-    end
-    % B行列
-    for i  = 1:Horizon
-        for j = 1:Horizon
-            if j <= i
-                S(1+length(B(:,1))*(i-1):length(B(:,1))*i,1+length(B(1,:))*(j-1):length(B(1,:))*j) = A^(i-j)*B;
+            S = zeros(Horizon*Xnum, Horizon*length(B(1,:)));
+
+            % ホライズンの値によらない
+            % A行列
+            Am = [];
+            for i = 1:Horizon
+                Am = [Am; A^i]; %A
             end
-        end
-    end
-    ExA = Am;
-    ExB = S;
+            % B行列
+            for i  = 1:Horizon
+                for j = 1:Horizon
+                    if j <= i
+                        S(1+length(B(:,1))*(i-1):length(B(:,1))*i,1+length(B(1,:))*(j-1):length(B(1,:))*j) = A^(i-j)*B;
+                    end
+                end
+            end
+            ExA = Am;
+            ExB = S;
 
-end
+        end
     end
 end
