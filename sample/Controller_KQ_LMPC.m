@@ -1,13 +1,16 @@
-function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
+function Controller = Controller_KQ_LMPC(dt, agent)
  %% HL param
     Controller = Controller_HL(dt);
     Controller.dt_drone = Controller.dt;
 %% common param
+   Controller.jx= agent.parameter.jx ;
+    Controller.jy= agent.parameter.jy ;
+    Controller.jz= agent.parameter.jz ;
+    Controller.gravity= agent.parameter.gravity ;
     Controller.m = agent.parameter.mass;
     Controller.state_size = 12;
     Controller.input_size = 4;
     Controller.total_size = Controller.state_size + Controller.input_size;
-    Controller.Kmodel = model_file;
     Controller.dt = 0.025;          % MPCステップ幅
     Controller.H = 12;              %predict horizon
     Controller.particle_num = 50000;%mento carlo number of samples
@@ -28,19 +31,19 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     Controller.input.ub = [10; 1;  1;  1];
     %% load model from koopman setting in the simxxx & change sampling time
    
-    load(model_file, 'est');
-    [Controller.koopman.A, Controller.koopman.B, Controller.koopman.C]  = AB_transfer(est.A, est.B, est.C, dt, Controller.dt);
-    if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
-    %-- 観測量の選択
-    [Controller.F, Controller.code] = select_observable(model_file);
+    % load(model_file, 'est');
+    % [Controller.koopman.A, Controller.koopman.B, Controller.koopman.C]  = AB_transfer(est.A, est.B, est.C, dt, Controller.dt);
+    % if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
+    % %-- 観測量の選択
+    % [Controller.F, Controller.code] = select_observable(model_file);
    
     %% sim用　重み
-    Controller.weight.P = diag([80;80;100]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = diag([15;15;5]);    % 姿勢角15良い気がする
-    Controller.weight.V = diag([2;2;2]);% 速度  10,20刻み  30;20;10
-    Controller.weight.W = diag([0.1;0.1;0.1]);  %角速度　1,2刻み 
-    Controller.weight.R = diag([2; 30; 30; 15]); % 入力
-    Controller.weight.RP =0*diag([40; 20; 20; 20]);  % 1ステップ前の入力との差    0*(無効化)
+    Controller.weight.P = diag([300;300;500]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = diag([1000;1000;1000]);    % 姿勢角15良い気がする
+    Controller.weight.V = diag([100;100;100]);% 速度  10,20刻み  30;20;10
+    Controller.weight.W = diag([1000;1000;1000]);  %角速度　1,2刻み 
+    Controller.weight.R = diag([100; 100; 100; 100]); % 入力
+    Controller.weight.RP =1*diag([10; 20; 20; 20]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験用　重み
     % Controller.weight.P = 1.3*diag([300;300;500]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
@@ -70,9 +73,8 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     Controller.test.sigma = 1; % 標準偏差を固定
     Controller.test.input = 0; % 推力以外の入力を0固定: 0:固定なし,1:トルク,2:自由
     %% 以下は変更なし
-    fprintf("Koopman Monte Carlo MPC controller\n")
-    disp(strcat('model:', model_file));
-    Controller.name = "kmcmpc";
-    Controller.type = "MPC_CONTROLLER_KMC_kyo";
+    fprintf("Koopman Quasilinear LPVMPC controller\n")
+    Controller.name = "kqlmpc";
+    Controller.type = "KQ_LMPC_CONTROLLER";
     % Controller.param = Controller_param;
 end

@@ -9,29 +9,24 @@ initial_state.p = arranged_position([0, 0], 1, 1, 0); % [x, y], 1, 1, z
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
-mmatflag = 0;
- model_file = '2025-11-07_exp_ob25_2_code00_random';%%%%%observer 1 なし
- % model_file = '2025-10-02_exp_renew_code00_randompp';
 %%
 agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-% agent.reference.bezier = BEZIER_REFERENCE(agent,{[0,0,0.6]},time);
- agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
                                                                 % , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
 % agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", [0;0;0.6], "g", [0;-1;0.6], "h",[0;1;0.6]),"j",[0;0;0.6],"k",[1;0;0.6],"z",[0;0;0.6], 8}); % P2P
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
- agent.controller.kmpc = MPC_CONTROLLER_KMC_kyo_guiexperiment(agent,Controller_MPC_KMC_kyo(dt,model_file,agent)); %最適化手法：QP
-
+agent.controller.kqlmpc = KQ_LMPC_CONTROLLER(agent,Controller_KQ_LMPC(dt,agent)); %最適化手法：QP
 run("SimBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["kmpc"];
+agent.cha_allocation.f.controller = ["kqlmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
