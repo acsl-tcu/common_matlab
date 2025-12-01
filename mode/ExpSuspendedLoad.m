@@ -113,7 +113,7 @@ app.logger.plot({1,"inner_input1:4",""},"phase","tf", "fig_num",6); % 制御入�
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
 % app.logger.plot({1, "p", "ers"},"phase","tf","fig_num",9);
 % app.logger.plot({1, "sensor.result.", "er"},"phase","tf", "fig_num",10);
-app.logger.plot.("xd"); % 位置: p_x,p_y,p_z
+% app.logger.plot.("xd"); % 位置: p_x,p_y,p_z
 
 % 刻み時間描画
 t0id = find(app.logger.Data.phase==97,1,'last')+1;
