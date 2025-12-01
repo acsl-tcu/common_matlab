@@ -5,7 +5,6 @@ properties
 
     monitor         % GUI 表示用モニタ（スコア・ゲイン・オフセット）
     result_ch       % 出力結果を格納する構造体
-
     % -------------------------
     % 調整するパラメータ
     % -------------------------
@@ -51,6 +50,9 @@ methods
         if nargin<2, mode=0; end % modeが指定されなければ0（無効）
         obj.self = self;
         obj.mode = mode;
+        obj.self.roll_offset = self.plant.arming_msg(1);
+        obj.self.pitch_offset = self.plant.arming_msg(2);
+        obj.self.yaw_offset = self.plant.arming_msg(4);
 
         % origin側のゲイン・オフセットを初期値に採用
         try
@@ -167,12 +169,17 @@ methods
         % thrust（推力→スロットル変換）
         uthr   = max(0, g(4)*(T_thr-hover_thrust_force) + offset);
 
+        %THRUST2と同じ内容の変換
+        uroll = sign(uroll) * min(abs(uroll), 500) + obj.self.roll_offset;
+        upitch = sign(upitch) * min(abs(upitch), 500) + obj.self.pitch_offset;
+        uyaw = -sign(uyaw) * min(abs(uyaw), 300) + obj.self.yaw_offset; 
+
         % 結果を構造体として格納
         obj.result_ch = struct( ...
-            'roll',uroll, ...
-            'pitch',upitch, ...
-            'thrust',uthr, ...
-            'yaw',uyaw, ...
+            'roll_offset',uroll, ...
+            'pitch_offset',upitch, ...
+            'thrust_offset',uthr, ...
+            'yaw_offset',uyaw, ...
             'aux1',1000,'aux2',0,'aux3',0,'aux4',1000 );
         u = obj.result_ch;
 

@@ -2,6 +2,10 @@ function r1 = merge_result(r1,r2)
 % merge two structure data
 F = fieldnames(r2);
 
+% if ~isstruct(r1)
+%     r1=syruct();
+% end
+
 for j = 1:length(F)
 
   if strcmp(F{j}, 'state')
