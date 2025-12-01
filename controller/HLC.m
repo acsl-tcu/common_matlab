@@ -55,7 +55,8 @@ classdef HLC < handle
       % % % disp(tmp') %実入力を表示 thrust, roll, pitch, yaw
       % % % fprintf('\n')
       % max,min are applied for the safty
-      obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+      tau_lim = 1;
+      obj.result.input = [max(0,min(10,tmp(1)));max(-1*tau_lim,min(tau_lim,tmp(2)));max(-1*tau_lim,min(tau_lim,tmp(3)));max(-1*tau_lim,min(tau_lim,tmp(4)))];
       
       result = obj.result;
     end
