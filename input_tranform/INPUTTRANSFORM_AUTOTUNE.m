@@ -467,18 +467,20 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode            % 0:off, 1:offset autotune, 2:gain autotune
+    mode=2            % 0:off, 1:offset autotune, 2:gain autotune
 
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
     result_ch       % 構造体版 {roll,pitch,thrust,yaw,aux1..aux4}
-
+    param
+    flight_phase
+    state
     % -------------------------
     % パラメータ（変換用）
     % -------------------------
     th_offset = 0                   % スロットルオフセット
-    gain = [100;100;100;10]         % [roll,pitch,yaw,thrust]
+    gain = [200;200;200;10]         % [roll,pitch,yaw,thrust]
 
     % -------------------------
     % autotune 関連
@@ -520,10 +522,20 @@ methods
     %% ---------------------------
     % コンストラクタ
     %% ---------------------------
-    function obj = INPUTTRANSFORM_AUTOTUNE(self, mode)
-        if nargin < 2, mode = 0; end
+    function obj = INPUTTRANSFORM_AUTOTUNE(self, param)
         obj.self = self;
-        obj.mode = mode;
+        obj.param = param;
+        obj.param.roll_offset = self.plant.arming_msg(1);
+        obj.param.pitch_offset = self.plant.arming_msg(2);
+        obj.param.yaw_offset = self.plant.arming_msg(4);
+        obj.param.P = self.parameter.get();
+        obj.flight_phase = 's';
+        P = self.parameter.get;
+        obj.hover_thrust_force = P(1) * P(9);
+        obj.state = state_copy(self.estimator.result.state);
+        % if nargin < 2, mode = 0; end
+        % obj.self = self;
+        % obj.mode = mode;
 
         % monitor 作成（存在すれば）
         if obj.mode > 0
@@ -537,15 +549,15 @@ methods
         end
 
         % origin (THRUST2) にパラメータがあれば初期値を引き継ぐ
-        try
-            if isfield(self, 'input_transform') && isfield(self.input_transform, 'origin') && isprop(self.input_transform.origin,'param')
-                p = self.input_transform.origin.param;
-                if isfield(p,'th_offset'), obj.th_offset = p.th_offset; end
-                if isfield(p,'gain'), obj.gain = p.gain; end
-            end
-        catch
-            % ignore
-        end
+        % try
+        %     if isfield(self, 'input_transform') %&& isfield(self.input_transform, 'origin') && isprop(self.input_transform.origin,'param')
+        %         p = self.input_transform.param;
+        %         if isfield(p,'th_offset'), obj.th_offset = p.th_offset; end
+        %         if isfield(p,'gain'), obj.gain = p.gain; end
+        %     end
+        % catch
+        %     % ignore
+        % end
 
         % hover thrust をパラメータから計算（THRUST2 と同じ）
         try
@@ -643,8 +655,8 @@ methods
         % THRUST2-like control calculation
         % -------------------------
         % choose gain/offset (we do not split gain_tl etc; unified gain used)
-        g = obj.gain;
-        offset = obj.th_offset;
+        g = obj.param.gain;
+        offset = obj.param.th_offset;
 
         T_thr = input(1);
 
