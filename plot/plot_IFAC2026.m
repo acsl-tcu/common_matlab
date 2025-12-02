@@ -1,8 +1,8 @@
 clc;clear; close all;
 % (ユーザーから提供された絶対パスを使用)
-file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_HLLQR_Log(01-Dec-2025_18_13_15).mat";
-file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_NNMEC_Log(01-Dec-2025_18_15_10).mat";
-%↑P2P
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_HLLQR_Log(01-Dec-2025_18_13_15).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_NNMEC_Log(01-Dec-2025_18_15_10).mat";
+% %↑P2P
 
 % file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_HLLQR_R=0.5_Log(01-Dec-2025_18_49_23).mat";
 % file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_NNMEC_R=0.5_Log(01-Dec-2025_18_51_06).mat";
@@ -21,6 +21,20 @@ file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025
 % file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_HLLQR_R=0.1_Log(01-Dec-2025_18_39_05).mat";
 % file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_NNMEC_R=0.1_Log(01-Dec-2025_18_44_22).mat";
 % % ↑circle R=0.1
+
+% file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_Log(02-Dec-2025_17_49_18).mat";
+% file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_Log(02-Dec-2025_17_59_21).mat";
+% % ↑Exp lemniscate
+file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_R=0.1_Log(02-Dec-2025_18_07_43).mat";
+file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_R=0.1_Log(02-Dec-2025_18_09_45).mat";
+% % ↑Exp lemniscate R=0.1
+
+% file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_Log(02-Dec-2025_17_47_17).mat";
+% file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_Log(02-Dec-2025_17_56_22).mat";
+% % ↑Exp P2P
+file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_R=0.1_Log(02-Dec-2025_18_14_33).mat";
+file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_R=0.1_Log(02-Dec-2025_18_21_11).mat";
+% ↑Exp P2P R=0.1
 
 % file1_name = 
 % file2_name = 
@@ -62,7 +76,7 @@ LW_ref = LW - 0.5; % リファレンスのライン幅
 % ログの抽出設定
 phase = "f"; % 対象フェーズ: "f" (Flight phase)
 t_start = 0; % 抽出したい時間範囲の開始時間 [s]
-t_end = 28;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
+t_end = 20;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
 xrange = [t_start t_end];
 
 % ロギング間隔とインデックス計算 (dt=0.025を想定)
@@ -89,10 +103,15 @@ extract_data = @(logger, var, att_type) logger.data(1, var, att_type, "phase", p
 
 % --- データ抽出 (Reference/Estimator 1/Estimator 2) ---
 if fref
-    ref_p1_all = extract_data(logger2, var1_str, "r");
-    ref_p2_all = extract_data(logger2, var2_str, "r");
-    ref_p3_all = extract_data(logger2, var3_str, "r");
-    ref_data = {ref_p1_all(idx_start : idx_end), ref_p2_all(idx_start : idx_end), ref_p3_all(idx_start : idx_end)};
+    ref_p1_all_1 = extract_data(logger1, var1_str, "r");
+    ref_p2_all_1 = extract_data(logger1, var2_str, "r");
+    ref_p3_all_1 = extract_data(logger1, var3_str, "r");
+    ref_data_1 = {ref_p1_all_1(idx_start : idx_end), ref_p2_all_1(idx_start : idx_end), ref_p3_all_1(idx_start : idx_end)};
+
+    ref_p1_all_2 = extract_data(logger2, var1_str, "r");
+    ref_p2_all_2 = extract_data(logger2, var2_str, "r");
+    ref_p3_all_2 = extract_data(logger2, var3_str, "r");
+    ref_data_2 = {ref_p1_all_2(idx_start : idx_end), ref_p2_all_2(idx_start : idx_end), ref_p3_all_2(idx_start : idx_end)};
 end
 
 est1_p1_all = extract_data(logger1, var1_str, "e");
@@ -117,14 +136,14 @@ N_1 = length(t_1);
 N_2 = length(t_2);
 if N_1 > 0 && N_2 > 0 && fref
     % RMSE for Estimator 1 (vs Reference)
-    RMSE1_p1 = sqrt(sum((est1_data{1} - ref_data{1}).^2) / N_1);
-    RMSE1_p2 = sqrt(sum((est1_data{2} - ref_data{2}).^2) / N_1);
-    RMSE1_p3 = sqrt(sum((est1_data{3} - ref_data{3}).^2) / N_1);
+    RMSE1_p1 = rmse(est1_data{1}, ref_data_1{1});
+    RMSE1_p2 = rmse(est1_data{2}, ref_data_1{2});
+    RMSE1_p3 = rmse(est1_data{3}, ref_data_1{3});
     
     % RMSE for Estimator 2 (vs Reference)
-    RMSE2_p1 = sqrt(sum((est2_data{1} - ref_data{1}).^2) / N_2);
-    RMSE2_p2 = sqrt(sum((est2_data{2} - ref_data{2}).^2) / N_2);
-    RMSE2_p3 = sqrt(sum((est2_data{3} - ref_data{3}).^2) / N_2);
+    RMSE2_p1 = rmse(est2_data{1}, ref_data_2{1});
+    RMSE2_p2 = rmse(est2_data{2}, ref_data_2{2});
+    RMSE2_p3 = rmse(est2_data{3}, ref_data_2{3});
     
     % 結果の表示
     disp(' ');
@@ -156,7 +175,7 @@ for i = 1:3
 
     % リファレンスプロット (fref=trueの場合)
     if fref
-        current_ref = ref_data{i};
+        current_ref = ref_data_1{i};
         plot(t_1, current_ref, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
         plegend = [plegend, {'Reference'}];
     end
@@ -189,7 +208,7 @@ for i = 1:3
     % XLabelは一番下のグラフのみ表示
     if i == 3
         xlabel('Time [s]', 'FontSize', FS);
-        % ylim([0.8 1.1])
+        % ylim([0.3 0.6])
     end
 end
 
@@ -240,12 +259,12 @@ if fp1_p2
     
     % --- リファレンス軌跡プロット (fref=trueの場合) ---
     if fref
-        plot(1, 1, ...
-            'o', ...                   % マーカーの種類を円 ('o') に指定
-            'MarkerSize', 10, ...      % マーカーのサイズを指定（任意）
-            'MarkerEdgeColor', 'k', ...% マーカーの枠線の色を青 ('b') に指定
-            'MarkerFaceColor', 'k');   % マーカーの内部を赤 ('r') で塗りつぶし
-        % plot(ref_data{1}, ref_data{2}, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
+        % plot(1, 1, ...
+        %     'o', ...                   % マーカーの種類を円 ('o') に指定
+        %     'MarkerSize', 10, ...      % マーカーのサイズを指定（任意）
+        %     'MarkerEdgeColor', 'k', ...% マーカーの枠線の色を青 ('b') に指定
+        %     'MarkerFaceColor', 'k');   % マーカーの内部を赤 ('r') で塗りつぶし
+        plot(ref_data_1{1}, ref_data_1{2}, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
         plegend = [plegend, {'Reference'}];
     end
     
@@ -267,8 +286,8 @@ if fp1_p2
     axis equal; % 軸のスケールを合わせる
     legend(plegend, 'FontSize', FS-4, 'Location', 'southeast');
     set(gca, 'FontSize', FS-2);
-    xlim([0.7 1.1])
-    ylim([0.7 1.1])
+    % xlim([0.7 1.1])
+    % ylim([0.7 1.1])
 end
 
 % --- グラフのエクスポート (オプション) ---

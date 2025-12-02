@@ -29,8 +29,8 @@ takeoff_zd = 0.5; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd+1],"size",[0,0,0]},"HL"});          % point hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd+1],"size",[0,0,0]},"HL"});          % point hovering
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -40,7 +40,7 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10});                                       % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;0;0.1], "h",[1;1;0.1]), 10});                                       % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;-1;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",[1;1;takeoff_zd]...
@@ -59,7 +59,7 @@ LW = 1.5; % LineWidth
 FS = 18; % FontSize
 phase = "tfl";
 % phase = "t";
-% phase = "f";
+phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
