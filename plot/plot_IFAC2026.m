@@ -1,6 +1,6 @@
 clc;clear; close all;
 % ===== 1. グローバル・プロットオプションの定義 =====
-FS = 16;  % Font Size (フォントサイズ)
+FS = 14;  % Font Size (フォントサイズ)
 LW = 1.5; % Line Width (ライン幅)
 
 % --------------------- プロット設定 ---------------------
@@ -17,24 +17,25 @@ att = "p";                   % プロットする変数名 ("p", "v", "q", "w", 
 ylabel1 = '$x$ [m]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
 ylabel2 = '$y$ [m]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
 ylabel3 = '$z$ [m]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
+fp1_p2 = true;
 % --------------------- グラフ出力設定 ---------------------
-foutput = true;             % グラフ出力の有無 (true/false)
+foutput = false;             % グラフ出力の有無 (true/false)
 file_style = "eps";          % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
 folder_path = "plot/fig/IFAC"; 
-file_name = "circle_position";% 出力ファイル名 (拡張子なし)
+file_name = "lemniscate_R=0.1_position";% 出力ファイル名 (拡張子なし)
 % ------------------------------------------------------------------
 
 LW_ref = LW - 0.5; % リファレンスのライン幅
 
 % ===== 2. ファイル名と時間範囲の指定 =====
 % (ユーザーから提供された絶対パスを使用)
-file1_name = "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\circle_te=30_HLLQR_Log(27-Nov-2025_21_00_34).mat";
-file2_name = "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\circle_te=30_NNMEC_Log(27-Nov-2025_20_59_47).mat";
+file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\2_HLonly_triangle_Log(21-Oct-2025_17_50_03).mat";
+file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\6_DNNMEC_NoLossCoef_triangle_Log(21-Oct-2025_18_06_51).mat";
 
 % ログの抽出設定
-phase = "f"; % 対象フェーズ: "f" (Flight phase)
+phase = "tf"; % 対象フェーズ: "f" (Flight phase)
 t_start = 0; % 抽出したい時間範囲の開始時間 [s]
-t_end = 30;  % 抽出したい時間範囲の終了時間 [s]
+t_end = 60;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効
 xrange = [t_start t_end];
 
 % ロギング間隔とインデックス計算 (dt=0.025を想定)
@@ -53,7 +54,7 @@ logger1 = LOGGER(file1_name);
 logger2 = LOGGER(file2_name);
 
 % 共通の時間軸データを抽出
-t_all = logger1.data(0, "t", "", "phase", phase);
+t_all = logger2.data(0, "t", "", "phase", phase);
 t = t_all(idx_start : idx_end);
 
 % データ抽出ヘルパー関数
@@ -61,9 +62,9 @@ extract_data = @(logger, var, att_type) logger.data(1, var, att_type, "phase", p
 
 % --- データ抽出 (Reference/Estimator 1/Estimator 2) ---
 if fref
-    ref_p1_all = extract_data(logger1, var1_str, "r");
-    ref_p2_all = extract_data(logger1, var2_str, "r");
-    ref_p3_all = extract_data(logger1, var3_str, "r");
+    ref_p1_all = extract_data(logger2, var1_str, "r");
+    ref_p2_all = extract_data(logger2, var2_str, "r");
+    ref_p3_all = extract_data(logger2, var3_str, "r");
     ref_data = {ref_p1_all(idx_start : idx_end), ref_p2_all(idx_start : idx_end), ref_p3_all(idx_start : idx_end)};
 end
 
@@ -146,7 +147,7 @@ for i = 1:3
     ylabel(current_ylabel, 'Interpreter','latex', 'FontSize', FS);
     grid on;
     set(gca, 'FontSize', FS-2);
-    xlim(xrange);
+    xlim([0 t(end)]);
 
     % 凡例は指定されたグラフ番号のみ表示
     if i == lgd_pos
@@ -188,45 +189,49 @@ end
 % ===== 6. X-Y 軌跡プロット (p1 vs p2) =====
 
 % プロット対象の変数を設定（ここではp1 vs p2を固定）
-variable_base_xy = "p";
-var1_str_xy = "p1";
-var2_str_xy = "p2";
-
-% データの再抽出（もし att が 'p' 以外に設定されていた場合でも、p1/p2を使用するため）
-% ただし、現在のコードでは att="p" なので、既存のデータ(ref_data, est*_data)を流用します。
-% X軸データ: p1 (ref_data{1}, est1_data{1}, est2_data{1})
-% Y軸データ: p2 (ref_data{2}, est1_data{2}, est2_data{2})
-
-figure(2); % 新しいウィンドウ（Figure 2）を使用
-clf;
-
-plegend = {};
-hold on;
-
-% --- リファレンス軌跡プロット (fref=trueの場合) ---
-if fref
-    plot(ref_data{1}, ref_data{2}, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
-    plegend = [plegend, {'Reference'}];
+if fp1_p2
+    variable_base_xy = "p";
+    var1_str_xy = "p1";
+    var2_str_xy = "p2";
+    
+    % データの再抽出（もし att が 'p' 以外に設定されていた場合でも、p1/p2を使用するため）
+    % ただし、現在のコードでは att="p" なので、既存のデータ(ref_data, est*_data)を流用します。
+    % X軸データ: p1 (ref_data{1}, est1_data{1}, est2_data{1})
+    % Y軸データ: p2 (ref_data{2}, est1_data{2}, est2_data{2})
+    
+    figure(2); % 新しいウィンドウ（Figure 2）を使用
+    clf;
+    
+    plegend = {};
+    hold on;
+    
+    % --- リファレンス軌跡プロット (fref=trueの場合) ---
+    if fref
+        plot(ref_data{1}, ref_data{2}, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
+        plegend = [plegend, {'Reference'}];
+    end
+    
+    % --- Estimator 1 軌跡プロット (File 1) ---
+    plot(est1_data{1}, est1_data{2}, 'LineWidth', LW-0.5, 'LineStyle', '-', 'Color', 'b'); % 青色
+    plegend = [plegend, {lgd1}];
+    
+    % --- Estimator 2 軌跡プロット (File 2) ---
+    plot(est2_data{1}, est2_data{2}, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
+    plegend = [plegend, {lgd2}];
+    
+    hold off;
+    
+    % ラベル設定
+    % title('X-Y Trajectory (p_1 vs p_2)','FontSize', FS);
+    xlabel(ylabel1, 'Interpreter','latex', 'FontSize', FS); % p1のラベルをX軸に
+    ylabel(ylabel2, 'Interpreter','latex', 'FontSize', FS); % p2のラベルをY軸に
+    grid on;
+    axis equal; % 軸のスケールを合わせる
+    legend(plegend, 'FontSize', FS-4, 'Location', 'best');
+    set(gca, 'FontSize', FS-2);
+    % xlim([-1.1 1.1])
+    % ylim([-0.41 0.41])
 end
-
-% --- Estimator 1 軌跡プロット (File 1) ---
-plot(est1_data{1}, est1_data{2}, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'b'); % 青色
-plegend = [plegend, {lgd1}];
-
-% --- Estimator 2 軌跡プロット (File 2) ---
-plot(est2_data{1}, est2_data{2}, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
-plegend = [plegend, {lgd2}];
-
-hold off;
-
-% ラベル設定
-% title('X-Y Trajectory (p_1 vs p_2)','FontSize', FS);
-xlabel(ylabel1, 'Interpreter','latex', 'FontSize', FS); % p1のラベルをX軸に
-ylabel(ylabel2, 'Interpreter','latex', 'FontSize', FS); % p2のラベルをY軸に
-grid on;
-axis equal; % 軸のスケールを合わせる
-legend(plegend, 'FontSize', FS-4, 'Location', 'southeast');
-set(gca, 'FontSize', FS-2);
 
 % --- グラフのエクスポート (オプション) ---
 if foutput
