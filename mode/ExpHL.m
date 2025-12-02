@@ -23,14 +23,15 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;0.4],"size",[0,0,0]},"HL"});
 agent.controller = HLC(agent,Controller_HL(dt));
-
+% agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
+agent.input_transform=INPUTTRANSFORM_AUTOTUNE(agent,1);
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 
-% agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-agent.input_transform.origin = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-agent.input_transform.autotune = INPUTTRANSFORM_AUTOTUNE(agent,1); %mode選択（0:通常、1:オフセット、2:ゲイン自動取得）
-agent.cha_allocation.input_transform=["origin","autotune"];
+
+% agent.input_transform.origin = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
+% agent.input_transform.autotune = INPUTTRANSFORM_AUTOTUNE(agent,1); %mode選択（0:通常、1:オフセット、2:ゲイン自動取得）
+% agent.cha_allocation.input_transform=["origin","autotune"];
 
 function post(app)
 % app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"phase","tfl");
