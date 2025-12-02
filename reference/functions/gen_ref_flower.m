@@ -15,8 +15,8 @@ z_0=param.orig(3);
 size = param.radius;
 phase = param.phase;
 
-ref=@(t) [  x_0 + size*(cos(2*pi*t/T)-cos(6*2*pi*t/T)/6); %x
-            y_0 + size*(sin(2*pi*t/T)-sin(6*2*pi*t/T)/6); %y
+ref=@(t) [  x_0 + size*(cos(2*pi*t/T+phase)-cos(6*2*pi*t/T+phase)/6); %x
+            y_0 + size*(sin(2*pi*t/T+phase)-sin(6*2*pi*t/T+phase)/6); %y
             z_0; %z
             0];
 end

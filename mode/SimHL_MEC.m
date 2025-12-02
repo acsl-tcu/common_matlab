@@ -45,10 +45,10 @@ agent.plant = MODEL_CLASS(agent, plant);
 agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7125;
 
-% agent.plant.param(6) = 0.22; % x3
-% agent.plant.param(7) = 0.22;
+agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
+agent.plant.param(7) = 0.24;
 agent.plant.param(6) = 0.18; % x3
-agent.plant.param(7) = 0.18;
+agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
 % agent.plant.param(6) = 0.09;
 % agent.plant.param(7) = 0.09;
 
@@ -73,9 +73,9 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});            % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});            % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0],"phase",0},"HL"});           % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",5,"orig",center,"radius",1},"HL"});                      % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",0},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -123,7 +123,7 @@ phase = "tfl";
 phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
-% ylim([0.9 1.1])
+% ylim([0 1.3])
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS, "color",fcolor);

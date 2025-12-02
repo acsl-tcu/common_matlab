@@ -77,10 +77,10 @@ classdef DNNMEC < handle
             % DNN関係　閾値での制限
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, [x_plant; x_nominal]'))'; % predict関数での推論
             if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
-            if abs(obj.result.delta_input(2))>0.6, obj.result.delta_input(2) = 0; end
-            if abs(obj.result.delta_input(3))>0.6, obj.result.delta_input(3) = 0; end
-            if abs(obj.result.delta_input(4))>0.6, obj.result.delta_input(4) = 0; end
-            % obj.result.delta_input = [0;0;0;0];
+            if abs(obj.result.delta_input(2))>1, obj.result.delta_input(2) = 0; end
+            if abs(obj.result.delta_input(3))>1, obj.result.delta_input(3) = 0; end
+            if abs(obj.result.delta_input(4))>1, obj.result.delta_input(4) = 0; end
+            obj.result.delta_input = [0;0;0;0];
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;

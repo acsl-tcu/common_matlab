@@ -14,8 +14,8 @@ z_0=param.orig(3);
 
 size = param.size;
 phase = param.phase;
-ref=@(t) [  x_0 + size*((16*(sin(2*pi*t/T)).^3)/16); %x
-            y_0 + size*((13*cos(2*pi*t/T) - 5*cos(2*2*pi*t/T) - 2*cos(3*2*pi*t/T) - cos(4*2*pi*t/T))/17); %y
+ref=@(t) [  x_0 + size*((16*(sin(2*pi*t/T+phase)).^3)/16); %x
+            y_0 + size*((13*cos(2*pi*t/T+phase) - 5*cos(2*2*pi*t/T+phase) - 2*cos(3*2*pi*t/T+phase) - cos(4*2*pi*t/T+phase))/17); %y
             z_0; %z
             0];
 end
