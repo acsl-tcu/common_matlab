@@ -1,454 +1,3 @@
-% classdef INPUTTRANSFORM_AUTOTUNE < handle
-% properties
-%     self            % ドローン本体 (agent)
-%     mode            % 0:無効, 1:オフセット取得, 2:ゲイン取得
-% 
-%     monitor         % GUI 表示用モニタ（スコア・ゲイン・オフセット）
-%     result       % 出力結果を格納する構造体
-%     -------------------------
-%     調整するパラメータ
-%     -------------------------
-%     th_offset = 0                   % スロットルオフセット
-%     gain = [100;100;100;10]         % ゲイン（roll,pitch,yaw,thrust）
-% 
-%     -------------------------
-%     調整ステップ量（1回の更新幅）
-%     -------------------------
-%     offset_step = 5
-%     gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
-%     gain_max = [600;600;600;40]     % ゲイン上限
-% 
-%     ---- オフセット自動取得（mode1）用 ----
-%     time_accum = 0;          % 時間積算（初期ゼロ）
-%     offset_interval = 0.15;  % offset を増加させる間隔（秒）
-%     offset_max = 450;        % 安全上限（モーターが急上昇しない値）
-% 
-%     -------------------------
-%     ログバッファ（最近の角速度などを保存）
-%     -------------------------
-%     log_buf
-%     last_t = []                     % 前回評価した時間
-%     best_score = Inf                % これまでの最良スコア
-%     last_score = []                 % 最後に計算したスコア
-% 
-%     offset_fixed = false           % ベスト offset を固定したかどうか
-%     offset_lock_threshold = 0.005  % offset 固定判断のためのスコア閾値
-% 
-%     axis_idx = 1                  % 1～4（Roll, Pitch, Yaw, Throttle）
-%     waiting = false               % trial 評価中か
-%     baseline = inf                % 比較スコア
-%     trialVal = []                 % 試行中ゲイン値
-%     best_param = struct('th_offset',0,'gain',zeros(4,1))     % ベスト offset / gain の保存場所
-% end
-% 
-% 
-% methods
-%     ============================================================
-%     コンストラクタ 
-%     ============================================================
-%     function obj = INPUTTRANSFORM_AUTOTUNE(self, mode)
-%         if nargin<2, mode=0; end % modeが指定されなければ0（無効）
-%         obj.self = self;
-%         obj.mode = mode;
-% 
-%         origin側のゲイン・オフセットを初期値に採用
-%         try
-%             if isfield(self.input_transform,'origin') ...
-%                && isprop(self.input_transform.origin,'param')
-% 
-%                 p = self.input_transform.origin.param;
-% 
-%                 if isfield(p,'th_offset'), obj.th_offset = p.th_offset; end
-%                 if isfield(p,'gain'), obj.gain = p.gain; end
-%             end
-%         catch
-%         end
-% 
-%         モニター生成
-%         if obj.mode>0
-%             try
-%                 obj.monitor = AutoTuneMonitor();
-%             catch
-%                 obj.monitor = [];
-%             end
-%         end
-% 
-%         ログバッファを3秒分確保（25ms ≒ 40Hz を想定）
-%         dt_guess = 0.025;
-%         buflen = ceil(3/dt_guess);
-%         obj.log_buf = struct(...
-%             't',nan(1,buflen), ...
-%             'w',nan(3,buflen), ...
-%             'wn',nan(3,buflen), ...
-%             'uthr',nan(1,buflen), ...
-%             'idx',1, ...
-%             'len',buflen );
-%     end
-% 
-% 
-%         ============================================================
-%         メイン処理（入力変換 + 自動調整）
-%         ============================================================
-%         function  u = do(obj, varargin)
-%         ============================================================
-%           do() : INPUTTRANSFORM_AUTOTUNE のメイン処理
-%           ・外部互換性維持のため varargin を使用
-%           ・内部では t_struct, cha の2引数に統一
-%         ============================================================
-% 
-%         % ------------------------------------------------------------
-%         引数の取り出し（最重要：ここで互換性確保）
-%         ------------------------------------------------------------
-%         許可された最小構成：
-%           do(obj, t_struct)
-%           do(obj, t_struct, cha)
-%           do(obj, t_struct, cha, 追加引数...)
-% 
-%         cha は使うのは第2引数のみ、他は無視する。
-% 
-%         if nargin < 2
-%             error("do(): t_struct が指定されていません");
-%         else
-%             t_struct = varargin{1};
-%         end
-% 
-%         if nargin < 3
-%             cha = 's';      % デフォルト
-%         else
-%             cha = varargin{2};
-%         end
-%         cha が誤っていた場合の対策
-%         if ~ismember(cha,{'q','s','a','f','l','t'})
-%             cha='s';
-%         end
-% 
-%         コントローラの出力 (T, Roll, Pitch, Yaw)
-%         try
-%             input = obj.self.controller.result.input;
-%         catch
-%             input = [0;0;0;0];
-%         end
-% 
-%         ホバースラスト推定
-%         try
-%             P = obj.self.parameter.get();
-%             hover_thrust_force = P(1)*P(9);
-%         catch
-%             hover_thrust_force = 0;
-%         end
-% 
-%         現在状態とモデルの更新計算
-%         try
-%             wh = obj.self.estimator.result.state.w;
-%             obj.self.estimator.model.do(t_struct, cha, obj.self.controller, obj.self.estimator, obj.self, 1);
-%             whn = obj.self.estimator.model.state.w;
-% 
-%             モデル状態を元に戻す（シミュレーション干渉防止）
-%             obj.self.estimator.model.state.set_state(obj.self.estimator.result.state.get);
-%         catch
-%             wh=zeros(3,1);
-%             whn=zeros(3,1);
-%         end
-% 
-%         ==============================
-%         入力変換 (P制御)
-%         ==============================
-%         g = obj.gain;
-%         offset = obj.th_offset;
-% 
-%         T_thr = input(1);
-% 
-%         roll, pitch, yaw の変換（角速度差をP制御）
-%         uroll  = g(1)*(whn(1)-wh(1));
-%         upitch = g(2)*(whn(2)-wh(2));
-%         uyaw   = g(3)*(whn(3)-wh(3));
-% 
-%         thrust（推力→スロットル変換）
-%         uthr   = max(0, g(4)*(T_thr-hover_thrust_force) + offset);
-% 
-%         THRUST2と同じ内容の変換
-%         uroll = sign(uroll) * min(abs(uroll), 500) + obj.self.roll_offset;
-%         upitch = sign(upitch) * min(abs(upitch), 500) + obj.self.pitch_offset;
-%         uyaw = -sign(uyaw) * min(abs(uyaw), 300) + obj.self.yaw_offset; 
-% 
-%         結果を構造体として格納
-%         obj.result = struct( ...
-%             'roll_offset',uroll, ...
-%             'pitch_offset',upitch, ...
-%             'thrust_offset',uthr, ...
-%             'yaw_offset',uyaw, ...
-%             'aux1',1000,'aux2',0,'aux3',0,'aux4',1000 );
-%         u = obj.result;
-% 
-% 
-%         ============================================================
-%         === 自動調整（autotune）処理： 't' フェーズのみ ===
-%         ============================================================
-%         if obj.mode>0 && cha=='t'
-% 
-%             現在時刻の取得
-%             try
-%                 tnow = t_struct.t;
-%             catch
-%                 tnow = posixtime(datetime("now"));
-%             end
-% 
-%             -------------------------
-%             ログ更新
-%             -------------------------
-%             idx = obj.log_buf.idx;
-%             obj.log_buf.t(idx)   = tnow;% 時刻
-%             obj.log_buf.w(:,idx) = wh(:);% 実モータ角速度
-%             obj.log_buf.wn(:,idx)= whn(:); % 推定/正規化角速度
-%             obj.log_buf.uthr(idx)= uthr; % フィルタ済みスロットル入力
-%             obj.log_buf.idx = mod(idx,obj.log_buf.len)+1; % インデックスを循環させる
-% 
-%             初回は評価しない
-%             if isempty(obj.last_t)
-%                 obj.last_t = tnow;
-%             end
-% 
-%             1秒ごとに評価（評価間隔）
-%             if tnow - obj.last_t >= 1.0
-% 
-%                 最近1秒のデータを取得
-%                 [~,wvec,wnvec,~] = obj.getRecentWindow(1.0);
-% 
-%                 % スコアを計算（揺れ + 不安定性）
-%                 score = obj.evaluate_stability(wnvec, wvec);
-%                 pos     = obj.self.sensor.result.state.p;
-%                 pos_ref = obj.self.reference.result.state.p;
-% 
-%                 score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref);
-% 
-%                 ============================
-%                   MODE 1 & MODE 2 (改良版)
-%                 ============================
-% 
-%                 時間差分（自動取得は t フェーズのみ）
-%                 dt = max(0, tnow - obj.last_t);
-%                 obj.time_accum = obj.time_accum + dt;
-%                 obj.last_t = tnow;
-% 
-%                 ----------------------------
-%                 MODE 1: オフセット自動取得
-%                 ----------------------------
-%                 if obj.mode == 1
-% 
-%                     すでにベスト値が決まったら固定
-%                 if obj.offset_fixed
-%                     obj.th_offset = obj.best_param.th_offset;
-%                     return;
-%                 end
-% 
-%                 一定間隔で offset を微増
-%                 while obj.time_accum >= obj.offset_interval
-%                     obj.time_accum = obj.time_accum - obj.offset_interval;
-%                     obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
-%                 end
-% 
-%                 --- スコアによるベスト判定（最重要） ---
-%                 if score < obj.best_score
-%                     obj.best_score = score;
-%                     obj.best_param.th_offset = obj.th_offset;
-%                 end
-% 
-%                 --- ベスト値が決まったら固定 ---
-%                 offset が上限に近づいてスコア改善が止まったら
-%                 if obj.th_offset >= obj.offset_max || ...
-%                    abs(score - obj.best_score) < obj.offset_lock_threshold
-%                     obj.offset_fixed = true;
-%                     obj.th_offset = obj.best_param.th_offset;
-%                     obj.mode = 0;     % mode1 終了
-%                 end
-% 
-%                 return;
-%                 end
-% 
-% 
-%             ----------------------------
-%             MODE 2: ゲイン自動取得 (ヒルクライム)
-%             ----------------------------
-%             if obj.mode == 2
-% 
-%                 軸インデックス初期化
-%                 if isempty(obj.axis_idx), obj.axis_idx = 1; end
-%                 i = obj.axis_idx;
-% 
-% 
-%                 gain_vec = obj.gain;
-% 
-% 
-%                 --- 新規試行開始 ---
-%                 if ~obj.waiting
-%                     trial = gain_vec;
-% 
-%                     上限超えないようにステップ計算
-%                     step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-%                     trial(i) = trial(i) + step;
-% 
-%                     反映
-% 
-%                         obj.gain = trial;
-% 
-%                     保持
-%                     obj.waiting = true;
-%                     obj.baseline = obj.best_score;
-%                     obj.trialVal = trial(i);
-% 
-%                     return;
-% 
-%                 --- 評価フェーズ ---
-%                 else
-%                     if score < obj.baseline - 1e-6     % 改善した
-%                         obj.best_score = score;
-%                         obj.best_param.gain = gain_vec;
-%                     else                                % 改善なし → 元に戻す
-% 
-%                             obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
-% 
-%                     end
-% 
-%                     次の軸へ進む
-%                     obj.waiting = false;
-%                     obj.axis_idx = obj.axis_idx + 1;
-%                     if obj.axis_idx > 4
-%                         obj.axis_idx = 1;
-%                     end
-% 
-%                     return;
-%                 end
-%             end
-% 
-% 
-%             ----------------------------
-%             MODE 0: 何もしない（GUI表示のみ）
-%             ----------------------------
-%             best_score を常に更新
-%             if score < obj.best_score
-%                 obj.best_score = score;
-%                 obj.best_param.th_offset = obj.th_offset;
-%                 obj.best_param.gain = obj.gain;
-%             end
-% 
-% 
-% 
-%                 =======================
-%                 GUI更新
-%                 =======================
-%                 if ~isempty(obj.monitor)
-%                     s = sprintf( ...
-%                         'Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f  Score:%.4f Best:%.4f', ...
-%                         obj.mode, g(1),g(2),g(3),g(4), obj.th_offset, score, obj.best_score);
-%                     obj.monitor.update(s);
-%                 end
-% 
-%                 obj.last_t = tnow;
-%                 obj.last_score = score;
-%             end
-%         end
-%     end
-% 
-% 
-%     ============================================================
-%     ログから最近 window_s 秒のデータを取得
-%     ============================================================
-%     function [tvec,wvec,wnvec,uthrvec] = getRecentWindow(obj, window_s)
-%         buf=obj.log_buf;
-% 
-%         有効データのみ取得
-%         valid = ~isnan(buf.t);
-% 
-%         t_all = buf.t(valid);
-%         w_all = buf.w(:,valid);
-%         wn_all= buf.wn(:,valid);
-%         uthr_all = buf.uthr(valid);
-% 
-%         if isempty(t_all)
-%             tvec=[]; wvec=[]; wnvec=[]; uthrvec=[];
-%             return;
-%         end
-% 
-%         時間でフィルタ
-%         tcut = t_all >= (t_all(end)-window_s);
-% 
-%         tvec = t_all(tcut);
-%         wvec = w_all(:,tcut);
-%         wnvec= wn_all(:,tcut);
-%         uthrvec = uthr_all(tcut);
-%     end
-% 
-% 
-%     ============================================================
-%     スコア計算（揺れ + 不安定性）
-%     ============================================================
-%     function s = evaluate_stability(~, wn, w)
-%         if isempty(wn) || isempty(w)
-%             s = Inf;
-%             return;
-%         end
-% 
-%         % モデルとの差の大きさ（不安定性）
-%         stability = sum( mean( (wn - w).^2 , 2) );
-% 
-%         % ローパス前後の揺れ量
-%         vibration = sum( var([w; wn],0,2) );
-% 
-%         % 合計（重み0.5）
-%         s = stability + 0.5*vibration;
-%     end
-% 
-% 
-% 
-%     function s = evaluate_stability(~, wnvec, wvec, pos, pos_ref)
-%     wn  = LPF後データ（NxM）
-%     w   = LPF前データ（NxM）
-%     pos = 現在位置  [x; y; z]
-%     pos_ref = 目標位置 [x_ref; y_ref; z_ref]
-%     pos=obj.self.estimator.result.state.p;
-%     pos_ref=obj.self.reference.result.state.p;
-% 
-% 
-%     データが足りないときは無限大（最悪評価）
-%     if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref)
-%         s = Inf;
-%         return;
-%     end
-% 
-% 
-%     --------------------------
-%     1. モデルとの差の大きさ（あなたの従来ロジックそのまま）
-%     --------------------------
-%     stability = sum( mean( (wnvec - wvec).^2 , 2) );
-% 
-%     --------------------------
-%     2. ローパス前後の揺れ量（あなたの従来ロジック）
-%     --------------------------
-%     vibration = sum( var([wvec; wnvec], 0, 2) );
-% 
-%     --------------------------
-%     3. 位置誤差（今回追加する部分） 
-%     --------------------------
-%     e_pos = pos_ref - pos;
-%     pos_err = sum( e_pos.^2 );  % 二乗誤差
-% 
-%     --- 初期状態の "地面停止で最高点" を防ぐ処理 ---
-%     高さが低すぎると正しく評価できないので無効化
-%     if pos(3) < 0.1  
-%         pos_err = 1000;  % 大きめの罰則（0 だと地面状態の方が優位になる）
-%     end
-% 
-% 
-%     --------------------------
-%     4. 総合スコア
-%         （重みは必要に応じて変更可能）
-%     --------------------------
-%     s = stability + 0.5*vibration + 2.0*pos_err;
-% end
-% 
-% end
-% end
-
 classdef INPUTTRANSFORM_AUTOTUNE < handle
 % INPUTTRANSFORM_AUTOTUNE
 % - THRUST2 相当の推力→スロットル変換を内包
@@ -485,347 +34,420 @@ properties
     % -------------------------
     % autotune 関連
     % -------------------------
-    offset_step = 5.0 %1.0
+    offset_step = 5.0 %1.0　
     offset_interval = 0.5 %0.15
     offset_max = 350
 
-    gain_step = [10;10;10;1]
-    gain_max = [600;600;600;40]
+    gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
+    gain_max = [600;600;600;40]     % ゲイン上限
 
-    time_accum = 0
-    last_t = []
+    time_accum = 0                  % 時間積算（初期ゼロ）
+    last_t = []                     % offset を増加させる間隔（秒）
     eval_window_sec = 1.0           % スコア評価窓（秒）
 
     % ログバッファ
     log_buf
 
     % bookkeeping
-    best_score = Inf
-    best_param = struct('th_offset',0,'gain',zeros(4,1))
-    last_score = []
+    best_score = Inf% これまでの最良スコア
+    best_param = struct('th_offset',0,'gain',zeros(4,1))% ベスト offset / gain の保存場所
+    last_score = [] % 最後に計算したスコア
 
-    offset_fixed = false
-    offset_lock_threshold = 0.005
+    offset_fixed = false% ベスト offset を固定したかどうか
+    offset_lock_threshold = 0.005 % offset 固定判断のためのスコア閾値
 
     % gain autotune state
-    axis_idx = 1
-    waiting = false
-    baseline = Inf
-    trialVal = []
+    axis_idx = 1 % 1～4（Roll, Pitch, Yaw, Throttle）
+    waiting = false% trial 評価中か
+    baseline = Inf % 比較スコア
+    trialVal = [] % 試行中ゲイン値
 
     % hover thrust (初期化時にセット)
     hover_thrust_force = 0
+    
+    % ----- AUTOTUNE mode1 (offset) 用 -----
+    tuning_start_time = [];     % チューニング開始時刻
+    smooth_score = [];          % スムージングしたスコア
+    last_improve_time = [];     % 最後に改善があった時間
 
 end
 
 methods
     %% ---------------------------
     % コンストラクタ
+    % INPUTTRANSFORM_AUTOTUNE(self, param)
+    %   - ドローン本体 self を受け取り、自動ゲイン調整機能の準備を行う
+    %   - オフセット・ゲインの初期値を設定し、ログ・モニタを準備する
     %% ---------------------------
     function obj = INPUTTRANSFORM_AUTOTUNE(self, param)
+
+        % --- 1) ドローン本体ハンドルの保存 ---
         obj.self = self;
+
+        % --- 2) 基本パラメータの保存 ---
         obj.param = param;
-        obj.param.roll_offset = self.plant.arming_msg(1);
+
+        % --- 3) アーミング時のオフセットを利用して roll/pitch/yaw オフセット初期化 ---
+        obj.param.roll_offset  = self.plant.arming_msg(1);
         obj.param.pitch_offset = self.plant.arming_msg(2);
-        obj.param.yaw_offset = self.plant.arming_msg(4);
+        obj.param.yaw_offset   = self.plant.arming_msg(4);
+
+        % --- 4) パラメータ（力学パラメータなど）を取得して格納 ---
+        %     例：モーター推力定数、質量など
         obj.param.P = self.parameter.get();
+
+        % --- 5) フライトフェーズ（q,s,a,f,l,t）を初期化 ---
         obj.flight_phase = 's';
+
+        % --- 6) ホバリング時の必要推力（force）を計算 ---
+        %     P(1): thrust coefficient,  P(9): motor speed at hover など
         P = self.parameter.get;
         obj.hover_thrust_force = P(1) * P(9);
-        obj.state = state_copy(self.estimator.result.state);
-        % if nargin < 2, mode = 0; end
-        % obj.self = self;
-        % obj.mode = mode;
 
-        % monitor 作成（存在すれば）
+        % --- 7) 推定器の現在の状態をコピー（state オブジェクトの複製）---
+        obj.state = state_copy(self.estimator.result.state);
+
+        % --- 8) オートチューンモニタ（GUI）があれば生成 ---
+        %     mode>0 の時だけ表示のために monitor を用意
         if obj.mode > 0
             try
-                obj.monitor = AutoTuneMonitor();
+                obj.monitor = AutoTuneMonitor();   % GUI用
             catch
-                obj.monitor = [];
+                obj.monitor = [];                  % GUIがない場合でも動くように
             end
         else
             obj.monitor = [];
         end
 
-        % origin (THRUST2) にパラメータがあれば初期値を引き継ぐ
-        % try
-        %     if isfield(self, 'input_transform') %&& isfield(self.input_transform, 'origin') && isprop(self.input_transform.origin,'param')
-        %         p = self.input_transform.param;
-        %         if isfield(p,'th_offset'), obj.th_offset = p.th_offset; end
-        %         if isfield(p,'gain'), obj.gain = p.gain; end
-        %     end
-        % catch
-        %     % ignore
-        % end
-
-        % hover thrust をパラメータから計算（THRUST2 と同じ）
+        % --- 9) 再度 hover thrust を計算（安全のため try/catch）---
+        %     上の計算と同じだが、例外対応のため再記述されている
         try
             P = self.parameter.get();
             obj.hover_thrust_force = P(1) * P(9);
         catch
-            obj.hover_thrust_force = 0;
+            obj.hover_thrust_force = 0;  % パラメータ取得に失敗した場合のfallback
         end
 
-        % ログバッファ初期化（3秒分程度）
-        dt_guess = 0.025;
-        buflen = ceil(3 / dt_guess);
-        obj.log_buf = struct( ...
-            't', nan(1,buflen), ...
-            'w', nan(3,buflen), ...
-            'wn', nan(3,buflen), ...
-            'uthr', nan(1,buflen), ...
-            'idx', 1, ...
-            'len', buflen );
-        
-        % 初期出力
-        obj.result = [500,500,0,500,1000,0,0,1000];
-        obj.result_ch = struct('roll',500,'pitch',500,'thrust',0,'yaw',500,'aux1',1000,'aux2',0,'aux3',0,'aux4',1000);
-    end
+        % --- 10) ログバッファの生成（3秒分を確保）---
+        %     t: 時刻ログ
+        %     w : 推定角速度
+        %     wn: 予測角速度
+        %     uthr : thrust 入力
+        %     idx: 現在書き込む位置
+        dt_guess = 0.025;            % 推定サンプリング周期（40Hz）
+        buflen = ceil(3 / dt_guess); % 約3秒分
+        obj.log_buf = struct('t',nan(1,buflen),'w',nan(3,buflen),'wn',nan(3,buflen),'uthr',nan(1,buflen),'idx',1,'len', buflen );
 
+        % --- 11) 初期出力（Roll,Pitch,Yaw=500 で安全な中央付近）---
+        %     thrust=0 で完全停止、aux は自動飛行用の必須値
+        obj.result = [500,500,0,500,1000,0,0,1000];
+
+        % --- 12) 構造体形式の出力（同じ値）---
+        obj.result_ch = struct('roll',500,'pitch',500,'thrust',0,'yaw',500,'aux1',1000,'aux2',0,'aux3',0,'aux4',1000 );
+    end
 
     %% ---------------------------
     % do(): main entry (互換のため varargin)
     %% ---------------------------
     function u = do(obj, varargin)
-        % varargin expected: (t_struct, cha, logger, env, agent_list, i)
-        % but accept flexible forms to remain compatible
+    % DO()
+    % INPUTTRANSFORM_AUTOTUNE の主処理
+    % thrust2 と autotune を統合した制御入力生成関数
+    %
+    % 期待引数:
+    %   (t_struct, cha, logger, env, agent_list, i)
+    %   ただし過去互換のため柔軟な引数処理になっている
+
+    % ---------------------------------------------------------
+    % 1. t_struct の取り出し（必須）
+    % ---------------------------------------------------------
         if nargin < 2
             error('INPUTTRANSFORM_AUTOTUNE.do requires at least t_struct');
         end
         t_struct = varargin{1};
+        % cha（フライトフェーズ型番: q,s,a,f,l,t）を取得
         if numel(varargin) >= 2, cha = varargin{2}; 
         else 
-            cha = 's'; 
+            cha = 's'; % デフォルトは "s"（静止・安全状態）
         end
 
-        % cha 保護
+        % cha の安全確認（正しくない文字が来たら強制的に s にする）
         if ~ismember(cha,{'q','s','a','f','l','t'}), cha = 's'; end
 
         % controller input の取得（呼び出しが controller 配列を渡す形に対応）
         % input = [0;0;0;0];
         try
             if numel(varargin) >= 5 && numel(varargin{5}) >= 1 && numel(varargin) >=6
-                % common calling pattern: varargin{5}(varargin{6}).controller.result.input
+                 % agent_list(i).controller.result.input を取りに行くケース（多い）
                 input = varargin{5}(varargin{6}).controller.result.input;
             else
-                % fallback: try agent reference inside obj.self
+                % fallback: obj.self から直接取得
                 input = obj.self.controller.result.input;
             end
         catch
+            % 取得失敗時は [0;0;0;0] を使う（安全策）
             input = [0;0;0;0];
         end
 
-        % flight phase logic: if invalid, keep previous (we do not store flight_phase prop here)
-        % for predict we need estimator etc.
-
-        % -------------------------
-        % prediction (same as THRUST2)
-        % -------------------------
+        % ---------------------------------------------------------
+        % 3. 予測モデル（estimator.model）の一歩先予測
+        %    THRUST2 と同じ処理
+        % ---------------------------------------------------------
         try
             if cha == 't' || cha == 'f' || cha == 'l'
+                % 現在の角速度 w
                 wh = obj.self.estimator.result.state.w;
-                % call model.do with same args to predict one step (use same signature)
+                    % ---- 予測ステップの実行 ----
                 try
+                    % 通常の呼び出し（THRUST2 と同じ引数構成）
                     obj.self.estimator.model.do(varargin{:});
                 catch
-                    % sometimes different call signature; try a minimal call:
+                     % 互換性確保：引数が合わないときに最小セットで再呼び出し
                     try
                         obj.self.estimator.model.do(t_struct, cha, obj.self.controller, obj.self.estimator, obj.self, 1);
                     catch
-                        % give up prediction
+                        % 最終的に予測ができなかった場合は無視して続行
                     end
                 end
+            % 予測後の角速度 w_next
                 whn = obj.self.estimator.model.state.w;
-                % restore model state
+
+            % ---- 予測前の state に戻す（モデル内部書き換えを戻す）----
                 try
                     obj.self.estimator.model.state.set_state(obj.self.estimator.result.state.get);
                 catch
                 end
             else
+                % フライトフェーズ s,q,a では予測を行わない
                 wh = zeros(3,1);
                 whn = zeros(3,1);
             end
         catch
+            % 予測処理全体が失敗しても安全に落とす
             wh = zeros(3,1);
             whn = zeros(3,1);
         end
 
-        % -------------------------
-        % THRUST2-like control calculation
-        % -------------------------
-        % choose gain/offset (we do not split gain_tl etc; unified gain used)
+        % ---------------------------------------------------------
+        % 4. THRUST2 互換の制御計算を実行
+        % ---------------------------------------------------------
+        % gain と throttle offset パラメータ
         g = obj.param.gain;
         offset = obj.param.th_offset;
-
+        % thrust コマンド（外部 LQR/MPC の出力）
         T_thr = input(1);
 
-        % P control on angular velocity error
+        % ---- P制御（角速度制御）----
         uroll  = g(1) * (whn(1) - wh(1));
         upitch = g(2) * (whn(2) - wh(2));
         uyaw   = g(3) * (whn(3) - wh(3));
 
-        % apply throttle conversion (hover compensation)
+        % ---- thrust 計算（ホバリング推力補正 + オフセット）----
         uthr = max(0, g(4) * (T_thr - obj.hover_thrust_force) + offset);
 
-        % get arming offsets (fallback values used if not available)
+        % ---------------------------------------------------------
+        % 5. アーミング時のスティック中央値（roll/pitch/yaw オフセット）
+        % ---------------------------------------------------------
         try
             ro = obj.self.plant.arming_msg(1);
             po = obj.self.plant.arming_msg(2);
             yo = obj.self.plant.arming_msg(4);
         catch
-            ro = 500; po = 500; yo = 500;
+            ro = 500; po = 500; yo = 500;        % fallback（安全）
         end
 
-        % saturate and add offsets (same limits as THRUST2)
+        % ---------------------------------------------------------
+        % 6. 各チャンネル saturate（THRUST2 と同じ制限）
+        % ---------------------------------------------------------
         uroll  = sign(uroll) * min(abs(uroll), 500) + ro;
         upitch = sign(upitch) * min(abs(upitch), 500) + po;
-        uyaw   = -sign(uyaw) * min(abs(uyaw), 300) + yo; % note sign inversion as in THRUST2
+        % yaw は符号が逆（THRUST2 の仕様に合わせている）
+        uyaw   = -sign(uyaw) * min(abs(uyaw), 300) + yo;
 
-        % compose numeric output (same format as THRUST2)
+        % ---------------------------------------------------------
+        % 7. 出力を組み立て（aux チャンネル含む）
+        %    cha によって thrust を出すかどうかを決める
+        % ---------------------------------------------------------
         if cha == 't' || cha == 'f' || cha == 'l'
+            % thrust 有効（通常飛行）
             numeric_out = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000];
         else
+            % thrust 無効（安全モード）
             numeric_out = [ro, po, 0, yo, 1000, 0, 0, 0];
         end
 
-        % store both numeric and struct forms
+        % ---------------------------------------------------------
+        % 8. 結果を obj.result として保存（構造体版も作成）
+        % ---------------------------------------------------------
         obj.result = numeric_out;
         obj.result_ch = struct('roll',numeric_out(1),'pitch',numeric_out(2),'thrust',numeric_out(3),'yaw',numeric_out(4), ...
                                'aux1',numeric_out(5),'aux2',numeric_out(6),'aux3',numeric_out(7),'aux4',numeric_out(8));
 
-        % set return value for compatibility
+       % 最終的な返り値
         u = obj.result;
 
         % -------------------------
         % Autotune部分（takeoff 't' のみ実行）
         % -------------------------
         if obj.mode > 0 && cha == 't'
-            % current time
+            % ==== 現在時刻の取得 ====
             try
-                tnow = t_struct.t;
+                tnow = t_struct.t; % 通常フライトループではここから取得
             catch
-                tnow = posixtime(datetime("now"));
+                tnow = posixtime(datetime("now"));% 例外時はシステム時刻
             end
 
-            % log update (circular buffer)
+            % ==== ログバッファ更新（リングバッファ） ====
             idx = obj.log_buf.idx;
             obj.log_buf.t(idx)   = tnow;
-            obj.log_buf.w(:,idx) = wh(:);
-            obj.log_buf.wn(:,idx)= whn(:);
-            obj.log_buf.uthr(idx)= numeric_out(3); % filtered throttle if you have filter (we don't here)
+            obj.log_buf.w(:,idx) = wh(:);% 実角速度
+            obj.log_buf.wn(:,idx)= whn(:); % 予測角速度（モデルから）
+            obj.log_buf.uthr(idx)= numeric_out(3); % 出力スロットル(フィルタ実装時はそこで)
             obj.log_buf.idx = mod(idx, obj.log_buf.len) + 1;
 
-            % if first time init last_t
+            % ==== 初回のみ last_t を初期化 ====
             if isempty(obj.last_t)
                 obj.last_t = tnow;
             end
 
-            % evaluate every eval_window_sec (1.0s default)
+            % ----------------------------------------
+            % 一定間隔（eval_window_sec）ごとに評価実行
+            % ----------------------------------------
             if tnow - obj.last_t >= obj.eval_window_sec
-                % get recent window
+                 % 直近 eval_window_sec 秒のデータを取得
                 [~, wvec, wnvec, ~] = obj.getRecentWindow(obj.eval_window_sec);
 
-                % retrieve positions for scoring (if available)
+                % --- 位置情報が取れれば取得 ---
                 try
-                    pos = obj.self.estimator.result.state.p;        % current position [x;y;z]
+                    pos = obj.self.estimator.result.state.p;         % 現在位置[x;y;z]
                 catch
                     pos = [NaN;NaN;NaN];
                 end
                 try
-                    pos_ref = obj.self.reference.result.state.p;    % desired position
+                    pos_ref = obj.self.reference.result.state.p;    % 目標位置
                 catch
                     pos_ref = [NaN;NaN;NaN];
                 end
 
-                % compute score (uses position term)
+                % ==== スコア評価（振動 + 安定性 + 位置誤差） ====
                 score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref);
 
-                % ---------- MODE 1: offset autotune ----------
+                % ========================================
+                %  mode = 1 : 自動オフセット取得
+                % ========================================
                 if obj.mode == 1
-                    % if fixed already, keep fixed (no more autotune)
-                    if obj.offset_fixed
-                        % nothing to do except display
-                    else
-                        % accumulate time and increment offset every offset_interval
-                        dt = max(0, tnow - obj.last_t);
+                
+                    dt = max(0, tnow - obj.last_t);
+                
+                    % ---- 1. チューニング開始からの経過時間を計測 ----
+                    if isempty(obj.tuning_start_time)
+                        obj.tuning_start_time = tnow;
+                    end
+                    elapsed = tnow - obj.tuning_start_time;
+                
+                    % ---- 2. 最低観測時間（ウォームアップ） ----
+                    min_observation_time = 2.0;  % 必ず2秒は動かす
+                    if elapsed < min_observation_time
+                        % まだ評価しないが offset は増やす
                         obj.time_accum = obj.time_accum + dt;
                         while obj.time_accum >= obj.offset_interval
                             obj.time_accum = obj.time_accum - obj.offset_interval;
                             obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
                         end
-
-                        % update best by score
-                        if score < obj.best_score
-                            obj.best_score = score;
-                            obj.best_param.th_offset = obj.th_offset;
-                        end
-
-                        % decide lock: either at max offset or small improvement plateau
-                        if obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold
-                            obj.offset_fixed = true;
-                            obj.th_offset = obj.best_param.th_offset;
-                            obj.mode = 0; % finish tuning
-                        end
+                        return;% 評価処理に進まず終了
                     end
+                
+                    % ---- 3. offset を増加 ----
+                    obj.time_accum = obj.time_accum + dt;
+                    increased = false;
+                    while obj.time_accum >= obj.offset_interval
+                        obj.time_accum = obj.time_accum - obj.offset_interval;
+                        obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
+                        increased = true;% 今回増加したか
+                    end
+                
+                    % ---- 4. スコアの平滑化（ノイズに強くする） ----
+                    alpha = 0.2;  % 平滑化率
+                    obj.smooth_score = alpha*score + (1-alpha)*obj.smooth_score;
+                
+                    % ---- 5. 改善したら best_score 更新 ----
+                    if obj.smooth_score < obj.best_score
+                        obj.best_score = obj.smooth_score;
+                        obj.best_param.th_offset = obj.th_offset;
+                        obj.last_improve_time = tnow; % 最後に改善した時刻
+                    end
+                
+                    % ---- 6. ロック判定 ----
+                    % 改善が一定時間途絶えたら終了
+                    no_improvement_time = 1.5;  % 1.5秒改善がなければ lock する
+                
+                    if ...
+                        (tnow - obj.last_improve_time) > no_improvement_time || ...  % 改善が一定時間無い
+                        obj.th_offset >= obj.offset_max                    % 上限に達した
+                    then
+                        obj.offset_fixed = true;
+                        obj.th_offset = obj.best_param.th_offset;% 最良値に戻す
+                        obj.mode = 0;     % MODE1 終了
+                    end
+                
                 end
 
-                % ---------- MODE 2: gain autotune (hill-climb) ----------
+
+                % =====================================================
+                %                 MODE 2: ゲイン自動調整
+                % =====================================================
                 if obj.mode == 2
-                    % ensure axis index initialized
+                    % axis_idx 未初期化なら 1 (=roll)
                     if isempty(obj.axis_idx), obj.axis_idx = 1; end
                     i = obj.axis_idx;
 
                     if ~obj.waiting
-                        % start trial: bump one axis by step (bounded by gain_max)
+                        % ---- 試験開始：1軸だけゲインを増やす ----
                         trial = obj.gain;
                         step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
                         trial(i) = trial(i) + step;
 
-                        % apply trial gains for next evaluation
-                        obj.gain = trial;
-
-                        % set waiting state and baseline
-                        obj.waiting = true;
-                        obj.baseline = obj.best_score;
+                        obj.gain = trial;% 試験ゲイン適用
+                        obj.waiting = true;% 評価待ち状態へ
+                        obj.baseline = obj.best_score;% 比較用ベースライン
                         obj.trialVal = trial(i);
                     else
-                        % evaluation phase: compare with baseline
+                        % ---- 試験評価中：baseline と比較 ----
                         if score < obj.baseline - 1e-6
-                            % improvement: accept (best_score and best_param)
+                            % 改善 → 採用
                             obj.best_score = score;
                             obj.best_param.gain = obj.gain;
                         else
-                            % no improvement: revert the bump
+                            % 改善なし → 元に戻す
                             obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
                         end
 
-                        % proceed to next axis
+                        % 次の軸へ
                         obj.waiting = false;
                         obj.axis_idx = obj.axis_idx + 1;
                         if obj.axis_idx > 4, obj.axis_idx = 1; end
                     end
                 end
 
-                % update best_score bookkeeping if changed externally
+                % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
                 if score < obj.best_score
                     obj.best_score = score;
                     obj.best_param.th_offset = obj.th_offset;
                     obj.best_param.gain = obj.gain;
                 end
 
-                % GUI monitor update
+                % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
                         s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
                             obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
                         obj.monitor.update(s);
                     catch
-                        % ignore monitor errors
+                         % GUIエラーは無視
                     end
                 end
 
-                % save last score/time
+                 % ==== 評価実行時刻・スコアを保存 ====
                 obj.last_score = score;
                 obj.last_t = tnow;
             end
@@ -839,19 +461,21 @@ methods
     function [tvec, wvec, wnvec, uthrvec] = getRecentWindow(obj, window_s)
         buf = obj.log_buf;
 
-        % 有効データだけ
+        % -------- 有効データの抽出 --------
+        % NaN でない部分だけを取り出す（リングバッファ）
         valid = ~isnan(buf.t);
-        t_all = buf.t(valid);
-        w_all = buf.w(:,valid);
-        wn_all = buf.wn(:,valid);
-        uthr_all = buf.uthr(valid);
-
+        t_all = buf.t(valid); % すべての時刻
+        w_all = buf.w(:,valid);% 実測角速度 w
+        wn_all = buf.wn(:,valid);% モデル予測角速度 wn
+        uthr_all = buf.uthr(valid);% スロットル値
+        % データが何もなければ空で返す
         if isempty(t_all)
             tvec = []; wvec = []; wnvec = []; uthrvec = [];
             return;
         end
 
-        % 最新 window_s 秒分を抽出
+        % -------- 最新 window_s 秒分のデータを切り出し --------
+        % 最新時刻 t_all(end) から window_s 秒遡った時刻以上のデータを取得
         tcut = t_all >= (t_all(end) - window_s);
         tvec = t_all(tcut);
         wvec = w_all(:,tcut);
@@ -861,28 +485,45 @@ methods
 
 
     %% ---------------------------
-    % evaluate_stability: モデル差 + 揺れ + 位置誤差 を統合したスコア
+    % evaluate_stability:
+    % モデル誤差 + 振動 + 位置誤差 を統合して安定度スコアを計算
+    % 数値が小さいほど良い（安定している）
     %% ---------------------------
     function s = evaluate_stability(~, wnvec, wvec, pos, pos_ref)
-        % wnvec, wvec: (3 x N) matrices
-        % pos, pos_ref: 3x1 vectors
+    % wnvec, wvec: 各軸の角速度ログ（3×N）
+    % pos, pos_ref: 現在位置と目標位置（3×1）
+
+    % データが欠けている場合は評価不可 → 無限大 (極端に悪いスコア)
         if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref)
             s = Inf; return;
         end
 
-        % model mismatch
+        %% --- 1. モデルと実機の乖離 ---
+        % 予測角速度 wn と実測角速度 w の二乗誤差の平均
+        % → モデルが現実に合っているほど値が小さい
         stability = sum(mean((wnvec - wvec).^2, 2));
-        % vibration
+        %% --- 2. 振動成分（角速度の分散） ---
+        % 実測 w と予測 wn の両方の揺れを評価
+        % → 機体が不安定に振動すると値が大きくなる
         vibration = sum(var([wvec; wnvec], 0, 2));
-        % pos error (squared)
+        %% --- 3. 位置誤差（目標との距離） ---
+        % 座標誤差の二乗和
         e_pos = pos_ref - pos;
         pos_err = sum(e_pos.^2);
-        % avoid rewarding ground-resting: if too low, penalize
-        if pos(3) < 0.1
-            pos_err = 1000;
-        end
+       %% --- 4. 低高度ペナルティ ---
+        % 高度が低い状態で停止すると「安定している」と誤認するため
+        % 低高度ほど罰則を加えて評価を悪くする
+        height = pos(3);
+        pos_err = pos_err + exp(-5*height)*200;  % 低高度ほど重罰
+        %低高度だと罰則
+        % if pos(3) < 0.1
+        %     pos_err = 1000;
+        % end
 
-        % weighted sum
+        %% --- 5. 重み付き合算 ---
+        % stability（モデル一致）      → そのまま
+        % vibration（振動）            → 0.5倍の重み
+        % pos_err（位置誤差）          → 2倍の重みで強調
         s = stability + 0.5 * vibration + 2.0 * pos_err;
     end
 end
