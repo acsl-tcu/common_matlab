@@ -90,9 +90,9 @@ F = T_inv\est.A*T_inv;
 G = T_inv\est.B;
 H = est.C*T_inv;
 
-U_uc = T(:,k+1:end);
-contrib = abs(U_uc);
-score = sum(contrib,2);
+% U_uc = T(:,k+1:end);
+% contrib = abs(U_uc);
+% score = sum(contrib,2);
 
 %可制御部分抜き出し
 Ac = F(1:k, 1:k);
@@ -102,8 +102,8 @@ Acbar = F(k+1:end,k+1:end);
 Bcbar = G(k+1:end,:);
 
 %重みづけ
-Q = diag([10,10,10,10,10,10,1,1,1,1,1,1,ones(1,size(est.A,1)-12)]);
-I = T_inv'*Q*T_inv;
+Q = diag([1,1,1,100,100,100,1,1,1,1,1,1,ones(1,size(est.A,1)-12)]);
+I = T_inv\Q*T_inv;
 Qc = I(1:k,1:k);
 
 
@@ -113,5 +113,6 @@ Rc = 1*eye(4);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
+% K_full = dlqr(est.A,est.B,Q,Rc);
 save('kalman_gain.mat','K_full');
 fprintf("ゲインをkalman_gain.matとして保存しました");
