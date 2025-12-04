@@ -42,6 +42,9 @@ classdef KQ_LMPC_CONTROLLER< handle
         act
         m=3
         n=2
+        Q
+        R
+        A_d
         last_u_ff
     end
     methods
@@ -74,6 +77,19 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.state.state_data = zeros(obj.param.state_size,obj.H, obj.N);
             obj.result.Evaluationtra = zeros(obj.N, 2);
             obj.result.pre_u = obj.input.pre_u;
+            obj.Q = eye(45);
+            scale = 0.01;
+            obj.Q(1:3, 1:3) =500 * eye(3) * scale;%p
+            obj.Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2 
+            obj.Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
+            obj.Q(10:12, 10:12) = 300 * eye(3) * scale;%v
+            obj.Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
+            obj.Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
+            obj.Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
+            obj.Q(28:36, 28:36) = 300 * eye(9) * scale;%q
+            obj.Q(37:45, 37:45) = 200 * eye(9) * scale;%w
+            obj.R = diag([2; 100; 100; 100]);
+           
             % obj.input.mu = param.ref_input;
             % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
             % obj.koopman = param.koopman;
@@ -85,9 +101,11 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.koopman.B =zeros(45,4);
             obj.result.bestcost = obj.input.Bestcost_now;
             obj.koopman.A=obj.get_Koopman_A(obj.m,obj.n);
+            obj.A_d =0.99*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
         end
         %-- main()的な
         function result = do(obj,varargin)
+            tic
             time = varargin{1};
             phase = varargin{2};
             obj.param.t = time.t;
@@ -96,10 +114,10 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.state.current = obj.klift(obj.current_state,obj.m,obj.n);
             obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
             result= obj.controller_KMC(varargin);
-
-            disp('controller: KMC,  phase: ');
+            disp('controller: KqlMpC,  phase: ');
             disp(phase);
             obj.show();
+            toc
         end
         function result = controller_KMC(obj,varargin)
             persistent firstRun
@@ -111,77 +129,59 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.param.t  = varargin{1}{1}.t;
             obj.param.te = varargin{1}{1}.te;
             obj.koopman.B = obj.get_Koopman_B(obj.current_state,obj.state.current,obj.m,obj.n,obj.param);
-            % obj.K_LQR();
-            obj.K_MPC();
+            obj.K_LQR();
+            % obj.K_MPC();
             result = obj.result;
         end
 
         function K_LQR(obj)
+            
             n = size(obj.state.current,1);
-            Q = eye(n);
-            scale = 0.01;
-            Q(1:3, 1:3) =500 * eye(3) * scale;%p
-            Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2 
-            Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
-            Q(10:12, 10:12) = 300 * eye(3) * scale;%v
-            Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
-            Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
-            Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
-            Q(28:36, 28:36) = 300 * eye(9) * scale;%q
-            Q(37:45, 37:45) = 200 * eye(9) * scale;%w
-            R = diag([2; 100; 100; 100]);
-            A_d =0.99*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
             B_d = obj.koopman.B * obj.param.dt;
-            ok = all(eig(Q)>=-1e-9) && all(eig(R)>0) && rank(ctrb(A_d,B_d))==size(A_d,1) && all(abs(eig(A_d-B_d*dare(A_d,B_d,Q,R)))<1);
-            disp(ok);
-            disp(max(abs(obj.koopman.B(:))));
-            [K, ~, ~] = dlqr(A_d,  B_d, Q, R);
+            [K, ~, ~] = dlqr(obj.A_d,  B_d, obj.Q, obj.R);
             z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
             %%
             % % 最大誤差設定
-            pos_err_limit = 1;
-            vel_err_limit = 2; 
-            pos_err = z_err(1:3);
-            pos_norm = norm(pos_err);
-            if pos_norm > pos_err_limit
-                pos_err = pos_err / pos_norm * pos_err_limit;
-            end
-            idx_v = 10; 
-            vel_err = z_err(idx_v : idx_v+2);
-            vel_norm = norm(vel_err);
-            if vel_norm > vel_err_limit
-                 vel_err = vel_err / vel_norm * vel_err_limit;
-            end
-            z_err_safe = z_err;
-            z_err_safe(1:3) = pos_err;             
-            z_err_safe(idx_v : idx_v+2) = vel_err; 
-            u_feedback= -K * z_err_safe;
-            % u_feedback = -K * z_err;
+            % pos_err_limit = 1;
+            % vel_err_limit = 2; 
+            % pos_err = z_err(1:3);
+            % pos_norm = norm(pos_err);
+            % if pos_norm > pos_err_limit
+            %     pos_err = pos_err / pos_norm * pos_err_limit;
+            % end
+            % idx_v = 10; 
+            % vel_err = z_err(idx_v : idx_v+2);
+            % vel_norm = norm(vel_err);
+            % if vel_norm > vel_err_limit
+            %      vel_err = vel_err / vel_norm * vel_err_limit;
+            % end
+            % z_err_safe = z_err;
+            % z_err_safe(1:3) = pos_err;             
+            % z_err_safe(idx_v : idx_v+2) = vel_err; 
+            % u_feedback= -K * z_err_safe;
+            u_feedback = -K * z_err;
             %%
             % 角度情報含む推力
-            ref_roll  = obj.state.ref(4, 1);
-            ref_pitch = obj.state.ref(5, 1);
-            cos_factor = max(0.5, cos(ref_roll) * cos(ref_pitch)); 
-            ideal_thrust = (obj.param.m * 9.81) / cos_factor;
-            u_ff = [ideal_thrust; 0; 0; 0];
+            % ref_roll  = obj.state.ref(4, 1);
+            % ref_pitch = obj.state.ref(5, 1);
+            % cos_factor = max(0.5, cos(ref_roll) * cos(ref_pitch)); 
+            % ideal_thrust = (obj.param.m * 9.81) / cos_factor;
+            % u_ff = [ideal_thrust; 0; 0; 0];
             %%
-             % u_ff = [obj.param.m * obj.param.gravity; 0; 0; 0];
+             u_ff = [obj.param.m * obj.param.gravity; 0; 0; 0];
             % u_ff = obj.state.ref(13:16, 1);
-            disp(['Pos Error: ', num2str(z_err(1))]); 
-            disp(['Att Error: ', num2str(z_err(28))]); 
-            disp(['Raw Input: ', num2str(u_feedback')]); 
             delta = [1.5; 1; 1; 1];
             %%
             %%robust filter
-            alpha = 0.1;
-            if isempty(obj.last_u_ff), obj.last_u_ff = u_ff; end
-            u_ff_smooth = (1-alpha)*obj.last_u_ff + alpha*u_ff;
-            obj.last_u_ff = u_ff_smooth;
-            obj.result.kqlmpc = u_feedback + u_ff_smooth;
+            % alpha = 0.1;
+            % if isempty(obj.last_u_ff), obj.last_u_ff = u_ff; end
+            % u_ff_smooth = (1-alpha)*obj.last_u_ff + alpha*u_ff;
+            % obj.last_u_ff = u_ff_smooth;
+            % obj.result.kqlmpc = u_feedback + u_ff_smooth;
             %%
-            % obj.result.kqlmpc = u_feedback + u_ff;
-            obj.result.kqlmpc = min(max(obj.result.kqlmpc, u_ff - delta), u_ff + delta);
-            obj.result.input = obj.result.kqlmpc;
+            obj.result.kqlmpc = u_feedback + u_ff;
+            obj.result.input = min(max(obj.result.kqlmpc, u_ff - delta), u_ff + delta);
+            obj.result.kqlmpc = obj.result.input;
             obj.input.pre_u = obj.result.input;
             obj.result.pre_u = obj.input.pre_u;
         end

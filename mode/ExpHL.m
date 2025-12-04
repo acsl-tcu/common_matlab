@@ -23,18 +23,24 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
 
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
-agent.controller = HLC(agent,Controller_HL(dt));
-
+agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.controller.hlc = HLC(agent,Controller_HL(dt));
 run("ExpBase");
-agent.cha_allocation.reference = "timevarying";
+agent.cha_allocation.reference = "time_var";
+agent.cha_allocation.controller = "hlc";
+agent.cha_allocation.f.controller = ["hlc"];
+% agent.cha_allocation.f.controller = ["kmpc","hlc"];
+%agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
-app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
+% app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
+ app.logger.plot({1, "q", "e"},"fig_num", 4,"phase","tfl");
+app.logger.plot({1, "input", ""},"fig_num", 1,"phase","tfl");
+app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+ app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
+ app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
+   % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kmpc", ""}},"fig_num", 5,"phase","f");
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
