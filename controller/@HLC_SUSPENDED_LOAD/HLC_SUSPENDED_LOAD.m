@@ -112,14 +112,14 @@ classdef HLC_SUSPENDED_LOAD < handle
 
 
         function [pL,pT,P,xd] = calc_pL(obj,t,model,cha,xd)
-            P = obj.P;
-            p = model.state.p;
-            pL = model.state.pL;
+            P = obj.P; %物理パラメータ
+            p = model.state.p; %機体位置
+            pL = model.state.pL; %牽引物位置
             L = obj.self.parameter.get("cableL");
             if isprop(model.state,"mL")
                 mL = max(0,model.state.mL); % load mass
             else
-                mL = P(6);
+                mL = P(6); %load mass
             end
             nxy = xd(1:3); %
             if isempty(obj.pL0)
