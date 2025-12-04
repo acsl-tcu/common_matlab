@@ -42,6 +42,7 @@ classdef KQ_LMPC_CONTROLLER< handle
         act
         m=3
         n=2
+        last_u_ff
     end
     methods
         function obj = KQ_LMPC_CONTROLLER(self, param)
@@ -95,6 +96,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.state.current = obj.klift(obj.current_state,obj.m,obj.n);
             obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
             result= obj.controller_KMC(varargin);
+
             disp('controller: KMC,  phase: ');
             disp(phase);
             obj.show();
@@ -104,44 +106,91 @@ classdef KQ_LMPC_CONTROLLER< handle
             if isempty(firstRun)
                 firstRun = true;
                 result = obj.result;
-                return   
+                return
             end
             obj.param.t  = varargin{1}{1}.t;
             obj.param.te = varargin{1}{1}.te;
             obj.koopman.B = obj.get_Koopman_B(obj.current_state,obj.state.current,obj.m,obj.n,obj.param);
-            obj.K_LQR();  
+            % obj.K_LQR();
+            obj.K_MPC();
             result = obj.result;
         end
 
         function K_LQR(obj)
             n = size(obj.state.current,1);
-            Q = 5 * eye(n);
-            Q(1:3, 1:3) = 2000 * eye(3);
-            Q(4:6, 4:6) = 1000 * eye(3);
-            idx_v = 10;
-            Q(idx_v : idx_v+2, idx_v : idx_v+2) = 200 * eye(3);
-            idx_v_high = 13;
-            Q(idx_v_high : idx_v_high+2, idx_v_high : idx_v_high+2) = 100 * eye(3);
-            idx_r = 28;
-            Q(idx_r : idx_r+8, idx_r : idx_r+8) = 1000 * eye(9);
-            idx_w = 37;
-            Q(idx_w : idx_w+8, idx_w : idx_w+8) = 1000 * eye(9);
-            R = 10*diag([0.1; 0.1; 0.1; 0.1]);
-            Q = 0.001*Q;
-            A_d = 0.995*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
+            Q = eye(n);
+            scale = 0.01;
+            Q(1:3, 1:3) =500 * eye(3) * scale;%p
+            Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2 
+            Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
+            Q(10:12, 10:12) = 300 * eye(3) * scale;%v
+            Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
+            Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
+            Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
+            Q(28:36, 28:36) = 300 * eye(9) * scale;%q
+            Q(37:45, 37:45) = 200 * eye(9) * scale;%w
+            R = diag([2; 100; 100; 100]);
+            A_d =0.99*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
             B_d = obj.koopman.B * obj.param.dt;
             ok = all(eig(Q)>=-1e-9) && all(eig(R)>0) && rank(ctrb(A_d,B_d))==size(A_d,1) && all(abs(eig(A_d-B_d*dare(A_d,B_d,Q,R)))<1);
             disp(ok);
-            [K, ~, ~] = lqrd(A_d,  B_d, Q, R);
+            disp(max(abs(obj.koopman.B(:))));
+            [K, ~, ~] = dlqr(A_d,  B_d, Q, R);
             z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
-            u_feedback = -K * z_err;
-            u_ff = [obj.param.m * obj.param.gravity; 0; 0; 0];
-            obj.result.input = u_feedback + u_ff;
+            %%
+            % % 最大誤差設定
+            pos_err_limit = 1;
+            vel_err_limit = 2; 
+            pos_err = z_err(1:3);
+            pos_norm = norm(pos_err);
+            if pos_norm > pos_err_limit
+                pos_err = pos_err / pos_norm * pos_err_limit;
+            end
+            idx_v = 10; 
+            vel_err = z_err(idx_v : idx_v+2);
+            vel_norm = norm(vel_err);
+            if vel_norm > vel_err_limit
+                 vel_err = vel_err / vel_norm * vel_err_limit;
+            end
+            z_err_safe = z_err;
+            z_err_safe(1:3) = pos_err;             
+            z_err_safe(idx_v : idx_v+2) = vel_err; 
+            u_feedback= -K * z_err_safe;
+            % u_feedback = -K * z_err;
+            %%
+            % 角度情報含む推力
+            ref_roll  = obj.state.ref(4, 1);
+            ref_pitch = obj.state.ref(5, 1);
+            cos_factor = max(0.5, cos(ref_roll) * cos(ref_pitch)); 
+            ideal_thrust = (obj.param.m * 9.81) / cos_factor;
+            u_ff = [ideal_thrust; 0; 0; 0];
+            %%
+             % u_ff = [obj.param.m * obj.param.gravity; 0; 0; 0];
+            % u_ff = obj.state.ref(13:16, 1);
+            disp(['Pos Error: ', num2str(z_err(1))]); 
+            disp(['Att Error: ', num2str(z_err(28))]); 
+            disp(['Raw Input: ', num2str(u_feedback')]); 
+            delta = [1.5; 1; 1; 1];
+            %%
+            %%robust filter
+            alpha = 0.1;
+            if isempty(obj.last_u_ff), obj.last_u_ff = u_ff; end
+            u_ff_smooth = (1-alpha)*obj.last_u_ff + alpha*u_ff;
+            obj.last_u_ff = u_ff_smooth;
+            obj.result.kqlmpc = u_feedback + u_ff_smooth;
+            %%
+            % obj.result.kqlmpc = u_feedback + u_ff;
+            obj.result.kqlmpc = min(max(obj.result.kqlmpc, u_ff - delta), u_ff + delta);
+            obj.result.input = obj.result.kqlmpc;
             obj.input.pre_u = obj.result.input;
             obj.result.pre_u = obj.input.pre_u;
         end
         function K_MPC(obj)
-            [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.koopman.A,obj.koopman.B,obj.H,obj.param.state_size});
+            sys_c = ss(obj.koopman.A, obj.koopman.B, [], []);
+            sys_d = c2d(sys_c, obj.param.dt, 'zoh'); % 零阶保持器离散化
+            A_d = sys_d.A;
+            B_d = sys_d.B;
+            [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
             z_current = obj.state.current;
             Xr_vec = zeros(n* obj.param.H, 1);
@@ -151,10 +200,16 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
             Xr = Xr_vec;
             Ur = reshape(obj.state.ref(13:16, :), [], 1);
+            
             w_vec = zeros(n, 1);
             w_vec(1:3) = diag(obj.weight.P);
+            w_vec(4:6) = diag(obj.weight.P);
+            w_v_val = diag(obj.weight.V);
             idx_v = 3*obj.m + 1;
-            w_vec(idx_v : idx_v+2) = diag(obj.weight.V);
+            w_vec(idx_v : idx_v+2) = w_v_val;
+            w_vec(idx_v+3 : idx_v+5) = w_v_val;
+            idx_g = 6*obj.m + 1;
+            w_vec(idx_g : idx_g+8) = 0.001;
             idx_q = 9*obj.m + 1;
             w_vec(idx_q : idx_q+8) = mean(diag(obj.weight.Q));
             if obj.n >= 2
@@ -171,9 +226,12 @@ classdef KQ_LMPC_CONTROLLER< handle
                 Xr, Ur, Up);
             A = []; b = [];
             Aeq = []; beq = [];
-            lb = repmat(obj.param.input_min,1,obj.param.H);
-            ub = repmat(obj.param.input_max,1,obj.param.H);
+            obj.quadH = (obj.quadH + obj.quadH') / 2; 
+            obj.quadH = obj.quadH + eye(size(obj.quadH)) * 1e-6;
+            lb = repmat(obj.param.input_min, obj.param.H, 1); 
+            ub = repmat(obj.param.input_max, obj.param.H, 1);
             obj.options = optimset('Display', 'off');
+
             [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
 
             if eflag ~= 1
@@ -226,6 +284,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             % U'*Rp*U - 2*Up*Rp*U
             H = 2*(B'*Q*B+R+Rp);
             H = (H+H')/2;
+            
             f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
 
         end
@@ -244,7 +303,7 @@ classdef KQ_LMPC_CONTROLLER< handle
                 c(2)*s(3),  s(1)*s(2)*s(3)+c(1)*c(3),  c(1)*s(2)*s(3)-s(1)*c(3);
                 -s(2),      s(1)*c(2),  c(1)*c(2)];
             e3 = [0;0;1];
-            Omega = [0 -w(3) w(2); w(3) 0 -w(1); -w(2) w(1) 0];
+            Omega = [0 ,-w(3) ,w(2); w(3), 0 ,-w(1); -w(2) ,w(1) ,0];
             OmegaT = Omega';
             invJ = inv(diag([params.jx params.jy params.jz]));
             Hk = obj.get_HYP_Block(h1, M, OmegaT, invJ);
@@ -256,10 +315,10 @@ classdef KQ_LMPC_CONTROLLER< handle
                 idx_p = 3*j-2;
                 idx_y = 3*M + 3*j-2;
                 idx_h = 6*M + 3*j-2;
-                calB(idx_p : idx_p+2, 2:4) = Hk(:,:,j);
+                calB(idx_p : idx_p+2, 2:4) = Pk(:,:,j);
                 calB(idx_y : idx_y+2, 1)   = thrust_vec;
                 calB(idx_y : idx_y+2, 2:4) = Yk(:,:,j);
-                calB(idx_h : idx_h+2, 2:4) = Pk(:,:,j);
+                calB(idx_h : idx_h+2, 2:4) = Hk(:,:,j);
             end
             start_row = 9*M;
             for ii = 1:(N-1)
@@ -293,7 +352,7 @@ classdef KQ_LMPC_CONTROLLER< handle
         end
 
         function S = skew_func(obj,v)
-            S = [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0];
+            S = [0 ,-v(3) ,v(2); v(3), 0 ,-v(1); -v(2), v(1) ,0];
         end
         function X_lifted=klift(obj,x,m,n)
             p=x(1:3);
@@ -412,7 +471,8 @@ classdef KQ_LMPC_CONTROLLER< handle
                 xr(7:9,   h+1) = ref(5:7);
                 xr(4:6,   h+1) = euler;
                 xr(10:12, h+1) = w;
-                xr(13:16, h+1) = obj.result.input(:,1);
+                xr(13, h+1) = norm(s_n)*obj.param.m;
+                xr(14:16, h+1) = 0;
             end
         end
 
