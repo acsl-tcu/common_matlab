@@ -16,7 +16,7 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=2            % 0:off, 1:offset autotune, 2:gain autotune
+    mode=1            % 0:off, 1:offset autotune, 2:gain autotune
 
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
@@ -28,18 +28,20 @@ properties
     % -------------------------
     % パラメータ（変換用）
     % -------------------------
-    th_offset = 0                   % スロットルオフセット
-    gain = [200;200;200;10]         % [roll,pitch,yaw,thrust]
+    th_offset = 50                   % スロットルオフセット
+    gain = [300;300;300;30]         % [roll,pitch,yaw,thrust]
+    % th_offset = 335                   % スロットルオフセット
+    % gain = [400;400;400;40]
 
     % -------------------------
     % autotune 関連
     % -------------------------
-    offset_step = 5.0 %1.0　
-    offset_interval = 0.5 %0.15
+    offset_step = 5 %1.0　
+    offset_interval = 1 %0.15
     offset_max = 350
 
     gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
-    gain_max = [600;600;600;40]     % ゲイン上限
+    gain_max = [410;410;410;45]     % ゲイン上限
 
     time_accum = 0                  % 時間積算（初期ゼロ）
     last_t = []                     % offset を増加させる間隔（秒）
@@ -232,8 +234,8 @@ methods
         % 4. THRUST2 互換の制御計算を実行
         % ---------------------------------------------------------
         % gain と throttle offset パラメータ
-        g = obj.param.gain;
-        offset = obj.param.th_offset;
+        g = obj.gain;
+        offset = obj.th_offset;
         % thrust コマンド（外部 LQR/MPC の出力）
         T_thr = input(1);
 
@@ -318,16 +320,16 @@ methods
                 [~, wvec, wnvec, ~] = obj.getRecentWindow(obj.eval_window_sec);
 
                 % --- 位置情報が取れれば取得 ---
-                try
+                % try
                     pos = obj.self.estimator.result.state.p;         % 現在位置[x;y;z]
-                catch
-                    pos = [NaN;NaN;NaN];
-                end
-                try
+                % catch
+                %     pos = [NaN;NaN;NaN];
+                % end
+                % try
                     pos_ref = obj.self.reference.result.state.p;    % 目標位置
-                catch
-                    pos_ref = [NaN;NaN;NaN];
-                end
+                % catch
+                %     pos_ref = [NaN;NaN;NaN];
+                % end
 
                 % ==== スコア評価（振動 + 安定性 + 位置誤差） ====
                 score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref);
@@ -346,16 +348,16 @@ methods
                     elapsed = tnow - obj.tuning_start_time;
                 
                     % ---- 2. 最低観測時間（ウォームアップ） ----
-                    min_observation_time = 2.0;  % 必ず2秒は動かす
-                    if elapsed < min_observation_time
-                        % まだ評価しないが offset は増やす
-                        obj.time_accum = obj.time_accum + dt;
-                        while obj.time_accum >= obj.offset_interval
-                            obj.time_accum = obj.time_accum - obj.offset_interval;
-                            obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
-                        end
-                        return;% 評価処理に進まず終了
-                    end
+                    % min_observation_time = 2.0;  % 必ず2秒は動かす
+                    % if elapsed < min_observation_time
+                    %     % まだ評価しないが offset は増やす
+                    %     obj.time_accum = obj.time_accum + dt;
+                    %     while obj.time_accum >= obj.offset_interval
+                    %         obj.time_accum = obj.time_accum - obj.offset_interval;
+                    %         obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
+                    %     end
+                    %     return;% 評価処理に進まず終了
+                    % end
                 
                     % ---- 3. offset を増加 ----
                     obj.time_accum = obj.time_accum + dt;
@@ -367,7 +369,7 @@ methods
                     end
                 
                     % ---- 4. スコアの平滑化（ノイズに強くする） ----
-                    alpha = 0.2;  % 平滑化率
+                    alpha = 0.25;  % 平滑化率
                     obj.smooth_score = alpha*score + (1-alpha)*obj.smooth_score;
                 
                     % ---- 5. 改善したら best_score 更新 ----
@@ -379,16 +381,15 @@ methods
                 
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
-                    no_improvement_time = 1.5;  % 1.5秒改善がなければ lock する
+                    % no_improvement_time = 1.5;  % 1.5秒改善がなければ lock する
+                    height=pos(3);
+                    threshold_height=0.2;
                 
-                    if ...
-                        (tnow - obj.last_improve_time) > no_improvement_time || ...  % 改善が一定時間無い
-                        obj.th_offset >= obj.offset_max                    % 上限に達した
-                    then
-                        obj.offset_fixed = true;
-                        obj.th_offset = obj.best_param.th_offset;% 最良値に戻す
-                        obj.mode = 0;     % MODE1 終了
-                    end
+                        if height>threshold_height && obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold
+                            obj.offset_fixed = true;
+                            obj.th_offset = obj.best_param.th_offset;
+                            obj.mode = 0; % finish tuning
+                        end
                 
                 end
 
@@ -489,7 +490,7 @@ methods
     % モデル誤差 + 振動 + 位置誤差 を統合して安定度スコアを計算
     % 数値が小さいほど良い（安定している）
     %% ---------------------------
-    function s = evaluate_stability(~, wnvec, wvec, pos, pos_ref)
+    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref)
     % wnvec, wvec: 各軸の角速度ログ（3×N）
     % pos, pos_ref: 現在位置と目標位置（3×1）
 
