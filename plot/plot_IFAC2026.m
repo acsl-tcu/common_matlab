@@ -1,40 +1,28 @@
 clc;clear; close all;
 % (ユーザーから提供された絶対パスを使用)
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_HLLQR_Log(01-Dec-2025_18_13_15).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_NNMEC_Log(01-Dec-2025_18_15_10).mat";
-% %↑P2P
+file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\P2P_1_1_1_HLLQR_Log(28-Nov-2025_10_46_11).mat";
+file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\P2P_1_1_1_NNMEC_Log(28-Nov-2025_10_48_42).mat";
+% ↑Sim P2P
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\lemniscate_HLLQR_R=0.05_Log(30-Nov-2025_21_24_44).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\lemniscate_NNMEC_R=0.05_Log(30-Nov-2025_21_31_32).mat";
+% % ↑Sim Lemniscate
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\lemniscate_HLLQR_R=0.1_fail_t=23_Log(30-Nov-2025_21_54_14).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Sim_data)\For IFAC2026\lemniscate_NNMEC_R=0.1_Log(30-Nov-2025_21_55_28).mat";
+% % ↑Sim Lemniscate R=0.1
 
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_HLLQR_R=0.5_Log(01-Dec-2025_18_49_23).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\P2P_1_1_1.5_NNMEC_R=0.5_Log(01-Dec-2025_18_51_06).mat";
-% % P2P R=0.5
-% 
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\lemniscate_HLLQR_Log(01-Dec-2025_18_19_14).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\lemniscate_NNMEC_Log(01-Dec-2025_18_20_55).mat";
-% % lemniscate
-% 
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_HLLQR_Log(01-Dec-2025_18_33_56).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_NNMEC_Log(01-Dec-2025_18_35_31).mat";
-% % ↑circle
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_HLLQR_R=0.5_Log(01-Dec-2025_18_42_29).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_NNMEC_R=0.5_Log(01-Dec-2025_18_46_08).mat";
-% % ↑circle R=0.5
-% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_HLLQR_R=0.1_Log(01-Dec-2025_18_39_05).mat";
-% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.01_For_IFAC_Exp\Ashigara\Circle_NNMEC_R=0.1_Log(01-Dec-2025_18_44_22).mat";
-% % ↑circle R=0.1
-
-% file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_Log(02-Dec-2025_17_49_18).mat";
-% file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_Log(02-Dec-2025_17_59_21).mat";
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_Log(02-Dec-2025_17_49_18).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_Log(02-Dec-2025_17_59_21).mat";
 % % ↑Exp lemniscate
-file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_R=0.1_Log(02-Dec-2025_18_07_43).mat";
-file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_R=0.1_Log(02-Dec-2025_18_09_45).mat";
-% % ↑Exp lemniscate R=0.1
-
-% file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_Log(02-Dec-2025_17_47_17).mat";
-% file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_Log(02-Dec-2025_17_56_22).mat";
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_HLLQR_R=0.1_Log(02-Dec-2025_18_07_43).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_R=0.1_Log(02-Dec-2025_18_09_45).mat";
+% % % ↑Exp lemniscate R=0.1
+% 
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_Log(02-Dec-2025_17_47_17).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_Log(02-Dec-2025_17_56_22).mat";
 % % ↑Exp P2P
-file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_R=0.1_Log(02-Dec-2025_18_14_33).mat";
-file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_R=0.1_Log(02-Dec-2025_18_21_11).mat";
-% ↑Exp P2P R=0.1
+% file1_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_HLLQR_R=0.1_Log(02-Dec-2025_18_14_33).mat";
+% file2_name = "\\Ws2023\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\P2P_1_1_1.5_NNMEC_R=0.1_Log(02-Dec-2025_18_21_11).mat";
+% % ↑Exp P2P R=0.1
 
 % file1_name = 
 % file2_name = 
@@ -48,8 +36,8 @@ FS = 16;  % Font Size (フォントサイズ)
 LW = 1.5; % Line Width (ライン幅)
 
 % --------------------- プロット設定 ---------------------
-lgd1 = 'HLLQR';    % File 1の凡例名
-lgd2 = 'HLLQR+NNMEC';    % File 2の凡例名
+lgd1 = 'HL-LQR';    % File 1の凡例名
+lgd2 = 'HL-LQR+NN-MEC';    % File 2の凡例名
 lgd_pos = 3;                 % 凡例を表示するグラフ番号 (1, 2, or 3)
 fref = true;                 % リファレンスをプロットするかのフラグ (true/false)
 % att = "q";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
@@ -61,12 +49,12 @@ att = "p";                   % プロットする変数名 ("p", "v", "q", "w", 
 ylabel1 = '$x$ [m]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
 ylabel2 = '$y$ [m]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
 ylabel3 = '$z$ [m]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
-fp1_p2 = true;
+fp1_p2 = false;
 % --------------------- グラフ出力設定 ---------------------
 foutput = false;             % グラフ出力の有無 (true/false)
-file_style = "eps";          % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
-folder_path = "plot/fig/IFAC"; 
-file_name = "lemniscate_R=0.1_position";% 出力ファイル名 (拡張子なし)
+file_style = "pdf";          % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
+folder_path = "plot/fig/IFAC/sim"; 
+file_name = "P2P_1_1_1.5_position";% 出力ファイル名 (拡張子なし)
 % ------------------------------------------------------------------
 
 LW_ref = LW - 0.5; % リファレンスのライン幅
@@ -76,7 +64,7 @@ LW_ref = LW - 0.5; % リファレンスのライン幅
 % ログの抽出設定
 phase = "f"; % 対象フェーズ: "f" (Flight phase)
 t_start = 0; % 抽出したい時間範囲の開始時間 [s]
-t_end = 20;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
+t_end = 10;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
 xrange = [t_start t_end];
 
 % ロギング間隔とインデックス計算 (dt=0.025を想定)
@@ -175,8 +163,8 @@ for i = 1:3
 
     % リファレンスプロット (fref=trueの場合)
     if fref
-        current_ref = ref_data_1{i};
-        plot(t_1, current_ref, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
+        current_ref = ref_data_2{i};
+        plot(t_2, current_ref, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
         plegend = [plegend, {'Reference'}];
     end
     
@@ -208,7 +196,7 @@ for i = 1:3
     % XLabelは一番下のグラフのみ表示
     if i == 3
         xlabel('Time [s]', 'FontSize', FS);
-        % ylim([0.3 0.6])
+        % ylim([1.2 1.6])
     end
 end
 
@@ -284,10 +272,10 @@ if fp1_p2
     ylabel(ylabel2, 'Interpreter','latex', 'FontSize', FS); % p2のラベルをY軸に
     grid on;
     axis equal; % 軸のスケールを合わせる
-    legend(plegend, 'FontSize', FS-4, 'Location', 'southeast');
+    % legend(plegend, 'FontSize', FS-4, 'Location', 'northoutside');
     set(gca, 'FontSize', FS-2);
-    % xlim([0.7 1.1])
-    % ylim([0.7 1.1])
+    % xlim([-1.15 1.15])
+    % ylim([-0.5 0.5])
 end
 
 % --- グラフのエクスポート (オプション) ---
