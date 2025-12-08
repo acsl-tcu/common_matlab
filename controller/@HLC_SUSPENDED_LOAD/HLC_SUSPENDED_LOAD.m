@@ -104,7 +104,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             obj.result.x = x;
             obj.result.sus = obj.result.input;
             result = obj.result;
-            
+
         end
         function show(obj)
             obj.result
@@ -112,14 +112,14 @@ classdef HLC_SUSPENDED_LOAD < handle
 
 
         function [pL,pT,P,xd] = calc_pL(obj,t,model,cha,xd)
-            P = obj.P;
-            p = model.state.p;
-            pL = model.state.pL;
+            P = obj.P; %物理パラメータ
+            p = model.state.p; %機体位置
+            pL = model.state.pL; %牽引物位置
             L = obj.self.parameter.get("cableL");
             if isprop(model.state,"mL")
                 mL = max(0,model.state.mL); % load mass
             else
-                mL = P(6);
+                mL = P(6); %load mass
             end
             nxy = xd(1:3); %
             if isempty(obj.pL0)
@@ -140,8 +140,8 @@ classdef HLC_SUSPENDED_LOAD < handle
                     % z 方向は最後に更新する
                 else %閾値を越えなかったら機体の真下に牽引物がいることにする
                     pL = p;
+                    nxy = pL;
                 end
-                nxy = pL;
                 nxy(3) = xd(3) - L;
             elseif strcmp(cha,'l') % landing
                 if isempty(obj.cableLL) || isempty(obj.mLL)
@@ -173,7 +173,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                 pT = ttt/norm(ttt);
                 if isprop(model.state,"dst") && strcmp(cha,'f')
                     P(end-1:end)  = model.state.dst';
-                end               
+                end
             end
             xd(1:3) = nxy;
         end
