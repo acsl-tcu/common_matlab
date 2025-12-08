@@ -51,6 +51,7 @@ end
     % q3 = cos(Q1/2)*cos(Q2/2)*sin(Q3/2)-sin(Q1/2)*sin(Q2/2)*cos(Q3/2);
 % end
 
+%回転行列の一部(修正前)
 R13 = ( 2.*(cos(Q2/2).*cos(Q1/2).*cos(Q3/2) + sin(Q2/2).*sin(Q1/2).*sin(Q3/2)).*(cos(Q1/2).*cos(Q3/2).*sin(Q2/2) + cos(Q2/2).*sin(Q1/2).*sin(Q3/2)) + 2.*(cos(Q2/2).*cos(Q1/2).*sin(Q3/2) - cos(Q3/2).*sin(Q2/2).*sin(Q1/2)).*(cos(Q2/2).*cos(Q3/2).*sin(Q1/2) - cos(Q1/2).*sin(Q2/2).*sin(Q3/2)));
 R23 = (-2.*(cos(Q2/2).*cos(Q1/2).*cos(Q3/2) + sin(Q2/2).*sin(Q1/2).*sin(Q3/2)).*(cos(Q2/2).*cos(Q3/2).*sin(Q1/2) - cos(Q1/2).*sin(Q2/2).*sin(Q3/2)) - 2.*(cos(Q1/2).*cos(Q3/2).*sin(Q2/2) + cos(Q2/2).*sin(Q1/2).*sin(Q3/2)).*(cos(Q2/2).*cos(Q1/2).*sin(Q3/2) - cos(Q3/2).*sin(Q2/2).*sin(Q1/2)));
 R33 = (cos(Q2).*cos(Q1));
@@ -61,9 +62,9 @@ R33 = (cos(Q2).*cos(Q1));
 % R33 = 1 - 2.*(q1.^2 + q2.^2);
 
 %回転行列の一部(オイラー角から算出)
-R13 = sin(Q1)*sin(Q3)+cos(Q1)*sin(Q2)*cos(Q3);
-R23 = -sin(Q1)*cos(Q3)+cos(Q1)*sin(Q2)*sin(Q3);
-R33 = cos(Q1)*cos(Q2);
+% R13 = sin(Q1)*sin(Q3)+cos(Q1)*sin(Q2)*cos(Q3);
+% R23 = -sin(Q1)*cos(Q3)+cos(Q1)*sin(Q2)*sin(Q3);
+% R33 = cos(Q1)*cos(Q2);
 
 R13_l = sin(Q1)*sin(Q3);
 R13_r = cos(Q1)*sin(Q2)*cos(Q3);
