@@ -8,7 +8,7 @@ clc;
 % load("third_model.mat",'est');
 % load("z.mat",'est');
 % load("without1.mat");
-load("znot.mat");
+load("old.mat");
 
 %αの値を変更したときの安定性チェック
 % load('kalman_gain.mat','K_full');

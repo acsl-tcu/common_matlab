@@ -56,7 +56,8 @@ targetpath=append(nowFolder,'\',FileName);
 
 %% Defining Koopman Operator
 %<使用している観測量>
-F = @quaternions_all; 
+% F = @quaternions_all; 
+F = @quaternions_all_old; 
 fprintf('\n選択されている観測量：%s\n',func2str(F))
 
 % load data
