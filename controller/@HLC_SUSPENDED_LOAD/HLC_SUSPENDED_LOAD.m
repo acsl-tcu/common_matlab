@@ -140,7 +140,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                     % z 方向は最後に更新する
                 else %閾値を越えなかったら機体の真下に牽引物がいることにする
                     pL = p;
-                    nxy = pL;
+                    nxy = pL; %牽引物のreferenceのためpLにいるままになってしまうのでここで代入して下にいるようにする。
                 end
                 nxy(3) = xd(3) - L;
             elseif strcmp(cha,'l') % landing
