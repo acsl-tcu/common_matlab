@@ -22,8 +22,8 @@ function Controller = Controller_HL_Suspended_Load(dt,agent)
         % Controller.F3 = lqrd(A6,B6,diag([100,100,10,0.1,0.001,0.001]),1,dt);
         % Controller.F4 = lqrd([0 1;0 0],[0;1],diag([10,1]),[1],dt);                %yawの位置、速度、100,1,1
         Controller.F1 = lqrd([0 1;0 0],[0;1],diag([100,10]),[1],dt);             %位置z、速度z
-        Controller.F2 = lqrd(A6,B6,diag([11500000,1,1,1,0.001,0.001]),0.1,dt);%より制御周期速くなると0.008とかが良くなると思う．
-        Controller.F3 = lqrd(A6,B6,diag([11500000,1,1,1,0.001,0.001]),0.1,dt);
+        Controller.F2 = lqrd(A6,B6,diag([200000,250000,20000,1,0.001,0.001]),0.1,dt);%より制御周期速くなると0.008とかが良くなると思う．
+        Controller.F3 = lqrd(A6,B6,diag([200000,250000,20000,1,0.001,0.001]),0.1,dt);
         Controller.F4 = lqrd([0 1;0 0],[0;1],diag([10,1]),[1],dt);                %yawの位置、速度、100,1,1
 
  %        %↓ゲイン調整・確認用
