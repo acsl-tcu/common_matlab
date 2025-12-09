@@ -60,13 +60,12 @@ common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
             R23;
             R33;
             1];
-% common_2z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3]; % code06用
-% % end
-% common_except_pos_z = [Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
-%             R13;
-%             R23;
-%             R33;
-%             1]; % 位置を除いたcommon_z
+
+common_without_p = [Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
+            R13;
+            R23;
+            R33;
+            1]; % 位置を除いたcommon_z
 
 %% 磯部先輩観測量 code = 00
 isobe_z = [W1*W2;
@@ -102,8 +101,8 @@ kmec_qodt_z=[W1*W2;W2*W3;W3*W1;%I^-1wIwの項
 
 %% まとめ
 % z = [common_z; isobe_z]; % 00
-z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
-z = [common_z; isobe_z]; % 00
+% z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
+z = [common_without_p; isobe_z]; 
 % z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
 
 end

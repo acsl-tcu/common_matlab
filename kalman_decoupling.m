@@ -2,12 +2,19 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("koopman_common_z_.mat");
+% load("koopman_common_z_.mat");
 % load("second_model.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
 % load("z.mat",'est');
 % load("without1.mat");
+load("integral_p.mat");
+
+%速度から位置を積分して求める
+est.A = [zeros(3,3),eye(3,3),zeros(3,20);
+     zeros(23,3),est.A];
+est.B = [zeros(3,4);est.B];
+est.C = [est.C,zeros(12,3)];
 
 % 可制御性行列
 n = size(est.A, 1);
@@ -103,14 +110,14 @@ Bcbar = G(k+1:end,:);
 
 %重みづけ
 %pqvwの順
-Q = diag([1,1,1,1,1,1,1,1,1,10,10,10,ones(1,size(est.A,1)-12)]);
+Q = diag([1,1,1,1,1,1,1,1,1,1,1,1,ones(1,size(est.A,1)-12)]);
 I = T_inv\Q*T_inv;
 Qc = I(1:k,1:k);
 
 
 % Qc = diag([10,10,10,1,1,1,ones(1,size(Ac,1)-6)]);
 % Qc = diag([ones(1,size(Ac,1))]);
-Rc = 0.1*eye(4);
+Rc = eye(4);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
