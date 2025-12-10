@@ -25,7 +25,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
     % XYに結合する際の都合で↓時系列,→状態
     %drone_phase  115:stop  97:arming  116:take off  102:flight  108:landing
     
-    if logger.fExp==1 %fExp:1 実機データ
+    if logger.fExp==1 || logger.fExp == 0%fExp:1 実機データ
     %--------------------time----------------------
         data.t = logger.Data.t;
         data.phase = logger.Data.phase;
@@ -152,6 +152,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
     %-----------------------input----------------------
         data.input = cell2mat(arrayfun(@(N) logger.Data.agent.input{N}(1:data.uN),data.startIndex:data.endIndex,'UniformOutput',false))';
     
+        
         %総推力+トルク入力 → 各プロペラの推力に分解するときはコメントイン------------------------------
         % for i = 1:size(data.input,1) 
         %     data.input(i,:) = T2T(data.input(i,1),data.input(i,2),data.input(i,3),data.input(i,4));

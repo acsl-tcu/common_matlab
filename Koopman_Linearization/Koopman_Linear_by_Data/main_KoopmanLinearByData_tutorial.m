@@ -27,7 +27,8 @@ setting = 0; %この値はいじらない
 %データ保存先ファイル名(逐次変更しないと，上書きされる)
 FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
 
-folderPath = 'データセット'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
+% folderPath = 'データセット'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
+folderPath = 'KMPCSimデータセット'
 fileList = dir(fullfile(folderPath,'*.mat')); %対象のファイルを取得
 fprintf('\n＜データセットに使用するファイル名の統一を行います＞\n')
 

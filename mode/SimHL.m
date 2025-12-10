@@ -11,7 +11,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % terminal time
+te = 1100; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -34,8 +34,8 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % ↓パラメータの上書き モデル誤差をプラントに与える
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
 % plant_model.param.param(1) = 0.4; % ５％減->0.7125 ５％増->0.7875
-plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.2; % 
+% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+% plant_model.param.param(7) = 0.2; % 
 % plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
@@ -46,8 +46,8 @@ agent.plant = MODEL_CLASS(agent,plant_model);
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 % agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"point_dt",5,"check",1,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",450,"order",9,"point_dt",2,"check",1,"ManualSetting",0}});%引数としてHLをいれると軌道が微分される
 agent.controller.hl = HLC(agent,Controller_HL(dt));
 % agent.controller.delta = HLC_delta_u(agent,Controller_HL(dt));
 run("ExpBase");
