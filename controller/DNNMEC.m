@@ -37,7 +37,9 @@ classdef DNNMEC < handle
             DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename,... % ONNXファイルインポート
                                                 "InputDataFormats", "BC", ... % 入力層定義
                                                 "OutputDataFormats", "BC");   % 出力層定義 "BC" -> [バッチサイズ, 特徴量]の意味
-            dummyInput = dlarray(randn(24,1,'single'), 'CB'); % 初期化のためのdummy入力
+            if contains(DNN_model_filename, '21'),  dim = 21;
+            else,                                   dim = 24; end
+            dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.DNNMEC_model = initialize(DNN_model, dummyInput); % モデルの初期化
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
 
@@ -74,8 +76,12 @@ classdef DNNMEC < handle
             x_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [p; q; v; w];
 
+            % DNNへの入力データ
+            data = [x_plant; x_nominal]; % 24次元
+            data = [x_plant(1:3)-x_nominal(1:3); x_plant(4:end); x_nominal(4:end)]; % 21次元
+
             % DNN関係　閾値での制限
-            obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, [x_plant; x_nominal]'))'; % predict関数での推論
+            obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
             if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
             if abs(obj.result.delta_input(2))>1, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>1, obj.result.delta_input(3) = 0; end
