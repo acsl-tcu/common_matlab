@@ -16,7 +16,7 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=0            % 0:off, 1:offset autotune, 2:gain autotune
+    mode=2            % 0:off, 1:offset autotune, 2:gain autotune
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
@@ -322,12 +322,6 @@ methods
                         obj.best_score = obj.smooth_score;
                         obj.best_param.th_offset = obj.th_offset;
                         obj.last_improve_time = tnow; % 最後に改善した時刻
-                    else
-                        % 改善しない → ベスト値へ戻す
-                        obj.param.th_offset = obj.best_param.th_offset;
-                        obj.offset_fixed = true;
-                        obj.mode = 0;
-                        return;
                     end
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
@@ -366,100 +360,49 @@ methods
                         obj.gain = trial;% 試験ゲイン適用
                         obj.waiting = true;% 評価待ち状態へ
                         obj.baseline = obj.best_score;% 比較用ベースライン
-                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                         obj.trial_start_time = tnow;   % 現在時刻記録
-                                fprintf("MODE2: axis %d の試験開始 trial=%.3f baseline=%.3f\n", ...
-                i, trial_gain(i), obj.baseline);
-
-                            return;
-                    end
-                        
+                        obj.trialVal = trial(i);
+                    else
                         % -----------------------------------------
                         % waiting=true : 評価中
                         % window_s 秒のデータが溜まるまで待つ
                         % -----------------------------------------
                         elapsed = tnow - obj.trial_start_time;
-                        
                         if elapsed < obj.eval_window_s
                             % 評価にはまだ早い
                             return;
                         end
-                        
-                        % -----------------------------------------
-                        % ここで score（window_s 秒間のスコア）が使用可能
-                        % -----------------------------------------
-                        score_now = score;   % evaluate_stability() の返り値
-                        
-                        fprintf("MODE2: axis %d 評価 elapsed=%.2f score=%.3f baseline=%.3f\n", ...
-                                i, elapsed, score_now, obj.baseline);
-                        
-                        % -----------------------------------------
-                        % 評価：良くなった？
-                        % 数値が小さいほど良い
-                        % -----------------------------------------
-                        if score_now < obj.baseline - 1e-6
+                        % ---- 試験評価中：baseline と比較 ----
+                        if score < obj.baseline - 1e-6
                             % 改善 → 採用
-                            obj.best_score = score_now;
+                            obj.best_score = score;
                             obj.best_param.gain = obj.gain;
-                        
-                            fprintf("MODE2: axis %d 改善 → 採用 new best=%.3f\n", ...
-                                    i, obj.best_score);
-                        
                         else
-                            % 改善なし → 元に戻す（ロールバック）
+                            % 改善なし → 元に戻す
                             obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
-                        
-                            % best_param に戻す
-                            if ~isempty(obj.best_param)
-                                obj.gain = obj.best_param.gain;
-                            end
-                        
-                            fprintf("MODE2: axis %d 悪化 → 戻す\n", i);
                         end
-                        
-                        % -----------------------------------------
                         % 次の軸へ
-                        % -----------------------------------------
                         obj.waiting = false;
                         obj.axis_idx = obj.axis_idx + 1;
-                        if obj.axis_idx > 4
-                            obj.axis_idx = 1;
-                        end
-                        
-                 end
-                %         obj.trialVal = trial(i);
-                %     else
-                %         % ---- 試験評価中：baseline と比較 ----
-                %         if score < obj.baseline - 1e-6
-                %             % 改善 → 採用
-                %             obj.best_score = score;
-                %             obj.best_param.gain = obj.gain;
-                %         else
-                %             % 改善なし → 元に戻す
-                %             obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
-                %         end
-                %         % 次の軸へ
-                %         obj.waiting = false;
-                %         obj.axis_idx = obj.axis_idx + 1;
-                %         if obj.axis_idx > 4, obj.axis_idx = 1; end
-                %     end
-                % end
-                % % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
-                % if score < obj.best_score
-                %     obj.best_score = score;
-                %     obj.best_param.th_offset = obj.th_offset;
-                %     obj.best_param.gain = obj.gain;
-                % end
-                % % ==== GUI モニター更新 ====
-                % if ~isempty(obj.monitor)
-                %     try
-                %         s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
-                %             obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
-                %         obj.monitor.update(s);
-                %     catch
-                %          % GUIエラーは無視
-                %     end
-                % end
+                        if obj.axis_idx > 4, obj.axis_idx = 1; end
+                    end
+                end
+                % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
+                if score < obj.best_score
+                    obj.best_score = score;
+                    obj.best_param.th_offset = obj.th_offset;
+                    obj.best_param.gain = obj.gain;
+                end
+                % ==== GUI モニター更新 ====
+                if ~isempty(obj.monitor)
+                    try
+                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
+                        obj.monitor.update(s);
+                    catch
+                         % GUIエラーは無視
+                    end
+                end
                  % ==== 評価実行時刻・スコアを保存 ====
                 obj.last_score = score;
                 obj.last_t = tnow;
