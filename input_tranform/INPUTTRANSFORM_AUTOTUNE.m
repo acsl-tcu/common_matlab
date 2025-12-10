@@ -62,9 +62,8 @@ properties
     smooth_score = [];          % スムージングしたスコア
     last_improve_time = [];     % 最後に改善があった時間
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    last_offset_increase_time
-    prev_smooth_score
-    gain_trial_start_time
+trial_start_time
+eval_window_s
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -309,6 +308,11 @@ methods
                         obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
                         increased = true;% 今回増加したか
                     end
+                        % ---- 十分な評価時間を確保 ----
+                    eval_window = 1.0;   % 最低1秒観測する
+                    if (tnow - obj.last_improve_time) < eval_window
+                        return;
+                    end
                     % ---- 4. スコアの平滑化（ノイズに強くする） ----
                     % alpha = 0.25;  % 平滑化率
                     alpha = 0.1;
@@ -318,6 +322,12 @@ methods
                         obj.best_score = obj.smooth_score;
                         obj.best_param.th_offset = obj.th_offset;
                         obj.last_improve_time = tnow; % 最後に改善した時刻
+                    else
+                        % 改善しない → ベスト値へ戻す
+                        obj.param.th_offset = obj.best_param.th_offset;
+                        obj.offset_fixed = true;
+                        obj.mode = 0;
+                        return;
                     end
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
@@ -344,44 +354,112 @@ methods
                         % ---- 試験開始：1軸だけゲインを増やす ----
                         trial = obj.gain;
                         step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                        % もう上げられない軸はスキップ
+                        if step < 1e-12
+                            obj.axis_idx = obj.axis_idx + 1;
+                            if obj.axis_idx > 4, obj.axis_idx = 1; end
+                            return;
+                        end
+
                         trial(i) = trial(i) + step;
 
                         obj.gain = trial;% 試験ゲイン適用
                         obj.waiting = true;% 評価待ち状態へ
                         obj.baseline = obj.best_score;% 比較用ベースライン
-                        obj.trialVal = trial(i);
-                    else
-                        % ---- 試験評価中：baseline と比較 ----
-                        if score < obj.baseline - 1e-6
-                            % 改善 → 採用
-                            obj.best_score = score;
-                            obj.best_param.gain = obj.gain;
-                        else
-                            % 改善なし → 元に戻す
-                            obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                        obj.trial_start_time = tnow;   % 現在時刻記録
+                                fprintf("MODE2: axis %d の試験開始 trial=%.3f baseline=%.3f\n", ...
+                i, trial_gain(i), obj.baseline);
+
+                            return;
+                    end
+                        
+                        % -----------------------------------------
+                        % waiting=true : 評価中
+                        % window_s 秒のデータが溜まるまで待つ
+                        % -----------------------------------------
+                        elapsed = tnow - obj.trial_start_time;
+                        
+                        if elapsed < obj.eval_window_s
+                            % 評価にはまだ早い
+                            return;
                         end
+                        
+                        % -----------------------------------------
+                        % ここで score（window_s 秒間のスコア）が使用可能
+                        % -----------------------------------------
+                        score_now = score;   % evaluate_stability() の返り値
+                        
+                        fprintf("MODE2: axis %d 評価 elapsed=%.2f score=%.3f baseline=%.3f\n", ...
+                                i, elapsed, score_now, obj.baseline);
+                        
+                        % -----------------------------------------
+                        % 評価：良くなった？
+                        % 数値が小さいほど良い
+                        % -----------------------------------------
+                        if score_now < obj.baseline - 1e-6
+                            % 改善 → 採用
+                            obj.best_score = score_now;
+                            obj.best_param.gain = obj.gain;
+                        
+                            fprintf("MODE2: axis %d 改善 → 採用 new best=%.3f\n", ...
+                                    i, obj.best_score);
+                        
+                        else
+                            % 改善なし → 元に戻す（ロールバック）
+                            obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                        
+                            % best_param に戻す
+                            if ~isempty(obj.best_param)
+                                obj.gain = obj.best_param.gain;
+                            end
+                        
+                            fprintf("MODE2: axis %d 悪化 → 戻す\n", i);
+                        end
+                        
+                        % -----------------------------------------
                         % 次の軸へ
+                        % -----------------------------------------
                         obj.waiting = false;
                         obj.axis_idx = obj.axis_idx + 1;
-                        if obj.axis_idx > 4, obj.axis_idx = 1; end
-                    end
-                end
-                % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
-                if score < obj.best_score
-                    obj.best_score = score;
-                    obj.best_param.th_offset = obj.th_offset;
-                    obj.best_param.gain = obj.gain;
-                end
-                % ==== GUI モニター更新 ====
-                if ~isempty(obj.monitor)
-                    try
-                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
-                        obj.monitor.update(s);
-                    catch
-                         % GUIエラーは無視
-                    end
-                end
+                        if obj.axis_idx > 4
+                            obj.axis_idx = 1;
+                        end
+                        
+                 end
+                %         obj.trialVal = trial(i);
+                %     else
+                %         % ---- 試験評価中：baseline と比較 ----
+                %         if score < obj.baseline - 1e-6
+                %             % 改善 → 採用
+                %             obj.best_score = score;
+                %             obj.best_param.gain = obj.gain;
+                %         else
+                %             % 改善なし → 元に戻す
+                %             obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                %         end
+                %         % 次の軸へ
+                %         obj.waiting = false;
+                %         obj.axis_idx = obj.axis_idx + 1;
+                %         if obj.axis_idx > 4, obj.axis_idx = 1; end
+                %     end
+                % end
+                % % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
+                % if score < obj.best_score
+                %     obj.best_score = score;
+                %     obj.best_param.th_offset = obj.th_offset;
+                %     obj.best_param.gain = obj.gain;
+                % end
+                % % ==== GUI モニター更新 ====
+                % if ~isempty(obj.monitor)
+                %     try
+                %         s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
+                %             obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
+                %         obj.monitor.update(s);
+                %     catch
+                %          % GUIエラーは無視
+                %     end
+                % end
                  % ==== 評価実行時刻・スコアを保存 ====
                 obj.last_score = score;
                 obj.last_t = tnow;
@@ -451,7 +529,8 @@ methods
         % stability（モデル一致）      → そのまま
         % vibration（振動）            → 0.5倍の重み
         % pos_err（位置誤差）          → 2倍の重みで強調
-        s = stability + 0.5 * vibration + 2.0 * pos_err;
+        % s = stability + 0.5 * vibration + 2.0 * pos_err;
+        s = 4.0 * stability + vibration + 1.0 * pos_err;
     end
 end
 end
