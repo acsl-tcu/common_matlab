@@ -61,9 +61,16 @@ properties
     tuning_start_time = [];     % チューニング開始時刻
     smooth_score = [];          % スムージングしたスコア
     last_improve_time = [];     % 最後に改善があった時間
+
+    trial_start_time
+    eval_window_s
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-trial_start_time
-eval_window_s
+prev_offset%エラー等出たら消してみる
+no_improve_count
+score_buffer
+cooldown_s
+cooldown_done
+eval_start_time
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -305,8 +312,16 @@ methods
                     increased = false;
                     while obj.time_accum >= obj.offset_interval
                         obj.time_accum = obj.time_accum - obj.offset_interval;
+                        % 増加前の値を保存（悪化時に戻す用）
+                        prev_offset = obj.th_offset;
                         obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
                         increased = true;% 今回増加したか
+                        % ---- 増加直後の評価（悪化したら戻す） ----
+                        if score > obj.best_score + obj.offset_lock_threshold
+                            % 直前のオフセットに戻す
+                            obj.th_offset = prev_offset;
+                            increased = false;   % 今回は採用しなかった
+                        end
                     end
                         % ---- 十分な評価時間を確保 ----
                     eval_window = 1.0;   % 最低1秒観測する
@@ -325,7 +340,6 @@ methods
                     end
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
-                    % no_improvement_time = 1.5;  % 1.5秒改善がなければ lock する
                     height=pos(3);        %高度取得
                     threshold_height=0.2; %一定高度まで評価しない
                         if height>threshold_height && obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold
@@ -333,7 +347,6 @@ methods
                             obj.th_offset = obj.best_param.th_offset;
                             obj.mode = 0; % finish tuning
                         end
-
                 end
                 % =====================================================
                 %                 MODE 2: ゲイン自動調整
@@ -343,6 +356,21 @@ methods
                     if isempty(obj.axis_idx) 
                         obj.axis_idx = 1; 
                     end
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                        if isempty(obj.no_improve_count)
+                            obj.no_improve_count = 0;   % 改善が途絶えた回数
+                        end
+                        if isempty(obj.score_buffer)
+                            obj.score_buffer = [];      % スコアバッファ初期化
+                        end
+                    
+                        % ========= スコアバッファに追加（最大 N 件） =========
+                        buffer_len = 50;   % 50 サンプル分のスコア平均
+                        obj.score_buffer(end+1) = score;
+                        if length(obj.score_buffer) > buffer_len
+                            obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
+                        end
+                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                     i = obj.axis_idx;
                     if ~obj.waiting
                         % ---- 試験開始：1軸だけゲインを増やす ----
@@ -362,29 +390,58 @@ methods
                         obj.baseline = obj.best_score;% 比較用ベースライン
                         obj.trial_start_time = tnow;   % 現在時刻記録
                         obj.trialVal = trial(i);
+
+                        % ---- クールダウン時間（安定させる） ----
+                        obj.cooldown_s = 0.4;  % 0.4秒程度が妥当
+                        obj.cooldown_done = false;
+
                     else
                         % -----------------------------------------
                         % waiting=true : 評価中
                         % window_s 秒のデータが溜まるまで待つ
                         % -----------------------------------------
                         elapsed = tnow - obj.trial_start_time;
-                        if elapsed < obj.eval_window_s
-                            % 評価にはまだ早い
+                        % ---- (1) クールダウン中 → まだ評価しない ----
+                        if ~obj.cooldown_done
+                            if elapsed < obj.eval_window_s
+                                % 評価にはまだ早い
+                                return;
+                            else
+                                obj.cooldown_done = true;
+                                obj.eval_start_time = tnow; % 評価開始時刻
+                                return;
+                            end
+                        end
+                        % ---- (2) 評価ウィンドウがまだ短い ----
+                        eval_elapsed = tnow - obj.eval_start_time;
+                        if eval_elapsed < obj.eval_window_s
                             return;
                         end
+                        % スコア評価（平均化）
+                        current_score = mean(obj.score_buffer);
                         % ---- 試験評価中：baseline と比較 ----
                         if score < obj.baseline - 1e-6
                             % 改善 → 採用
-                            obj.best_score = score;
+                            % obj.best_score = score;
+                            obj.best_score = current_score;
                             obj.best_param.gain = obj.gain;
+                            % 改善があったのでカウンタリセット
+                            obj.no_improve_count = 0;
                         else
                             % 改善なし → 元に戻す
-                            obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                            % obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                            obj.gain(i) = obj.best_param.gain(i);
+                            % 改善が無かった回数増加
+                            obj.no_improve_count = obj.no_improve_count + 1;
                         end
                         % 次の軸へ
                         obj.waiting = false;
                         obj.axis_idx = obj.axis_idx + 1;
                         if obj.axis_idx > 4, obj.axis_idx = 1; end
+                        % ---- (4) 改善が一定回数なければ終了 ----
+                        if obj.no_improve_count >= 16   % 4軸 × 4サイクル = 16回で収束判定
+                            obj.mode = 0;  % tuning 完了
+                        end
                     end
                 end
                 % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
