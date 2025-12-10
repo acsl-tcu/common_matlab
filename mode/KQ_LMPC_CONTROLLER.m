@@ -77,19 +77,31 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.state.state_data = zeros(obj.param.state_size,obj.H, obj.N);
             obj.result.Evaluationtra = zeros(obj.N, 2);
             obj.result.pre_u = obj.input.pre_u;
-            obj.Q = eye(45);
-            scale = 0.01;
-            obj.Q(1:3, 1:3) =500 * eye(3) * scale;%p
-            obj.Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2 
-            obj.Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
-            obj.Q(10:12, 10:12) = 300 * eye(3) * scale;%v
-            obj.Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
-            obj.Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
-            obj.Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
-            obj.Q(28:36, 28:36) = 300 * eye(9) * scale;%q
-            obj.Q(37:45, 37:45) = 200 * eye(9) * scale;%w
-            obj.R = diag([2; 100; 100; 100]);
-           
+            sc = 0.01;
+            px = [1, 1,1.1];
+            vx = [1, 1,1.1];
+            w_p = [500, 500, 0];
+            w_v = [500, 500, 0];
+            w_g = 1* ones(1, obj.m);
+            w_z = [400, 400];
+            q_vec = [ kron(w_p, px), ...           
+                kron(w_v, vx), ...           
+                kron(w_g, ones(1,3)), ...    
+                kron(w_z, ones(1,9)) ] * sc; 
+            obj.Q = diag(q_vec);
+            obj.R = diag([4; 100; 100; 100]);
+            % obj.Q = eye(45);
+            % scale = 0.01;
+            % obj.Q(1:3, 1:3) =500 * eye(3) * scale;%p
+            % obj.Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2 
+            % obj.Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
+            % obj.Q(10:12, 10:12) = 300 * eye(3) * scale;%v
+            % obj.Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
+            % obj.Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
+            % obj.Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
+            % obj.Q(28:36, 28:36) = 300 * eye(9) * scale;%q
+            % obj.Q(37:45, 37:45) = 200 * eye(9) * scale;%w
+            % obj.R = diag([2; 100; 100; 100]);
             % obj.input.mu = param.ref_input;
             % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
             % obj.koopman = param.koopman;
@@ -129,8 +141,8 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.param.t  = varargin{1}{1}.t;
             obj.param.te = varargin{1}{1}.te;
             obj.koopman.B = obj.get_Koopman_B(obj.current_state,obj.state.current,obj.m,obj.n,obj.param);
-            obj.K_LQR();
-            % obj.K_MPC();
+            % obj.K_LQR();
+            obj.K_MPC();
             result = obj.result;
         end
 
@@ -200,7 +212,6 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
             Xr = Xr_vec;
             Ur = reshape(obj.state.ref(13:16, :), [], 1);
-            
             w_vec = zeros(n, 1);
             w_vec(1:3) = diag(obj.weight.P);
             w_vec(4:6) = diag(obj.weight.P);
@@ -471,7 +482,7 @@ classdef KQ_LMPC_CONTROLLER< handle
                 xr(7:9,   h+1) = ref(5:7);
                 xr(4:6,   h+1) = euler;
                 xr(10:12, h+1) = w;
-                xr(13, h+1) = norm(s_n)*obj.param.m;
+                xr(13, h+1) = norm(s)*obj.param.m;
                 xr(14:16, h+1) = 0;
             end
         end
