@@ -6,8 +6,8 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-% motive = Connector_Natnet('192.168.100.4'); % connect to Motive
-motive = Connector_Natnet('192.168.120.3'); % connect to Motive（総研）
+motive = Connector_Natnet('192.168.100.4'); % connect to Motive
+% motive = Connector_Natnet('192.168.120.3'); % connect to Motive（総研）
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -18,7 +18,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM1"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -31,8 +31,8 @@ agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd+1],"size",[0,0,0]},"HL"});          % point hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",center,"size",[2,2,0]},"HL"});                       % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1},"HL"});                      % lemniscate
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",15,"orig",center,"size",1.0},"HL"});                           % heart
@@ -50,17 +50,19 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
 % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
-agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
 % agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
 % agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
+% agent.controller.mec = DNNMEC(agent, "Sim_mixed_DNNMEC_epoch_100000.onnx");
+agent.controller.mec = DNNMEC(agent, "DNN21MEC_epoch_100000.onnx");
 agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function post(app)
 LW = 1.5; % LineWidth
 FS = 18; % FontSize
 phase = "tfl";
-% phase = "t";
-phase = "f";
+phase = "t";
+phase = "f"; 
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
