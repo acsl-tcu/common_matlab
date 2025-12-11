@@ -16,7 +16,7 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=2            % 0:off, 1:offset autotune, 2:gain autotune
+    mode=1            % 0:off, 1:offset autotune, 2:gain autotune
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
@@ -50,6 +50,7 @@ properties
     last_score = [] % 最後に計算したスコア
     offset_fixed = false% ベスト offset を固定したかどうか
     offset_lock_threshold = 0.005 % offset 固定判断のためのスコア閾値
+    % offset_lock_threshold = 5 % offset 固定判断のためのスコア閾値
     % gain autotune state
     axis_idx = 1 % 1～4（Roll, Pitch, Yaw, Throttle）
     waiting = false% trial 評価中か
@@ -71,7 +72,7 @@ score_buffer
 cooldown_s
 cooldown_done
 eval_start_time
-degrade_threshold = 1.0;   % 悪化と判定する最小スコア差
+score_drop_threshold=5;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -219,8 +220,8 @@ methods
         % 4. THRUST2 互換の制御計算を実行
         % ---------------------------------------------------------
         % gain と throttle offset パラメータ
-        g = obj.param.gain;
-        offset = obj.param.th_offset;
+        g = obj.gain;
+        offset = obj.th_offset;
         % thrust コマンド（外部 LQR/MPC の出力）
         T_thr = input(1);
         % ---- P制御（角速度制御）----
@@ -310,28 +311,42 @@ methods
                     % elapsed = tnow - obj.tuning_start_time;
                     % ---- 3. offset を増加 ----
                     obj.time_accum = obj.time_accum + dt;
-                    increased = false;
+                    stop_rising = false;
                     while obj.time_accum >= obj.offset_interval
                         obj.time_accum = obj.time_accum - obj.offset_interval;
                         % 増加前の値を保存（悪化時に戻す用）
                         prev_offset = obj.th_offset;
                         obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
-                        increased = true;% 今回増加したか
                         % ---- 増加直後の評価（悪化したら戻す） ----
-                        if score > obj.best_score + obj.offset_lock_threshold
-                            % 直前のオフセットに戻す
-                            obj.th_offset = prev_offset;
-                            increased = false;   % 今回は採用しなかった
-                        end
+                           score_diff=score-obj.last_score;
+                            % if score_diff > obj.best_score + obj.score_drop_threshold
+                            if score_diff > obj.score_drop_threshold
+                                % 直前のオフセットに戻す
+                                obj.th_offset = prev_offset;
+                                stop_rising = false;   % 今回は採用しなかった]
+                                break;
+                            end
+                            if score > obj.best_score + obj.score_drop_threshold
+                                obj.th_offset=prev_offset;
+                                stop_rising=true;
+                                break;
+                            end
+                    end
+
+                    if stop_rising
+                        obj.mode=0;
+                        obj.th_offset=obj.best_param.th_offset;
+                        return;
                     end
                         % ---- 十分な評価時間を確保 ----
                     eval_window = 1.0;   % 最低1秒観測する
                     if (tnow - obj.last_improve_time) < eval_window
+                        obj.last_score=score;
                         return;
                     end
                     % ---- 4. スコアの平滑化（ノイズに強くする） ----
                     % alpha = 0.25;  % 平滑化率
-                    alpha = 0.1;
+                    alpha = 0.1; % 平滑化率
                     obj.smooth_score = alpha*score + (1-alpha)*obj.smooth_score;
                     % ---- 5. 改善したら best_score 更新 ----
                     if obj.smooth_score < obj.best_score
@@ -339,15 +354,7 @@ methods
                         obj.best_param.th_offset = obj.th_offset;
                         obj.last_improve_time = tnow; % 最後に改善した時刻
                     end
-                    % ---- 5.5 一定以上悪化したら戻す（追加部分） ----
-                    degrade = obj.smooth_score - obj.best_score; % 悪化量
-                    if degrade > obj.degrade_threshold
-                        % 大きく悪化 → ベスト値に戻して終了
-                        obj.offset_fixed = true;
-                        obj.th_offset = obj.best_param.th_offset;
-                        obj.mode = 0;
-                        return;
-                    end
+                    obj.last_score=score;
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
                     height=pos(3);        %高度取得
@@ -463,8 +470,8 @@ methods
                 % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
-                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f', ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score);
+                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f', ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3));
                         obj.monitor.update(s);
                     catch
                          % GUIエラーは無視
@@ -539,8 +546,8 @@ methods
         % stability（モデル一致）      → そのまま
         % vibration（振動）            → 0.5倍の重み
         % pos_err（位置誤差）          → 2倍の重みで強調
-        % s = stability + 0.5 * vibration + 2.0 * pos_err;
-        s = 4.0 * stability + vibration + 1.0 * pos_err;
+        s = stability + 0.5 * vibration + 2.0 * pos_err; %offset用（mode1）
+        % s = 4.0 * stability + vibration + 1.0 * pos_err; %gain用（mdoe2）
     end
 end
 end
