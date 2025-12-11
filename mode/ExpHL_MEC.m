@@ -6,8 +6,8 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.100.4'); % connect to Motive
-% motive = Connector_Natnet('192.168.120.3'); % connect to Motive（総研）
+% motive = Connector_Natnet('192.168.100.4'); % connect to Motive
+motive = Connector_Natnet('192.168.120.3'); % connect to Motive（総研）
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -18,7 +18,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM10"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -29,10 +29,10 @@ run("ExpBase");
 takeoff_zd = 0.5; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-2,0,takeoff_zd],"size",[0,0,0]},"HL"});                      % center hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd+1],"size",[0,0,0]},"HL"});          % point hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1},"HL"});                      % lemniscate
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[2,2,0]},"HL"});                       % circle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",2},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",15,"orig",center,"size",1.0},"HL"});                           % heart
@@ -46,6 +46,8 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;-1;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",[1;1;takeoff_zd]...
 %                                                                 , "k",[-1;-1;takeoff_zd+0.5], "l",[-1;1;takeoff_zd-0.5], "z",center), 10}); % learge P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",[1.5;1.5;takeoff_zd], "k",[2;2;takeoff_zd]...
+%                                                             ,"l",[2.5;2.5;takeoff_zd], "z",[3;3;takeoff_zd], "x",[3.5;3.5;takeoff_zd], "c",[4;4;takeoff_zd]), 10});                                       % P2P
 
 agent.cha_allocation.reference = "time_varying";
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
@@ -61,8 +63,8 @@ function post(app)
 LW = 1.5; % LineWidth
 FS = 18; % FontSize
 phase = "tfl";
-phase = "t";
-phase = "f"; 
+% phase = "t";
+% phase = "f"; 
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
@@ -78,7 +80,7 @@ elseif class(app.agent.controller.mec)=="DNNMEC",       app.logger.plot({1, "con
 % app.logger.plot({1, "controller.result.delta_input", ""}, "phase","f", "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",20, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",21, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",21, "Linewidth",LW, "Fontsize",FS);
 
 % app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);
