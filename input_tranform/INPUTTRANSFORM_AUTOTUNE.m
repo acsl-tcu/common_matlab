@@ -71,6 +71,7 @@ score_buffer
 cooldown_s
 cooldown_done
 eval_start_time
+degrade_threshold = 1.0;   % 悪化と判定する最小スコア差
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -337,6 +338,15 @@ methods
                         obj.best_score = obj.smooth_score;
                         obj.best_param.th_offset = obj.th_offset;
                         obj.last_improve_time = tnow; % 最後に改善した時刻
+                    end
+                    % ---- 5.5 一定以上悪化したら戻す（追加部分） ----
+                    degrade = obj.smooth_score - obj.best_score; % 悪化量
+                    if degrade > obj.degrade_threshold
+                        % 大きく悪化 → ベスト値に戻して終了
+                        obj.offset_fixed = true;
+                        obj.th_offset = obj.best_param.th_offset;
+                        obj.mode = 0;
+                        return;
                     end
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
