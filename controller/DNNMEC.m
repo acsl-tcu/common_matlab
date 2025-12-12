@@ -17,6 +17,7 @@ classdef DNNMEC < handle
         agent
         DNN_model_filename  % 読み込みたいONNXモデルのファイル名
         DNNMEC_model        % コード内でのモデル名
+        gen_data_func       % 入力の次元数に合わせたデータ生成関数ハンドル
         x_pre               % 前時刻の状態
         pre_input           % 前時刻の制御入力
     end
@@ -37,8 +38,13 @@ classdef DNNMEC < handle
             DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename,... % ONNXファイルインポート
                                                 "InputDataFormats", "BC", ... % 入力層定義
                                                 "OutputDataFormats", "BC");   % 出力層定義 "BC" -> [バッチサイズ, 特徴量]の意味
-            if contains(DNN_model_filename, '21'),  dim = 21;
-            else,                                   dim = 24; end
+            if contains(DNN_model_filename, '21')
+                dim = 21; % 21次元
+                obj.gen_data_func = @(x_p,x_n) [x_p(1:3)-x_n(1:3); x_p(4:end); x_n(4:end)];
+            else
+                dim = 24; % 24次元
+                obj.gen_data_func = @(x_p,x_n) [x_p; x_n];
+            end
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.DNNMEC_model = initialize(DNN_model, dummyInput); % モデルの初期化
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
@@ -77,8 +83,7 @@ classdef DNNMEC < handle
             % -> size = 12*1, contents = [p; q; v; w];
 
             % DNNへの入力データ
-            data = [x_plant; x_nominal]; % 24次元
-            % data = [x_plant(1:3)-x_nominal(1:3); x_plant(4:end); x_nominal(4:end)]; % 21次元
+            data = obj.gen_data_func(x_plant, x_nominal);
 
             % DNN関係　閾値での制限
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論

@@ -50,8 +50,8 @@ agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(7) = 0.24;
 agent.plant.param(6) = 0.18; % x3
 agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
-% agent.plant.param(6) = 0.12;
-% agent.plant.param(7) = 0.12;
+agent.plant.param(6) = 0.15;
+agent.plant.param(7) = 0.15;
 
 % agent.plant.param(6) = 0.12; % x2
 % agent.plant.param(6) = 0.15; % x2.5
@@ -76,7 +76,7 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});            % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0],"phase",0},"HL"});           % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});                      % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -110,10 +110,12 @@ else
 
 
     % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
-    agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
+    % agent.controller.mec = RNNMEC(agent, "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx");
 
     % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
+    agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
 end
 
