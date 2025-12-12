@@ -1,4 +1,4 @@
-5classdef HLC_SUSPENDED_LOAD < handle
+classdef HLC_SUSPENDED_LOAD < handle
     % クアッドコプター用階層型線形化を使った入力算出
     properties
         self
