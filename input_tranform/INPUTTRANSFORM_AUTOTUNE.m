@@ -16,7 +16,7 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=1            % 0:off, 1:offset autotune, 2:gain autotune
+    mode=1          % 0:off, 1:offset autotune, 2:gain autotune     %0は現状飛行不可能なので使わない
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
@@ -27,7 +27,7 @@ properties
     % -------------------------
     % パラメータ（変換用）
     % -------------------------
-    th_offset = 0                   % スロットルオフセット
+    th_offset = 0                    % スロットルオフセット
     gain = [300;300;300;30]          % [roll,pitch,yaw,thrust]
     % th_offset = 335                %現在使用スロットルオフセット
     % gain = [400;400;400;40]　　　　 %現在使用ゲイン
@@ -50,7 +50,6 @@ properties
     last_score = [] % 最後に計算したスコア
     offset_fixed = false% ベスト offset を固定したかどうか
     offset_lock_threshold = 0.005 % offset 固定判断のためのスコア閾値
-    % offset_lock_threshold = 5 % offset 固定判断のためのスコア閾値
     % gain autotune state
     axis_idx = 1 % 1～4（Roll, Pitch, Yaw, Throttle）
     waiting = false% trial 評価中か
@@ -309,7 +308,7 @@ methods
                         obj.tuning_start_time = tnow;
                     end
                     % elapsed = tnow - obj.tuning_start_time;
-                    % ---- 3. offset を増加 ----
+                    % ---- 2. offset を増加 ----
                     obj.time_accum = obj.time_accum + dt;
                     stop_rising = false;
                     while obj.time_accum >= obj.offset_interval
@@ -338,7 +337,7 @@ methods
                         obj.th_offset=obj.best_param.th_offset;
                         return;
                     end
-                        % ---- 十分な評価時間を確保 ----
+                    % ---- 3. 十分な評価時間を確保 ----
                     eval_window = 1.0;   % 最低1秒観測する
                     if (tnow - obj.last_improve_time) < eval_window
                         obj.last_score=score;
@@ -350,16 +349,16 @@ methods
                     obj.smooth_score = alpha*score + (1-alpha)*obj.smooth_score;
                     % ---- 5. 改善したら best_score 更新 ----
                     if obj.smooth_score < obj.best_score
-                        obj.best_score = obj.smooth_score;
-                        obj.best_param.th_offset = obj.th_offset;
-                        obj.last_improve_time = tnow; % 最後に改善した時刻
+                       obj.best_score = obj.smooth_score;
+                       obj.best_param.th_offset = obj.th_offset;
+                       obj.last_improve_time = tnow; % 最後に改善した時刻
                     end
                     obj.last_score=score;
                     % ---- 6. ロック判定 ----
                     % 改善が一定時間途絶えたら終了
                     height=pos(3);        %高度取得
                     threshold_height=0.2; %一定高度まで評価しない
-                        if height>threshold_height && obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold
+                        if height>threshold_height && (obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold)
                             obj.offset_fixed = true;
                             obj.th_offset = obj.best_param.th_offset;
                             obj.mode = 0; % finish tuning
@@ -373,7 +372,6 @@ methods
                     if isempty(obj.axis_idx) 
                         obj.axis_idx = 1; 
                     end
-                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                         if isempty(obj.no_improve_count)
                             obj.no_improve_count = 0;   % 改善が途絶えた回数
                         end
@@ -387,7 +385,6 @@ methods
                         if length(obj.score_buffer) > buffer_len
                             obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
                         end
-                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                     i = obj.axis_idx;
                     if ~obj.waiting
                         % ---- 試験開始：1軸だけゲインを増やす ----
@@ -530,8 +527,14 @@ methods
         % → 機体が不安定に振動すると値が大きくなる
         vibration = sum(var([wvec; wnvec], 0, 2));
         %% --- 3. 位置誤差（目標との距離） ---
-        % 座標誤差の二乗和
-        e_pos = pos_ref - pos;
+        % 座標誤差の二乗和(x,y,z)
+        % e_pos = pos_ref - pos;
+        % pos_err = sum(e_pos.^2);
+        %z方向のみ(オフセット取得)
+        % e_pos = pos_ref(3) -pos(3);
+        % pos_err =sum(e_pos.^2);
+        %x,y方向のみ（ゲイン取得）
+        e_pos = pos_ref(1:2) - pos(1:2);
         pos_err = sum(e_pos.^2);
        %% --- 4. 低高度ペナルティ ---
         % 高度が低い状態で停止すると「安定している」と誤認するため
