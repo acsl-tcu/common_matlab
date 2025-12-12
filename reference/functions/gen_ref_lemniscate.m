@@ -14,7 +14,7 @@ a = param.radius;
 phase = param.phase;
 
 if param.x == 1 % x方向に∞
-    ref=@(t) [  x_0+a*sin(2*pi*t/T+phase)/(1+cos(2*pi*t/T+phase).^2); %x
+    ref=@(t) [  x_0 + a*sin(2*pi*t/T+phase)/(1+cos(2*pi*t/T+phase).^2); %x
                 y_0 + a*sin(2*pi*t/T+phase)*cos(2*pi*t/T+phase)/(1+cos(2*pi*t/T+phase).^2); %y
                 z_0; % z
                 0]; % yaw
