@@ -109,6 +109,7 @@ common_z = [P1;
             1];
 
 %% 磯部先輩観測量 code = 00
+%10個
 isobe_z = [W1*W2;
             W2*W3;
             W3*W1;
@@ -122,7 +123,7 @@ isobe_z = [W1*W2;
             ];
 
 %% KMEC観測量（テイラー展開の微分項）
-%G(x)に出てくるRの微分項
+%G(x)に出てくるRの微分項22個
 Rdot  =[sin(Q2);
         cos(Q2);%sin,cos
         sin(Q1)*sin(Q2);
@@ -146,7 +147,7 @@ Rdot  =[sin(Q2);
         sin(Q3)*cos(Q1)*cos(Q2);%sccの組
         cos(Q1)*cos(Q2)*cos(Q3)%cccの組
         ];
-%F(x)に出てくる微分項
+%F(x)に出てくる微分項16個
 qdotdot=[    %qdotの一階微分の項
              cos(Q1)*tan(Q2);
              sin(Q1)*tan(Q2);
@@ -171,8 +172,8 @@ qdotdot=[    %qdotの一階微分の項
              ];
 
 %% まとめ
-z = [common_z; isobe_z]; % 00
-% z = [common_z; isobe_z;Rdot;qdotdot]; % 01
+% z = [common_z; isobe_z]; % 00
+z = [common_z; isobe_z;Rdot;qdotdot]; % 01
 
 end
 

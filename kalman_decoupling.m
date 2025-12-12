@@ -8,13 +8,14 @@ clc;
 % load("third_model.mat",'est');
 % load("z.mat",'est');
 % load("without1.mat");
-load("integral_p.mat");
+% load("integral_p.mat");
+load("all_qua.mat");
 
 %速度から位置を積分して求める
-est.A = [zeros(3,3),eye(3,3),zeros(3,20);
-     zeros(23,3),est.A];
-est.B = [zeros(3,4);est.B];
-est.C = [est.C,zeros(12,3)];
+% est.A = [zeros(3,3),eye(3,3),zeros(3,20);
+%      zeros(23,3),est.A];
+% est.B = [zeros(3,4);est.B];
+% est.C = [est.C,zeros(12,3)];
 
 % 可制御性行列
 n = size(est.A, 1);

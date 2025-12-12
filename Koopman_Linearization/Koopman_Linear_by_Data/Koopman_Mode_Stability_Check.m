@@ -1,14 +1,15 @@
 clear;
 clc;
 % load("without_w1.mat");
-% load("koopman_model_first.mat",'est');
+load("koopman_model_first.mat",'est');
 % load("second_model.mat",'est');
 % load("koopman_common_z_.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
-load("KMPCsim.mat",'est');
+% load("KMPCsim.mat",'est');
 % load("z.mat",'est');
 % load("without1.mat");
 % load("integral_p.mat");
+% load("all_qua.mat");
 
 
 %αの値を変更したときの安定性チェック
@@ -16,10 +17,10 @@ load("KMPCsim.mat",'est');
 % est.A = est.A-0.4*est.B*K_full;
 
 %速度から位置を積分して求める
-est.A = [zeros(3,3),eye(3,3),zeros(3,20);
-     zeros(23,3),est.A];
-est.B = [zeros(3,4);est.B];
-est.C = [est.C,zeros(12,3)];
+% est.A = [zeros(3,3),eye(3,3),zeros(3,20);
+%      zeros(23,3),est.A];
+% est.B = [zeros(3,4);est.B];
+% est.C = [est.C,zeros(12,3)];
 
 %%%%%-----モードチェック-----%%%%%
 % 固有値と固有ベクトル
