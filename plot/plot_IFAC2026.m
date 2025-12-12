@@ -40,7 +40,7 @@ LW = 1.5; % Line Width (ライン幅)
 lgd1 = 'HL-LQR';    % File 1の凡例名
 lgd2 = 'HL-LQR + NN-MEC';    % File 2の凡例名
 lgd_pos = 1;                 % 凡例を表示するグラフ番号 (1, 2, or 3)
-fref = false;                 % リファレンスをプロットするかのフラグ (true/false)
+fref = true;                 % リファレンスをプロットするかのフラグ (true/false)
 att = "w";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
 ylabel1 = '$\Omega_{roll}$ [rad/s]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
 ylabel2 = '$\Omega_{pitch}$ [rad/s]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
@@ -51,13 +51,13 @@ ylabel1 = '$\phi$ [rad]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
 ylabel2 = '$\theta$ [rad]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
 ylabel3 = '$\psi$ [rad]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
 
-% att = "p";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
-% ylabel1 = '$x$ [m]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
-% ylabel2 = '$y$ [m]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
-% ylabel3 = '$z$ [m]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
-fp1_p2 = false;
+att = "p";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
+ylabel1 = '$x$ [m]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
+ylabel2 = '$y$ [m]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
+ylabel3 = '$z$ [m]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
+fp1_p2 = true;
 % --------------------- グラフ出力設定 ---------------------
-foutput = true;             % グラフ出力の有無 (true/false)
+foutput = false;             % グラフ出力の有無 (true/false)
 file_style = "pdf";          % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
 folder_path = "plot/fig/IFAC/exp"; 
 file_name = "P2P_1_1_1.5_angle";% 出力ファイル名 (拡張子なし)
@@ -279,12 +279,12 @@ if fp1_p2
     ylabel(ylabel2, 'Interpreter','latex', 'FontSize', FS); % p2のラベルをY軸に
     grid on;
     axis equal; % 軸のスケールを合わせる
-    % legend(plegend, 'FontSize', FS-4, 'Location', 'northoutside');
+    legend(plegend, 'FontSize', FS-4, 'Location', 'northoutside');
     set(gca, 'FontSize', FS-2);
     % xlim([-1.15 1.15])
     % ylim([-0.4 0.4])
-    xlim([-1.15 1.15])
-    ylim([-0.5 0.5])
+    % xlim([-1.15 1.15])
+    % ylim([-0.5 0.5])
 end
 
 % --- グラフのエクスポート (オプション) ---

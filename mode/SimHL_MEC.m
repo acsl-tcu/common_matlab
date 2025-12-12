@@ -48,10 +48,10 @@ agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 
 % agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
 % agent.plant.param(7) = 0.24;
-% agent.plant.param(6) = 0.18; % x3
-% agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
-agent.plant.param(6) = 0.12;
-agent.plant.param(7) = 0.12;
+agent.plant.param(6) = 0.18; % x3
+agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
+% agent.plant.param(6) = 0.12;
+% agent.plant.param(7) = 0.12;
 
 % agent.plant.param(6) = 0.12; % x2
 % agent.plant.param(6) = 0.15; % x2.5
@@ -74,9 +74,9 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});            % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});            % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0],"phase",0},"HL"});           % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",5,"orig",center,"radius",1, "x",1},"HL"});                      % lemniscate
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});                      % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -106,10 +106,15 @@ else
     % agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "delta_u_step=1_No_losscoef_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "delta_u_step=1_statecoef_DNNMEC_epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "Sim_mixed_DNNMEC_epoch_100000.onnx");
-    agent.controller.mec = DNNMEC(agent, "DNN21MEC_epoch_100000.onnx");
+
+
+    % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
+    agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
+
+    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
 end
 
 if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
@@ -117,15 +122,17 @@ else                                              , agent.controller.nominal = H
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
+fanimation = 1; fmp4 = 1;
+fanimation = 0;
 LW = 1.5; % LineWidth
 FS = 18; % FontSize
 fcolor = 0;
 phase = "tfl";
-% phase = "tf";
-% phase = "f";
+phase = "tf";
+phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
-app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
@@ -164,4 +171,11 @@ end
 % data = app.logger.data(1,"p","e","phase","f");
 % min_z = min(data(:,3))
 % max_z = max(data(:,3))
+% output animation
+if fanimation==1
+    if contains(func2str(app.agent.plant.method), 'force')
+        app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",fmp4, "phase",phase);
+        disp('End output movie.')
+    end
+end
 end

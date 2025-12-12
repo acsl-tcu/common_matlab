@@ -77,8 +77,8 @@ classdef DNNMEC < handle
             % -> size = 12*1, contents = [p; q; v; w];
 
             % DNNへの入力データ
-            % data = [x_plant; x_nominal]; % 24次元
-            data = [x_plant(1:3)-x_nominal(1:3); x_plant(4:end); x_nominal(4:end)]; % 21次元
+            data = [x_plant; x_nominal]; % 24次元
+            % data = [x_plant(1:3)-x_nominal(1:3); x_plant(4:end); x_nominal(4:end)]; % 21次元
 
             % DNN関係　閾値での制限
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
