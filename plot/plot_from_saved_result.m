@@ -1,4 +1,4 @@
-%% 説明
+%% 説明 plot_from_saved_result
 % 2025/06 作成者：小関
 % Exp / Simデータをプロットすることができるファイル
 % 最初は全てのセクションを実行する．
@@ -51,6 +51,7 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+% settings.target = ["p", "q", "v", "w", "input", "inner_input", "p1-p2", "p1-p2-p3", "contlloer.result.P(6)"];
 % settings.target = ["p", "v", "input"];
 % プロットしたいグラフの情報                                          %
 % p: position    q: angle    v: velocity    w: angular velocity     %
@@ -59,7 +60,7 @@ settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 settings.fontsize = 11;    % default=11 オススメ=18
-settings.linewidth = 0.5;    % default=0.5 オススメ=1.5
+settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
@@ -95,6 +96,10 @@ for i=1:length(settings.target)
             ylabel = "Controller input [N]";
             tmp = settings.attribute;
             tmp(2:3) = [];
+        case "inner_input"
+            ylabel = "Controller input [N]";
+            tmp = settings.attribute;
+            tmp(2:3) = [];
         case "p1-p2"
             xlabel = "x [m]";
             ylabel = "y [m]";
@@ -106,6 +111,10 @@ for i=1:length(settings.target)
             zlabel = "z [m]";
             tmp = settings.attribute;
             fcolor = 0;
+        case "contlloer.result.P(6)"
+            ylabel = "mass [kg]";
+            tmp = settings.attribute;
+            tmp(2:3) = [];
     end
     att = select_attribute(settings.target(i), tmp);
     logger.plot({settings.agent_id, settings.target(i), att}, ...
@@ -152,7 +161,7 @@ end
 %% function
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
-text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n', 
+text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n',
 text{2} = ['   {', char(strjoin(attribute, "")), '}が使えます  '];%'You can use {', char(strjoin(attribute, "")), '}\n
 if length(attribute) == 4
     text{3} = ['例）', char(attribute(1)), ', ', [char(attribute(1)), char(attribute(2))], ...
@@ -171,7 +180,7 @@ fprintf([text{1:3}])
 while true
     att = string(input([text{4}], 's'));
     chars = string(split(att, ""));
-    chars(chars == "") = []; 
+    chars(chars == "") = [];
     if all(ismember(chars, attribute))
         break;
     else
@@ -221,5 +230,63 @@ switch target
             legend{4*i-1} = "$pitch$ " + att_map(chars(i));
             legend{4*i} = "$yaw$ " + att_map(chars(i));
         end
+    case "inner_input"
+        legend_num = numel(chars) * 4;
+        legend = cell(1, legend_num);
+        for i=1:numel(chars)
+            legend{4*i-3} = "$Thrust$ " + att_map(chars(i));
+            legend{4*i-2} = "$roll$ " + att_map(chars(i));
+            legend{4*i-1} = "$pitch$ " + att_map(chars(i));
+            legend{4*i} = "$yaw$ " + att_map(chars(i));
+        end
 end
 end
+
+%% ===== 全 result の x,y,z を連結して最終 RMSE を 1 回だけ計算 =====
+ref_results  = logger.Data.agent.reference.result;
+sens_results = logger.Data.agent.sensor.result;
+numResults = numel(ref_results);
+% 全データを貯める配列（可変長）
+p_plant_all = [];
+p_ref_all   = [];
+for i = 1:numResults
+    try
+        %% --- reference (3×1) ---
+        ref = ref_results{1,i}.state;
+        if isfield(ref, "p")
+            p_ref_single = ref.p;        % 3×1
+        else
+            p_ref_single = ref.xd(1:3);  % 3×1
+        end
+        %% --- sensor rigid ---
+        sens = sens_results{1,i};
+        if ~isfield(sens, 'rigid') || isempty(sens.rigid)
+            continue;
+        end
+        Ns = numel(sens.rigid);
+        % plant: 3×Ns
+        p_plant = zeros(3, Ns);
+        for k = 1:Ns
+            pk = sens.rigid(k).p;
+            p_plant(:,k) = pk(1:3);
+        end
+        % reference 3×Ns
+        p_ref = repmat(p_ref_single, 1, Ns);
+        % ---- 全データに追加 ----
+        p_plant_all = [p_plant_all, p_plant];
+        p_ref_all   = [p_ref_all,   p_ref];
+    catch ME
+        warning("result %d の読み込み中にエラー:\n%s", i, getReport(ME));
+    end
+end
+%% ===== 総 RMSE 計算 =====
+diff_all = p_plant_all - p_ref_all;
+RMSE_x = sqrt(mean(diff_all(1,:).^2));
+RMSE_y = sqrt(mean(diff_all(2,:).^2));
+RMSE_z = sqrt(mean(diff_all(3,:).^2));
+%% ===== 結果表示 =====
+fprintf("\n===== 総時間（全 result 合計）の RMSE =====\n");
+fprintf(" RMSE_x  = %.6f [m]\n", RMSE_x);
+fprintf(" RMSE_y  = %.6f [m]\n", RMSE_y);
+fprintf(" RMSE_z  = %.6f [m]\n", RMSE_z);
+fprintf("===========================================\n\n");
