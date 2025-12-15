@@ -98,7 +98,7 @@ classdef DRAW_DRONE_MOTION
       [xb,yb,zb] = ellipsoid(ax,0,0,0, 1.2*L(1)/4, 0.8*L(2)/4, 0.02);
       d = L/2; % 重心からローター１の位置ベクトル
       rp = [d(1),d(2),0.02;-d(1),d(2),0.02;d(1),-d(2),0.02;-d(1),-d(2),0.02]; % relative rotor position
-      c = ["red","green","blue","cyan",'#4DBEEE'];
+      c = ["red","green","blue","cyan",'#404040'];
 
       % arm setup
       [x,y,z] = cylinder(ax,0.01);
@@ -142,7 +142,8 @@ classdef DRAW_DRONE_MOTION
         q
         u = [1;1;1;1];
       end
-
+        d=[0.16/2 0.16/2];%obj.param.Lx;
+        rp = [d(1),d(2),0.02; -d(1),d(2),0.02; d(1),-d(2),0.02; -d(1),-d(2),0.02];
       for n = target
         frame = obj.frame(n);
         thrust = obj.thrust(n,:);
@@ -151,16 +152,18 @@ classdef DRAW_DRONE_MOTION
         % Translational matrix
         Txyz = makehgtform('translate',p(1,:,n));
         % Scaling matrix
+        sclar=100;
         for i = 1:4
           if u(1,i,n) > 0
-            S = makehgtform('scale',[1,1,u(1,i,n)]);
+            S = makehgtform('scale',[1,1,u(1,i,n)*sclar]);
           elseif u(i) < 0
             S1 = makehgtform('xrotate',pi);
-            S = makehgtform('scale',[1,1,-u(1,i,n)])*S1;
+            S = makehgtform('scale',[1,1,-u(1,i,n)*sclar])*S1;
           else
             S = eye(4);
             S(3,3) = 1e-5;
           end
+          Trp = makehgtform('translate', rp(i,:));
           set(thrust(i),'Matrix',Txyz*R*S);
         end
         % Concatenate the transforms and
@@ -187,9 +190,11 @@ classdef DRAW_DRONE_MOTION
       %   param.fig_num = 1;
       %   param.mp4 = 0;
       %   param.frame_size = [];
-      %   param.opt_plot = [];
+         
       % end
       param = struct(varargin{:});
+      param.opt_plot = [];
+      param.Motive_ref = 0;
       ax = obj.ax;
       %p = logger.data(param.target,"p","e");
       %q = logger.data(param.target,"q","e");
@@ -226,25 +231,30 @@ classdef DRAW_DRONE_MOTION
 
       if isfield(param,'mp4')
         sizen = 256;
-        delaytime = 0;
+        delaytime = 0;   
         filename = strrep(strrep(strcat('Data/Movie(',datestr(datetime('now')),').mp4'),':','_'),' ','_');
         v = VideoWriter(filename,"MPEG-4");
+        v.Quality = 95;
         if param.mp4
           open(v);
           writeAnimation(v);
         end
       end
 
-      t = logger.data("t");
+      t = logger.data(0,'t',"");
       tRealtime = tic;
+      line_ref = gobjects(length(param.target),1); % 
+      line_est = gobjects(length(param.target),1); % 
       if isfield(param,'Motive_ref')
         for n = 1:length(param.target)
-          f(n) = animatedline(ax,'Color','r','MaximumNumPoints',15); % 目標軌道の描画点の制限
+         line_ref(n) = animatedline(ax, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5); % 目標軌道の描画点の制限
+         line_est(n) = animatedline(ax, 'Color', 'b', 'LineStyle', '-', 'LineWidth', 2.0);
         end
       end
       for i = 1:length(t)-1
         if isfield(param,'Motive_ref')
-          addpoints(ax,f(n),r(i,1,param.target),r(i,2,param.target),r(i,3,param.target));
+          addpoints(line_ref(n),r(i,1,param.target),r(i,2,param.target),r(i,3,param.target));
+          addpoints(line_est(n),p(i,1,param.target),p(i,2,param.target),p(i,3,param.target));
         else
           plot3(ax,r(:,1,param.target),r(:,2,param.target),r(:,3,param.target),'k');
         end
@@ -274,7 +284,11 @@ classdef DRAW_DRONE_MOTION
           end
         end
         if isfield(param,'mp4')
-          framev = getframe(obj.ax);
+          framev = getframe(gcf);
+          % target_size = [346, 400];
+          % if ~isequal(size(framev.cdata, 1:2), target_size)
+          %        framev.cdata = imresize(framev.cdata, target_size);
+          % end 
           writeVideo(v,framev);
         end
       end

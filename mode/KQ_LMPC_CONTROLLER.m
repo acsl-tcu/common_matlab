@@ -47,6 +47,23 @@ classdef KQ_LMPC_CONTROLLER< handle
         A_d
         last_u_ff
     end
+    methods (Static)
+    function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
+            if nargin < 4
+                damp_factor = 1.0;
+            end
+            [n, ~] = size(Ac);
+            I = eye(n);
+            M = Ac * dt;
+            M2 = M * M;      % M^2
+            M3 = M2 * M;     % M^3
+            M4 = M3 * M;     % M^4
+            Ad_raw = I + M + (1/2)*M2 + (1/6)*M3 + (1/24)*M4;
+            Ad = damp_factor * Ad_raw;
+            B_int = I + (1/2)*M + (1/6)*M2 + (1/24)*M3;
+            Bd = B_int * Bc * dt;
+        end
+    end
     methods
         function obj = KQ_LMPC_CONTROLLER(self, param)
             %-- 変数定義
@@ -78,18 +95,18 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.result.Evaluationtra = zeros(obj.N, 2);
             obj.result.pre_u = obj.input.pre_u;
             sc = 0.01;
-            px = [1, 1,1.1];
-            vx = [1, 1,1.1];
-            w_p = [500, 500, 0];
-            w_v = [500, 500, 0];
-            w_g = 1* ones(1, obj.m);
-            w_z = [400, 400];
+            px = [1, 1, 1];
+            vx = [1, 1, 1];
+            w_p = [800, 500, 0];
+            w_v = [300, 300, 0];
+            w_g = 0* ones(1, obj.m);
+            w_z = [300, 200];
             q_vec = [ kron(w_p, px), ...           
                 kron(w_v, vx), ...           
                 kron(w_g, ones(1,3)), ...    
                 kron(w_z, ones(1,9)) ] * sc; 
             obj.Q = diag(q_vec);
-            obj.R = diag([4; 100; 100; 100]);
+            obj.R = diag([10; 100; 100; 100]);
             % obj.Q = eye(45);
             % scale = 0.01;
             % obj.Q(1:3, 1:3) =500 * eye(3) * scale;%p
@@ -113,7 +130,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.koopman.B =zeros(45,4);
             obj.result.bestcost = obj.input.Bestcost_now;
             obj.koopman.A=obj.get_Koopman_A(obj.m,obj.n);
-            obj.A_d =0.99*eye(size(obj.koopman.A)) + obj.koopman.A * obj.param.dt;
+            
         end
         %-- main()的な
         function result = do(obj,varargin)
@@ -149,8 +166,8 @@ classdef KQ_LMPC_CONTROLLER< handle
         function K_LQR(obj)
             
             n = size(obj.state.current,1);
-            B_d = obj.koopman.B * obj.param.dt;
-            [K, ~, ~] = dlqr(obj.A_d,  B_d, obj.Q, obj.R);
+            [A_d, B_d] = KQ_LMPC_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt,0.99);
+            [K, ~, ~] = dlqr(A_d,  B_d, obj.Q, obj.R);
             z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
             %%
             % % 最大誤差設定
@@ -198,11 +215,14 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.result.pre_u = obj.input.pre_u;
         end
         function K_MPC(obj)
-            sys_c = ss(obj.koopman.A, obj.koopman.B, [], []);
-            sys_d = c2d(sys_c, obj.param.dt, 'zoh'); % 零阶保持器离散化
-            A_d = sys_d.A;
-            B_d = sys_d.B;
+             % B_d = obj.koopman.B * obj.param.dt;
+            % sys_c = ss(obj.koopman.A, obj.koopman.B, [], []);
+            % sys_d = c2d(sys_c, obj.param.dt, 'zoh'); 
+            % A_d = sys_d.A;
+            % B_d = sys_d.B;
+            [A_d, B_d] = KQ_LMPC_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
+               % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
             z_current = obj.state.current;
             Xr_vec = zeros(n* obj.param.H, 1);
@@ -213,19 +233,32 @@ classdef KQ_LMPC_CONTROLLER< handle
             Xr = Xr_vec;
             Ur = reshape(obj.state.ref(13:16, :), [], 1);
             w_vec = zeros(n, 1);
-            w_vec(1:3) = diag(obj.weight.P);
-            w_vec(4:6) = diag(obj.weight.P);
-            w_v_val = diag(obj.weight.V);
-            idx_v = 3*obj.m + 1;
-            w_vec(idx_v : idx_v+2) = w_v_val;
-            w_vec(idx_v+3 : idx_v+5) = w_v_val;
-            idx_g = 6*obj.m + 1;
-            w_vec(idx_g : idx_g+8) = 0.001;
-            idx_q = 9*obj.m + 1;
-            w_vec(idx_q : idx_q+8) = mean(diag(obj.weight.Q));
-            if obj.n >= 2
-                idx_w = 9*obj.m + 10;
-                w_vec(idx_w : idx_w+8) = mean(diag(obj.weight.W));
+            if obj.m >= 1
+                idx_p1 = 1;
+                w_vec(idx_p1 : idx_p1+2) = diag(obj.weight.P);
+            end
+            if obj.m >= 2
+                idx_p2 = 4;
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) * 0.5;
+            end
+            base_y = 3 * obj.m + 1;
+            if obj.m >= 1
+                w_vec(base_y : base_y+2) = diag(obj.weight.V);
+            end
+            base_h = 6 * obj.m + 1;
+            end_h = base_h + 3 * obj.m - 1;
+            w_vec(base_h : end_h) = 0.000;
+            base_z = 9 * obj.m + 1;
+            for k = 1 : obj.n
+                curr_idx = base_z + (k-1) * 9;
+                curr_end = curr_idx + 8;
+                if k == 1
+                    w_vec(curr_idx : curr_end) = mean(diag(obj.weight.Q));
+                elseif k == 2
+                    w_vec(curr_idx : curr_end) = mean(diag(obj.weight.W));
+                else
+                    w_vec(curr_idx : curr_end) = 0;
+                end
             end
             Q_stage = diag(w_vec);
             Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_stage);
@@ -410,89 +443,139 @@ classdef KQ_LMPC_CONTROLLER< handle
             A(9*M+1:end, 9*M+1:end) = A_so3;
 
         end
+        
         %% 目標軌道生成
+        % function [xr] = generate_reference(obj)
+        %     xr = zeros(obj.param.total_size, obj.H);    % initialize
+        %     RefTime = obj.self.reference.time_var.func; % 時間関数の取得
+        %     % for h = 0:obj.param.H-1
+        %     %     t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
+        %     %     ref = RefTime(t);
+        %     %     xr(1:3, h+1) = ref(1:3);
+        %     %     xr(7:9, h+1) = ref(5:7);
+        %     %     xr(4:6, h+1) =   [0;0;0]; % 姿勢角
+        %     %     xr(10:12, h+1) = [0;0;0];
+        %     %     xr(13:16, h+1) = obj.param.ref_input; % MC -> 0.6597,   HL -> 0
+        %     % end
+        %     g = 9.81;
+        %     prev_euler = zeros(3,1);
+        %     for h = 0:obj.H-1
+        %         t   = obj.param.t + obj.param.dt * h;    % reference生成の時刻をずらす
+        %         ref = RefTime(t);                        % 20x1
+        %         acc = ref(9:11);                         % ddx, ddy, ddz
+        %         yaw = ref(4);                            % yaw
+        %         s  = acc + [0;0;g];
+        %         b3 = s / norm(s);
+        %         b1c = [cos(yaw); sin(yaw); 0];
+        %         v = cross(b3, b1c);
+        %         if norm(v) < 1e-6
+        %             if abs(b3(3))<0.9, b1=[0;0;1]; else, b1=[1;0;0]; end
+        %             b2 = cross(b3,b1); b2=b2/norm(b2); b1=cross(b2,b3);
+        %         else
+        %             b2 = v/norm(v);  b1 = cross(b2,b3);
+        %         end
+        %         Rd = [b1,b2,b3];
+        %         phi   = atan2(Rd(3,2), Rd(3,3));
+        %         theta = asin(-Rd(3,1));
+        %         psi   = atan2(Rd(2,1), Rd(1,1));
+        %         euler = [phi;theta;psi];
+        %         if h == 0 && obj.H > 1
+        %             t_next   = t + obj.param.dt;
+        %             ref_next = RefTime(t_next);
+        %             acc_n    = ref_next(9:11);
+        %             yaw_n    = ref_next(4);
+        %             s_n  = acc_n + [0;0;g];
+        %             b3_n = s_n / norm(s_n);
+        %             b1c_n = [cos(yaw_n); sin(yaw_n); 0];
+        %             v_n = cross(b3_n, b1c_n);
+        %             if norm(v_n) < 1e-6
+        %                 if abs(b3_n(3))<0.9, b1_n=[0;0;1]; else, b1_n=[1;0;0]; end
+        %                 b2_n = cross(b3_n,b1_n); b2_n=b2_n/norm(b2_n); b1_n=cross(b2_n,b3_n);
+        %             else
+        %                 b2_n = v_n/norm(v_n);  b1_n = cross(b2_n,b3_n);
+        %             end
+        %             Rd_n = [b1_n,b2_n,b3_n];
+        %             phi_n   = atan2(Rd_n(3,2), Rd_n(3,3));
+        %             theta_n = asin(-Rd_n(3,1));
+        %             psi_n   = atan2(Rd_n(2,1), Rd_n(1,1));
+        %             euler_n = [phi_n;theta_n;psi_n];
+        %             euler_dot = (euler_n - euler) / obj.param.dt;
+        %             euler_dot(3) = ref(8);
+        %         elseif h == 0 && obj.H == 1
+        %             euler_dot = [0;0;ref(8)];
+        %         else
+        %             euler_dot = (euler - prev_euler) / obj.param.dt;
+        %             euler_dot(3) = ref(8);
+        %         end
+        %         prev_euler = euler;
+        %         T = [ 1, 0, -sin(theta);
+        %             0, cos(phi),  cos(theta)*sin(phi);
+        %             0, -sin(phi), cos(theta)*cos(phi) ];
+        %         w = T * euler_dot;
+        %         xr(1:3,   h+1) = ref(1:3);
+        %         xr(7:9,   h+1) = ref(5:7);
+        %         xr(4:6,   h+1) = euler;
+        %         xr(10:12, h+1) = w;
+        %         xr(13, h+1) = norm(s)*obj.param.m;
+        %         xr(14:16, h+1) = 0;
+        %     end
+        % end
         function [xr] = generate_reference(obj)
-            xr = zeros(obj.param.total_size, obj.H);    % initialize
-            RefTime = obj.self.reference.time_var.func; % 時間関数の取得
-            % for h = 0:obj.param.H-1
-            %     t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
-            %     ref = RefTime(t);
-            %     xr(1:3, h+1) = ref(1:3);
-            %     xr(7:9, h+1) = ref(5:7);
-            %     xr(4:6, h+1) =   [0;0;0]; % 姿勢角
-            %     xr(10:12, h+1) = [0;0;0];
-            %     xr(13:16, h+1) = obj.param.ref_input; % MC -> 0.6597,   HL -> 0
-            % end
+            xr = zeros(obj.param.total_size, obj.H);
+            RefTime = obj.self.reference.time_var.func;
             g = 9.81;
-            prev_euler = zeros(3,1);
             for h = 0:obj.H-1
-                t   = obj.param.t + obj.param.dt * h;    % reference生成の時刻をずらす
-                ref = RefTime(t);                        % 20x1
-                acc = ref(9:11);                         % ddx, ddy, ddz
-                yaw = ref(4);                            % yaw
-                s  = acc + [0;0;g];
-                b3 = s / norm(s);
+                t = obj.param.t + obj.param.dt * (h+1);
+                ref = RefTime(t);
+                acc = ref(9:11);
+                vel = ref(5:7);
+                jerk = ref(13:15);
+                yaw = 0;
+                dyaw = 0;
+                s = acc + [0;0;g];
+                norm_s = norm(s);
+                if norm_s < 1e-6
+                    b3 = [0; 0; 1];
+                else
+                    b3 = s / norm_s;
+                end
                 b1c = [cos(yaw); sin(yaw); 0];
                 v = cross(b3, b1c);
                 if norm(v) < 1e-6
-                    if abs(b3(3))<0.9, b1=[0;0;1]; else, b1=[1;0;0]; end
-                    b2 = cross(b3,b1); b2=b2/norm(b2); b1=cross(b2,b3);
+                    if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
+                    b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
                 else
-                    b2 = v/norm(v);  b1 = cross(b2,b3);
+                    b2 = v/norm(v);
                 end
+                b1 = cross(b2, b3);
                 Rd = [b1,b2,b3];
-                phi   = atan2(Rd(3,2), Rd(3,3));
+                phi = atan2(Rd(3,2), Rd(3,3));
                 theta = asin(-Rd(3,1));
-                psi   = atan2(Rd(2,1), Rd(1,1));
+                psi = atan2(Rd(2,1), Rd(1,1));
                 euler = [phi;theta;psi];
-                if h == 0 && obj.H > 1
-                    t_next   = t + obj.param.dt;
-                    ref_next = RefTime(t_next);
-                    acc_n    = ref_next(9:11);
-                    yaw_n    = ref_next(4);
-                    s_n  = acc_n + [0;0;g];
-                    b3_n = s_n / norm(s_n);
-                    b1c_n = [cos(yaw_n); sin(yaw_n); 0];
-                    v_n = cross(b3_n, b1c_n);
-                    if norm(v_n) < 1e-6
-                        if abs(b3_n(3))<0.9, b1_n=[0;0;1]; else, b1_n=[1;0;0]; end
-                        b2_n = cross(b3_n,b1_n); b2_n=b2_n/norm(b2_n); b1_n=cross(b2_n,b3_n);
-                    else
-                        b2_n = v_n/norm(v_n);  b1_n = cross(b2_n,b3_n);
-                    end
-                    Rd_n = [b1_n,b2_n,b3_n];
-                    phi_n   = atan2(Rd_n(3,2), Rd_n(3,3));
-                    theta_n = asin(-Rd_n(3,1));
-                    psi_n   = atan2(Rd_n(2,1), Rd_n(1,1));
-                    euler_n = [phi_n;theta_n;psi_n];
-                    euler_dot = (euler_n - euler) / obj.param.dt;
-                    euler_dot(3) = ref(8);
-                elseif h == 0 && obj.H == 1
-                    euler_dot = [0;0;ref(8)];
+                if norm_s < 1e-6
+                    w = [0; 0; 0];
                 else
-                    euler_dot = (euler - prev_euler) / obj.param.dt;
-                    euler_dot(3) = ref(8);
+                    hw = (jerk - dot(b3, jerk) * b3) / norm_s;
+                    w_x = -dot(hw, b2);
+                    w_y = dot(hw, b1);
+                    w_z = dot(b3, [0;0;1]) * dyaw;
+                    w = [w_x; w_y; w_z];
                 end
-                prev_euler = euler;
-                T = [ 1, 0, -sin(theta);
-                    0, cos(phi),  cos(theta)*sin(phi);
-                    0, -sin(phi), cos(theta)*cos(phi) ];
-                w = T * euler_dot;
-                xr(1:3,   h+1) = ref(1:3);
-                xr(7:9,   h+1) = ref(5:7);
-                xr(4:6,   h+1) = euler;
+                xr(1:3, h+1) = ref(1:3);
+                xr(7:9, h+1) = ref(5:7);
+                xr(4:6, h+1) = euler;
                 xr(10:12, h+1) = w;
-                xr(13, h+1) = norm(s)*obj.param.m;
+                xr(13, h+1) = norm_s * obj.param.m;
                 xr(14:16, h+1) = 0;
             end
         end
-
         function show(obj)
             % clc;
             % est_print = obj.self.estimator.result.state;
             est_print = obj.self.estimator.result.state;
             fprintf("==================================================================\n")
-            fprintf("==================================================================\n")
+            fprintf("=================================================================\n")
             fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \n",...
                 est_print.p(1), est_print.p(2), est_print.p(3),...
                 est_print.v(1), est_print.v(2), est_print.v(3),...

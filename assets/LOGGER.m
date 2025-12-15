@@ -331,8 +331,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 if option.ranget(2) ==0
                     ranget(2) = max(obj.Data.t);
                 end
-                ranget_max = min(option.ranget(2),max(obj.Data.t));
-                ranget_min = max(option.ranget(1),min(obj.Data.t));
+                ranget_max = min(ranget(2),max(obj.Data.t));
+                ranget_min = max(ranget(1),min(obj.Data.t));
                 data_range = find((obj.Data.t - ranget_min) > 0, 1) - 1:find((obj.Data.t - ranget_max) >= 0, 1);
                 if ~isempty(option.phase)
                     phase = char(option.phase);
