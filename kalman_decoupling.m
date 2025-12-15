@@ -2,14 +2,14 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-% load("koopman_common_z_.mat");
+load("koopman_common_z_.mat");
 % load("second_model.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
 % load("z.mat",'est');
 % load("without1.mat");
 % load("integral_p.mat");
-load("all_qua.mat");
+% load("all_qua.mat");
 
 %速度から位置を積分して求める
 % est.A = [zeros(3,3),eye(3,3),zeros(3,20);
@@ -111,7 +111,7 @@ Bcbar = G(k+1:end,:);
 
 %重みづけ
 %pqvwの順
-Q = diag([1,1,1,1,1,1,1,1,1,1,1,1,ones(1,size(est.A,1)-12)]);
+Q = diag([1,1,1,1,1,1,100,100,100,1,1,1,ones(1,size(est.A,1)-12)]);
 I = T_inv\Q*T_inv;
 Qc = I(1:k,1:k);
 
