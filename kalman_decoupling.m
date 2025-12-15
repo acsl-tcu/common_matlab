@@ -111,7 +111,7 @@ Bcbar = G(k+1:end,:);
 
 %重みづけ
 %pqvwの順
-Q = diag([1,1,1,1,1,1,100,100,100,1,1,1,ones(1,size(est.A,1)-12)]);
+Q = diag([1,1,1,1,1,1,50,50,50,1,1,1,ones(1,size(est.A,1)-12)]);
 I = T_inv\Q*T_inv;
 Qc = I(1:k,1:k);
 
