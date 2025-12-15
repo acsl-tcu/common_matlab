@@ -10,13 +10,17 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 % 使い方:
 % agent.input_transform = INPUTTRANSFORM_AUTOTUNE(agent, param);
 % u = agent.input_transform.do(t_struct, cha, logger, env, agent_list, i);
+%mode=1,mode=2でそれぞれコメントイン、アウトしなければならない箇所あり
+%1,最初のpropertiesでmode選択＋初期値等設定
+%2,function内のth_offsetに関する部分(mode=1ではth_offset=obj.th_offset,mode=2ではth_offset=obj.para.th_offset)
+%3,最後の部分のスコア評価部分に関して　それぞれのものをコメントイン、アウト
 
 properties
     % -------------------------
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=1          % 0:off, 1:offset autotune, 2:gain autotune     %0は現状飛行不可能なので使わない
+    mode=2          % 0:off, 1:offset autotune, 2:gain autotune     %0は現状飛行不可能なので使わない
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
@@ -27,9 +31,9 @@ properties
     % -------------------------
     % パラメータ（変換用）
     % -------------------------
-    th_offset = 0                    % スロットルオフセット
+    % th_offset = 0                    % スロットルオフセット
     gain = [300;300;300;30]          % [roll,pitch,yaw,thrust]
-    % th_offset = 335                %現在使用スロットルオフセット
+    th_offset = 335                %現在使用スロットルオフセット
     % gain = [400;400;400;40]　　　　 %現在使用ゲイン
     % -------------------------
     % autotune 関連
@@ -72,6 +76,7 @@ cooldown_s
 cooldown_done
 eval_start_time
 score_drop_threshold=5;
+mode2_start_time=NaN
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -220,7 +225,8 @@ methods
         % ---------------------------------------------------------
         % gain と throttle offset パラメータ
         g = obj.gain;
-        offset = obj.th_offset;
+        % offset=obj.th_offset;%mode1用
+        offset = obj.param.th_offset;%mode2用
         % thrust コマンド（外部 LQR/MPC の出力）
         T_thr = input(1);
         % ---- P制御（角速度制御）----
@@ -350,7 +356,7 @@ methods
                     % ---- 5. 改善したら best_score 更新 ----
                     if obj.smooth_score < obj.best_score
                        obj.best_score = obj.smooth_score;
-                       obj.best_param.th_offset = obj.th_offset;
+                       obj.best_param.th_offset = obj.param.th_offset;
                        obj.last_improve_time = tnow; % 最後に改善した時刻
                     end
                     obj.last_score=score;
@@ -358,9 +364,9 @@ methods
                     % 改善が一定時間途絶えたら終了
                     height=pos(3);        %高度取得
                     threshold_height=0.2; %一定高度まで評価しない
-                        if height>threshold_height && (obj.th_offset >= obj.offset_max || abs(score - obj.best_score) < obj.offset_lock_threshold)
+                        if height>threshold_height && obj.param.th_offset >= obj.offset_max %|| abs(score - obj.best_score) < obj.offset_lock_threshold)
                             obj.offset_fixed = true;
-                            obj.th_offset = obj.best_param.th_offset;
+                            obj.param.th_offset = obj.best_param.th_offset;
                             obj.mode = 0; % finish tuning
                         end
                 end
@@ -371,6 +377,13 @@ methods
                     % axis_idx 未初期化なら 1 (=roll)
                     if isempty(obj.axis_idx) 
                         obj.axis_idx = 1; 
+                    end
+                    if isnan(obj.mode2_start_time)
+                       obj.mode2_start_time=tnow;
+                    end
+                    startup_hold=6.0;
+                    if (tnow-obj.mode2_start_time)<startup_hold
+                        return;
                     end
                         if isempty(obj.no_improve_count)
                             obj.no_improve_count = 0;   % 改善が途絶えた回数
@@ -461,14 +474,15 @@ methods
                 % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
                 if score < obj.best_score
                     obj.best_score = score;
-                    obj.best_param.th_offset = obj.th_offset;
+                    % obj.best_param.th_offset = obj.th_offset;%mode1用
+                    obj.best_param.th_offset = obj.param.th_offset;%mode2用
                     obj.best_param.gain = obj.gain;
                 end
                 % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
-                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f', ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3));
+                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f param_th:%.2f', ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3),obj.param.th_offset);
                         obj.monitor.update(s);
                     catch
                          % GUIエラーは無視
@@ -518,6 +532,22 @@ methods
         if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref)
             s = Inf; return;
         end
+        % %z方向のみ(オフセット取得)---------------------------------------------
+        % z=pos(3);
+        % z_ref=pos_ref(3);
+        % z_min=0.2;
+        % k_low=200;
+        % % k_z=1.0;
+        % k_over=5.0;
+        % if z<z_min
+        %     s=k_low+(z_ref-z)^2;
+        %     return;
+        % end
+        % z_err=z_ref-z;
+        % s=z_err^2;
+        % if z>z_ref
+        %     s=s+k_over*(z-z_ref)^2;
+        % end %---------------------------------------------------------------
         %% --- 1. モデルと実機の乖離 ---
         % 予測角速度 wn と実測角速度 w の二乗誤差の平均
         % → モデルが現実に合っているほど値が小さい
@@ -530,27 +560,23 @@ methods
         % 座標誤差の二乗和(x,y,z)
         % e_pos = pos_ref - pos;
         % pos_err = sum(e_pos.^2);
-        %z方向のみ(オフセット取得)
-        % e_pos = pos_ref(3) -pos(3);
-        % pos_err =sum(e_pos.^2);
         %x,y方向のみ（ゲイン取得）
         e_pos = pos_ref(1:2) - pos(1:2);
         pos_err = sum(e_pos.^2);
-       %% --- 4. 低高度ペナルティ ---
-        % 高度が低い状態で停止すると「安定している」と誤認するため
-        % 低高度ほど罰則を加えて評価を悪くする
-        height = pos(3);
-        pos_err = pos_err + exp(-5*height)*200;  % 低高度ほど重罰
-        %低高度だと罰則
-        % if pos(3) < 0.1
-        %     pos_err = 1000;
-        % end
+        %低高度罰則
+        z_safe=0.3;
+        penalty_s=200;
+        z=pos(3);
+        if z<z_safe
+            z_penalty=penalty_s*(z_safe-z)^2;
+        else
+            z_penalty=0;
+        end
         %% --- 5. 重み付き合算 ---
         % stability（モデル一致）      → そのまま
         % vibration（振動）            → 0.5倍の重み
         % pos_err（位置誤差）          → 2倍の重みで強調
-        s = stability + 0.5 * vibration + 2.0 * pos_err; %offset用（mode1）
-        % s = 4.0 * stability + vibration + 1.0 * pos_err; %gain用（mdoe2）
+        s = 4.0 * stability + vibration + 1.0 * pos_err+z_penalty; %gain用（mdoe2）
     end
 end
 end
