@@ -50,8 +50,8 @@ agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(7) = 0.24;
 agent.plant.param(6) = 0.18; % x3
 agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
-agent.plant.param(6) = 0.15;
-agent.plant.param(7) = 0.15;
+% agent.plant.param(6) = 0.15;
+% agent.plant.param(7) = 0.15;
 
 % agent.plant.param(6) = 0.12; % x2
 % agent.plant.param(6) = 0.15; % x2.5
@@ -112,11 +112,12 @@ else
     % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
     % agent.controller.mec = RNNMEC(agent, "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx");
 
     % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
-    agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
+    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
     % agent.controller.mec = DNNMEC(agent, "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
+    agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
 end
 
 if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
@@ -151,7 +152,7 @@ if flange, xlim([10 last]); end
 app.logger.plot({1, "controller.result.delta_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 if flange, xlim([10 last]); end
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
 % app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);

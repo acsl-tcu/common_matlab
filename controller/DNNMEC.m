@@ -12,11 +12,13 @@ classdef DNNMEC < handle
     properties
         self
         result
-        param
+        physical_param
         parameter_name = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
         agent
         DNN_model_filename  % 読み込みたいONNXモデルのファイル名
         DNNMEC_model        % コード内でのモデル名
+        dx_func             % 状態方程式の関数ハンドル
+        state_renew_func    % 学習時の状態更新手法に合わせるための関数ハンドル
         gen_data_func       % 入力の次元数に合わせたデータ生成関数ハンドル
         x_pre               % 前時刻の状態
         pre_input           % 前時刻の制御入力
@@ -26,7 +28,8 @@ classdef DNNMEC < handle
         function obj = DNNMEC(self, DNN_model_filename)
             % インスタンス
             obj.self = self;
-            obj.param = self.parameter.get(obj.parameter_name);
+            obj.physical_param = self.parameter.get(obj.parameter_name);
+            obj.dx_func = @roll_pitch_yaw_thrust_torque_physical_parameter_model;
 
             %-%-%-% DNN model import & define %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
             obj.DNN_model_filename = DNN_model_filename;
@@ -58,6 +61,11 @@ classdef DNNMEC < handle
             obj.result.input = zeros(self.estimator.model.dim(2),1);
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
+            if contains(DNN_model_filename, 'Euler') % 状態更新手法を動的に変更
+                obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt);
+            elseif contains(DNN_model_filename, 'RK4')
+                obj.state_renew_func = @(x_pre, pre_input, dt) obj.RK4(x_pre, pre_input, dt);
+            end
             fprintf('Model file name: %s\n', obj.DNN_model_filename);
             disp('obj.result.delta_inputを表示します')
         end
@@ -70,8 +78,7 @@ classdef DNNMEC < handle
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{end}.state.get; % LOGGERから前時刻の状態を取得
             end
             dt = varargin{1}.dt;
-            dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param);
-            x_nominal = obj.x_pre + dx*dt;
+            x_nominal = obj.state_renew_func(obj.x_pre, obj.pre_input, dt);
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
             obj.result.nominal_p = x_nominal(1:3);
             obj.result.nominal_q = x_nominal(4:6);
@@ -91,12 +98,28 @@ classdef DNNMEC < handle
             if abs(obj.result.delta_input(2))>1, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>1, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>1, obj.result.delta_input(4) = 0; end
-            % obj.result.delta_input = [0;0;0;0];
+            obj.result.delta_input = [0;0;0;0];
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
             disp(obj.result.delta_input')
+        end
+
+        function x_plus = Euler(obj, x_pre, pre_input, dt)
+            dx = obj.dx_func(x_pre, pre_input, obj.physical_param);
+            x_plus = x_pre + dx*dt;
+        end
+
+        function x_plus = RK4(obj, x_pre, pre_input, dt)
+            dx = @(x) obj.dx_func(x, pre_input, obj.physical_param);
+
+            k1 = dx(x_pre);
+            k2 = dx(x_pre + dt*k1/2);
+            k3 = dx(x_pre + dt*k2/2);
+            k4 = dx(x_pre + dt*k3);
+
+            x_plus = x_pre + dt/6*(k1 + 2*k2 + 2*k3 + k4);
         end
     end
 end
