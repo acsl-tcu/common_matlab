@@ -172,8 +172,8 @@ qdotdot=[    %qdotの一階微分の項
              ];
 
 %% まとめ
-% z = [common_z; isobe_z]; % 00
-z = [common_z; isobe_z;Rdot;qdotdot]; % 01
+z = [common_z; isobe_z]; % 00
+% z = [common_z; isobe_z;Rdot;qdotdot]; % 01
 
 end
 
