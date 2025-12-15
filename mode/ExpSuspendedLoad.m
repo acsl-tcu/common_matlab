@@ -28,8 +28,10 @@ initial_state.wL = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
-agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
-agent.parameter.set("loadmass",0.075);%0.0968);%0.968
+% agent.parameter.set("cableL",1.037);%0.992,0.647,p0.613,0.460
+agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460
+% agent.parameter.set("loadmass",0.075);%0.0968);%0.968
+agent.parameter.set("loadmass",0.6);%0.0968);%0.968 フィラトケース0.239
 agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));%有線プロポ
 agent.sensor.motive = MOTIVE(agent, Sensor_Motive([1,2],0, motive)); % rigid_id,initial_yaw_angle,motive
 
@@ -115,6 +117,7 @@ app.logger.plot({1,"inner_input1:4",""},"phase","tf", "fig_num",6); % 制御入�
 % app.logger.plot.("controller.result.xd","phase","tf","fig_num",11); % 位置: p_x,p_y,p_z
 app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
 % app.logger.plot({1, "controller.result.xd", "r"});
+app.logger.plot({1, "controller.result.mL",""},"fig_num",200);
 
 % 刻み時間描画
 t0id = find(app.logger.Data.phase==97,1,'last')+1;
@@ -131,6 +134,7 @@ hold on
 hold off
 grid on
 legend("dt","upper limit")
+
 
 % Graphplot(app)
 end
