@@ -111,14 +111,14 @@ Bcbar = G(k+1:end,:);
 
 %重みづけ
 %pqvwの順
-Q = diag([1,1,1,1,1,1,10,10,10,1,1,1,ones(1,size(est.A,1)-12)]);
+Q = diag([1,1,1,1,1,1,1,1,1,100,100,100,ones(1,size(est.A,1)-12)]);
 I = T_inv\Q*T_inv;
 Qc = I(1:k,1:k);
 
 
 % Qc = diag([10,10,10,1,1,1,ones(1,size(Ac,1)-6)]);
 % Qc = diag([ones(1,size(Ac,1))]);
-Rc = eye(4);
+Rc = 0.1*eye(4);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
