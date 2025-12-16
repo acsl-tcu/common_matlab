@@ -48,6 +48,21 @@ app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Th
 app.logger.plot({1,"inner_input",""},"phase","tf", "fig_num",6); % 制御入力: Thrust, roll, pitch, yaw
 app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
 app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
+% 刻み時間描画
+t0id = find(app.logger.Data.phase==97,1,'last')+1;
+teid = find(app.logger.Data.phase==0,1,'first')-1;
+dt = diff(app.logger.Data.t(t0id:teid));
+t = app.logger.Data.t(t0id:teid-1);
+figure(100)
+[t,dt]
+plot(t,dt);
+% app.logger.plot({1,"p","e"})
+hold on
+% yline(0.025,"LineWidth",0.5)
+% ylim([0 0.05])
+hold off
+grid on
+legend("dt","upper limit")
 end
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();

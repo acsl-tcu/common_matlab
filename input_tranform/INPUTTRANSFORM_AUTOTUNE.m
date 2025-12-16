@@ -399,7 +399,29 @@ methods
                     if ~obj.waiting
                         % ---- 試験開始：1軸だけゲインを増やす ----
                         trial = obj.gain;
-                        step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                        % step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                switch obj.axis_idx
+                                    % ---------- Phase 1 : Roll + Pitch ----------
+                                    case 1
+                                        idx = [1 2];
+                        
+                                        for i = idx
+                                            step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                            trial(i) = trial(i) + step;
+                                        end
+                        
+                                    % ---------- Phase 2 : Yaw ----------
+                                    case 2
+                                        i = 3;
+                                        step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                        trial(i) = trial(i) + step;
+                        
+                                    % ---------- Phase 3 : Throttle ----------
+                                    case 3
+                                        i = 4;
+                                        step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                        trial(i) = trial(i) + step;
+                                end
                         % もう上げられない軸はスキップ
                         if step < 1e-12
                             obj.axis_idx = obj.axis_idx + 1;
