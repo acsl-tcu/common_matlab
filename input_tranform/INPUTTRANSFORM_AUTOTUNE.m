@@ -13,7 +13,6 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 %mode=1,mode=2でそれぞれコメントイン、アウトしなければならない箇所あり
 %1,最初のpropertiesでmode選択＋初期値等設定
 %2,function内のth_offsetに関する部分(mode=1ではth_offset=obj.th_offset,mode=2ではth_offset=obj.para.th_offset)
-%3,最後の部分のスコア評価部分に関して　それぞれのものをコメントイン、アウト
 
 properties
     % -------------------------
@@ -53,8 +52,6 @@ properties
     best_param = struct('th_offset',0,'gain',zeros(4,1))% ベスト offset / gain の保存場所
     last_score = [] % 最後に計算したスコア
     offset_fixed = false% ベスト offset を固定したかどうか
-    offset_lock_threshold = 0.005 % offset 固定判断のためのスコア閾値
-    % gain autotune state
     axis_idx = 1 % 1～4（Roll, Pitch, Yaw, Throttle）
     waiting = false% trial 評価中か
     baseline = Inf % 比較スコア
@@ -77,7 +74,6 @@ cooldown_done
 eval_start_time
 score_drop_threshold=5;
 mode2_start_time=NaN
-gain_update_interval = 1.0; % [s] 次のゲイン変更までの待ち時間
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
@@ -374,108 +370,6 @@ methods
                 % =====================================================
                 %                 MODE 2: ゲイン自動調整
                 % =====================================================
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % if obj.mode == 2
-                % 
-                % % ---------- 初期化 ----------
-                % if isempty(obj.axis_idx)
-                %     obj.axis_idx = 1;
-                % end
-                % 
-                % % ---------- takeoff / startup hold ----------
-                % startup_hold = 6.0;  % [s]
-                % if isempty(obj.mode2_start_time)
-                %     obj.mode2_start_time = tnow;
-                %     return;
-                % end
-                % if (tnow - obj.mode2_start_time) < startup_hold
-                %     return;
-                % end
-                % 
-                % i = obj.axis_idx;
-                % 
-                % if ~obj.waiting
-                %     % ===============================
-                %     % 1. ゲイン変更フェーズ
-                %     % ===============================
-                % 
-                %     trial = obj.gain;
-                %     step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-                % 
-                %     if step < 1e-12
-                %         % この軸はこれ以上上げられない
-                %         obj.axis_idx = obj.axis_idx + 1;
-                %         if obj.axis_idx > 4, obj.axis_idx = 1; end
-                %         return;
-                %     end
-                % 
-                %     trial(i) = trial(i) + step;
-                %     obj.gain = trial;
-                % 
-                %     % 評価待ちに入る
-                %     obj.waiting = true;
-                %     obj.trial_start_time = tnow;
-                %     obj.eval_start_time = [];
-                %     % obj.baseline = obj.best_score;
-                %     obj.baseline = score;
-                % 
-                %     return;
-                % 
-                % else
-                %     % ===============================
-                %     % 2. 評価待ちフェーズ
-                %     % ===============================
-                % 
-                %     elapsed = tnow - obj.trial_start_time;
-                % 
-                %     % ---- ゲイン変更後すぐ評価しない ----
-                %     if elapsed < obj.gain_update_interval
-                %         return;
-                %     end
-                % 
-                %     % ---- 評価開始時刻を記録 ----
-                %     if isempty(obj.eval_start_time)
-                %         obj.eval_start_time = tnow;
-                %         obj.score_buffer = [];
-                %         return;
-                %     end
-                % 
-                %     % ---- スコアをバッファに蓄積 ----
-                %     obj.score_buffer(end+1) = score;
-                % 
-                %     % ---- 評価時間を十分確保 ----
-                %     if (tnow - obj.eval_start_time) < obj.eval_window_s
-                %         return;
-                %     end
-                % 
-                %     % ===============================
-                %     % 3. 評価
-                %     % ===============================
-                %     eval_score = mean(obj.score_buffer);
-                % 
-                %     if eval_score < obj.baseline - 1e-3
-                %         % 改善 → 採用
-                %         obj.best_score = eval_score;
-                %         obj.best_param.gain = obj.gain;
-                %     else
-                %         % 悪化 → 元に戻す
-                %         obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
-                %     end
-                % 
-                %     % ===============================
-                %     % 4. 次の軸へ
-                %     % ===============================
-                %     obj.waiting = false;
-                %     obj.eval_start_time = [];
-                %     obj.score_buffer = [];
-                % 
-                %     obj.axis_idx = obj.axis_idx + 1;
-                %     if obj.axis_idx > 4
-                %         obj.axis_idx = 1;
-                %     end
-                % end
-                % end
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 if obj.mode == 2
                     % axis_idx 未初期化なら 1 (=roll)
                     if isempty(obj.axis_idx) 
@@ -625,7 +519,6 @@ methods
     end
     %% ---------------------------
     % evaluate_stability:
-    % モデル誤差 + 振動 + 位置誤差 を統合して安定度スコアを計算
     % 数値が小さいほど良い（安定している）
     %% ---------------------------
     function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis)
@@ -636,123 +529,93 @@ methods
             s = Inf; return;
         end
    %modeによるスコア評価の切替（自動）
-    switch mode
-        case 1
-        s = obj.evaluate_offset(pos, pos_ref); 
-        case 2
-              % ===== MODE2 : ゲイン調整 =====
-            switch axis
-                case {1,2} % roll, pitch
-                        % % モデル誤差
-                        % stability = sum(mean((wnvec - wvec).^2, 2));
-                        % % 振動（角速度分散）
-                        % vib = sum(var([wvec; wnvec], 0, 2));
-                        % s =4*stability + vib;
-                        idx=[1 2];
-                        % モデル誤差
-                        err=wnvec(idx,:)-wvec(idx,:);
-                        model_err = mean(err(:).^2);
-                        % 振動（角速度分散）
-                        vib = mean(var(wvec(idx,:), 0, 2));
-                        s = model_err + 0.5 * vib;
-                case 3 % yaw
-                        % 向き誤差
-                        yaw_rate=wvec(3,:);
-                        vib=var(yaw_rate);
-                        % 回転の荒さ
-                        yaw_rate_penalty = mean(yaw_rate.^2);
-                        s = vib + 0.3 * yaw_rate_penalty;
-                case 4 % throttle
-                        % 高度誤差
-                        z=pos(3);
-                        z_ref=pos_ref(3);
-                        e_z = z_ref - z;
-                        z_err = e_z^2;
-                        % 低高度ペナルティ
-                        low_alt_penalty = exp(-5*z) * 50;
-                        s = z_err + low_alt_penalty;
-            end
-    end
-    end
-    %mode1の評価方法---------------------------------------------------
-    function s = evaluate_offset(~, pos, pos_ref)
-        z=pos(3);
-        z_ref=pos_ref(3);
-        z_min=0.2;
-        k_low=200;
-        % k_z=1.0;
-        k_over=5.0;
-        if z<z_min
-            s=k_low+(z_ref-z)^2;
+   % ===========mide1:オフセット調整=============
+switch mode
+    % =====================================================
+    % MODE 1 : 推力オフセット（th_offset）取得用の評価 → 高度方向（z）のみを見る
+    % =====================================================
+    case 1
+        % 現在高度と目標高度
+        z     = pos(3);
+        z_ref = pos_ref(3);
+
+        % ---- パラメータ設定 ----
+        z_min  = 0.2;    % 最低評価高度 [m]
+        k_low  = 200;    % 低高度時の強い罰則
+        k_over = 5.0;    % 目標高度を超えたときの罰則重み
+
+        % ---------------------------------------------
+        % (1) 低高度判定 離陸直後や地面付近で「安定している」と誤認しないための処理
+        % ---------------------------------------------
+        if z < z_min
+            % 高度が低すぎる場合は強制的に悪いスコア → オフセット確定を防ぐ
+            s = k_low + (z_ref - z)^2;
             return;
         end
-        z_err=z_ref-z;
-        s=z_err^2;
-        if z>z_ref
-            s=s+k_over*(z-z_ref)^2;
+        % ---------------------------------------------
+        % (2) 通常時の高度誤差評価
+        % ---------------------------------------------
+        z_err = z_ref - z;
+        s = z_err^2;   % 目標高度との二乗誤差
+        % ---------------------------------------------
+        % (3) 目標高度を超えた場合の追加ペナルティ
+        %     → 上がりすぎるオフセットを防ぐ
+        % ---------------------------------------------
+        if z > z_ref
+            s = s + k_over * (z - z_ref)^2;
         end
+    % =====================================================
+    % MODE 2 : ゲイン調整用の評価 → 調整軸ごとに評価指標を切り替える
+    % =====================================================
+    case 2
+        switch axis
+            % -------------------------------------------------
+            % roll / pitch ゲイン調整
+            % ・モデル追従性
+            % ・振動の少なさ
+            % -------------------------------------------------
+            case {1,2}   % roll, pitch
+                idx = [1 2];  % roll, pitch 成分
+                % ---- モデル誤差 ----
+                % 実機角速度とモデル予測角速度の差
+                err = wnvec(idx,:) - wvec(idx,:);
+                model_err = mean(err(:).^2);
+                % ---- 振動評価 ----
+                % 角速度の分散（揺れの大きさ）
+                vib = mean(var(wvec(idx,:), 0, 2));
+                % ---- 合成スコア ----
+                s = model_err + 0.5 * vib;
+            % -------------------------------------------------
+            % yaw ゲイン調整
+            % ・ヨー方向の荒れ（回転の滑らかさ）
+            % -------------------------------------------------
+            case 3   % yaw
+                yaw_rate = wvec(3,:);     % ヨー角速度
+                % ---- 振動成分 ----
+                vib = var(yaw_rate);
+                % ---- 回転の荒さ ----
+                % 大きな角速度が続くとペナルティ
+                yaw_rate_penalty = mean(yaw_rate.^2);
+                % ---- 合成スコア ----
+                s = vib + 0.3 * yaw_rate_penalty;
+            % -------------------------------------------------
+            % throttle ゲイン調整
+            % ・高度追従性能のみを見る
+            % -------------------------------------------------
+            case 4   % throttle
+                % 現在高度と目標高度
+                z     = pos(3);
+                z_ref = pos_ref(3);
+                % ---- 高度誤差 ----
+                e_z   = z_ref - z;
+                z_err = e_z^2;
+                % ---- 低高度ペナルティ ----
+                % 地面付近で安定と誤認しないため
+                low_alt_penalty = exp(-5*z) * 50;
+                % ---- 合成スコア ----
+                s = z_err + low_alt_penalty;
+        end
+end
     end
-    %mode2の評価方法-------------------------------------------------------
-    % function s = evaluate_roll_pitch(wnvec, wvec) %roll,pitchの評価
-    % idx=[1 2];
-    % % モデル誤差
-    % err=wnvec(idx,:)-wvec(idx,:);
-    % model_err = mean(err(:).^2);
-    % % 振動（角速度分散）
-    % vib = mean(var(wvec(idx,:), 0, 2));
-    % s = model_err + 0.5 * vib;
-    % end
-
-    % function s = evaluate_yaw(~, wvec) %yawの評価
-    % % 向き誤差
-    % yaw_rate=wvec(3,:);
-    % vib=var(yaw_rate);
-    % % 回転の荒さ
-    % yaw_rate_penalty = mean(yaw_rate.^2);
-    % s = vib + 0.3 * yaw_rate_penalty;
-    % end
-
-    % function s = evaluate_throttle(~, pos,pos_ref) %throttleの評価
-    % % 高度誤差
-    % z=pos(3);
-    % z_ref=pos_ref(3);
-    % e_z = z_ref - z;
-    % z_err = e_z^2;
-    % % 上下速度（バタつき防止）
-    % vz_penalty = 0.2 * vz^2;
-    % % 低高度ペナルティ
-    % low_alt_penalty = exp(-5*z) * 50;
-    % s = z_err + vz_penalty + low_alt_penalty;
-    % end
-    %     %% --- 1. モデルと実機の乖離 ---
-    %     % 予測角速度 wn と実測角速度 w の二乗誤差の平均
-    %     % → モデルが現実に合っているほど値が小さい
-    %     stability = sum(mean((wnvec - wvec).^2, 2));
-    %     %% --- 2. 振動成分（角速度の分散） ---
-    %     % 実測 w と予測 wn の両方の揺れを評価
-    %     % → 機体が不安定に振動すると値が大きくなる
-    %     vibration = sum(var([wvec; wnvec], 0, 2));
-    %     %% --- 3. 位置誤差（目標との距離） ---
-    %     % 座標誤差の二乗和(x,y,z)
-    %     % e_pos = pos_ref - pos;
-    %     % pos_err = sum(e_pos.^2);
-    %     %x,y方向のみ（ゲイン取得）
-        % e_pos = pos_ref(1:2) - pos(1:2);
-        % pos_err = sum(e_pos.^2);
-    %     %低高度罰則
-    %     z_safe=0.3;
-    %     penalty_s=200;
-    %     z=pos(3);
-    %     if z<z_safe
-    %         z_penalty=penalty_s*(z_safe-z)^2;
-    %     else
-    %         z_penalty=0;
-    %     end
-    %     %% --- 5. 重み付き合算 ---
-    %     % stability（モデル一致）      → そのまま
-    %     % vibration（振動）            → 0.5倍の重み
-    %     % pos_err（位置誤差）          → 2倍の重みで強調
-    %     s = 4.0 * stability + vibration + 1.0 * pos_err+z_penalty; %gain用（mdoe2）
-    % end
 end
 end
