@@ -287,6 +287,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.result.var = var;
             obj.result.Bestcost_pre = obj.result.bestcost;
             obj.result.bestcost = [fval;0];
+            obj.result.kqlmpc = obj.result.input;
             obj.input.pre_u = obj.result.input;
             obj.result.pre_u = obj.input.pre_u;
             % obj.result.bestcost=obj.input.Bestcost_now ;

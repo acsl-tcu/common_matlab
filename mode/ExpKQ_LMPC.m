@@ -45,6 +45,7 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
  app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
+   % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
 end
 
 function est =import_vars_from_mfile(mfile)
