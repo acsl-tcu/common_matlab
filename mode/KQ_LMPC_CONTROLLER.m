@@ -239,7 +239,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
             if obj.m >= 2
                 idx_p2 = 4;
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) * 0.5;
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) * 1;
             end
             base_y = 3 * obj.m + 1;
             if obj.m >= 1
