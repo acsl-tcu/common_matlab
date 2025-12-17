@@ -1,4 +1,4 @@
-%% 説明  plot_from_saved_result
+%% 説明
 % 2025/06 作成者：小関
 % Exp / Simデータをプロットすることができるファイル
 % 最初は全てのセクションを実行する．
@@ -54,14 +54,14 @@ ftitle = 0; % default=1 -> グラフタイトルあり
 settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%MECのものを持て来ているので適宜，変更が必要
-settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
-% settings.target = ["p", "input", "p1-p2"];
+% settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
+settings.target = ["p", "input", "inner_input","p1-p2-p3"];
+% settings.target = ["p", "input", "inner_input", "p1-p2-p3","controller.result.mL"]; %質量推定用
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
-settings.target = ["p", "controller.result.delta_input"];
-settings.target = ["p", "p1-p2"];
+% settings.target = ["p", "controller.result.delta_input"];
+% settings.target = ["p", "p1-p2"];
 % settings.target = "input2:4";
 % settings.target = "p1-p2";
 % "controller.result.nominal_input","controller.result.delta_input"
@@ -73,7 +73,7 @@ settings.target = ["p", "p1-p2"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
+settings.phase = "t";
 settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
@@ -195,7 +195,7 @@ for i=1:length(settings.target)
 
     fig = gcf;
     ax = gca;
-    
+
     chars = string(split(att, ""));
     chars(chars == "") = [];
     switch settings.target(i)
@@ -265,7 +265,13 @@ for i=1:length(settings.target)
                 set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
                 plegend = set_legend(settings.target(i), chars);
                 set(ax.Legend, 'String', plegend, 'Interpreter','latex');
-                data = logger.data(1,settings.target(i),"e","phase",settings.phase);
+                % data = logger.data(1,settings.target(i),"e","phase",settings.phase);
+                if att == ""
+                    data = logger.data(1,settings.target(i),"","phase",settings.phase);
+                else
+                    data = logger.data(1,settings.target(i),att,"phase",settings.phase);
+                end
+
                 y_min=0;
                 y_max=0;
                 for j=1:size(data,2)
@@ -342,7 +348,7 @@ disp_rmse(logger,settings.phase)
 % % % % data_name = "controller.result.delta_input";
 % % % % data_name = "controller.result.delta_input2:4";
 % % % data = logger.data(1,data_name,"", "phase",phase);
-% % % 
+% % %
 % % % Y = fft(data);
 % % % lenY = size(Y,2);
 % % % if logger.fExp==1
@@ -364,17 +370,17 @@ disp_rmse(logger,settings.phase)
 % % % hold on
 % % % for i=2:lenY, plot(f,P(:,i),LineWidth=LW); end
 % % % set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
-% % % 
+% % %
 % % % % plot(f,Y(:,1))
 % % % % hold on
 % % % % for i=2:size(Y,2)
 % % % %     plot(f,Y(:,i))
 % % % % end
 % % % % set(ax.YLabel, 'String', 'Fourier Transform', 'Interpreter','latex', 'FontSize',FS)
-% % % 
+% % %
 % % % % plot(f,10*log10(P.^2))
 % % % % set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
-% % % 
+% % %
 % % % if data_name == "estimator.result.state.p", legend('$x$', '$y$', '$z$', 'Interpreter','latex');
 % % % elseif data_name == "estimator.result.state.v", legend('$v_x$', '$v_y$', '$v_z$', 'Interpreter','latex');
 % % % elseif data_name == "estimator.result.state.q", legend('$\theta_{roll}$', '$\theta_{pitch}$', '$\theta_{yaw}$', 'Interpreter','latex');
@@ -414,7 +420,7 @@ disp_rmse(logger,settings.phase)
 %% Local functions
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
-text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n', 
+text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n',
 text{2} = ['   {', char(strjoin(attribute, "")), '}が使えます  '];%'You can use {', char(strjoin(attribute, "")), '}\n
 if length(attribute) == 4
     text{3} = ['例）', char(attribute(1)), ', ', [char(attribute(1)), char(attribute(2))], ...
@@ -433,7 +439,7 @@ fprintf([text{1:3}])
 while true
     att = string(input([text{4}], 's'));
     chars = string(split(att, ""));
-    chars(chars == "") = []; 
+    chars(chars == "") = [];
     if all(ismember(chars, attribute))
         break;
     else
@@ -517,37 +523,36 @@ end
 end
 
 
+% function disp_rmse(logger, phase)
+% target = ["p","v"];
+% for i=1:length(target)
+%     ref = logger.data(1,target(i),"r", "phase",phase);
+%     data = logger.data(1,target(i),"e", "phase",phase);
+%     RMSE = rmse(ref, data, 1);
+%     fprintf('%s RMSE:\n', target(i))
+%     disp(RMSE)
+%     disp(sum(RMSE))
+% end
+
+% end
+
+
 function disp_rmse(logger, phase)
-target = ["p","v"];
-for i=1:length(target)
-    ref = logger.data(1,target(i),"r", "phase",phase);
-    data = logger.data(1,target(i),"e", "phase",phase);
-    RMSE = rmse(ref, data, 1);
-    fprintf('%s RMSE:\n', target(i))
-    disp(RMSE)
-    disp(sum(RMSE))
+% estimator と reference の position を取得（Nx3）
+p_est = logger.data(1,"p","e","phase",phase);
+p_ref = logger.data(1,"p","r","phase",phase);
+% サイズチェック
+N = min(size(p_est,1), size(p_ref,1));
+p_est = p_est(1:N,:);
+p_ref = p_ref(1:N,:);
+diff = p_est - p_ref;
+RMSE_x = sqrt(mean(diff(:,1).^2));
+RMSE_y = sqrt(mean(diff(:,2).^2));
+RMSE_z = sqrt(mean(diff(:,3).^2));
+fprintf('\n===== Position RMSE (total time) =====\n');
+fprintf(' RMSE_x = %.6f [m]\n', RMSE_x);
+fprintf(' RMSE_y = %.6f [m]\n', RMSE_y);
+fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
+fprintf('=====================================\n\n');
 end
-end
-%% RMSE 
-ref_results  = logger.data(1,"p","r","phase",settings.phase);
-sens_results = logger.data(1,"p","s","phase",settings.phase);
-
-% ----- サイズチェック -----
-if size(p_ref,1) ~= size(p_sens,1)
-    error("reference と sensor のサンプル数が一致しません。");
-end
-
-% ===== RMSE 計算 =====
-diff_all = p_sens - p_ref;      % Nx3
-
-RMSE_x = sqrt(mean(diff_all(:,1).^2));
-RMSE_y = sqrt(mean(diff_all(:,2).^2));
-RMSE_z = sqrt(mean(diff_all(:,3).^2));
-
-% ===== 結果表示 =====
-fprintf("\n===== 総時間（フェーズ %d）の RMSE =====\n", settings.phase);
-fprintf(" RMSE_x  = %.6f [m]\n", RMSE_x);
-fprintf(" RMSE_y  = %.6f [m]\n", RMSE_y);
-fprintf(" RMSE_z  = %.6f [m]\n", RMSE_z);
-fprintf("===========================================\n\n");
 
