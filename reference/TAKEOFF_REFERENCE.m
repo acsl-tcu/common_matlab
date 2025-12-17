@@ -6,7 +6,7 @@ classdef TAKEOFF_REFERENCE < handle
     base_state
     ts
     te = 5; % 目標高度に到達するまでの時間
-    zd = 1.5; % goal altitude
+    zd = 1.2; % goal altitude
     result
     th_offset = [];
     th_offset0 = 200;
