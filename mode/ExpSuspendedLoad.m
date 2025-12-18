@@ -88,10 +88,12 @@ end
 y = [p;q;pL;pT];
 end
 
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,...
-    {"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
-agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",[0;0;1], "g",[0;0;1], "h",[1;1;1]), 10});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;1],"size",[0,0,0]},"HL"});
+% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
+% agent.reference.timevarying = MY_POINT_REFERENCE(agent,{struct("f",[1;1;0.4],"g",[0;1;0.4],"h",[-1;1;0.4],"j",[-1;0;0.4],"k",[-1;-1;0.4]),10});
+
+% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"p0",[0;0;0.5], "pf",[1;1;0.5], "T",10}, "HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[1;1;0.5],"size",[0,0,0]},"HL"});
+
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
 % agent.controller.hl = HLC(agent,Controller_HL(dt));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
@@ -104,7 +106,7 @@ agent.cha_allocation.f.reference = "timevarying";
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
-app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","t");
+app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
 
 app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
