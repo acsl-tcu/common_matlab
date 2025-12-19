@@ -55,8 +55,8 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
-settings.target = ["p", "input", "inner_input","p1-p2", "v"];
-% settings.target = ["p", "input", "inner_input", "p1-p2-p3","controller.result.mL"]; %質量推定用
+% settings.target = ["p","q", "input", "inner_input1:4","p1-p2", "v"];
+settings.target = ["p", "input", "inner_input", "p1-p2","controller.result.mL"]; %質量推定用
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
@@ -64,6 +64,7 @@ settings.target = ["p", "input", "inner_input","p1-p2", "v"];
 % settings.target = ["p", "v","p1-p2"];
 % settings.target = "input2:4";
 % settings.target = "p1-p2";
+% settings.target = "controller.result.xd";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
 % プロットしたいグラフの情報                                        %
@@ -73,7 +74,7 @@ settings.target = ["p", "input", "inner_input","p1-p2", "v"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
+settings.phase = "tf";
 settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
@@ -170,6 +171,11 @@ for i=1:length(settings.target)
             tmp = settings.attribute;
             fcolor = 0;
             att = select_attribute(settings.target(i), tmp);
+            case "controller.result.xd1:3"
+    ylabel = "Reference position $x_d$ [m]";
+    tmp = "";        % attribute は使わない
+    att = "";        % ← 重要
+
         otherwise
             if contains(settings.target(i), 'input') % "input"が入っていたら
                 if contains(settings.target(i), 'delta_input') % MEC用
@@ -243,6 +249,32 @@ for i=1:length(settings.target)
                 if y_max<max(data(:,j)), y_max=max(data(:,j)); end
             end
             ylim([y_min y_max])
+
+            case "controller.result.xd1:3"
+    set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+
+    % ===== xd を直接 logger.data ではなく cell から取得 =====
+    cr = logger.Data.agent(settings.agent_id).controller.result;
+    N  = numel(cr);
+
+    xd = zeros(N,3);
+    for k = 1:N
+        xd(k,:) = cr{k}.xd(1:3).';
+    end
+
+    t = logger.Data.t(1:N);
+
+    plot(ax, t, xd(:,1), ...
+             t, xd(:,2), ...
+             t, xd(:,3), ...
+             'LineWidth', settings.linewidth)
+
+    grid(ax,'on')
+    legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
+        'Interpreter','latex')
+
+    ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
+
         otherwise
             if contains(settings.target(i), '2:4') % target = "input2:4"用
                 set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
