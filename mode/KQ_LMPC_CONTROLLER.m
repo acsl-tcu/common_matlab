@@ -142,6 +142,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.result2input();
             obj.state.current = obj.klift(obj.current_state,obj.m,obj.n);
             obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
+            obj.param.tau = obj.param.tau + obj.param.dt;
             result= obj.controller_KMC(varargin);
             disp('controller: KqlMpC,  phase: ');
             disp(phase);
@@ -239,15 +240,22 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
             if obj.m >= 2
                 idx_p2 = 4;
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) * 1;
+
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.5;
+            end
+            if obj.m >= 3
+                idx_p2 = 7;
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.0;
             end
             base_y = 3 * obj.m + 1;
             if obj.m >= 1
                 w_vec(base_y : base_y+2) = diag(obj.weight.V);
+                  w_vec(base_y+3 : base_y+5) = diag(obj.weight.V)*0.2;
+                   w_vec(base_y+6 : base_y+8) = diag(obj.weight.V)*0.0;
             end
             base_h = 6 * obj.m + 1;
             end_h = base_h + 3 * obj.m - 1;
-            w_vec(base_h : end_h) = 0.000;
+            w_vec(base_h : end_h) = 1;
             base_z = 9 * obj.m + 1;
             for k = 1 : obj.n
                 curr_idx = base_z + (k-1) * 9;
@@ -261,7 +269,9 @@ classdef KQ_LMPC_CONTROLLER< handle
                 end
             end
             Q_stage = diag(w_vec);
-            Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_stage);
+           % try, Q_terminal = dare(A_d*0.995, B_d, Q_stage, obj.weight.input); catch, Q_terminal = Q_stage * 2; end
+           Q_terminal = 1*Q_stage;
+            Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
             R_bar  = kron(eye(obj.H), obj.weight.input);
             RP_bar = kron(eye(obj.H), obj.weight.preinputdif);
             Up = repmat(obj.input.pre_u, obj.H, 1);
@@ -282,7 +292,13 @@ classdef KQ_LMPC_CONTROLLER< handle
                 disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
             end
 
-            obj.result.input =var(1:4, 1); % 算出された入力
+            obj.result.input =var(1:4, 1); % 算出された入力        
+            if ~isfield(obj.result, 'd_est'), obj.result.d_est = zeros(4,1); obj.result.x_last = obj.state.current; end        
+            pred_error = obj.state.current - (A_d * obj.result.x_last + B_d * obj.input.pre_u);
+            obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
+            obj.result.input = obj.result.input - obj.result.d_est;
+            obj.result.x_last = obj.state.current;
+            obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
             obj.result.eflag = eflag;
             obj.result.var = var;
             obj.result.Bestcost_pre = obj.result.bestcost;
@@ -525,8 +541,11 @@ classdef KQ_LMPC_CONTROLLER< handle
             xr = zeros(obj.param.total_size, obj.H);
             RefTime = obj.self.reference.time_var.func;
             g = 9.81;
+            if ~isfield(obj.param, 'tau') || isempty(obj.param.tau)
+                obj.param.tau = 0;  % reference 的“自身时间”
+            end
             for h = 0:obj.H-1
-                t = obj.param.t + obj.param.dt * (h+1);
+                t = obj.param.tau + obj.param.dt * (h);
                 ref = RefTime(t);
                 acc = ref(9:11);
                 vel = ref(5:7);

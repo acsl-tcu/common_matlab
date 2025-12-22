@@ -23,7 +23,7 @@ function Controller = Controller_KQ_LMPC(dt, agent)
     Controller.input.Maxsigma = [1;1e-3;1e-3;1e-3];
     Controller.input.Minsigma = [0.01;1e-5;1e-5;1e-5];
     Controller.input.u = [Controller.m * 9.81;0;0;0]; % 総推力，トルク
-    torque_th = 1; thrust_th = 1.5;
+    torque_th = 0.5; thrust_th = 1.5;
     Controller.input_max = [Controller.m * 9.81 + thrust_th; torque_th; torque_th; torque_th];
     Controller.input_min = [Controller.m * 9.81 - thrust_th;-torque_th;-torque_th;-torque_th];
     Controller.ref_input = Controller.input.u; %入力の目標値ー初設定
@@ -38,12 +38,13 @@ function Controller = Controller_KQ_LMPC(dt, agent)
     % [Controller.F, Controller.code] = select_observable(model_file);
    
     %% sim用　重み
-    Controller.weight.P = diag([500;500;500]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = diag([300;300;300]);    % 姿勢角15良い気がする
-    Controller.weight.V = diag([500;500;500]);% 速度  10,20刻み  30;20;10
-    Controller.weight.W = diag([200;200;200]);  %角速度　1,2刻み 
-    Controller.weight.R = 0.01*diag([10; 100; 100; 100]); % 入力
-    Controller.weight.RP =0*diag([0.1; 0.1; 0.1; 0.1]);  % 1ステップ前の入力との差    0*(無効化)
+
+    Controller.weight.P = 0.5*diag([1000;1000;1000]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 0.1*diag([300;300;300]);    % 姿勢角15良い気がする
+    Controller.weight.V = 1*diag([500;500;500]);% 速度  10,20刻み  30;20;10
+    Controller.weight.W = 0.1*diag([200;200;200]);  %角速度　1,2刻み 
+    Controller.weight.R = 1*diag([0.1; 0.01; 0.01; 0.01]); % 入力
+    Controller.weight.RP =1*diag([1; 0.01; 0.01; 0.01]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験用　重み
     % Controller.weight.P = 1.3*diag([300;300;500]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10

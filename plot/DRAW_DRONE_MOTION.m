@@ -250,6 +250,10 @@ classdef DRAW_DRONE_MOTION
          line_ref(n) = animatedline(ax, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5); % 目標軌道の描画点の制限
          line_est(n) = animatedline(ax, 'Color', 'b', 'LineStyle', '-', 'LineWidth', 2.0);
         end
+        if ~isempty(line_ref) && ~isempty(line_est)
+            legend(ax, [line_ref(1), line_est(1)], {'Reference', 'Estimator'}, ...
+                'Location', 'northeast', 'AutoUpdate', 'off');
+        end
       end
       for i = 1:length(t)-1
         if isfield(param,'Motive_ref')
