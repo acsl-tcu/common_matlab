@@ -33,8 +33,8 @@ agent.controller.result.input = [0;0;0;0];
 run("ExpBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
-% agent.cha_allocation.f.controller = ["hlc"];
 agent.cha_allocation.f.controller = ["kqlmpc"];
+% agent.cha_allocation.f.controller = ["kqlmpc","hlc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
@@ -44,6 +44,8 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
  app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
+  % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
+
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
    % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
 end
