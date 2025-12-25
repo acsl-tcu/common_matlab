@@ -31,7 +31,7 @@ properties
     % パラメータ（変換用）
     % -------------------------
     % th_offset = 0                    % スロットルオフセット
-    gain = [270;270;270;25]          % [roll,pitch,yaw,thrust]
+    gain = [250;250;250;25]          % [roll,pitch,yaw,thrust]
     th_offset = 335                %現在使用スロットルオフセット
     % gain = [400;400;400;40]　　　　 %現在使用ゲイン
     % -------------------------
@@ -353,7 +353,7 @@ methods
                     % ---- 5. 改善したら best_score 更新 ----
                     if obj.smooth_score < obj.best_score
                        obj.best_score = obj.smooth_score;
-                       obj.best_param.th_offset = obj.param.th_offset;
+                       obj.best_param.th_offset = obj.th_offset;
                        obj.last_improve_time = tnow; % 最後に改善した時刻
                     end
                     obj.last_score=score;
@@ -361,9 +361,9 @@ methods
                     % 改善が一定時間途絶えたら終了
                     height=pos(3);        %高度取得
                     threshold_height=0.2; %一定高度まで評価しない
-                        if height>threshold_height && obj.param.th_offset >= obj.offset_max %|| abs(score - obj.best_score) < obj.offset_lock_threshold)
+                        if height>threshold_height && obj.th_offset >= obj.offset_max %|| abs(score - obj.best_score) < obj.offset_lock_threshold)
                             obj.offset_fixed = true;
-                            obj.param.th_offset = obj.best_param.th_offset;
+                            obj.th_offset = obj.best_param.th_offset;
                             obj.mode = 0; % finish tuning
                         end
                 end
@@ -403,33 +403,45 @@ methods
                                 switch obj.axis_idx
                                     % ---------- Phase 1 : Roll + Pitch ----------
                                     case 1
-                                        idx = [1 2];
-                        
-                                        for i = idx
-                                            step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-                                            trial(i) = trial(i) + step;
-                                        end
-                        
+                                            step_r = min(obj.gain_step(1), obj.gain_max(1) - trial(1));
+                                            step_p = min(obj.gain_step(2), obj.gain_max(2) - trial(2));
+                                            if step_r< 1e-12 && step_p< 1e-12
+                                                obj.axis_idx=2;
+                                                return;
+                                            end
+                                            if step_r > 1e-12, trial(1)=trial(1)+step_r;end
+                                            if step_p > 1e-12, trial(2)=trial(2)+step_r;end
+                                            i=1;
                                     % ---------- Phase 2 : Yaw ----------
                                     case 2
                                         i = 3;
                                         step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                        if step < 1e-12
+                                            obj.axis_idx=3;
+                                            return;
+                                        end
                                         trial(i) = trial(i) + step;
-                        
                                     % ---------- Phase 3 : Throttle ----------
                                     case 3
                                         i = 4;
                                         step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                        if step < 1e-12
+                                            obj.axis_idx=1;
+                                            return;
+                                        end
                                         trial(i) = trial(i) + step;
+                                    otherwise
+                                        obj.axis_idx=1;
+                                        return;
                                 end
-                        % もう上げられない軸はスキップ
-                        if step < 1e-12
-                            obj.axis_idx = obj.axis_idx + 1;
-                            if obj.axis_idx > 4, obj.axis_idx = 1; end
-                            return;
-                        end
+                        % % もう上げられない軸はスキップ
+                        % if step < 1e-12
+                        %     obj.axis_idx = obj.axis_idx + 1;
+                        %     if obj.axis_idx > 4, obj.axis_idx = 1; end
+                        %     return;
+                        % end
 
-                        trial(i) = trial(i) + step;
+                        % trial(i) = trial(i) + step;
 
                         obj.gain = trial;% 試験ゲイン適用
                         obj.waiting = true;% 評価待ち状態へ
@@ -475,15 +487,20 @@ methods
                             obj.no_improve_count = 0;
                         else
                             % 改善なし → 元に戻す
+                            if obj.axis_idx==1
+                                obj.gain(1)=max(0,obj.gain(1)-obj.gain_step(1));
+                                obj.gain(2)=max(0,obj.gain(2)-obj.gain_step(2));
                             % obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
+                            else
                             obj.gain(i) = obj.best_param.gain(i);
+                            end
                             % 改善が無かった回数増加
                             obj.no_improve_count = obj.no_improve_count + 1;
                         end
                         % 次の軸へ
                         obj.waiting = false;
                         obj.axis_idx = obj.axis_idx + 1;
-                        if obj.axis_idx > 4, obj.axis_idx = 1; end
+                        if obj.axis_idx > 3, obj.axis_idx = 1; end
                         % ---- (4) 改善が一定回数なければ終了 ----
                         if obj.no_improve_count >= 16   % 4軸 × 4サイクル = 16回で収束判定
                             obj.mode = 0;  % tuning 完了
