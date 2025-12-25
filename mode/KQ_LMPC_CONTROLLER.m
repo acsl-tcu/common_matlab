@@ -222,6 +222,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             % A_d = sys_d.A;
             % B_d = sys_d.B;
             [A_d, B_d] = KQ_LMPC_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
+            obj.koopman_analysis(A_d, B_d);
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
                % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
@@ -635,6 +636,119 @@ classdef KQ_LMPC_CONTROLLER< handle
             ExA = Am;
             ExB = S;
 
+        end
+        function koopman_analysis(obj,A, B)
+            [n, ~] = size(A);
+            [~, m] = size(B);
+
+            fprintf('========== Koopman系統解析 ==========\n');
+            fprintf('状態次元: %d, 入力次元: %d\n\n', n, m);
+
+            %% 安定性解析
+            fprintf('--- 安定性解析 ---\n');
+            eig_vals = eig(A);
+            max_eig = max(abs(eig_vals));
+
+            fprintf('固有値:\n');
+            for i = 1:length(eig_vals)
+                fprintf('  λ%d = %.4f%+.4fi (|λ| = %.4f)\n', ...
+                    i, real(eig_vals(i)), imag(eig_vals(i)), abs(eig_vals(i)));
+            end
+
+            fprintf('最大固有値の絶対値: %.4f\n', max_eig);
+            if max_eig < 1
+                fprintf('判定: ✓ 安定 (単位円内)\n');
+            elseif max_eig == 1
+                fprintf('判定: ⚠ 臨界安定\n');
+            else
+                fprintf('判定: ✗ 不安定\n');
+            end
+            fprintf('安定余裕: %.4f\n\n', 1 - max_eig);
+
+            %% 可制御性解析
+            fprintf('--- 可制御性解析 ---\n');
+            C = B;
+            for i = 1:n-1
+                C = [C, A^i * B];
+            end
+            rank_C = rank(C);
+            ctrl_rate = (rank_C / n) * 100;
+
+            fprintf('可制御性行列のランク: %d/%d\n', rank_C, n);
+            if rank_C == n
+                fprintf('判定: ✓ 完全可制御\n');
+            else
+                fprintf('判定: ✗ 不完全可制御\n');
+                fprintf('不可制御部分空間: %d次元\n', n - rank_C);
+            end
+            fprintf('可制御度: %.1f%%\n\n', ctrl_rate);
+
+            %% データ影響解析
+            fprintf('--- データ影響解析 ---\n');
+
+            % A行列要素の影響
+            fprintf('【A行列】重要要素トップ5:\n');
+            A_inf = abs(A) / (sum(abs(A(:))) + eps);
+            [~, idx] = sort(A_inf(:), 'descend');
+            for i = 1:min(5, length(idx))
+                [r, c] = ind2sub(size(A), idx(i));
+                fprintf('  A(%d,%d)=%.4f, 影響率: %.2f%%\n', ...
+                    r, c, A(r,c), A_inf(r,c)*100);
+            end
+
+            % B行列要素の影響
+            fprintf('【B行列】重要要素トップ5:\n');
+            B_inf = abs(B) / (sum(abs(B(:))) + eps);
+            [~, idx_B] = sort(B_inf(:), 'descend');
+            for i = 1:min(5, length(idx_B))
+                [r, c] = ind2sub(size(B), idx_B(i));
+                fprintf('  B(%d,%d)=%.4f, 影響率: %.2f%%\n', ...
+                    r, c, B(r,c), B_inf(r,c)*100);
+            end
+
+            % 状態結合強度
+            fprintf('【状態結合】各状態への影響:\n');
+            coupling = sum(abs(A), 2);
+            [~, s_idx] = sort(coupling, 'descend');
+            for i = 1:n
+                si = s_idx(i);
+                fprintf('  x%d: 結合強度=%.4f, 影響率: %.2f%%\n', ...
+                    si, coupling(si), (coupling(si)/sum(coupling))*100);
+            end
+
+            % 入力チャネル影響
+            fprintf('【入力チャネル】システムへの影響:\n');
+            inp_inf = sum(abs(B), 1);
+            [~, i_idx] = sort(inp_inf, 'descend');
+            for i = 1:m
+                ii = i_idx(i);
+                fprintf('  u%d: 影響強度=%.4f, 影響率: %.2f%%\n', ...
+                    ii, inp_inf(ii), (inp_inf(ii)/sum(inp_inf))*100);
+            end
+
+            %% 総合評価
+            fprintf('\n--- 総合評価 ---\n');
+            fprintf('安定性: %s\n', obj.iif(max_eig<1, '✓ 安定', '✗ 不安定'));
+            fprintf('可制御性: %s\n', obj.iif(rank_C==n, '✓ 完全可制御', sprintf('✗ 部分可制御(%.1f%%)', ctrl_rate)));
+            fprintf('システム状態: ');
+            if max_eig<1 && rank_C==n
+                fprintf('良好 - 安定かつ完全可制御\n');
+            elseif max_eig<1
+                fprintf('中 - 安定だが不可制御モード有\n');
+            elseif rank_C==n
+                fprintf('中 - 不安定だが完全可制御\n');
+            else
+                fprintf('不良 - 不安定かつ不可制御モード有\n');
+            end
+            fprintf('=====================================\n');
+        end
+
+        function out = iif(obj,cond, true_val, false_val)
+            if cond
+                out = true_val;
+            else
+                out = false_val;
+            end
         end
     end
 end
