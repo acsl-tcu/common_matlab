@@ -1,12 +1,27 @@
-
+%% Initialize settings
 % データをloggerに読み込むため，このセクションを実行
 % Run this section to import the data into logger.
-clc; clear; close all;
+% % % set path
+% % clear all
+% % cf = pwd;
+% % 
+% % if contains(mfilename('fullpath'), "mainGUI")
+% %     cd(fileparts(mfilename('fullpath')));
+% % else
+% %     tmp = matlab.desktop.editor.getActive;
+% %     cd(fileparts(tmp.Filename));
+% % end
+% % 
+% % [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+% % cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+% % close all hidden; clear; clc;
+% % userpath('clear');
 
+clc; clear; close all;
 plt.filepathes = {... % TODO: ファイルのパスを記述
-    "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_SokenExp_lergeP2P_lergeO_lerge8\HLLQR_P2PLerge_leftback_Log(11-Dec-2025_12_23_01).mat";
-    "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_SokenExp_lergeP2P_lergeO_lerge8\NN24MEC_P2PLerge_leftback_Log(11-Dec-2025_12_29_24).mat";
-    "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_SokenExp_lergeP2P_lergeO_lerge8\NN21MEC_P2PLerge_leftback_Log(11-Dec-2025_12_26_36).mat"
+    "C:\Users\student\Documents\GitHub\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\HLLQR_lemniscate_Log(11-Dec-2025_18_42_48).mat";
+    "C:\Users\student\Documents\GitHub\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\NN21MEC_lemniscate_Log(11-Dec-2025_18_44_08).mat";
+
     };
 
 
@@ -15,56 +30,48 @@ plt.logger = cell(length(plt.filepathes),1);
 for i = 1:length(plt.logger)
     plt.logger{i} = LOGGER(plt.filepathes{i}); % LOGGERクラスとしてcell配列で登録
 end
+plt.Num = length(plt.logger);
 disp('Finish loading the data.')
-
+% plotGUI
 
 %% Run this section to plot
 %  プロットするために このセクションを実行
-
 clearvars -except plt
+
 % [TODO list]
-% plot_setttings.mを作る
 % 開始時刻、終了時刻を設定して、Exp, Simどちらでも対応できるようにする
-% 
+% GUI上でplt.settings, plt.saveを変更できるようにする
+
+plt.save.savefolder = "plot\fig";
+plt.save.savename   = "dummy";
+plt.save.style      = "pdf"; % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
+plt.save.fsave      = false;
 
 
-% --------------------- プロット設定 ---------------------
-lgd1 = 'HL-LQR';    % File 1の凡例名
-lgd2 = 'HL-LQR + NN-MEC';    % File 2の凡例名
-lgd_pos = 1;                 % 凡例を表示するグラフ番号 (1, 2, or 3)
-fref = false;                 % リファレンスをプロットするかのフラグ (true/false)
-att = "w";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
-ylabel1 = '$\Omega_{roll}$ [rad/s]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
-ylabel2 = '$\Omega_{pitch}$ [rad/s]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
-ylabel3 = '$\Omega_{yaw}$ [rad/s]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
+phase = "f";
+lgd = {...
+    "HL-LQR";
+    "NN-MEC"
+    };
+FS = 18;
+LW = 1.5;
+Time_Range = [0,10];
+plt.settings = plot_settings("phase",phase, "FontSize",FS, "LineWidth",LW, "TimeRange",Time_Range, "LegendName",lgd);
+plt.settings.lgd_pos = 1; % 凡例を表示するグラフ番号 (1, 2, 3 or 4)
+plt.settings.fcolor = false;
+plt.settings.alpha = 0.7;
 
-att = "q";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
-ylabel1 = '$\phi$ [rad]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
-ylabel2 = '$\theta$ [rad]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
-ylabel3 = '$\psi$ [rad]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
 
-% att = "p";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
-% ylabel1 = '$x$ [m]'; % 1軸目 (p1/v1/q1...) のY軸ラベル
-% ylabel2 = '$y$ [m]'; % 2軸目 (p2/v2/q2...) のY軸ラベル
-% ylabel3 = '$z$ [m]'; % 3軸目 (p3/v3/q3...) のY軸ラベル
-fp1_p2 = false;
-% --------------------- グラフ出力設定 ---------------------
-foutput = true;             % グラフ出力の有無 (true/false)
-file_style = "pdf";          % 出力ファイル形式 ("jpg", "png", "pdf", "eps")
-folder_path = "plot/fig/IFAC/exp"; 
-file_name = "P2P_1_1_1.5_angle";% 出力ファイル名 (拡張子なし)
-% ------------------------------------------------------------------
+plt.labelmap = plot_label_mapping;
 
-LW_ref = LW - 0.5; % リファレンスのライン幅
-
+% ===== データの取り出し =====
+plt.data.time = cell(plt.Num,1);
+for i = 1:plt.Num
+    plt.data.time{i} = plt.logger{i}.data(0, "t", "", "phase", plt.settings.phase);
+    plt.data.time{i} = plt.data.time{i} - plt.data.time{i}(1); % 開始時刻を0にする
+end
 
 % ===== 2. ファイル名と時間範囲の指定 =====
-% ログの抽出設定
-phase = "f"; % 対象フェーズ: "f" (Flight phase)
-t_start = 0; % 抽出したい時間範囲の開始時間 [s]
-t_end = 31;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
-xrange = [t_start t_end];
-
 % ロギング間隔とインデックス計算 (dt=0.025を想定)
 log_dt = 0.025; 
 idx_start = t_start * (1/log_dt) + 1;
