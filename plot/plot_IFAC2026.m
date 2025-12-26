@@ -25,8 +25,11 @@ file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_d
 % file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.02_For_IFAC_Exp_again\Lemniscate_NNMEC_R=0.1_Log(02-Dec-2025_18_09_45).mat";
 % % % ↑Exp lemniscate R=0.1
 
-% file1_name = 
-% file2_name = 
+% file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_SokenExp_lergeP2P_lergeO_lerge8\HLLQR_P2PLerge_leftback_Log(11-Dec-2025_12_23_01).mat"
+% file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_SokenExp_lergeP2P_lergeO_lerge8\NN21MEC_P2PLerge_leftback_Log(11-Dec-2025_12_26_36).mat"
+
+file1_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_405Exp_various_trajectories\HLLQR_heart_T=10_Log(11-Dec-2025_19_04_48).mat"
+file2_name = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.12.11_405Exp_various_trajectories\NN21MEC_heart_T=10_Log(11-Dec-2025_19_06_35).mat"
 logger1 = LOGGER(file1_name);
 logger2 = LOGGER(file2_name);
 
@@ -34,11 +37,12 @@ logger2 = LOGGER(file2_name);
 %% ===== 1. グローバル・プロットオプションの定義 =====
 clearvars -except logger1 logger2 file1_name file2_name
 FS = 16;  % Font Size (フォントサイズ)
-LW = 1.5; % Line Width (ライン幅)
+LW = 2; % Line Width (ライン幅)
 
 % --------------------- プロット設定 ---------------------
 lgd1 = 'HL-LQR';    % File 1の凡例名
 lgd2 = 'HL-LQR + NN-MEC';    % File 2の凡例名
+alpha = 0.7;
 lgd_pos = 1;                 % 凡例を表示するグラフ番号 (1, 2, or 3)
 fref = true;                 % リファレンスをプロットするかのフラグ (true/false)
 att = "w";                   % プロットする変数名 ("p", "v", "q", "w", "input"など)
@@ -70,7 +74,8 @@ LW_ref = LW - 0.5; % リファレンスのライン幅
 % ログの抽出設定
 phase = "f"; % 対象フェーズ: "f" (Flight phase)
 t_start = 0; % 抽出したい時間範囲の開始時間 [s]
-t_end = 31;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安
+t_end = 110;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安 P2PLarge=100, lemniscate=35（総研）
+t_end = 35;  % 抽出したい時間範囲の終了時間 [s] ←Simの時のみ有効, Expの時は大体の目安 P2P=30, lemniscate=45, Star=50, Heart=50（405実験室）
 xrange = [t_start t_end];
 
 % ロギング間隔とインデックス計算 (dt=0.025を想定)
@@ -140,13 +145,14 @@ if N_1 > 0 && N_2 > 0 && fref
     RMSE2_p3 = rmse(est2_data{3}, ref_data_2{3});
     
     % 結果の表示
+    calc_percent = @(data1, data2) (data1-data2)/data2*100;
     disp(' ');
     disp('--- RMSE Results (Estimator vs Reference) ---');
-    fprintf('%-15s | %-10s | %-10s | %-10s\n', 'Variable', [lgd1 ' RMSE'], [lgd2 ' RMSE'], 'Unit');
+    fprintf('%-15s | %-10s | %-10s | %-10s\n', 'Variable', [lgd1 ' RMSE'], [lgd2 ' RMSE'], 'Improvement [%]');
     fprintf('---------------------------------------------------\n');
-    fprintf('%-15s | %10.4f | %10.4f | %-10s\n', strcat(variable_base, '1'), RMSE1_p1, RMSE2_p1, '[Unit]');
-    fprintf('%-15s | %10.4f | %10.4f | %-10s\n', strcat(variable_base, '2'), RMSE1_p2, RMSE2_p2, '[Unit]');
-    fprintf('%-15s | %10.4f | %10.4f | %-10s\n', strcat(variable_base, '3'), RMSE1_p3, RMSE2_p3, '[Unit]');
+    fprintf('%-15s | %10.4f | %10.4f | %10.2f\n', strcat(variable_base, '1'), RMSE1_p1, RMSE2_p1, calc_percent(RMSE1_p1,RMSE2_p1));
+    fprintf('%-15s | %10.4f | %10.4f | %10.2f\n', strcat(variable_base, '2'), RMSE1_p2, RMSE2_p2, calc_percent(RMSE1_p2,RMSE2_p2));
+    fprintf('%-15s | %10.4f | %10.4f | %10.2f\n', strcat(variable_base, '3'), RMSE1_p3, RMSE2_p3, calc_percent(RMSE1_p3,RMSE2_p3));
     disp('---------------------------------------------------');
 else
     disp('Error: No data extracted in the specified range.');
@@ -175,14 +181,15 @@ for i = 1:3
     end
     
     % Estimator 1 プロット (File 1)
-    plot(t_1, current_est1, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'b'); % 青色
+    u1 = plot(t_1, current_est1, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'b'); % 青色
     plegend = [plegend, {lgd1}];
     
     % Estimator 2 プロット (File 2)
-    plot(t_2, current_est2, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
+    u2 = plot(t_2, current_est2, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
     plegend = [plegend, {lgd2}];
 
     hold off;
+    u2.Color = [u2.Color(1:3), alpha];
     
     % ラベル設定
     ylabel(current_ylabel, 'Interpreter','latex', 'FontSize', FS);
@@ -197,7 +204,7 @@ for i = 1:3
 
     % 凡例は指定されたグラフ番号のみ表示
     if i == lgd_pos
-        legend(plegend, 'FontSize', FS-4, 'Location', 'best');
+        legend(plegend, 'FontSize', FS-4, 'Location', 'northwest');
     end
 
     % XLabelは一番下のグラフのみ表示
@@ -254,24 +261,29 @@ if fp1_p2
     
     % --- リファレンス軌跡プロット (fref=trueの場合) ---
     if fref
-        % plot(1, 1, ...
+        % plot([0,1,1.5,2,2.5,3,3.5,4], [0,1,1.5,2,2.5,3,3.5,4], ...
         %     'o', ...                   % マーカーの種類を円 ('o') に指定
-        %     'MarkerSize', 10, ...      % マーカーのサイズを指定（任意）
-        %     'MarkerEdgeColor', 'k', ...% マーカーの枠線の色を青 ('b') に指定
-        %     'MarkerFaceColor', 'k');   % マーカーの内部を赤 ('r') で塗りつぶし
+        %     'MarkerSize', 4, ...      % マーカーのサイズを指定（任意）
+        %     'MarkerEdgeColor', 'k', ...% マーカーの枠線の色を黒 ('k') に指定
+        %     'MarkerFaceColor', 'k');   % マーカーの内部を黒 ('k') で塗りつぶし
+        % plot([0,1,1.5,2,2.5,3,3.5,4], [0,1,1.5,2,2.5,3,3.5,4], ...
+        %     'o', ...                   % マーカーの種類を円 ('o') に指定
+        %     'MarkerSize', 7.5, ...      % マーカーのサイズを指定（任意）
+        %     'MarkerEdgeColor', 'k');    % マーカーの枠線の色を黒 ('k') に指定
         plot(ref_data_1{1}, ref_data_1{2}, 'LineWidth', LW_ref, 'LineStyle', '--', 'Color', 'k'); % 黒色
         plegend = [plegend, {'Reference'}];
     end
     
     % --- Estimator 1 軌跡プロット (File 1) ---
-    plot(est1_data{1}, est1_data{2}, 'LineWidth', LW-0.5, 'LineStyle', '-', 'Color', 'b'); % 青色
+    u1 = plot(est1_data{1}, est1_data{2}, 'LineWidth', LW-0.5, 'LineStyle', '-', 'Color', 'b'); % 青色
     plegend = [plegend, {lgd1}];
     
     % --- Estimator 2 軌跡プロット (File 2) ---
-    plot(est2_data{1}, est2_data{2}, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
+    u2 = plot(est2_data{1}, est2_data{2}, 'LineWidth', LW, 'LineStyle', '-', 'Color', 'r'); % 赤色
     plegend = [plegend, {lgd2}];
     
     hold off;
+    u2.Color = [u2.Color(1:3), alpha];
     
     % ラベル設定
     % title('X-Y Trajectory (p_1 vs p_2)','FontSize', FS);
@@ -322,10 +334,10 @@ input_ylabel = {'$T$ [N]', '$ \tau_{roll}$ [Nm]', '$\tau_{pitch}$ [Nm]', '$\tau_
 figure(3)
 clf;
 LW_input = LW-0.5;
-for i = 2:4
+for i = 1:3
     plegend = {};
 
-    subplot(3,1,i-1)
+    subplot(3,1,i)
     u1 = plot(t_1, ua1_data{i}, 'LineWidth', LW_input, 'LineStyle', '-', 'Color', 'b');
     plegend = [plegend, {lgd1}];
     hold on;
@@ -334,7 +346,7 @@ for i = 2:4
     plegend = [plegend, {lgd2}];
 
     hold off;
-    u2.Color = [u2.Color(1:3), 0.5];
+    u2.Color = [u2.Color(1:3), alpha];
 
     % ラベル設定
     ylabel(input_ylabel{i}, 'Interpreter','latex', 'FontSize', FS);
@@ -347,7 +359,7 @@ for i = 2:4
     xlim([ini last]);
 
     % 凡例は指定されたグラフ番号のみ表示
-    if i == 2
+    if i == 1
         legend(plegend, 'FontSize', FS-4, 'Location', 'best');
     end
 
