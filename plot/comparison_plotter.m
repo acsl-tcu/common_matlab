@@ -23,6 +23,10 @@ plt.filepathes = {... % TODO: ファイルのパスを記述
     "C:\Users\student\Documents\GitHub\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\NN21MEC_lemniscate_Log(11-Dec-2025_18_44_08).mat";
 
     };
+plt.filepathes = {... % TODO: ファイルのパスを記述
+    "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_HLLQR_R=0.05_Log(30-Nov-2025_21_24_44).mat";
+    "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_NNMEC_R=0.05_Log(30-Nov-2025_21_31_32).mat"
+    };
 
 
 [~, plt.filenames, exts] = cellfun(@fileparts, plt.filepathes, 'UniformOutput', false); % ファイル名の自動取得
@@ -40,7 +44,7 @@ clearvars -except plt
 
 % [TODO list]
 % 開始時刻、終了時刻を設定して、Exp, Simどちらでも対応できるようにする
-% GUI上でplt.settings, plt.saveを変更できるようにする
+% GUI上でplt.settings, plt.saveを変更できるようにする & どんなFigをoutputしたいか？subplot or plot
 
 plt.save.savefolder = "plot\fig";
 plt.save.savename   = "dummy";
@@ -55,74 +59,36 @@ lgd = {...
     };
 FS = 18;
 LW = 1.5;
-Time_Range = [0,10];
+Time_Range = [0,1000]; % 指定した最初のフェーズを0秒としている
 plt.settings = plot_settings("phase",phase, "FontSize",FS, "LineWidth",LW, "TimeRange",Time_Range, "LegendName",lgd);
 plt.settings.lgd_pos = 1; % 凡例を表示するグラフ番号 (1, 2, 3 or 4)
 plt.settings.fcolor = false;
 plt.settings.alpha = 0.7;
 
 
-plt.labelmap = plot_label_mapping;
+plt.labelmap = subplot_label_mapping;
+% plt.labelmap = oneplot_label_mapping;
 
-% ===== データの取り出し =====
+% ===== 時間データの取り出し =====
+plt.data.all_time = cell(plt.Num,1);
 plt.data.time = cell(plt.Num,1);
-for i = 1:plt.Num
-    plt.data.time{i} = plt.logger{i}.data(0, "t", "", "phase", plt.settings.phase);
-    plt.data.time{i} = plt.data.time{i} - plt.data.time{i}(1); % 開始時刻を0にする
+plt.data.idx = cell(plt.Num, 1);
+for i = 1:plt.Num % 時間＆idxの取り出し
+    tmp = plt.logger{i}.data(0, "t", "", "phase", plt.settings.phase);
+    plt.data.all_time{i} = tmp - tmp(1); % 開始時刻を0にする
+    start_idx   = find(plt.data.all_time{i} >= plt.settings.range(1), 1, 'first');
+    end_idx     = find(plt.data.all_time{i} <= plt.settings.range(2), 1, 'last');
+    plt.data.time{i} = plt.data.all_time{i}(start_idx:end_idx);
+    if isempty(plt.data.time{i}), error('時間設定幅 [%s]が大きすぎます\n使用可能範囲: [%.4f, %.4f]',num2str(plt.settings.range), plt.data.all_time{i}(1), plt.data.all_time{i}(end)); end
+    plt.data.idx{i} = [start_idx, end_idx];
+    if plt.data.time{i}(end) == plt.data.all_time{i}(end), warning('時間設定幅 [%s]が大きすぎます\n使用可能範囲: [%.4f, %.4f]',num2str(plt.settings.range), plt.data.all_time{i}(1), plt.data.all_time{i}(end)); end
 end
 
-% ===== 2. ファイル名と時間範囲の指定 =====
-% ロギング間隔とインデックス計算 (dt=0.025を想定)
-log_dt = 0.025; 
-idx_start = t_start * (1/log_dt) + 1;
-idx_end = t_end * (1/log_dt) + 1;
 
-% プロット対象の変数を動的に設定
-variable_base = att;
-var1_str = strcat(variable_base, "1");
-var2_str = strcat(variable_base, "2");
-var3_str = strcat(variable_base, "3");
+% ===== targetデータの取り出し =====
+plt.data = extract_data(plt);
 
-% ===== 3. データロードと抽出 =====
 
-% 共通の時間軸データを抽出
-t_all_1 = logger1.data(0, "t", "", "phase", phase);
-t_all_2 = logger2.data(0, "t", "", "phase", phase);
-t_1 = t_all_1(idx_start : idx_end) - t_all_1(1);
-t_2 = t_all_2(idx_start : idx_end) - t_all_2(1);
-
-% データ抽出ヘルパー関数
-extract_data = @(logger, var, att_type) logger.data(1, var, att_type, "phase", phase);
-
-% --- データ抽出 (Reference/Estimator 1/Estimator 2) ---
-if fref
-    ref_p1_all_1 = extract_data(logger1, var1_str, "r");
-    ref_p2_all_1 = extract_data(logger1, var2_str, "r");
-    ref_p3_all_1 = extract_data(logger1, var3_str, "r");
-    ref_data_1 = {ref_p1_all_1(idx_start : idx_end), ref_p2_all_1(idx_start : idx_end), ref_p3_all_1(idx_start : idx_end)};
-
-    ref_p1_all_2 = extract_data(logger2, var1_str, "r");
-    ref_p2_all_2 = extract_data(logger2, var2_str, "r");
-    ref_p3_all_2 = extract_data(logger2, var3_str, "r");
-    ref_data_2 = {ref_p1_all_2(idx_start : idx_end), ref_p2_all_2(idx_start : idx_end), ref_p3_all_2(idx_start : idx_end)};
-end
-
-est1_p1_all = extract_data(logger1, var1_str, "e");
-est1_p2_all = extract_data(logger1, var2_str, "e");
-est1_p3_all = extract_data(logger1, var3_str, "e");
-est1_data = {est1_p1_all(idx_start : idx_end), est1_p2_all(idx_start : idx_end), est1_p3_all(idx_start : idx_end)};
-
-est2_p1_all = extract_data(logger2, var1_str, "e");
-est2_p2_all = extract_data(logger2, var2_str, "e");
-est2_p3_all = extract_data(logger2, var3_str, "e");
-est2_data = {est2_p1_all(idx_start : idx_end), est2_p2_all(idx_start : idx_end), est2_p3_all(idx_start : idx_end)};
-
-% プロット設定マッピング
-plot_map = {
-    {var1_str, ylabel1};
-    {var2_str, ylabel2};
-    {var3_str, ylabel3};
-};
 
 % --- RMSE Calculation (Estimator vs Reference) ---
 N_1 = length(t_1);
@@ -370,3 +336,4 @@ if foutput
         disp(['Error exporting input graph: ', ME.message]);
     end
 end
+
