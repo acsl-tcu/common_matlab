@@ -32,14 +32,14 @@ fprintf('MATファイルを選択してください:')
 [filename, pathname] = uigetfile('*.mat', 'MATファイルを選択してください');
 fprintf(filename);
 fullpath = fullfile(pathname, filename);
-logger = LOGGER(fullpath);
+logger = LOGGDER(fullpath);
 
 %% プロット
 clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-% fsave = 2;
+% fsave = 4;
 % fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
@@ -59,8 +59,8 @@ settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
-settings.target = ["p", "controller.result.delta_input"];
-settings.target = ["p", "p1-p2"];
+% settings.target = ["p", "controller.result.delta_input"];
+% settings.target = ["p", "p1-p2"];
 % settings.target = "input2:4";
 % settings.target = "p1-p2";
 % "controller.result.nominal_input","controller.result.delta_input"
@@ -73,15 +73,17 @@ settings.target = ["p", "p1-p2"];
 
 % settings.phase = "tfl";
 settings.phase = "f";
-settings.fontsize = 16;    % default=11 オススメ=18　
+settings.fontsize = 18;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
+settings.lgd_loc = 'eastoutside';
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
 % settings.savefolder = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\6_fig\png";
+settings.savefolder = "C:\Users\hiyou\Github\Graduation_thesis\Graduation Thesis\fig\NN_model_creation";  % default
 
-settings.savename = '2_HLonly_triangle';
+% settings.savename = '2_HLonly_triangle';
 % settings.savename = '6_DNNMEC_triangle';
 % settings.savename = '11_HLonly_saddle';
 % settings.savename = '13_DNNMEC_saddle';
@@ -104,7 +106,8 @@ settings.savename = '2_HLonly_triangle';
 % settings.savename = 'No6_Ix_Iy_HLonly';
 % settings.savename = 'm=1.0_DNNMEC';
 
-% settings.savename = 'Exp_data_for_learing_dt=2.5';
+settings.savename = 'sim_random_dt=2.5';
+settings.savename = 'exp_random_dt=2.5';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -278,7 +281,7 @@ for i=1:length(settings.target)
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location','southeast', 'FontSize',settings.fontsize-4);
+    set(ax.Legend, 'Location',settings.lgd_loc, 'FontSize',settings.fontsize-4);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
@@ -327,7 +330,7 @@ for i=1:length(settings.target)
 end
 disp_rmse(logger,settings.phase)
 
-%% Frequency Analysis
+% % Frequency Analysis
 % % % phase = "f";
 % % % FS = settings.fontsize;
 % % % LW = settings.linewidth;
@@ -403,14 +406,14 @@ disp_rmse(logger,settings.phase)
 % % % set(ax.YAxis, fontsize=FS-2)
 % % % grid on;
 
-%% TODO
+% % TODO
 % % % % % ↓このプロットの仕方にも対応できるようにしたい↓
 % % % % logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", ""}}, "phase",settings.phase, "fig_num",100, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
 % % % % logger.plot({{1, "v", "e"},{1, "controller.result.nominal_v", ""}}, "phase",settings.phase, "fig_num",101, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
 % % % % logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", ""}}, "phase",settings.phase, "fig_num",102, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
 % % % % logger.plot({{1, "w", "e"},{1, "controller.result.nominal_w", ""}}, "phase",settings.phase, "fig_num",103, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
 
-%% Local functions
+% % Local functions
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
 text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n', 
@@ -463,9 +466,9 @@ switch target
         end
     case "q"
         for i=1:numel(chars)
-            legend{3*i-2} = "$\theta_{roll}$ " + att_map(chars(i));
-            legend{3*i-1} = "$\theta_{pitch}$ " + att_map(chars(i));
-            legend{3*i} = "$\theta_{yaw}$ " + att_map(chars(i));
+            legend{3*i-2} = "$\phi$ " + att_map(chars(i));
+            legend{3*i-1} = "$\theta$ " + att_map(chars(i));
+            legend{3*i} = "$\psi$ " + att_map(chars(i));
         end
     case "w"
         for i=1:numel(chars)
@@ -474,42 +477,42 @@ switch target
             legend{3*i} = "$\omega_{yaw}$ " + att_map(chars(i));
         end
     case "input"
-        legend{1} = "$u_{thrust}$";
-        legend{2} = "$u_{roll}$";
-        legend{3} = "$u_{pitch}$";
-        legend{4} = "$u_{yaw}$";
+        legend{1} = "$T$";
+        legend{2} = "$\tau_{roll}$";
+        legend{3} = "$\tau_{pitch}$";
+        legend{4} = "$\tau_{yaw}$";
     case "input2:4"
-        legend{1} = "$u_{roll}$";
-        legend{2} = "$u_{pitch}$";
-        legend{3} = "$u_{yaw}$";
+        legend{1} = "$\tau_{roll}$";
+        legend{2} = "$\tau_{pitch}$";
+        legend{3} = "$\tau_{yaw}$";
     case "inner_input1:4"
-        legend{1} = "$u_{roll}$";
-        legend{2} = "$u_{pitch}$";
-        legend{3} = "$u_{thrust}$";
-        legend{4} = "$u_{yaw}$";
+        legend{1} = "$\tau_{roll}$";
+        legend{2} = "$\tau_{pitch}$";
+        legend{3} = "$T$";
+        legend{4} = "$\tau_{yaw}$";
     otherwise
         for i=1:legend_num, legend{i} = string(i); end % 例外が入ってきたら適当に入れる
         if contains(target, 'delta_input') % MEC用
             if contains(target, '2:4')
-                legend{1} = "$\Delta u_{roll}$";
-                legend{2} = "$\Delta u_{pitch}$";
-                legend{3} = "$\Delta u_{yaw}$";
+                legend{1} = "$\Delta \tau_{roll}$";
+                legend{2} = "$\Delta \tau_{pitch}$";
+                legend{3} = "$\Delta \tau_{yaw}$";
             else
-                legend{1} = "$\Delta u_{thrust}$";
-                legend{2} = "$\Delta u_{roll}$";
-                legend{3} = "$\Delta u_{pitch}$";
-                legend{4} = "$\Delta u_{yaw}$";
+                legend{1} = "$\Delta T$";
+                legend{2} = "$\Delta \tau_{roll}$";
+                legend{3} = "$\Delta \tau_{pitch}$";
+                legend{4} = "$\Delta \tau_{yaw}$";
             end
         elseif contains(target, 'nominal_input') % MECのノミナル入力用
             if contains(target, '2:4')
-                legend{1} = "$u_{n,roll}$";
-                legend{2} = "$u_{n,pitch}$";
-                legend{3} = "$u_{n,yaw}$";
+                legend{1} = "$\tau_{n,roll}$";
+                legend{2} = "$\tau_{n,pitch}$";
+                legend{3} = "$\tau_{n,yaw}$";
             else
-                legend{1} = "$u_{n,thrust}$";
-                legend{2} = "$u_{n,roll}$";
-                legend{3} = "$u_{n,pitch}$";
-                legend{4} = "$u_{n,yaw}$";
+                legend{1} = "$T_n$";
+                legend{2} = "$\tau_{n,roll}$";
+                legend{3} = "$\tau_{n,pitch}$";
+                legend{4} = "$\tau_{n,yaw}$";
             end
         end
 end

@@ -19,13 +19,13 @@
 
 clc; clear; close all;
 plt.filepathes = {... % TODO: ファイルのパスを記述
-    "C:\Users\student\Documents\GitHub\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\HLLQR_lemniscate_Log(11-Dec-2025_18_42_48).mat";
-    "C:\Users\student\Documents\GitHub\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\NN21MEC_lemniscate_Log(11-Dec-2025_18_44_08).mat";
+    "C:\Users\hiyou\Github\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\HLLQR_lemniscate_Log(11-Dec-2025_18_42_48).mat";
+    "C:\Users\hiyou\Github\common_matlab\Data\Exp_data\2025.12.11_405Exp_various_trajectories\NN21MEC_lemniscate_Log(11-Dec-2025_18_44_08).mat";
 
     };
 plt.filepathes = {... % TODO: ファイルのパスを記述
-    "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_HLLQR_R=0.05_Log(30-Nov-2025_21_24_44).mat";
-    "C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_NNMEC_R=0.05_Log(30-Nov-2025_21_31_32).mat"
+    "C:\Users\hiyou\Github\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_HLLQR_R=0.05_Log(30-Nov-2025_21_24_44).mat";
+    "C:\Users\hiyou\Github\common_matlab\Data\Sim_data\For IFAC2026\lemniscate_NNMEC_R=0.05_Log(30-Nov-2025_21_31_32).mat";
     };
 
 
@@ -45,6 +45,7 @@ clearvars -except plt
 % [TODO list]
 % 開始時刻、終了時刻を設定して、Exp, Simどちらでも対応できるようにする
 % GUI上でplt.settings, plt.saveを変更できるようにする & どんなFigをoutputしたいか？subplot or plot
+% lgd_pos(数字、グラフ内外)
 
 plt.save.savefolder = "plot\fig";
 plt.save.savename   = "dummy";
@@ -59,7 +60,7 @@ lgd = {...
     };
 FS = 18;
 LW = 1.5;
-Time_Range = [0,1000]; % 指定した最初のフェーズを0秒としている
+Time_Range = [0,10]; % 指定した最初のフェーズを0秒としている
 plt.settings = plot_settings("phase",phase, "FontSize",FS, "LineWidth",LW, "TimeRange",Time_Range, "LegendName",lgd);
 plt.settings.lgd_pos = 1; % 凡例を表示するグラフ番号 (1, 2, 3 or 4)
 plt.settings.fcolor = false;
