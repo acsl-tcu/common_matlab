@@ -52,8 +52,9 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "controller.result.delta_u"]
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_u"];
+settings.target = ["p", "q", "v", "w", "input", "p1-p2-p3"];
 % settings.target = ["p", "v", "input"];
-settings.target = ["p", "p1-p2-p3"];
+% settings.target = ["p", "p1-p2-p3"];
 % プロットしたいグラフの情報                                          %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input                                           %
@@ -96,6 +97,10 @@ for i=1:length(settings.target)
             tmp(2:3) = [];
         case "input"
             ylabel = "Controller input [N]";
+            tmp = settings.attribute;
+            tmp(2:3) = [];
+        case "controller.result.delta_u"
+            ylabel = "Controller mec input [N]";
             tmp = settings.attribute;
             tmp(2:3) = [];
         case "p1-p2"
