@@ -103,7 +103,7 @@ classdef DNNMEC < handle
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
-            disp(obj.result.delta_input')
+            disp([obj.self.reference.result.state.p', obj.self.estimator.result.state.p', obj.result.delta_input']);
         end
 
         function x_plus = Euler(obj, x_pre, pre_input, dt)
