@@ -47,8 +47,9 @@ agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.0],"size",[1,1,0.3]},"HL"});
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"init",[0;0;1],"radius",1.0},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1], "g", [1;1;1], "h",[0;0;1]), 15}); % P2P
+
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 
