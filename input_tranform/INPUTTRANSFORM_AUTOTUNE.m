@@ -295,11 +295,13 @@ methods
             if tnow - obj.last_t >= obj.eval_window_sec
                  % 直近 eval_window_sec 秒のデータを取得
                 [~, wvec, wnvec, ~] = obj.getRecentWindow(obj.eval_window_sec);
+                % --- 角速度目標値取得 ---
+                w_ref=obj.self.reference.result.state.w;
                 % --- 位置情報取得 ---
                     pos = obj.self.estimator.result.state.p;         % 現在位置[x;y;z]
                     pos_ref = obj.self.reference.result.state.p;    % 目標位置
                 % ==== スコア評価（振動 + 安定性 + 位置誤差） ====
-                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx);
+                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx,w_ref);
 
                 % ========================================
                 %  mode = 1 : 自動オフセット取得
@@ -560,11 +562,11 @@ methods
     % evaluate_stability:
     % 数値が小さいほど良い（安定している）
     %% ---------------------------
-    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis)
+    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis,w_ref)
     % wnvec, wvec: 各軸の角速度ログ（3×N）
     % pos, pos_ref: 現在位置と目標位置（3×1）
     % データが欠けている場合は評価不可 → 無限大 (極端に悪いスコア)
-        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis)
+        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis) ||isempty(w_ref)
             s = Inf; return;
         end
    %modeによるスコア評価の切替（自動）
@@ -638,7 +640,7 @@ switch mode
     % ---------- (追加) 重み（調整しやすいように分離） ----------
     w_model = 1.0;
     w_vib   = 0.5;
-    w_peak  = 0.2;
+    % w_peak  = 0.2;
 
         switch axis
             % -------------------------------------------------
@@ -648,6 +650,9 @@ switch mode
             % -------------------------------------------------
             case {1,2}   % roll, pitch
                 idx = [1 2];  % roll, pitch 成分
+                % ----目標追従誤差 ----
+                err_track=w_ref(idx,:)-wvec(idx,:);
+                track_err=mean(err_track(:).^2);
                 % ---- モデル誤差 ----
                 % 実機角速度とモデル予測角速度の差
                 err = wnvec(idx,:) - wvec(idx,:);
@@ -655,11 +660,11 @@ switch mode
                 % ---- 振動評価 ----
                 % 角速度の分散（揺れの大きさ）
                 vib = mean(var(wvec(idx,:), 0, 2));
-                % ---- (追加) ピーク評価 ----
-                % ホバリングでも差が出やすい（過渡が荒いと悪化）
-                peak = max(abs(wvec(idx,:)), [], 'all');
+                % % % % % % % ---- (追加) ピーク評価 ----
+                % % % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
+                % % % % % % peak = max(abs(wvec(idx,:)), [], 'all');
                 % ---- 合成スコア ----
-                s = w_model*model_err + w_vib*vib + w_peak*peak + Jz;
+                s = w_model*model_err + w_vib*vib +track_err; % w_peak*peak + Jz;
             % -------------------------------------------------
             % yaw ゲイン調整
             % ・ヨー方向の荒れ（回転の滑らかさ）
