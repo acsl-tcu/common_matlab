@@ -67,7 +67,6 @@ properties
     eval_window_s=1.0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 prev_offset%エラー等出たら消してみる
-no_improve_count
 score_buffer
 cooldown_s
 cooldown_done
@@ -75,6 +74,11 @@ eval_start_time
 score_drop_threshold=5;
 mode2_start_time=NaN
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%mode2（変更後）で使用する%%%%%%%%%%
+tune_stage
+no_improve_thr
+no_improve_rpyaw
+%%%%%%%%%%%
 end
 
 methods
@@ -295,13 +299,11 @@ methods
             if tnow - obj.last_t >= obj.eval_window_sec
                  % 直近 eval_window_sec 秒のデータを取得
                 [~, wvec, wnvec, ~] = obj.getRecentWindow(obj.eval_window_sec);
-                % --- 角速度目標値取得 ---
-                w_ref=obj.self.reference.result.state.w;
                 % --- 位置情報取得 ---
                     pos = obj.self.estimator.result.state.p;         % 現在位置[x;y;z]
                     pos_ref = obj.self.reference.result.state.p;    % 目標位置
                 % ==== スコア評価（振動 + 安定性 + 位置誤差） ====
-                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx,w_ref);
+                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx);
 
                 % ========================================
                 %  mode = 1 : 自動オフセット取得
@@ -373,142 +375,206 @@ methods
                 %                 MODE 2: ゲイン自動調整
                 % =====================================================
                 if obj.mode == 2
-                    % axis_idx 未初期化なら 1 (=roll)
-                    if isempty(obj.axis_idx) 
-                        obj.axis_idx = 1; 
-                    end
+
+                    %================ 初期化 ================
                     if isnan(obj.mode2_start_time)
-                       obj.mode2_start_time=tnow;
+                        obj.mode2_start_time = tnow;
                     end
-                    startup_hold=6.0;
-                    if (tnow-obj.mode2_start_time)<startup_hold
+                    startup_hold = 6.0;
+                    if (tnow - obj.mode2_start_time) < startup_hold
                         return;
                     end
-                        if isempty(obj.no_improve_count)
-                            obj.no_improve_count = 0;   % 改善が途絶えた回数
-                        end
-                        if isempty(obj.score_buffer)
-                            obj.score_buffer = [];      % スコアバッファ初期化
-                        end
-
-                        % ========= スコアバッファに追加（最大 N 件） =========
-                        buffer_len = 50;   % 50 サンプル分のスコア平均
-                        obj.score_buffer(end+1) = score;
-                        if length(obj.score_buffer) > buffer_len
-                            obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
-                        end
-                    i = obj.axis_idx;
+                
+                    if isempty(obj.score_buffer)
+                        obj.score_buffer = [];
+                    end
+                    if isempty(obj.waiting)
+                        obj.waiting = false;
+                    end
+                
+                    %--- 追加：調整ステージ ---
+                    % tune_stage=1: throttleのみ → tune_stage=2: roll/pitch & yaw
+                    if ~isfield(obj,'tune_stage') || isempty(obj.tune_stage)
+                        obj.tune_stage = 1;
+                    end
+                
+                    %--- 追加：改善なし回数（ステージ別） ---
+                    if ~isfield(obj,'no_improve_thr') || isempty(obj.no_improve_thr)
+                        obj.no_improve_thr = 0;
+                    end
+                    if ~isfield(obj,'no_improve_rpyaw') || isempty(obj.no_improve_rpyaw)
+                        obj.no_improve_rpyaw = 0;
+                    end
+                
+                    % roll/pitch & yaw 用の軸インデックス
+                    % axis_idx=1: roll/pitch, axis_idx=2: yaw
+                    if isempty(obj.axis_idx)
+                        obj.axis_idx = 1;
+                    end
+                
+                    %================ スコアバッファ更新 ================
+                    buffer_len = 50;
+                    obj.score_buffer(end+1) = score;
+                    if length(obj.score_buffer) > buffer_len
+                        obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
+                    end
+                
+                    %================ 終了条件パラメータ ================
+                    thr_no_improve_limit   = 2;  % throttleは「改善が止まったら次へ」判定（調整可） 初期設定4
+                    rpyaw_no_improve_limit = 2;  % roll/pitch & yaw は「改善なし2回で終了」
+                
+                    %====================================================
+                    %  waiting=false : 新しい試験を開始
+                    %====================================================
                     if ~obj.waiting
-                        % ---- 試験開始：1軸だけゲインを増やす ----
+                
                         trial = obj.gain;
-                        % step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-                                switch obj.axis_idx
-                                    % ---------- Phase 1 : Roll + Pitch ----------
-                                    case 1
-                                            step_r = min(obj.gain_step(1), obj.gain_max(1) - trial(1));
-                                            step_p = min(obj.gain_step(2), obj.gain_max(2) - trial(2));
-                                            if step_r< 1e-12 && step_p< 1e-12
-                                                obj.axis_idx=2;
-                                                return;
-                                            end
-                                            if step_r > 1e-12, trial(1)=trial(1)+step_r;end
-                                            if step_p > 1e-12, trial(2)=trial(2)+step_r;end
-                                            i=1;
-                                    % ---------- Phase 2 : Yaw ----------
-                                    case 2
-                                        i = 3;
-                                        step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-                                        if step < 1e-12
-                                            obj.axis_idx=3;
-                                            return;
-                                        end
-                                        trial(i) = trial(i) + step;
-                                    % ---------- Phase 3 : Throttle ----------
-                                    case 3
-                                        i = 4;
-                                        step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
-                                        if step < 1e-12
-                                            obj.axis_idx=1;
-                                            return;
-                                        end
-                                        trial(i) = trial(i) + step;
-                                    otherwise
-                                        obj.axis_idx=1;
-                                        return;
-                                end
-                        % % もう上げられない軸はスキップ
-                        % if step < 1e-12
-                        %     obj.axis_idx = obj.axis_idx + 1;
-                        %     if obj.axis_idx > 4, obj.axis_idx = 1; end
-                        %     return;
-                        % end
-
-                        % trial(i) = trial(i) + step;
-
-                        obj.gain = trial;% 試験ゲイン適用
-                        obj.waiting = true;% 評価待ち状態へ
-                        obj.baseline = obj.best_score;% 比較用ベースライン
-                        obj.trial_start_time = tnow;   % 現在時刻記録
-                        obj.trialVal = trial(i);
-
-                        % ---- クールダウン時間（安定させる） ----
-                        obj.cooldown_s = 0.4;  % 0.4秒程度が妥当
-                        obj.cooldown_done = false;
-
-                    else
-                        % -----------------------------------------
-                        % waiting=true : 評価中
-                        % window_s 秒のデータが溜まるまで待つ
-                        % -----------------------------------------
-                        elapsed = tnow - obj.trial_start_time;
-                        % ---- (1) クールダウン中 → まだ評価しない ----
-                        if ~obj.cooldown_done
-                            if elapsed < obj.eval_window_s
-                                % 評価にはまだ早い
-                                return;
-                            else
-                                obj.cooldown_done = true;
-                                obj.eval_start_time = tnow; % 評価開始時刻
+                
+                        %----------- Stage 1 : Throttle -----------
+                        if obj.tune_stage == 1
+                            i = 4; % throttle
+                            step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                
+                            % もう上げられないなら stage2へ
+                            if step < 1e-12
+                                obj.tune_stage = 2;
+                                obj.axis_idx = 1;
+                                obj.waiting = false;
+                                obj.score_buffer = [];
                                 return;
                             end
+                
+                            trial(i) = trial(i) + step;
+                
+                        %----------- Stage 2 : Roll/Pitch + Yaw -----------
+                        else
+                            switch obj.axis_idx
+                
+                                % Phase A : Roll + Pitch 同時
+                                case 1
+                                    step_r = min(obj.gain_step(1), obj.gain_max(1) - trial(1));
+                                    step_p = min(obj.gain_step(2), obj.gain_max(2) - trial(2));
+                                    if step_r < 1e-12 && step_p < 1e-12
+                                        % roll/pitch これ以上無理なら yawへ
+                                        obj.axis_idx = 2;
+                                        return;
+                                    end
+                                    if step_r > 1e-12, trial(1) = trial(1) + step_r; end
+                                    if step_p > 1e-12, trial(2) = trial(2) + step_p; end
+                                    i = 1; % 記録用（trialValなど）
+                
+                                % Phase B : Yaw
+                                case 2
+                                    i = 3;
+                                    step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                    if step < 1e-12
+                                        % yaw これ以上無理なら roll/pitchへ戻す
+                                        obj.axis_idx = 1;
+                                        return;
+                                    end
+                                    trial(i) = trial(i) + step;
+                
+                                otherwise
+                                    obj.axis_idx = 1;
+                                    return;
+                            end
                         end
-                        % ---- (2) 評価ウィンドウがまだ短い ----
-                        eval_elapsed = tnow - obj.eval_start_time;
-                        if eval_elapsed < obj.eval_window_s
+                
+                        %---- 試験ゲイン適用 ----
+                        obj.gain = trial;
+                        obj.waiting = true;
+                
+                        % baseline は「直近の最良」
+                        obj.baseline = obj.best_score;
+                
+                        obj.trial_start_time = tnow;
+                        obj.trialVal = obj.gain(i);
+                
+                        obj.cooldown_s = 0.4;
+                        obj.cooldown_done = false;
+                
+                        return;
+                    end
+                
+                    %====================================================
+                    % waiting=true : 評価中
+                    %====================================================
+                    elapsed = tnow - obj.trial_start_time;
+                
+                    % クールダウン → 評価開始時刻を切る
+                    if ~obj.cooldown_done
+                        if elapsed < obj.eval_window_s
+                            return;
+                        else
+                            obj.cooldown_done = true;
+                            obj.eval_start_time = tnow;
                             return;
                         end
-                        % スコア評価（平均化）
-                        current_score = mean(obj.score_buffer);
-                        % ---- 試験評価中：baseline と比較 ----
-                        if score < obj.baseline - 1e-6
-                            % 改善 → 採用
-                            % obj.best_score = score;
-                            obj.best_score = current_score;
-                            obj.best_param.gain = obj.gain;
-                            % 改善があったのでカウンタリセット
-                            obj.no_improve_count = 0;
+                    end
+                
+                    % 評価ウィンドウ待ち
+                    eval_elapsed = tnow - obj.eval_start_time;
+                    if eval_elapsed < obj.eval_window_s
+                        return;
+                    end
+                
+                    % スコア評価（平均化）
+                    current_score = mean(obj.score_buffer);
+                
+                    % 改善判定
+                    improved = (current_score < obj.baseline - 1e-6);
+                
+                    if improved
+                        obj.best_score = current_score;
+                        obj.best_param.gain = obj.gain;
+                
+                        % 改善が出たら、そのステージの「改善なし回数」をリセット
+                        if obj.tune_stage == 1
+                            obj.no_improve_thr = 0;
                         else
-                            % 改善なし → 元に戻す
-                            if obj.axis_idx==1
-                                obj.gain(1)=max(0,obj.gain(1)-obj.gain_step(1));
-                                obj.gain(2)=max(0,obj.gain(2)-obj.gain_step(2));
-                            % obj.gain(i) = max(0, obj.gain(i) - obj.gain_step(i));
-                            else
-                            obj.gain(i) = obj.best_param.gain(i);
-                            end
-                            % 改善が無かった回数増加
-                            obj.no_improve_count = obj.no_improve_count + 1;
+                            obj.no_improve_rpyaw = 0;
                         end
-                        % 次の軸へ
-                        obj.waiting = false;
-                        obj.axis_idx = obj.axis_idx + 1;
-                        if obj.axis_idx > 3, obj.axis_idx = 1; end
-                        % ---- (4) 改善が一定回数なければ終了 ----
-                        if obj.no_improve_count >= 16   % 4軸 × 4サイクル = 16回で収束判定
-                            obj.mode = 0;  % tuning 完了
+                
+                    else
+                        % 改善なし → 戻す
+                        if obj.tune_stage == 1
+                            % throttleは1段戻す（もしくはbestに戻すでもOK）
+                            obj.gain(4) = max(0, obj.gain(4) - obj.gain_step(4));
+                            obj.no_improve_thr = obj.no_improve_thr + 1;
+                        else
+                            if obj.axis_idx == 1
+                                obj.gain(1) = max(0, obj.gain(1) - obj.gain_step(1));
+                                obj.gain(2) = max(0, obj.gain(2) - obj.gain_step(2));
+                            else
+                                obj.gain(3) = obj.best_param.gain(3);
+                            end
+                            obj.no_improve_rpyaw = obj.no_improve_rpyaw + 1;
                         end
                     end
+                
+                    % 評価終了 → 次試験へ
+                    obj.waiting = false;
+                
+                    %----------- ステージ遷移・終了判定 -----------
+                    if obj.tune_stage == 1
+                        % throttle: 改善が止まったら stage2へ
+                        if obj.no_improve_thr >= thr_no_improve_limit
+                            obj.tune_stage = 2;
+                            obj.axis_idx = 1;
+                            obj.score_buffer = [];  % 切り替え時にスコアをクリア（推奨）
+                        end
+                    else
+                        % roll/pitch & yaw: 交互に回す
+                        obj.axis_idx = 3 - obj.axis_idx; % 1<->2
+                
+                        % 改善なし2回で終了
+                        if obj.no_improve_rpyaw >= rpyaw_no_improve_limit
+                            obj.mode = 0; % tuning 完了
+                        end
+                    end
+                
                 end
+
                 % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
                 if score < obj.best_score
                     obj.best_score = score;
@@ -562,11 +628,11 @@ methods
     % evaluate_stability:
     % 数値が小さいほど良い（安定している）
     %% ---------------------------
-    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis,w_ref)
+    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis)
     % wnvec, wvec: 各軸の角速度ログ（3×N）
     % pos, pos_ref: 現在位置と目標位置（3×1）
     % データが欠けている場合は評価不可 → 無限大 (極端に悪いスコア)
-        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis) ||isempty(w_ref)
+        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis)
             s = Inf; return;
         end
    %modeによるスコア評価の切替（自動）
@@ -640,7 +706,7 @@ switch mode
     % ---------- (追加) 重み（調整しやすいように分離） ----------
     w_model = 1.0;
     w_vib   = 0.5;
-    % w_peak  = 0.2;
+    w_peak  = 0.2;
 
         switch axis
             % -------------------------------------------------
@@ -650,21 +716,20 @@ switch mode
             % -------------------------------------------------
             case {1,2}   % roll, pitch
                 idx = [1 2];  % roll, pitch 成分
-                % ----目標追従誤差 ----
-                err_track=w_ref(idx,:)-wvec(idx,:);
-                track_err=mean(err_track(:).^2);
                 % ---- モデル誤差 ----
                 % 実機角速度とモデル予測角速度の差
                 err = wnvec(idx,:) - wvec(idx,:);
                 model_err = mean(err(:).^2);
                 % ---- 振動評価 ----
                 % 角速度の分散（揺れの大きさ）
-                vib = mean(var(wvec(idx,:), 0, 2));
-                % % % % % % % ---- (追加) ピーク評価 ----
-                % % % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
-                % % % % % % peak = max(abs(wvec(idx,:)), [], 'all');
+                % vib = mean(var(wvec(idx,:), 0, 2));
+                w_hp=wvec(idx,:)-movmean(wvec(idx,:),N);
+                vib=mean(rms(w_hp,2));
+                % ---- (追加) ピーク評価 ----
+                % ホバリングでも差が出やすい（過渡が荒いと悪化）
+                peak = max(abs(wvec(idx,:)), [], 'all');
                 % ---- 合成スコア ----
-                s = w_model*model_err + w_vib*vib +track_err; % w_peak*peak + Jz;
+                s = w_model*model_err + w_vib*vib + w_peak*peak + Jz;
             % -------------------------------------------------
             % yaw ゲイン調整
             % ・ヨー方向の荒れ（回転の滑らかさ）
