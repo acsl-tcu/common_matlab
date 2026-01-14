@@ -10,9 +10,11 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 % 使い方:
 % agent.input_transform = INPUTTRANSFORM_AUTOTUNE(agent, param);
 % u = agent.input_transform.do(t_struct, cha, logger, env, agent_list, i);
-%mode=1,mode=2でそれぞれコメントイン、アウトしなければならない箇所あり
+
+%mode=1,mode=2でそれぞれコメントイン、アウトしなければならない箇所あり（これやらないとエラー、または暴走する可能性あり）
 %1,最初のpropertiesでmode選択＋初期値等設定
-%2,function内のth_offsetに関する部分(mode=1ではth_offset=obj.th_offset,mode=2ではth_offset=obj.para.th_offset)
+%2,function内のth_offsetに関する部分(mode=1ではth_offset=obj.th_offset,mode=2ではth_offset=obj.param.th_offset、232行あたり)
+%3.ベストスコア管理部分：mode1とmode2で分けてある（上記同様、595行あたり）
 
 properties
     % -------------------------
@@ -37,8 +39,10 @@ properties
     % -------------------------
     % autotune 関連
     % -------------------------
-    offset_step = 5 %1.0　
+    offset_step = 5 %1.0　刻み値
     offset_interval = 1 %0.15
+    step_change_offset = 330;  % 330に達したら
+    offset_step_fine = 1;      % 1刻みにする
     offset_max = 350
     gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
     gain_max = [410;410;410;45]     % ゲイン上限
@@ -322,7 +326,19 @@ methods
                         obj.time_accum = obj.time_accum - obj.offset_interval;
                         % 増加前の値を保存（悪化時に戻す用）
                         prev_offset = obj.th_offset;
-                        obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);
+                        % obj.th_offset = min(obj.offset_max, obj.th_offset + obj.offset_step);%下の細かい調整をする場合はこの行はコメント
+
+                        %--------------- 細かく調整したい場合はこの部分を使って調整する------------
+                        % --- 追加：オフセットが指定値を超えたら刻みを変更 ---
+                        step_now = obj.offset_step;  % 通常の上昇幅
+                        if ~isempty(obj.step_change_offset) && ~isempty(obj.offset_step_fine)
+                            if obj.th_offset >= obj.step_change_offset
+                                step_now = obj.offset_step_fine; % 以降は細かい刻み
+                            end
+                        end
+                        obj.th_offset = min(obj.offset_max, obj.th_offset + step_now);
+                        %---------------------------------------------------------------------
+
                         % ---- 増加直後の評価（悪化したら戻す） ----
                            score_diff=score-obj.last_score;
                             % if score_diff > obj.best_score + obj.score_drop_threshold
@@ -706,7 +722,7 @@ switch mode
     % ---------- (追加) 重み（調整しやすいように分離） ----------
     w_model = 1.0;
     w_vib   = 0.5;
-    w_peak  = 0.2;
+    % w_peak  = 0.2;
 
         switch axis
             % -------------------------------------------------
@@ -725,11 +741,11 @@ switch mode
                 % vib = mean(var(wvec(idx,:), 0, 2));
                 w_hp=wvec(idx,:)-movmean(wvec(idx,:),N);
                 vib=mean(rms(w_hp,2));
-                % ---- (追加) ピーク評価 ----
-                % ホバリングでも差が出やすい（過渡が荒いと悪化）
-                peak = max(abs(wvec(idx,:)), [], 'all');
+                % % % % % ---- (追加) ピーク評価 ----
+                % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
+                % % % % peak = max(abs(wvec(idx,:)), [], 'all');
                 % ---- 合成スコア ----
-                s = w_model*model_err + w_vib*vib + w_peak*peak + Jz;
+                s = w_model*model_err + w_vib*vib; %+ w_peak*peak + Jz;
             % -------------------------------------------------
             % yaw ゲイン調整
             % ・ヨー方向の荒れ（回転の滑らかさ）
@@ -756,11 +772,11 @@ switch mode
                 % ---- 高度誤差 ----
                 e_z   = z_ref - z;
                 z_err = e_z^2;
-                % ---- 低高度ペナルティ ----
-                % 地面付近で安定と誤認しないため
-                low_alt_penalty = exp(-5*z) * 50;
+                % % % % ---- 低高度ペナルティ ----
+                % % % % 地面付近で安定と誤認しないため
+                % % % low_alt_penalty = exp(-5*z) * 50;
                 % ---- 合成スコア ----
-                s = z_err + low_alt_penalty;
+                s = z_err;% + low_alt_penalty;
         end
 end
     end
