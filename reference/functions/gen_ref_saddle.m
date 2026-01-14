@@ -19,13 +19,22 @@ ly_offset = origin(2);% 3.5;
 lz = scale(3);% 1;
 lz_offset=origin(3);% 1;
 w = 2*pi/T; % T秒で一周
-
-ref=@(t) [lx*cos(w*t + phase)+lx_offset; % x
-ly*sin(w*t + phase)+ly_offset; % y
-lz*sin(2*w*t + phase/2)+lz_offset; % z
-0];%
+tau = T / 2; 
+warmup = 1 - exp(-(t/tau)^2);
+ref = @(t) [ ...
+    (lx * warmup) * cos(w*t + phase) + lx_offset; ... % x 振幅渐变
+    (ly * warmup) * sin(w*t + phase) + ly_offset; ... % y 振幅渐变
+    (lz * warmup) * sin(2*w*t + phase/2) + lz_offset; ... % z 振幅渐变
+    0];
 ddx = diff(ref,t,2);
 fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));
+
+% ref=@(t) [lx*cos(w*t + phase)+lx_offset; % x
+% ly*sin(w*t + phase)+ly_offset; % y
+% lz*sin(2*w*t + phase/2)+lz_offset; % z
+% 0];%
+% ddx = diff(ref,t,2);
+% fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));
 
 % 圧倒的に遅いので以下のような書き方はしないこと
 % xdf =@(t) [xd1(t),xd2(t),xd3(t),xd4(t)];
