@@ -31,6 +31,9 @@ agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"f
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",[0;0;1],"size",[1,0.5],"phase",[0,0]},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",5,"orig",[0;0;1],"radius",1.0},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
 
 
 run("ExpBase");
