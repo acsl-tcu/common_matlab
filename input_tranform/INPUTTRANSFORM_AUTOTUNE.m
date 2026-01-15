@@ -34,7 +34,7 @@ properties
     % -------------------------
     % th_offset = 0                    % スロットルオフセット
     gain = [250;250;250;25]          % [roll,pitch,yaw,thrust]
-    th_offset = 335                %現在使用スロットルオフセット
+    th_offset = 333                %現在使用スロットルオフセット
     % gain = [400;400;400;40]　　　　 %現在使用ゲイン
     % -------------------------
     % autotune 関連
@@ -43,7 +43,7 @@ properties
     offset_interval = 1 %0.15
     step_change_offset = 330;  % 330に達したら
     offset_step_fine = 1;      % 1刻みにする
-    offset_max = 350
+    offset_max = 345
     gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
     gain_max = [410;410;410;45]     % ゲイン上限
     time_accum = 0                  % 時間積算（初期ゼロ）
@@ -69,6 +69,9 @@ properties
 
     trial_start_time
     eval_window_s=1.0;
+    worsen_count
+    enable_stop_height=0.4;
+    extra_drop_threshold=0.001;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 prev_offset%エラー等出たら消してみる
 score_buffer
@@ -313,6 +316,10 @@ methods
                 %  mode = 1 : 自動オフセット取得
                 % ========================================
                 if obj.mode == 1
+                    %----悪化回数カウンタの初期化-----
+                    if ~isfield(obj,'worsen_count') || isempty(obj.worsen_count)
+                        obj.worsen_count = 0;
+                    end
                     dt = max(0, tnow - obj.last_t);
                     % ---- 1. チューニング開始からの経過時間を計測 ----
                     if isempty(obj.tuning_start_time)
@@ -353,6 +360,14 @@ methods
                                 stop_rising=true;
                                 break;
                             end
+                            %高度~m以上なら小さい悪化でも終了
+                            height=pos(3);
+                            stop_gate=(height >= obj.enable_stop_height);
+                            if stop_gate && (score_diff > obj.extra_drop_threshold)
+                                obj.th_offset=prev_offset;
+                                stop_rising=true;
+                                break;
+                            end
                     end
 
                     if stop_rising
@@ -370,11 +385,26 @@ methods
                     % alpha = 0.25;  % 平滑化率
                     alpha = 0.1; % 平滑化率
                     obj.smooth_score = alpha*score + (1-alpha)*obj.smooth_score;
+                    worsen_limit=2;%連続悪化で終了（２回）
+                    worsen_eps=1e-6;%微小差無視
                     % ---- 5. 改善したら best_score 更新 ----
                     if obj.smooth_score < obj.best_score
                        obj.best_score = obj.smooth_score;
                        obj.best_param.th_offset = obj.th_offset;
                        obj.last_improve_time = tnow; % 最後に改善した時刻
+                       %改善したので悪化カウンタをリセット
+                       obj.worsen_count=0;
+                    else
+                        %改善していない
+                        if obj.smooth_score > obj.best_score+worsen_eps
+                            obj.worsen_count=obj.worsen_count+1;
+                        end
+                        %悪化が続いたら終了してbestに戻す
+                        if obj.worsen_count>=worsen_limit
+                            obj.th_offset=obj.best_param.th_offset;
+                            obj.mode=0;
+                            return;
+                        end
                     end
                     obj.last_score=score;
                     % ---- 6. ロック判定 ----
@@ -406,6 +436,9 @@ methods
                     end
                     if isempty(obj.waiting)
                         obj.waiting = false;
+                    end
+                    if isempty(obj.axis_idx)
+                        obj.axis_idx=4;
                     end
                 
                     %--- 追加：調整ステージ ---
@@ -448,6 +481,7 @@ methods
                 
                         %----------- Stage 1 : Throttle -----------
                         if obj.tune_stage == 1
+                            obj.axis_idx=4;
                             i = 4; % throttle
                             step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
                 
@@ -461,18 +495,19 @@ methods
                             end
                 
                             trial(i) = trial(i) + step;
+                        end
                 
                         %----------- Stage 2 : Roll/Pitch + Yaw -----------
-                        else
-                            switch obj.axis_idx
+                        if obj.tune_stage ==2
+                            trial=obj.gain;
                 
                                 % Phase A : Roll + Pitch 同時
-                                case 1
+                                if obj.axis_idx ==1 
                                     step_r = min(obj.gain_step(1), obj.gain_max(1) - trial(1));
                                     step_p = min(obj.gain_step(2), obj.gain_max(2) - trial(2));
                                     if step_r < 1e-12 && step_p < 1e-12
                                         % roll/pitch これ以上無理なら yawへ
-                                        obj.axis_idx = 2;
+                                        obj.axis_idx = 3;
                                         return;
                                     end
                                     if step_r > 1e-12, trial(1) = trial(1) + step_r; end
@@ -480,7 +515,7 @@ methods
                                     i = 1; % 記録用（trialValなど）
                 
                                 % Phase B : Yaw
-                                case 2
+                                elseif obj.axis_idx==3
                                     i = 3;
                                     step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
                                     if step < 1e-12
@@ -490,10 +525,11 @@ methods
                                     end
                                     trial(i) = trial(i) + step;
                 
-                                otherwise
+                                else
                                     obj.axis_idx = 1;
                                     return;
-                            end
+                                end
+                            
                         end
                 
                         %---- 試験ゲイン適用 ----
@@ -519,7 +555,7 @@ methods
                 
                     % クールダウン → 評価開始時刻を切る
                     if ~obj.cooldown_done
-                        if elapsed < obj.eval_window_s
+                        if elapsed < obj.cooldown_s
                             return;
                         else
                             obj.cooldown_done = true;
@@ -738,9 +774,7 @@ switch mode
                 model_err = mean(err(:).^2);
                 % ---- 振動評価 ----
                 % 角速度の分散（揺れの大きさ）
-                % vib = mean(var(wvec(idx,:), 0, 2));
-                w_hp=wvec(idx,:)-movmean(wvec(idx,:),N);
-                vib=mean(rms(w_hp,2));
+                vib = mean(var(wvec(idx,:), 0, 2));
                 % % % % % ---- (追加) ピーク評価 ----
                 % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
                 % % % % peak = max(abs(wvec(idx,:)), [], 'all');
@@ -773,10 +807,10 @@ switch mode
                 e_z   = z_ref - z;
                 z_err = e_z^2;
                 % % % % ---- 低高度ペナルティ ----
-                % % % % 地面付近で安定と誤認しないため
-                % % % low_alt_penalty = exp(-5*z) * 50;
+                % 地面付近で安定と誤認しないため
+                low_alt_penalty = exp(-5*z) * 50;
                 % ---- 合成スコア ----
-                s = z_err;% + low_alt_penalty;
+                s = z_err + low_alt_penalty;
         end
 end
     end
