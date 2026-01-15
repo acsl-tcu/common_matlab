@@ -317,7 +317,7 @@ methods
                 % ========================================
                 if obj.mode == 1
                     %----悪化回数カウンタの初期化-----
-                    if ~isfield(obj,'worsen_count') || isempty(obj.worsen_count)
+                    if isempty(obj.worsen_count)
                         obj.worsen_count = 0;
                     end
                     dt = max(0, tnow - obj.last_t);
@@ -353,11 +353,6 @@ methods
                                 % 直前のオフセットに戻す
                                 obj.th_offset = prev_offset;
                                 stop_rising = false;   % 今回は採用しなかった]
-                                break;
-                            end
-                            if score > obj.best_score + obj.score_drop_threshold
-                                obj.th_offset=prev_offset;
-                                stop_rising=true;
                                 break;
                             end
                             %高度~m以上なら小さい悪化でも終了
@@ -455,11 +450,11 @@ methods
                         obj.no_improve_rpyaw = 0;
                     end
                 
-                    % roll/pitch & yaw 用の軸インデックス
-                    % axis_idx=1: roll/pitch, axis_idx=2: yaw
-                    if isempty(obj.axis_idx)
-                        obj.axis_idx = 1;
-                    end
+                    % % roll/pitch & yaw 用の軸インデックス
+                    % % axis_idx=1: roll/pitch, axis_idx=2: yaw
+                    % if isempty(obj.axis_idx)
+                    %     obj.axis_idx = 1;
+                    % end
                 
                     %================ スコアバッファ更新 ================
                     buffer_len = 50;
@@ -535,6 +530,8 @@ methods
                         %---- 試験ゲイン適用 ----
                         obj.gain = trial;
                         obj.waiting = true;
+
+                        obj.score_buffer = [];
                 
                         % baseline は「直近の最良」
                         obj.baseline = obj.best_score;
@@ -617,7 +614,12 @@ methods
                         end
                     else
                         % roll/pitch & yaw: 交互に回す
-                        obj.axis_idx = 3 - obj.axis_idx; % 1<->2
+                        if obj.axis_idx == 1
+                            obj.axis_idx = 3;
+                        else
+                            obj.axis_idx = 1;
+                        end
+
                 
                         % 改善なし2回で終了
                         if obj.no_improve_rpyaw >= rpyaw_no_improve_limit
