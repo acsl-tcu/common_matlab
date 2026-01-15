@@ -92,7 +92,9 @@ end
 % agent.reference.timevarying = MY_POINT_REFERENCE(agent,{struct("f",[1;1;0.4],"g",[0;1;0.4],"h",[-1;1;0.4],"j",[-1;0;0.4],"k",[-1;-1;0.4]),10});
 
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"p0",[0;0;0.5], "pf",[1;1;0.5], "T",10}, "HL"});
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[1;1;0.5],"size",[0,0,0]},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[0,0,0]},"HL"});
+% agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
+% agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param(dt)); %揺れ抑制
 
 agent.controller = HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent));
 % agent.controller.hl = HLC(agent,Controller_HL(dt));
@@ -102,13 +104,14 @@ agent.cha_allocation.sensor = "motive";
 % agent.cha_allocation.estimator = "ekf";
 % agent.cha_allocation.controller = "hl";
 agent.cha_allocation.f.reference = "timevarying";
+% agent(1).cha_allocation.f.reference = ["origin","swaymod"]; %揺れ抑制
 %%
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
 app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
 
-app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "p", "er"},"phase","tfl", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
 app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
 % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
