@@ -271,11 +271,11 @@ classdef KQ_LMPC_CONTROLLER< handle
             if obj.m >= 2
                 idx_p2 = 4;
 
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.3;
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.7;
             end
             if obj.m >= 3
                 idx_p2 = 7;
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.0;
+                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.3;
             end
             base_y = 3 * obj.m + 1;
             if obj.m >= 1
@@ -300,7 +300,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
             Q_stage = diag(w_vec);
             % try, Q_terminal = dare(A_d*0.995, B_d, Q_stage, obj.weight.input); catch, Q_terminal = Q_stage * 2; end
-            Q_terminal = 1*Q_stage;
+            Q_terminal = 3*Q_stage;
             Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
             R_bar  = kron(eye(obj.H), obj.weight.input);
             RP_bar = kron(eye(obj.H), obj.weight.preinputdif);
@@ -327,7 +327,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             % pred_error = obj.state.current - (A_d * obj.result.x_last + B_d * obj.input.pre_u);
             % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
             % obj.result.input = obj.result.input - obj.result.d_est;
-            obj.result.x_last = obj.state.current;
+            % obj.result.x_last = obj.state.current;
             obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
             obj.result.eflag = eflag;
             obj.result.var = var;

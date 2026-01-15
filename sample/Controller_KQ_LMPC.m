@@ -39,12 +39,12 @@ function Controller = Controller_KQ_LMPC(dt, agent)
    
     %% sim用　重み
 
-     Controller.weight.P = 0.7*diag([1000;1000;1000]);    % 位置　10,20刻み  20;1;30
+     Controller.weight.P = 0.7*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
     Controller.weight.Q = 0.1*diag([300;300;500]);    % 姿勢角15良い気がする
     Controller.weight.V = 1*diag([500;500;500]);% 速度  10,20刻み  30;20;10
     Controller.weight.W = 0.1*diag([200;200;200]);  %角速度　1,2刻み 
-    Controller.weight.R = 1*diag([0.1; 0.2; 0.1; 0.1]); % 入力
-    Controller.weight.RP =100*diag([1; 0.1; 0.1; 0.1]);  % 1ステップ前の入力との差    0*(無効化)
+    Controller.weight.R = 1*diag([1; 0.2; 0.1; 0.1]); % 入力
+    Controller.weight.RP =1*diag([1; 0.1; 0.1; 0.1]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験用　重み
     % Controller.weight.P = 0.7*diag([1000;1000;1000]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 0.1*diag([300;300;500]);    % 姿勢角15良い気がする
