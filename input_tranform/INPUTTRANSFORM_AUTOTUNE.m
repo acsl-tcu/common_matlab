@@ -15,6 +15,7 @@ classdef INPUTTRANSFORM_AUTOTUNE < handle
 %1,最初のpropertiesでmode選択＋初期値等設定
 %2,function内のth_offsetに関する部分(mode=1ではth_offset=obj.th_offset,mode=2ではth_offset=obj.param.th_offset、232行あたり)
 %3.ベストスコア管理部分：mode1とmode2で分けてある（上記同様、595行あたり）
+%4.モニター表示部分(660行あたり)
 
 properties
     % -------------------------
@@ -483,8 +484,8 @@ methods
                             if step < 1e-12
                                 obj.tune_stage = 2;
                                 obj.axis_idx = 1;
-                                obj.waiting = false;
-                                obj.score_buffer = [];
+                                obj.waiting = false;%必要か不明
+                                obj.score_buffer = [];%必要か不明
                                 return;
                             end
                 
@@ -503,8 +504,8 @@ methods
                                     if step_r < 1e-12 && step_p < 1e-12
                                         % roll/pitch これ以上無理なら yawへ
                                         obj.axis_idx = 3;
-                                        obj.waiting = false;
-                                        obj.score_buffer = [];
+                                        obj.waiting = false;%必要か不明
+                                        obj.score_buffer = [];%必要か不明
                                         return;
                                     end
                                     if step_r > 1e-12, trial(1) = trial(1) + step_r; obj.trial_delta(1)=step_r; end
@@ -518,8 +519,8 @@ methods
                                     if step < 1e-12
                                         % yaw これ以上無理なら roll/pitchへ戻す
                                         obj.axis_idx = 1;
-                                        obj.waiting = false;
-                                        obj.score_buffer = [];
+                                        obj.waiting = false;%必要か不明
+                                        obj.score_buffer = [];%必要か不明
                                         return;
                                     end
                                     trial(3) = trial(3) + step;
@@ -629,9 +630,9 @@ methods
                     else
                         % roll/pitch & yaw: 交互に回す
                         if obj.axis_idx == 1
-                            obj.axis_idx = 3;
-                        else
                             obj.axis_idx = 1;
+                        else
+                            obj.axis_idx = 3;
                         end
 
                 
@@ -653,8 +654,12 @@ methods
                 % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
-                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f param_th:%.2f stage:%d no_imp_th:%d no_imp_rp:%d', ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3),obj.param.th_offset,obj.tune_stage,obj.no_improve_thr,obj.no_improve_rpyaw);
+                        %mode1用
+                        s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestOffset:%d\n' 'result_th:%.2f\n' 'param_th:%.2f\n'], ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.result(3),obj.param.th_offset);
+                        %mode2用
+                        % s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestGain:[%.1f %.1f %.1f %.1f]\n' 'stage:%d\n' 'no_imp_th:%d\n' 'no_imp_rp:%d\n'], ...
+                        %     obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.gain, obj.tune_stage,obj.no_improve_thr,obj.no_improve_rpyaw);
                         obj.monitor.update(s);
                     catch
                          % GUIエラーは無視
