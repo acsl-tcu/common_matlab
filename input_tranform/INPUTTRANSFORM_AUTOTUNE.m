@@ -85,6 +85,7 @@ mode2_start_time=NaN
 tune_stage
 no_improve_thr
 no_improve_rpyaw
+trial_delta
 %%%%%%%%%%%
 end
 
@@ -438,34 +439,31 @@ methods
                 
                     %--- 追加：調整ステージ ---
                     % tune_stage=1: throttleのみ → tune_stage=2: roll/pitch & yaw
-                    if ~isfield(obj,'tune_stage') || isempty(obj.tune_stage)
+                    if ~isprop(obj,'tune_stage') || isempty(obj.tune_stage)
                         obj.tune_stage = 1;
                     end
                 
                     %--- 追加：改善なし回数（ステージ別） ---
-                    if ~isfield(obj,'no_improve_thr') || isempty(obj.no_improve_thr)
+                    if ~isprop(obj,'no_improve_thr') || isempty(obj.no_improve_thr)
                         obj.no_improve_thr = 0;
                     end
-                    if ~isfield(obj,'no_improve_rpyaw') || isempty(obj.no_improve_rpyaw)
+                    if ~isprop(obj,'no_improve_rpyaw') || isempty(obj.no_improve_rpyaw)
                         obj.no_improve_rpyaw = 0;
                     end
                 
-                    % % roll/pitch & yaw 用の軸インデックス
-                    % % axis_idx=1: roll/pitch, axis_idx=2: yaw
-                    % if isempty(obj.axis_idx)
-                    %     obj.axis_idx = 1;
-                    % end
                 
                     %================ スコアバッファ更新 ================
                     buffer_len = 50;
-                    obj.score_buffer(end+1) = score;
-                    if length(obj.score_buffer) > buffer_len
-                        obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
+                    if obj.waiting && obj.cooldown_done
+                        obj.score_buffer(end+1) = score;
+                        if length(obj.score_buffer) > buffer_len
+                            obj.score_buffer = obj.score_buffer(end-buffer_len+1:end);
+                        end
                     end
                 
                     %================ 終了条件パラメータ ================
-                    thr_no_improve_limit   = 2;  % throttleは「改善が止まったら次へ」判定（調整可） 初期設定4
-                    rpyaw_no_improve_limit = 2;  % roll/pitch & yaw は「改善なし2回で終了」
+                    thr_no_improve_limit   = 3;  % throttleは「改善が止まったら次へ」判定（調整可） 初期設定4
+                    rpyaw_no_improve_limit = 4;  % roll/pitch & yaw は「改善なし2回で終了」
                 
                     %====================================================
                     %  waiting=false : 新しい試験を開始
@@ -473,6 +471,7 @@ methods
                     if ~obj.waiting
                 
                         trial = obj.gain;
+                        obj.trial_delta=zeros(size(obj.gain));
                 
                         %----------- Stage 1 : Throttle -----------
                         if obj.tune_stage == 1
@@ -490,6 +489,7 @@ methods
                             end
                 
                             trial(i) = trial(i) + step;
+                            obj.trial_delta(i)=step;
                         end
                 
                         %----------- Stage 2 : Roll/Pitch + Yaw -----------
@@ -503,22 +503,27 @@ methods
                                     if step_r < 1e-12 && step_p < 1e-12
                                         % roll/pitch これ以上無理なら yawへ
                                         obj.axis_idx = 3;
+                                        obj.waiting = false;
+                                        obj.score_buffer = [];
                                         return;
                                     end
-                                    if step_r > 1e-12, trial(1) = trial(1) + step_r; end
-                                    if step_p > 1e-12, trial(2) = trial(2) + step_p; end
+                                    if step_r > 1e-12, trial(1) = trial(1) + step_r; obj.trial_delta(1)=step_r; end
+                                    if step_p > 1e-12, trial(2) = trial(2) + step_p; obj.trial_delta(2)=step_p; end
                                     i = 1; % 記録用（trialValなど）
                 
                                 % Phase B : Yaw
                                 elseif obj.axis_idx==3
                                     i = 3;
-                                    step = min(obj.gain_step(i), obj.gain_max(i) - trial(i));
+                                    step = min(obj.gain_step(3), obj.gain_max(3) - trial(3));
                                     if step < 1e-12
                                         % yaw これ以上無理なら roll/pitchへ戻す
                                         obj.axis_idx = 1;
+                                        obj.waiting = false;
+                                        obj.score_buffer = [];
                                         return;
                                     end
-                                    trial(i) = trial(i) + step;
+                                    trial(3) = trial(3) + step;
+                                    obj.trial_delta(3)=step;
                 
                                 else
                                     obj.axis_idx = 1;
@@ -586,18 +591,27 @@ methods
                 
                     else
                         % 改善なし → 戻す
-                        if obj.tune_stage == 1
-                            % throttleは1段戻す（もしくはbestに戻すでもOK）
-                            obj.gain(4) = max(0, obj.gain(4) - obj.gain_step(4));
-                            obj.no_improve_thr = obj.no_improve_thr + 1;
+                        % if obj.tune_stage == 1
+                        %     % throttleは1段戻す（もしくはbestに戻すでもOK）
+                        %     obj.gain(4) = max(0, obj.gain(4) - obj.gain_step(4));
+                        %     obj.no_improve_thr = obj.no_improve_thr + 1;
+                        % else
+                        %     if obj.axis_idx == 1
+                        %         obj.gain(1) = max(0, obj.gain(1) - obj.gain_step(1));
+                        %         obj.gain(2) = max(0, obj.gain(2) - obj.gain_step(2));
+                        %     else
+                        %         obj.gain(3) = obj.best_param.gain(3);
+                        %     end
+                        %     obj.no_improve_rpyaw = obj.no_improve_rpyaw + 1;
+                        % end
+                        if ~isempty(obj.trial_delta)
+                            obj.gain=obj.gain-obj.trial_delta;
+                            obj.gain=max(obj.gain,0);
+                        end
+                        if obj.tune_stage==1
+                            obj.no_improve_thr=obj.no_improve_thr+1;
                         else
-                            if obj.axis_idx == 1
-                                obj.gain(1) = max(0, obj.gain(1) - obj.gain_step(1));
-                                obj.gain(2) = max(0, obj.gain(2) - obj.gain_step(2));
-                            else
-                                obj.gain(3) = obj.best_param.gain(3);
-                            end
-                            obj.no_improve_rpyaw = obj.no_improve_rpyaw + 1;
+                            obj.no_improve_rpyaw=obj.no_improve_rpyaw+1;
                         end
                     end
                 
@@ -639,8 +653,8 @@ methods
                 % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
-                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f param_th:%.2f', ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3),obj.param.th_offset);
+                        s = sprintf('Mode:%d Gain:[%.1f %.1f %.1f %.1f] Offset:%.1f Score:%.4f Best:%.4f BestOffset:%d BestGain:[%.1f %.1f %.1f %.1f] result_th:%.2f param_th:%.2f stage:%d no_imp_th:%d no_imp_rp:%d', ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.best_param.gain, obj.result(3),obj.param.th_offset,obj.tune_stage,obj.no_improve_thr,obj.no_improve_rpyaw);
                         obj.monitor.update(s);
                     catch
                          % GUIエラーは無視
