@@ -45,7 +45,7 @@ agent(1).estimator.loadstate = SUSPENDED_LOAD_STATE_MANAGER(agent(1));
 %     ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用
 
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[1,1,0.2*0]*1},"HL"});
-% agent.reference.timevarying = MY_POINT_REFERENCE(agent,{struct("f",[1;1;0.4],"g",[0;1;0.4],"h",[-1;1;0.4],"j",[-1;0;0.4],"k",[-1;-1;0.4]),10});
+% agent.reference.timevarying = MULTI_POINT_REFERENCE(agent,{struct("f",[1;1;0.4],"g",[0;1;0.4],"h",[-1;1;0.4],"j",[-1;0;0.4],"k",[-1;-1;0.4]),10});
 
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"p0",[0;0;0.5], "pf",[1;1;0.5], "T",10}, "HL"});
 agent.reference.timevarying = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq", 15, "orig", [0; 0; 0.5], "size", [0, 0, 0]}, "HL"});

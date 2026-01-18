@@ -1,4 +1,4 @@
-classdef MY_POINT_REFERENCE < handle
+classdef MULTI_POINT_REFERENCE < handle
     properties
         param
         self
@@ -13,7 +13,7 @@ classdef MY_POINT_REFERENCE < handle
     end
     
     methods
-        function obj = MY_POINT_REFERENCE(self,varargin)
+        function obj = MULTI_POINT_REFERENCE(self,varargin)
             %縦ベクトルで書く
             %最初のコマンドは"f"で始める
             % 参照

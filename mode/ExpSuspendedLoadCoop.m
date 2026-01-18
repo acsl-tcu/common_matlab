@@ -97,9 +97,9 @@ if isCoop == 1
     agent(1).sensor                     = MOTIVE(agent(1), Sensor_Motive(1,eul(3), motive)); 
 
     % 複数機牽引の場合の牽引物の目標位置
-    agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_sample_cooperative_load",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0.2*0]*1},"Cooperative",N},agent(1));
+    agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0]},"Cooperative",N},agent(1));
     % agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.8],"size",[0.7,0.7,0.2]},"HL",N},agent(1));
-    % agent(1).reference = MY_POINT_REFERENCE(agent(1),refPointName{1});%縦ベクトルで書く,
+    % agent(1).reference = MULTI_POINT_REFERENCE(agent(1),refPointName{1});%縦ベクトルで書く,
 
     % コントローラは単機モデルで設計するのでここでは行わない
     agent(1).controller.do              = @(varargin)[];
@@ -153,7 +153,7 @@ for i = firstId:N
     else
         % agent(i).reference    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
         % agent(i).reference    = MY_WAY_POINT_REFERENCE(agent,way_point_ref(readmatrix("waypoint.xlsx",'Sheet','Sheet1_15d3'),5,1));
-        agent(i).reference      = MY_POINT_REFERENCE(agent(i),refPointName{i});%縦ベクトルで書く,
+        agent(i).reference      = MULTI_POINT_REFERENCE(agent(i),refPointName{i});%縦ベクトルで書く,
         % agent(i).reference    = TIME_VARYING_REFERENCE(agent(i),refName{i});
         % agent(i).reference    = TIME_VARYING_REFERENCE_SUSPENDEDLOAD(agent(i),refName{i});
     end

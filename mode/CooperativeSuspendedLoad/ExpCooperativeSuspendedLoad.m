@@ -103,7 +103,7 @@ payloadAgent.estimator.result.state = STATE_CLASS(struct('state_list', ["p", "q"
 payloadAgent.estimator.result.state.p = rigid.p;
 payloadAgent.estimator.result.state.q = eul;
 payloadAgent.sensor = MOTIVE(payloadAgent, Sensor_Motive(1, eul(3), motive));
-payloadAgent.reference = TIME_VARYING_REFERENCE_SPLIT(payloadAgent, {"gen_ref_sample_cooperative_load", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, "Cooperative", N}, payloadAgent);
+payloadAgent.reference = TIME_VARYING_REFERENCE_SPLIT(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, "Cooperative", N}, payloadAgent);
 payloadAgent.controller.do = @(varargin)[];
 payloadAgent.controller.result.input = [0; 0; 0; 0];
 payloadAgent.input_transform = struct("do", @(varargin)[], "result", zeros(1, 8));
@@ -127,7 +127,7 @@ agentObj.sensor.do = @sensor_do;
 agentObj.reference.timevarying = TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 15, "orig", [0; 0; 0.5], "size", [0, 0, 0]}, "HL"});
 
 if ~isempty(refPoint)
-    agentObj.reference.point = MY_POINT_REFERENCE(agentObj, refPoint);
+    agentObj.reference.point = MULTI_POINT_REFERENCE(agentObj, refPoint);
     baseRefOrder = ["timevarying", "point"];
 else
     baseRefOrder = "timevarying";
