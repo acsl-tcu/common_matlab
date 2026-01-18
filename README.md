@@ -122,6 +122,8 @@ agent.estimator.ekf がEKFクラスのインスタンスになる．
 例：estimator.name : ['lpf','adiff']
 の場合ローパスフィルタをかけた情報を使って後退差分近似微分をおこなうことを意味する．
 
+カスケードを組む際の基本ルールとして，**必ず基準（base）となるモジュールをname配列の先頭に置き，その出力を前提に後段の修飾モジュールを並べる**。例えば reference では `["timevarying","sload"]` のように最初に TIME_VARYING_REFERENCE 系で `result.state.xd` を生成し，続いて SUSPENDED_LOAD_REF_ADJUST のような補正クラスが必要な成分だけを上書きする構成にする。estimator でも同様に `["ekf","loadstate"]` の順で EKF が状態を更新した後に SUSPENDED_LOAD_STATE_MANAGER がchaに応じたブレンドを適用する。これにより各モジュールは「すでにベース値が存在する」ことを前提に安全に処理でき，別のベースを使いたい場合も先頭要素を差し替えるだけで済む。
+
 ### sensor プロパティ
 
 sensorプロパティに設定する複数のセンサーはカスケードな関係ではなくパラレルの関係にある．

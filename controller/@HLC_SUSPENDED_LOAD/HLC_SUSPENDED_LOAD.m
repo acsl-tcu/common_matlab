@@ -17,15 +17,6 @@ properties
     estimate_load_mass
     flag_anti_spike = 0
     elf
-    isGround = 1
-    % FOR_LOADの代わり
-    pL0 % initial pL
-    tt0 = [] % transition time for pL modification
-    td = 5 % transition-duration
-    ratet % transition rate
-    mLL % mL at the beginning of landing phase
-    cableLL % cable length at the beginning of landing phase
-    baseP % base position with respect to load position (taken by arming position)
 end
 
 methods
@@ -42,7 +33,6 @@ methods
         % obj.ais =zeros(3,20);
         % obj.ms = ones(1,10)*0.4;
         % obj.estimate_load_mass = ESTIMATE_LOAD_MASS(self);
-        obj.ratet = 1 / obj.td ^ 2; % 二次関数で0-1の間で変化する
         %物理パラメータ
         obj.P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
     end
@@ -54,10 +44,6 @@ methods
         ref = obj.self.reference.result; % 目標値
         cha = varargin{2};
 
-        if isempty(obj.baseP)
-            obj.baseP = model.state.p - model.state.pL;
-        end
-
         % 目標値を取得
         if isprop(ref.state, 'xd')
             xd = ref.state.xd; % 20次元の目標値に対応する用
@@ -65,7 +51,21 @@ methods
             xd = ref.state.get();
         end
 
-        [pL, pT, P, xd] = obj.calc_pL(t, model, cha, xd);
+        pL = model.state.pL;
+        if isprop(model.state, "pT")
+            pT = model.state.pT;
+        else
+            delta = pL - model.state.p;
+            if norm(delta) > 1e-9
+                pT = delta / norm(delta);
+            else
+                pT = [0; 0; -1];
+            end
+        end
+        P = obj.P;
+        if isprop(model.state, "mL")
+            P(6) = max(0, model.state.mL);
+        end
 
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
         [x(8:10), xd(1:3), x(8:10) - xd(1:3)]
@@ -115,89 +115,6 @@ methods
     function show(obj)
         obj.result
     end
-
-    function [pL, pT, P, xd] = calc_pL(obj, t, model, cha, xd)
-        P = obj.P; %物理パラメータ
-        p = model.state.p; %機体位置
-        pL = model.state.pL; %牽引物位置
-        L = obj.self.parameter.get("cableL");
-
-        if isprop(model.state, "mL")
-            mL = max(0, model.state.mL); % load mass
-        else
-            mL = P(6); %load mass
-        end
-
-        nxy = xd(1:3); %
-
-        if isempty(obj.pL0)
-            obj.pL0 = pL; % 初期の牽引物位置
-        end
-
-        if strcmp(cha, 't') || strcmp(cha, '0') || strcmp(cha, 'a') % take off
-            % % 質量推定が進んだら or
-            % 牽引物の初期高さ+機体の全高より高くなったら
-            % センサ値を使い始める
-            if mL > 0.1 || p(3) > obj.pL0(3) + L * 0.9
-
-                if isempty(obj.tt0)
-                    obj.isGround = 0;
-                    obj.tt0 = t;
-                end
-
-                tt = min((t - obj.tt0), obj.td); %takeoffの経過時間がセンサ値使用率100 %になる時間を越えないようにする
-                k = obj.ratet * tt ^ 2; %センサ値反映割合
-                pL = p + k * (pL - p); %牽引物位置と機体位置の差に反映割合をかけてセンサ値を反映
-                % z 方向は最後に更新する
-            else %閾値を越えなかったら機体の真下に牽引物がいることにする
-                pL = p;
-                nxy = pL; %牽引物のreferenceのためpLにいるままになってしまうのでここで代入して下にいるようにする。
-            end
-
-            nxy(3) = xd(3) - L;
-        elseif strcmp(cha, 'l') % landing
-
-            if isempty(obj.cableLL) || isempty(obj.mLL)
-                obj.cableLL = norm(p - pL); % landing開始時の機体と牽引物の距離
-                obj.mLL = mL; % landing開始時の質量
-                obj.tt0 = t;
-            end
-
-            %地面についたかの判定
-            if p(3) - pL(3) < obj.cableLL * 0.9 || obj.isGround == 1
-                obj.isGround = 1; % この分岐に一回でも入ったら入り続けるようにフラグ立てる
-                tt = min(t - obj.tt0, obj.td); % landingの経過時間がセンサ値使用率0 %になる時間を越えないようにする
-                k = obj.ratet * tt ^ 2; % センサ値反映割合
-                pL = p + (1 - k) * (pL - p); % 牽引物位置と機体位置の差に反映割合をかけてセンサ値を反映
-                nxy = nxy + k * obj.baseP;
-                obj.mLL = (1 - k) * obj.mLL;
-                mL = min(mL, obj.mLL); % 傾いて着陸した時に推定が吹っ飛ばないように制限
-            end
-
-            nxy(3) = xd(3) - L;
-        end
-
-        %l = sqrt(L^2 - sum((p(1:2)-pL(1:2)).^2));
-        P(6) = mL;
-
-        if strcmp(cha, 'f') %
-            % P = obj.P;% 固定値で上書きしてしまっていた
-            pL = model.state.pL; % 推定値を利用するのはOK
-            pT = model.state.pT;
-        else
-            pL(3) = p(3) - L;
-            ttt = pL - p;
-            pT = ttt / norm(ttt);
-
-            if isprop(model.state, "dst") && strcmp(cha, 'f') % ? 絶対に入らない。
-                P(end - 1:end) = model.state.dst';
-            end
-
-        end
-
-        xd(1:3) = nxy;
-    end
-
 end
 
 end

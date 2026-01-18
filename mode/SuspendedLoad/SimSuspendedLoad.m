@@ -33,60 +33,20 @@ motive.getData(agent);
 est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
 agent(1).estimator.ekf = EKF(agent(1), Estimator_EKF(agent(1),dt,...
     MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
-    ["p", "q", "pL", "pT"],"sensor_func",@sensor_func));%expの流用 質量推定有
-function y = sensor_func(self,dt,~)
-p = self.sensor.result.state(1).get('p');
-q = self.sensor.result.state(1).getq('3');
-switch self.cha
-    case 't'
-        pL = p;
-        pL(3) = pL(3) - self.parameter.get("cableL");       
-        pT = [0;0;-1];
-        pT = (pL - p);
-        pT = pT/norm(pT);
-        QmL = 1e4;
-        if self.estimator.ekf.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
-            self.estimator.ekf.B = B;
-            self.estimator.ekf.Q = Q;
-            self.estimator.ekf.R = R;            
-            self.estimator.ekf.result.P = eye(25);
-        end
-    case {'a','l'}
-        pL = p;
-        pL(3) = pL(3) - self.parameter.get("cableL");
-        pT = [0;0;-1];
-    otherwise
-        pL = self.sensor.result.state(2).get('p');
-        pT = (pL - p);
-        pT = pT/norm(pT);
-        QmL = 1e-3;
-        if self.estimator.ekf.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
-            self.estimator.ekf.B = B;
-            self.estimator.ekf.Q = Q;
-            self.estimator.ekf.R = R;
-            self.estimator.ekf.result.P = eye(25);
-        end
-end
-self.estimator.result.state.mL
-y = [p;q;pL;pT];
-end
+    ["p", "q", "pL", "pT"],"sensor_func",@sl_sensor_func));%expの流用 質量推定有
+agent(1).estimator.loadstate = SUSPENDED_LOAD_STATE_MANAGER(agent(1));
 agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
 agent(1).reference.timevarying = TIME_VARYING_REFERENCE(agent(1),...
     {"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[1,1,0]},"HL"});
 % agent(1).reference.origin  = agent(1).reference.timevarying;  %揺れ抑制用（既存）
 % agent(1).reference.swaymod = SWAY_REF_MOD(agent(1), SwayRefMod_Param()); %揺れ抑制
+agent(1).reference.sload = SUSPENDED_LOAD_REF_ADJUST(agent(1));
 agent(1).controller = HLC_SUSPENDED_LOAD(agent(1),Controller_HL_Suspended_Load(dt,agent(1)));
 
 run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";
-agent(1).cha_allocation.estimator = "ekf";
-agent(1).cha_allocation.f.reference = "timevarying";
+agent(1).cha_allocation.estimator = ["ekf","loadstate"];
+agent(1).cha_allocation.reference = ["timevarying","sload"];
 % agent(1).cha_allocation.f.reference = ["origin","swaymod"]; %揺れ抑制
 %%
 % clc
