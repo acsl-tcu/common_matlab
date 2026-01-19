@@ -26,9 +26,9 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.3],"size",[1,1,0]},"HL"});
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1.3],"radius",1.0},"HL"});
+% agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1.3],"radius",1.0},"HL"});
 % agent.reference.timevarying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1.3], "g", [0.3;0.3;1.3], "h",[0;0;1.3]), 15}); % P2P
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",12,"orig",[0;0;1],"radius",1.0},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",12,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",[0;0;1],"size",[1,0.5],"phase",[0,0]},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
