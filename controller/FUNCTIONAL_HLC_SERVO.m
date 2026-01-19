@@ -48,6 +48,7 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             
             if t > 5
                 obj.z = obj.z + xd(1:3)-x(5:7);
+                % obj.z = obj.z + [0;0;xd(3)-x(7)]; % z方向にのみサーボを入れる
             end
             %% calc Z
             z1 = Z1(x,xd',P);
