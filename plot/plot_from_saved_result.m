@@ -32,7 +32,7 @@ fprintf('MATファイルを選択してください:')
 [filename, pathname] = uigetfile('*.mat', 'MATファイルを選択してください');
 fprintf(filename);
 fullpath = fullfile(pathname, filename);
-logger = LOGGDER(fullpath);
+logger = LOGGER(fullpath);
 
 %% プロット
 clearvars -except logger filename
