@@ -35,7 +35,8 @@ classdef DRONE < handle
       % param.Motive_ref = 0 or 1 動画内の目標軌道をMotiveみたいに徐々に消える形にするか選択（1でMotiveモード）
       % param.fig_num = 1 gif出力するfigure番号の選択（デフォルトはfigure１）
       % param.mp4 = 0 or 1 mp4形式として出力するか選択（1で出力＆Dataフォルダに保存）
-      mov = DRAW_DRONE_MOTION(logger,varargin{:});%"target",param.target,"fig_num",param.fig_num,"mp4",param.mp4);
+      % param.phase = 'tfl' フェーズ選択
+      mov = DRAW_DRONE_MOTION(logger,varargin{:});%"target",param.target,"fig_num",param.fig_num,"mp4",param.mp4, "phase",param.phase);
       mov.animation(logger,varargin{:});%"realtime",true,"target",param.target,"fig_num",param.fig_num,"gif",param.gif,"Motive_ref",param.Motive_ref);
     end
     function ax=show(obj,str,varargin)

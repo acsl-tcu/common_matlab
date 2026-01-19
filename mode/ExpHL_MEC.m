@@ -51,7 +51,11 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"f
 %                                                             ,"l",[2.5;2.5;takeoff_zd], "z",[3;3;takeoff_zd], "x",[3.5;3.5;takeoff_zd], "c",[4;4;takeoff_zd]), 10});                                       % P2P
 
 agent.cha_allocation.reference = "time_varying";
+% Nominal Controller % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 agent.controller.nominal = HLC(agent,Controller_HL(dt));
+agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
 % agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
 % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
 
