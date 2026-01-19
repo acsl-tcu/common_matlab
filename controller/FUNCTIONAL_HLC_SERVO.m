@@ -71,6 +71,7 @@ classdef FUNCTIONAL_HLC_SERVO < handle
           % max,min are applied for the safty
             obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
             obj.result.z= obj.z;
+            obj.result.u_nominal = obj.result.input;%do_propでmecのresult.inpuなどに上書きされるから，unほしいならこの行必要
             result = obj.result;
         end
         function show(obj)
