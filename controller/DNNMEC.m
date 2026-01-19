@@ -100,7 +100,7 @@ classdef DNNMEC < handle
             if abs(obj.result.delta_input(2))>1, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>1, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>1, obj.result.delta_input(4) = 0; end
-            obj.result.delta_input = [0;0;0;0];
+            % obj.result.delta_input = [0;0;0;0];
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;

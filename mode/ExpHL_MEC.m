@@ -30,13 +30,13 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[-1;0;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering-
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering-
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle_3D",{"freq",7.5,"orig",center,"size",[1,0.5], "phase",[-pi/2,0]},"HL"});       % 3D circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0]},"HL"});                      % 3D lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle_3D",{"freq",20,"orig",center,"size",[1,0], "phase",[-pi/2,0]},"HL"});       % 3D circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0], "x",-1},"HL"});                      % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
@@ -52,7 +52,7 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"f
 
 agent.cha_allocation.reference = "time_varying";
 % Nominal Controller % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-agent.controller.nominal = HLC(agent,Controller_HL(dt));
+% agent.controller.nominal = HLC(agent,Controller_HL(dt));
 agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
@@ -69,7 +69,7 @@ LW = 1.5; % LineWidth
 FS = 18; % FontSize
 phase = "tfl";
 % phase = "t";
-phase = "f";
+% phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS);
