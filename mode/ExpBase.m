@@ -1,6 +1,6 @@
 for i = 1:length(agent)
-  agent(i).reference.takeoff = TAKEOFF_REFERENCE(agent(i),[]);
-  agent(i).reference.landing = LANDING_REFERENCE(agent(i),dt,0.1);
+  agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),[]));
+  agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),dt,0.1));
   if isfield(agent,"cha_allocation")
      if  isfield(agent(i).cha_allocation,"a")
         agent(i).cha_allocation.a.reference = "takeoff";

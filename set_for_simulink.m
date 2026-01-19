@@ -45,7 +45,7 @@ x0 = agent.plant.state.get();
 save("plant_setting.mat","x0","dt","parameter");
 
 %% estimator
-agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
+agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
 eparam.n = agent.estimator.n;
 eparam.B = agent.estimator.B;
 eparam.Q = agent.estimator.Q;

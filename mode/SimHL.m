@@ -28,15 +28,19 @@ agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 %agent.parameter.set("mass",struct("mass",0.5))
-agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"});
-agent.controller = HLC(agent,Controller_HL(dt));
+agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
+agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"}));
+agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 %run("ExpBase");
-agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
-agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
-agent.cha_allocation = struct("reference","time_varying", ...
-    "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,[]));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,dt,0.1));
+chaAlloc=agent.cha_allocation;
+chaAlloc.f.reference = "time_varying";
+chaAlloc.a.reference="takeoff";
+chaAlloc.t.reference="takeoff";
+chaAlloc.l.reference="landing";
+agent.cha_allocation = chaAlloc;
 motive.getData(agent);
 
 function dfunc(app)

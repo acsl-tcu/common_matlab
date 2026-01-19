@@ -31,17 +31,17 @@ motive.getData(agent);
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 est.model = MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state,1,agent(1)));
-agent(1).estimator.ekf = EKF(agent(1), Estimator_EKF(agent(1),dt,...
+agent(1).estimator.set_function_class("ekf", EKF(agent(1), Estimator_EKF(agent(1),dt,...
     MODEL_CLASS(agent(1),Model_Suspended_Load(dt, initial_state, 1,agent(1),"Load_mL_HL")),...
     ["p", "q", "pL", "pT"],"sensor_func",@sl_sensor_func));%expの流用 質量推定有
-agent(1).estimator.loadstate = SUSPENDED_LOAD_STATE_MANAGER(agent(1));
-agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive([1,2],0, motive));
-agent(1).reference.timevarying = TIME_VARYING_REFERENCE(agent(1),...
+agent(1).estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent(1)));
+agent(1).sensor.set_function_class("motive", MOTIVE(agent(1), Sensor_Motive([1,2],0, motive)));
+agent(1).reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent(1),...
     {"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[1,1,0]},"HL"});
 % agent(1).reference.origin  = agent(1).reference.timevarying;  %揺れ抑制用（既存）
 % agent(1).reference.swaymod = SWAY_REF_MOD(agent(1), SwayRefMod_Param()); %揺れ抑制
-agent(1).reference.sload = SUSPENDED_LOAD_REF_ADJUST(agent(1));
-agent(1).controller = HLC_SUSPENDED_LOAD(agent(1),Controller_HL_Suspended_Load(dt,agent(1)));
+agent(1).reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent(1)));
+agent(1).controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent(1),Controller_HL_Suspended_Load(dt,agent(1))));
 
 run("ExpBase");
 agent(1).cha_allocation.sensor = "motive";

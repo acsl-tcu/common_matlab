@@ -12,7 +12,7 @@ classdef HLC < handle
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
+      obj.result.input = zeros(4,1);
     end
 
     function result = do(obj,varargin)

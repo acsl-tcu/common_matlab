@@ -102,11 +102,11 @@ payloadAgent.estimator.do = @(varargin)[];
 payloadAgent.estimator.result.state = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 3]));
 payloadAgent.estimator.result.state.p = rigid.p;
 payloadAgent.estimator.result.state.q = eul;
-payloadAgent.sensor = MOTIVE(payloadAgent, Sensor_Motive(1, eul(3), motive));
-payloadAgent.reference = TIME_VARYING_REFERENCE_SPLIT(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, "Cooperative", N}, payloadAgent);
+payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, Sensor_Motive(1, eul(3), motive)));
+payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_SPLIT(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, "Cooperative", N}, payloadAgent));
 payloadAgent.controller.do = @(varargin)[];
 payloadAgent.controller.result.input = [0; 0; 0; 0];
-payloadAgent.input_transform = struct("do", @(varargin)[], "result", zeros(1, 8));
+payloadAgent.input_transform.set_function_class("identity", struct("do", @(varargin)[], "result", zeros(1, 8)));
 plot_and_close(N * 2 - 1, payloadAgent);
 end
 
@@ -116,34 +116,33 @@ agentObj.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agentObj.parameter.set("cableL", cableLen);
 agentObj.plant = DRONE_EXP_MODEL(agentObj, Model_Drone_Exp(dt, initial_state, "serial", com));
 
-agentObj.estimator = struct();
-agentObj.estimator.ekf = EKF(agentObj, Estimator_EKF(agentObj, dt, MODEL_CLASS(agentObj, Model_Suspended_Load(dt, initial_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"], "sensor_func", @sl_sensor_func));
-agentObj.estimator.loadstate = SUSPENDED_LOAD_STATE_MANAGER(agentObj);
+agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF(agentObj, dt, MODEL_CLASS(agentObj, Model_Suspended_Load(dt, initial_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"], "sensor_func", @sl_sensor_func)));
+agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
-agentObj.sensor.motive = MOTIVE(agentObj, Sensor_Motive(rigidIdPair, 0, motive));
-agentObj.sensor.forload = FOR_LOAD(agentObj, Estimator_Suspended_Load(rigidIdPair(2)));
+agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, Sensor_Motive(rigidIdPair, 0, motive)));
+agentObj.sensor.set_function_class("forload", FOR_LOAD(agentObj, Estimator_Suspended_Load(rigidIdPair(2))));
 agentObj.sensor.do = @sensor_do;
 
-agentObj.reference.timevarying = TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 15, "orig", [0; 0; 0.5], "size", [0, 0, 0]}, "HL"});
+agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 15, "orig", [0; 0; 0.5], "size", [0, 0, 0]}, "HL"}));
 
 if ~isempty(refPoint)
-    agentObj.reference.point = MULTI_POINT_REFERENCE(agentObj, refPoint);
+    agentObj.reference.set_function_class("point", MULTI_POINT_REFERENCE(agentObj, refPoint));
     baseRefOrder = ["timevarying", "point"];
 else
     baseRefOrder = "timevarying";
 end
 
-agentObj.reference.sload = SUSPENDED_LOAD_REF_ADJUST(agentObj);
+agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
 
 if isCoop
-    agentObj.reference.split = TIME_VARYING_REFERENCE_SPLIT(agentObj, {"dammy", [], "Split", N}, payloadAgent);
+    agentObj.reference.set_function_class("split", TIME_VARYING_REFERENCE_SPLIT(agentObj, {"dammy", [], "Split", N}, payloadAgent));
     agentObj.cha_allocation.reference = [baseRefOrder, "split", "sload"];
 else
     agentObj.cha_allocation.reference = [baseRefOrder, "sload"];
 end
 
-agentObj.controller = HLC_SUSPENDED_LOAD(agentObj, Controller_HL_Suspended_Load(dt, agentObj));
-agentObj.input_transform = THRUST2THROTTLE_DRONE(agentObj, InputTransform_Thrust2Throttle_drone());
+agentObj.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agentObj, Controller_HL_Suspended_Load(dt, agentObj)));
+agentObj.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agentObj, InputTransform_Thrust2Throttle_drone()));
 
 agentObj.cha_allocation.sensor = "motive";
 agentObj.cha_allocation.estimator = ["ekf", "loadstate"];

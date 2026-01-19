@@ -20,7 +20,12 @@ classdef DRONE < handle
       arguments
         args = struct("type","sim");
       end
-      obj.input_transform.do = @(varargin) [];
+      obj.sensor = FUNCTION_CLASS_PROPERTY(obj,"sensor");
+      obj.estimator = FUNCTION_CLASS_PROPERTY(obj,"estimator");
+      obj.reference = FUNCTION_CLASS_PROPERTY(obj,"reference");
+      obj.controller = FUNCTION_CLASS_PROPERTY(obj,"controller");
+      obj.input_transform = FUNCTION_CLASS_PROPERTY(obj,"input_transform");
+      % obj.input_transform.do = @(varargin) [];
       if contains(args.type, "EXP")
         obj.plant = DRONE_EXP_MODEL(args);
       end

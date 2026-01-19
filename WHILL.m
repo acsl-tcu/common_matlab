@@ -10,6 +10,7 @@ properties %(Access = private)
     reference
     controller
     input_transform
+    cha_allocation
     % id = 1
     id
     node
@@ -22,6 +23,11 @@ methods
         arguments
           args = struct("type","sim");  
         end
+        obj.sensor = FUNCTION_CLASS_PROPERTY(obj,"sensor");
+        obj.estimator = FUNCTION_CLASS_PROPERTY(obj,"estimator");
+        obj.reference = FUNCTION_CLASS_PROPERTY(obj,"reference");
+        obj.controller = FUNCTION_CLASS_PROPERTY(obj,"controller");
+        obj.input_transform = FUNCTION_CLASS_PROPERTY(obj,"input_transform");
         obj.input_transform.do = @(varargin) [];
         if contains(args.type, "EXP")
           obj.plant = WHILL_EXP_MODEL(args);

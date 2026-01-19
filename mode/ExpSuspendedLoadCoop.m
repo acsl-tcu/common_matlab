@@ -94,10 +94,10 @@ if isCoop == 1
     agent(1).estimator.model.name       = [];
 
     % MOTIVEから位置と角度を取得する
-    agent(1).sensor                     = MOTIVE(agent(1), Sensor_Motive(1,eul(3), motive)); 
+    agent(1).sensor.set_function_class("motive", MOTIVE(agent(1), Sensor_Motive(1,eul(3), motive))); 
 
     % 複数機牽引の場合の牽引物の目標位置
-    agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0]},"Cooperative",N},agent(1));
+    agent(1).reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0]},"Cooperative",N},agent(1)));
     % agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.8],"size",[0.7,0.7,0.2]},"HL",N},agent(1));
     % agent(1).reference = MULTI_POINT_REFERENCE(agent(1),refPointName{1});%縦ベクトルで書く,
 
@@ -106,7 +106,7 @@ if isCoop == 1
     agent(1).controller.result.input    = [0;0;0;0];
 
     % 入力のプロポの値への変換も単機モデルでするのでここで行わない
-    agent(1).input_transform            = struct("do",@(varargin)[], "result",zeros(1,8));
+    agent(1).input_transform.set_function_class("identity", struct("do",@(varargin)[], "result",zeros(1,8)));
 
     plot_and_close(rigid_num,agent);%Motive入れ替わり対策グラフ．plot_and_close.mで設定してる
 end
@@ -131,29 +131,29 @@ for i = firstId:N
     agent(i).plant              = DRONE_EXP_MODEL(agent(i),Model_Drone_Exp(dt, initial_state, "serial", COMs(i))); %プロポ有線　プロポとの接続
      
     %　推定の設定：機体の位置と角度，牽引物の位置，紐の単位方向ベクトルを観測値として用いる
-    agent(i).estimator          = EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state, i,agent(i),1)),  ["p", "q", "pL", "pT"]));
+    agent(i).estimator.set_function_class("ekf", EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state, i,agent(i),1)),  ["p", "q", "pL", "pT"])));
 
     % sensor [2*i-firstId, 2*i-(firstId-1)],firstId=1 or 2:機体1，牽引物1,機体2，牽引物2...の順番の場合,[i,i+N]：機体...,牽引物...
     % 各組ごとにmotiveから全ての剛体情報を持ってきているので重くなる原因になるかも?2組4剛体だったら問題ないと思う．各組毎に剛体情報更新するので精度はいいと思う
-    agent(i).sensor.motive      = MOTIVE(agent(i), Sensor_Motive(2*i-firstId +addId,eul(3), motive));    %機体の情報のクラス，機体のidを入れる
-    agent(i).sensor.forload     = FOR_LOAD(agent(i), Estimator_Suspended_Load(2*i-(firstId-1)+addId));  %牽引物の情報のクラス，牽引物のidを入れる
+    agent(i).sensor.set_function_class("motive", MOTIVE(agent(i), Sensor_Motive(2*i-firstId +addId,eul(3), motive)));    %機体の情報のクラス，機体のidを入れる
+    agent(i).sensor.set_function_class("forload", FOR_LOAD(agent(i), Estimator_Suspended_Load(2*i-(firstId-1)+addId)));  %牽引物の情報のクラス，牽引物のidを入れる
     agent(i).sensor.do          = @sensor_do;
    
     % コントローラの設定，初期入力は機体と牽引物質量が釣り合う推力のみでトルクは全て0
-    agent(i).controller         = HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i)));
+    agent(i).controller.set_function_class("hlc_split", HLC_SPLIT_SUSPENDED_LOAD(agent(i),Controller_HL_Suspended_Load(dt,agent(i))));
     
     % 設計した入力をプロポの値に変換
-    agent(i).input_transform    = THRUST2THROTTLE_DRONE(agent(i),InputTransform_Thrust2Throttle_drone()); 
+    agent(i).input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent(i),InputTransform_Thrust2Throttle_drone())); 
 
     % referenceの設定(refernceの前にTHRUST2THROTTLE_DRONEを定義)
     %複数機による牽引の場合の位置はagent(1)で設定した位置からrhoずらした値とする．それ以外はagent(1)と同様
     if isCoop
-        agent(i).reference      = TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1));
+        agent(i).reference.set_function_class("split", TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1)));
     % 複数の単機モデルの場合
     else
         % agent(i).reference    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
         % agent(i).reference    = MY_WAY_POINT_REFERENCE(agent,way_point_ref(readmatrix("waypoint.xlsx",'Sheet','Sheet1_15d3'),5,1));
-        agent(i).reference      = MULTI_POINT_REFERENCE(agent(i),refPointName{i});%縦ベクトルで書く,
+        agent(i).reference.set_function_class("point", MULTI_POINT_REFERENCE(agent(i),refPointName{i}));%縦ベクトルで書く,
         % agent(i).reference    = TIME_VARYING_REFERENCE(agent(i),refName{i});
         % agent(i).reference    = TIME_VARYING_REFERENCE_SUSPENDEDLOAD(agent(i),refName{i});
     end
