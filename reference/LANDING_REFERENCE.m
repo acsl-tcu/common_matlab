@@ -7,7 +7,7 @@ classdef LANDING_REFERENCE < handle
         result
         base_state
         base_time = 0;
-        te = 3 % 着陸するまでの時間
+        te = 5 % 着陸するまでの時間
         th_offset
         th_offset0 = 200;
         initialz % 初期時刻高度（takeoffする前の高度）

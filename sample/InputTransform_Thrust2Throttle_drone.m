@@ -11,7 +11,7 @@ function u_trans_param = InputTransform_Thrust2Throttle_drone(varargin)
     %単機牽引用↓
     u_trans_param.th_offset     = 310;%機体質量と釣り合うスロットルオフセット
     u_trans_param.th_offset_tl  = 100;  %テークオフとランディング初期オフセット。
-    u_trans_param.gain          = [330;330;300;20];%　
+    u_trans_param.gain          = [350;350;300;20];%　[330;330;300;20];
     u_trans_param.gain_tl       = [200;200;200;20];%
 
     %droneにあった単機牽引の値↓

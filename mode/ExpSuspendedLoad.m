@@ -47,25 +47,25 @@ agent(1).estimator = EKF(agent(1), Estimator_EKF(agent(1),dt,...
 function y = sensor_func(self,dt,~)
 p = self.sensor.result.state(1).get('p');
 q = self.sensor.result.state(1).getq('3');
+QmL = 1e-3; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
+% QmL = 0.07; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
+if self.estimator.Q(end,end) ~= QmL
+    B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+    Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+    % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E5,eye(3)*1E5,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+    R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
+    self.estimator.B = B;
+    self.estimator.Q = Q;
+    self.estimator.R = R;
+    self.estimator.result.P = eye(25);
+end
 switch self.cha
     case 't'
         pL = p;
         pL(3) = pL(3) - self.parameter.get("cableL");       
-        pT = [0;0;-1];
         pT = (pL - p);
         pT = pT/norm(pT);
-        QmL = 1e-3; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
-        % QmL = 0.07; %牽引物のシステムノイズ真値に近い値を入れておいてある程度飛ぶようになったらチューニング
-        if self.estimator.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            % Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E5,eye(3)*1E5,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-3);    %観測ノイズ
-            self.estimator.B = B;
-            self.estimator.Q = Q;
-            self.estimator.R = R;            
-            self.estimator.result.P = eye(25);
-        end
+       
     case {'a','l'}
         pL = p;
         pL(3) = pL(3) - self.parameter.get("cableL");
@@ -74,16 +74,16 @@ switch self.cha
         pL = self.sensor.result.state(2).get('p');
         pT = (pL - p);
         pT = pT/norm(pT);
-        QmL = 1e-3;
-        if self.estimator.Q(end,end) ~= QmL
-            B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
-            Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
-            R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
-            self.estimator.B = B;
-            self.estimator.Q = Q;
-            self.estimator.R = R;
-            self.estimator.result.P = eye(25);
-        end
+        % QmL = 1e-3;
+        % if self.estimator.Q(end,end) ~= QmL
+        %     B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1);%
+        %     Q = blkdiag(eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,eye(3)*1E1,QmL);       % システムノイズ（Modelクラス由来）B*Q*B'(Bは単位の次元を状態に合わせる，Qは標準偏差の二乗(分散))
+        %     R = blkdiag(eye(3)*1e-6, eye(3)*1e-6,eye(3)*1e-6,eye(3)*1e-6);    %観測ノイズ
+        %     self.estimator.B = B;
+        %     self.estimator.Q = Q;
+        %     self.estimator.R = R;
+        %     self.estimator.result.P = eye(25);
+        % end
 end
 y = [p;q;pL;pT];
 end
@@ -92,7 +92,7 @@ end
 % agent.reference.timevarying = MY_POINT_REFERENCE(agent,{struct("f",[1;1;0.4],"g",[0;1;0.4],"h",[-1;1;0.4],"j",[-1;0;0.4],"k",[-1;-1;0.4]),10});
 
 % agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p",{"p0",[0;0;0.5], "pf",[1;1;0.5], "T",10}, "HL"});
-agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"orig",[0;0;0.5],"size",[0,0,0]},"HL"});
+agent.reference.timevarying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"orig",[0;0;1.2],"size",[0,0.5,0]},"HL"});
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param(dt)); %揺れ抑制
 
@@ -109,7 +109,7 @@ agent.cha_allocation.f.reference = "timevarying";
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
-app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
+app.logger.plot({{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
 
 app.logger.plot({1, "p", "er"},"phase","tfl", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
@@ -122,10 +122,10 @@ app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",7); % x-y軌跡
 % app.logger.plot({1, "p", "ers"},"phase","tf","fig_num",9);
 % app.logger.plot({1, "sensor.result.", "er"},"phase","tf", "fig_num",10);
 % app.logger.plot.("controller.result.xd","phase","tf","fig_num",11); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
+app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
 % app.logger.plot({1, "controller.result.xd", "r"});
 % app.logger.plot({1, "controller.result.mL",""},"fig_num",200);
-
+ app.logger.plot({1, "controller.result.isGround",""},"fig_num",200);
 % 刻み時間描画
 t0id = find(app.logger.Data.phase==97,1,'last')+1;
 teid = find(app.logger.Data.phase==0,1,'first')-1;

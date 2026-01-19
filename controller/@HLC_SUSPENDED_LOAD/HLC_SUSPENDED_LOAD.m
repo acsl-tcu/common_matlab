@@ -68,7 +68,6 @@ methods
         [pL, pT, P, xd] = obj.calc_pL(t, model, cha, xd);
 
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
-        [x(8:10), xd(1:3), x(8:10) - xd(1:3)]
         % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
         % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
         yaw = wrapToPi(model.state.q(3)); % 機体yaw角[-pi,pi]にする特にyaw
@@ -108,6 +107,7 @@ methods
         obj.result.x = x;
         obj.result.sus = obj.result.input;
         obj.result.mL = P(6);
+        obj.result.isGround = obj.isGround;
         result = obj.result;
 
     end
@@ -154,7 +154,7 @@ methods
                 nxy = pL; %牽引物のreferenceのためpLにいるままになってしまうのでここで代入して下にいるようにする。
             end
 
-            nxy(3) = xd(3) - L;
+            % nxy(3) = xd(3) - L;
         elseif strcmp(cha, 'l') % landing
 
             if isempty(obj.cableLL) || isempty(obj.mLL)
@@ -162,9 +162,9 @@ methods
                 obj.mLL = mL; % landing開始時の質量
                 obj.tt0 = t;
             end
-
+            p(3)
             %地面についたかの判定
-            if p(3) - pL(3) < obj.cableLL * 0.9 || obj.isGround == 1
+            if p(3) < L * 0.9 || obj.isGround == 1
                 obj.isGround = 1; % この分岐に一回でも入ったら入り続けるようにフラグ立てる
                 tt = min(t - obj.tt0, obj.td); % landingの経過時間がセンサ値使用率0 %になる時間を越えないようにする
                 k = obj.ratet * tt ^ 2; % センサ値反映割合
@@ -174,7 +174,7 @@ methods
                 mL = min(mL, obj.mLL); % 傾いて着陸した時に推定が吹っ飛ばないように制限
             end
 
-            nxy(3) = xd(3) - L;
+            % nxy(3) = xd(3)-L;
         end
 
         %l = sqrt(L^2 - sum((p(1:2)-pL(1:2)).^2));
@@ -194,7 +194,7 @@ methods
             end
 
         end
-
+        nxy(3) = xd(3)-L;
         xd(1:3) = nxy;
     end
 
