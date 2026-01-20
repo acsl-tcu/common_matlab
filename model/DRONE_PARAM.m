@@ -56,6 +56,26 @@ classdef DRONE_PARAM < PARAMETER_CLASS
                 param.k3 = 0.000008;          % 推力定数
                 param.k4 = 0.000008;          % 推力定数
                 param.rotor_r = 0.0392;
+
+                %小さいドローン用
+                % param.mass = 0.3664;%0.5884;
+                % param.Lx = 0.111;
+                % param.Ly = 0.093;
+                % param.lx = 0.054;%0.05;
+                % param.ly = 0.08;%0.05;
+                % param.jx = 0.06;
+                % param.jy = 0.06;
+                % param.jz = 0.06;
+                % param.gravity = 9.81;
+                % param.km1 = 0.0301; % ロータ定数
+                % param.km2 = 0.0301; % ロータ定数
+                % param.km3 = 0.0301; % ロータ定数
+                % param.km4 = 0.0301; % ロータ定数
+                % param.k1 = 0.000008;          % 推力定数
+                % param.k2 = 0.000008;          % 推力定数
+                % param.k3 = 0.000008;          % 推力定数
+                % param.k4 = 0.000008;          % 推力定数
+                % param.rotor_r = 0.0392;
                 param.additional = []; % プロパティに無いパラメータを追加する場合
             end
             obj = obj@PARAMETER_CLASS(name,type,param);
