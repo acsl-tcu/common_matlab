@@ -312,8 +312,9 @@ methods
                 % --- 位置情報取得 ---
                     pos = obj.self.estimator.result.state.p;         % 現在位置[x;y;z]
                     pos_ref = obj.self.reference.result.state.p;    % 目標位置
+                    vel = obj.self.estimator.result.state.v;
                 % ==== スコア評価（振動 + 安定性 + 位置誤差） ====
-                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx);
+                score = obj.evaluate_stability(wnvec, wvec, pos, pos_ref,obj.mode, obj.axis_idx,vel);
 
                 % ========================================
                 %  mode = 1 : 自動オフセット取得
@@ -840,11 +841,11 @@ methods
     % evaluate_stability:
     % 数値が小さいほど良い（安定している）
     %% ---------------------------
-    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis)
+    function s = evaluate_stability(~,wnvec, wvec, pos, pos_ref, mode, axis,vel)
     % wnvec, wvec: 各軸の角速度ログ（3×N）
     % pos, pos_ref: 現在位置と目標位置（3×1）
     % データが欠けている場合は評価不可 → 無限大 (極端に悪いスコア)
-        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis)
+        if isempty(wnvec) || isempty(wvec) || isempty(pos) || isempty(pos_ref) ||isempty(mode) || isempty(axis) ||isempty(vel)
             s = Inf; return;
         end
    %modeによるスコア評価の切替（自動）
@@ -918,7 +919,12 @@ switch mode
     % ---------- (追加) 重み（調整しやすいように分離） ----------
     w_model = 1.0;
     w_vib   = 0.5;
-    w_peak  = 0.2;
+    % w_peak  = 0.2;
+    %位置と速度
+    px=pos(1);
+    py=pos(2);
+    vx=vel(1);
+    vy=vel(2);
 
         switch axis
             % -------------------------------------------------
@@ -936,10 +942,14 @@ switch mode
                 % 角速度の分散（揺れの大きさ）
                 vib = mean(var(wvec(idx,:), 0, 2));
                 % % % % % ---- (追加) ピーク評価 ----
-                % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
-                peak = max(abs(wvec(idx,:)), [], 'all');
+                % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
+                % peak = max(abs(wvec(idx,:)), [], 'all');
+                %位置高周波成分＋相対速度
+                px_hp=px-movmean(px,round(1/dt));
+                py_hp=py-movmean(py,round(1/dt));
+                J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2));
                 % ---- 合成スコア ----
-                s = w_model*model_err + w_vib*vib + w_peak*peak + Jz;
+                s = w_model*model_err + w_vib*vib + J;%w_peak*peak + Jz;
             % -------------------------------------------------
             % yaw ゲイン調整
             % ・ヨー方向の荒れ（回転の滑らかさ）
@@ -953,8 +963,13 @@ switch mode
                 yaw_rate_penalty = mean(yaw_rate.^2);
                 % ---- (追加) ピーク ----
                 peak = max(abs(yaw_rate));
+                %追加項目
+                px_hp=px-movmean(px,round(1/dt));
+                py_hp=py-movmean(py,round(1/dt));
+                r_hp=yaw_rate-movmean(yaw_rate,round(1/dt));
+                J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2)+0.5*(r_hp.^2));
                 % ---- 合成スコア ----
-                s = vib + 0.3*yaw_rate_penalty + 0.2*peak + Jz;
+                s = vib + 0.3*yaw_rate_penalty +J;% + 0.2*peak + Jz;
             % -------------------------------------------------
             % throttle ゲイン調整
             % ・高度追従性能のみを見る
