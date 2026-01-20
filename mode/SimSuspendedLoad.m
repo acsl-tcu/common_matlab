@@ -1,6 +1,6 @@
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % termina time
+te = 50*2; % termina time
 time = TIME(ts,dt,te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
@@ -108,18 +108,18 @@ function post(app)
 app.logger.plot({{1, "p", "rep"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tf");
 % app.logger.plot({1, "state.wL", "ep"},"phase","tf");
 app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
-app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+% app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+% app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
+% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 app.logger.plot({1, "p1-p2", "er"}, "phase","tf",  "fig_num",6); % x-y軌跡
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",7); % x-y-z軌跡
+% app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",7); % x-y-z軌跡
 % figure(2)
 % ax=gca;
 % app.logger.plot({1, "estimator.result.state.mL", "e"},"phase","tf","ax",ax);
 figure(3)
 ax=gca;
-app.logger.plot({1, "state.w", "ep"},"phase","tf","ax",ax);
+% app.logger.plot({1, "state.w", "ep"},"phase","tf","ax",ax);
 % 刻み時間描画
 % t0id = find(app.logger.Data.phase==97,1,'last')+1;
 % teid = find(app.logger.Data.phase==0,1,'first')-1;
