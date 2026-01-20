@@ -22,7 +22,7 @@ properties
     % 基本参照
     % -------------------------
     self            % drone / agent
-    mode=2          % 0:off, 1:offset autotune, 2:gain autotune     %0は現状飛行不可能なので使わない
+    mode=1          % 0:off, 1:offset autotune, 2:gain autotune     %0は現状飛行不可能なので使わない
     monitor         % GUI 表示用オブジェクト（任意）
     % 出力（数値配列互換性）および構造体版（デバッグ）
     result          % 数値配列（互換）
@@ -33,18 +33,18 @@ properties
     % -------------------------
     % パラメータ（変換用）
     % -------------------------
-    % th_offset = 0                    % スロットルオフセット
-    gain = [150;150;150;15]        % [roll,pitch,yaw,thrust][250;250;250;25]
-    th_offset = 333                %現在使用スロットルオフセット
+    th_offset = 300                    % スロットルオフセット
+    gain = [100;100;100;10]        % [roll,pitch,yaw,thrust][250;250;250;25]
+    % th_offset = 336                %現在使用スロットルオフセット
     % gain = [400;400;400;40]　　　　 %現在使用ゲイン
     % -------------------------
     % autotune 関連
     % -------------------------
     offset_step = 5 %1.0　刻み値
     offset_interval = 1 %0.15
-    step_change_offset = 330;  % 330に達したら
+    step_change_offset = 590;  % 330に達したら
     offset_step_fine = 1;      % 1刻みにする
-    offset_max = 345
+    offset_max = 700
     gain_step = [10;10;10;1]        % ゲインをどれだけ増やすか
     gain_max = [410;410;410;45]     % ゲイン上限
     time_accum = 0                  % 時間積算（初期ゼロ）
@@ -236,8 +236,8 @@ methods
         % ---------------------------------------------------------
         % gain と throttle offset パラメータ
         g = obj.gain;
-        % offset=obj.th_offset;%mode1用
-        offset = obj.param.th_offset;%mode2用
+        offset=obj.th_offset;%mode1用
+        % offset = obj.param.th_offset;%mode2用
         % thrust コマンド（外部 LQR/MPC の出力）
         T_thr = input(1);
         % ---- P制御（角速度制御）----
@@ -787,19 +787,19 @@ methods
                 % --- ベストスコア管理（他の処理で更新された場合も拾う） ---
                 if score < obj.best_score
                     obj.best_score = score;
-                    % obj.best_param.th_offset = obj.th_offset;%mode1用
-                    obj.best_param.th_offset = obj.param.th_offset;%mode2用
+                    obj.best_param.th_offset = obj.th_offset;%mode1用
+                    % obj.best_param.th_offset = obj.param.th_offset;%mode2用
                     obj.best_param.gain = obj.gain;
                 end
                 % ==== GUI モニター更新 ====
                 if ~isempty(obj.monitor)
                     try
                         %mode1用
-                        % s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestOffset:%d\n' 'result_th:%.2f\n' 'param_th:%.2f\n'], ...
-                        %     obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.result(3),obj.param.th_offset);
+                        s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestOffset:%d\n' 'result_th:%.2f\n' 'param_th:%.2f\n'], ...
+                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.th_offset, obj.result(3),obj.param.th_offset);
                         %mode2用
-                        s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestGain:[%.1f %.1f %.1f %.1f]\n' 'stage:%d\n' 'throttle改善なし:%d\n' 'roll/pitch,yaw改善なし:%d\n'], ...
-                            obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.gain, obj.tune_stage,obj.no_improve_thr,obj.no_improve_rpyaw);
+                        % s = sprintf(['Mode:%d\n' 'Gain:[%.1f %.1f %.1f %.1f]\n' 'Offset:%.1f\n' 'Score:%.4f   (Best:%.4f)\n' 'BestGain:[%.1f %.1f %.1f %.1f]\n' 'stage:%d\n' 'throttle改善なし:%d\n' 'roll/pitch,yaw改善なし:%d\n'], ...
+                        %     obj.mode, obj.gain(1),obj.gain(2),obj.gain(3),obj.gain(4), obj.th_offset, score, obj.best_score, obj.best_param.gain, obj.tune_stage,obj.no_improve_thr,obj.no_improve_rpyaw);
                         obj.monitor.update(s);
                     catch
                          % GUIエラーは無視
@@ -919,12 +919,12 @@ switch mode
     % ---------- (追加) 重み（調整しやすいように分離） ----------
     w_model = 1.0;
     w_vib   = 0.5;
-    % w_peak  = 0.2;
+    w_peak  = 0.2;
     %位置と速度
-    px=pos(1);
-    py=pos(2);
-    vx=vel(1);
-    vy=vel(2);
+    % px=pos(1);
+    % py=pos(2);
+    % vx=vel(1);
+    % vy=vel(2);
 
         switch axis
             % -------------------------------------------------
@@ -943,13 +943,13 @@ switch mode
                 vib = mean(var(wvec(idx,:), 0, 2));
                 % % % % % ---- (追加) ピーク評価 ----
                 % % % % % ホバリングでも差が出やすい（過渡が荒いと悪化）
-                % peak = max(abs(wvec(idx,:)), [], 'all');
+                peak = max(abs(wvec(idx,:)), [], 'all');
                 %位置高周波成分＋相対速度
-                px_hp=px-movmean(px,round(1/dt));
-                py_hp=py-movmean(py,round(1/dt));
-                J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2));
+                % px_hp=px-movmean(px,round(1/dt_guess));
+                % py_hp=py-movmean(py,round(1/dt_guess));
+                % J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2));
                 % ---- 合成スコア ----
-                s = w_model*model_err + w_vib*vib + J;%w_peak*peak + Jz;
+                s = w_model*model_err + w_vib*vib + w_peak*peak + Jz;
             % -------------------------------------------------
             % yaw ゲイン調整
             % ・ヨー方向の荒れ（回転の滑らかさ）
@@ -964,12 +964,12 @@ switch mode
                 % ---- (追加) ピーク ----
                 peak = max(abs(yaw_rate));
                 %追加項目
-                px_hp=px-movmean(px,round(1/dt));
-                py_hp=py-movmean(py,round(1/dt));
-                r_hp=yaw_rate-movmean(yaw_rate,round(1/dt));
-                J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2)+0.5*(r_hp.^2));
+                % px_hp=px-movmean(px,round(1/dt_guess));
+                % py_hp=py-movmean(py,round(1/dt_guess));
+                % r_hp=yaw_rate-movmean(yaw_rate,round(1/dt_guess));
+                % J=mean(1.0*(vx.^2+vy.^2)+0.2*(px_hp.^2+py_hp.^2)+0.5*(r_hp.^2));
                 % ---- 合成スコア ----
-                s = vib + 0.3*yaw_rate_penalty +J;% + 0.2*peak + Jz;
+                s = vib + 0.3*yaw_rate_penalty + 0.2*peak + Jz;
             % -------------------------------------------------
             % throttle ゲイン調整
             % ・高度追従性能のみを見る
