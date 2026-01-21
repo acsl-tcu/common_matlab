@@ -21,15 +21,28 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
             end
             obj.self = self;
             obj.source = opts.source;
+            if ~isprop(obj.self.estimator,obj.source)
+                error("SUSPENDED_LOAD_STATE_MANAGER:MissingSource", "Source class is missing.");
+            end 
             obj.ratet = 1 / obj.td ^ 2;
             obj.result.state = [];
+            
         end
 
         function result = do(obj, varargin)
-            % Take EKF output, apply phase-dependent blending, and publish back via estimator result
+            % EKF等の推定状態を基準にして、フェーズごとにpL/pT/mLを滑らかに補正する。
+            % 目的:
+            %  - 離陸/着陸時に吊り荷位置の接地に対応するため
+            %  - controller へ常に整合したpL/pT/mLを提供する
+            % 流れ:
+            %  1) baseState から状態をコピー
+            %  2) フェーズ(a/t/f/l)に応じてpLをブレンド
+            %  3) 吊り荷接地時はpTを機体の真下方向で再計算
+            %  4) mLも着地時は>0の範囲で減衰させる
             time = varargin{1};
             cha = varargin{2};
-            baseState = obj.get_base_state();
+            baseState = obj.self.estimator.(obj.source).result.state;
+
             if isempty(baseState) || ~isprop(baseState, "pL")
                 result = obj.result;
                 return
@@ -43,12 +56,14 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 pT = [];
             end
             L = obj.self.parameter.get("cableL");
-            mL = obj.get_mass(state);
+            mL = obj.get_and_set_mass(state);
 
             if isempty(obj.pL0)
                 obj.pL0 = pL;
             end
 
+            % 離陸/待機: 荷が地面にある間はpL=p。センサーを信用できるときだけ
+            % pLをpからpLへ滑らかに遷移させる。
             if cha == 't' || cha == '0' || cha == 'a'
                 if obj.can_use_sensor(mL, p, L)
                     if isempty(obj.tt0)
@@ -61,6 +76,8 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 else
                     pL = p;
                 end
+            % 着陸: ケーブル長と質量を記録し、接地検知後にpLをpへ戻す。
+            % その際mLも同じ係数で減衰させ、地面接触後の変動を抑える。
             elseif cha == 'l'
                 if isempty(obj.cableLL) || isempty(obj.mLL)
                     obj.cableLL = norm(p - pL);
@@ -77,6 +94,7 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 end
             end
 
+            % 非飛行フェーズではpLのzをケーブル長で拘束し、pTを再計算。
             if cha ~= 'f'
                 pL(3) = p(3) - L;
                 delta = pL - p;
@@ -98,25 +116,6 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
     end
 
     methods (Access = private)
-        function state = get_base_state(obj)
-            est = obj.self.estimator;
-            if isstruct(est)
-                if isfield(est, obj.source)
-                    state = est.(obj.source).result.state;
-                    return
-                end
-            elseif isprop(est, obj.source)
-                state = est.(obj.source).result.state;
-                return
-            end
-            if isstruct(est) && isfield(est, "result")
-                state = est.result.state;
-            elseif isprop(est, "result")
-                state = est.result.state;
-            else
-                state = [];
-            end
-        end
 
         function tf = can_use_sensor(obj, mL, p, L)
             if isempty(obj.pL0)
@@ -126,9 +125,12 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
             tf = (mL > 0.1) || (p(3) > obj.pL0(3) + L * 0.9);
         end
 
-        function mL = get_mass(obj, state)
+        function mL = get_and_set_mass(obj, state)
+            % return mL 
+            % if mL is estimated then it assigns to self.parameter
             if isprop(state, "mL")
                 mL = max(0, state.mL);
+                obj.self.parameter.set("loadmass",mL);
             else
                 mL = obj.self.parameter.get("loadmass");
             end

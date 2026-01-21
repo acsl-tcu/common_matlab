@@ -14,7 +14,7 @@ post_func = @(app) dfunc(app);
 logger = LOGGER(1:N + 1, size(ts:dt:te, 2), 0, [], []); %分割前1,分割後N個
 
 %複数機牽引のplantモデルで使うファイル===========================================================
-% example       : CLASS NAME / function in sample folder
+% example       : CLASS NAME / function in template folder
 % parameter     : DRONE_PARAM_COOPERATIVE_LOAD
 % plant         : MODEL_CLASS / Model_Suspended_Cooperative_Load
 % sensor        : DIRECT_SENSOR, MODEL_CLASS
@@ -113,7 +113,7 @@ motive = Connector_Natnet_sim(dt, { ...
 
 motive.getData(agent);
 % agent(1).sensor.motive = MOTIVE(agent(1), Sensor_Motive(1,0, motive));
-agent(1).sensor.set_function_class("direct", DIRECT_SENSOR(agent(1), 0.0));
+agent(1).sensor.set_function_class("direct", DIRECT_SENSOR(agent(1), 0.0, struct("output_list", ["p","q","pL","pT"])));
 agent(1).estimator.set_function_class("direct", DIRECT_ESTIMATOR(agent(1), struct("model", MODEL_CLASS(agent(1), Model_Suspended_Cooperative_Load(dt, initial_state(1), 1, N, qtype))))); %推定のクラスを設定，plantの状態をそのまま取得
 
 % agent(1).reference = MY_WAY_POINT_REFERENCE(agent(1),generate_spline_curve_ref(readmatrix("waypoint.xlsx",'Sheet','takeOff_0to1m'),7,1));
@@ -123,10 +123,10 @@ agent(1).controller.set_function_class("cslc", CSLC(agent(1), Controller_Coopera
 %単機牽引のセンサから
 for i = 2:N + 1
     motiveid = [2 * (i - 1), 2 * (i - 1) + 1]; %i=2,[2,3] i=3,[4,5] i=4,[6,7] i=5,[8,9]
-    agent(i).sensor.set_function_class("direct", DIRECT_SENSOR(agent(i), 0.0));
+    agent(i).sensor.set_function_class("direct", DIRECT_SENSOR(agent(i), 0.0, struct("output_list", ["p","q","pL","pT"])));
     %agent(i).sensor.motive=MOTIVE(agent(i),Sensor_Motive(motiveid ,0,motive));
     % est.model = MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state,1,agent(i)));
-    agent(i).estimator.set_function_class("ekf", EKF(agent(i), Estimator_EKF(agent(i), dt, MODEL_CLASS(agent(i), Model_Suspended_Load(dt, initial_state(i), 1, agent(i), "Load_mL_HL")), ["p", "q", "pL", "pT"]))); %単機牽引モデルの推定クラス設定（EKF）
+    agent(i).estimator.set_function_class("ekf", EKF(agent(i), Estimator_EKF(agent(i), dt, MODEL_CLASS(agent(i), Model_Suspended_Load(dt, initial_state(i), 1, agent(i), "Load_mL_HL")), ["p", "q", "pL", "pT"], "sensor_name", "direct"))); %単機牽引モデルの推定クラス設定（EKF）
     agent(i).controller.set_function_class("hlc_split", HLC_SPLIT_SUSPENDED_LOAD(agent(i), Controller_HL_Suspended_Load(dt, agent(i)))); %単機牽引モデルのコントローラクラス設定
     %SinSuspendedLoadを参考に
     % agent(i).reference.timevarying =TIME_VARYING_REFERENCE(agent(i), ...
@@ -219,7 +219,7 @@ for tc = 1:tn
 end
 
 for i = 2:N + 1
-    agent(i).cha_allocation.sensor = "motive";
+    agent(i).cha_allocation.sensor = "direct";
     agent(i).cha_allocation.estimator = "ekf";
     agent(i).cha_allocation.f.reference = "timevarying";
 end

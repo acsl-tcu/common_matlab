@@ -56,6 +56,30 @@ classdef DRONE < handle
       end
     end
 
+    function set_cha_allocation_for_all(obj, prop, list)
+      % Use: set_cha_allocation_for_all("sensor","motive")
+      % Use: set_cha_allocation_for_all("estimator",["ekf","loadstate"])
+      % This sets cha_allocation.(prop) and all phases (a/t/f/l) at once.
+      arguments
+        obj
+        prop {mustBeTextScalar}
+        list
+      end
+      prop = string(prop);
+      if isempty(obj.cha_allocation)
+        obj.cha_allocation = struct();
+      end
+      obj.cha_allocation.(prop) = list;
+      phases = {'a','t','f','l'};
+      for k = 1:numel(phases)
+        phase = phases{k};
+        if ~isfield(obj.cha_allocation, phase) || ~isstruct(obj.cha_allocation.(phase))
+          obj.cha_allocation.(phase) = struct();
+        end
+        obj.cha_allocation.(phase).(prop) = list;
+      end
+    end
+
   end
 
 end

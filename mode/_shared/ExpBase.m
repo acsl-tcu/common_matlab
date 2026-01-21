@@ -1,14 +1,14 @@
 for i = 1:length(agent)
-  agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),[]));
-  agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),dt,0.1));
-  if isfield(agent,"cha_allocation")
-     if  isfield(agent(i).cha_allocation,"a")
+  agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),"zd",1.2,"te",3));
+  agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),"dt",dt,"vd",0,"te",5));
+  if isprop(agent,"cha_allocation")
+     if  isprop(agent(i).cha_allocation,"a")
         agent(i).cha_allocation.a.reference = "takeoff";
      end   
-     if  isfield(agent(i).cha_allocation,"t")
+     if  isprop(agent(i).cha_allocation,"t")
         agent(i).cha_allocation.t.reference = "takeoff";
      end   
-     if  isfield(agent(i).cha_allocation,"l")
+     if  isprop(agent(i).cha_allocation,"l")
       agent(i).cha_allocation.l.reference = "landing";
      end
   else

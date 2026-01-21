@@ -1,11 +1,12 @@
 tmp = matlab.desktop.editor.getActive;
 dir = fileparts(tmp.Filename);
 if ~contains(path,dir)
-    cd(erase(dir,'\mode'));
-[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
-cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
-close all hidden; clear ; clc;
-userpath('clear');
+    root_dir = fileparts(fileparts(dir));
+    cd(root_dir);
+    [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+    cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+    close all hidden; clear ; clc;
+    userpath('clear');
 end
 
 %%
@@ -28,23 +29,25 @@ agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 %agent.parameter.set("mass",struct("mass",0.5))
-agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
+
+agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
+
+agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
+
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},"HL"}));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
+
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
-%run("ExpBase");
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,[]));
-agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,dt,0.1));
-chaAlloc=agent.cha_allocation;
-chaAlloc.f.reference = "time_varying";
-chaAlloc.a.reference="takeoff";
-chaAlloc.t.reference="takeoff";
-chaAlloc.l.reference="landing";
-agent.cha_allocation = chaAlloc;
+
+agent.cha_allocation.f.reference = "time_varying";
+agent.cha_allocation.a.reference="takeoff";
+agent.cha_allocation.t.reference="takeoff";
+agent.cha_allocation.l.reference="landing";
 motive.getData(agent);
 
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tf");
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);

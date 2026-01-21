@@ -32,9 +32,16 @@ methods
         cha = varargin{2};
         base = obj.get_base_reference();
 
-        if isempty(base) || ~isprop(base, "result") || ~isprop(base.result, "state") || ~isprop(base.result.state, "xd")
-            result = base.result;
-            return
+        if isempty(base) || ~obj.has_field_or_prop(base, "result")
+            error("SUSPENDED_LOAD_REF_ADJUST:MissingBase", "Base reference result is missing.");
+        end
+        base_result = base.result;
+        if ~obj.has_field_or_prop(base_result, "state")
+            error("SUSPENDED_LOAD_REF_ADJUST:MissingState", "Base reference state is missing.");
+        end
+        base_state = base_result.state;
+        if ~obj.has_field_or_prop(base_state, "xd")
+            error("SUSPENDED_LOAD_REF_ADJUST:MissingXd", "Base reference state.xd is missing.");
         end
 
         estContainer = obj.self.estimator;
@@ -70,7 +77,7 @@ methods
             return
         end
 
-        xd = base.result.state.xd;
+        xd = base_state.xd;
 
         if numel(xd) < 3
             result = base.result;
@@ -97,8 +104,7 @@ methods
             if ~(obj.can_use_sensor(mL, p, L))
                 nxy = pL;
             end
-
-            nxy(3) = xd(3) - L;
+            nxy(3) = xd(3) - L;           
         elseif cha == 'l'
 
             if isempty(obj.cableLL)
@@ -107,7 +113,7 @@ methods
                 obj.isLanding = 0;
             end
 
-            if (~isempty(obj.cableLL) && (p(3) - pL(3) < obj.cableLL * 0.9)) || obj.isLanding == 1
+            if (~isempty(obj.cableLL) && (p(3) < obj.cableLL * 0.9)) || obj.isLanding == 1
                 obj.isLanding = 1;
                 tt = min(time.t - obj.tt0, obj.td);
                 k = obj.ratet * tt ^ 2;
@@ -115,20 +121,17 @@ methods
                 if ~isempty(obj.baseP)
                     nxy = nxy + k * obj.baseP;
                 end
-
+                nxy(3) = xd(3);
             end
-
-            nxy(3) = xd(3) - L;
+        else % flight phase
+            nxy(3) = xd(3) - L;         
         end
-
+        % [xd(1:3),nxy]
         xd(1:3) = nxy;
-        base.result.state.xd = xd;
+        base_result.state.xd = xd;
+        base_result.state.p = xd(1:3);
 
-        if isprop(base.result.state, "p")
-            base.result.state.p = xd(1:3);
-        end
-
-        result = base.result;
+        result = base_result;
     end
 
 end
@@ -171,6 +174,20 @@ methods (Access = private)
             mL = obj.self.parameter.get("loadmass");
         end
 
+    end
+
+    function tf = has_field_or_prop(~, target, name)
+        if isempty(target)
+            tf = false;
+            return
+        end
+        if isstruct(target)
+            tf = all(isfield(target, name));
+        elseif isobject(target)
+            tf = all(isprop(target, name));
+        else
+            tf = false;
+        end
     end
 
 end

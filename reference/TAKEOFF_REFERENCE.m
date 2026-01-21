@@ -5,18 +5,23 @@ classdef TAKEOFF_REFERENCE < handle
     base_time
     base_state
     ts
-    te = 5; % 目標高度に到達するまでの時間
-    zd = 1.2; % goal altitude
+    te % 目標高度に到達するまでの時間
+    zd % goal altitude
     result
-    th_offset = [];
-    th_offset0 = 200;
     fInit = 0;
   end
 
   methods
-    function obj = TAKEOFF_REFERENCE(self,varargin)
+    function obj = TAKEOFF_REFERENCE(self,opts)
+        arguments
+            self 
+            opts.te = 5;
+            opts.zd = 1.2;
+        end
       % generate takeoff reference w.r.t. position and velocity
-      obj.self = self;
+      obj.self = self;     
+      obj.te = opts.te;
+      obj.zd = opts.zd;
       obj.result.state = STATE_CLASS(struct('state_list',["xd","p","v"],'num_list',[20,3,3]));
     end
     function  result= do(obj,varargin)      
@@ -25,9 +30,6 @@ classdef TAKEOFF_REFERENCE < handle
           obj.base_time=varargin{1}.t;
           obj.base_state = obj.self.estimator.result.state.p; % x,y : current position, z : reference using at flight phase
           obj.result.state.xd = [obj.base_state;zeros(17,1)];
-          if isprop(obj.self.input_transform,"param")
-              obj.th_offset = obj.self.input_transform.param.th_offset;
-          end
           if varargin{2} == 't'
             obj.fInit = obj.fInit + 1;
           end
@@ -35,9 +37,6 @@ classdef TAKEOFF_REFERENCE < handle
       obj.result.state.xd = obj.gen_ref_for_take_off(varargin{1}.t-obj.base_time);
       obj.result.state.p = obj.result.state.xd(1:3,1);
       obj.result.state.v = obj.result.state.xd(5:7,1);
-      if obj.fInit >= 2 % 地面効果対策で obj.te の時間で obj.th_offset0 -> obj.th_offset に変化させる。
-        obj.self.input_transform.param.th_offset = obj.th_offset0 + (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
-      end
       result = obj.result;
     end
     function Xd = gen_ref_for_take_off(obj,t)

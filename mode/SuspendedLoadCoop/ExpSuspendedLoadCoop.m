@@ -131,12 +131,13 @@ for i = firstId:N
     agent(i).plant              = DRONE_EXP_MODEL(agent(i),Model_Drone_Exp(dt, initial_state, "serial", COMs(i))); %プロポ有線　プロポとの接続
      
     %　推定の設定：機体の位置と角度，牽引物の位置，紐の単位方向ベクトルを観測値として用いる
-    agent(i).estimator.set_function_class("ekf", EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state, i,agent(i),1)),  ["p", "q", "pL", "pT"])));
+    agent(i).estimator.set_function_class("ekf", EKF(agent(i), Estimator_EKF(agent(i),dt,MODEL_CLASS(agent(i),Model_Suspended_Load(dt, initial_state, i,agent(i),1)),  ["p", "q", "pL", "pT"], "sensor_name", "sl")));
 
     % sensor [2*i-firstId, 2*i-(firstId-1)],firstId=1 or 2:機体1，牽引物1,機体2，牽引物2...の順番の場合,[i,i+N]：機体...,牽引物...
     % 各組ごとにmotiveから全ての剛体情報を持ってきているので重くなる原因になるかも?2組4剛体だったら問題ないと思う．各組毎に剛体情報更新するので精度はいいと思う
     agent(i).sensor.set_function_class("motive", MOTIVE(agent(i), Sensor_Motive(2*i-firstId +addId,eul(3), motive)));    %機体の情報のクラス，機体のidを入れる
     agent(i).sensor.set_function_class("forload", FOR_LOAD(agent(i), Estimator_Suspended_Load(2*i-(firstId-1)+addId)));  %牽引物の情報のクラス，牽引物のidを入れる
+    agent(i).sensor.set_function_class("sl", MOTIVE(agent(i), Sensor_Motive(1,0, motive, ["p","q"], "3", @sl_sensor_func, struct("motive", "motive", "load", "forload"))));
     agent(i).sensor.do          = @sensor_do;
    
     % コントローラの設定，初期入力は機体と牽引物質量が釣り合う推力のみでトルクは全て0

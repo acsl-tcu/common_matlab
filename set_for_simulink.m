@@ -37,6 +37,7 @@ initial_state.p = [0;0;-1];
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE","row");
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
+agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
 
 parameter.values = agent.parameter.parameter;
 parameter.raw = agent.parameter.parameter_raw;

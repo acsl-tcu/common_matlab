@@ -4,19 +4,6 @@ properties
     self
     result
     param
-    P % physical parameter
-    Q
-    IT
-    u_opt0
-    fmc_options
-    vdro_pre
-    vL_pre
-    aidrns
-    ais
-    ms
-    estimate_load_mass
-    flag_anti_spike = 0
-    elf
 end
 
 methods
@@ -24,25 +11,12 @@ methods
     function obj = HLC_SUSPENDED_LOAD(self, param)
         obj.self = self;
         obj.param = param;
-        obj.Q = STATE_CLASS(struct('state_list', "q", 'num_list', 4));
-        % obj.u_opt0 = [(self.parameter.mass + self.parameter.loadmass*0)*self.parameter.gravity;0;0;0];
-        % obj.fmc_options = optimoptions(@fmincon,'Display','off');
-        % obj.vdro_pre = 0;
-        % obj.vL_pre = 0;
-        % obj.aidrns=zeros(3,20);
-        % obj.ais =zeros(3,20);
-        % obj.ms = ones(1,10)*0.4;
-        % obj.estimate_load_mass = ESTIMATE_LOAD_MASS(self);
-        %物理パラメータ
-        obj.P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
     end
 
     function result = do(obj, varargin)
-        t = varargin{1}.t;
-        Param = obj.param; % param (optional) : 構造体：物理パラメータP，ゲインF1-F4
+        Param = obj.param; % param (optional) : 構造体：ゲインF1-F4
         model = obj.self.estimator.result; % 推定した状態
         ref = obj.self.reference.result; % 目標値
-        cha = varargin{2};
 
         % 目標値を取得
         if isprop(ref.state, 'xd')
@@ -62,13 +36,10 @@ methods
                 pT = [0; 0; -1];
             end
         end
-        P = obj.P;
-        if isprop(model.state, "mL")
-            P(6) = max(0, model.state.mL);
-        end
+        P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
 
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
-        [x(8:10), xd(1:3), x(8:10) - xd(1:3)]
+        % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
         % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
         % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
         yaw = wrapToPi(model.state.q(3)); % 機体yaw角[-pi,pi]にする特にyaw
@@ -104,10 +75,10 @@ methods
         %"+num2str(model.state.p(3),3)+" estimated load mass:
         %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
         obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; %+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1; %入力にノイズを付与可能
+        % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
         obj.result.xd = xd;
         obj.result.x = x;
         obj.result.sus = obj.result.input;
-        obj.result.mL = P(6);
         result = obj.result;
 
     end

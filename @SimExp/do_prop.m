@@ -12,14 +12,13 @@ else
     else
         list=agent.cha_allocation.(app.cha).(prop);
         if isempty(list)
-            res = agent.(prop).do(app.time,fCha,app.logger,app.env,app.agent,i);
+            agent.(prop).result = agent.(prop).do(app.time,fCha,app.logger,app.env,app.agent,i);
         else
-            res = agent.(prop).(list(1)).do(app.time,fCha,app.logger,app.env,app.agent,i);
+            agent.(prop).result = agent.(prop).(list(1)).do(app.time,fCha,app.logger,app.env,app.agent,i);
             for j = 2:length(list)
-                res = merge_result(res,agent.(prop).(list(j)).do(app.time,fCha,app.logger,app.env,app.agent,i));
+                agent.(prop).result = merge_result(agent.(prop).result,agent.(prop).(list(j)).do(app.time,fCha,app.logger,app.env,app.agent,i));
             end
-        end
-        agent.(prop).result = res;
+        end    
     end
 end
 end

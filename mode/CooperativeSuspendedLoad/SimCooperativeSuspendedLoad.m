@@ -27,6 +27,7 @@ motive.getData(agent);
 for i = 1:numDrones
     rigidPair = [2*i-1, 2*i];
     agent(i).sensor.set_function_class("motive", MOTIVE(agent(i), Sensor_Motive(rigidPair,0, motive)));
+    agent(i).sensor.set_function_class("sl", MOTIVE(agent(i), Sensor_Motive(1,0, motive, ["p","q"], "3", @sl_sensor_func, "motive")));
 end
 
 run("ExpBase");
@@ -50,7 +51,7 @@ agentObj.plant = MODEL_CLASS(agentObj,Model_Suspended_Load(dt, initial_state,idx
 
 agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF(agentObj,dt,...
     MODEL_CLASS(agentObj,Model_Suspended_Load(dt, initial_state, idx,agentObj,"Load_mL_HL")),...
-    ["p", "q", "pL", "pT"],"sensor_func",@sl_sensor_func));
+    ["p", "q", "pL", "pT"],"sensor_name","sl")));
 agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
 agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj,...
@@ -59,7 +60,7 @@ agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentOb
 
 agentObj.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agentObj,Controller_HL_Suspended_Load(dt,agentObj)));
 
-agentObj.cha_allocation.sensor = "motive";
+agentObj.cha_allocation.sensor = ["motive","sl"];
 agentObj.cha_allocation.estimator = ["ekf","loadstate"];
 agentObj.cha_allocation.reference = ["timevarying","sload"];
 end

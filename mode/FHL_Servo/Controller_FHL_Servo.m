@@ -1,4 +1,4 @@
-function Controller= Controller_FHL_Servo(dt)
+function Controller = Controller_FHL_Servo(dt)
 % 階層型線形化コントローラの設定
 %% dt = 0.025 くらいの時に有効（これより粗いdtの時はZOH誤差を無視しているためもっと穏やかなゲインの方が良い）
 Ac2 = [0,1;0,0];

@@ -13,6 +13,11 @@ function u_trans_param = InputTransform_Thrust2Throttle_drone(varargin)
     u_trans_param.th_offset_tl  = 100;  %テークオフとランディング初期オフセット。
     u_trans_param.gain          = [330;330;300;20];%　
     u_trans_param.gain_tl       = [200;200;200;20];%
+    u_trans_param.fGroundEffect = 0; % 1: enable altitude-based ground-effect offset
+    u_trans_param.ge_z_low = 0.0;
+    u_trans_param.ge_z_high = 1.0;
+    u_trans_param.ge_th_offset_low = u_trans_param.th_offset_tl;
+    u_trans_param.ge_th_offset_high = u_trans_param.th_offset;
 
     %droneにあった単機牽引の値↓
     % u_trans_param.th_offset     = 331;%機体質量と釣り合うスロットルオフセット
