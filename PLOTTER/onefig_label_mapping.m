@@ -35,12 +35,16 @@ for i = 1:len
             label.x{i} = ["Time [s]"];
             label.y{i} = ["Transmitter input [Nm]"];
         case "p1_p2"
-            label.x{i} = ["$x$ [m]"];
-            label.y{i} = ["$y$ [m]"];
+            label.x{i} = "$x$ [m]";
+            label.y{i} = "$y$ [m]";
         case "p1_p2_p3"
-            label.x{i} = ["$x$ [m]"];
-            label.y{i} = ["$y$ [m]"];
-            label.z{i} = ["$z$ [m]"];
+            label.x{i} = "$x$ [m]";
+            label.y{i} = "$y$ [m]";
+            label.z{i} = "$z$ [m]";
+        otherwise
+            label.x{i} = "";
+            label.y{i} = "";
+            label.z{i} = "";
     end
 end
 end

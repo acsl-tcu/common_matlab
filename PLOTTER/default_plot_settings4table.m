@@ -8,7 +8,7 @@ arguments
 end
 uses    = [true, true, true, true, true, true, true];
 targets = ["p", "v", "q", "w", "input", "p1-p2", "p1-p2-p3"];
-atts    = ["er", "er", "e", "e", "", "er", "er"];
+atts    = ["re", "re", "e", "e", "", "re", "re"];
 [clearn_targets, fault_flag] = create_clearn_target(targets);
 len = length(targets);
 
