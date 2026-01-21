@@ -11,6 +11,10 @@ methods
     function obj = HLC_SUSPENDED_LOAD(self, param)
         obj.self = self;
         obj.param = param;
+
+        msg = "表示物\n" + ...
+            "ref:px, py, pz,  NaN  est:px, py, pz, NaN, mL\n\n";
+        fprintf(msg);
     end
 
     function result = do(obj, varargin)
@@ -80,6 +84,8 @@ methods
         obj.result.x = x;
         obj.result.sus = obj.result.input;
         result = obj.result;
+
+        disp([xd(1:3)', NaN, model.state.p', NaN, model.state.mL])
 
     end
 
