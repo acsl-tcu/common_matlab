@@ -45,7 +45,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent, dt, ..
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[0.5,0.5,0.5]},"HL"}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[0,0,0]},"HL"})); % hovering at(0,0,0)
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[0.5,0.5,0.5]},"HL"})); % saddle
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
@@ -73,8 +74,8 @@ app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
 % app.logger.plot({1, "v", "er"}, "phase", "tf", "fig_num", 3); % 速度: v_x, v_y, v_z
 % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-% app.logger.plot({1, "input", ""}, "phase", "tf", "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({1, "inner_input1:4", ""}, "phase", "tf", "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "input", ""}, "phase", "tfl", "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "inner_input1:4", ""}, "phase", "tfl", "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({1, "p1-p2", "er"}, "phase", "tf", "fig_num", 7); % x-y軌跡
 % app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
 % app.logger.plot({1, "p", "ers"},"phase","tf","fig_num",9);
