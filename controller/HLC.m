@@ -13,13 +13,16 @@ classdef HLC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(4,1);
+      msg = "表示物\n" + ...
+            "ref:px, py, pz,  NaN  est:px, py, pz\n\n";
+      fprintf(msg);
     end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p);
+      % disp(ref.state.p);
       xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;
@@ -52,6 +55,8 @@ classdef HLC < handle
       % max,min are applied for the safty
       obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       result = obj.result;
+
+      disp([ref.state.p', NaN, model.state.p']);
     end
   end
 end
