@@ -39,7 +39,7 @@ methods
         P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
 
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
-        % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
+        [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
         % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
         % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
         yaw = wrapToPi(model.state.q(3)); % 機体yaw角[-pi,pi]にする特にyaw

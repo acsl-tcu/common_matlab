@@ -116,25 +116,25 @@ agentObj.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agentObj.parameter.set("cableL", cableLen);
 agentObj.plant = DRONE_EXP_MODEL(agentObj, Model_Drone_Exp(dt, initial_state, "serial", com));
 
-agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF(agentObj, dt, MODEL_CLASS(agentObj, Model_Suspended_Load(dt, initial_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"], "sensor_name", "sl")));
+agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive,"output_func",@motive_output,"rigid_id",rigidIdPair,"state_list",{["p","q"],"p"}));
+
+agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF_CooperativeSuspendedLoad(agentObj,dt,...
+    MODEL_CLASS(agentObj,Model_Suspended_Load(dt, initial_state, idx,agentObj,"Load_mL_HL")),...
+    ["p", "q", "pL", "pT"])));
 agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
-agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, Sensor_Motive(rigidIdPair, 0, motive)));
-agentObj.sensor.set_function_class("forload", FOR_LOAD(agentObj, Estimator_Suspended_Load(rigidIdPair(2))));
-agentObj.sensor.set_function_class("sl", MOTIVE(agentObj, Sensor_Motive(1,0, motive, ["p","q"], "3", @sl_sensor_func, "motive")));
-agentObj.sensor.do = @sensor_do;
-
-agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 15, "orig", [0; 0; 0.5], "size", [0, 0, 0]}, "HL"}));
-
+L = agentObj.parameter.cableL;
+agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj,...
+    {"gen_ref_saddle",{"freq",15,"orig",[0;0;1],"size",[0.5,0.5,0]},"HL"}));
+agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
+agentObj.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agentObj,"zd",1,"te",5));
+agentObj.reference.set_function_class("landing", LANDING_REFERENCE(agentObj,"dt",dt,"zd",-L,"te",5)); % zd = -Lとするのがミソ
 if ~isempty(refPoint)
     agentObj.reference.set_function_class("point", MULTI_POINT_REFERENCE(agentObj, refPoint));
     baseRefOrder = ["timevarying", "point"];
 else
     baseRefOrder = "timevarying";
 end
-
-agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
-
 if isCoop
     agentObj.reference.set_function_class("split", TIME_VARYING_REFERENCE_SPLIT(agentObj, {"dammy", [], "Split", N}, payloadAgent));
     agentObj.cha_allocation.reference = [baseRefOrder, "split", "sload"];
@@ -142,12 +142,15 @@ else
     agentObj.cha_allocation.reference = [baseRefOrder, "sload"];
 end
 
-agentObj.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agentObj, Controller_HL_Suspended_Load(dt, agentObj)));
-agentObj.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agentObj, InputTransform_Thrust2Throttle_drone()));
+agentObj.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agentObj,Controller_CooperativeSuspededLoad(dt,agentObj)));
+agentObj.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agentObj, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
-agentObj.cha_allocation.sensor = ["motive","sl"];
-agentObj.cha_allocation.estimator = ["ekf", "loadstate"];
-agentObj.cha_allocation.controller = [];
+agentObj.set_cha_allocation_for_all("sensor","motive");
+agentObj.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
+agentObj.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
+agentObj.cha_allocation.t.reference =["takeoff","sload"];
+agentObj.cha_allocation.f.reference =["timevarying","sload"];
+agentObj.cha_allocation.l.reference =["landing","sload"]; 
 end
 
 function init = derive_initial_state_from_motive(motive, rid, cableLen)
@@ -160,4 +163,10 @@ init.pT = [0; 0; -1];
 init.pL = init.p + init.pT * cableLen;
 init.vL = [0; 0; 0];
 init.wL = [0; 0; 0];
+end
+function y = motive_output(obj,data)
+    p = data.rigid(obj.rigid_id(1)).p;
+    pT = data.rigid(obj.rigid_id(2)).p - p;
+    pT = pT/norm(pT);
+    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
 end

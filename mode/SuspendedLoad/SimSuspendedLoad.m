@@ -30,14 +30,14 @@ motive.getData(agent);
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
-function y = motive_output(data)
-    p = data.rigid(1).p;
-    pT = data.rigid(2).p - p;
+function y = motive_output(obj,data)
+    p = data.rigid(obj.rigid_id(1)).p;
+    pT = data.rigid(obj.rigid_id(2)).p - p;
     pT = pT/norm(pT);
-    y = [p;Quat2Eul(data.rigid(1).q);data.rigid(2).p;pT];
+    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
 end
 
-agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,...
+agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent,dt,...
     MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")),...%"Load_mL_HL"
     ["p", "q","pL","pT"])));%expの流用 質量推定有
 

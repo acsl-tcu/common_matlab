@@ -89,7 +89,7 @@ classdef MOTIVE < handle
                 end
             end
             if ~isempty(obj.output_func)
-                output = obj.output_func(data);
+                output = obj.output_func(obj,data);
             end
             % obj.result.rigid = data.rigid;
             % obj.result.feature = data.marker;
