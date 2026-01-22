@@ -123,6 +123,32 @@ classdef DNNMEC < handle
 
             x_plus = x_pre + dt/6*(k1 + 2*k2 + 2*k3 + k4);
         end
+
+        function Delta_input = infer_model(obj, plant_state, nominal_state)
+            % モデルの推論を行う
+            % [Inputs]
+            %   plant_state: [p; q; v; w] (12,:)
+            %   nominal_state: [p; q; v; w] (12,:)
+            %
+            % [Outputs]
+            %   Delta_input: 推論結果 (4,:)
+            %   実際にdoループで使うときには plant_input = nominal_input + Delta_input となる
+
+            size_plant = size(plant_state);
+            size_nonimal = size(nominal_state);
+            if size_plant(1)~=size_nonimal(1) || size_plant(2)~=size_nonimal(2)
+                msg = "plantとnominalのサイズが一致しません\n" + ...
+                    "plant size:   " + num2str(size_plant) + "\n" + ...
+                    "nominal size: " + num2str(size_nonimal) + "\n\n";
+                error(sprintf(msg));
+            end
+
+            Delta_input = zeros(4,size_plant(2));
+            for row = 1:size_plant(2)
+                data = obj.gen_data_func(plant_state(:,row), nominal_state(:,row));
+                Delta_input(:,row) = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
+            end
+        end
     end
 end
 
