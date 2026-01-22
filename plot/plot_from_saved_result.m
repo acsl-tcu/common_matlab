@@ -74,6 +74,9 @@ settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.phase = "tfl";
 settings.phase = "f";
 settings.fontsize = 18;    % default=11 オススメ=18　
+settings.phase = "tfl";
+% settings.phase = "f";
+settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5

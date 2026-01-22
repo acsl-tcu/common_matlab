@@ -32,7 +32,6 @@ agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを�
 
 % プラントモデル定義 ================================================================================================================================
 % plant = Model_Quat13(dt, initial_state, 1);
-% plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
 plant = Model_EulerAngle(dt, initial_state, 1);
 % plant.param.dim = [13,4,18];
 agent.plant = MODEL_CLASS(agent, plant);
@@ -44,7 +43,7 @@ agent.plant = MODEL_CLASS(agent, plant);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(1) = 0.7125;
+% agent.plant.param(1) = 0.825;
 
 % agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
 % agent.plant.param(7) = 0.24;
@@ -91,37 +90,39 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 agent.cha_allocation.reference = "time_varying";
 
 if contains(func2str(agent.plant.method), 'force')
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Step_4_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
+    % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
+    % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
+    % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
+    % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, onnxName);
+    agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
 else
-    % agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
-    % agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_mixed_DNNMEC_epoch_100000.onnx");
+    % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
+    % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
+    % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
+    % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
+    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx";
+    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx";
+    % onnxName = "Sim_mixed_DNNMEC_epoch_100000.onnx";
+    % 
+    % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
+    % onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
+    % onnxName = "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx";
+    % onnxName = "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx";
+    % 
+    % onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
+    % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
+    onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
+    % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
+    agent.controller.mec = DNNMEC(agent, onnxName);
 
-
-    % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
-    % agent.controller.mec = RNNMEC(agent, "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx");
-
-    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx");
-    agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
+    % agent.controller.nominal = HLC(agent,Controller_HL(dt));
+    agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 end
-
-if contains(func2str(agent.plant.method), 'force'), agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
-else                                              , agent.controller.nominal = HLC(agent,Controller_HL(dt)); end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
 function dfunc(app)
@@ -131,11 +132,11 @@ LW = 1.5; % LineWidth
 FS = 18; % FontSize
 fcolor = 0;
 phase = "tfl";
-phase = "tf";
-phase = "f";
+% phase = "tf";
+% phase = "f";
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
-app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
