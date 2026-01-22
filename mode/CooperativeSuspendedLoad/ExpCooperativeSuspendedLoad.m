@@ -28,7 +28,11 @@ refPointName = { ...
                     {struct("f", [0; 0; 0.5], "g", [0; 1; 0.5], "h", [0; 0; 0.5], "j", [-1; 0; 0.5], "k", [0; 0; 0.5], "m", [1; -1; 0.5], "n", [0; 0; 0.5]), 10} ...
                 };
 
-agent = repmat(DRONE, 1, max(N, 1));
+numAgents = max(N, 1);
+agent(1, numAgents) = DRONE;
+for k = 1:numAgents
+    agent(k) = DRONE;
+end
 
 %% 牽引物エージェントの初期化 (剛体情報/参照のみを管理)
 if isCoop
@@ -103,7 +107,7 @@ payloadAgent.estimator.result.state = STATE_CLASS(struct('state_list', ["p", "q"
 payloadAgent.estimator.result.state.p = rigid.p;
 payloadAgent.estimator.result.state.q = eul;
 payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, Sensor_Motive(1, eul(3), motive)));
-payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_SPLIT(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, "Cooperative", N}, payloadAgent));
+payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, 5}));
 payloadAgent.controller.do = @(varargin)[];
 payloadAgent.controller.result.input = [0; 0; 0; 0];
 payloadAgent.input_transform.set_function_class("identity", struct("do", @(varargin)[], "result", zeros(1, 8)));
@@ -125,7 +129,7 @@ agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(
 
 L = agentObj.parameter.cableL;
 agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj,...
-    {"gen_ref_saddle",{"freq",15,"orig",[0;0;1],"size",[0.5,0.5,0]},"HL"}));
+    {"gen_ref_saddle",{"freq",15,"orig",[0;0;1],"size",[0.5,0.5,0]},4}));
 agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
 agentObj.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agentObj,"zd",1,"te",5));
 agentObj.reference.set_function_class("landing", LANDING_REFERENCE(agentObj,"dt",dt,"zd",-L,"te",5)); % zd = -Lとするのがミソ

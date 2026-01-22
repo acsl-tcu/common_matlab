@@ -12,6 +12,9 @@ classdef DIRECT_ESTIMATOR < handle
             obj.self = self;
             obj.model = param.model;
             obj.result.state=state_copy(obj.model.state); % param.modelのSTATE_CLASSとしてコピー
+            if ~isfield(obj.self.estimator,"result")
+                obj.self.estimator.result = obj.result;
+            end
         end
 
         function result=do(obj,varargin)

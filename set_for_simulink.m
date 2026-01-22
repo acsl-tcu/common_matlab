@@ -54,10 +54,10 @@ eparam.R = agent.estimator.R;
 eparam.type = "euler_angle_pqvw";
 eparam.result = struct("state",agent.estimator.model.state.get(),"P",eye(eparam.n));
 %% reference
-agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
+agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},4});
 syms t x f dummy real % 将来的な拡張用に 時間、状態、その他を引数にできるようにしておく。
 matlabFunction(@(t,x,f) agent.reference.func(t),"File","@REFERENCE_SYSTEM/gen_reference.m","Vars",[dummy,t,x,f]);% dummy はクラスメソッドにするため
-rparam.type = "HL";
+rparam.type = 4;
 %% controller
 agent.controller = HLC(agent,Controller_HL(dt));
 cparam.F1 = lqrd([0,1;0,0],[0;1],diag([100,1]),0.1,dt);

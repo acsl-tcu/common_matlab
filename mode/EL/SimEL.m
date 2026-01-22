@@ -21,7 +21,7 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 %=====================
 agent.estimator.set_function_class("ekf_expand", EKF_EXPAND(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle_Expand(dt, initial_state, 1)),["p", "q"])));
 agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[2,2,0.5]},"HL"}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[2,2,0.5]},4}));
 
 fFT=1;%1:FT, other:LS
 agent.controller.set_function_class("elc", ELC(agent,Controller_EL(dt,fFT)));

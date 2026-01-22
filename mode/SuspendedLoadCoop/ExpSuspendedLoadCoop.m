@@ -31,9 +31,9 @@ cableL              = [0.9677  0.8883];
 
 % 複数の単機牽引モデルを飛ばす場合のrefernceファイルの設定+
 refName         = {
-                    {"My_Case_study_trajectory",{[1,1,1]},"HL"},...
-                    {"My_Case_study_trajectory",{[-1,-1,1]},"HL"}
-                    % {"gen_ref_saddle",{"freq",13,"orig",[2;2;1],"size",[1,1,0.2]},"HL"}
+                    {"My_Case_study_trajectory",{[1,1,1]},4},...
+                    {"My_Case_study_trajectory",{[-1,-1,1]},4}
+                    % {"gen_ref_saddle",{"freq",13,"orig",[2;2;1],"size",[1,1,0.2]},4}
                     };
 refPointName    = {
                     {struct("f",[0;0;0.5],"g",[1;0;0.5],"h",[0;0;0.5],"j",[0;1;0.5],"k",[0;0;0.5],"m",[-1;-1;0.5],"n",[0;0;0.5]),10}
@@ -97,8 +97,8 @@ if isCoop == 1
     agent(1).sensor.set_function_class("motive", MOTIVE(agent(1), Sensor_Motive(1,eul(3), motive))); 
 
     % 複数機牽引の場合の牽引物の目標位置
-    agent(1).reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0]},"Cooperative",N},agent(1)));
-    % agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.8],"size",[0.7,0.7,0.2]},"HL",N},agent(1));
+    agent(1).reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.7],"size",[0.8,0.8,0]},5}));
+    % agent(1).reference = TIME_VARYING_REFERENCE_SPLIT(agent(1),{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.8],"size",[0.7,0.7,0.2]},4,N},agent(1));
     % agent(1).reference = MULTI_POINT_REFERENCE(agent(1),refPointName{1});%縦ベクトルで書く,
 
     % コントローラは単機モデルで設計するのでここでは行わない
@@ -152,7 +152,7 @@ for i = firstId:N
         agent(i).reference.set_function_class("split", TIME_VARYING_REFERENCE_SPLIT(agent(i),{"dammy",[],"Split",N},agent(1)));
     % 複数の単機モデルの場合
     else
-        % agent(i).reference    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
+        % agent(i).reference    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;1],"size",[1,1,0.2]},4});
         % agent(i).reference    = MY_WAY_POINT_REFERENCE(agent,way_point_ref(readmatrix("waypoint.xlsx",'Sheet','Sheet1_15d3'),5,1));
         agent(i).reference.set_function_class("point", MULTI_POINT_REFERENCE(agent(i),refPointName{i}));%縦ベクトルで書く,
         % agent(i).reference    = TIME_VARYING_REFERENCE(agent(i),refName{i});

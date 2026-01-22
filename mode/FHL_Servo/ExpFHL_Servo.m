@@ -22,7 +22,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},4}));
 agent.controller.set_function_class("fhl_servo", FUNCTIONAL_HLC_SERVO(Controller_FHL_Servo(dt)));
 
 agent.cha_allocation.sensor = "motive";

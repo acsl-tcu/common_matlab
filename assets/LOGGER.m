@@ -16,6 +16,8 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         agent_items % result以外で追加保存するagent内の変数
         fExp
         overwrite_target = ["all"];
+        display_func = []; % function handle to build display data
+        display_on = false; % print display data at logging
     end
 
     methods
@@ -93,6 +95,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 obj.Data.phase = zeros(number, 1); % フライトフェーズ　a,t,f,l...
                 obj.fExp = fExp;
                 obj.items = items;
+                obj.Data.display = cell(1, length(target));
 
                 if ~isempty(items)
 
@@ -177,6 +180,10 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 end
 
             end
+            obj.capture_display(time, agent);
+            if obj.display_on
+                obj.show_display("k", obj.k);
+            end
             %end
 
         end
@@ -212,8 +219,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 fn = fieldnames(obj);
 
                 for i = fn'
-
-                    if ~strcmp(i{1}, "Data")
+                    if ~strcmp(i{1}, "Data") && ~strcmp(i{1}, "display_func")
                         log.(i{1}) = obj.(i{1});
                     end
 
@@ -260,8 +266,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 fn = fieldnames(obj);
 
                 for i = fn'
-
-                    if ~strcmp(i{1}, "Data")
+                    if ~strcmp(i{1}, "Data") && ~strcmp(i{1}, "display_func")
                         log.(i{1}) = obj.(i{1});
                     end
 
@@ -307,7 +312,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             % attribute : "s","e","r","p","i"
             % option ranget : time range
             % Examples
-            % time : data(0,'t',[])
+            % time : data('t',[],[])
             % state : data(1,"p","e")                      : agent1's estimated position
             %         data(2,"state.xd","r")               : agent2's reference xd
             %         data(1,"sensor.result.state.q",[])   : agent1's measured attitude
@@ -329,7 +334,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             else
                 ranget = option.ranget;
                 if option.ranget(2) ==0
-                    ranget(2) = max(obj.Data.t);
+                    option.ranget(2) = max(obj.Data.t);
                 end
                 ranget_max = min(option.ranget(2),max(obj.Data.t));
                 ranget_min = max(option.ranget(1),min(obj.Data.t));
@@ -677,6 +682,47 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 end
             end
 
+        end
+
+        function capture_display(obj, time, agent)
+            arguments
+                obj
+                time
+                agent
+            end
+            if isempty(obj.display_func)
+                return
+            end
+            if obj.k == 0
+                return
+            end
+            if ~isfield(obj.Data, "display") || isempty(obj.Data.display)
+                obj.Data.display = cell(1, 1);
+            end
+            obj.Data.display{obj.k} = obj.display_func(agent, time);
+        end
+
+        function show_display(obj, option)
+            arguments
+                obj
+                option.k (1, 1) double = obj.k
+                option.target = []
+                option.prefix string = ""
+            end
+            if ~isfield(obj.Data, "display") || isempty(obj.Data.display)
+                return
+            end
+            val = obj.Data.display{option.k};
+            if isstring(val) || ischar(val)
+                msg = string(val);
+            else
+                msg = mat2str(val);
+            end
+            label ="";
+            if option.prefix ~= ""
+                label = option.prefix + " ";
+            end
+            disp(label + ": " + msg);
         end
 
         function [name, vrange] = full_var_name(obj, var, att)

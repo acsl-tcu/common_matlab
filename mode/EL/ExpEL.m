@@ -23,7 +23,7 @@ agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1
 agent.estimator.set_function_class("ekf_expand", EKF_EXPAND(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle_Expand(dt, initial_state, 1)),["p", "q"])));
 agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},4}));
 fFT=0;%z directional controller flag 1:FT, other:LS
 agent.controller.set_function_class("el", ELC(agent,Controller_EL(dt,fFT)));
 

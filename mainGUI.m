@@ -26,7 +26,7 @@ Setting.mode = SimBaseMode(2); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
 % Setting.mode = SimBaseMode(2); % SimCoop
 
-Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
+% Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
 % Setting.mode = ExpBaseMode(5); % ExpHL
 if contains(Setting.mode, "Exp")
