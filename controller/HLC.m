@@ -13,16 +13,16 @@ classdef HLC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(self.estimator.model.dim(2),1);
+      msg = "表示物\n" + ...
+          "ref: x, y, z  NaN  est:x, y, z";
+      fprintf(msg);
     end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      % disp(ref.state.p');
-      % disp(xd');
-      % % % disp(model.state.p')
-      % % % disp(xd(1:3)')
+      disp([ref.state.p', NaN, model.state.p']);
       xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;

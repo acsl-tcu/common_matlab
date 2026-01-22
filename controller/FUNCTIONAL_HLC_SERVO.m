@@ -19,6 +19,9 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             obj.Vf = param.Vf; % 階層１の入力を生成する関数ハンドル
             obj.Vs = param.Vs; % 階層２の入力を生成する関数ハンドル 
             obj.z = [0;0;0];
+            msg = "表示物\n" + ...
+                "ref:x, y,z  NaN  est:x, y, z  NaN  input:T, roll, pitch, yaw\n\n";
+            % fprintf(msg);
         end
         
         function result = do(obj,varargin)
@@ -47,8 +50,8 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             xd(17:19)=Rb0'*xd(17:19);
             
             if t > 5
-                obj.z = obj.z + xd(1:3)-x(5:7);
-                % obj.z = obj.z + [0;0;xd(3)-x(7)]; % z方向にのみサーボを入れる
+                % obj.z = obj.z + xd(1:3)-x(5:7);
+                obj.z = obj.z + [0;0;xd(3)-x(7)]; % z方向にのみサーボを入れる
             end
             %% calc Z
             z1 = Z1(x,xd',P);
@@ -73,6 +76,8 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
             obj.result.z= obj.z;
             result = obj.result;
+
+            % disp([ref.state.p', NaN, model.state.p', NaN, obj.result.input']);
         end
         function show(obj)
             obj.result
