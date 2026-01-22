@@ -32,7 +32,6 @@ agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを�
 
 % プラントモデル定義 ================================================================================================================================
 % plant = Model_Quat13(dt, initial_state, 1);
-% plant.param.method = "euler_parameter_thrust_force_physical_parameter_model";
 plant = Model_EulerAngle(dt, initial_state, 1);
 % plant.param.dim = [13,4,18];
 agent.plant = MODEL_CLASS(agent, plant);
@@ -91,38 +90,36 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 agent.cha_allocation.reference = "time_varying";
 
 if contains(func2str(agent.plant.method), 'force')
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Step_4_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
-    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
-else
-    % agent.controller.mec = DNNMEC(agent, "Step_4_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_Data_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_mixed_Data_DNNMEC_epoch_30000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "DNNMEC_Exp_data_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"); % <-jx,jy=0.18で暴れて性能劣化
-    % agent.controller.mec = DNNMEC(agent, "Exp_data_No_coef_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "Sim_mixed_DNNMEC_epoch_100000.onnx");
-
-
-    % agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
-    % agent.controller.mec = RNNMEC(agent, "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx");
-
-    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
-    agent.controller.mec = DNNMEC(agent, "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx");
-    % agent.controller.mec = DNNMEC(agent, "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx");
-end
-
-if contains(func2str(agent.plant.method), 'force')
+    % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
+    % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
+    % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
+    % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
+    % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, onnxName);
     agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
 else
+    % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
+    % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
+    % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
+    % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
+    % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
+    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx";
+    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx";
+    % onnxName = "Sim_mixed_DNNMEC_epoch_100000.onnx";
+    % 
+    % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
+    % onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
+    % onnxName = "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx";
+    % onnxName = "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx";
+    % 
+    % onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
+    % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
+    onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
+    % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
+    agent.controller.mec = DNNMEC(agent, onnxName);
+
     % agent.controller.nominal = HLC(agent,Controller_HL(dt));
     agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 end
