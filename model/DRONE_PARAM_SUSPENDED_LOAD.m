@@ -8,7 +8,7 @@ classdef DRONE_PARAM_SUSPENDED_LOAD < matlab.mixin.SetGetExactNames
     % T2, T3 の回転方向は軸 zb,  T1, T4 : -zb      [1,0,0,1] で 正のyaw回転
     % tau = [(Ly - ly)*(T3+T4)-ly*(T1+T2); lx*(T1+T3)-(Lx-lx)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
 
-    properties
+    properties % Don't change the order: It must correspond to "physicalParam" in generateModel_SuspendedLoad.m
         parameter % 制御モデル用パラメータ
         parameter_name % 物理パラメータの名前
         model_error % モデル誤差 : 制御対象の真値 - 制御モデル用パラメータ

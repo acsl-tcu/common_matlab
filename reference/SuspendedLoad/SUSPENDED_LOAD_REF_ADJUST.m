@@ -87,12 +87,12 @@ methods
         p = model_state.p;
         pL = model_state.pL;
 
-        if isempty(obj.baseP)
-            obj.baseP = p - pL;
+        if isempty(obj.baseP) % 空回しで設定
+            obj.baseP = p - pL; % 初期配置(dx,dy)を保存：着陸時その配置にする
         end
 
-        if isempty(obj.pL0)
-            obj.pL0 = pL;
+        if isempty(obj.pL0) % 空回しで設定
+            obj.pL0 = pL; % 初期位置(x,y)保存：takeoffで利用
         end
 
         nxy = xd(1:3);
@@ -102,7 +102,7 @@ methods
         if cha == 't' || cha == '0' || cha == 'a'
 
             if ~(obj.can_use_sensor(mL, p, L))
-                nxy = pL;
+                nxy = pL; % これだと trueになったときにリファレンスが飛ぶ
             end
             nxy(3) = xd(3) - L;           
         elseif cha == 'l'
@@ -163,7 +163,7 @@ methods (Access = private)
             return
         end
 
-        tf = (mL > 0.1) || (p(3) > obj.pL0(3) + L * 0.9);
+        tf = (mL > 0.1) || (p(3) > obj.pL0(3) + L * 0.9);        
     end
 
     function mL = get_mass(obj, state)

@@ -24,7 +24,6 @@ Setting.initial.wL      = [0;0;0];                                  % 紐の角�
 Setting.dt              = dt;                                       % 刻み時間
 Setting.param           = agent.parameter.get;                      % モデルの物理パラメータ設定
 
-% EKFで使うモデルがplantと異なる場合の設定isEstLoadMassの値とmodelnameによって変更
 if ~isempty(modelName) 
       % modelName = "Load_mL_HL";
       % modelName = "Load_mL_cableL_HL";
