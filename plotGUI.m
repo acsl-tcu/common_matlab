@@ -2,7 +2,6 @@
 %  mainGUIと併用する場合 -> 下部セクション実行
 clear all
 cf = pwd;
-l
 if contains(mfilename('fullpath'), "mainGUI")
     cd(fileparts(mfilename('fullpath')));
 else
