@@ -27,6 +27,9 @@ classdef SWAY_REF_MOD < handle
 
         sway_on = 0         % 0:補正OFF, 1:補正ON（ヒステリシス）
         c = [0;0]           % 実際に適用する補正ベクトル（水平2次元）
+        
+        sway_on_prev = 0          % 1ステップ前の割り込み状態（遷移検出用）
+        last_print_time = -inf    % 表示間引き用
     end
 
     methods
@@ -39,11 +42,24 @@ classdef SWAY_REF_MOD < handle
             % varargin: (time, cha, logger, env, agent, i) が来る想定
             % origin（既存）が先に走って reference を更新している前提
 
-            %---- base(reference origin) の取得（コンテナ構造に対応） ----
-            if isstruct(obj.self.reference) && isfield(obj.self.reference,'origin')
-                base = obj.self.reference.origin;   % 既存TIME_VARYING_REFERENCE
+            % %---- base(reference origin) の取得（コンテナ構造に対応） ---- 1つ目
+            % if isstruct(obj.self.reference) && isfield(obj.self.reference,'origin')
+            %     base = obj.self.reference.origin;   % 既存TIME_VARYING_REFERENCE
+            % else
+            %     base = obj.self.reference;          % 単体構成
+            % end
+
+            %---- base(reference)の取得（引数優先） ----　２つ目
+            if numel(varargin) >= 7 && ~isempty(varargin{7})
+                base = varargin{7}; %引数で渡されたbaseを使う
             else
-                base = obj.self.reference;          % 単体構成
+                %従来互換:self.reference.originを読む
+                %----base(reference.origin)の取得（コンテナ構造に対応）
+                if isstruct(obj.self.reference) && isfield(obj.self.reference,'origin')
+                    base = obj.self.reference.origin; %既存TIME_VARYING_REFERENCE
+                else
+                    base = obj.self.reference; %単体構成
+                end
             end
 
             % originがまだ走っていない/xdが無い場合は何もしない（落とさない）
@@ -88,6 +104,37 @@ classdef SWAY_REF_MOD < handle
                     obj.sway_on = 0;
                 end
             end
+            %=========================================================
+            % ★ここから：コマンドウィンドウ表示（デバッグ用）
+            %=========================================================
+            t_now = varargin{1}.t;   % 現在時刻（TIMEクラス）
+
+            % OFF -> ON の瞬間
+            if obj.sway_on == 1 && obj.sway_on_prev == 0
+                fprintf('[SWAY_REF] ON  t=%.2f  S=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
+                    t_now, S, norm(vrxy), norm(rxy), h);
+            end
+
+            % ON -> OFF の瞬間
+            if obj.sway_on == 0 && obj.sway_on_prev == 1
+                fprintf('[SWAY_REF] OFF t=%.2f  S=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
+                    t_now, S, norm(vrxy), norm(rxy), h);
+            end
+
+            % ON中は一定周期で状態を表示（ログが流れすぎないよう間引き）
+            if obj.sway_on == 1
+                if ~isfield(obj.param,'print_interval')
+                    obj.param.print_interval = 0.5; % デフォルト 0.5[s]
+                end
+                if (t_now - obj.last_print_time) >= obj.param.print_interval
+                    fprintf('[SWAY_REF] ACT t=%.2f  S=%.3f  h=%.3f  danger=%d\n', ...
+                        t_now, S, h, danger);
+                    obj.last_print_time = t_now;
+                end
+            end
+
+            % 次ステップ用に保存（遷移検出に必要）
+            obj.sway_on_prev = obj.sway_on;
 
             %---- alpha（CBFゲートによる補正強化倍率）----
             if danger
