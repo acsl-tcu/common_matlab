@@ -5,6 +5,9 @@ time = TIME(ts,dt,te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
+logger.display_func = @(agent, time) build_display_vector(agent, time);
+logger.display_on = true;
+fprintf("表示物\nref:px, py, pz,  NaN  est:px, py, pz, NaN, mL\n\n");
 
 % drone plant setting
 agent = DRONE;
@@ -31,10 +34,10 @@ motive.getData(agent);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
-    p = data.rigid(obj.rigid_id(1)).p;
-    pT = data.rigid(obj.rigid_id(2)).p - p;
-    pT = pT/norm(pT);
-    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
+p = data.rigid(obj.rigid_id(1)).p;
+pT = data.rigid(obj.rigid_id(2)).p - p;
+pT = pT/norm(pT);
+y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
 end
 
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent,dt,...
@@ -51,19 +54,20 @@ agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1,"te
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-  
+
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
 agent.cha_allocation.f.reference =["timevarying","sload"];
-agent.cha_allocation.l.reference =["landing","sload"]; 
+agent.cha_allocation.l.reference =["landing","sload"];
 
 %%
 
 function post(app)
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
 app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
 % app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
@@ -72,4 +76,25 @@ app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 end
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent.estimator.result.state.get()];
+end
+
+function v = build_display_vector(agent, time)
+idx = 1;
+if ~isfield(agent(idx).controller.result, "xd")
+    v = [];
+    return
+end
+xd = agent(idx).controller.result.xd;
+if isfield(agent(idx).estimator.result, "state")
+    p = agent(idx).estimator.result.state.p;
+    if isprop(agent(idx).estimator.result.state, "mL")
+        mL = agent(idx).estimator.result.state.mL;
+    else
+        mL = NaN;
+    end
+else
+    p = [NaN; NaN; NaN];
+    mL = NaN;
+end
+v = [time.t, NaN, xd(1:3)', NaN, p', NaN, mL];
 end

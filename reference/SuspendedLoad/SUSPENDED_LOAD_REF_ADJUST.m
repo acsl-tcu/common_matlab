@@ -111,12 +111,14 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
             elseif cha == 'l'
                 if isempty(obj.cableL_L0) % in landing phase
                     obj.cableL_L0 = norm(p - pL); % 飛行時のケーブル長
-                    obj.landing_t0 = time.t;
                 end
 
                 if p(3) < obj.cableL_L0 || obj.isGround == 1
+                    if isempty(obj.landing_t0)
+                        obj.landing_t0 = time.t;
+                        obj.isGround = 1;
+                    end
                     % 十分高度が下がったら有効になる
-                    obj.isGround = 1;
                     tt = min(time.t - obj.landing_t0, obj.td);
                     k = tt/obj.td;
                     nxy = nxy + k * obj.baseP; % 離陸前の相対関係を復元
