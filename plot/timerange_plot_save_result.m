@@ -54,7 +54,7 @@ else
     settings.attribute = ["e", "s", "r", "p"];
 end
 
-%% ===== time / phase インデックス作成（★変更箇所）=====
+% time / phase インデックス作成
 t_all = logger.Data.t(:);
 idx_t = true(size(t_all));
 
@@ -68,7 +68,7 @@ elseif exist('settings','var') && isfield(settings,'phase') && ~isempty(settings
     idx_t = contains(logger.Data.phase, settings.phase);
 end
 
-%% プロット本体 ===================================================================================
+% プロット本体 ===================================================================================
 for i = 1:length(settings.target)
 
     fig = figure(i); clf
@@ -134,14 +134,14 @@ for i = 1:length(settings.target)
 
     end
 
-    %% 通常プロット（LOGGER）
+    % 通常プロット（LOGGER）
     logger.plot({settings.agent_id, target, att}, ...
         'fig_num', i, 'color', fcolor, ...
         'phase', settings.phase, ...
         'FontSize', settings.fontsize, ...
         'Linewidth', settings.linewidth);
 
-    %% ===== idx_t で切り出し =====
+    % ===== idx_t で切り出し =====
     lines = findobj(ax,'Type','line');
     for h = lines.'
         X = get(h,'XData');
@@ -151,15 +151,15 @@ for i = 1:length(settings.target)
         end
     end
 
-    %% ラベル
-    set(ax.YLabel,'String',ylabel_txt,'Interpreter','latex')
+    %ラベル
+    set(ax.YLabel,'String',ylabel,'Interpreter','latex')
 
-    %% タイトル除去
+    % タイトル除去
     if ftitle == 0
         title(ax,'')
     end
 
-    %% 凡例
+    % 凡例
     if ~isempty(att)
         chars = string(split(att,""));
         chars(chars=="")=[];
@@ -170,7 +170,7 @@ end
 
 disp_rmse(logger, idx_t)
 
-%% ===== ローカル関数 =====
+% ===== ローカル関数 =====
 function att = select_attribute(target, attribute)
 fprintf('\n<%s attribute input>\n',target)
 fprintf('  available: {%s}\n',strjoin(attribute,""))
