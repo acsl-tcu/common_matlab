@@ -6,6 +6,9 @@ time = TIME(ts, dt, te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
+logger.display_func = @(agent, time) build_display_vector(agent, time);
+logger.display_on = true;
+fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 motive = Connector_Natnet('192.168.100.4'); % connect to Motive
 motive.getData([], []); % get data from Motive
@@ -41,8 +44,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[0,0,0]},4})); % hovering at(0,0,0)
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"orig",[0;0;1],"size",[0.5,0.5,0.5]},4})); % saddle
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0,0,0]},4})); % hovering at(0,0,0)
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
@@ -78,6 +81,7 @@ app.logger.plot({1, "inner_input1:4", ""}, "phase", "tfl", "fig_num", 6); % 制�
 % app.logger.plot({1, "sensor.result.", "er"},"phase","tf", "fig_num",10);
 % app.logger.plot.("controller.result.xd","phase","tf","fig_num",11); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
+% show_suspended_load_animation(app);
 
 % 刻み時間描画
 t0id = find(app.logger.Data.phase == 97, 1, 'last') + 1;
@@ -100,4 +104,41 @@ end
 
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent.estimator.result.state.get()];
+end
+
+function show_suspended_load_animation(app)
+% 単機の吊り下げモデルをアニメーション表示する。
+if app.logger.k <= 1
+    return
+end
+mov = DRAW_SUSPENDED_LOAD(app.logger, ...
+    "target", 1, ...
+    "self", app.agent(1));
+mov.animation(app.logger, ...
+    "target", 1, ...
+    "self", app.agent(1));
+end
+
+function v = build_display_vector(agent, time)
+% コンソール表示用の文字列を作る。
+% 参照位置、推定位置、入力、推定質量を並べる。
+idx = 1;
+if ~isprop(agent(idx).reference.result.state, "xd")
+    v = [];
+    return
+end
+xd = agent(idx).reference.result.state.xd;
+if isfield(agent(idx).estimator.result, "state")
+    p = agent(idx).estimator.result.state.p;
+    if isprop(agent(idx).estimator.result.state, "mL")
+        mL = agent(idx).estimator.result.state.mL;
+    else
+        mL = NaN;
+    end
+else
+    p = [NaN; NaN; NaN];
+    mL = NaN;
+end
+u = agent(idx).controller.result.input;
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end

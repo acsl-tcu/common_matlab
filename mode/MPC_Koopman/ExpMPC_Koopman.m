@@ -21,7 +21,7 @@ agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM17"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},4}));
 
@@ -35,7 +35,13 @@ agent.cha_allocation.sensor = "motive";
 agent.cha_allocation.estimator = "ekf";
 agent.cha_allocation.reference = "timevarying";
 
-run("ExpBase");
+for i = 1:length(agent)
+    agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),"zd",1.2,"te",3));
+    agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),"dt",dt,"vd",0,"te",5));
+    agent(i).cha_allocation.a.reference = "takeoff";
+    agent(i).cha_allocation.t.reference = "takeoff";
+    agent(i).cha_allocation.l.reference = "landing";
+end
 
 %aからMPC回すバージョン--------------------------------------
 function result = controller_do(varargin)

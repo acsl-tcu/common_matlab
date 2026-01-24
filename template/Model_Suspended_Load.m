@@ -83,5 +83,5 @@ if ~isempty(modelName)
 end
 
 Model.param = Setting;
-Model.parameter_name = ["m","Lx","Ly", "lx", "ly", "lz", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4", "rotor_r","mL", "cableL","ex","ey","ez"];
+Model.parameter_order = resolve_parameter_order(Setting.method, Setting.dim(3));
 end

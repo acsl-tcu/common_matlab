@@ -10,13 +10,13 @@ Model.name="vehicle"; % print name
 Model.id = id;
 Setting.dt = dt;
 Setting.method = "three_state_vehicle_model"; % model dynamicsの実体名
-Setting.dim = [6,2,1];
+Setting.dim = [6,2,0];
 Setting.state_list = ["p","q"]; % [x;y;z;roll;pitch;yaw];
 Setting.num_list = [3,3];
 Setting.projection = @q_projection;
 
 Setting.initial = initial;%struct('p',[0;0;0],'v',[0;0;0]);
-Model.parameter_name = [];
+Model.parameter_order = resolve_parameter_order(Setting.method, Setting.dim(3));
 Model.param = Setting;
 end
 

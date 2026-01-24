@@ -37,7 +37,7 @@ initial_state.p = [0;0;-1];
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE","row");
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
-agent.sensor.set_function_class("motive", MOTIVE(agent, Sensor_Motive(1,0, motive)));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
 
 parameter.values = agent.parameter.parameter;
 parameter.raw = agent.parameter.parameter_raw;
@@ -54,7 +54,7 @@ eparam.R = agent.estimator.R;
 eparam.type = "euler_angle_pqvw";
 eparam.result = struct("state",agent.estimator.model.state.get(),"P",eye(eparam.n));
 %% reference
-agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},4});
+agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1],"radius",[2,2,0.5]},4});
 syms t x f dummy real % 将来的な拡張用に 時間、状態、その他を引数にできるようにしておく。
 matlabFunction(@(t,x,f) agent.reference.func(t),"File","@REFERENCE_SYSTEM/gen_reference.m","Vars",[dummy,t,x,f]);% dummy はクラスメソッドにするため
 rparam.type = 4;

@@ -4,7 +4,7 @@ properties
     self
     result
     param
-    parameter_name = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
+    parameter_order = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
     Vf
     Vs
 end
@@ -14,13 +14,13 @@ methods
     function obj = FUNCTIONAL_HLC(self, param)
         obj.self = self;
         obj.param = param;
-        obj.param.P = self.parameter.get(obj.parameter_name);
-        obj.result.input = zeros(self.estimator.model.dim(2),1);
+        obj.param.P = self.parameter.get(obj.parameter_order);
+        obj.result.input = zeros(4, 1);
         obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
         obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル
     end
 
-    function result = do(obj,varargin)
+    function result = do(obj, varargin)
         model = obj.self.estimator.result;
         ref = obj.self.reference.result;
         xd = ref.state.xd;
@@ -41,15 +41,15 @@ methods
         xd(17:19) = Rb0' * xd(17:19);
 
         %% calc Z
-        z1 = Z1(x, xd', P);%z
+        z1 = Z1(x, xd', P); %z
         vf = obj.Vf(z1, F1);
-        z2 = Z2(x, xd', vf, P);%x
-        z3 = Z3(x, xd', vf, P);%y
-        z4 = Z4(x, xd', vf, P);%yaw
+        z2 = Z2(x, xd', vf, P); %x
+        z3 = Z3(x, xd', vf, P); %y
+        z4 = Z4(x, xd', vf, P); %yaw
         vs = obj.Vs(z2, z3, z4, F2, F3, F4);
 
         %% calc actual input
-       tmp = Uf(x, xd', vf, P) + Us(x, xd', vf, vs, P);
+        tmp = Uf(x, xd', vf, P) + Us(x, xd', vf, vs, P);
         %%input of subsystems
         obj.result.uHL = [vf(1); vs];
         %differential virtual input first layer
@@ -59,7 +59,7 @@ methods
         obj.result.z2 = z2;
         obj.result.z3 = z3;
         obj.result.z4 = z4;
-        obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+        obj.result.input = [max(0, min(10, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))];
         result = obj.result;
     end
 

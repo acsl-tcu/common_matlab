@@ -722,7 +722,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
             if option.prefix ~= ""
                 label = option.prefix + " ";
             end
-            disp(label + ": " + msg);
+            disp(label + msg);
         end
 
         function [name, vrange] = full_var_name(obj, var, att)

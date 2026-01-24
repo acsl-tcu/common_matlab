@@ -1,14 +1,14 @@
 function ref = gen_ref_circle(param)
 arguments
     param.freq = 20% 周期
-    param.init = [0 0 0]% 円の中心
+    param.center = [0 0 0]% 円の中心
     param.radius = 1.0 % 半径
     param.phase = 0.0 % 位相    
     param.i
 end
-x_0=param.init(1);
-y_0=param.init(2);
-z_0=param.init(3);
+x_0=param.center(1);
+y_0=param.center(2);
+z_0=param.center(3);
 T = param.freq;
 r=param.radius;
 % origin = param.orig;
@@ -30,8 +30,8 @@ syms t real
 % ddx = diff(ref,t,2);
 % fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));
 
-ref=@(t) [x_0+r*sin(2*pi*t/T); %x
-    y_0 + r*cos(2*pi*t/T); %y
+ref=@(t) [x_0+r*sin(2*pi*t/T+phase); %x
+    y_0 + r*cos(2*pi*t/T+phase); %y
     z_0; %z
     0];
 

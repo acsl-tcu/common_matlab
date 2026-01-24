@@ -1,4 +1,9 @@
 function [ dX ] = euler_parameter_model(x,u,P)
+% Input order:
+% x (state) = [];
+% u (input) = [];
+% P (parameter) = [];
+
 	Outs = coreQuadrotor(x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8),x(9),x(10),x(11),x(12),x(13),u(1),u(2),u(3),u(4));
 	dX = [ Outs(1),Outs(2),Outs(3),Outs(4),Outs(5),Outs(6),Outs(7),Outs(8),Outs(9),Outs(10),Outs(11),Outs(12),Outs(13) ];
 function dx = coreQuadrotor(q0,q1,q2,q3,p1,p2,p3,dp1,dp2,dp3,o1,o2,o3,u1,u2,u3,u4)

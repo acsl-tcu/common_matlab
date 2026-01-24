@@ -19,5 +19,5 @@ Setting.initial = initial;                 % struct('p', [0; 0; 0], 'q', [0; 0; 
 Setting.num_list = [3, 3, 3, 3, 2];
 Setting.dt = dt;
 Model.param = Setting;
-Model.parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4","rotor_r"];
+Model.parameter_order = resolve_parameter_order(Setting.method, Setting.dim(3));
 end

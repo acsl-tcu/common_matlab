@@ -56,7 +56,16 @@ for idx = firstDroneIndex:N
 end
 
 logger = LOGGER(1:N, size(ts:dt:te, 2), 1, [], []);
-run("ExpBase");
+logger.display_func = @(agent, time) build_display_vector(agent, time);
+logger.display_on = true;
+fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
+for i = 1:length(agent)
+    agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),"zd",1.2,"te",3));
+    agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),"dt",dt,"vd",0,"te",5));
+    agent(i).cha_allocation.a.reference = "takeoff";
+    agent(i).cha_allocation.t.reference = "takeoff";
+    agent(i).cha_allocation.l.reference = "landing";
+end
 
 %% センサー合成 (Motive + FOR_LOAD)
 function result = sensor_do(varargin)
@@ -78,6 +87,7 @@ hold on
 yline(0.025, "LineWidth", 0.5)
 ylim([0 0.05])
 hold off
+% show_cooperative_animation(app);
 end
 
 function in_prog(app)
@@ -106,8 +116,8 @@ payloadAgent.estimator.do = @(varargin)[];
 payloadAgent.estimator.result.state = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 3]));
 payloadAgent.estimator.result.state.p = rigid.p;
 payloadAgent.estimator.result.state.q = eul;
-payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, Sensor_Motive(1, eul(3), motive)));
-payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(payloadAgent, {"gen_ref_saddle", {"freq", 12, "orig", [0; 0; 0.7], "size", [0.8, 0.8, 0]}, 5}));
+payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, motive, "initial_yaw_angle", eul(3)));
+payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(payloadAgent, {"gen_ref_saddle", {"freq", 12, "center", [0; 0; 0.7], "radius", [0.8, 0.8, 0]}, 5}));
 payloadAgent.controller.do = @(varargin)[];
 payloadAgent.controller.result.input = [0; 0; 0; 0];
 payloadAgent.input_transform.set_function_class("identity", struct("do", @(varargin)[], "result", zeros(1, 8)));
@@ -129,7 +139,7 @@ agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(
 
 L = agentObj.parameter.cableL;
 agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj,...
-    {"gen_ref_saddle",{"freq",15,"orig",[0;0;1],"size",[0.5,0.5,0]},4}));
+    {"gen_ref_saddle",{"freq",15,"center",[0;0;1],"radius",[0.5,0.5,0]},4}));
 agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
 agentObj.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agentObj,"zd",1,"te",5));
 agentObj.reference.set_function_class("landing", LANDING_REFERENCE(agentObj,"dt",dt,"zd",-L,"te",5)); % zd = -Lとするのがミソ
@@ -173,4 +183,45 @@ function y = motive_output(obj,data)
     pT = data.rigid(obj.rigid_id(2)).p - p;
     pT = pT/norm(pT);
     y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
+end
+
+function show_cooperative_animation(app)
+% 協調吊り下げ（複数ドローン＋牽引物）のアニメーションを生成する。
+% Nは機体数、牽引物はN+1
+if app.logger.k <= 1
+    return
+end
+mov = DRAW_COOPERATIVE_DRONES(app.logger, ...
+    "target", 1:app.N-1, ...
+    "self", app.agent(app.N), ...
+    "load_index", app.N,...
+    "lims", [ -5 5;  -5 5;  -3 5 ]);
+mov.animation(app.logger, ...
+    "target", 1:app.N-1, ...
+    "self", app.agent(app.N), ...
+    "load_index", app.N);
+end
+
+function v = build_display_vector(agent, time)
+% コンソール表示用の文字列を作る。
+% 参照位置、推定位置、入力、推定質量を並べる。
+idx = length(agent);
+if ~isprop(agent(idx).reference.result.state, "xd")
+    v = [];
+    return
+end
+xd = agent(idx).reference.result.state.xd;
+if isfield(agent(idx).estimator.result, "state")
+    p = agent(idx).estimator.result.state.p;
+    if isprop(agent(idx).estimator.result.state, "mL")
+        mL = agent(idx).estimator.result.state.mL;
+    else
+        mL = NaN;
+    end
+else
+    p = [NaN; NaN; NaN];
+    mL = NaN;
+end
+u = agent(idx).controller.result.input;
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end

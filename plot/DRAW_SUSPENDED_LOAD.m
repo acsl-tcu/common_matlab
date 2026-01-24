@@ -1,5 +1,5 @@
-classdef DRAW_DRONE_MOTION
-    % Animation class for drone motion (no load)
+classdef DRAW_SUSPENDED_LOAD
+    % Animation class for single suspended-load (1 drone + 1 load)
 
     properties
         frame
@@ -9,39 +9,51 @@ classdef DRAW_DRONE_MOTION
         ylim
         zlim
         L
-        frame_size = [0.1170, 0.0932];
-        rotor_r = 0.0392;
+        frame_size = [];
+        rotor_r = [];
+        load
+        line
+        load_shape = "sphere";
+        load_size = [];
     end
 
     methods
-        function obj = DRAW_DRONE_MOTION(logger, varargin)
+        function obj = DRAW_SUSPENDED_LOAD(logger, varargin)
             param = struct(varargin{:});
             if ~isfield(param, "target")
                 param.target = 1;
             end
-
-            if isfield(param, "self") && isprop(param.self, "parameter")
-                if isprop(param.self.parameter, "Lx") && isprop(param.self.parameter, "Ly")
-                    obj.frame_size = [param.self.parameter.Lx, param.self.parameter.Ly];
-                end
-                if isprop(param.self.parameter, "rotor_r")
-                    obj.rotor_r = param.self.parameter.rotor_r;
-                end
+            if ~isfield(param, "self") || ~isprop(param.self, "parameter")
+                error("DRAW_SUSPENDED_LOAD:MissingSelf", "self.parameter is required.");
+            end
+            if isprop(param.self.parameter, "Lx") && isprop(param.self.parameter, "Ly")
+                obj.frame_size = [param.self.parameter.Lx, param.self.parameter.Ly];
+            else
+                error("DRAW_SUSPENDED_LOAD:MissingFrameSize", "self.parameter.Lx/Ly are required.");
+            end
+            if isprop(param.self.parameter, "rotor_r")
+                obj.rotor_r = param.self.parameter.rotor_r;
+            else
+                error("DRAW_SUSPENDED_LOAD:MissingRotor", "self.parameter.rotor_r is required.");
+            end
+            if isprop(param.self.parameter, "Length")
+                obj.load_size = repmat(param.self.parameter.Length, 1, 3);
+            else
+                error("DRAW_SUSPENDED_LOAD:MissingLoadSize", "self.parameter.Length is required.");
             end
 
             p = obj.data_format(logger, param.target, "p", "p");
-            r = [];
+            pL = [];
             try
-                r = obj.data_format(logger, param.target, "p", "r");
+                pL = obj.get_load_position(logger, param, p);
             catch
-                r = [];
+                pL = [];
             end
 
             data = p;
-            if ~isempty(r)
-                data = [data; r];
+            if ~isempty(pL)
+                data = [p; pL];
             end
-
             tM = max(data, [], 1);
             tm = min(data, [], 1);
             M = [max(tM(1:3:end)), max(tM(2:3:end)), max(tM(3:3:end))];
@@ -51,6 +63,12 @@ classdef DRAW_DRONE_MOTION
                 obj.L = param.frame_size;
             else
                 obj.L = obj.frame_size;
+            end
+            if isfield(param, "load_shape")
+                obj.load_shape = param.load_shape;
+            end
+            if isfield(param, "load_size")
+                obj.load_size = param.load_size;
             end
 
             obj.xlim = [m(1)-obj.L(1) M(1)+obj.L(1)];
@@ -76,7 +94,15 @@ classdef DRAW_DRONE_MOTION
             else
                 obj = obj.gen_frame("target", param.target, varargin{:});
             end
+            obj = obj.gen_load();
 
+            p0 = p(1,:);
+            if isempty(pL)
+                pL0 = p0 + [0 0 -obj.load_size(3)];
+            else
+                pL0 = pL(1,:);
+            end
+            obj.line = plot3(obj.ax, [p0(1) pL0(1)], [p0(2) pL0(2)], [p0(3) pL0(3)], "k");
             view(ax, 3)
             grid(ax, 'on')
             daspect(ax, [1 1 1]);
@@ -127,13 +153,37 @@ classdef DRAW_DRONE_MOTION
             obj.thrust = tt;
         end
 
-        function draw(obj, target, p, q, u)
+        function obj = gen_load(obj)
+            switch obj.load_shape
+                case {"cube", "cuboid"}
+                    scale = obj.load_size(:)'/2;
+                    v = [ ...
+                        -1 -1 -1; 1 -1 -1; 1 1 -1; -1 1 -1; ...
+                        -1 -1 1; 1 -1 1; 1 1 1; -1 1 1];
+                    v = v .* scale;
+                    f = [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8];
+                    h = patch(obj.ax, "Faces", f, "Vertices", v, "FaceColor", "cyan", ...
+                        "FaceAlpha", 0.5, "EdgeColor", "none");
+                otherwise
+                    [x, y, z] = sphere(12);
+                    x = x * obj.load_size(1);
+                    y = y * obj.load_size(2);
+                    z = z * obj.load_size(3);
+                    h = surf(obj.ax, x, y, z, "FaceColor", "cyan", "FaceAlpha", 0.5, "EdgeColor", "none");
+            end
+            t = hgtransform('Parent', obj.ax);
+            set(h, 'Parent', t);
+            obj.load = t;
+        end
+
+        function draw(obj, target, p, q, u, pL)
             arguments
                 obj
                 target
                 p
                 q
                 u = [1;1;1;1]
+                pL = []
             end
 
             for n = target
@@ -155,6 +205,14 @@ classdef DRAW_DRONE_MOTION
                 end
                 set(frame, 'Matrix', Txyz*R);
             end
+
+            if ~isempty(pL)
+                Tload = makehgtform('translate', pL(1,:));
+                set(obj.load, 'Matrix', Tload);
+                obj.line.XData = [p(1,1,1) pL(1,1)];
+                obj.line.YData = [p(1,2,1) pL(1,2)];
+                obj.line.ZData = [p(1,3,1) pL(1,3)];
+            end
             drawnow
         end
 
@@ -163,13 +221,12 @@ classdef DRAW_DRONE_MOTION
             if ~isfield(param, "target")
                 param.target = 1;
             end
-
             p = obj.data_format(logger, param.target, "p", "p");
             q = obj.data_format(logger, param.target, "q", "p");
             u = logger.data(param.target, "input", "");
             u = reshape(u, size(u,1), size(u,2), length(param.target));
             Q = obj.gen_Q(param.target, q);
-
+            pL = obj.get_load_position(logger, param, p);
             r = [];
             try
                 r = obj.data_format(logger, param.target, "p", "r");
@@ -205,30 +262,17 @@ classdef DRAW_DRONE_MOTION
             catch
                 phase = [];
             end
-            tRealtime = tic;
             for i = 1:length(t)-1
-                if isfield(param, "opt_plot")
-                    param.self.show(param.opt_plot, "logger", logger, "k", i, varargin{:});
-                end
                 if ~isvalid(obj.frame)
                     obj = obj.gen_frame("target", param.target, "ax", obj.ax);
                 end
-                obj.draw(param.target, p(i,:,param.target), Q(i,:,param.target), u(i,:,param.target));
+                obj.draw(param.target, p(i,:,param.target), Q(i,:,param.target), u(i,:,param.target), pL(i,:));
                 timeText = sprintf("%05.2f", t(i));
                 phaseChar = "";
                 if ~isempty(phase)
                     phaseChar = char(phase(i));
                 end
                 title(obj.ax, "time : " + timeText + "  phase : " + phaseChar);
-                if isfield(param, "realtime")
-                    delta = toc(tRealtime);
-                    if t(i+1)-t(i) > delta
-                        pause(t(i+1)-t(i) - delta);
-                    end
-                    tRealtime = tic;
-                else
-                    pause(0.01);
-                end
                 if isfield(param, "lims")
                     obj.xlim = param.lims(1,:);
                     obj.ylim = param.lims(2,:);
@@ -240,6 +284,7 @@ classdef DRAW_DRONE_MOTION
                     obj.ax.YLim = obj.ylim;
                     obj.ax.ZLim = obj.zlim;
                 end
+                pause(0.01);
                 if isfield(param, "gif")
                     im = frame2im(getframe(obj.ax));
                     [imind, cm] = rgb2ind(im, sizen);
@@ -277,6 +322,65 @@ classdef DRAW_DRONE_MOTION
         function p = data_format(~, logger, source, var, att)
             q = logger.data(source, var, att);
             p = reshape(q, size(q,1), size(q,2)/length(source), length(source));
+        end
+
+        function pL = get_load_position(obj, logger, param, p)
+            if isfield(param, "load_source")
+                load_source = param.load_source;
+            elseif isfield(param, "target")
+                load_source = param.target;
+            else
+                load_source = 1;
+            end
+
+            if isfield(param, "load_var")
+                load_att = "e";
+                if isfield(param, "load_att")
+                    load_att = param.load_att;
+                end
+                pL = obj.data_format(logger, load_source, param.load_var, load_att);
+                pL = reshape(pL, size(p,1), 3);
+                return
+            end
+
+            candidates = { ...
+                {"estimator.result.state.pL", "e"}, ...
+                {"pL", "p"} ...
+                };
+            for k = 1:length(candidates)
+                item = candidates{k};
+                try
+                    pL = obj.data_format(logger, load_source, item{1}, item{2});
+                    pL = reshape(pL, size(p,1), 3);
+                    return
+                catch
+                end
+            end
+
+            pT = [];
+            candidates = { ...
+                {"estimator.result.state.pT", "e"}, ...
+                {"pT", "p"} ...
+                };
+            for k = 1:length(candidates)
+                item = candidates{k};
+                try
+                    pT = obj.data_format(logger, load_source, item{1}, item{2});
+                    pT = reshape(pT, size(p,1), 3);
+                    break
+                catch
+                end
+            end
+            if isempty(pT)
+                error("DRAW_SUSPENDED_LOAD:MissingLoad", "Load position data is missing.");
+            end
+
+            if isfield(param, "self") && isprop(param.self, "parameter")
+                L = param.self.parameter.get("cableL");
+            else
+                L = 0;
+            end
+            pL = p + pT * L;
         end
 
         function Q = gen_Q(~, target, q)

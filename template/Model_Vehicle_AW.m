@@ -21,5 +21,5 @@ Setting.num_list = [2,1,1];
 %---------------------------%
 Setting.initial = initial;
 Setting.dt = dt;
-Model.parameter_name = [];
+Model.parameter_order = resolve_parameter_order(Setting.method, Setting.dim(3));
 Model.param=Setting;

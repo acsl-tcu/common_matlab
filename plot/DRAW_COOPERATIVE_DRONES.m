@@ -239,6 +239,11 @@ classdef DRAW_COOPERATIVE_DRONES
             Qit = obj.data_format(logger,obj.load_index,obj.target,"plant.result.state.Qi","p");
             Qi = obj.gen_Q(obj.target,Qit);
             [pi,rho] = obj.gen_pi(p,Q0,qi);
+            if ~isempty(r)
+                for n = 1:size(r, 3)
+                    plot3(obj.ax, r(:,1,n), r(:,2,n), r(:,3,n), 'r');
+                end
+            end
 
             if isfield(param, "gif")
                 sizen = 256;
@@ -257,24 +262,19 @@ classdef DRAW_COOPERATIVE_DRONES
             end
 
             t = logger.data(0, "t","");
-            tRealtime = tic;
-            if isfield(param,'Motive_ref')
-                for n = 1:length(param.target)
-                    f(n) = animatedline(obj.ax,'Color','r','MaximumNumPoints',15); % 目標軌道の描画点の制限
-                end
+            phase = [];
+            try
+                phase = logger.data(0, "phase", "");
+            catch
+                phase = [];
             end
+            tRealtime = tic;
             if isfield(param,'ntimes')
                 skip = param.ntimes;
             else
                 skip = 1;
             end
             for i = 1:skip:length(t)-1
-                if isfield(param,'Motive_ref')
-                    addpoints(obj.ax,f(n),r(i,1,param.target),r(i,2,param.target),r(i,3,param.target));
-                else
-                    %plot3(ax,r(:,1,param.target),r(:,2,param.target),r(:,3,param.target),'k');
-                    plot3(obj.ax,r(:,1),r(:,2),r(:,3),'k');
-                end
                 if isfield(param,"opt_plot")
                     param.self.show(param.opt_plot,"logger",logger,"k",i,varargin{:});
                 end
@@ -282,7 +282,12 @@ classdef DRAW_COOPERATIVE_DRONES
                     obj=obj.gen_frame("target",param.target,"ax" ,obj.ax);
                 end
                 obj.draw(param.target,p(i,:),Q(i,:),pi(i,:,param.target),Qi(i,:,param.target),rho(i,:,param.target));
-                title(obj.ax,"time : " + t(i));
+                timeText = sprintf("%05.2f", t(i));
+                phaseChar = "";
+                if ~isempty(phase)
+                    phaseChar = char(phase(i));
+                end
+                title(obj.ax,"time : " + timeText + "  phase : " + phaseChar);
                 if isfield(param,'lims')
                     obj.xlim = param.lims(1,:);
                     obj.ylim = param.lims(2,:);

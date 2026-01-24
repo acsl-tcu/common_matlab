@@ -29,5 +29,5 @@ Setting.num_list = [2,1,1];
 Setting.initial = initial;
 Setting.dt = dt;
 Model.param = Setting;
-Model.parameter_name = ["mass","Lx","Ly","lx","ly","jz","gravity"];
+Model.parameter_order = resolve_parameter_order(Setting.method, Setting.dim(3));
 

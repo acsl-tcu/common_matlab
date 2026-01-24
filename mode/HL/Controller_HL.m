@@ -25,5 +25,5 @@ Setting.F4=lqrd([0 1;0 0],[0;1],diag([100,10]),[0.1],dt);                       
 
 % 設定確認
 Setting.dt = dt;
-eig(diag([1,1,1],1)-[0;0;0;1]*Setting.F2)
+% eig(diag([1,1,1],1)-[0;0;0;1]*Setting.F2)
 end

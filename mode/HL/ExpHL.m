@@ -5,6 +5,9 @@ time = TIME(ts, dt, te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
+logger.display_func = @(agent, time) build_display_vector(agent, time);
+logger.display_on = true;
+fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
 motive = Connector_Natnet('192.168.100.4'); % connect to Motive
 motive.getData([], []); % get data from Motive
@@ -22,8 +25,8 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",0},4})); % hovering
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;1],"radius",1.0},4})); % circle
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4})); % circle
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
@@ -43,8 +46,38 @@ app.logger.plot({1, "p", "ers"}, "ax", app.UIAxes, "phase", "tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
+% show_cooperative_animation(app);
 end
 
 function in_prog(app)
 app.TextArea.Text = "estimator : " + app.agent(1).estimator.result.state.get();
+end
+
+function show_cooperative_animation(app)
+% 協調吊り下げ（複数ドローン＋牽引物）のアニメーションを生成する。
+% Nは機体数、牽引物はN+1
+if app.logger.k <= 1
+    return
+end
+mov = DRAW_DRONE_MOTION(app.logger, "self", app.agent, "target", 1, ...
+    "lims", [ -5 5;  -5 5;  -3 5 ]);
+mov.animation(app.logger, "self", app.agent, "target", 1, "Motive_ref", 1);
+end
+
+function v = build_display_vector(agent, time)
+% コンソール表示用の文字列を作る。
+% 参照位置、推定位置、入力を並べる。
+idx = 1;
+if ~isprop(agent(idx).reference.result.state, "xd")
+    v = [];
+    return
+end
+xd = agent(idx).reference.result.state.xd;
+if isfield(agent(idx).estimator.result, "state")
+    p = agent(idx).estimator.result.state.p;
+else
+    p = [NaN; NaN; NaN];
+end
+u = agent(idx).controller.result.input;
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', u');
 end

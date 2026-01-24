@@ -1,5 +1,4 @@
-%% initialize
-tmp = matlab.desktop.editor.getActive;
+%% initializetmp = matlab.desktop.editor.getActive;
 cd(fileparts(tmp.Filename));
 clc
 clear all

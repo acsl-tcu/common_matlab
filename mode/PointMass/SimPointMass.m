@@ -21,10 +21,16 @@ agent.plant = MODEL_CLASS(agent,Model_Discrete(dt,initial_state,1,"FREE",agent))
 %agent.parameter.set("mass",struct("mass",0.5))
 agent.estimator.set_function_class("kf", KF(agent, Estimator_KF(agent,dt,MODEL_CLASS(agent,Model_Discrete(dt,initial_state,1,"FREE",agent)),["p"],"Q",1e-3*eye(2),"R",1e-2,"P",eye(2),"B",1)));
 agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 1e-4));
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",1,"orig",[2;0;0],"size",[0,0,0]}}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",1,"center",[2;0;0],"radius",[0,0,0]}}));
 agent.controller.set_function_class("pid", PID_CONTROLLER(agent,Controller_PID(dt,"Kc",5,"Tc",1,"type","PID")));
 
-run("ExpBase");
+for i = 1:length(agent)
+    agent(i).reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent(i),"zd",1.2,"te",3));
+    agent(i).reference.set_function_class("landing", LANDING_REFERENCE(agent(i),"dt",dt,"vd",0,"te",5));
+    agent(i).cha_allocation.a.reference = "takeoff";
+    agent(i).cha_allocation.t.reference = "takeoff";
+    agent(i).cha_allocation.l.reference = "landing";
+end
 
 %%
 if ~exist("app",'var')
