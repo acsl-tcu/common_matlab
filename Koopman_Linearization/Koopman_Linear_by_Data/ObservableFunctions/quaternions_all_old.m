@@ -100,9 +100,9 @@ kmec_qodt_z=[W1*W2;W2*W3;W3*W1;%I^-1wIwの項
              ];
 
 %% まとめ
-% z = [common_z; isobe_z]; % 00
+z = [common_z; isobe_z]; % 00
 % z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
-z = [common_without_p; isobe_z]; 
+% z = [common_without_p; isobe_z]; 
 % z = [common_z; isobe_z;kmec_R_z;kmec_qodt_z]; % 01
 
 end
