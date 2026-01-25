@@ -65,6 +65,31 @@ controller.result.input : 入力
 例えば行列の行方向の繰り返しならi より row の方が明確になる場合もある．
 ただ，長くなりすぎるとこの文字列がうるさくなりすぎるのでバランスが必要．
 
+# LOGGER
+
+LOGGER本体と分割クラスは `assets/logger` に配置している．
+
+## 使い方（基本）
+
+```
+logger = LOGGER(1, size(ts:dt:te, 2), 0, [], []);
+logger.logging(time, 'f', agent);
+logger.save("example");
+```
+
+## ログの読み込み
+
+```
+logger = LOGGER("Data/Sim_data/Log(...).mat");
+% または分割保存ディレクトリ
+logger = LOGGER("Data/Sim_data/Log(...)");
+```
+
+## 補足
+
+- `logger.display_func` と `logger.display_on` は従来通り使用可能
+- 分割クラス: `C_Logger_Display`, `C_Logger_Plot`, `C_Logger_Query`, `C_Logger_Storage`, `C_Logger_Replay`
+
 ## プログラムの中で使われる用語
 
 |単語 | 意味 | 例 |

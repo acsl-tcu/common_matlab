@@ -24,7 +24,7 @@ ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedL
 
 Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
-Setting.mode = SimBaseMode(9); % SimHL
+Setting.mode = SimBaseMode(2); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
 % Setting.mode = SimBaseMode(2); % SimCoop
 

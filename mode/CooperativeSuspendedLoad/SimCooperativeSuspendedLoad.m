@@ -160,12 +160,11 @@ end
 
 function post(app)
 % シミュレーション終了後の結果描画とアニメーション呼び出し。
-t = app.logger.data(0,"t","");
 rdata = app.logger.data(app.N,"p","r");
-edata = app.logger.data(app.N,"p","e");
 L = app.agent(1).parameter.cableL;
-plot(t,rdata(:,3)-L,t,edata(:,3));
-app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
+custom = rdata -[0,0,L];
+app.logger.plot({{1, "p", "r", custom},{app.N, "p", "e"}},"ax",app.UIAxes);
+% app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % show_cooperative_animation(app);
 end
