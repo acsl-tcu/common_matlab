@@ -51,8 +51,14 @@ classdef MECKC < handle
         % K_full = K_full*0;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
+        %拡張状態取得
+        % ※一気にz_pなどと取得するとplot時に警告が出る(50まで)
+        obj.result.z_p_forward = z_p(1:13);%プラント拡張状態の前半
+        obj.result.z_n_forward = z_n(1:13);
+        obj.result.z_p_back = z_p(14:26);
+        obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
-        obj.result.delta_u = 0;%unだけ確認したいとき
+        % obj.result.delta_u = 0;%unだけ確認したいとき
         
       obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu      
       result = obj.result;
