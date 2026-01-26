@@ -22,6 +22,7 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
             time = varargin{1};
             cha = varargin{2};
             base = obj.self.reference;
+            sensor = obj.self.sensor.result.output;
 
             if isempty(base) || ~obj.has_field_or_prop(base, "result")
                 error("SUSPENDED_LOAD_REF_ADJUST:MissingBase", "Base reference result is missing.");
@@ -76,14 +77,15 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
             end
 
             p = model_state.p;
-            pL = model_state.pL;
+            % pL = model_state.pL;
+            pL_raw = sensor(7:9);
 
             if isempty(obj.baseP) % 空回しで設定
-                obj.baseP = p - pL; % 初期配置(dx,dy)を保存：着陸時その配置にする
+                obj.baseP = p - pL_raw; % 初期配置(dx,dy)を保存：着陸時その配置にする
             end
 
             if isempty(obj.pL0) % 空回しで設定
-                obj.pL0 = pL; % 初期位置(x,y)保存：takeoffで利用
+                obj.pL0 = pL_raw; % 初期位置(x,y)保存：takeoffで利用
             end
 
             nxy = xd(1:3);
@@ -100,17 +102,17 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
 
                     tt = min((time.t - obj.takeoff_t0), obj.td);
                     k = tt/obj.td; %センサ値反映割合 [0,1]
-                    nxy = p + k * (pL - p);
+                    nxy = p + k * (pL_raw - p);
                     % p => pL へ変化
                     % z 方向は最後に更新する
                 else %閾値を越えなかったら機体の真下に牽引物がいることにする
                     pL = p;
                     nxy = pL; %牽引物のreferenceのためpLにいるままになってしまうのでここで代入して下にいるようにする。
                 end
-                nxy(3) = xd(3) - L; % takeoff のリファレンスxdは機体位置を前提としているのでLをひく
+                nxy(3) = xd(3) - 0.8*L; % takeoff のリファレンスxdは機体位置を前提としているのでLをひく
             elseif cha == 'l'
                 if isempty(obj.cableL_L0) % in landing phase
-                    obj.cableL_L0 = norm(p - pL); % 飛行時のケーブル長
+                    obj.cableL_L0 = norm(p - pL_raw); % 飛行時のケーブル長
                 end
 
                 if p(3) < obj.cableL_L0 || obj.isGround == 1
