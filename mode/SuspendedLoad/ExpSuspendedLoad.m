@@ -35,8 +35,9 @@ function y = motive_output(obj,data)
     p = data.rigid(obj.rigid_id(1)).p;
     pT = data.rigid(obj.rigid_id(2)).p - p;
     pT = pT/norm(pT);
-    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT]
+    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
 end
+agent.sensor.set_function_class("sload", SUSPENDED_LOAD_SENSOR_ADJUST(agent));     
 
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent, dt, ...
     MODEL_CLASS(agent, Model_Suspended_Load(dt, initial_state, 1, agent, "Load_mL_HL")),...

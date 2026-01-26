@@ -22,7 +22,7 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
             time = varargin{1};
             cha = varargin{2};
             base = obj.self.reference;
-            sensor = obj.self.sensor.result.output;
+            sensor = obj.self.sensor.result;
 
             if isempty(base) || ~obj.has_field_or_prop(base, "result")
                 error("SUSPENDED_LOAD_REF_ADJUST:MissingBase", "Base reference result is missing.");
@@ -77,8 +77,7 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
             end
 
             p = model_state.p;
-            % pL = model_state.pL;
-            pL_raw = sensor(7:9);
+            pL_raw = sensor.state(2).p;% = pL :estimatorの結果は真下に補正されていたりするので。
 
             if isempty(obj.baseP) % 空回しで設定
                 obj.baseP = p - pL_raw; % 初期配置(dx,dy)を保存：着陸時その配置にする
@@ -109,7 +108,7 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
                     pL = p;
                     nxy = pL; %牽引物のreferenceのためpLにいるままになってしまうのでここで代入して下にいるようにする。
                 end
-                nxy(3) = xd(3) - 0.8*L; % takeoff のリファレンスxdは機体位置を前提としているのでLをひく
+                nxy(3) = xd(3) - L; % takeoff のリファレンスxdは機体位置を前提としているのでLをひく
             elseif cha == 'l'
                 if isempty(obj.cableL_L0) % in landing phase
                     obj.cableL_L0 = norm(p - pL_raw); % 飛行時のケーブル長
