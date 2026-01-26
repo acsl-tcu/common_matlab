@@ -35,7 +35,7 @@ function y = motive_output(obj,data)
     p = data.rigid(obj.rigid_id(1)).p;
     pT = data.rigid(obj.rigid_id(2)).p - p;
     pT = pT/norm(pT);
-    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
+    y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT]
 end
 
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent, dt, ...
@@ -49,8 +49,8 @@ agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1,"te",3));
-agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1,"te",5));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",5)); % zd = -Lとするのがミソ
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 % agent.controller.set_function_class("hl",HLC(agent,Controller_HL(dt)));
@@ -67,7 +67,10 @@ agent.cha_allocation.l.reference =["landing","sload"];
 
 function post(app)
 % app.logger.plot({{1, "input", ""},{1, "controller.result.sus", ""}},"ax",app.UIAxes);
-app.logger.plot({{1,"p","er"},{1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes, "phase", "tfl");
+tmp = app.logger.data(1,"sensor.result.output","");
+
+custom = tmp(:,7:9);
+app.logger.plot({{1,"p","r"},{1,"p","s",custom},{1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes);
 app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % app.logger.plot({1, "p", "er"}, "phase", "tfl", "fig_num", 1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
