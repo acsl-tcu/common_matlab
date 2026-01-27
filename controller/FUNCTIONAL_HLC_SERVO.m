@@ -34,6 +34,7 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             F4 = obj.param.F4;
             t = varargin{1}.t;
             xd=[xd;zeros(20-size(xd,1),1)];% 足りない分は０で埋める．
+            disp(ref.state.p');
             
             % yaw 角についてボディ座標に合わせることで目標姿勢と現在姿勢の間の2pi問題を緩和
             % TODO : 本質的にはx-xdを受け付ける関数にして，x-xdの状態で2pi問題を解決すれば良い．
@@ -47,7 +48,7 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             xd(17:19)=Rb0'*xd(17:19);
             
             if t > 5
-                obj.z = obj.z + xd(1:3)-x(5:7);
+                obj.z = obj.z + [0;0;xd(3)-x(7)];
             end
             %% calc Z
             z1 = Z1(x,xd',P);
