@@ -31,7 +31,7 @@ classdef DRONE_PARAM_SUSPENDED_LOAD < PARAMETER_CLASS
             arguments
                 name % DIATONE
                 type = "row"
-                param.mass = 0.5236
+                param.mass = 0.754
                 param.Lx = 0.195
                 param.Ly = 0.195
                 param.lx = 0.195/2
