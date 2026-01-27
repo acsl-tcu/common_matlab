@@ -118,7 +118,9 @@ Qc = I(1:k,1:k);
 
 % Qc = diag([10,10,10,1,1,1,ones(1,size(Ac,1)-6)]);
 % Qc = diag([ones(1,size(Ac,1))]);
-Rc = 1*eye(4);
+% Rc = 1*eye(4);
+%HLは[1;0.05;0.05;0.1]
+Rc = diag([1;0.1;0.1;1]);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
