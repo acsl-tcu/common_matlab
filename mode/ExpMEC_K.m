@@ -26,9 +26,9 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1.3],"size",[1,1,0]},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",15,"order",9,"check",1,"point_dt",5,"ManualSetting",0}});%HLを付けると軌道が微分される
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1.3], "g", [0.3;0.3;1.3], "h",[0;0;1.3]), 15}); % P2P
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",[0;0;1],"size",[1,0.5],"phase",[0,0]},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",[0;0;1],"radius",1.0},"HL"});
@@ -54,8 +54,8 @@ app.logger.plot({1, "input", ""},"fig_num",5,"phase","tfl");
 app.logger.plot({1, "inner_input", ""},"fig_num",6,"phase","tfl");
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",7);
 % app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[0 65]);
-app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",8);
-app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",9);
+app.logger.plot({1, "controller.result.u_nominal", ""}, "fig_num",8);
+app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",9);
 % app.logger.plot({{1, "controller.result.z_p_forward", ""},{1, "controller.result.z_n_forward", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 13);
 % app.logger.plot({{1, "controller.result.z_p_back", ""},{1, "controller.result.z_n_back", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 14);
 
