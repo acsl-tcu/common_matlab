@@ -54,7 +54,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
 
             if cha == 't' || cha == '0' || cha == 'a'
                 % 離陸前は pL を p の真下に固定
-                if p(3) > obj.pL0(3) + L * 0.6
+                if p(3) > obj.pL0(3) + 1.1*L
                     if obj.isGround
                         obj.isGround = 0;
                         obj.takeoff_t0 = time.t;
@@ -64,6 +64,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
                     k = tt / obj.td;
                     pL = p_under + k * (pL_raw - p_under);
                 else
+                    obj.isGround = 1;
                     pL = p_under;
                 end
             elseif cha == 'l'
@@ -85,6 +86,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
             % 補正した pL を result に反映
             result = obj.adjust_output(base, p, pL);
             obj.result = result;
+            % result.output'
         end
     end
 

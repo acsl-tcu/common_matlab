@@ -24,7 +24,7 @@ initial_state.pL = initial_state.p + initial_state.pT*agent.parameter.cableL;
 initial_state.v = [0; 0; 0];
 % Note: set the model error after setting "plant"
 agent.plant = MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state,1,agent));%dt,initial,id,agent,modelName
-% agent.parameter.set("loadmass",0.04);%0.0968);%0.968
+agent.parameter.set("loadmass",0.01);%0.0968);%0.968
 
 % Sim only: getData works after setting "plant"
 motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
@@ -53,7 +53,7 @@ agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1,"te",3));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));

@@ -25,10 +25,15 @@ initial_state.wL = [0; 0; 0];
 
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
-agent.parameter.set("cableL", 1.037); %0.992,0.647,p0.613,0.460
-% agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460
-agent.parameter.set("loadmass", 0.075); %0.0968); %0.968
+agent.parameter.set("mass", 0.762); %0.0968); %0.968
+agent.parameter.set("cableL", 1.037); %0.992,0.647,p0.613,0.460,0.956
+% agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460,0.956
+agent.parameter.set("loadmass", 0.01); %0.0968); %0.968
 % agent.parameter.set("loadmass",0.6);%0.0968);%0.968 フィラトケース0.239
+agent.parameter.set("jx", 0.06); %0.0968); %0.968
+agent.parameter.set("jy", 0.06); %0.0968); %0.968
+agent.parameter.set("jz", 0.09); %0.0968); %0.968
+
 agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4")); %有線プロポ
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
@@ -37,27 +42,27 @@ function y = motive_output(obj,data)
     pT = pT/norm(pT);
     y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
 end
-agent.sensor.set_function_class("sload", SUSPENDED_LOAD_SENSOR_ADJUST(agent));     
+agent.sensor.set_function_class("sload", SUSPENDED_LOAD_SENSOR_ADJUST(agent,"td",10));     
 
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent, dt, ...
     MODEL_CLASS(agent, Model_Suspended_Load(dt, initial_state, 1, agent, "Load_mL_HL")),...
     ["p", "q", "pL", "pT"]))); %expの流用 質量推定有
-agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
+agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent,"td",1));
 
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0,0,0]},4})); % hovering at(0,0,0)
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1.5],"radius",[0,0,0]},4})); % hovering at(0,0,0)
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1,"te",5));
-agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",5)); % zd = -Lとするのがミソ
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",agent.estimator.result.state.p(3)-L,"te",10)); % zd = -Lとするのがミソ
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 % agent.controller.set_function_class("hl",HLC(agent,Controller_HL(dt)));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
-agent.set_cha_allocation_for_all("sensor","motive");
+agent.set_cha_allocation_for_all("sensor",["motive","sload"]);
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
@@ -71,7 +76,7 @@ function post(app)
 tmp = app.logger.data(1,"sensor.result.output","");
 
 custom = tmp(:,7:9);
-app.logger.plot({{1,"p","r"},{1,"p","s",custom},{1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes);
+app.logger.plot({{1,"p","re"},{1,"p","s",custom},{1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes);
 app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % app.logger.plot({1, "p", "er"}, "phase", "tfl", "fig_num", 1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw

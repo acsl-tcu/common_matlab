@@ -14,8 +14,13 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
     end
 
     methods
-        function obj = SUSPENDED_LOAD_STATE_MANAGER(self)
+        function obj = SUSPENDED_LOAD_STATE_MANAGER(self,opts)
+            arguments
+                self
+                opts.td = 5
+            end
             obj.self = self;
+            obj.td = opts.td;
             obj.result.state = [];            
         end
 
@@ -50,22 +55,24 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 obj.pL0 = pL;
             end
 
-            % 離陸/待機: 荷が地面にある間はpLはpの真下。
-            % センサーを信用できるときだけpLをpからpLへ滑らかに遷移させる。
+            % % 離陸/待機: 荷が地面にある間はpLはpの真下。
+            % % センサーを信用できるときだけpLをpからpLへ滑らかに遷移させる。
             if cha == 't' || cha == '0' || cha == 'a'
-                if p(3) > obj.pL0(3) + L * 0.6 % 離陸判定
-                    if obj.isGround
+            %     % if p(3) > obj.pL0(3) + L * 0.8 % 離陸判定
+            %     if mL > 0.02 % 離陸判定
+            %         if obj.isGround
                         obj.isGround = 0;
-                        obj.takeoff_t0 = time.t;
-                    end
-                    tt = min((time.t - obj.takeoff_t0), obj.td);
-                    k = tt/obj.td;
-                    pL = p + k * (pL - p);
-                else
-                    pL = p;
-                end
-                pL(3) = p(3) - L;
-                pT = [0;0;-1];
+            %             obj.takeoff_t0 = time.t;
+            %         end
+            %         tt = min((time.t - obj.takeoff_t0), obj.td);
+            %         k = tt/obj.td;
+            %         pL = p + k * (pL - p);
+            %     else
+            %         obj.isGround = 1;
+            %         pL = p;
+            %     end
+            %     pL(3) = p(3) - L;
+            %     pT = [0;0;-1];
 
             % 着陸: ケーブル長と質量を記録し、接地検知後にpLをpへ戻す。
             % その際mLも同じ係数で減衰させ、地面接触後の変動を抑える。
@@ -74,7 +81,7 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                     obj.cableL_L0 = norm(p - pL);
                     obj.mL_L0 = mL;
                 end
-                if p(3) < obj.cableL_L0 || obj.isGround == 1
+                if p(3) < 1.2*obj.cableL_L0 || obj.isGround == 1
                     if isempty(obj.landing_t0)
                         obj.landing_t0 = time.t;
                         obj.isGround = 1;
@@ -95,7 +102,8 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 state.set_state("mL", max(0, mL));
                 obj.self.parameter.set("loadmass",mL);
             end
-            
+            [obj.self.estimator.ekf.result.state.get';state.get']
+            obj.self.estimator.ekf.result.state.set_state(state);
             obj.result.state = state;
             result = obj.result;
         end
