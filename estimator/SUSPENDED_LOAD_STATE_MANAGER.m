@@ -43,7 +43,9 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
             end
             state = state_copy(baseState);
             p = state.p;
+            v = state.v;
             pL = state.pL;
+            vL = state.vL;
             if isprop(state, "pT")
                 pT = state.pT;
             else
@@ -55,25 +57,10 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                 obj.pL0 = pL;
             end
 
-            % % 離陸/待機: 荷が地面にある間はpLはpの真下。
-            % % センサーを信用できるときだけpLをpからpLへ滑らかに遷移させる。
-            if cha == 't' || cha == '0' || cha == 'a'
-            %     % if p(3) > obj.pL0(3) + L * 0.8 % 離陸判定
-            %     if mL > 0.02 % 離陸判定
-            %         if obj.isGround
-                        obj.isGround = 0;
-            %             obj.takeoff_t0 = time.t;
-            %         end
-            %         tt = min((time.t - obj.takeoff_t0), obj.td);
-            %         k = tt/obj.td;
-            %         pL = p + k * (pL - p);
-            %     else
-            %         obj.isGround = 1;
-            %         pL = p;
-            %     end
-            %     pL(3) = p(3) - L;
-            %     pT = [0;0;-1];
-
+            % % 離陸/待機: 何もしない            
+            if cha == 't' || cha == '0' || cha == 'a'            
+                    obj.isGround = 0;
+            
             % 着陸: ケーブル長と質量を記録し、接地検知後にpLをpへ戻す。
             % その際mLも同じ係数で減衰させ、地面接触後の変動を抑える。
             elseif cha == 'l'
@@ -89,6 +76,7 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                     tt = min(time.t - obj.landing_t0, obj.td);
                     k = tt/obj.td;
                     pL = [p(1:2);p(3)-L] + (1 - k) * (pL - [p(1:2);p(3)-L]); % pL : pL => pの真下
+                    vL = v + (1 - k) * (vL - v);
                     delta = pL - p;
                     pT = delta / norm(delta);
                     tmL = (1 - k) * obj.mL_L0; % mL : mL_L0 => 0
@@ -97,12 +85,12 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
             end
 
             state.set_state("pL", pL);
+            state.set_state("vL", vL);
             state.set_state("pT", pT);
             if isprop(state, "mL")
                 state.set_state("mL", max(0, mL));
                 obj.self.parameter.set("loadmass",mL);
-            end
-            [obj.self.estimator.ekf.result.state.get';state.get']
+            end           
             obj.self.estimator.ekf.result.state.set_state(state);
             obj.result.state = state;
             result = obj.result;

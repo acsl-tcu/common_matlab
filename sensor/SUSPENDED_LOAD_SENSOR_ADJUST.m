@@ -54,7 +54,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
 
             if cha == 't' || cha == '0' || cha == 'a'
                 % 離陸前は pL を p の真下に固定
-                if p(3) > obj.pL0(3) + 1.1*L
+                if p(3) > obj.pL0(3) + 1.1*L % 完全に浮き上がってから
                     if obj.isGround
                         obj.isGround = 0;
                         obj.takeoff_t0 = time.t;
@@ -72,7 +72,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
                 if isempty(obj.cableL_L0)
                     obj.cableL_L0 = norm(p - pL_raw);
                 end
-                if p(3) < obj.cableL_L0 || obj.isGround == 1
+                if p(3) < obj.cableL_L0 + obj.pL0(3) || obj.isGround == 1
                     if isempty(obj.landing_t0)
                         obj.landing_t0 = time.t;
                         obj.isGround = 1;
@@ -94,6 +94,7 @@ classdef SUSPENDED_LOAD_SENSOR_ADJUST < handle
 
         function [p, pL_raw] = extract_positions(~, base)
             % MOTIVE/rigid 等の形式に対応して p, pL を抽出
+            % rigid/state から抽出
             p = [];
             pL_raw = [];
             if isstruct(base) && isfield(base, "state")
