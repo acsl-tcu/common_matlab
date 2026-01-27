@@ -39,8 +39,9 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"
 run("ExpBase");
 agent.cha_allocation.reference = "time_varying";
 % agent.controller.nominal=HLC(agent,Controller_HL(dt));
+% agent.controller.mec=MECKC(agent,Controller_HL(dt));
 agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent,Controller_FHL_Servo(dt));
-agent.controller.mec=MECKC(agent,Controller_HL(dt));
+agent.controller.mec=MECKC(agent,Controller_FHL_Servo(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
@@ -52,9 +53,9 @@ app.logger.plot({1, "v", "er"},"fig_num",4);
 app.logger.plot({1, "input", ""},"fig_num",5,"phase","tfl");
 app.logger.plot({1, "inner_input", ""},"fig_num",6,"phase","tfl");
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",7);
-app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[0 65]);
-app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
-app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
+% app.logger.plot({1, "controller.result.delta_u", ""}, "fig_num",8,"time",[0 65]);
+app.logger.plot({1, "controller.result.u_nominal", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",8);
+app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",9);
 % app.logger.plot({{1, "controller.result.z_p_forward", ""},{1, "controller.result.z_n_forward", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 13);
 % app.logger.plot({{1, "controller.result.z_p_back", ""},{1, "controller.result.z_n_back", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 14);
 
