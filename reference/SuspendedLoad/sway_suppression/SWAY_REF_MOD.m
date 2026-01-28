@@ -1,43 +1,29 @@
 classdef SWAY_REF_MOD < handle
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % SWAY_REF_MOD (with 1st-order lag smoothing + origin保存)
-    %
-    % 既存reference(origin)が生成した目標xd(t)を基本として使用し、
-    % 揺れが顕在化したときのみ、目標の水平成分を微修正する割り込みモジュール。
-    %
-    % 【追従用(適用)】 : xd_cmd を base.result.state.xd に上書きして返す
-    % 【比較用(保存)】 : 元の目標 xd_origin を res.xd_origin に保持（後処理で比較可能）
-    %
-    % 目標修正：
-    %   p_ref_new_xy = p_ref_xy - c
-    %
-    % 理想補正量（次元整合済）：
-    %   c* = alpha*(kv*Tv*v_xy + kr*r_xy)
-    %
-    % 一次遅れ（離散）：
-    %   c <- (1-beta)*c + beta*c*
-    %
-    % betaはON/OFFで切替可能：
-    %   ON時：速く立ち上げ (tau_on 小)
-    %   OFF時：ゆっくり戻す (tau_off 大)
+    % SWAY_REF_MOD
+    %  - reference(origin)のxdを読み、揺れ時に水平成分を補正して返す
+    %  - 重要: 戻り値 result.state を「xdプロパティを持つオブジェクト」に包む
+    %          => HLC_SUSPENDED_LOAD の isprop(ref.state,'xd') を必ずtrueにする
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
         self
         param
 
-        sway_on = 0               % 0:補正OFF, 1:補正ON（ヒステリシス）
-        c = [0;0]                 % 実際に適用する補正ベクトル（水平2次元）
+        sway_on = 0
+        c = [0;0]
 
-        sway_on_prev = 0          % 1ステップ前の割り込み状態（遷移検出用）
-        last_print_time = -inf    % 表示間引き用
-        last_xd_origin            % 元の目標（上書き前）
-        last_xd_cmd               % 適用後目標（上書き後と同じ）
-        last_c_xy                 % 補正量
-        last_S                    % 揺れ指標
-        last_h                    % CBF用のh
-        last_danger               % dangerフラグ
-        last_sway_on              % ON/OFF
+        sway_on_prev = 0
+        last_print_time = -inf
+
+        last_xd_origin
+        last_xd_cmd
+        last_c_xy
+        last_S
+        last_h
+        last_danger
+        last_sway_on
+        on_time = -inf
     end
 
     methods
@@ -47,9 +33,9 @@ classdef SWAY_REF_MOD < handle
         end
 
         function result = do(obj, varargin)
-            % varargin: (time, cha, logger, env, agent_list, i, base_opt, ...)
+            % varargin: (time, cha, logger, env, agent_list, i, ...)
 
-            % ---- minimal param check (軽量) ----
+            % ---- minimal param check ----
             if ~isfield(obj.param,'dt');   error('SwayRefMod_Param: dt is missing'); end
             if ~isfield(obj.param,'S_on') || ~isfield(obj.param,'S_off')
                 error('SwayRefMod_Param: S_on/S_off is missing');
@@ -61,17 +47,16 @@ classdef SWAY_REF_MOD < handle
 
             %--------------------------------------------------------------
             % 1) base(reference origin) の取得
-            %    ※originを保存したいので、基本は self.reference.origin を読む
             %--------------------------------------------------------------
             if isstruct(obj.self.reference) && isfield(obj.self.reference,'origin')
-                base = obj.self.reference.origin;   % 既存TIME_VARYING_REFERENCE
+                base = obj.self.reference.origin;
             else
-                base = obj.self.reference;          % 単体構成
+                base = obj.self.reference;
             end
 
             % originがまだ走っていない/xdが無い場合は何もしない
             try
-                xd_origin = base.result.state.xd;   % 「上書き前の元目標」
+                xd_origin = base.result.state.xd;
             catch
                 result = base.result;
                 return;
@@ -84,31 +69,26 @@ classdef SWAY_REF_MOD < handle
             p  = model.state.p;   v  = model.state.v;
             pL = model.state.pL;  vL = model.state.vL;
 
-            r  = pL - p;          % 相対位置（load - drone）
-            vr = vL - v;          % 相対速度（load - drone）
+            r  = pL - p;
+            vr = vL - v;
             rxy  = r(1:2);
             vrxy = vr(1:2);
 
             %--------------------------------------------------------------
-            % 3) 揺れ指標 S（水平相対運動）
-            %    S = ||v_xy|| + sr*||r_xy||
+            % 3) 揺れ指標 S
             %--------------------------------------------------------------
             S = norm(vrxy) + obj.param.sr * norm(rxy);
 
             %--------------------------------------------------------------
-            % 4) CBFゲート：水平距離による安全集合 h>=0
-            %    rmax = L*sin(theta_max),  h = rmax^2 - ||rxy||^2
-            %    注意：theta_maxが「度」で入っているなら sind() を使うこと
+            % 4) CBFゲート（水平距離）
             %--------------------------------------------------------------
             L = obj.self.parameter.get("cableL");
 
-            % --- theta_max の単位対策（paramにtheta_max_degがあれば優先） ---
             if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
                 rmax = L * sind(obj.param.theta_max_deg);
             else
-                % theta_maxをラジアンとして扱う（従来互換）
                 if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
-                    obj.param.theta_max = deg2rad(15); % デフォルト15deg
+                    obj.param.theta_max = deg2rad(15);
                 end
                 rmax = L * sin(obj.param.theta_max);
             end
@@ -130,39 +110,28 @@ classdef SWAY_REF_MOD < handle
             end
 
             %--------------------------------------------------------------
-            % 6) デバッグ表示（必要なら）
+            % 6) デバッグ表示
             %--------------------------------------------------------------
             t_now = varargin{1}.t;
 
-            % OFF->ON
             if obj.sway_on == 1 && obj.sway_on_prev == 0
                 fprintf('[SWAY_REF] ON  t=%.2f  S=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
                     t_now, S, norm(vrxy), norm(rxy), h);
             end
-
-            % ON->OFF
             if obj.sway_on == 0 && obj.sway_on_prev == 1
                 fprintf('[SWAY_REF] OFF t=%.2f  S=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
                     t_now, S, norm(vrxy), norm(rxy), h);
             end
-
-            % ON中の定期表示
             if obj.sway_on == 1 && (t_now - obj.last_print_time) >= obj.param.print_interval
                 fprintf('[SWAY_REF] ACT t=%.2f  S=%.3f  h=%.3f  danger=%d\n', ...
                     t_now, S, h, danger);
                 obj.last_print_time = t_now;
             end
 
-            % 1秒に1回くらいのDBG（S表示の丸めミスを修正）
-            if mod(round(t_now/obj.param.dt),40)==0
-                fprintf('[DBG] t=%.2f |vxy|=%.3f |rxy|=%.3f S=%.3f Son=%.3f Soff=%.3f sway_on=%d danger=%d\n', ...
-                    t_now, norm(vrxy), norm(rxy), S, obj.param.S_on, obj.param.S_off, obj.sway_on, danger);
-            end
-
             obj.sway_on_prev = obj.sway_on;
 
             %--------------------------------------------------------------
-            % 7) alpha（CBFゲートによる補正強化倍率）
+            % 7) alpha
             %--------------------------------------------------------------
             if danger
                 alpha = obj.param.gain_boost;
@@ -172,7 +141,6 @@ classdef SWAY_REF_MOD < handle
 
             %--------------------------------------------------------------
             % 8) 理想補正量 c* と一次遅れ更新
-            %    c* = alpha*(kv*Tv*v_xy + kr*r_xy)
             %--------------------------------------------------------------
             if obj.sway_on == 1
                 c_star = alpha*(obj.param.kv * obj.param.Tv * vrxy + obj.param.kr * rxy);
@@ -183,15 +151,36 @@ classdef SWAY_REF_MOD < handle
             dt = obj.param.dt;
             if obj.sway_on == 1
                 tau = obj.param.tau_on;
+
+                % --- ON直後のソフトスタート ---
+                if isfield(obj.param,'softstart_sec') && obj.param.softstart_sec > 0
+                    if obj.sway_on_prev == 0
+                        obj.on_time = t_now;   % ← propertiesに on_time を追加
+                    end
+                    if isfield(obj,'on_time') && (t_now - obj.on_time) < obj.param.softstart_sec
+                        if isfield(obj.param,'tau_on_soft') && obj.param.tau_on_soft > tau
+                            tau = obj.param.tau_on_soft;
+                        end
+                    end
+                end
+
             else
                 tau = obj.param.tau_off;
             end
-            beta = dt/(tau + dt);
-            obj.c = (1-beta)*obj.c + beta*c_star;
+beta = dt/(tau + dt);
+obj.c = (1-beta)*obj.c + beta*c_star;
+
+            % ---- 補正量の上限（追従不能な目標を作らない）----
+            if isfield(obj.param,'c_max') && ~isempty(obj.param.c_max) && obj.param.c_max > 0
+                cn = norm(obj.c);
+                if cn > obj.param.c_max
+                    obj.c = obj.c * (obj.param.c_max / cn);
+                end
+            end
+
 
             %--------------------------------------------------------------
-            % 9) 目標へ適用（追従用xd_cmd）
-            %    ※元の目標 xd_origin は保存しておく
+            % 9) 目標へ適用（xd_cmd）
             %--------------------------------------------------------------
             xd_cmd = xd_origin;
             xd_cmd(1:2) = xd_cmd(1:2) - obj.c;
@@ -201,23 +190,39 @@ classdef SWAY_REF_MOD < handle
             end
 
             %--------------------------------------------------------------
-            % 10) 戻り値：従来通り「xdを上書きして返す」 + 「元目標を別名保存」
-            %    - controller/下流は result.state.xd を見て動く（従来互換）
-            %    - 比較用に res.xd_origin, res.xd_cmd を保持
+            % 10) 戻り値：result.state を「xdプロパティ付き」にする
+            %     -> HLC の isprop(ref.state,'xd') を必ず通す
             %--------------------------------------------------------------
-            res = base.result;        % 返却用（base.resultをベースにする）
+            res = base.result;
 
-            % 追従用（適用）: xd を上書き（従来どおり）
-            res.state.xd = xd_cmd;
+            % (A) res.state がオブジェクトで xd を持つなら、そのまま上書き
+            if isobject(res.state) && isprop(res.state,'xd')
+                res.state.xd = xd_cmd;
 
-            % 下流がp,vを参照する場合の整合
-            if isprop(res.state,'p')
-                res.state.p = xd_cmd(1:3);
+                % p,v も持っていれば整合
+                if isprop(res.state,'p')
+                    res.state.p = xd_cmd(1:3);
+                end
+                if isprop(res.state,'v') && numel(xd_cmd) >= 7
+                    res.state.v = xd_cmd(5:7);
+                end
+
+            % (B) res.state が struct などなら、wrapperに包む
+            else
+                st = SwayStateWrap(res.state); % 元stateをコピーして保持
+                st.xd = xd_cmd;
+                st.p  = xd_cmd(1:3);
+
+                if numel(xd_cmd) >= 7
+                    st.v = xd_cmd(5:7);
+                else
+                    st.v = [];
+                end
+
+                res.state = st;
             end
-            if isprop(res.state,'v') && numel(xd_cmd) >= 7
-                res.state.v = xd_cmd(5:7);
-            end
 
+            % 比較用（ログ）
             obj.last_xd_origin = xd_origin;
             obj.last_xd_cmd    = xd_cmd;
             obj.last_c_xy      = obj.c;

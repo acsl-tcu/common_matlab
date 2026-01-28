@@ -30,10 +30,14 @@ p.hold_on_when_danger  = false;  % dangerならOFFに戻さない（安全側）
 
 % ---- 一次遅れの時定数 ----
 % ON時は速い（小さいtau）、OFF時はゆっくり（大きいtau）
-p.tau_on  = 0.15;   % 0.1〜0.3 s 推奨
-p.tau_off = 0.40;   % 0.3〜1.0 s 程度でOK
+p.tau_on  = 0.3;   % 0.1〜0.3 s 推奨
+p.tau_off = 0.50;   % 0.3〜1.0 s 程度でOK
 
 % ---- 速度目標への適用（任意）----
 p.apply_to_vref = false; % 基本falseでOK（まず位置だけスムーズに）
 p.kv_vref = 0.0;         % apply_to_vref=trueにするなら小さく（例0.2）
+
+p.c_max = 0.10;   % [m] 補正の最大値（まずは10cm）
+p.softstart_sec = 0.30;  % ON後0.3秒はゆっくり
+p.tau_on_soft   = 0.35;  % ON直後の時定数（大きめ）
 end
