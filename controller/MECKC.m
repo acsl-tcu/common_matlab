@@ -57,7 +57,7 @@ classdef MECKC < handle
         obj.result.z_p_back = z_p(14:26);
         obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
-        % obj.result.delta_u = 0;%unだけ確認したいとき
+        obj.result.delta_u = 0;%unだけ確認したいとき
         
       obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu      
       result = obj.result;
