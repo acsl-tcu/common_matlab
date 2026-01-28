@@ -28,7 +28,7 @@ agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("mass", 0.762); %0.0968); %0.968
 agent.parameter.set("cableL", 1.037); %0.992,0.647,p0.613,0.460,0.956
 % agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460,0.956
-agent.parameter.set("loadmass", 0.01); %0.0968); %0.968
+agent.parameter.set("loadmass", 0.01); %0.0968); %0.968 %0.14棒入り
 % agent.parameter.set("loadmass",0.6);%0.0968);%0.968 フィラトケース0.239
 agent.parameter.set("jx", 0.06); %0.0968); %0.968
 agent.parameter.set("jy", 0.06); %0.0968); %0.968
@@ -47,11 +47,12 @@ agent.sensor.set_function_class("sload", SUSPENDED_LOAD_SENSOR_ADJUST(agent,"td"
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent, dt, ...
     MODEL_CLASS(agent, Model_Suspended_Load(dt, initial_state, 1, agent, "Load_mL_HL")),...
     ["p", "q", "pL", "pT"]))); %expの流用 質量推定有
-agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent,"td",1));
+agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent,"td",10));
 
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1.5],"radius",[0,0,0]},4})); % hovering at(0,0,0)
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},4})); % hovering at(0,0,0)
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 % agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
 % agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
@@ -76,19 +77,20 @@ function post(app)
 tmp = app.logger.data(1,"sensor.result.output","");
 
 custom = tmp(:,7:9);
+phase = "tfl";
 app.logger.plot({{1,"p","re"},{1,"p","s",custom},{1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes);
-app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-% app.logger.plot({1, "p", "er"}, "phase", "tfl", "fig_num", 1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tf", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-% app.logger.plot({1, "v", "er"}, "phase", "tf", "fig_num", 3); % 速度: v_x, v_y, v_z
-% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-app.logger.plot({1, "input", ""}, "phase", "tfl", "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
-app.logger.plot({1, "inner_input1:4", ""}, "phase", "tfl", "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({1, "p1-p2", "er"}, "phase", "tf", "fig_num", 7); % x-y軌跡
-% app.logger.plot({1, "p1-p2-p3", "er"}, "phase","tf",  "fig_num",8); % x-y-z軌跡
-% app.logger.plot({1, "p", "ers"},"phase","tf","fig_num",9);
-% app.logger.plot({1, "sensor.result.", "er"},"phase","tf", "fig_num",10);
-% app.logger.plot.("controller.result.xd","phase","tf","fig_num",11); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "state.mL", "e"},"phase",phase);
+% app.logger.plot({1, "p", "er"}, "phase", phase, "fig_num", 1); % 位置: p_x,p_y,p_z
+app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+app.logger.plot({1, "v", "er"}, "phase", phase, "fig_num", 3); % 速度: v_x, v_y, v_z
+app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+app.logger.plot({1, "input", ""}, "phase", phase, "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
+app.logger.plot({1, "inner_input1:4", ""}, "phase", phase, "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({1, "p1-p2", "er"}, "phase", phase, "fig_num", 7); % x-y軌跡
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase,  "fig_num",8, "color",0); % x-y-z軌跡
+% app.logger.plot({1, "p", "ers"},"phase",phase,"fig_num",9);
+% app.logger.plot({1, "sensor.result.", "er"},"phase",phase, "fig_num",10);
+% app.logger.plot.("controller.result.xd","phase",phase,"fig_num",11); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
 % show_suspended_load_animation(app);
 
