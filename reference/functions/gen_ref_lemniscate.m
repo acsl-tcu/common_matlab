@@ -4,7 +4,7 @@ arguments
     param.orig = [0 0 1]% 円の中心
     param.radius = 1.0 % 長軸方向の大きさ
     param.phase = 0.0 % 位相
-    param.x = 0 % x方向がレム二スケート∞の長軸
+    param.x = 1 % x方向がレム二スケート∞の長軸
 end
 x_0=param.orig(1);
 y_0=param.orig(2);
