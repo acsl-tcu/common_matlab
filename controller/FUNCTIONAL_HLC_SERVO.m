@@ -21,7 +21,7 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             obj.z = [0;0;0];
             msg = "表示物\n" + ...
                 "ref:x, y,z  NaN  est:x, y, z  NaN  input:T, roll, pitch, yaw\n\n";
-            % fprintf(msg);
+            fprintf(msg);
         end
         
         function result = do(obj,varargin)
@@ -73,11 +73,12 @@ classdef FUNCTIONAL_HLC_SERVO < handle
             obj.result.z3 = z3;
             obj.result.z4 = z4;
           % max,min are applied for the safty
-            obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
+            max_thrust = 15;
+            obj.result.input = [max(0,min(max_thrust,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
             obj.result.z= obj.z;
             result = obj.result;
 
-            % disp([ref.state.p', NaN, model.state.p', NaN, obj.result.input']);
+            disp([ref.state.p', NaN, model.state.p', NaN, obj.result.input']);
         end
         function show(obj)
             obj.result
