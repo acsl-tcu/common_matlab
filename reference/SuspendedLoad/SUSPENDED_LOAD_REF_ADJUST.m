@@ -116,7 +116,7 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
                     obj.cableL_L0 = norm(p - pL_raw); % 飛行時のケーブル長
                 end
 
-                if p(3) < obj.cableL_L0 || obj.isGround == 1
+                if p(3) < 0.8*obj.cableL_L0 || obj.isGround == 1
                     if isempty(obj.landing_t0)
                         obj.landing_t0 = time.t;
                         obj.isGround = 1;
@@ -125,8 +125,10 @@ classdef SUSPENDED_LOAD_REF_ADJUST < handle
                     tt = min(time.t - obj.landing_t0, obj.td);
                     k = tt/obj.td;
                     nxy = nxy + k * obj.baseP; % 離陸前の相対関係を復元
-                    nxy(3) = xd(3); % LANDING_REFERENCE : "zd",-L  が必要
+                    % nxy(3) = xd(3); % LANDING_REFERENCE : "zd",-L  が必要
+             
                 end
+                nxy(3) = xd(3);
             else % flight phase
                 nxy(3) = xd(3) - L; % flight のリファレンスxdは機体位置を前提としているのでLをひく
             end

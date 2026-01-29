@@ -75,13 +75,17 @@ classdef SUSPENDED_LOAD_STATE_MANAGER < handle
                     end
                     tt = min(time.t - obj.landing_t0, obj.td);
                     k = tt/obj.td;
-                    pL = [p(1:2);p(3)-L] + (1 - k) * (pL - [p(1:2);p(3)-L]); % pL : pL => pの真下
-                    vL = v + (1 - k) * (vL - v);
-                    delta = pL - p;
-                    pT = delta / norm(delta);
+                    % pL = [p(1:2);p(3)-L] + (1 - k) * (pL - [p(1:2);p(3)-L]); % pL : pL => pの真下
+                    % vL = v + (1 - k) * (vL - v);
+                    % delta = pL - p;
+                    % pT = delta / norm(delta);
                     tmL = (1 - k) * obj.mL_L0; % mL : mL_L0 => 0
                     mL = min(mL, tmL);
                 end
+                pL = [p(1:2);p(3)-obj.cableL_L0];
+                pT = [0;0;-1];
+                vL = [0;0;0];
+                state.set_state("wL", vL);
             end
 
             state.set_state("pL", pL);
