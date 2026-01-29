@@ -5,17 +5,17 @@ function p = SwayRefMod_Param(dt)
 p.dt = dt;
 
 % ---- 揺れ判定（ヒステリシス） ----
-p.S_on  = 0.4;%0.25
+p.S_on  = 0.25;%0.25
 p.S_off = 0.1;%0.1
 
 % 揺れ指標：S = ||v_xy|| + sr*||r_xy||
-p.sr = 0.3;
+p.sr = 0.4;
 
 % ---- 目標修正（水平位置） ----
 % c* = alpha*(kv*Tv*v_xy + kr*r_xy)
 p.Tv = 0.5;     %0.2~0.5sくらい　速度項を時間スケールで位置へ変換
 p.kv = 0.6;%0.6     % 相対速度（主）
-p.kr = 0.05;    % 相対位置（補助、小さめ推奨）
+p.kr = 0.1;    % 相対位置（補助、小さめ推奨）
 
 % ---- CBFゲート（水平距離で角度制約を代理） ----
 p.theta_max = deg2rad(15);
@@ -37,7 +37,7 @@ p.tau_off = 0.50;   % 0.3〜1.0 s 程度でOK
 p.apply_to_vref = false; % 基本falseでOK（まず位置だけスムーズに）
 p.kv_vref = 0.0;         % apply_to_vref=trueにするなら小さく（例0.2）
 
-p.c_max = 0.10;   % [m] 補正の最大値（まずは10cm）
+p.c_max = 0.15;   % [m] 補正の最大値（まずは10cm）
 p.softstart_sec = 0.30;  % ON後0.3秒はゆっくり
 p.tau_on_soft   = 0.45;  % ON直後の時定数（大きめ）
 

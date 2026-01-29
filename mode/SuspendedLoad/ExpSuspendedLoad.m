@@ -50,11 +50,11 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent,"td",10));
 
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},4})); % hovering at(0,0,0)
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},4})); % hovering at(0,0,0)
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
-% agent.reference.origin  = agent.reference.timevarying;  %揺れ抑制用（既存）
-% agent.reference.swaymod = SWAY_REF_MOD(agent, SwayRefMod_Param()); %揺れ抑制
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[-0.5;0;1.5], "p1",[1;0;1.5], "t_go",5.0, "t_hold",5.0, "t_back",5.0},4})); %P2P
+agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",agent.estimator.result.state.p(3)-L,"te",10)); % zd = -Lとするのがミソ
@@ -67,8 +67,8 @@ agent.set_cha_allocation_for_all("sensor",["motive","sload"]);
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
-agent.cha_allocation.f.reference =["timevarying","sload"];
-% agent.cha_allocation.f.reference = ["origin","swaymod"]; %揺れ抑制?
+% agent.cha_allocation.f.reference =["timevarying","sload"];
+agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
 agent.cha_allocation.l.reference =["landing","sload"]; 
 %%
 
@@ -82,7 +82,7 @@ app.logger.plot({{1,"p","re"},{1,"p","s",custom},{1, "estimator.result.state.pL"
 app.logger.plot({1, "state.mL", "e"},"phase",phase);
 % app.logger.plot({1, "p", "er"}, "phase", phase, "fig_num", 1); % 位置: p_x,p_y,p_z
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({1, "v", "er"}, "phase", phase, "fig_num", 3); % 速度: v_x, v_y, v_z
+app.logger.plot({{1, "v", "er"},{1,"estimator.result.state.vL",""}}, "phase", phase, "fig_num", 3); % 速度: v_x, v_y, v_z
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 app.logger.plot({1, "input", ""}, "phase", phase, "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
 app.logger.plot({1, "inner_input1:4", ""}, "phase", phase, "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
