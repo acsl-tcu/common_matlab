@@ -44,6 +44,9 @@ classdef DNNMEC < handle
             if contains(DNN_model_filename, '21')
                 dim = 21; % 21次元
                 obj.gen_data_func = @(x_p,x_n) [x_p(1:3)-x_n(1:3); x_p(4:end); x_n(4:end)];
+            elseif contains(DNN_model_filename, '12')
+                dim = 12; % 12次元
+                obj.gen_data_func = @(x_p,x_n) x_p - x_n;
             else
                 dim = 24; % 24次元
                 obj.gen_data_func = @(x_p,x_n) [x_p; x_n];

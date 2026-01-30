@@ -17,8 +17,10 @@ userpath('clear');
 %%
 % each method's arguments : app.time,app.cha,app.logger,app.env,app.agent,i
 clc
-SimBaseMode = ["SimSuspendedLoad","SimVoronoi","SimHL","SimPointMass", "SimVehicle", "SimSuspendedLoad", "SimFHL", "SimFHL_Servo", "SimLiDAR", "SimFT", "SimEL", "SimMPC_Koopman", "SimHL_MEC"];
-ExpBaseMode = ["ExpSuspendedLoad","ExpSuspendedLoadCoop","ExpTestMotiveConnection", "ExpHL", "ExpFHL", "ExpFHL_Servo", "ExpFT", "ExpEL", "ExpMPC_Koopman", "ExpHL_MEC"];
+SimBaseMode = ["SimSuspendedLoad","SimVoronoi","SimHL","SimPointMass", "SimVehicle", "SimSuspendedLoad", "SimFHL", "SimFHL_Servo", "SimLiDAR", "SimFT", "SimEL", "SimMPC_Koopman",
+                "SimHL_MEC"];
+ExpBaseMode = ["ExpSuspendedLoad","ExpSuspendedLoadCoop","ExpTestMotiveConnection", "ExpHL", "ExpFHL", "ExpFHL_Servo", "ExpFT", "ExpEL", "ExpMPC_Koopman", 
+                "ExpHL_MEC"];
 
 Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
@@ -26,7 +28,7 @@ Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 Setting.mode = ExpBaseMode(10); % ExpHL_MEC
 Setting.mode = ExpBaseMode(4); % ExpHL
 
-% Setting.mode = SimBaseMode(13); % SimHL_MEC
+Setting.mode = SimBaseMode(13); % SimHL_MEC
 % Setting.mode = SimBaseMode(3); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
 if contains(Setting.mode,"Exp")
