@@ -21,7 +21,7 @@ logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for 
 base = [0,0]; % center
 % base = [1,0]; % base position for Triangle
 % base = [0,-1]; % base position for Saddle
-% base = [100,100];
+base = [100,100];
 initial_state.p = arranged_position(base, 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
@@ -73,9 +73,9 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [base';takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0],"phase",0},"HL"});             % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -90,6 +90,9 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 agent.cha_allocation.reference = "time_varying";
 
 if contains(func2str(agent.plant.method), 'force')
+    agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
+
+
     % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
     % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
     % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
@@ -97,8 +100,11 @@ if contains(func2str(agent.plant.method), 'force')
     % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
     % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
     % agent.controller.mec = DNNMEC_THRUST_FORCE(agent, onnxName);
-    agent.controller.nominal = HLC_THRUST_FORCE(agent, Controller_HL(dt));
 else
+    agent.controller.nominal = HLC(agent,Controller_HL(dt));
+    % agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
+
+
     % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
     % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
     % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
@@ -119,9 +125,6 @@ else
     onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
     % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
     agent.controller.mec = DNNMEC(agent, onnxName);
-
-    % agent.controller.nominal = HLC(agent,Controller_HL(dt));
-    agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
 
@@ -134,7 +137,7 @@ fcolor = 0;
 phase = "tfl";
 % phase = "tf";
 % phase = "f";
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1:2", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
