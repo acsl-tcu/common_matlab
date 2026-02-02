@@ -56,12 +56,12 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p","q", "input", "inner_input1:4","p1-p2", "v"];
-settings.target = ["p", "input", "inner_input", "p1-p2","controller.result.mL"]; %質量推定用
+% settings.target = ["p", "input", "inner_input", "p1-p2","controller.result.mL"]; %質量推定用
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
 % settings.target = ["p", "controller.result.delta_input"];
-% settings.target = ["p", "v","p1-p2"];
+settings.target = ["p", "v","p1-p2"];
 % settings.target = "input2:4";
 % settings.target = "p1-p2";
 % settings.target = "controller.result.xd";
@@ -74,7 +74,7 @@ settings.target = ["p", "input", "inner_input", "p1-p2","controller.result.mL"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "tf";
+settings.phase = "f";
 settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
@@ -571,7 +571,7 @@ end
 
 function disp_rmse(logger, phase)
 % estimator と reference の position を取得（Nx3）
-p_est = logger.data(1,"p","e","phase",phase);
+p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
 p_ref = logger.data(1,"p","r","phase",phase);
 % サイズチェック
 N = min(size(p_est,1), size(p_ref,1));

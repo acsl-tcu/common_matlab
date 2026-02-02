@@ -134,23 +134,60 @@ classdef SWAY_REF_MOD < handle
             S_use = obj.S_f;   % ←ON/OFF判定はこれを使う
 
             %--------------------------------------------------------------
-            % 4) CBFゲート（水平距離）
+            % 4) CBFゲート（水平距離）(ケーブルL使う版)
             %--------------------------------------------------------------
-            L = obj.self.parameter.get("cableL");
+            % L = obj.self.parameter.get("cableL");
+            % 
+            % if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
+            %     rmax = L * sind(obj.param.theta_max_deg);
+            %     theta_max = deg2rad(obj.param.theta_max_deg);
+            % else
+            %     if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
+            %         obj.param.theta_max = deg2rad(15);
+            %     end
+            %     rmax = L * sin(obj.param.theta_max);
+            %     theta_max = obj.param.theta_max;
+            % end
+            % 
+            % h = rmax^2 - (rxy.'*rxy);
+            % danger = (h < obj.param.h_gate);
 
+            %--------------------------------------------------------------
+            % 4)CBFゲート（設定したケーブル長を使わない版）
+            %   - theta is computed from relative position only:
+            %       theta = atan2(||r_xy||, -r_z)
+            %   - "barrier" h_theta = theta_max - theta  (>=0 is safe)
+            %   - danger if h_theta < theta_gate  (theta_gate is a margin in [rad])
+            %--------------------------------------------------------------
+
+            % ---- theta_max [rad] ----
             if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
-                rmax = L * sind(obj.param.theta_max_deg);
                 theta_max = deg2rad(obj.param.theta_max_deg);
             else
                 if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
                     obj.param.theta_max = deg2rad(15);
                 end
-                rmax = L * sin(obj.param.theta_max);
                 theta_max = obj.param.theta_max;
             end
 
-            h = rmax^2 - (rxy.'*rxy);
-            danger = (h < obj.param.h_gate);
+            % ---- theta from geometry (no L) ----
+            rz = r(3);                                % r = pL - p (already computed)
+            rxy_n = norm(rxy);
+            theta = atan2(rxy_n, max(1e-6, -rz));     % [rad], assumes load is below drone (rz<0)
+
+            % ---- barrier in angle domain ----
+            h = theta_max - theta;                    % >=0 safe, <0 violated
+
+            % ---- gate threshold (margin) ----
+            % old code used p.h_gate in "m^2". Here we use [rad] margin.
+            % If you already use p.h_gate elsewhere, keep it but interpret as "theta_gate [rad]".
+            if ~isfield(obj.param,'theta_gate') || isempty(obj.param.theta_gate)
+                % default: 2 deg margin (danger when within 2deg of theta_max)
+                obj.param.theta_gate = deg2rad(2.0);
+            end
+
+            danger = (h < obj.param.theta_gate);
+
 
             %--------------------------------------------------------------
             % 5) ヒステリシスで補正ON/OFF（min_on_time付き）
@@ -243,64 +280,64 @@ classdef SWAY_REF_MOD < handle
             xd_cmd(1:2) = xd_cmd(1:2) - obj.c;
 
             %--------------------------------------------------------------
-            % 9-b) 速度目標への適用（CBF-QP: 上限保証重視）
+            % 9-b) 速度目標への適用（CBF-QP: 上限保証重視）（今回は使用しない）
             %   - v_ref を「外向きに h を減らす」方向へは出さない
             %   - 2D halfspace projection（quadprog不要）
             %--------------------------------------------------------------
-            if numel(xd_cmd) >= 7 && isfield(obj.param,'apply_to_vref') && obj.param.apply_to_vref
-
-                % --- defaults ---
-                if ~isfield(obj.param,'use_cbf_qp');   obj.param.use_cbf_qp = true; end
-                if ~isfield(obj.param,'gamma_cbf');    obj.param.gamma_cbf = 3.0; end
-                if ~isfield(obj.param,'eps_cbf');      obj.param.eps_cbf   = 1e-6; end
-
-                if ~isfield(obj.param,'kv_vref');      obj.param.kv_vref   = 0.3; end  % まずは小さめ
-                if ~isfield(obj.param,'vref_max');     obj.param.vref_max  = 2.0; end  % 必要なら
-                if ~isfield(obj.param,'v_damp_max');   obj.param.v_damp_max = 0.8; end % 注入上限
-
-                vref_xy = xd_cmd(5:6);                % current reference velocity
-                % --- nominal damping (using c as a direction) ---
-                % いまの実装に合わせて「c に比例した速度補正」を使う（形を崩さない）
-                vnom = vref_xy - obj.param.kv_vref * obj.c;
-
-                % clamp nominal vref magnitude
-                if obj.param.vref_max > 0
-                    nv = norm(vnom);
-                    if nv > obj.param.vref_max
-                        vnom = vnom * (obj.param.vref_max / nv);
-                    end
-                end
-
-                vproj = vnom;
-
-                if obj.param.use_cbf_qp
-                    % ここで使う rxy,vL は、上の推定値（model.state）から取る
-                    % すでに計算した rxy, vL があるのでそれを使う想定
-                    vL_xy = vL(1:2);
-
-                    % すでに計算した h を使う（上で定義済み）
-                    % constraint: a' v_ref >= b
-                    a = 2 * rxy;  % 2x1
-                    b = 2 * (rxy.' * vL_xy) - obj.param.gamma_cbf * h;
-
-                    if (a.'*a) > obj.param.eps_cbf
-                        if (a.' * vproj) < b
-                            vproj = vproj + ((b - a.'*vproj) / (a.'*a)) * a;
-                        end
-                    end
-                end
-
-                % limit injected delta (avoid big step -> phase issues)
-                dv = vproj - vref_xy;
-                if obj.param.v_damp_max > 0
-                    ndv = norm(dv);
-                    if ndv > obj.param.v_damp_max
-                        dv = dv * (obj.param.v_damp_max / ndv);
-                    end
-                end
-
-                xd_cmd(5:6) = vref_xy + dv;
-            end
+            % if numel(xd_cmd) >= 7 && isfield(obj.param,'apply_to_vref') && obj.param.apply_to_vref
+            % 
+            %     % --- defaults ---
+            %     if ~isfield(obj.param,'use_cbf_qp');   obj.param.use_cbf_qp = true; end
+            %     if ~isfield(obj.param,'gamma_cbf');    obj.param.gamma_cbf = 3.0; end
+            %     if ~isfield(obj.param,'eps_cbf');      obj.param.eps_cbf   = 1e-6; end
+            % 
+            %     if ~isfield(obj.param,'kv_vref');      obj.param.kv_vref   = 0.3; end  % まずは小さめ
+            %     if ~isfield(obj.param,'vref_max');     obj.param.vref_max  = 2.0; end  % 必要なら
+            %     if ~isfield(obj.param,'v_damp_max');   obj.param.v_damp_max = 0.8; end % 注入上限
+            % 
+            %     vref_xy = xd_cmd(5:6);                % current reference velocity
+            %     % --- nominal damping (using c as a direction) ---
+            %     % いまの実装に合わせて「c に比例した速度補正」を使う（形を崩さない）
+            %     vnom = vref_xy - obj.param.kv_vref * obj.c;
+            % 
+            %     % clamp nominal vref magnitude
+            %     if obj.param.vref_max > 0
+            %         nv = norm(vnom);
+            %         if nv > obj.param.vref_max
+            %             vnom = vnom * (obj.param.vref_max / nv);
+            %         end
+            %     end
+            % 
+            %     vproj = vnom;
+            % 
+            %     if obj.param.use_cbf_qp
+            %         % ここで使う rxy,vL は、上の推定値（model.state）から取る
+            %         % すでに計算した rxy, vL があるのでそれを使う想定
+            %         vL_xy = vL(1:2);
+            % 
+            %         % すでに計算した h を使う（上で定義済み）
+            %         % constraint: a' v_ref >= b
+            %         a = 2 * rxy;  % 2x1
+            %         b = 2 * (rxy.' * vL_xy) - obj.param.gamma_cbf * h;
+            % 
+            %         if (a.'*a) > obj.param.eps_cbf
+            %             if (a.' * vproj) < b
+            %                 vproj = vproj + ((b - a.'*vproj) / (a.'*a)) * a;
+            %             end
+            %         end
+            %     end
+            % 
+            %     % limit injected delta (avoid big step -> phase issues)
+            %     dv = vproj - vref_xy;
+            %     if obj.param.v_damp_max > 0
+            %         ndv = norm(dv);
+            %         if ndv > obj.param.v_damp_max
+            %             dv = dv * (obj.param.v_damp_max / ndv);
+            %         end
+            %     end
+            % 
+            %     xd_cmd(5:6) = vref_xy + dv;
+            % end
 
 
             %--------------------------------------------------------------
@@ -387,8 +424,10 @@ classdef SWAY_REF_MOD < handle
 
             % theta, violation
             rxy_n = norm(rxy);
-            ratio = min(1.0, max(0.0, rxy_n / max(L,1e-9)));
-            theta = asin(ratio);
+            % ratio = min(1.0, max(0.0, rxy_n / max(L,1e-9)));（ケーブルL使う版）
+            % theta = asin(ratio);
+            theta = atan2(rxy_n, max(1e-6, -r(3)));%（ケーブルL使わない版）
+
 
             obj.rxy_log(k,:)     = rxy(:).';
             obj.vrxy_log(k,:)    = vrxy(:).';

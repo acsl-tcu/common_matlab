@@ -4,45 +4,48 @@ function p = SwayRefMod_Param(dt)
 % dt（必須）
 p.dt = dt;
 
-% ---- 揺れ判定（ヒステリシス） ----
+% ---- 揺れ判定（ヒステリシス） ----揺れ検出のヒステリシス閾値
 p.S_on  = 0.25;%0.25
 p.S_off = 0.1;%0.1
 
-% 揺れ指標：S = ||v_xy|| + sr*||r_xy||
+% 揺れ指標：S = ||v_xy|| + sr*||r_xy||位置項の寄与（大きいほど「ずれ」に反応しやすい）
 p.sr = 0.4;
 
 % ---- 目標修正（水平位置） ----
 % c* = alpha*(kv*Tv*v_xy + kr*r_xy)
 p.Tv = 0.5;     %0.2~0.5sくらい　速度項を時間スケールで位置へ変換
 p.kv = 0.6;%0.6     % 相対速度（主）
-p.kr = 0.1;    % 相対位置（補助、小さめ推奨）
+p.kr = 0.1;    % 相対位置（補助、小さめ推奨）戻し"の補助（強すぎると追従を壊すので小さめ）
 
 % ---- CBFゲート（水平距離で角度制約を代理） ----
-p.theta_max = deg2rad(15);
-p.h_gate    = 0.02;     % 危険域判定（m^2）
+p.theta_max = deg2rad(15);%許容角
+p.h_gate    = 0.02;     % 危険域判定（m^2）危険域判定のマージン（**hは[m^2]**なのでここ重要）
 p.print_interval = 0.5;   % [s] 割り込み中の表示間隔
+
+% ---- danger gate (angle domain) ----（ケーブルL使わない版）
+p.theta_gate = deg2rad(2.0);   % theta_max に近づいたら danger 扱い
 
 
 % 危険域での補正強化
-p.gain_boost = 3.0;             % alpha=2.0 など
-p.force_on_when_danger = true;  % dangerなら強制ON（安全側）
+p.gain_boost = 3.0;             % alpha=2.0 など  危険域のゲインスケジューリング倍率（※CBFではない）
+p.force_on_when_danger = true;  % dangerなら強制ON（安全側）  安全側に倒す論理
 p.hold_on_when_danger  = true;  % dangerならOFFに戻さない（安全側）
 
-% ---- 一次遅れの時定数 ----
+% ---- 一次遅れの時定数 ----補正量 $\mathbf{c}$ の平滑化（ON/OFFで時定数を変える）
 % ON時は速い（小さいtau）、OFF時はゆっくり（大きいtau）
 p.tau_on  = 0.3;   % 0.1〜0.3 s 推奨
 p.tau_off = 0.50;   % 0.3〜1.0 s 程度でOK
 
-% ---- 速度目標への適用（任意）----
-p.apply_to_vref = false; % 基本falseでOK（まず位置だけスムーズに）
-p.kv_vref = 0.0;         % apply_to_vref=trueにするなら小さく（例0.2）
-
-p.c_max = 0.15;   % [m] 補正の最大値（まずは10cm）
-p.softstart_sec = 0.30;  % ON後0.3秒はゆっくり
+% ---- 速度目標への適用（任意）----（今回は使用しない）
+% p.apply_to_vref = false; % 基本falseでOK（まず位置だけスムーズに）
+% p.kv_vref = 0.0;         % apply_to_vref=trueにするなら小さく（例0.2）
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+p.c_max = 0.15;   % [m] 補正の最大値（まずは10cm）目標の「追従不能」を避ける安全上限（重要）
+p.softstart_sec = 0.30;  % ON後0.3秒はゆっくり  ON直後だけゆっくり入れる（位相遅れ対策）
 p.tau_on_soft   = 0.45;  % ON直後の時定数（大きめ）
 
-p.min_on_time = 0.5;   % [s] 一度ONになったら最低0.5秒は保持
-% ---- real flight robustness ----
+p.min_on_time = 0.5;   % [s] 一度ONになったら最低0.5秒は保持  ON保持時間（チャタリング抑制）
+% ---- real flight robustness ----実機向けのLPF時定数
 p.vr_lpf_tau     = 0.05;  % [s] vrxy LPF (軽め) 0.03〜0.08
 p.S_smooth_tau   = 0.15;  % [s] S平滑 0.1〜0.3
 %-------------------------------------------------------------------------
