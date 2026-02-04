@@ -26,7 +26,7 @@ initial_state.wL = [0; 0; 0];
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("mass", 0.762); %0.0968); %0.968
-agent.parameter.set("cableL", 1.037); %0.992,0.647,p0.613,0.460,0.956
+agent.parameter.set("cableL", 0.97); %1.037 0.992,0.647,p0.613,0.460,0.956 長門0.97 武蔵0.55
 % agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460,0.956
 agent.parameter.set("loadmass", 0.01); %0.0968); %0.968 %0.14棒入り
 % agent.parameter.set("loadmass",0.6);%0.0968);%0.968 フィラトケース0.239
