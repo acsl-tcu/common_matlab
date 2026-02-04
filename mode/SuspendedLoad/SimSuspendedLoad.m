@@ -94,8 +94,14 @@ mov = DRAW_SUSPENDED_LOAD(app.logger, ...
     "self", app.agent(1));
 mov.animation(app.logger, ...
     "target", 1, ...
-    "self", app.agent(1));
+    "self", app.agent(1));%表示だけ用
+
+% mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
+
+% mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
+%     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
 end
+
 function in_prog(app)
 % 実行中に推定状態をUIに表示する。
 app.TextArea.Text = "estimator : " + app.agent.estimator.result.state.get();

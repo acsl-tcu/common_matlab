@@ -194,7 +194,7 @@ classdef DRAW_SUSPENDED_LOAD
                 for i = 1:4
                     if u(1,i,n) > 0
                         S = makehgtform('scale', [1,1,u(1,i,n)]);
-                    elseif u(i) < 0
+                    elseif u(1,i,n) < 0
                         S1 = makehgtform('xrotate', pi);
                         S = makehgtform('scale', [1,1,-u(1,i,n)])*S1;
                     else
@@ -218,15 +218,55 @@ classdef DRAW_SUSPENDED_LOAD
 
         function animation(obj, logger, varargin)
             param = struct(varargin{:});
-            if ~isfield(param, "target")
-                param.target = 1;
+            if ~isfield(param, "target");      param.target = 1; end
+
+            % ---- save options ----
+            % mp4: true/false or "path/to/file.mp4"
+            % gif: true/false or "path/to/file.gif"
+            if ~isfield(param, "fps");         param.fps = 30; end
+            if ~isfield(param, "skip");        param.skip = 1; end        % 1=全フレーム, 2=間引き
+            if ~isfield(param, "pause");       param.pause = 0.01; end    % 再生表示用（保存だけなら0推奨）
+            if ~isfield(param, "outdir");      param.outdir = "Data"; end
+            if ~isfield(param, "quality");     param.quality = 100; end   % MP4品質(0-100)
+            if ~isfield(param, "resolution");  param.resolution = 200; end % exportgraphics DPI相当(150-300目安)
+            if ~isfield(param, "gif_delay");   param.gif_delay = 1/param.fps; end
+
+            do_mp4 = false; mp4_name = "";
+            if isfield(param, "mp4") && ~isempty(param.mp4)
+                do_mp4 = true;
+                if ~(islogical(param.mp4) || isnumeric(param.mp4))
+                    mp4_name = string(param.mp4);
+                end
             end
+
+            do_gif = false; gif_name = "";
+            if isfield(param, "gif") && ~isempty(param.gif)
+                do_gif = true;
+                if ~(islogical(param.gif) || isnumeric(param.gif))
+                    gif_name = string(param.gif);
+                end
+            end
+
+            if do_mp4 || do_gif
+                if ~exist(param.outdir, "dir"); mkdir(param.outdir); end
+            end
+
+            timestamp = string(datetime('now','Format','yyyyMMdd_HHmmss'));
+            if do_mp4 && mp4_name == ""
+                mp4_name = fullfile(param.outdir, "Movie_" + timestamp + ".mp4");
+            end
+            if do_gif && gif_name == ""
+                gif_name = fullfile(param.outdir, "Movie_" + timestamp + ".gif");
+            end
+
+            % ---- data ----
             p = obj.data_format(logger, param.target, "p", "p");
             q = obj.data_format(logger, param.target, "q", "p");
             u = logger.data(param.target, "input", "");
             u = reshape(u, size(u,1), size(u,2), length(param.target));
             Q = obj.gen_Q(param.target, q);
             pL = obj.get_load_position(logger, param, p);
+
             r = [];
             try
                 r = obj.data_format(logger, param.target, "p", "r");
@@ -239,22 +279,6 @@ classdef DRAW_SUSPENDED_LOAD
                 end
             end
 
-            if isfield(param, "gif")
-                sizen = 256;
-                delaytime = 0;
-                filename = strrep(strrep(strcat('Data/Movie(', string(datetime('now')), ').gif'), ':', '_'), ' ', '_');
-            end
-            if isfield(param, "mp4")
-                sizen = 256;
-                delaytime = 0;
-                filename = strrep(strrep(strcat('Data/Movie(', string(datetime('now')), ').mp4'), ':', '_'), ' ', '_');
-                v = VideoWriter(filename, "MPEG-4");
-                if param.mp4
-                    open(v);
-                    writeAnimation(v);
-                end
-            end
-
             t = logger.data(0, "t", "");
             phase = [];
             try
@@ -262,17 +286,37 @@ classdef DRAW_SUSPENDED_LOAD
             catch
                 phase = [];
             end
-            for i = 1:length(t)-1
+
+            fig = ancestor(obj.ax,'figure');
+            fig.Units = "pixels";
+            fig.Position(3:4) = [1280 720];   % 偶数
+            % ---- writers ----
+            v = [];
+            if do_mp4
+                v = VideoWriter(mp4_name, "MPEG-4");
+                v.FrameRate = param.fps;
+                v.Quality = param.quality;
+                open(v);
+                cleaner = onCleanup(@() safe_close(v));
+            end
+
+            % ---- loop ----
+            first_gif_written = false;
+
+            for i = 1:param.skip:(length(t)-1)
                 if ~isvalid(obj.frame)
                     obj = obj.gen_frame("target", param.target, "ax", obj.ax);
                 end
+
                 obj.draw(param.target, p(i,:,param.target), Q(i,:,param.target), u(i,:,param.target), pL(i,:));
+
                 timeText = sprintf("%05.2f", t(i));
                 phaseChar = "";
                 if ~isempty(phase)
                     phaseChar = char(phase(i));
                 end
                 title(obj.ax, "time : " + timeText + "  phase : " + phaseChar);
+
                 if isfield(param, "lims")
                     obj.xlim = param.lims(1,:);
                     obj.ylim = param.lims(2,:);
@@ -284,23 +328,61 @@ classdef DRAW_SUSPENDED_LOAD
                     obj.ax.YLim = obj.ylim;
                     obj.ax.ZLim = obj.zlim;
                 end
-                pause(0.01);
-                if isfield(param, "gif")
-                    im = frame2im(getframe(obj.ax));
-                    [imind, cm] = rgb2ind(im, sizen);
-                    if i == 1
-                        imwrite(imind, cm, filename, 'gif', 'Loopcount', inf, 'DelayTime', delaytime);
-                    else
-                        imwrite(imind, cm, filename, 'gif', 'WriteMode', 'append', 'DelayTime', delaytime);
+
+                % ---- capture by getframe (lightweight) ----
+                if do_mp4 || do_gif
+                    fig = ancestor(obj.ax,'figure');   % 追加：UIAxesでも軸を拾いやすい
+                    fr = getframe(fig);                % ←ここがポイント（obj.ax じゃなく fig）
+
+                    if do_mp4
+                        writeVideo(v, fr);
+                    end
+
+                    if do_gif
+                        im = frame2im(fr);
+                        [imind, cm] = rgb2ind(im, 256);
+                        if ~first_gif_written
+                            imwrite(imind, cm, gif_name, 'gif', 'Loopcount', inf, 'DelayTime', param.gif_delay);
+                            first_gif_written = true;
+                        else
+                            imwrite(imind, cm, gif_name, 'gif', 'WriteMode', 'append', 'DelayTime', param.gif_delay);
+                        end
                     end
                 end
-                if isfield(param, "mp4")
-                    framev = getframe(obj.ax);
-                    writeVideo(v, framev);
+
+                if param.pause > 0
+                    pause(param.pause);
                 end
             end
-            if isfield(param, "mp4")
-                close(v);
+
+            % ---- close ----
+            if do_mp4
+                safe_close(v);
+                fprintf("[DRAW_SUSPENDED_LOAD] saved mp4: %s\n", mp4_name);
+            end
+            if do_gif
+                fprintf("[DRAW_SUSPENDED_LOAD] saved gif: %s\n", gif_name);
+            end
+
+            % ---- local helpers ----
+            function safe_close(vw)
+                try
+                    if ~isempty(vw); close(vw); end
+                catch
+                end
+            end
+
+            function out = pad_even(img)
+                out = img;
+                [h, w, ~] = size(out);
+                hp = mod(h,2);
+                wp = mod(w,2);
+                if hp ~= 0
+                    out(end+1,:,:) = out(end,:,:); % 最終行を複製
+                end
+                if wp ~= 0
+                    out(:,end+1,:) = out(:,end,:); % 最終列を複製
+                end
             end
         end
     end
