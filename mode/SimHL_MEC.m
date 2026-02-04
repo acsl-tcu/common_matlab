@@ -21,7 +21,7 @@ logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for 
 base = [0,0]; % center
 % base = [1,0]; % base position for Triangle
 % base = [0,-1]; % base position for Saddle
-base = [100,100];
+% base = [100,100];
 initial_state.p = arranged_position(base, 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
@@ -43,7 +43,7 @@ agent.plant = MODEL_CLASS(agent, plant);
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
 agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(1) = 0.825;
+% agent.plant.param(1) = 1.0;
 
 % agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
 % agent.plant.param(7) = 0.24;
@@ -73,9 +73,10 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [base';takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,1,0],"phase",0},"HL"});             % circle
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0],"phase",0},"HL"});             % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0], "x",1},"HL"});                      % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -114,16 +115,24 @@ else
     % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx";
     % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx";
     % onnxName = "Sim_mixed_DNNMEC_epoch_100000.onnx";
-    % 
+     
     % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
     % onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
     % onnxName = "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx";
     % onnxName = "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx";
-    % 
-    % onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
+     
+    onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
     % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
-    onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
+    % onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
     % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
+
+    % onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
+    % onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
+    % onnxName = "2026-1-29_10_21_24__DNN21__Plant_data_Sim_mixed__Euler__Step=1__epoch_100000.onnx";
+    % onnxName = "2026-1-29_17_51_43__DNN21__Plant_data_Sim_mixed__Euler__Step=2__epoch_100000.onnx";
+    % onnxName = "2026-1-30_10_17_38__DNN21__Plant_data_Sim_mixed__Euler__Step=3__epoch_100000.onnx";
+
+    % onnxName = "2026-2-2_10_43_54__DNN12__Plant_data_Sim_mixed__Euler__100000epoch.onnx";
     agent.controller.mec = DNNMEC(agent, onnxName);
 end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
@@ -133,7 +142,7 @@ fanimation = 1; fmp4 = 1;
 fanimation = 0;
 LW = 1.5; % LineWidth
 FS = 18; % FontSize
-fcolor = 0;
+fcolor = 1;
 phase = "tfl";
 % phase = "tf";
 % phase = "f";
@@ -156,7 +165,7 @@ if flange, xlim([10 last]); end
 app.logger.plot({1, "controller.result.delta_input", ""}, "phase",phase, "fig_num",8, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 if flange, xlim([10 last]); end
 app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "color", 0, "fig_num",9, "Linewidth",LW, "Fontsize",FS);
-% app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "color", 0, "fig_num",10, "Linewidth",LW, "Fontsize",FS);
 
 % app.logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", "p"}}, "phase",phase, "fig_num",11, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", "p"}}, "phase",phase, "fig_num",12, "Linewidth",LW, "Fontsize",FS);

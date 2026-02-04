@@ -4,8 +4,8 @@ classdef DNNMEC < handle
     %   ディープニューラルネットワーク(DNN)で補償器を設計
     %   [Inputs]
     %    self: ドローンのagent
-    %    DNN_model_filename="DNNMEC.onnx": インポートするonnxファイルの名前
-    %    fMEC=0: MECなしでΔu=0
+    %    DNN_model_filename = "DNNMEC.onnx": インポートするonnxファイルの名前
+    %    次元数(12,21,24)，状態更新手法("Euler", "RK4")がファイル名に必要
     
     %   2025/07 作成者:小関      学番:2212044
     
@@ -22,6 +22,8 @@ classdef DNNMEC < handle
         gen_data_func       % 入力の次元数に合わせたデータ生成関数ハンドル
         x_pre               % 前時刻の状態
         pre_input           % 前時刻の制御入力
+        thrust_lim = 5      % 補償推力入力ΔT の制限値
+        tau_lim = 0.5       % 補償トルク入力Δτ の制限絶対値
     end
     
     methods
@@ -99,11 +101,12 @@ classdef DNNMEC < handle
 
             % DNN関係　閾値での制限
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
-            if abs(obj.result.delta_input(1))>5, obj.result.delta_input(1) = 0; end
-            if abs(obj.result.delta_input(2))>1, obj.result.delta_input(2) = 0; end
-            if abs(obj.result.delta_input(3))>1, obj.result.delta_input(3) = 0; end
-            if abs(obj.result.delta_input(4))>1, obj.result.delta_input(4) = 0; end
-            obj.result.delta_input = [0;0;0;0];
+            if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end
+            if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
+            if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
+            if abs(obj.result.delta_input(4))>obj.tau_lim, obj.result.delta_input(4) = 0; end
+            % obj.result.delta_input(1) = 0; % ΔTだけ0
+            % obj.result.delta_input = [0;0;0;0];
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;

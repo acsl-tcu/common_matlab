@@ -19,6 +19,7 @@ if param.x == 1 % x方向に∞
     ref=@(t) [  x_0 + s_xy*sin(2*pi*t/T+phase_xy)/(1+cos(2*pi*t/T+phase_xy).^2); %x
                 y_0 + s_xy*sin(2*pi*t/T+phase_xy)*cos(2*pi*t/T+phase_xy)/(1+cos(2*pi*t/T+phase_xy).^2); %y
                 z_0 + s_z*sin(2*pi*t/T+phase_z)*cos(2*2*pi*t/T+phase_z)/(1+cos(2*2*pi*t/T+phase_z).^2); % z
+                % % z_0 + s_z*sin(4*2*pi*t/T+phase_z); % z
                 0]; % yaw
     
 else            % y方向に∞
