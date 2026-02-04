@@ -26,25 +26,25 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 
 run("ExpBase");
 
-takeoff_zd = 1.5; % だいたい1m
+takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[1,0,0], "phase",-pi/2},"HL"});        % x sin curve
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"orig",center,"size",[0,1,0]},"HL"});                       % y sin curve
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[1;1;takeoff_zd],"size",[0,0,0]},"HL"});          % point hovering-
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[center+1],"size",[0,0,0]},"HL"});          % point hovering-
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle_3D",{"freq",20,"orig",center,"size",[1,0], "phase",[-pi/2,0]},"HL"});       % 3D circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",-7.5,"orig",center,"size",[1,0], "x",1},"HL"});                      % 3D lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",7.5,"orig",center,"size",[1,0.5], "x",1},"HL"});                      % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.25], "phase",0},"HL"});                   % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.25], "phase",0},"HL"});                   % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
-% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",center, "h",[1;1;takeoff_zd+1]), 10});                                       % P2P
+% agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",center+1, "h",[center(1:2);1.5]), 10});                                       % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5}); % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;1;takeoff_zd], "h",[-1;1;takeoff_zd], "j",[1;1;takeoff_zd], "k",[0;1;takeoff_zd], "l",center), 10}); % P2P for wind
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f",center, "g",[0;-1;takeoff_zd], "h",[-1;-1;takeoff_zd], "j",[1;1;takeoff_zd]...
@@ -54,15 +54,27 @@ agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"
 
 agent.cha_allocation.reference = "time_varying";
 % Nominal Controller % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-% agent.controller.nominal = HLC(agent,Controller_HL(dt));
-agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
+agent.controller.nominal = HLC(agent,Controller_HL(dt));
+% agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-% agent.controller.mec = DNNMEC(agent, "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx");
+% onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
+% onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
 
-agent.controller.mec = DNNMEC(agent, "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx");
-% agent.controller.mec = DNNMEC(agent, "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx");
+
+onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
+% onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
+
+
+% onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
+% onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
+% onnxName = "2026-2-2_10_49_9__DNN21__Plant_data_Exp__Euler__Step=3__100000epoch.onnx";
+% onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
+% onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
+% % % onnxName = "RK4_step=3";
+% onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
+
+agent.controller.mec = DNNMEC(agent, onnxName);
 
 agent.cha_allocation.controller = ["nominal","mec"]; % cha_allocationにコントローラー登録
 

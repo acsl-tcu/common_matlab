@@ -73,9 +73,9 @@ takeoff_zd = 1; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [base';takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[0,0,0]},"HL"});                      % center hovering
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[base'+1;takeoff_zd],"size",[0,0,0]},"HL"});        % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0],"phase",0},"HL"});             % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0], "x",1},"HL"});                      % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",center,"size",[1,1,0.2]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
@@ -131,6 +131,10 @@ else
     % onnxName = "2026-1-29_10_21_24__DNN21__Plant_data_Sim_mixed__Euler__Step=1__epoch_100000.onnx";
     % onnxName = "2026-1-29_17_51_43__DNN21__Plant_data_Sim_mixed__Euler__Step=2__epoch_100000.onnx";
     % onnxName = "2026-1-30_10_17_38__DNN21__Plant_data_Sim_mixed__Euler__Step=3__epoch_100000.onnx";
+    onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
+    onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
+    % % % onnxName = "RK4_step=3";
+    onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
 
     % onnxName = "2026-2-2_10_43_54__DNN12__Plant_data_Sim_mixed__Euler__100000epoch.onnx";
     agent.controller.mec = DNNMEC(agent, onnxName);
