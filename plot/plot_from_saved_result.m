@@ -569,59 +569,59 @@ end
 % end
 
 
-function disp_rmse(logger, phase)
-% estimator と reference の position を取得（Nx3）
-p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
-p_ref = logger.data(1,"p","r","phase",phase);
-% サイズチェック
-N = min(size(p_est,1), size(p_ref,1));
-p_est = p_est(1:N,:);
-p_ref = p_ref(1:N,:);
-diff = p_est - p_ref;
-RMSE_x = sqrt(mean(diff(:,1).^2));
-RMSE_y = sqrt(mean(diff(:,2).^2));
-RMSE_z = sqrt(mean(diff(:,3).^2));
-fprintf('\n===== Position RMSE (total time) =====\n');
-fprintf(' RMSE_x = %.6f [m]\n', RMSE_x);
-fprintf(' RMSE_y = %.6f [m]\n', RMSE_y);
-fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
-fprintf('=====================================\n\n');
-end
-
-% function rmse_xyz = disp_rmse(logger, phase)
-% % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
-% % Usage:
-% %   disp_rmse(logger, phase)
-% % Output:
-% %   rmse_xyz = [rmse_x rmse_y rmse_z] （必要なければ無視してOK）
-% % ===== 評価時間区間（ここで固定）=====
-% t_start = 0;   % [s]
-% t_end   = 10;   % [s]
-% % ===== logger.data オプション =====
-% opt = {"phase", phase, "ranget", [t_start t_end]};
-% % ===== データ取得 =====
-% % 推定された牽引物位置
-% p_est = logger.data(1,"estimator.result.state.pL","e", opt{:});  % [N x 3]
-% % 参照位置
-% p_ref = logger.data(1,"p","r", opt{:});                         % [N x 3]
-% % ===== サイズ合わせ =====
+% function disp_rmse(logger, phase)
+% % estimator と reference の position を取得（Nx3）
+% p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
+% p_ref = logger.data(1,"p","r","phase",phase);
+% % サイズチェック
 % N = min(size(p_est,1), size(p_ref,1));
 % p_est = p_est(1:N,:);
 % p_ref = p_ref(1:N,:);
-% % ===== 誤差 =====
-% diff = p_est - p_ref;   % [N x 3]
-% % ===== 各軸 RMSE =====
-% rmse_x = sqrt(mean(diff(:,1).^2, "omitnan"));
-% rmse_y = sqrt(mean(diff(:,2).^2, "omitnan"));
-% rmse_z = sqrt(mean(diff(:,3).^2, "omitnan"));
-% 
-% rmse_xyz = [rmse_x, rmse_y, rmse_z];
-% % ===== 表示 =====
-% fprintf('\n===== Position RMSE =====\n');
-% fprintf(' phase  = %s\n', string(phase));
-% fprintf(' time   = %.2f – %.2f [s]\n', t_start, t_end);
-% fprintf(' RMSE_x = %.6f [m]\n', rmse_x);
-% fprintf(' RMSE_y = %.6f [m]\n', rmse_y);
-% fprintf(' RMSE_z = %.6f [m]\n', rmse_z);
-% fprintf('=========================\n\n');
+% diff = p_est - p_ref;
+% RMSE_x = sqrt(mean(diff(:,1).^2));
+% RMSE_y = sqrt(mean(diff(:,2).^2));
+% RMSE_z = sqrt(mean(diff(:,3).^2));
+% fprintf('\n===== Position RMSE (total time) =====\n');
+% fprintf(' RMSE_x = %.6f [m]\n', RMSE_x);
+% fprintf(' RMSE_y = %.6f [m]\n', RMSE_y);
+% fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
+% fprintf('=====================================\n\n');
 % end
+
+function rmse_xyz = disp_rmse(logger, phase)
+% disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
+% Usage:
+%   disp_rmse(logger, phase)
+% Output:
+%   rmse_xyz = [rmse_x rmse_y rmse_z] （必要なければ無視してOK）
+% ===== 評価時間区間（ここで固定）=====
+t_start = 15;   % [s]
+t_end   = 30;   % [s]
+% ===== logger.data オプション =====
+opt = {"phase", phase, "ranget", [t_start t_end]};
+% ===== データ取得 =====
+% 推定された牽引物位置
+p_est = logger.data(1,"estimator.result.state.pL","e", opt{:});  % [N x 3]
+% 参照位置
+p_ref = logger.data(1,"p","r", opt{:});                         % [N x 3]
+% ===== サイズ合わせ =====
+N = min(size(p_est,1), size(p_ref,1));
+p_est = p_est(1:N,:);
+p_ref = p_ref(1:N,:);
+% ===== 誤差 =====
+diff = p_est - p_ref;   % [N x 3]
+% ===== 各軸 RMSE =====
+rmse_x = sqrt(mean(diff(:,1).^2, "omitnan"));
+rmse_y = sqrt(mean(diff(:,2).^2, "omitnan"));
+rmse_z = sqrt(mean(diff(:,3).^2, "omitnan"));
+
+rmse_xyz = [rmse_x, rmse_y, rmse_z];
+% ===== 表示 =====
+fprintf('\n===== Position RMSE =====\n');
+fprintf(' phase  = %s\n', string(phase));
+fprintf(' time   = %.2f – %.2f [s]\n', t_start, t_end);
+fprintf(' RMSE_x = %.6f [m]\n', rmse_x);
+fprintf(' RMSE_y = %.6f [m]\n', rmse_y);
+fprintf(' RMSE_z = %.6f [m]\n', rmse_z);
+fprintf('=========================\n\n');
+end

@@ -316,11 +316,11 @@ vrxy = vr(:,1:2);
 vsway = vecnorm(vrxy,2,2);
 rxy_n = vecnorm(rxy,2,2);
 
-% swing angle magnitude (0..pi): angle between cable direction and vertical-down
-r_n = vecnorm(r,2,2);
-cos_th = (-r(:,3)) ./ max(r_n,1e-9);
-cos_th = min(max(cos_th,-1),1);
-theta = acos(cos_th);
+% swing angle magnitude: angle between cable direction and vertical-down
+rz   = r(:,3);                        % r = pL - p
+rho  = vecnorm(r(:,1:2), 2, 2);       % ||r_xy||
+den  = max(1e-9, -rz);                % assumes load is below drone (rz<0)
+theta = atan2(rho, den);              % [rad]
 
 dt = median(diff(t));
 if ~isfinite(dt) || dt<=0, dt=0.025; end
