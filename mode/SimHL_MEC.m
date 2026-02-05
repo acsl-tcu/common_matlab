@@ -137,6 +137,7 @@ else
     onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
 
     % onnxName = "2026-2-2_10_43_54__DNN12__Plant_data_Sim_mixed__Euler__100000epoch.onnx";
+    onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp__Euler__100000epoch.onnx";
     agent.controller.mec = DNNMEC(agent, onnxName);
 end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
