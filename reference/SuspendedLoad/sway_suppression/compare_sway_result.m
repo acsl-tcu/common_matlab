@@ -4,8 +4,8 @@
 clear; clc;
 
 % ---------- 入力 .mat ----------
-file_no = "off_2_p2p_0.07_Log(05-Feb-2026_17_52_58).mat";   % SWAYなし
-file_on = "on_2_p2p_0.07_++_Log(05-Feb-2026_17_48_49).mat";   % SWAYあり
+file_no = "off_3_gai0.14_Log(06-Feb-2026_19_13_46).mat";   % SWAYなし
+file_on = "on_1_gai0.14_Log(06-Feb-2026_18_44_04).mat";   % SWAYあり
 
 % ---------- 許容角 ----------
 theta_max = deg2rad(15);
@@ -25,10 +25,16 @@ opt = struct();
 opt.use_flight_phase_only = true;
 opt.flight_cha = 'f';      % flight フェーズ文字
 opt.align = true;          % flight開始を t=0 に揃える
-opt.t_range = [];          % フライト全体比較（部分評価したいときだけ [t0 t1]）
+opt.zero_time_at_window_start = true;
+% --- 区間を完全に手で指定（aligned 後の相対時間 [s]） ---
+opt.t_range_no = [ ];   % OFF 側だけ
+opt.t_range_on = [ ];   % ON 側だけ
+
+% 互換のため opt.t_range は空にしておく（両方同じ窓を当てないため）
+opt.t_range = [];
 
 % SWAYのS定義と合わせる（切替包絡の表示用）
-opt.sr = 0.4;
+opt.sr = 0.6;
 opt.env_win_sec = 0.5;
 
 % ---------- 評価 ----------

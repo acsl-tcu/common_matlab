@@ -33,6 +33,7 @@ opt = set_default(opt, 'align_ref_eps', 0.03);
 opt = set_default(opt, 'align_speed_eps', 0.15);
 opt = set_default(opt, 'pre_sec', 1.0);
 opt = set_default(opt, 'post_sec', inf);
+opt = set_default(opt, 'zero_time_at_window_start', true);
 
 % ---------- 1) flight phase crop ----------
 A0 = crop_flight_phase(S_no, opt);
@@ -60,10 +61,37 @@ if opt.align
 end
 
 % ---------- 3) final window (relative time) ----------
-if ~isempty(opt.t_range)
-    A0 = crop_time_range(A0, opt.t_range);
+% Backward compatible:
+%  - opt.t_range      : applies to both (legacy)
+%  - opt.t_range_no   : applies only to A0 (no)
+%  - opt.t_range_on   : applies only to A1 (on)
+%  - opt.t_range can be struct with fields .no/.on
+
+tr0 = [];
+tr1 = [];
+
+if isfield(opt,'t_range') && ~isempty(opt.t_range)
+    if isstruct(opt.t_range)
+        if isfield(opt.t_range,'no'), tr0 = opt.t_range.no; end
+        if isfield(opt.t_range,'on'), tr1 = opt.t_range.on; end
+    else
+        tr0 = opt.t_range;
+        tr1 = opt.t_range;
+    end
+end
+if isfield(opt,'t_range_no') && ~isempty(opt.t_range_no), tr0 = opt.t_range_no; end
+if isfield(opt,'t_range_on') && ~isempty(opt.t_range_on), tr1 = opt.t_range_on; end
+
+if ~isempty(tr0)
+    A0 = crop_time_range(A0, tr0);
+end
+if ~single_mode && ~isempty(tr1)
+    A1 = crop_time_range(A1, tr1);
+end
+if opt.zero_time_at_window_start
+    A0.t = A0.t - A0.t(1);
     if ~single_mode
-        A1 = crop_time_range(A1, opt.t_range);
+        A1.t = A1.t - A1.t(1);
     end
 end
 
