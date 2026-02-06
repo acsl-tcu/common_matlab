@@ -4,8 +4,8 @@
 clear; clc;
 
 % ---------- 入力 .mat ----------
-file_no = "off_1_change_Log(04-Feb-2026_17_07_54).mat";   % SWAYなし
-file_on = "on_1_change_Log(04-Feb-2026_17_04_26).mat";   % SWAYあり
+file_no = "off_2_p2p_0.07_Log(05-Feb-2026_17_52_58).mat";   % SWAYなし
+file_on = "on_2_p2p_0.07_++_Log(05-Feb-2026_17_48_49).mat";   % SWAYあり
 
 % ---------- 許容角 ----------
 theta_max = deg2rad(15);

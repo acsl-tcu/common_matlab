@@ -30,6 +30,9 @@ classdef SWAY_REF_MOD < handle
         vrxy_f = [0;0]     % LPF state for vrxy
         S_f = 0            % smoothed S for switching
 
+        c_prev = [0;0];
+        c_dot_f = [0;0];   % フィルタ後の c_dot
+
         % ---- time series logs (for plotting) ----
         t_log = [];
         xd_origin_log = [];   % N×20
@@ -278,6 +281,40 @@ classdef SWAY_REF_MOD < handle
             %--------------------------------------------------------------
             xd_cmd = xd_origin;
             xd_cmd(1:2) = xd_cmd(1:2) - obj.c;
+            %--------------------------------------------------------------
+            % 9-a) 速度目標へ整合的に適用：v_ref' = v_ref - c_dot
+            %  ※ xd が [p;...;v] を持つときだけ
+            %--------------------------------------------------------------
+            if numel(xd_cmd) >= 7 && isfield(obj.param,'apply_to_vref') && obj.param.apply_to_vref
+
+                % --- c_dot（数値微分）---
+                c_dot = (obj.c - obj.c_prev) / max(1e-6, dt);
+                obj.c_prev = obj.c;
+
+                % --- フィルタ（推奨：ノイズ・位相対策）---
+                if ~isfield(obj.param,'cdot_lpf_tau') || isempty(obj.param.cdot_lpf_tau)
+                    obj.param.cdot_lpf_tau = 0.08;   % 例：80ms
+                end
+                tau = max(0, obj.param.cdot_lpf_tau);
+                a = dt/(tau + dt);
+                obj.c_dot_f = (1-a)*obj.c_dot_f + a*c_dot;
+
+                dv = obj.c_dot_f;
+
+                % --- 注入上限（推奨）---
+                if ~isfield(obj.param,'dv_max') || isempty(obj.param.dv_max)
+                    obj.param.dv_max = 0.3;         % 例：0.3 m/s
+                end
+                if obj.param.dv_max > 0
+                    ndv = norm(dv);
+                    if ndv > obj.param.dv_max
+                        dv = dv * (obj.param.dv_max / ndv);
+                    end
+                end
+
+                % --- 速度目標を修正（xy）---
+                xd_cmd(5:6) = xd_cmd(5:6) - dv;
+            end
 
             %--------------------------------------------------------------
             % 9-b) 速度目標への適用（CBF-QP: 上限保証重視）（今回は使用しない）
