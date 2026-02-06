@@ -67,7 +67,7 @@ classdef EKF < handle
             dt = obj.dt;
           end
           if varargin{1}.t ~= 0
-            y = obj.sensor(obj.self,dt,obj.sensor_param); % sensor output
+            y = obj.sensor(obj.self,obj.sensor_param); % sensor output
             x = obj.result.state.get(); % estimated state at previous step     
             obj.model.do(varargin{:}); % update state
             xh_pre = obj.model.state.get(); % Pre-estimation
