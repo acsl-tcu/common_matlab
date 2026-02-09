@@ -25,6 +25,7 @@ classdef SWAY_REF_MOD < handle
         last_sway_on
 
         on_time = -inf     % ONになった時刻（min_on_time/softstart用）
+        dv_f = [0;0];  % LPF state for dv
 
         % --- filters (for real flight) ---
         vrxy_f = [0;0]     % LPF state for vrxy
@@ -90,6 +91,8 @@ classdef SWAY_REF_MOD < handle
                 result = base.result;
                 return;
             end
+            % base = obj.self.reference;           % ← origin ではなく reference 本体
+            % xd_origin = base.result.state.xd;
 
             %--------------------------------------------------------------
             % 2) 推定状態から相対運動量を計算
@@ -280,40 +283,48 @@ classdef SWAY_REF_MOD < handle
             % 9) 目標へ適用（xd_cmd）
             %--------------------------------------------------------------
             xd_cmd = xd_origin;
-            xd_cmd(1:2) = xd_cmd(1:2) - obj.c;
+            xd_cmd(1:2) = xd_cmd(1:2) + obj.c;
             %--------------------------------------------------------------
-            % 9-a) 速度目標へ整合的に適用：v_ref' = v_ref - c_dot
-            %  ※ xd が [p;...;v] を持つときだけ
+            % 9-a) 速度目標へ適用：v_ref' = v_ref - k_vref * vrxy_use
             %--------------------------------------------------------------
             if numel(xd_cmd) >= 7 && isfield(obj.param,'apply_to_vref') && obj.param.apply_to_vref
 
-                % --- c_dot（数値微分）---
-                c_dot = (obj.c - obj.c_prev) / max(1e-6, dt);
-                obj.c_prev = obj.c;
-
-                % --- フィルタ（推奨：ノイズ・位相対策）---
-                if ~isfield(obj.param,'cdot_lpf_tau') || isempty(obj.param.cdot_lpf_tau)
-                    obj.param.cdot_lpf_tau = 0.08;   % 例：80ms
-                end
-                tau = max(0, obj.param.cdot_lpf_tau);
-                a = dt/(tau + dt);
-                obj.c_dot_f = (1-a)*obj.c_dot_f + a*c_dot;
-
-                dv = obj.c_dot_f;
-
-                % --- 注入上限（推奨）---
-                if ~isfield(obj.param,'dv_max') || isempty(obj.param.dv_max)
-                    obj.param.dv_max = 0.3;         % 例：0.3 m/s
-                end
-                if obj.param.dv_max > 0
-                    ndv = norm(dv);
-                    if ndv > obj.param.dv_max
-                        dv = dv * (obj.param.dv_max / ndv);
+                if obj.sway_on == 1
+                    if ~isfield(obj.param,'kv_vref') || isempty(obj.param.kv_vref)
+                        obj.param.kv_vref = 2.0;       % まず 1〜4
                     end
+                    dv = obj.param.kv_vref * vrxy_use; % ←相対速度そのもの
+                else
+                    dv = [0;0];
                 end
 
-                % --- 速度目標を修正（xy）---
-                xd_cmd(5:6) = xd_cmd(5:6) - dv;
+                % 上限（まず大きめで効き確認）
+                if ~isfield(obj.param,'dv_max') || isempty(obj.param.dv_max)
+                    obj.param.dv_max = 1.0;            % 0.8〜2.0
+                end
+                ndv = norm(dv);
+                if ndv > obj.param.dv_max
+                    dv = dv * (obj.param.dv_max / ndv);
+                end
+
+                xd_cmd(5:6) = xd_cmd(5:6) + dv;
+            end
+
+            % --- during sway suppression, neutralize higher-order feedforward (recommended) ---
+            if obj.sway_on == 1
+                % accel, jerk, snap, 5th deriv (xy) を 0 に
+                if numel(xd_cmd) >= 10
+                    xd_cmd(9:10) = 0;      % d2Xd1, d2Xd2
+                end
+                if numel(xd_cmd) >= 14
+                    xd_cmd(13:14) = 0;     % d3Xd1, d3Xd2
+                end
+                if numel(xd_cmd) >= 18
+                    xd_cmd(17:18) = 0;     % d4Xd1, d4Xd2
+                end
+                if numel(xd_cmd) >= 22
+                    xd_cmd(21:22) = 0;     % d5Xd1, d5Xd2
+                end
             end
 
             %--------------------------------------------------------------
