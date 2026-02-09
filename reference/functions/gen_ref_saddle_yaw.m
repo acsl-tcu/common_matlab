@@ -1,14 +1,15 @@
-function ref = gen_ref_saddle(param)
+function ref = gen_ref_saddle_yaw(param)
 arguments
     param.freq = 10% 周期
     param.center = [0 0 1]% サドルの中心
     param.radius = [1 1 0.25] % 各軸の振幅
+    param.yaw_rad= 1; % yaw角の振幅
     param.phase = -pi % 位相   
 end
 
 T = param.freq;
 origin = param.center;
-scale = param.radius;
+scale = [param.radius, param.yaw_rad];
 phase = param.phase;
 syms t real
 syms lx ly real
@@ -18,12 +19,13 @@ ly = scale(2); %3.5;
 ly_offset = origin(2);% 3.5;
 lz = scale(3);% 1;
 lz_offset=origin(3);% 1;
+lyaw = scale(4);
 w = 2*pi/T; % T秒で一周
 
 ref=@(t) [lx*cos(w*t + phase)+lx_offset; % x
 ly*sin(w*t + phase)+ly_offset; % y
 lz*sin(2*w*t + phase/2)+lz_offset; % z
-0];%
+lyaw*sin(w*t + phase)];% yaw
 ddx = diff(ref,t,2);
 fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));
 
