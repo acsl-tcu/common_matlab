@@ -7,8 +7,8 @@ p.dt = dt;
 % === 角度＋相対速度で判定する設定 ===
 p.use_theta_vr_switch = true;
 % --- 角度しきい値（まずは固定値でOK。後でログから調整） ---
-p.theta_on  = deg2rad(8);   % 8〜10° 推奨
-p.theta_off = deg2rad(5);   % 4〜6° 推奨（theta_onの0.5〜0.7倍）
+p.theta_on  = deg2rad(8);   % 8〜10° 推奨8
+p.theta_off = deg2rad(5);   % 4〜6° 推奨（theta_onの0.5〜0.7倍）5
 % --- 相対速度しきい値（ログから決めるのが理想。まずは暫定値） ---
 p.vr_on  = 0.20;            % [m/s] まず0.2〜0.35あたり  0.25
 p.vr_off = 0.10;            % 0.6〜0.8 * vr_on  0.15
@@ -45,8 +45,8 @@ p.tau_off = 0.50;   % 0.3〜1.0 s 程度でOK
 
 % ---- 速度目標への適用（任意）----（今回は使用しない）
 p.apply_to_vref = true; % 基本falseでOK（まず位置だけスムーズに）
-p.kv_vref = 0.3; %0.6 %0.3~1.0 % apply_to_vref=trueにするなら小さく（例0.2）0.8
-p.dv_max  = 0.25; %0.6 %0.3~0.8
+p.kv_vref = 0.6; %0.6 %0.3~1.0 % apply_to_vref=trueにするなら小さく（例0.2）0.8
+p.dv_max  = 0.25; %0.6 %0.3~0.8 0.25
 p.dv_lpf_tau= 0.05;  % 0.03〜0.08
 p.vr_track_tau = 0.4;        % 追従(低周波)分離用 [s] 0.3〜0.8
 p.dv_delay_sec = 0.4;     % [s] 追従開始直後は dv=0（0.2〜1.0で調整）

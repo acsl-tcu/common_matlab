@@ -29,7 +29,7 @@ classdef SWAY_REF_MOD < handle
         % --- filters (for real flight) ---
         vrxy_f = [0;0]     % LPF state for vrxy
         S_f = 0            % smoothed S for switching
-
+        vrxy_tr=[0;0];
 
         % ---- time series logs (for plotting) ----
         t_log = [];
@@ -61,12 +61,11 @@ classdef SWAY_REF_MOD < handle
 
             % ---- minimal param check ----
             if ~isfield(obj.param,'dt');   error('SwayRefMod_Param: dt is missing'); end
-            if ~isfield(obj.param,'S_on') || ~isfield(obj.param,'S_off')
-                error('SwayRefMod_Param: S_on/S_off is missing');
+            if ~isfield(obj.param,'theta_on') || ~isfield(obj.param,'theta_off') || ~isfield(obj.param,'vr_on') || ~isfield(obj.param,'vr_off')
+                error('SwayRefMod_Param: theta_on/theta_off/vr_on/vr_off is missing');
             end
-            if obj.param.S_off >= obj.param.S_on
-                warning('SwayRefMod_Param: S_off >= S_on. Forcing S_off = 0.8*S_on');
-                obj.param.S_off = 0.8*obj.param.S_on;
+            if obj.param.theta_off >= obj.param.theta_on || obj.param.vr_off >= obj.param.vr_on
+                warning('SwayRefMod_Param: theta_off >= theta_on. vr_off >= vr_on.');
             end
 
             % time
@@ -406,7 +405,7 @@ classdef SWAY_REF_MOD < handle
                     obj.param.dv_max = 0.3;    % 0.2〜0.6で調整
                 end
                 if ~isfield(obj.param,'vref_sign') || isempty(obj.param.vref_sign)
-                    obj.param.vref_sign = +1;  % ★あなたの結果に合わせて + をデフォルト
+                    obj.param.vref_sign = 1;  % ★あなたの結果に合わせて + をデフォルト
                 end
 
                 if obj.sway_on == 1
@@ -428,24 +427,35 @@ classdef SWAY_REF_MOD < handle
 
 
 
-
-
-            % --- during sway suppression, neutralize higher-order feedforward (recommended) ---
+            % % --- during sway suppression, neutralize higher-order feedforward (recommended) ---
+            % if obj.sway_on == 1
+            %     % accel, jerk, snap, 5th deriv (xy) を 0 に
+            %     if numel(xd_cmd) >= 10
+            %         xd_cmd(9:10) = 0;      % d2Xd1, d2Xd2
+            %     end
+            %     if numel(xd_cmd) >= 14
+            %         xd_cmd(13:14) = 0;     % d3Xd1, d3Xd2
+            %     end
+            %     if numel(xd_cmd) >= 18
+            %         xd_cmd(17:18) = 0;     % d4Xd1, d4Xd2
+            %     end
+            %     if numel(xd_cmd) >= 22
+            %         xd_cmd(21:22) = 0;     % d5Xd1, d5Xd2
+            %     end
+            % end
             if obj.sway_on == 1
-                % accel, jerk, snap, 5th deriv (xy) を 0 に
+                if ~isfield(obj.param,'acc_keep') || isempty(obj.param.acc_keep)
+                    obj.param.acc_keep = 0.8;  % 0.6〜0.9 推奨（小さいほど揺れ減/遅れ増）
+                end
                 if numel(xd_cmd) >= 10
-                    xd_cmd(9:10) = 0;      % d2Xd1, d2Xd2
+                    xd_cmd(9:10) = obj.param.acc_keep * xd_cmd(9:10);
                 end
-                if numel(xd_cmd) >= 14
-                    xd_cmd(13:14) = 0;     % d3Xd1, d3Xd2
-                end
-                if numel(xd_cmd) >= 18
-                    xd_cmd(17:18) = 0;     % d4Xd1, d4Xd2
-                end
-                if numel(xd_cmd) >= 22
-                    xd_cmd(21:22) = 0;     % d5Xd1, d5Xd2
-                end
+
+                if numel(xd_cmd) >= 14, xd_cmd(13:14) = 0; end
+                if numel(xd_cmd) >= 18, xd_cmd(17:18) = 0; end
+                if numel(xd_cmd) >= 22, xd_cmd(21:22) = 0; end
             end
+
 
             %--------------------------------------------------------------
             % 9-b) 速度目標への適用（CBF-QP: 上限保証重視）（今回は使用しない）

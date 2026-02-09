@@ -102,6 +102,10 @@ if ~single_mode
 else
     on = [];
 end
+% ---------- has_theta_vr (for summary/plots) ----------
+has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+    && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
+    && isfield(opt,'vr_on') && isfield(opt,'vr_off');
 
 % ---------- 5) print summary ----------
 if ~single_mode
@@ -116,6 +120,11 @@ if ~single_mode
     fprintf('theta_p95 [deg]  no=%.3f  on=%.3f  ratio=%.3f\n', no.theta_p95_deg, on.theta_p95_deg, safe_ratio(on.theta_p95_deg, no.theta_p95_deg));
     fprintf('vsway_p95 [m/s]  no=%.4f  on=%.4f  ratio=%.3f\n', no.vsway_p95, on.vsway_p95, safe_ratio(on.vsway_p95, no.vsway_p95));
     fprintf('settle_t (to 1deg band) no=%.3f  on=%.3f\n', no.settle_time_s, on.settle_time_s);
+    if has_theta_vr
+    fprintf('theta_on_rate    no=%.4f  on=%.4f  ratio=%.3f\n', no.theta_on_rate, on.theta_on_rate, safe_ratio(on.theta_on_rate, no.theta_on_rate));
+    fprintf('vr_on_rate       no=%.4f  on=%.4f  ratio=%.3f\n', no.vr_on_rate, on.vr_on_rate, safe_ratio(on.vr_on_rate, no.vr_on_rate));
+    fprintf('oncond_rate      no=%.4f  on=%.4f  ratio=%.3f\n', no.oncond_rate, on.oncond_rate, safe_ratio(on.oncond_rate, no.oncond_rate));
+    end
 else
     fprintf('\n=== single (aligned/flight-cropped) ===\n');
     fprintf('theta_rms [deg]  %.3f\n', no.theta_rms_deg);
@@ -127,6 +136,11 @@ else
     fprintf('theta_p95 [deg]  %.3f\n', no.theta_p95_deg);
     fprintf('vsway_p95 [m/s]  %.4f\n', no.vsway_p95);
     fprintf('settle_t (to 1deg band) %.3f\n', no.settle_time_s);
+    if has_theta_vr
+    fprintf('theta_on_rate    %.4f\n', no.theta_on_rate);
+    fprintf('vr_on_rate       %.4f\n', no.vr_on_rate);
+    fprintf('oncond_rate      %.4f\n', no.oncond_rate);
+    end
 end
 
 % ---------- 6) plots ----------
@@ -386,6 +400,45 @@ S_raw = vsway + opt.sr * rxy_n;
 win = max(1, round(opt.env_win_sec / dt));
 out.S = S_raw;
 out.S_env = movmax(S_raw, win);
+% ---- additional decision-rate metrics (only if theta/vr thresholds exist) ----
+has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+    && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
+    && isfield(opt,'vr_on') && isfield(opt,'vr_off');
+
+if has_theta_vr
+    theta_on_mask = (theta > opt.theta_on);
+    vr_on_mask    = (vsway > opt.vr_on);
+    oncond_mask   = theta_on_mask | vr_on_mask;
+
+    out.theta_on_rate = mean(theta_on_mask);
+    out.vr_on_rate    = mean(vr_on_mask);
+    out.oncond_rate   = mean(oncond_mask);
+
+    % 参考：ON条件が連続でどれくらい続くか（最大連続時間）
+    out.oncond_max_run_s = max_true_run_sec(oncond_mask, dt);
+else
+    out.theta_on_rate = NaN;
+    out.vr_on_rate    = NaN;
+    out.oncond_rate   = NaN;
+    out.oncond_max_run_s = NaN;
+end
+% ---- additional: theta/vr threshold rates (for switching comparison) ----
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+        && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
+        && isfield(opt,'vr_on') && isfield(opt,'vr_off')
+
+    out.theta_on_rate = mean(theta > opt.theta_on);
+    out.theta_off_rate = mean(theta > opt.theta_off);   % (参考) off閾値超え率
+    out.vr_on_rate    = mean(vsway > opt.vr_on);
+    out.vr_off_rate   = mean(vsway > opt.vr_off);       % (参考)
+    out.oncond_rate   = mean( (theta > opt.theta_on) | (vsway > opt.vr_on) );
+else
+    out.theta_on_rate = NaN;
+    out.theta_off_rate = NaN;
+    out.vr_on_rate = NaN;
+    out.vr_off_rate = NaN;
+    out.oncond_rate = NaN;
+end
 end
 
 function k = find_settle_time(t, x, band)
@@ -399,71 +452,119 @@ for i=1:numel(t)
 end
 end
 
-function paper_plots(A0, A1, no, on, theta_max, opt) %#ok<INUSD>
+function paper_plots(A0, A1, no, on, theta_max, opt)
+
+has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+    && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
+    && isfield(opt,'vr_on') && isfield(opt,'vr_off');
 
 % 1) θ overlay
 figure;
 h1 = plot(no.t, rad2deg(no.theta), 'DisplayName','OFF'); hold on;
 h2 = plot(on.t, rad2deg(on.theta), 'DisplayName','ON');
 h3 = yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
+
+% danger線（theta_max - theta_gate）
+if isfield(opt,'theta_max') && isfield(opt,'theta_gate') ...
+        && isfinite(opt.theta_max) && isfinite(opt.theta_gate)
+    yline(rad2deg(opt.theta_max - opt.theta_gate), ':', 'DisplayName','danger thresh');
+end
+
+% ★揺れ判定（theta_on/off）
+if has_theta_vr
+    yline(rad2deg(opt.theta_on),  '--', 'DisplayName','theta\_on');
+    yline(rad2deg(opt.theta_off), ':',  'DisplayName','theta\_off');
+end
+
 grid on; xlabel('t (aligned) [s]'); ylabel('\theta [deg]');
-legend([h1 h2 h3], 'Location','best');
+legend('Location','best');
 title('Swing angle');
 
-% 2) vsway overlay (this is ||v_{r,xy}||, non-negative)
+
+
+% 2) vsway overlay: ||v_{r,xy}|| [m/s]
 figure;
 h1 = plot(no.t, no.vsway, 'DisplayName','OFF'); hold on;
 h2 = plot(on.t, on.vsway, 'DisplayName','ON');
+
+% ★ switching thresholds: vr_on/off
+if has_theta_vr
+    yline(opt.vr_on,  '--', 'DisplayName','vr\_on');
+    yline(opt.vr_off, ':',  'DisplayName','vr\_off');
+end
+
 grid on; xlabel('t (aligned) [s]'); ylabel('||v_{r,xy}|| [m/s]');
-legend([h1 h2], 'Location','best');
+legend('show','Location','best');
 title('Relative horizontal speed');
 
-% 3) Energy overlay (cumulative)
+
+% 3) Energy overlay (cumulative)  ∫||vr||^2 dt
 E0 = cumtrapz(no.t, no.vsway.^2);
 E1 = cumtrapz(on.t, on.vsway.^2);
 figure;
-h1 = plot(no.t, E0, 'DisplayName','OFF'); hold on;
-h2 = plot(on.t, E1, 'DisplayName','ON');
+plot(no.t, E0, 'DisplayName','OFF'); hold on;
+plot(on.t, E1, 'DisplayName','ON');
 grid on; xlabel('t (aligned) [s]'); ylabel('\int ||v_{r,xy}||^2 dt');
-legend([h1 h2], 'Location','best');
+legend('show','Location','best');
 title('Sway energy (cumulative)');
+
 
 % 4) S envelope overlay
 figure;
-h1 = plot(no.t, no.S_env, 'DisplayName','OFF'); hold on;
-h2 = plot(on.t, on.S_env, 'DisplayName','ON');
+plot(no.t, no.S_env, 'DisplayName','OFF'); hold on;
+plot(on.t, on.S_env, 'DisplayName','ON');
 grid on; xlabel('t (aligned) [s]'); ylabel('S envelope');
-legend([h1 h2], 'Location','best');
+legend('show','Location','best');
 title('S envelope (movmax)');
 
-% 5) phase portrait (theta vs theta_dot)
+
+% 5) phase portrait (theta vs theta_dot) [deg, deg/s]
 dt0 = median(diff(no.t)); if ~isfinite(dt0)||dt0<=0, dt0=0.025; end
 dt1 = median(diff(on.t)); if ~isfinite(dt1)||dt1<=0, dt1=0.025; end
 thd0 = [0; diff(no.theta)/dt0];
 thd1 = [0; diff(on.theta)/dt1];
 
 figure;
-h1 = plot(rad2deg(no.theta), rad2deg(thd0), 'DisplayName','OFF'); hold on;
-h2 = plot(rad2deg(on.theta), rad2deg(thd1), 'DisplayName','ON');
+plot(rad2deg(no.theta), rad2deg(thd0), 'DisplayName','OFF'); hold on;
+plot(rad2deg(on.theta), rad2deg(thd1), 'DisplayName','ON');
 grid on; xlabel('\theta [deg]'); ylabel('\dot{\theta} [deg/s]');
-legend([h1 h2], 'Location','best');
+legend('show','Location','best');
 title('Phase portrait (approx)');
 end
 
-function paper_plots_single(A0, no, theta_max, opt) %#ok<INUSD>
+
+function paper_plots_single(A0, no, theta_max, opt)
+
+has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+    && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
+    && isfield(opt,'vr_on') && isfield(opt,'vr_off');
 
 % 1) θ
 figure;
-h1 = plot(no.t, rad2deg(no.theta), 'DisplayName','data'); hold on;
-h2 = yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
+plot(no.t, rad2deg(no.theta), 'DisplayName','data'); hold on;
+yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
+
+if isfield(opt,'theta_gate') && ~isempty(opt.theta_gate) && isfinite(opt.theta_gate)
+    yline(rad2deg(theta_max - opt.theta_gate), ':', 'DisplayName','danger thresh');
+end
+if has_theta_vr
+    yline(rad2deg(opt.theta_on),  '--', 'DisplayName','\theta_{on}');
+    yline(rad2deg(opt.theta_off), ':',  'DisplayName','\theta_{off}');
+end
+
 grid on; xlabel('t (aligned) [s]'); ylabel('\theta [deg]');
-legend([h1 h2], 'Location','best');
+legend('show','Location','best');
 title('Swing angle');
 
-% 2) vsway (||v_{r,xy}||)
+% 2) vsway
 figure;
-plot(no.t, no.vsway, 'DisplayName','data');
+plot(no.t, no.vsway, 'DisplayName','data'); hold on;
+if has_theta_vr
+    yline(opt.vr_on,  '--', 'DisplayName','vr_{on}');
+    yline(opt.vr_off, ':',  'DisplayName','vr_{off}');
+end
 grid on; xlabel('t (aligned) [s]'); ylabel('||v_{r,xy}|| [m/s]');
+legend('show','Location','best');
 title('Relative horizontal speed');
 
 % 3) Energy cumulative
@@ -486,4 +587,17 @@ figure;
 plot(rad2deg(no.theta), rad2deg(thd0), 'DisplayName','data');
 grid on; xlabel('\theta [deg]'); ylabel('\dot{\theta} [deg/s]');
 title('Phase portrait (approx)');
+end
+
+function dur = max_true_run_sec(mask, dt)
+mask = mask(:);
+d = diff([false; mask; false]);
+st = find(d==1);
+ed = find(d==-1)-1;
+if isempty(st)
+    dur = 0;
+    return;
+end
+len = ed - st + 1;
+dur = max(len) * dt;
 end
