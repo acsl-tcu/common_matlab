@@ -25,14 +25,11 @@ classdef SWAY_REF_MOD < handle
         last_sway_on
 
         on_time = -inf     % ONになった時刻（min_on_time/softstart用）
-        dv_f = [0;0];  % LPF state for dv
 
         % --- filters (for real flight) ---
         vrxy_f = [0;0]     % LPF state for vrxy
         S_f = 0            % smoothed S for switching
 
-        c_prev = [0;0];
-        c_dot_f = [0;0];   % フィルタ後の c_dot
 
         % ---- time series logs (for plotting) ----
         t_log = [];
@@ -119,46 +116,7 @@ classdef SWAY_REF_MOD < handle
             obj.vrxy_f = (1-a_v)*obj.vrxy_f + a_v*vrxy;
             vrxy_use = obj.vrxy_f;   % ←以降はこのvrxy_useを使う
 
-            %--------------------------------------------------------------
-            % 3) 揺れ指標 S（raw） + 平滑化して判定に使用
-            %   S_raw = ||vrxy|| + sr*||rxy||
-            %   S_f   = IIRで平滑（movmean相当）
-            %--------------------------------------------------------------
-            S_raw = norm(vrxy_use) + obj.param.sr * norm(rxy);
-
-            if ~isfield(obj.param,'S_smooth_tau') || isempty(obj.param.S_smooth_tau)
-                obj.param.S_smooth_tau = 0.15; % default 150ms
-            end
-            tau_S = max(0, obj.param.S_smooth_tau);
-            a_S = dt/(tau_S + dt);
-
-            if isempty(obj.S_f) || isnan(obj.S_f)
-                obj.S_f = S_raw;
-            else
-                obj.S_f = (1-a_S)*obj.S_f + a_S*S_raw;
-            end
-            S_use = obj.S_f;   % ←ON/OFF判定はこれを使う
-
-            %--------------------------------------------------------------
-            % 4) CBFゲート（水平距離）(ケーブルL使う版)
-            %--------------------------------------------------------------
-            % L = obj.self.parameter.get("cableL");
-            % 
-            % if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
-            %     rmax = L * sind(obj.param.theta_max_deg);
-            %     theta_max = deg2rad(obj.param.theta_max_deg);
-            % else
-            %     if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
-            %         obj.param.theta_max = deg2rad(15);
-            %     end
-            %     rmax = L * sin(obj.param.theta_max);
-            %     theta_max = obj.param.theta_max;
-            % end
-            % 
-            % h = rmax^2 - (rxy.'*rxy);
-            % danger = (h < obj.param.h_gate);
-
-            %--------------------------------------------------------------
+            %------------------------------------------------------------------------------------------------------------------------
             % 4)CBFゲート（設定したケーブル長を使わない版）
             %   - theta is computed from relative position only:
             %       theta = atan2(||r_xy||, -r_z)
@@ -194,15 +152,50 @@ classdef SWAY_REF_MOD < handle
 
             danger = (h < obj.param.theta_gate);
 
+            %--------------------------------------------------------------
+            % 3) 角度＋相対速度の指標（raw） + 平滑化（表示用/ノイズ対策）
+            %   ※判定自体は theta/vr のしきい値で行う（下）
+            %--------------------------------------------------------------
+            vr_mag = norm(vrxy_use);
+
+            % theta は既に計算している想定（あなたの 4) のところ）
+            % theta = atan2(norm(rxy), max(1e-6, -rz));
+
+            % 「S」はログ/デバッグ表示のためだけに作る（任意）
+            % 正規化しておくと便利
+            S_raw = max(theta / max(1e-6, obj.param.theta_on), ...
+                vr_mag / max(1e-6, obj.param.vr_on));
+
+            % 平滑（既存のIIRでOK）
+            tau_S = max(0, obj.param.S_smooth_tau);
+            a_S = dt/(tau_S + dt);
+            if isempty(obj.S_f) || isnan(obj.S_f)
+                obj.S_f = S_raw;
+            else
+                obj.S_f = (1-a_S)*obj.S_f + a_S*S_raw;
+            end
+            S_use = obj.S_f;
 
             %--------------------------------------------------------------
-            % 5) ヒステリシスで補正ON/OFF（min_on_time付き）
-            %   ※判定は S_use（平滑版）で行う
+            % 5) ヒステリシス ON/OFF（theta と vr で判定）
+            %    ON : theta>theta_on OR vr>vr_on OR (danger強制)
+            %    OFF: theta<theta_off AND vr<vr_off （dangerなら保持も可）
             %--------------------------------------------------------------
+            use_theta_vr = isfield(obj.param,'use_theta_vr_switch') && obj.param.use_theta_vr_switch;
+
+            if use_theta_vr
+                on_cond  = (theta > obj.param.theta_on)  || (vr_mag > obj.param.vr_on);
+                off_cond = (theta < obj.param.theta_off) && (vr_mag < obj.param.vr_off);
+            else
+                % 従来S方式にフォールバック
+                on_cond  = (S_use > obj.param.S_on);
+                off_cond = (S_use < obj.param.S_off);
+            end
+
             if obj.sway_on == 0
-                if (S_use > obj.param.S_on) || (danger && obj.param.force_on_when_danger)
+                if on_cond || (danger && obj.param.force_on_when_danger)
                     obj.sway_on = 1;
-                    obj.on_time = t_now;   % ON時刻保存
+                    obj.on_time = t_now;
                 end
             else
                 hold_by_time = false;
@@ -211,104 +204,231 @@ classdef SWAY_REF_MOD < handle
                 end
 
                 if ~hold_by_time
-                    if (S_use < obj.param.S_off) && ~(danger && obj.param.hold_on_when_danger)
+                    if off_cond && ~(danger && obj.param.hold_on_when_danger)
                         obj.sway_on = 0;
                     end
                 end
+            end%---------------------------------------------------------------------------------------------------------------------
+
+            % %-----------------------------------------------------------------------------------------------------------------------------
+            % % 3) 揺れ指標 S（raw） + 平滑化して判定に使用
+            % %   S_raw = ||vrxy|| + sr*||rxy||
+            % %   S_f   = IIRで平滑（movmean相当）
+            % %--------------------------------------------------------------
+            % S_raw = norm(vrxy_use) + obj.param.sr * norm(rxy);
+            % 
+            % if ~isfield(obj.param,'S_smooth_tau') || isempty(obj.param.S_smooth_tau)
+            %     obj.param.S_smooth_tau = 0.15; % default 150ms
+            % end
+            % tau_S = max(0, obj.param.S_smooth_tau);
+            % a_S = dt/(tau_S + dt);
+            % 
+            % if isempty(obj.S_f) || isnan(obj.S_f)
+            %     obj.S_f = S_raw;
+            % else
+            %     obj.S_f = (1-a_S)*obj.S_f + a_S*S_raw;
+            % end
+            % S_use = obj.S_f;   % ←ON/OFF判定はこれを使う
+            % 
+            % %--------------------------------------------------------------
+            % % 4) CBFゲート（水平距離）(ケーブルL使う版)
+            % %--------------------------------------------------------------
+            % % L = obj.self.parameter.get("cableL");
+            % % 
+            % % if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
+            % %     rmax = L * sind(obj.param.theta_max_deg);
+            % %     theta_max = deg2rad(obj.param.theta_max_deg);
+            % % else
+            % %     if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
+            % %         obj.param.theta_max = deg2rad(15);
+            % %     end
+            % %     rmax = L * sin(obj.param.theta_max);
+            % %     theta_max = obj.param.theta_max;
+            % % end
+            % % 
+            % % h = rmax^2 - (rxy.'*rxy);
+            % % danger = (h < obj.param.h_gate);
+            % 
+            % %--------------------------------------------------------------
+            % % 4)CBFゲート（設定したケーブル長を使わない版）
+            % %   - theta is computed from relative position only:
+            % %       theta = atan2(||r_xy||, -r_z)
+            % %   - "barrier" h_theta = theta_max - theta  (>=0 is safe)
+            % %   - danger if h_theta < theta_gate  (theta_gate is a margin in [rad])
+            % %--------------------------------------------------------------
+            % 
+            % % ---- theta_max [rad] ----
+            % if isfield(obj.param,'theta_max_deg') && ~isempty(obj.param.theta_max_deg)
+            %     theta_max = deg2rad(obj.param.theta_max_deg);
+            % else
+            %     if ~isfield(obj.param,'theta_max') || isempty(obj.param.theta_max) || isnan(obj.param.theta_max)
+            %         obj.param.theta_max = deg2rad(15);
+            %     end
+            %     theta_max = obj.param.theta_max;
+            % end
+            % 
+            % % ---- theta from geometry (no L) ----
+            % rz = r(3);                                % r = pL - p (already computed)
+            % rxy_n = norm(rxy);
+            % theta = atan2(rxy_n, max(1e-6, -rz));     % [rad], assumes load is below drone (rz<0)
+            % 
+            % % ---- barrier in angle domain ----
+            % h = theta_max - theta;                    % >=0 safe, <0 violated
+            % 
+            % % ---- gate threshold (margin) ----
+            % % old code used p.h_gate in "m^2". Here we use [rad] margin.
+            % % If you already use p.h_gate elsewhere, keep it but interpret as "theta_gate [rad]".
+            % if ~isfield(obj.param,'theta_gate') || isempty(obj.param.theta_gate)
+            %     % default: 2 deg margin (danger when within 2deg of theta_max)
+            %     obj.param.theta_gate = deg2rad(2.0);
+            % end
+            % 
+            % danger = (h < obj.param.theta_gate);
+            % 
+            % 
+            % %--------------------------------------------------------------
+            % % 5) ヒステリシスで補正ON/OFF（min_on_time付き）
+            % %   ※判定は S_use（平滑版）で行う
+            % %--------------------------------------------------------------
+            % if obj.sway_on == 0
+            %     if (S_use > obj.param.S_on) || (danger && obj.param.force_on_when_danger)
+            %         obj.sway_on = 1;
+            %         obj.on_time = t_now;   % ON時刻保存
+            %     end
+            % else
+            %     hold_by_time = false;
+            %     if isfield(obj.param,'min_on_time') && obj.param.min_on_time > 0
+            %         hold_by_time = (t_now - obj.on_time) < obj.param.min_on_time;
+            %     end
+            % 
+            %     if ~hold_by_time
+            %         if (S_use < obj.param.S_off) && ~(danger && obj.param.hold_on_when_danger)
+            %             obj.sway_on = 0;
+            %         end
+            %     end
+            % end%------------------------------------------------------------------------------------------------------------------------
+            %--------------------------------------------------------------
+            % 7) alpha（dangerで強化） ※softstart無しに戻す
+            %--------------------------------------------------------------
+            alpha = 1.0;
+            if danger
+                alpha = obj.param.gain_boost;
             end
 
             %--------------------------------------------------------------
             % 6) デバッグ表示（S_useも出す）
             %--------------------------------------------------------------
             if obj.sway_on == 1 && obj.sway_on_prev == 0
-                fprintf('[SWAY_REF] ON  t=%.2f  S(raw)=%.3f S(use)=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
-                    t_now, S_raw, S_use, norm(vrxy_use), norm(rxy), h);
+                fprintf('[SWAY] ON  t=%.2f  theta=%.2fdeg  |vr|=%.3f  Suse=%.2f  danger=%d\n', ...
+                    t_now, rad2deg(theta), vr_mag, S_use, danger);
             end
             if obj.sway_on == 0 && obj.sway_on_prev == 1
-                fprintf('[SWAY_REF] OFF t=%.2f  S(raw)=%.3f S(use)=%.3f  |vxy|=%.3f  |rxy|=%.3f  h=%.3f\n', ...
-                    t_now, S_raw, S_use, norm(vrxy_use), norm(rxy), h);
+                fprintf('[SWAY] OFF t=%.2f  theta=%.2fdeg  |vr|=%.3f  Suse=%.2f  danger=%d\n', ...
+                    t_now, rad2deg(theta), vr_mag, S_use, danger);
             end
             if obj.sway_on == 1 && (t_now - obj.last_print_time) >= obj.param.print_interval
-                fprintf('[SWAY_REF] ACT t=%.2f  S(use)=%.3f  h=%.3f  danger=%d\n', ...
-                    t_now, S_use, h, danger);
+                fprintf('[SWAY] ACT t=%.2f  theta=%.2fdeg  |vr|=%.3f  alpha=%.2f  danger=%d\n', ...
+                    t_now, rad2deg(theta), vr_mag, alpha, danger);
                 obj.last_print_time = t_now;
             end
+
 
             %--------------------------------------------------------------
             % 7) alpha（dangerで強化）
             %--------------------------------------------------------------
-            if danger
-                alpha = obj.param.gain_boost;
-            else
-                alpha = 1.0;
-            end
+            % if danger
+            %     alpha = obj.param.gain_boost;
+            % else
+            %     alpha = 1.0;
+            % end
 
             %--------------------------------------------------------------
             % 8) 理想補正量 c* と一次遅れ更新
             %   ※c*の速度項には vrxy_use（LPF後）を使う
             %--------------------------------------------------------------
-            if obj.sway_on == 1
-                c_star = alpha*(obj.param.kv * obj.param.Tv * vrxy_use + obj.param.kr * rxy);
-            else
-                c_star = [0;0];
-            end
-
-            % --- tau selection + softstart ---
-            if obj.sway_on == 1
-                tau = obj.param.tau_on;
-
-                % ソフトスタート：ON直後は tau を大きくしてゆっくり入れる
-                if isfield(obj.param,'softstart_sec') && obj.param.softstart_sec > 0 ...
-                        && isfield(obj.param,'tau_on_soft') && obj.param.tau_on_soft > 0
-                    if (t_now - obj.on_time) < obj.param.softstart_sec
-                        tau = max(tau, obj.param.tau_on_soft);
-                    end
-                end
-            else
-                tau = obj.param.tau_off;
-            end
-
-            beta = dt/(tau + dt);
-            obj.c = (1-beta)*obj.c + beta*c_star;
-
-            % ---- 補正量の上限 ----
-            if isfield(obj.param,'c_max') && ~isempty(obj.param.c_max) && obj.param.c_max > 0
-                cn = norm(obj.c);
-                if cn > obj.param.c_max
-                    obj.c = obj.c * (obj.param.c_max / cn);
-                end
-            end
+            % if obj.sway_on == 1
+            %     c_star = alpha*(obj.param.kv * obj.param.Tv * vrxy_use + obj.param.kr * rxy);
+            % else
+            %     c_star = [0;0];
+            % end
+            % 
+            % % --- tau selection + softstart ---
+            % if obj.sway_on == 1
+            %     tau = obj.param.tau_on;
+            % 
+            %     % ソフトスタート：ON直後は tau を大きくしてゆっくり入れる
+            %     if isfield(obj.param,'softstart_sec') && obj.param.softstart_sec > 0 ...
+            %             && isfield(obj.param,'tau_on_soft') && obj.param.tau_on_soft > 0
+            %         if (t_now - obj.on_time) < obj.param.softstart_sec
+            %             tau = max(tau, obj.param.tau_on_soft);
+            %         end
+            %     end
+            % else
+            %     tau = obj.param.tau_off;
+            % end
+            % 
+            % beta = dt/(tau + dt);
+            % obj.c = (1-beta)*obj.c + beta*c_star;
+            % 
+            % % ---- 補正量の上限 ----
+            % if isfield(obj.param,'c_max') && ~isempty(obj.param.c_max) && obj.param.c_max > 0
+            %     cn = norm(obj.c);
+            %     if cn > obj.param.c_max
+            %         obj.c = obj.c * (obj.param.c_max / cn);
+            %     end
+            % end
 
             %--------------------------------------------------------------
             % 9) 目標へ適用（xd_cmd）
             %--------------------------------------------------------------
-            xd_cmd = xd_origin;
-            xd_cmd(1:2) = xd_cmd(1:2) + obj.c;
+            % xd_cmd = xd_origin;
+            % xd_cmd(1:2) = xd_cmd(1:2) + obj.c;
             %--------------------------------------------------------------
             % 9-a) 速度目標へ適用：v_ref' = v_ref - k_vref * vrxy_use
             %--------------------------------------------------------------
+            
+            %--------------------------------------------------------------
+            % 9) 目標へ適用（xd_cmd）
+            %--------------------------------------------------------------
+            xd_cmd = xd_origin;
+
+            %--------------------------------------------------------------
+            % 9-a) 速度目標へ適用（速度補正のみ）
+            %   v_ref' = v_ref + dv
+            %   dv = alpha * kv_vref * vrxy_use   （符号は「+」が効いたので + を採用）
+            %--------------------------------------------------------------
             if numel(xd_cmd) >= 7 && isfield(obj.param,'apply_to_vref') && obj.param.apply_to_vref
 
+                if ~isfield(obj.param,'kv_vref') || isempty(obj.param.kv_vref)
+                    obj.param.kv_vref = 0.6;   % 0.3〜1.2で調整
+                end
+                if ~isfield(obj.param,'dv_max') || isempty(obj.param.dv_max)
+                    obj.param.dv_max = 0.3;    % 0.2〜0.6で調整
+                end
+                if ~isfield(obj.param,'vref_sign') || isempty(obj.param.vref_sign)
+                    obj.param.vref_sign = +1;  % ★あなたの結果に合わせて + をデフォルト
+                end
+
                 if obj.sway_on == 1
-                    if ~isfield(obj.param,'kv_vref') || isempty(obj.param.kv_vref)
-                        obj.param.kv_vref = 2.0;       % まず 1〜4
-                    end
-                    dv = obj.param.kv_vref * vrxy_use; % ←相対速度そのもの
+                    dv = alpha * obj.param.kv_vref * vrxy_use;
                 else
                     dv = [0;0];
                 end
 
-                % 上限（まず大きめで効き確認）
-                if ~isfield(obj.param,'dv_max') || isempty(obj.param.dv_max)
-                    obj.param.dv_max = 1.0;            % 0.8〜2.0
-                end
-                ndv = norm(dv);
-                if ndv > obj.param.dv_max
-                    dv = dv * (obj.param.dv_max / ndv);
+                % 上限
+                if obj.param.dv_max > 0
+                    ndv = norm(dv);
+                    if ndv > obj.param.dv_max
+                        dv = dv * (obj.param.dv_max / ndv);
+                    end
                 end
 
-                xd_cmd(5:6) = xd_cmd(5:6) + dv;
+                xd_cmd(5:6) = xd_cmd(5:6) + obj.param.vref_sign * dv;
             end
+
+
+
+
 
             % --- during sway suppression, neutralize higher-order feedforward (recommended) ---
             if obj.sway_on == 1

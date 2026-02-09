@@ -6,7 +6,15 @@ clear; clc;
 % ---------- 入力 .mat ----------
 file_no = "off_3_gai0.14_Log(06-Feb-2026_19_13_46).mat";   % SWAYなし
 file_on = "on_1_gai0.14_Log(06-Feb-2026_18_44_04).mat";   % SWAYあり
+% ---- 角度＋速度のON/OFF閾値（SWAY側と合わせる）----
+opt.use_theta_vr_switch = true;
 
+% 例：SWAY側のparamに合わせる（あなたのparamに合わせて変更）
+opt.theta_on  = deg2rad(8);   % 例: deg2rad(6)
+opt.theta_off = deg2rad(5);   % 例: deg2rad(4)
+
+opt.vr_on  = 0.2;               % 例: 0.25 [m/s]
+opt.vr_off = 0.1;               % 例: 0.15 [m/s]
 % ---------- 許容角 ----------
 theta_max = deg2rad(15);
 
