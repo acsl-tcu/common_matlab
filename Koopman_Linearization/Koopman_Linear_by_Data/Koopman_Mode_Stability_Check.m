@@ -28,6 +28,7 @@ load("koopman_common_z_.mat");
 [V, D] = eig(est.A);
 % 許容誤差
 tol = 1e-6;
+% tol = max(size(est.A))*eps(norm(est.A));
 n=size(est.A,1);
 Mc = ctrb(est.A, est.B);
 rank_Mc=rank(Mc);
@@ -47,7 +48,6 @@ for k = 1:size(est.A,1)
     % vk を可制御性空間に射影
     proj = Mc * (Mc \ vk);
     err = norm(vk - proj);
-
     if err < tol
         fprintf('[%2d]固有値 λ = %.4f は可制御\n',k, lambda);
         if abs(lambda) >= 1
