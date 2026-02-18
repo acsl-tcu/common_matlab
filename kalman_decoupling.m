@@ -98,6 +98,79 @@ F = T_inv\est.A*T_inv;
 G = T_inv\est.B;
 H = est.C*T_inv;
 
+%% 26次元システムのカルマン分解に基づく固有値分布プロット
+
+% 1. 各部分空間の次元（状態数）を確認
+na = size(Xa, 2);
+nb = size(Xb, 2);
+nc = size(Xc, 2);
+nd = size(Xd, 2);
+
+% 2. 変換後行列 F から各ブロックの固有値を抽出
+% インデックスの累積和を用いて安全に切り出し
+eigs_a = []; eigs_b = []; eigs_c = []; eigs_d = [];
+
+if na > 0, eigs_a = eig(F(1:na, 1:na)); end
+if nb > 0, eigs_b = eig(F(na+1 : na+nb, na+1 : na+nb)); end
+if nc > 0, eigs_c = eig(F(na+nb+1 : na+nb+nc, na+nb+1 : na+nb+nc)); end
+if nd > 0, eigs_d = eig(F(na+nb+nc+1 : end, na+nb+nc+1 : end)); end
+
+% 3. プロットの作成
+figure('Color', 'w', 'Name', 'カルマン分解 固有値解析');
+hold on; grid on;
+
+% 安定境界（単位円）の描画
+theta = linspace(0, 2*pi, 300);
+plot(cos(theta), sin(theta), 'k:', 'LineWidth', 1, 'HandleVisibility', 'off');
+
+% プロット設定用データ（データ、色、マーカー、ラベル）
+plot_data = {
+    eigs_a, [1 0 0], 'o', 'Xa: 可制御・不可観測';   % 赤
+    eigs_b, [0 0 1], 's', 'Xb: 可制御・可観測';     % 青
+    eigs_c, [0 0.7 0], 'd', 'Xc: 不可制御・不可観測'; % 緑
+    eigs_d, [0.7 0 0.7], 'x', 'Xd: 不可制御・可観測'  % 紫
+};
+
+h_legend = [];
+legend_labels = {};
+
+% 各部分空間のプロット実行
+for i = 1:size(plot_data, 1)
+    current_eigs = plot_data{i,1};
+    if ~isempty(current_eigs)
+        p = plot(real(current_eigs), imag(current_eigs), ...
+            'LineStyle', 'none', ...
+            'Marker', plot_data{i,3}, ...
+            'MarkerEdgeColor', plot_data{i,2}, ...
+            'MarkerFaceColor', 'none', ...
+            'LineWidth', 1.5, ...
+            'MarkerSize', 9);
+        
+        h_legend = [h_legend, p];
+        legend_labels{end+1} = sprintf('%s (%d個)', plot_data{i,4}, length(current_eigs));
+    end
+end
+
+% 4. グラフの装飾
+title(sprintf('26次元システムのカルマン分解 固有値配置 (全%d状態)', na+nb+nc+nd));
+xlabel('実軸 (Real)');
+ylabel('虚軸 (Imaginary)');
+legend(h_legend, legend_labels, 'Location', 'northeastoutside', 'FontSize', 10);
+axis equal;
+
+% 表示範囲の自動調整（単位円＋固有値の最大値）
+all_eigs = [eigs_a; eigs_b; eigs_c; eigs_d];
+max_val = max([1.2; abs(all_eigs)]);
+xlim([-max_val*1.1, max_val*1.1]);
+ylim([-max_val*1.1, max_val*1.1]);
+
+% 中心軸の描画
+line([-max_val*1.1 max_val*1.1], [0 0], 'Color', [0.5 0.5 0.5], 'HandleVisibility', 'off');
+line([0 0], [-max_val*1.1 max_val*1.1], 'Color', [0.5 0.5 0.5], 'HandleVisibility', 'off');
+
+hold off;
+
+
 % U_uc = T(:,k+1:end);
 % contrib = abs(U_uc);
 % score = sum(contrib,2);
