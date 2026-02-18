@@ -7,7 +7,7 @@ classdef DNNMEC < handle
     %    DNN_model_filename = "DNNMEC.onnx": インポートするonnxファイルの名前
     %    次元数(12,21,24)，状態更新手法("Euler", "RK4")がファイル名に必要
     
-    %   2025/07 作成者:小関      学番:2212044
+    %   2025/07 作成者:B4小関      学番:2212044
     
     properties
         self
@@ -24,6 +24,7 @@ classdef DNNMEC < handle
         pre_input           % 前時刻の制御入力
         thrust_lim = 5      % 補償推力入力ΔT の制限値
         tau_lim = 0.5       % 補償トルク入力Δτ の制限絶対値
+        LPF                 % Low Pass Filterクラス
     end
     
     methods
@@ -55,8 +56,19 @@ classdef DNNMEC < handle
             end
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.DNNMEC_model = initialize(DNN_model, dummyInput); % モデルの初期化
+
+            if contains(DNN_model_filename, 'Euler') % 状態更新手法を動的に変更
+                obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt);
+            elseif contains(DNN_model_filename, 'RK4')
+                obj.state_renew_func = @(x_pre, pre_input, dt) obj.RK4(x_pre, pre_input, dt);
+            end
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
 
+            fc = 5; % LPFのカットオフ周波数
+            Ts = 0.025; % サンプリング周波数
+            obj.LPF = LowPassFilter(fc, Ts);
+            
+            % データ関連の初期化
             obj.result.nominal_p = zeros(3,1);
             obj.result.nominal_q = zeros(3,1);
             obj.result.nominal_v = zeros(3,1);
@@ -66,11 +78,6 @@ classdef DNNMEC < handle
             obj.result.input = zeros(self.estimator.model.dim(2),1);
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
-            if contains(DNN_model_filename, 'Euler') % 状態更新手法を動的に変更
-                obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt);
-            elseif contains(DNN_model_filename, 'RK4')
-                obj.state_renew_func = @(x_pre, pre_input, dt) obj.RK4(x_pre, pre_input, dt);
-            end
             fprintf('Model file name: %s\n', obj.DNN_model_filename);
             msg = "表示内容\n" + ...
                 "ref:px, py, pz,  NaN   est:px, py, pz,  NaN   Delta_input: T, tau_{roll}, tau_{pitch}, tau_{yaw}\n\n";
@@ -98,15 +105,14 @@ classdef DNNMEC < handle
 
             % DNNへの入力データ
             data = obj.gen_data_func(x_plant, x_nominal);
-
-            % DNN関係　閾値での制限
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
-            if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end
+            if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % DNN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>obj.tau_lim, obj.result.delta_input(4) = 0; end
-            % obj.result.delta_input(1) = 0; % ΔTだけ0
-            obj.result.delta_input = [0;0;0;0];
+
+            obj.result.delta_input = [0;0;0;0]; % 補償入力を無くしてNN-MECを入れない
+            obj.result.delta_input = obj.LPF.update(obj.result.delta_input); % 補償入力delta_uにLPFを掛ける
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
@@ -114,12 +120,16 @@ classdef DNNMEC < handle
             disp([obj.self.reference.result.state.p', NaN,  obj.self.estimator.result.state.p', NaN, obj.result.delta_input']);
         end
 
+
+
         function x_plus = Euler(obj, x_pre, pre_input, dt)
+            % 前進オイラー法による時間発展
             dx = obj.dx_func(x_pre, pre_input, obj.physical_param);
             x_plus = x_pre + dx*dt;
         end
 
         function x_plus = RK4(obj, x_pre, pre_input, dt)
+            % 4次ルンゲ・クッタ法による時間発展
             dx = @(x) obj.dx_func(x, pre_input, obj.physical_param);
 
             k1 = dx(x_pre);
@@ -129,6 +139,8 @@ classdef DNNMEC < handle
 
             x_plus = x_pre + dt/6*(k1 + 2*k2 + 2*k3 + k4);
         end
+
+
 
         function Delta_input = infer_model(obj, plant_state, nominal_state)
             % モデルの推論を行う
