@@ -395,11 +395,39 @@ end
 out.max_rxy = max(rxy_n);
 out.rxy_rms = rms(rxy_n);
 
-% envelope of S(t)
-S_raw = vsway + opt.sr * rxy_n;
-win = max(1, round(opt.env_win_sec / dt));
-out.S = S_raw;
-out.S_env = movmax(S_raw, win);
+% ---- (new) theta + vr hysteresis gate & score ----
+out.score = [];   % for plotting
+out.gate  = [];   % 0/1
+
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+    % required thresholds
+    th_on  = opt.theta_on;
+    th_off = opt.theta_off;
+    vr_on  = opt.vr_on;
+    vr_off = opt.vr_off;
+
+    % score (dimensionless): how close to ON threshold
+    out.score = max(theta./max(1e-9, th_on), vsway./max(1e-9, vr_on));
+
+    % hysteresis gate:
+    % ON condition  : (theta >= th_on)  OR (vsway >= vr_on)
+    % OFF condition : (theta <= th_off) AND (vsway <= vr_off)
+    on_cond  = (theta >= th_on) | (vsway >= vr_on);
+    off_cond = (theta <= th_off) & (vsway <= vr_off);
+
+    gate = false(size(t));
+    g = false; % current state
+    for k = 1:numel(t)
+        if ~g
+            if on_cond(k), g = true; end
+        else
+            if off_cond(k), g = false; end
+        end
+        gate(k) = g;
+    end
+    out.gate = double(gate); % 0/1
+end
+
 % ---- additional decision-rate metrics (only if theta/vr thresholds exist) ----
 has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
     && isfield(opt,'theta_on') && isfield(opt,'theta_off') ...
@@ -464,6 +492,33 @@ h1 = plot(no.t, rad2deg(no.theta), 'DisplayName','OFF'); hold on;
 h2 = plot(on.t, rad2deg(on.theta), 'DisplayName','ON');
 h3 = yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
 
+hlist = [h1 h2 h3];
+
+% 閾値線（任意）
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+    if isfield(opt,'theta_on') && ~isempty(opt.theta_on)
+        h4 = yline(rad2deg(opt.theta_on), ':', 'DisplayName','\theta_{on}');
+        hlist(end+1) = h4;
+    end
+    if isfield(opt,'theta_off') && ~isempty(opt.theta_off)
+        h5 = yline(rad2deg(opt.theta_off), ':', 'DisplayName','\theta_{off}');
+        hlist(end+1) = h5;
+    end
+end
+
+grid on; xlabel('t [s]'); ylabel('\theta [deg]');
+title('Swing angle');
+
+% ★ 背景塗り（gate==1）
+% ax = gca;
+% if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+%     if ~isempty(no.gate), shade_gate_intervals(ax, no.t, no.gate, 0.08); end
+%     if ~isempty(on.gate), shade_gate_intervals(ax, on.t, on.gate, 0.08); end
+% end
+% 
+legend(hlist, 'Location','best');
+
+
 % danger線（theta_max - theta_gate）
 if isfield(opt,'theta_max') && isfield(opt,'theta_gate') ...
         && isfinite(opt.theta_max) && isfinite(opt.theta_gate)
@@ -471,29 +526,54 @@ if isfield(opt,'theta_max') && isfield(opt,'theta_gate') ...
 end
 
 % ★揺れ判定（theta_on/off）
-if has_theta_vr
-    yline(rad2deg(opt.theta_on),  '--', 'DisplayName','theta\_on');
-    yline(rad2deg(opt.theta_off), ':',  'DisplayName','theta\_off');
-end
+% if has_theta_vr
+%     yline(rad2deg(opt.theta_on),  '--', 'DisplayName','theta\_on');
+%     yline(rad2deg(opt.theta_off), ':',  'DisplayName','theta\_off');
+% end
 
-grid on; xlabel('t (aligned) [s]'); ylabel('\theta [deg]');
+grid on; xlabel('t [s]'); ylabel('\theta [deg]');
 legend('Location','best');
 title('Swing angle');
 
 
 
-% 2) vsway overlay: ||v_{r,xy}|| [m/s]
+% 2) vsway overlay (||v_{r,xy}||)
 figure;
 h1 = plot(no.t, no.vsway, 'DisplayName','OFF'); hold on;
 h2 = plot(on.t, on.vsway, 'DisplayName','ON');
+hlist = [h1 h2];
 
-% ★ switching thresholds: vr_on/off
-if has_theta_vr
-    yline(opt.vr_on,  '--', 'DisplayName','vr\_on');
-    yline(opt.vr_off, ':',  'DisplayName','vr\_off');
+% 閾値線（任意）
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+    if isfield(opt,'vr_on') && ~isempty(opt.vr_on)
+        h3 = yline(opt.vr_on, ':', 'DisplayName','v_{r,on}');
+        hlist(end+1) = h3;
+    end
+    if isfield(opt,'vr_off') && ~isempty(opt.vr_off)
+        h4 = yline(opt.vr_off, ':', 'DisplayName','v_{r,off}');
+        hlist(end+1) = h4;
+    end
 end
 
-grid on; xlabel('t (aligned) [s]'); ylabel('||v_{r,xy}|| [m/s]');
+grid on; xlabel('t [s]'); ylabel('||v_{r,xy}|| [m/s]');
+title('Relative horizontal speed');
+
+% ★ 背景塗り（gate==1）
+% ax = gca;
+% if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+%     if ~isempty(no.gate), shade_gate_intervals(ax, no.t, no.gate, 0.08); end
+%     if ~isempty(on.gate), shade_gate_intervals(ax, on.t, on.gate, 0.08); end
+% end
+
+legend(hlist, 'Location','best');
+
+% ★ switching thresholds: vr_on/off
+% if has_theta_vr
+%     yline(opt.vr_on,  '--', 'DisplayName','vr\_on');
+%     yline(opt.vr_off, ':',  'DisplayName','vr\_off');
+% end
+
+grid on; xlabel('t [s]'); ylabel('||v_{r,xy}|| [m/s]');
 legend('show','Location','best');
 title('Relative horizontal speed');
 
@@ -504,18 +584,41 @@ E1 = cumtrapz(on.t, on.vsway.^2);
 figure;
 plot(no.t, E0, 'DisplayName','OFF'); hold on;
 plot(on.t, E1, 'DisplayName','ON');
-grid on; xlabel('t (aligned) [s]'); ylabel('\int ||v_{r,xy}||^2 dt');
+grid on; xlabel('t [s]'); ylabel('\int ||v_{r,xy}||^2 dt');
 legend('show','Location','best');
-title('Sway energy (cumulative)');
+title('Sway energy');
 
 
-% 4) S envelope overlay
-figure;
-plot(no.t, no.S_env, 'DisplayName','OFF'); hold on;
-plot(on.t, on.S_env, 'DisplayName','ON');
-grid on; xlabel('t (aligned) [s]'); ylabel('S envelope');
-legend('show','Location','best');
-title('S envelope (movmax)');
+% 4) score & gate (switch visualization)
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
+        && ~isempty(no.score) && ~isempty(on.score)
+
+    figure;
+
+    yyaxis left
+    h1 = plot(no.t, no.score, 'DisplayName','OFF score'); hold on;
+    h2 = plot(on.t, on.score, 'DisplayName','ON score');
+    h3 = yline(1.0,'--','DisplayName','score=1 (ON thr)');
+    ylabel('score = max(\theta/\theta_{on}, v_r/v_{r,on})');
+    grid on;
+
+    % 背景塗り（左軸に対して）
+    ax = gca;
+    shade_gate_intervals(ax, no.t, no.gate, 0.06);
+    shade_gate_intervals(ax, on.t, on.gate, 0.06);
+
+    yyaxis right
+    g1 = stairs(no.t, no.gate, 'DisplayName','OFF gate'); hold on;
+    g2 = stairs(on.t, on.gate, 'DisplayName','ON gate');
+    ylim([-0.1 1.1]);
+    ylabel('gate (0/1)');
+
+    xlabel('t (aligned) [s]');
+    legend([h1 h2 h3 g1 g2], 'Location','best');
+    title('Switch score & gate');
+end
+
+
 
 
 % 5) phase portrait (theta vs theta_dot) [deg, deg/s]
@@ -541,44 +644,93 @@ has_theta_vr = isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch ...
 
 % 1) θ
 figure;
-plot(no.t, rad2deg(no.theta), 'DisplayName','data'); hold on;
-yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
+h1 = plot(no.t, rad2deg(no.theta), 'DisplayName','data'); hold on;
+h2 = yline(rad2deg(theta_max),'--', 'DisplayName','\theta_{max}');
 
-if isfield(opt,'theta_gate') && ~isempty(opt.theta_gate) && isfinite(opt.theta_gate)
-    yline(rad2deg(theta_max - opt.theta_gate), ':', 'DisplayName','danger thresh');
-end
-if has_theta_vr
-    yline(rad2deg(opt.theta_on),  '--', 'DisplayName','\theta_{on}');
-    yline(rad2deg(opt.theta_off), ':',  'DisplayName','\theta_{off}');
+hlist = [h1 h2];
+
+% 閾値線（任意）
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+    if isfield(opt,'theta_on') && ~isempty(opt.theta_on)
+        h3 = yline(rad2deg(opt.theta_on), ':', 'DisplayName','\theta_{on}');
+        hlist(end+1) = h3;
+    end
+    if isfield(opt,'theta_off') && ~isempty(opt.theta_off)
+        h4 = yline(rad2deg(opt.theta_off), ':', 'DisplayName','\theta_{off}');
+        hlist(end+1) = h4;
+    end
 end
 
-grid on; xlabel('t (aligned) [s]'); ylabel('\theta [deg]');
-legend('show','Location','best');
+grid on; xlabel('t [s]'); ylabel('\theta [deg]');
 title('Swing angle');
 
-% 2) vsway
+% ★ 背景塗り（gate==1）
+% ax = gca;
+% if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch && ~isempty(no.gate)
+%     shade_gate_intervals(ax, no.t, no.gate, 0.08);
+% end
+
+legend(hlist, 'Location','best');
+
+% 2) vsway (||v_{r,xy}||)
 figure;
-plot(no.t, no.vsway, 'DisplayName','data'); hold on;
-if has_theta_vr
-    yline(opt.vr_on,  '--', 'DisplayName','vr_{on}');
-    yline(opt.vr_off, ':',  'DisplayName','vr_{off}');
+h1 = plot(no.t, no.vsway, 'DisplayName','data'); hold on;
+hlist = h1;
+
+% 閾値線（任意）
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch
+    if isfield(opt,'vr_on') && ~isempty(opt.vr_on)
+        h2 = yline(opt.vr_on, ':', 'DisplayName','v_{r,on}');
+        hlist(end+1) = h2;
+    end
+    if isfield(opt,'vr_off') && ~isempty(opt.vr_off)
+        h3 = yline(opt.vr_off, ':', 'DisplayName','v_{r,off}');
+        hlist(end+1) = h3;
+    end
 end
-grid on; xlabel('t (aligned) [s]'); ylabel('||v_{r,xy}|| [m/s]');
-legend('show','Location','best');
+
+grid on; xlabel('t [s]'); ylabel('||v_{r,xy}|| [m/s]');
 title('Relative horizontal speed');
+
+% ★ 背景塗り（gate==1）
+% ax = gca;
+% if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch && ~isempty(no.gate)
+%     shade_gate_intervals(ax, no.t, no.gate, 0.08);
+% end
+
+legend(hlist, 'Location','best');
+
 
 % 3) Energy cumulative
 E0 = cumtrapz(no.t, no.vsway.^2);
 figure;
 plot(no.t, E0, 'DisplayName','data');
-grid on; xlabel('t (aligned) [s]'); ylabel('\int ||v_{r,xy}||^2 dt');
+grid on; xlabel('t [s]'); ylabel('\int ||v_{r,xy}||^2 dt');
 title('Sway energy (cumulative)');
 
-% 4) S envelope
-figure;
-plot(no.t, no.S_env, 'DisplayName','data');
-grid on; xlabel('t (aligned) [s]'); ylabel('S envelope');
-title('S envelope (movmax)');
+% (extra) score & gate
+if isfield(opt,'use_theta_vr_switch') && opt.use_theta_vr_switch && ~isempty(no.score)
+    figure;
+
+    yyaxis left
+    h1 = plot(no.t, no.score, 'DisplayName','score'); hold on;
+    h2 = yline(1.0,'--','DisplayName','score=1 (ON thr)');
+    ylabel('score'); grid on;
+
+    ax = gca;
+    if ~isempty(no.gate)
+        shade_gate_intervals(ax, no.t, no.gate, 0.06);
+    end
+
+    yyaxis right
+    g1 = stairs(no.t, no.gate, 'DisplayName','gate');
+    ylim([-0.1 1.1]); ylabel('gate (0/1)');
+
+    xlabel('t [s]');
+    legend([h1 h2 g1], 'Location','best');
+    title('Switch score & gate');
+end
+
 
 % 5) phase portrait
 dt0 = median(diff(no.t)); if ~isfinite(dt0)||dt0<=0, dt0=0.025; end
@@ -600,4 +752,44 @@ if isempty(st)
 end
 len = ed - st + 1;
 dur = max(len) * dt;
+end
+function shade_gate_intervals(ax, t, gate, alpha)
+% shade_gate_intervals: gate==1 の区間を背景で薄く塗る
+% ax: axes handle
+% t : time vector
+% gate: 0/1 or logical
+% alpha: transparency (e.g., 0.08)
+
+if nargin < 4 || isempty(alpha), alpha = 0.08; end
+if isempty(gate) || isempty(t), return; end
+
+gate = gate(:) > 0;
+t = t(:);
+
+% 連続区間 [t_start, t_end] を抽出
+d = diff([false; gate; false]);
+st = find(d == 1);
+ed = find(d == -1) - 1;
+if isempty(st), return; end
+
+% 現在の ylim を使って長方形を描く（全高さ）
+yl = ylim(ax);
+
+hold(ax, 'on');
+for i = 1:numel(st)
+    xs = [t(st(i)) t(ed(i)) t(ed(i)) t(st(i))];
+    ys = [yl(1)    yl(1)    yl(2)    yl(2)];
+    p = patch(ax, xs, ys, [0 0 0], ...
+        'FaceAlpha', alpha, 'EdgeColor', 'none', ...
+        'HandleVisibility', 'off'); %#ok<NASGU>
+end
+
+% 塗りを最背面へ
+ch = ax.Children;
+% patch を下に回す（安全のため全 patch を対象）
+for k = 1:numel(ch)
+    if isa(ch(k),'matlab.graphics.primitive.Patch')
+        uistack(ch(k), 'bottom');
+    end
+end
 end

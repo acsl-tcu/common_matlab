@@ -13,7 +13,7 @@ fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("loadmass",0.14);%0.0968);%0.968
-agent.parameter.set("cableL",2.0);%0.0968);%0.968
+agent.parameter.set("cableL",1.0);%0.0968);%0.968
 initial_state.q  = [0; 0; 0];
 initial_state.w  = [0; 0; 0];
 initial_state.vL = [0; 0; 0];
@@ -49,13 +49,13 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[3;3;4],"radius",[0,0,0]},4})); %円系軌道
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3], "p1",[2;2;3], "t_go",3.0, "t_hold",2.0, "t_back",3.0},4})); %P2P
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",6,"center",[0;0;3],"radius",[1,1,0]},4})); % triangle
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;1.5], "p1",[2;2;1.5], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
 % agent.reference.set_function_class("swaymod", SWAY_REF_VEL(agent, SwayRefMod_Param(dt))); %揺れ抑制(速度版)
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3,"te",5));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
@@ -77,9 +77,12 @@ app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-% app.logger.plot({1, "v", "er"}, "phase","tf", "fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
 % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-% app.logger.plot({1, "input", ""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
+% app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
 show_suspended_load_animation(app);
 end
 
@@ -92,9 +95,7 @@ end
 mov = DRAW_SUSPENDED_LOAD(app.logger, ...
     "target", 1, ...
     "self", app.agent(1));
-mov.animation(app.logger, ...
-    "target", 1, ...
-    "self", app.agent(1));%表示だけ用
+mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
 
 % mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
 
