@@ -277,18 +277,18 @@ classdef SWAY_REF_MOD < handle
                 obj.last_print_time = t_now;
             end
 
-            % if obj.sway_on == 1
-            %     if ~isfield(obj.param,'acc_keep') || isempty(obj.param.acc_keep)
-            %         obj.param.acc_keep = 0.5;  % 0.6〜0.9 推奨（小さいほど揺れ減/遅れ増）
-            %     end
-            %     if numel(xd_cmd) >= 10
-            %         xd_cmd(9:10) = obj.param.acc_keep * xd_cmd(9:10);
-            %     end
-            % 
-            %     if numel(xd_cmd) >= 14, xd_cmd(13:14) = 0; end
-            %     if numel(xd_cmd) >= 18, xd_cmd(17:18) = 0; end
-            %     if numel(xd_cmd) >= 22, xd_cmd(21:22) = 0; end
-            % end
+            if obj.sway_on == 1
+                if ~isfield(obj.param,'acc_keep') || isempty(obj.param.acc_keep)
+                    obj.param.acc_keep = 0.4;  % 0.6〜0.9 推奨（小さいほど揺れ減/遅れ増）
+                end
+                if numel(xd_cmd) >= 10
+                    xd_cmd(9:10) = obj.param.acc_keep * xd_cmd(9:10);
+                end
+
+                if numel(xd_cmd) >= 14, xd_cmd(13:14) = 0; end
+                if numel(xd_cmd) >= 18, xd_cmd(17:18) = 0; end
+                if numel(xd_cmd) >= 22, xd_cmd(21:22) = 0; end
+            end
 
 
             %--------------------------------------------------------------

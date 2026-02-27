@@ -13,7 +13,7 @@ fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("loadmass",0.14);%0.0968);%0.968
-agent.parameter.set("cableL",1.0);%0.0968);%0.968
+agent.parameter.set("cableL",2.0);%0.0968);%0.968
 initial_state.q  = [0; 0; 0];
 initial_state.w  = [0; 0; 0];
 initial_state.vL = [0; 0; 0];
@@ -50,12 +50,11 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;1.5], "p1",[2;2;1.5], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
-agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
-% agent.reference.set_function_class("swaymod", SWAY_REF_VEL(agent, SwayRefMod_Param(dt))); %揺れ抑制(速度版)
+% agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
@@ -64,8 +63,8 @@ agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
-% agent.cha_allocation.f.reference =["timevarying","sload"];
-agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
+agent.cha_allocation.f.reference =["timevarying","sload"];
+% agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
 agent.cha_allocation.l.reference =["landing","sload"];
 
 %%

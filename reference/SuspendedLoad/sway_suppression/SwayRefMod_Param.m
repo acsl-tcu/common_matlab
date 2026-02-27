@@ -45,7 +45,7 @@ p.tau_off = 0.50;   % 0.3〜1.0 s 程度でOK
 
 % ---- 速度目標への適用（任意）----（今回は使用しない）
 p.apply_to_vref = true; % 基本falseでOK（まず位置だけスムーズに）
-p.kv_vref = 0.8; %0.6 %0.3~1.0 % apply_to_vref=trueにするなら小さく（例0.2）0.8
+p.kv_vref = 0.6; %0.6 %0.3~1.0 % apply_to_vref=trueにするなら小さく（例0.2）0.8
 p.dv_max  = 0.4; %0.6 %0.3~0.8 0.25
 p.dv_lpf_tau= 0.05;  % 0.03〜0.08
 p.vr_track_tau = 0.4;        % 追従(低周波)分離用 [s] 0.3〜0.8
