@@ -28,11 +28,6 @@ agent.input_transform=INPUTTRANSFORM_AUTOTUNE(agent,InputTransform_Thrust2Thrott
 run("ExpBase");
 agent.cha_allocation.reference = "timevarying";
 
-
-% agent.input_transform.origin = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-% agent.input_transform.autotune = INPUTTRANSFORM_AUTOTUNE(agent,1); %mode選択（0:通常、1:オフセット、2:ゲイン自動取得）
-% agent.cha_allocation.input_transform=["origin","autotune"];
-
 function post(app)
 % app.logger.plot({1, "p", "ers"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
