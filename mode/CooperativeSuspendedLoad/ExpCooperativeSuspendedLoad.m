@@ -9,7 +9,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 
 %% Motive接続と剛体情報
-motive = Connector_Natnet('192.168.1.4');
+motive = Connector_Natnet('192.168.100.43'); % connect to Motive 405
 motive.getData([], []);
 rigid_num = motive.result.rigid_num; % 奇数: 牽引物含む協調、偶数: 単純に複数単機
 
