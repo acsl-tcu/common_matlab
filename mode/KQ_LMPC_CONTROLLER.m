@@ -326,7 +326,8 @@ classdef KQ_LMPC_CONTROLLER< handle
 
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.deltau = 0.1 * abs(obj.result.input) .* (2 * rand(4, 1) - 1);
-            obj.result.input=obj.result.input+ obj.result.deltau;
+            obj.result.input=obj.result.input;
+            % obj.result.input=obj.result.input+ obj.result.deltau;
             % if ~isfield(obj.result, 'd_est'), obj.result.d_est = zeros(4,1); obj.result.x_last = obj.state.current; end
             % pred_error = obj.state.current - (A_d * obj.result.x_last + B_d * obj.input.pre_u);
             % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
