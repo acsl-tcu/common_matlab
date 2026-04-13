@@ -40,6 +40,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         sw
         drf
         act
+        m,n
     end
 
     methods
@@ -59,7 +60,8 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.modelf = obj.self.plant.method;
             obj.P = obj.self.parameter.get(); % ドローンのパラメータ（質量，ロータ間距離，慣性モーメントなど）
             obj.N = param.particle_num; % サンプル数
-            obj.H = param.H; % ホライズン
+            obj.H = param.H;
+            obj.m=3;obj.n=2;% ホライズン
             % 重みの配列サイズ変換
             obj.weight = param.weight; % 重みを変数に保存
             obj.weight.stagestate = blkdiag(obj.weight.P, obj.weight.Q, obj.weight.V, obj.weight.W); % blkdiagで配列同士を結合
@@ -85,15 +87,16 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             % obj.input.mu = param.ref_input;
             % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
             obj.koopman = param.koopman;
-            eigA=eig(obj.koopman.A);
-            eiga=abs(eigA);
-            maxa = max(eiga);
-            disp(maxa);
+            % eigA=eig(obj.koopman.A);
+            % eiga=abs(eigA);
+            % maxa = max(eiga);
+            % disp(maxa);
            
             C = repmat({obj.koopman.C}, 1, obj.H);
             % obj.koopman.A(7:12,13:end) = 0.95 * obj.koopman.A(7:12,13:end);  % 0.6 可再调
             % obj.koopman.B(7:12,:)      = 1.05 * obj.koopman.B(7:12,:);      % 小步放大输入施力
             obj.koopman.ExC = blkdiag(C{:});
+           
             [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
             %%Koopman予測に基づく拡張行列
             obj.flag.A = 0;
@@ -109,7 +112,12 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
         end
         %-- main()的な
         function result = do(obj,varargin)
-            obj.result2input();
+            persistent firstRun
+            if isempty(firstRun)
+                firstRun = true;
+                result = obj.result;
+                return
+            end
             time = varargin{1};
             phase = varargin{2};
             obj.param.t = time.t;
@@ -117,6 +125,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.current_state = obj.self.estimator.result.state.get(); % 現在状態の取得
             obj.state.current = obj.param.F([obj.current_state; obj.input.pre_u(:,1,1)]);
             obj.state.ref = obj.generate_reference(); % vararginのrefをHorizonに拡張
+            obj.param.tau = obj.param.tau + obj.param.dt;
             result= obj.controller_KMC(varargin);
             obj.result.kmpc = obj.result.input;
             u_kmpc_raw = obj.result.input;
@@ -224,6 +233,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.result.bestcost = state_error' * Q_lift * state_error + u' * R * u; 
         end
         function QP_MPC(obj)
+            if obj.param.code == '26'
             n = size(obj.state.current,1); % number of observables
             %qp def
             Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
@@ -257,7 +267,65 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             obj.input.pre_u = obj.result.input; 
             obj.result.pre_u = obj.input.pre_u;
             % obj.result.bestcost=obj.input.Bestcost_now ;
-        end
+            %%
+            elseif obj.param.code == '71'         
+           n = 71; %
+           z_current = obj.state.current;
+           Xr = zeros(n * obj.param.H, 1);
+           for k = 1:obj.param.H
+               xref = obj.state.ref(1:12, k);
+               z_ref_k = obj.klift(xref, obj.m, obj.n);
+               Xr((k-1)*n + 1 : k*n) = [z_ref_k];
+           end
+           w_vec = zeros(n, 1);    
+           w_vec(1:12) = diag(obj.weight.stagestate);
+           w_vec(13:26) = 0.0; 
+           idx_so3 = 26;
+           if obj.m >= 1, w_vec(idx_so3 + (1:3)) = diag(obj.weight.P); end
+           if obj.m >= 2, w_vec(idx_so3 + (4:6)) = diag(obj.weight.P) * 0.7; end
+           if obj.m >= 3, w_vec(idx_so3 + (7:9)) = diag(obj.weight.P) * 0.3; end
+           v_start = idx_so3 + 3*obj.m;
+           if obj.m >= 1, w_vec(v_start + (1:3)) = diag(obj.weight.V); end
+           h_rot_start = idx_so3 + 6*obj.m + 1;
+           w_vec(h_rot_start : n) = mean(diag(obj.weight.Q));
+           Q_stage = diag(w_vec);
+           Q_terminal = 3 * Q_stage;
+           Q_bar  = blkdiag(kron(eye(obj.param.H-1), Q_stage), Q_terminal);
+           R_bar  = kron(eye(obj.param.H), obj.weight.input);
+           RP_bar = kron(eye(obj.param.H), obj.weight.preinputdif);
+           Ur = reshape(obj.state.ref(13:16, :), [], 1);
+           Up = repmat(obj.input.pre_u(:, 1), obj.param.H, 1);
+           [obj.quadH, obj.quadf] = obj.gen_Hf(obj.koopman.ExA, obj.koopman.ExB, z_current, ...
+               Q_bar, R_bar, RP_bar, Xr, Ur, Up);
+           obj.quadH = (obj.quadH + obj.quadH') / 2 + eye(size(obj.quadH))*1e-6;
+           lb = repmat(obj.param.input_min, obj.param.H, 1);
+           ub = repmat(obj.param.input_max, obj.param.H, 1);
+           [var, fval, eflag] = quadprog(obj.quadH, obj.quadf, [], [], [], [], lb, ub, [], obj.options);
+           if eflag == 1
+               obj.result.input = var(1:4, 1);
+               obj.result.bestcost = [fval; 0];
+           end
+           obj.result.var = var;
+            end
+            % u_mpc = obj.result.input;
+            % f_cmd = u_mpc(1);
+            % tau_mpc = u_mpc(2:4);
+            % w_curr = obj.current_state(10:12); 
+            % J = obj.self.parameter.jx; 
+            % tau_gyro = cross(w_curr, J * w_curr);
+            % tau_cmd = tau_mpc + tau_gyro;
+            % u_final = [f_cmd; tau_cmd];
+            % obj.result.input = max(min(u_final, obj.param.input_max), obj.param.input_min);
+            obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
+            obj.result.eflag = eflag;
+            obj.result.var = var;
+            obj.result.Bestcost_pre = obj.result.bestcost;
+            obj.result.bestcost = [fval;0];
+            obj.result.kqlmpc = obj.result.input;
+            obj.input.pre_u = obj.result.input;
+            obj.result.pre_u = obj.input.pre_u;
+          end
+        
        
        
         function [H,f] = gen_Hf(obj,A,B,x0,Q,R,Rp,Xr,Ur,Up)
@@ -276,10 +344,7 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
             f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
 
         end
-        function result2input(obj)
-            obj.result.pre_u = obj.input.u;
-            obj.input.pre_u = obj.result.pre_u;
-        end
+        
         function processStep(obj,resumping_num,s,e,STLOK)
             obj.flag.resampling_flag = 0;
             U = obj.generate_input(resumping_num,STLOK);
@@ -666,89 +731,108 @@ classdef MPC_CONTROLLER_KMC_kyo_guiexperiment< handle
 
         %% 目標軌道生成
         function [xr] = generate_reference(obj)
-            xr = zeros(obj.param.total_size, obj.H);    % initialize
-            RefTime = obj.self.reference.time_var.func; % 時間関数の取得
+            xr = zeros(obj.param.total_size, obj.H);
+            RefTime = obj.self.reference.time_var.func;
             g = 9.81;
-            prev_euler = zeros(3,1);
+            if ~isfield(obj.param, 'tau') || isempty(obj.param.tau)
+                obj.param.tau = 0; 
+            end
             for h = 0:obj.H-1
-                t   = obj.param.t + obj.param.dt * h;    % reference生成の時刻をずらす
-                ref = RefTime(t);                        % 20x1             
-                acc = ref(9:11);                         % ddx, ddy, ddz
-                yaw = ref(4);                            % yaw
-                s  = acc + [0;0;g];
-                b3 = s / norm(s);
+                t = obj.param.tau + obj.param.dt * (h);
+                ref = RefTime(t);
+                acc = ref(9:11);
+                vel = ref(5:7);
+                jerk = ref(13:15);
+                yaw = 0;
+                dyaw = 0;
+                s = acc + [0;0;g];
+                norm_s = norm(s);
+                if norm_s < 1e-6
+                    b3 = [0; 0; 1];
+                else
+                    b3 = s / norm_s;
+                end
                 b1c = [cos(yaw); sin(yaw); 0];
                 v = cross(b3, b1c);
                 if norm(v) < 1e-6
-                    if abs(b3(3))<0.9, b1=[0;0;1]; else, b1=[1;0;0]; end
-                    b2 = cross(b3,b1); b2=b2/norm(b2); b1=cross(b2,b3);
+                    if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
+                    b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
                 else
-                    b2 = v/norm(v);  b1 = cross(b2,b3);
+                    b2 = v/norm(v);
                 end
+                b1 = cross(b2, b3);
                 Rd = [b1,b2,b3];
-                phi   = atan2(Rd(3,2), Rd(3,3));
+                phi = atan2(Rd(3,2), Rd(3,3));
                 theta = asin(-Rd(3,1));
-                psi   = atan2(Rd(2,1), Rd(1,1));
+                psi = atan2(Rd(2,1), Rd(1,1));
                 euler = [phi;theta;psi];
-                if h == 0 && obj.H > 1 
-                    t_next   = t + obj.param.dt;
-                    ref_next = RefTime(t_next);
-                    acc_n    = ref_next(9:11);
-                    yaw_n    = ref_next(4);
-                    s_n  = acc_n + [0;0;g];
-                    b3_n = s_n / norm(s_n);
-                    b1c_n = [cos(yaw_n); sin(yaw_n); 0];
-                    v_n = cross(b3_n, b1c_n);
-                    if norm(v_n) < 1e-6
-                        if abs(b3_n(3))<0.9, b1_n=[0;0;1]; else, b1_n=[1;0;0]; end
-                        b2_n = cross(b3_n,b1_n); b2_n=b2_n/norm(b2_n); b1_n=cross(b2_n,b3_n);
-                    else
-                        b2_n = v_n/norm(v_n);  b1_n = cross(b2_n,b3_n);
-                    end
-                    Rd_n = [b1_n,b2_n,b3_n];
-                    phi_n   = atan2(Rd_n(3,2), Rd_n(3,3));
-                    theta_n = asin(-Rd_n(3,1));
-                    psi_n   = atan2(Rd_n(2,1), Rd_n(1,1));
-                    euler_n = [phi_n;theta_n;psi_n];
-                    euler_dot = (euler_n - euler) / obj.param.dt;  
-                    euler_dot(3) = ref(8);                         
-                elseif h == 0 && obj.H == 1
-                    euler_dot = [0;0;ref(8)];
+                if norm_s < 1e-6
+                    w = [0; 0; 0];
                 else
-                    euler_dot = (euler - prev_euler) / obj.param.dt;
-                    euler_dot(3) = ref(8);                         
+                    hw = (jerk - dot(b3, jerk) * b3) / norm_s;
+                    w_x = -dot(hw, b2);
+                    w_y = dot(hw, b1);
+                    w_z = dot(b3, [0;0;1]) * dyaw;
+                    w = [w_x; w_y; w_z];
                 end
-                prev_euler = euler;
-                T = [ 1, 0, -sin(theta);
-                    0, cos(phi),  cos(theta)*sin(phi);
-                    0, -sin(phi), cos(theta)*cos(phi) ];
-                w = T * euler_dot;
-                xr(1:3,   h+1) = ref(1:3);              
-                xr(7:9,   h+1) = ref(5:7);             
-                xr(4:6,   h+1) = euler;                 
-                xr(10:12, h+1) = w;                    
-                xr(13:16, h+1) = obj.result.input(:,1); 
+                xr(1:3, h+1) = ref(1:3);
+                xr(7:9, h+1) = ref(5:7);
+                xr(4:6, h+1) = euler;
+                xr(10:12, h+1) = w;
+                xr(13, h+1) = norm_s * obj.param.m;
+                xr(14:16, h+1) = 0;
             end
         end
         
-        function show(obj)
+       function show(obj)
             % clc;
             % est_print = obj.self.estimator.result.state;
             est_print = obj.self.estimator.result.state;
             fprintf("==================================================================\n")
-            fprintf("==================================================================\n")
+            fprintf("=================================================================\n")
             fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \n",...
                 est_print.p(1), est_print.p(2), est_print.p(3),...
                 est_print.v(1), est_print.v(2), est_print.v(3),...
                 est_print.q(1), est_print.q(2), est_print.q(3)); % s:state 現在状態
             fprintf("pr: %f %f %f \t vr: %f %f %f \t qr: %f %f %f \n", ...
-              obj.state.ref(1,1), obj.state.ref(2,1), obj.state.ref(3,1),...
-              obj.state.ref(7,1), obj.state.ref(8,1), obj.state.ref(9,1),...
-              0, 0, obj.state.ref(6,1))                             % r:reference 目標状態
+                obj.state.ref(1,1), obj.state.ref(2,1), obj.state.ref(3,1),...
+                obj.state.ref(7,1), obj.state.ref(8,1), obj.state.ref(9,1),...
+                0, 0, obj.state.ref(6,1))                             % r:reference 目標状態
             fprintf("t: %f \t input: %f %f %f %f \t J: %f \t sigma: %f", ...
-              obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
+                obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
             fprintf("\n");
+       end
+   function X_lifted = klift(obj, x, m, n)
+        X_lifted = obj.param.F([x;obj.input.pre_u(:,1,1)]);
+    end
+   
+       function S = skew_func(obj,v)
+            S = [0 ,-v(3) ,v(2); v(3), 0 ,-v(1); -v(2), v(1) ,0];
+       end
+       function phi = rotm2vec(obj, R)  
+        tr = trace(R);
+        theta = acos(max(min((tr - 1) / 2, 1), -1));
+        
+        if theta < 1e-6
+            phi = 0.5 * [R(3,2) - R(2,3); R(1,3) - R(3,1); R(2,1) - R(1,2)];
+        else    
+            phi = (theta / (2 * sin(theta))) * [R(3,2) - R(2,3); R(1,3) - R(3,1); R(2,1) - R(1,2)];
         end
+    end
+
+    function R = vec2rotm(obj, phi)      
+        theta = norm(phi);
+        if theta < 1e-6            
+            hat_phi = obj.skew_func(phi);
+            R = eye(3) + hat_phi + 0.5 * hat_phi^2;
+        else          
+            axis = phi / theta;
+            hat_axis = obj.skew_func(axis);
+            R = eye(3) + sin(theta) * hat_axis + (1 - cos(theta)) * hat_axis^2;
+        end
+        [U, ~, V] = svd(R);
+        R = U * V';
+    end
         % function [eval] = objectivefmincon(obj,x)   % obj.~とする
         %     % x(4*(1:obj.H)) = 0;
         %     U = reshape(x,4,[]);

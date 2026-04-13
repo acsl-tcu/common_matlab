@@ -11,19 +11,26 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     Controller.dt = 0.025;          % MPCステップ幅
     Controller.H = 12;              %predict horizon
     Controller.particle_num = 50000;%mento carlo number of samples
+    Controller.dt = 0.02;
+    Controller.H = 12;
+    Controller.particle_num = 50000;
     Controller.input.Maxinput = 1.5;
     Controller.input.Constinput = 10;
     Controller.input.range = [[10;30;30;10], [0.1;0.1;0.1;0.1]]; % max min
+    Controller.input.range = [[10;30;30;10], [0.1;0.1;0.1;0.1]];
     Controller.input.Bestcost_now = [1e5, 1e3];
     Controller.input.Constsigma = 5.0*[1;1;1;1];
     Controller.input.Initsigma = [0.1;1.5e-2;1.5e-2;1.5e-2]; % default 0.1
+    Controller.input.Initsigma = [0.1;1.5e-2;1.5e-2;1.5e-2];
     Controller.input.Maxsigma = [1;1e-3;1e-3;1e-3];
     Controller.input.Minsigma = [0.01;1e-5;1e-5;1e-5];
     Controller.input.u = [Controller.m * 9.81;0;0;0]; % 総推力，トルク
+    Controller.input.u = [Controller.m * 9.81;0;0;0];
     torque_th = 1; thrust_th = 1.5;
     Controller.input_max = [Controller.m * 9.81 + thrust_th; torque_th; torque_th; torque_th];
     Controller.input_min = [Controller.m * 9.81 - thrust_th;-torque_th;-torque_th;-torque_th];
     Controller.ref_input = Controller.input.u; %入力の目標値ー初設定
+    Controller.ref_input = Controller.input.u;
     Controller.input.lb = [0; -1; -1; -1];
     Controller.input.ub = [10; 1;  1;  1];
     %% load model from koopman setting in the simxxx & change sampling time
@@ -33,21 +40,27 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     if isfield(est, 'Ae'); [Controller.koopman.Ae,Controller.koopman.Be,Controller.koopman.Ce] = AB_transfer(est.Ae, est.Be, est.Ce, dt, Controller.dt); end
     %-- 観測量の選択
     [Controller.F, Controller.code] = select_observable(model_file);
-   
+
+    % Controller.weight.P = 0.7*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = 0.1*diag([300;300;500]);    % 姿勢角15良い気がする
+    % Controller.weight.V = 1*diag([500;500;500]);% 速度  10,20刻み  30;20;10
+    % Controller.weight.W = 0.1*diag([200;200;200]);  %角速度　1,2刻み 
+    % Controller.weight.R = 50*diag([1; 0.2; 0.1; 0.1]); % 入力
+    % Controller.weight.RP =50*diag([1; 0.1; 0.1; 0.1]);  % 1ステップ前の入力との
     %% sim用　重み
-    Controller.weight.P = diag([80;80;100]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = diag([15;15;5]);    % 姿勢角15良い気がする
-    Controller.weight.V = diag([2;2;2]);% 速度  10,20刻み  30;20;10
-    Controller.weight.W = diag([0.1;0.1;0.1]);  %角速度　1,2刻み 
-    Controller.weight.R = diag([2; 30; 30; 15]); % 入力
-    Controller.weight.RP =0*diag([40; 20; 20; 20]);  % 1ステップ前の入力との差    0*(無効化)
-    %%　実験用　重み
-    % Controller.weight.P = 1.3*diag([300;300;500]);    % 位置　10,20刻み  20;1;30
-    % Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
-    % Controller.weight.V = diag([100;100;100]); % 15良い気がする
-    % Controller.weight.W = diag([100;100;100]);  % 姿勢角，角速度　1,2刻み 
-    % Controller.weight.R = diag([100; 150; 150; 100]); % 入力
-    % Controller.weight.RP = 0*diag([100; 100; 100; 100]);  % 1ステップ前の入力との差    0*(無効化)
+    % Controller.weight.P = diag([80;80;100]);    % 位置　10,20刻み  20;1;30
+    % Controller.weight.Q = diag([15;15;5]);    % 姿勢角15良い気がする
+    % Controller.weight.V = diag([2;2;2]);% 速度  10,20刻み  30;20;10
+    % Controller.weight.W = diag([0.1;0.1;0.1]);  %角速度　1,2刻み 
+    % Controller.weight.R = diag([2; 30; 30; 15]); % 入力
+    % Controller.weight.RP =0*diag([40; 20; 20; 20]);  % 1ステップ前の入力との差    0*(無効化)
+    %%　実験用　重み  **************
+    Controller.weight.P = 1.3*diag([300;300;500]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 1e3*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.V = diag([100;100;100]); % 15良い気がする
+    Controller.weight.W = diag([100;100;100]);  % 姿勢角，角速度　1,2刻み 
+    Controller.weight.R = diag([100; 150; 150; 100]); % 入力
+    Controller.weight.RP = 0*diag([100; 100; 100; 100]);  % 1ステップ前の入力との差    0*(無効化)
     %%　2025-07-30_exp_koseki_code00_randompp　用重み
     % Controller.weight.P = diag([500;500;200]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
@@ -56,13 +69,12 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     % Controller.weight.R = diag([1; 1; 1; 1000]); % 入力
     % Controller.weight.RP = 0*diag([100; 1; 1; 1]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験　hovering
-    % Controller.weight.P = 1*diag([200;200;200]);    % 位置　10,20刻み  20;1;30
-    % Controller.weight.Q = 10*diag([10;10;10]);    % 速度  10,20刻み  30;20;10
-    % Controller.weight.V = 1*diag([15;15;15]); % 15良い気がする
-    % Controller.weight.W = 0.1*diag([5;5;0]);  % 姿勢角，角速度　1,2刻み 
-    % Controller.weight.R = 0.1*diag([900; 100; 100; 3500]); % 入力
-    % Controller.weight.RP = 0*diag([1; 0; 0; 0]);  % 1ステップ前の入力との差    0*(無効化)
-    
+%      Controller.weight.P = 1*diag([600; 600; 800]);   % x/y位置: 200→600
+% Controller.weight.Q = diag([800; 800; 400]);   % x/y姿态: 500→800
+% Controller.weight.V = diag([300; 300; 800]);   % x/y速度稍降，z维持
+% Controller.weight.W = diag([30;  30;  50 ]);   % 角速度: 100→30（放松姿态惩罚）
+% Controller.weight.R = diag([80;  20;  20;  30]);  % 力矩R(2:4): 40/40/60→20/20/30
+% Controller.weight.RP = 0*diag([3; 1; 1; 1]);
     Controller.weight.Pf = Controller.weight.P;
     Controller.weight.Vf = Controller.weight.V;
     Controller.weight.Qf = Controller.weight.Q;
@@ -72,7 +84,6 @@ function Controller = Controller_MPC_KMC_kyo(dt, model_file, agent)
     %% 以下は変更なし
     fprintf("Koopman Monte Carlo MPC controller\n")
     disp(strcat('model:', model_file));
-    Controller.name = "kmcmpc";
-    Controller.type = "MPC_CONTROLLER_KMC_kyo";
-    % Controller.param = Controller_param;
+
+ 
 end

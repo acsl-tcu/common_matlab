@@ -746,3 +746,4 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
     end
 
 end
+

@@ -1,7 +1,7 @@
 clear; clc;
 
 % === 修改这里为你的文件名 ===
-load('2025-11-07_exp_ob25_1_code00_random', 'est');  %ob25_1 have 1 ob25_2 not have 1
+load('2026-01-30_exp_ob26_code00_randompp', 'est');  %ob25_1 have 1 ob25_2 not have 1
 
 A = est.A;
 B = est.B;

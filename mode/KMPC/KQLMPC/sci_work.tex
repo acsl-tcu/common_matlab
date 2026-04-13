@@ -1,0 +1,450 @@
+﻿\PassOptionsToPackage{dvipdfmx}{graphicx}
+\PassOptionsToPackage{dvipdfmx}{xcolor}
+\documentclass{article}
+\usepackage{latexsym}
+\usepackage{amsmath,amssymb,bm,array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{sci}
+\english
+\emergencystretch=1em
+
+\jtitle{SE(3)-Informed EDMD Residual Learning for Drone MPC}
+\etitle{SE(3)-Informed EDMD Residual Learning for Drone MPC}
+
+\jauthor{Tokyo City University}
+\eauthor{Buzhou Xu, Kazuma Sekiguchi, Kenichiro Nonaka\\Tokyo City University}
+
+\englishabstract{
+In nonlinear control of drones, Koopman operator theory is often used to obtain a higher-dimensional linear representation of nonlinear dynamics. Extended Dynamic Mode Decomposition (EDMD) is limited by data coverage, dictionary design, and generalization, while analytic quasi-linearization derived from physical models remains sensitive to model uncertainties and offers limited robustness. This study compares these two approaches through the observables they employ and the structural properties of the resulting system matrices. On this basis, it proposes a control-oriented model that preserves the structural foundation of the analytic formulation while enhancing robustness through an EDMD-based residual learning scheme with model error compensation. The learned component is introduced as a complement to the analytic model rather than as a substitute for the physical modeling framework.
+
+
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Drone plays an important role in autonomous systems such as infrastructure inspection, logistics, and emergency response. The dynamics pose a challenging control problem. Model predictive control (MPC) is well suited to this setting because it can handle constraints explicitly and optimize control actions over a finite horizon. Its practical performance, however, depends strongly on the prediction model used inside the controller, and prediction accuracy becomes a central issue in MPC design for drones.
+
+Obtaining a reliable prediction model over a wide operating range remains difficult. Local linearization can be adequate near hover, but its validity deteriorates during large-angle or aggressive maneuvers, where force projection changes continuously with attitude. Prediction error is further increased by aerodynamic drag, actuator asymmetry, voltage drop, sensor bias, and onboard delay. These effects are often small in isolation, yet together they introduce systematic mismatch that degrades prediction quality over the control horizon.
+
+One approach addresses this issue through geometric mechanics. Drone dynamics formulated on SE(3) represent attitude on SO(3) and translation in $\mathbb{R}^{3}$, thereby avoiding coordinate singularities and preserving the coupling between rotational and translational motion \cite{lee2010,lee2013}. Quasi-linear or parameter-varying predictors derived from this formulation retain explicit physical meaning, can be constructed from first principles, and integrate naturally into MPC \cite{rajkumar2025}. Their limitation is that prediction accuracy remains tied to the assumptions used in model derivation. Once neglected dynamics or parameter uncertainties become significant, the model cannot correct this mismatch on its own.
+
+Data-driven lifting through Koopman operator theory occupies the opposite end of this spectrum. Extended Dynamic Mode Decomposition (EDMD) identifies linear evolution in a space of observables and can represent nonlinear behavior beyond what a fixed local linearization can capture \cite{williams2015,korda2018}. Applied to drones, EDMD-based predictors have demonstrated effectiveness in trajectory tracking across moderate operating envelopes \cite{narayanan2023,zinage2021}. Their vulnerability is structural in a different sense: the resulting system matrix is dense, its entries carry no direct physical meaning, and prediction outside the training data is governed by extrapolation with no geometric safeguard.
+
+These two approaches fail under different conditions. The analytic predictor degrades when assumptions encoded in the model no longer hold; the data-driven predictor degrades when the available trajectories and observables leave gaps in the operational space. A framework that combines both is motivated not merely by their complementarity, but by a practical requirement: the prediction model inside MPC must remain physically interpretable while absorbing repeatable disturbance that purely analytic models cannot explain.
+
+The present work addresses this requirement through a model error compensation (MEC) architecture. An SE(3)-consistent quasi-linear predictor---the Koopman Quasilinear LPV MPC (KQ-LMPC) of \cite{rajkumar2025}---provides the nominal controller. Its closed-loop simulation data, collected under deliberate plant--model mismatch, are then used to train a separate EDMD model in a compact 26-dimensional observable space. The EDMD model is decomposed into a nominal component and an error component; the error component drives an additive input correction applied after the MPC quadratic program (QP) has been solved. In this arrangement, the analytic model continues to define the MPC optimization, while the EDMD branch corrects only the repeatable mismatch that the analytic model fails to predict.
+
+The contributions of this study are threefold. First, a structural comparison of the analytic Koopman lifting on SE(3) and data-driven EDMD is presented at the level of observables and system matrices. Second, the MEC residual learning scheme is formulated, including the nominal fit, residual fit, and regularized pseudo-inverse control law that converts the residual signal into an input correction. Third, simulation experiments with deliberate inertia mismatch quantify the tracking improvement and identify trajectory classes where the correction succeeds or fails, linking the failure cases to data coverage gaps introduced by the outlier pruning in the identification pipeline.
+
+The paper is organized as follows. Section~2 reviews the SE(3) drone model and the two lifting strategies. Section~3 develops the MEC processing and residual learning formulation. Section~4 describes the simulation setup. Section~5 reports tracking results. Section~6 concludes with limitations and directions for future work.
+
+\section{Preliminaries}
+
+\subsection{Drone SE(3) System and Control}
+
+The nominal model follows the standard rigid-body description on SE(3), consistent with \cite{Sekiguchi,rajkumar2025,lee2010,lee2013}. Let $\mathcal{I}=\{e_{1},e_{2},e_{3}\}$ denote the inertial frame and $\mathcal{B}=\{b_{1},b_{2},b_{3}\}$ the body-fixed frame. Translational position is $p\in\mathbb{R}^{3}$, velocity $v\in\mathbb{R}^{3}$, attitude $R\in SO(3)$, and body angular velocity $\omega\in\mathbb{R}^{3}$. With total thrust $f$ along $b_{3}$ and body torque $\tau\in\mathbb{R}^{3}$, the equations of motion are
+\begin{align}
+\dot{p} &= v, \\
+\dot{v} &= -g e_{3} + \frac{f}{m}Re_{3}, \\
+\dot{R} &= R\hat{\omega}, \\
+J\dot{\omega} &= -\omega \times J\omega + \tau,
+\label{eq:se3model}
+\end{align}
+where $m$ is the mass, $J\in\mathbb{R}^{3\times 3}$ the inertia matrix, and $\hat{\omega}$ the skew-symmetric matrix of $\omega$. The control-affine form is
+\begin{equation}
+\dot{x} = f_{0}(x) + G(x)u,
+\label{eq:controlaffine}
+\end{equation}
+where the state is $x=[p^{\top},v^{\top},\mathrm{vec}(R)^{\top},\omega^{\top}]^{\top}$ and the input is $u=[f,\tau^{\top}]^{\top}$.
+
+For the controller, estimator, and residual model, a more compact Euler-angle representation is used. Let $\eta=[\phi,\theta,\psi]^{\top}$ denote the ZYX Euler-angle parameterization of $R$, and define
+\begin{equation}
+x =
+\begin{bmatrix}
+p^{\top} & \eta^{\top} & v^{\top} & \omega^{\top}
+\end{bmatrix}^{\top}\in\mathbb{R}^{12}.
+\label{eq:x12}
+\end{equation}
+In the analytic Koopman lifting, the full rotation matrix $R$ is retained. The MPC cost, EKF, and residual model use the 12-dimensional state in (\ref{eq:x12}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\columnwidth]{Fig/drone.png}
+\caption{Drone platform and attitude convention.}
+\label{fig:drone_model}
+\end{figure}
+
+\subsection{Koopman Operator and EDMD}
+
+For a discrete-time nonlinear system $x_{k+1}=F(x_{k},u_{k})$, the Koopman operator acts on observable functions $\varphi:\mathcal{X}\to\mathbb{R}$. Selecting a finite dictionary $\psi(x)=[\varphi_{1}(x),\dots,\varphi_{N}(x)]^{\top}$ and defining $z_{k}=\psi(x_{k})$, the linear approximation is
+\begin{equation}
+z_{k+1} \approx A z_{k} + B u_{k}, \qquad \hat{x}_{k} = C z_{k}.
+\label{eq:edmd_basic}
+\end{equation}
+EDMD identifies $A$, $B$, $C$ by solving
+\begin{equation}
+\begin{aligned}
+A, B &= \arg\min_{A,B}
+\| Y_{\mathrm{lift}} - A X_{\mathrm{lift}} - B U \|_F,\\
+C &= \arg\min_{C} \| X - C X_{\mathrm{lift}} \|_F,
+\end{aligned}
+\label{eq:edmd_regression}
+\end{equation}
+from trajectory snapshots \cite{williams2015, korda2018, proctor2018}. The approximation quality depends jointly on the dictionary and data coverage. Generic polynomial dictionaries carry no information about rotational--translational coupling and may generalize poorly outside the sampled envelope. This motivates the model-informed dictionary used in our previous work \cite{Sekiguchi,xu2024}.
+
+\subsection{Analytic Koopman Lifting on SE(3)}
+
+Following \cite{rajkumar2025}, the Koopman observable space can be constructed analytically from the recursive structure of the quadrotor equations. Define four observable families
+\begin{equation}
+p_k = (\hat{\omega}^\top)^{k-1} R^\top p, \quad
+y_k = (\hat{\omega}^\top)^{k-1} R^\top v,
+\end{equation}
+\begin{equation}
+h_k = -(\hat{\omega}^\top)^{k-1} R^\top g e_3, \quad
+z_j = \mathrm{vec}(R \hat{\omega}^{\,j-1}),
+\label{eq:analytic_obs}
+\end{equation}
+for $k,j\in\mathbb{Z}_{+}$. These families close under the Lie derivative of the quadrotor vector field, so their span is Koopman-invariant \cite{rajkumar2025}. The lifted state
+\begin{equation}
+X = [p_1^\top \cdots p_M^\top \; y_1^\top \cdots y_M^\top \; h_1^\top \cdots h_M^\top \; z_1^\top \cdots z_N^\top]^\top
+\label{eq:analytic_lifted}
+\end{equation}
+evolves as
+\begin{equation}
+\dot{X} = A X + B(X) u_r,
+\label{eq:analytic_ql}
+\end{equation}
+where $u_r = [f,\,\tilde{\tau}^{\top}]^{\top}$ is the modified control input (with $\tilde{\tau}=-\omega\times J\omega+\tau$ absorbing the gyroscopic coupling, so that the original input is recovered via $u=U^{-1}(x,u_r)$ as defined in \cite{rajkumar2025}). The matrix $A$ is block-sparse and determined entirely by the recurrence structure, and $B(X)$ depends on $R$ and $\omega$. Setting $M=3$, $N=2$ yields a 45-dimensional representation. No regression step is required.
+
+Here $A$ is defined analytically from the recurrence relations of the observable families in (\ref{eq:analytic_obs})--(\ref{eq:analytic_lifted}), so its entries are fixed once the truncation orders $(M,N)$ are chosen. The input matrix $B(X)$ is obtained from the same lifted dynamics by collecting the coefficients of the modified input $u_r$, and therefore depends on the current lifted state through $R$ and $\omega$. In this study, $(M,N)=(3,2)$ is used, which yields a 45-dimensional lifted representation.
+
+
+
+\section{MEC Processing and Residual Learning}
+
+\subsection{Architecture overview}
+
+The MEC correction operates outside the MPC optimization. At each control step, KQ-LMPC computes the nominal input $u_{\mathrm{nom}}$ from the 45-dimensional analytic lifting, and the residual branch adds a correction $\Delta u$ computed in the 26-dimensional EDMD space. The applied input is therefore
+\begin{equation}
+u_k = u_{\mathrm{nom},k} + \Delta u_k.
+\label{eq:mec_arch}
+\end{equation}
+The 12-dimensional EKF state is the common interface between the two models: it is lifted to $\mathbb{R}^{45}$ for the QP and to $\mathbb{R}^{26}$ for residual compensation.
+
+\subsection{EDMD observable dictionary}
+
+The EDMD dictionary lifts the current state $x\in\mathbb{R}^{12}$ as
+\begin{equation}
+\psi_{\mathrm{EDMD}}(x)=
+\begin{bmatrix}
+x^{\top} & d^{\top} & 1 & \chi_{\omega}^{\top} & \chi_{\eta}^{\top}
+\end{bmatrix}^{\top}
+\in\mathbb{R}^{26},
+\label{eq:observable_correct}
+\end{equation}
+\begin{equation}
+d = Re_3,
+\qquad
+\chi_{\omega} =
+\begin{bmatrix}
+\omega_1\omega_2 &
+\omega_2\omega_3 &
+\omega_3\omega_1
+\end{bmatrix}^{\top},
+\label{eq:observable_blocks1}
+\end{equation}
+\begin{equation}
+\chi_{\eta} =
+\begin{bmatrix}
+\omega_{2}\cos\phi \\
+\omega_{3}\sin\phi \\
+\dfrac{\omega_{1}\cos\theta}{\cos\phi} \\
+\dfrac{\omega_{2}\sin\phi}{\cos\theta} \\
+\dfrac{\omega_{2}\sin\theta\sin\phi}{\cos\theta} \\
+\dfrac{\omega_{3}\cos\phi}{\cos\theta} \\
+\dfrac{\omega_{3}\sin\theta\cos\phi}{\cos\theta}
+\end{bmatrix}.
+\label{eq:observable_blocks2}
+\end{equation}
+In implementation, the denominators in (\ref{eq:observable_blocks2}) are clamped so that $|\cos\phi|,|\cos\theta|\ge 10^{-3}$.
+
+\subsection{Residual model identification}
+\begin{equation}
+\begin{aligned}
+Z &= [z_0,\dots,z_{N-1}],\\
+Z_{+} &= [z_1,\dots,z_N],
+\end{aligned}
+\label{eq:snapshot_z}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+U_{\mathrm{nom}} &= [u_{\mathrm{nom},0},\dots,u_{\mathrm{nom},N-1}],\\
+U_{\mathrm{raw}} &= [u_{\mathrm{raw},0},\dots,u_{\mathrm{raw},N-1}],
+\end{aligned}
+\label{eq:snapshot_u}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+\left(A_{\mathrm{nom}},B_{\mathrm{nom}}\right)
+:= {}&\arg\min_{A,B}\;
+\|Z_{+}-AZ-BU_{\mathrm{nom}}\|_F^2 \\
+&+ \lambda_{\mathrm{nom}}\|(A,B)\|_F^2,
+\end{aligned}
+\label{eq:stage1}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+\bar{Z}_{+} &= Z_{+}-A_{\mathrm{nom}}Z-B_{\mathrm{nom}}U_{\mathrm{nom}},\\
+\Delta U &= U_{\mathrm{raw}}-U_{\mathrm{nom}},
+\end{aligned}
+\label{eq:residualdata}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+\left(A_{\mathrm{err}},B_{\mathrm{err}}\right)
+:= {}&\arg\min_{A,B}\;
+\|\bar{Z}_{+}-AZ-B\Delta U\|_F^2 \\
+&+ \lambda_{\mathrm{err}}\|(A,B)\|_F^2,
+\end{aligned}
+\label{eq:stage2}
+\end{equation}
+Large-error and large-jump samples are removed before regression.
+
+\subsection{Residual compensation law}
+\begin{equation}
+\begin{aligned}
+z_{k+1}^{\mathrm{nom}} &= A_{\mathrm{nom}}z_k + B_{\mathrm{nom}}u_{\mathrm{nom},k},\\
+z_{k+1}^{\mathrm{ref}} &= \psi_{\mathrm{EDMD}}(x_{k+1}^{\mathrm{ref}}),\\
+r_k &= z_{k+1}^{\mathrm{ref}} - z_{k+1}^{\mathrm{nom}} - A_{\mathrm{err}}z_k .
+\end{aligned}
+\label{eq:comp_residual}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+\tilde{B}_{\mathrm{err}} &= B_{\mathrm{err}}(:,2{:}4),\\
+\Delta\tau_{\mathrm{raw}}
+:= {}&
+(\tilde{B}_{\mathrm{err}}^{\top}\tilde{B}_{\mathrm{err}}+\lambda I)^{-1}
+\tilde{B}_{\mathrm{err}}^{\top}r_k,
+\end{aligned}
+\label{eq:comp_tau}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+\Delta u_{\mathrm{raw}} &=
+\begin{bmatrix}
+0\\
+\Delta\tau_{\mathrm{raw}}
+\end{bmatrix},\\
+\Delta u_k &=
+(1-\beta)\Delta u_{k-1}+\beta\Delta u_{\mathrm{raw}},
+\end{aligned}
+\label{eq:smoothing}
+\end{equation}
+\begin{equation}
+u_k=u_{\mathrm{nom},k}+\alpha\,\mathrm{sat}(\Delta u_k,\Delta u_{\max}),
+\label{eq:compensation}
+\end{equation}
+Here $\lambda>0$, $\alpha\in(0,1]$, and $\beta\in(0,1]$.
+
+\begin{algorithm}[t]
+\caption{Residual compensation applied after the KQ-LMPC QP}
+\label{alg:residual_comp}
+\small
+\begin{algorithmic}[1]
+\Require Current state $x_k$, nominal MPC input $u_{\mathrm{nom},k}$, aligned next-step reference $x_{k+1}^{\mathrm{ref}}$, EDMD models $(A_{\mathrm{nom}},B_{\mathrm{nom}},A_{\mathrm{err}},B_{\mathrm{err}})$
+\State $z_k \gets \psi_{\mathrm{EDMD}}(x_k)$
+\State $z_{k+1}^{\mathrm{ref}} \gets \psi_{\mathrm{EDMD}}(x_{k+1}^{\mathrm{ref}})$
+\State $z_{k+1}^{\mathrm{nom}} \gets A_{\mathrm{nom}}z_k + B_{\mathrm{nom}}u_{\mathrm{nom},k}$
+\State $r_k \gets z_{k+1}^{\mathrm{ref}} - z_{k+1}^{\mathrm{nom}} - A_{\mathrm{err}}z_k$
+\If{torque-only compensation is enabled}
+    \State $\tilde{B}_{\mathrm{err}} \gets B_{\mathrm{err}}(:,2{:}4)$
+    \State $\Delta\tau_{\mathrm{raw}} \gets (\tilde{B}_{\mathrm{err}}^{\top}\tilde{B}_{\mathrm{err}}+\lambda I)^{-1}\tilde{B}_{\mathrm{err}}^{\top}r_k$
+    \State $\Delta u_{\mathrm{raw}} \gets [0,\Delta\tau_{\mathrm{raw}}^{\top}]^{\top}$
+\Else
+    \State $\Delta u_{\mathrm{raw}} \gets (B_{\mathrm{err}}^{\top}B_{\mathrm{err}}+\lambda I)^{-1}B_{\mathrm{err}}^{\top}r_k$
+\EndIf
+\If{smoothing is enabled}
+    \State $\Delta u_k \gets (1-\beta)\Delta u_{k-1} + \beta \Delta u_{\mathrm{raw}}$
+\Else
+    \State $\Delta u_k \gets \Delta u_{\mathrm{raw}}$
+\EndIf
+\State $\Delta u_k \gets \alpha \cdot \mathrm{sat}(\Delta u_k,\Delta u_{\max})$
+\State $u_k \gets \mathrm{sat}(u_{\mathrm{nom},k}+\Delta u_k,u_{\min},u_{\max})$
+\State Apply $u_k$ to the plant
+\end{algorithmic}
+\end{algorithm}
+
+\section{Simulation}
+
+\subsection{System configuration}
+
+The simulation uses the SE(3) rigid-body model as the plant, with Euler-angle state extraction as in (\ref{eq:x12}). The sampling period is $\Delta t = 0.025\,$s and the KQ-LMPC prediction horizon is $H=12$ steps ($0.3\,$s). The QP is solved using MATLAB \texttt{quadprog}. The analytic Koopman matrices use $M=3$ and $N=2$, yielding a 45-dimensional lifted state, and $B(X)$ is updated online.
+
+Table~\ref{tab:kqlmpc_params} summarizes the KQ-LMPC weights and input constraints used in the simulations.
+
+\begin{table}[t]
+\centering
+\caption{KQ-LMPC weights and constraints used in simulation.}
+\small
+\begin{tabular}{cc}
+\hline
+Conditions & Value\\
+\hline\hline
+Sampling period $dt\,/\,(\mathrm{s})$ & $0.025$ \\
+Prediction horizon $H$ & $12$ \\
+Analytic lift order $(M,\,N)$ & $(3,\,2)$ \\
+Weight of Position $P,\,P_{\mathrm{f}}$ & $\mathrm{diag}([500\quad 500\quad 600])$ \\
+Weight of Attitude $Q,\,Q_{\mathrm{f}}$ & $\mathrm{diag}([30\quad 30\quad 50])$ \\
+Weight of Velocity $V,\,V_{\mathrm{f}}$ & $\mathrm{diag}([400\quad 400\quad 400])$ \\
+\begin{tabular}{c}
+Weight of Angular velocity \\
+$W,\,W_{\mathrm{f}}$
+\end{tabular}
+& $\mathrm{diag}([20\quad 20\quad 20])$ \\
+Weight of Input $R$ & $\mathrm{diag}([50\quad 10\quad 5\quad 5])$ \\
+Weight of Input difference $R_{\Delta}$ & $\mathrm{diag}([50\quad 5\quad 5\quad 5])$ \\
+\begin{tabular}{c}
+Input bounds
+\end{tabular}
+& \begin{tabular}{c}
+$f\in[mg-1.5,\,mg+1.5]$ \\
+$\tau_i\in[-0.5,\,0.5]$
+\end{tabular} \\
+\hline
+\end{tabular}
+\label{tab:kqlmpc_params}
+\end{table}
+
+\subsection{Results}
+
+Figure~\ref{fig:results} uses a dashed black curve for the reference and solid blue, orange, and green curves for the nominal, perturbed, and compensated trajectories, respectively. In Fig.~\ref{fig:results}(a), the figure-eight trajectory shows clear recovery of both outer lobes and the central crossing region under residual compensation. In Fig.~\ref{fig:results}(b), the heart trajectory exhibits the same tendency: the perturbed motion drifts outward, whereas the compensated motion remains close to the nominal path except near the sharp cusp. In Fig.~\ref{fig:results}(c), the square trajectory improves mainly along the straight segments, while the corner transitions remain difficult. In Fig.~\ref{fig:results}(d), the star trajectory also benefits from compensation on the outer branches, but the sharp turning regions still exhibit visible deviation.
+
+Circular motion showed a different tendency. With the raw pseudo-inverse correction, the radius tended to increase from lap to lap. Introducing the smoothed residual compensation reduced this accumulation and kept the trajectory closer to the reference. A likely reason is that the training data were pruned aggressively, especially in spline and point-to-point motion, so the residual model remained better supported in smoother operating regions. The additional damping and smoothing also reduced the repeated bias caused by sustained-curvature motion.
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{Fig/figure8.png}\\[-1mm]
+\small (a) Figure-eight trajectory
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{Fig/heart.png}\\[-1mm]
+\small (b) Heart-shaped trajectory
+\end{minipage}
+
+\vspace{2mm}
+
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{Fig/square.png}\\[-1mm]
+\small (c) Square trajectory
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{Fig/star.png}\\[-1mm]
+\small (d) Star trajectory
+\end{minipage}
+\caption{Tracking results under plant--model mismatch.}
+\label{fig:results}
+\end{figure*}
+
+\subsection{Discussion and limitations}
+
+The current residual model is identified from closed-loop data collected under plant--model mismatch, while the nominal LPV/KQ-LMPC predictor still exhibits a small tracking bias even without additional injected error. As a result, the learned compensation mixes nominal-model mismatch with the added perturbation effect. This mixed residual is acceptable on smooth periodic trajectories, but it generalizes poorly to strong-transient motions such as spline and point-to-point tracking.
+
+The limitation is reinforced by data pruning. Samples with large error or large observable jumps are removed before identification, and many of the discarded samples come from precisely those transient motions where the controller deviates the most. The residual model is therefore trained mainly on smoother regions of the state--input space. This is consistent with the improved circular tracking obtained with the smoothed residual law and with the persistent difficulty of spline tracking.
+
+Three broader limitations remain. First, the 26-dimensional dictionary emphasizes attitude-dependent thrust projection and angular-rate coupling, so velocity-dominant effects such as drag may be underrepresented. Second, the residual model is identified offline and cannot adapt to non-stationary disturbances. Third, the pseudo-inverse correction extrapolates without geometric guarantee outside the training envelope.
+
+\section{Conclusion and Future Work}
+
+This paper presented an MEC framework that combines the analytic KQ-LMPC predictor with an EDMD-based residual correction. The analytic model remains inside the MPC optimization, while the learned residual acts only as a post-QP compensation term.
+
+The proposed method improves tracking most clearly on figure-eight and heart trajectories under inertia mismatch, provides partial recovery on square and star trajectories, and benefits circular motion when a smoothed residual law is used. The remaining failure cases are closely tied to data coverage and pruning, especially for spline-like transients.
+
+Future work will separate nominal-model learning from error-residual learning by first identifying the nominal LPV/Koopman dynamics from error-free trajectories and then learning an additive compensation model from perturbed trajectories. Trajectory-aware data filtering and experimental validation on a physical platform remain important follow-up tasks.
+
+\begin{thebibliography}{99}
+
+\bibitem{lee2010}
+T.~Lee, M.~Leok, and N.~H.~McClamroch,
+Geometric tracking control of a quadrotor UAV on SE(3),
+in \emph{Proc.\ 49th IEEE Conf.\ Decision and Control},
+pp.~5420--5425, 2010.
+
+\bibitem{lee2013}
+T.~Lee, M.~Leok, and N.~H.~McClamroch,
+Nonlinear robust tracking control of a quadrotor UAV on SE(3),
+\emph{Asian Journal of Control},
+vol.~15, no.~2, pp.~391--408, 2013.
+
+\bibitem{williams2015}
+M.~O.~Williams, I.~G.~Kevrekidis, and C.~W.~Rowley,
+A data-driven approximation of the Koopman operator: Extending dynamic mode decomposition,
+\emph{Journal of Nonlinear Science},
+vol.~25, no.~6, pp.~1307--1346, 2015.
+
+\bibitem{korda2018}
+M.~Korda and I.~Mezi\'c,
+Linear predictors for nonlinear dynamical systems: Koopman operator meets model predictive control,
+\emph{Automatica},
+vol.~93, pp.~149--160, 2018.
+
+\bibitem{proctor2018}
+J.~L.~Proctor, S.~L.~Brunton, and J.~N.~Kutz,
+Generalizing Koopman theory to allow for inputs and control,
+\emph{SIAM Journal on Applied Dynamical Systems},
+vol.~17, no.~1, pp.~909--930, 2018.
+
+\bibitem{narayanan2023}
+S.~S.~Narayanan, D.~Tellez-Castro, S.~Sutavani, and U.~Vaidya,
+SE(3) Koopman-MPC: Data-driven learning and control of quadrotor UAVs,
+\emph{IFAC-PapersOnLine},
+vol.~56, no.~3, pp.~607--612, 2023.
+
+\bibitem{zinage2021}
+V.~Zinage and E.~Bakolas,
+Koopman operator based modeling for quadrotor control on SE(3),
+\emph{IEEE Control Systems Letters},
+vol.~6, pp.~752--757, 2021.
+
+\bibitem{ru2017}
+P.~Ru and K.~Subbarao,
+Nonlinear model predictive control for unmanned aerial vehicles,
+\emph{Aerospace},
+vol.~4, no.~2, Art.~31, 2017.
+
+\bibitem{Sekiguchi}
+K.~Sekiguchi,
+Novel control method for quadcopter: Hierarchical linearization approach,
+in \emph{Proc.\ IEEE Conf.\ Decision and Control},
+pp.~1853--1858, 2017.
+
+\bibitem{rajkumar2025}
+S.~Rajkumar, C.~Yang, Y.~Gu, S.~Cheng, N.~Hovakimyan, and D.~Goswami,
+Real-time linear MPC for quadrotors on SE(3): An analytical Koopman-based realization,
+\emph{arXiv preprint arXiv:2409.12374}, 2024.
+
+\bibitem{xu2024}
+B.~Xu, K.~Sekiguchi, and K.~Nonaka,
+Quadcopter landing on a ship surface using Monte Carlo Koopman model predictive control under signal temporal logic constraints,
+in \emph{Proc.\ SICE Annual Conference}, 2024.
+
+\end{thebibliography}
+
+\end{document}
+
+
+
+
+
+

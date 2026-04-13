@@ -1,4 +1,4 @@
-function Controller = Controller_KQ_LMPC(dt, agent)
+function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
  %% HL param
     Controller = Controller_HL(dt);
     Controller.dt_drone = Controller.dt;
@@ -29,6 +29,25 @@ function Controller = Controller_KQ_LMPC(dt, agent)
     Controller.ref_input = Controller.input.u; %入力の目標値ー初設定
     Controller.input.lb = [0; -1; -1; -1];
     Controller.input.ub = [10; 1;  1;  1];
+    Controller.residual.mode =0; % 0: off, 1: LQR residual feedback, 2: one-step pseudo inverse, 3: torque EDMD + vertical PI, 5: mode2 + smoothing
+    Controller.residual.model_file = 'C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\KQLMPC\edmd_residual_model_kyo.mat';
+    Controller.residual.alpha = 1.0;
+    Controller.residual.du_max = [1.5; 0.3; 0.3; 0.3];
+    Controller.residual.q_scale = 200.0;
+    Controller.residual.r_scale = 0.02;
+    Controller.residual.pinv_damping = 1e-2;
+    Controller.residual.use_reference = 1;
+    Controller.residual.use_aligned_reference = 1;
+    Controller.residual.mode25_torque_only = 1;
+    Controller.residual.z_kp = 1.5;
+    Controller.residual.z_kv = 0.8;
+    Controller.residual.z_ki = 0.6;
+    Controller.residual.z_int_limit = 1.0;
+    Controller.residual.torque_scale = [2.5; 2.5; 1.5];
+    Controller.residual.torque_beta = 0.2;
+    Controller.residual.full_beta = 0.1;
+    Controller.residual.lqr_torque_only = 1;
+    Controller.residual.lqr_beta = 0.2;
     %% load model from koopman setting in the simxxx & change sampling time
    
     % load(model_file, 'est');

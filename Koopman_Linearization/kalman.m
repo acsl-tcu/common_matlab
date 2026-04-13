@@ -2,7 +2,7 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("2025-10-02_exp_renew_code00_randompp");
+load("2026-01-26_exp_ob25_1_code00_randompp");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % 可制御性行列
 % 固有値と固有ベクトル

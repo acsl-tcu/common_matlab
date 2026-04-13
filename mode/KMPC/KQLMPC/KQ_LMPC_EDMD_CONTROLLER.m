@@ -1,4 +1,4 @@
-classdef KQ_LMPC_CONTROLLER< handle
+classdef KQ_LMPC_EDMD_CONTROLLER< handle
 
     properties
         options % QP
@@ -48,6 +48,8 @@ classdef KQ_LMPC_CONTROLLER< handle
         last_u_ff
         integral_error
        exec_counter
+       residual
+       residual_ref_state
     end
     methods (Static)
         function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
@@ -67,7 +69,7 @@ classdef KQ_LMPC_CONTROLLER< handle
         end
     end
     methods
-        function obj = KQ_LMPC_CONTROLLER(self, param)
+        function obj = KQ_LMPC_EDMD_CONTROLLER(self, param)
             %-- 変数定義
             obj.self = self; % agent
             obj.param = param; % param = Controller_MPC_HLMC.mで設定したパラメーター
@@ -132,6 +134,9 @@ classdef KQ_LMPC_CONTROLLER< handle
             obj.koopman.B =zeros(45,4);
             obj.result.bestcost = obj.input.Bestcost_now;
             obj.koopman.A=obj.get_Koopman_A(obj.m,obj.n);
+            obj.residual = obj.initialize_residual_model(param);
+            obj.integral_error = zeros(4,1);
+            obj.residual_ref_state = [];
             
         end
         %-- main()的な
@@ -169,7 +174,7 @@ classdef KQ_LMPC_CONTROLLER< handle
         function K_LQR(obj)
 
             n = size(obj.state.current,1);
-            [A_d, B_d] = KQ_LMPC_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt,0.99);
+            [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt,0.99);
             [K, ~, ~] = dlqr(A_d,  B_d, obj.Q, obj.R);
             z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
             %%
@@ -223,7 +228,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             % sys_d = c2d(sys_c, obj.param.dt, 'zoh');
             % A_d = sys_d.A;
             % B_d = sys_d.B;
-            [A_d, B_d] = KQ_LMPC_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
+            [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
             % obj.koopman_analysis(A_d, B_d);
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
             % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
@@ -232,6 +237,7 @@ classdef KQ_LMPC_CONTROLLER< handle
             split = 9 * obj.m;               
             z_current = obj.state.current;
             Xr_vec = zeros(n* obj.param.H, 1);
+            xref_residual = zeros(12, obj.H);
             for k = 1:obj.H
                xref = obj.state.ref(1:12, k);
                 q_ref = xref(4:6); 
@@ -239,10 +245,12 @@ classdef KQ_LMPC_CONTROLLER< handle
                 q_mix = q_curr * (1 - ratio) + q_ref * ratio;
                 xref_ali = xref; 
                 xref_ali(4:6) = q_mix; 
+                xref_residual(:, k) = xref_ali;
                 z_pos = obj.klift(xref_ali, obj.m, obj.n);
                 z_att = obj.klift(xref, obj.m, obj.n);
                 Xr_vec((k-1)*n+1 : k*n) = [z_pos(1:split); z_att(split+1:end)];
             end
+            obj.residual_ref_state = xref_residual;
             Xr = Xr_vec;
             % Ki_z   = 5.0;  
             % Ki_yaw = 0.1;             
@@ -325,8 +333,11 @@ classdef KQ_LMPC_CONTROLLER< handle
             end
 
             obj.result.input =var(1:4, 1); % 算出された入力
-            obj.result.deltau = 0.1 * abs(obj.result.input) .* (2 * rand(4, 1) - 1);
-            obj.result.input=obj.result.input+ obj.result.deltau;
+            obj.result.u_nom = obj.result.input;
+            obj.result.delta_u_edmd = obj.compute_residual_delta_u(obj.result.u_nom);
+            obj.result.delta_u_z = obj.compute_vertical_delta_u(obj.result.u_nom);
+            obj.result.u_total_pre_sat = obj.result.u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
+            obj.result.input = obj.result.u_total_pre_sat;
             % if ~isfield(obj.result, 'd_est'), obj.result.d_est = zeros(4,1); obj.result.x_last = obj.state.current; end
             % pred_error = obj.state.current - (A_d * obj.result.x_last + B_d * obj.input.pre_u);
             % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
@@ -382,6 +393,300 @@ classdef KQ_LMPC_CONTROLLER< handle
 
             f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
 
+        end
+       
+        function residual = initialize_residual_model(obj, param)
+            residual = struct();
+            residual.mode = 0;
+            residual.loaded = false;
+            residual.alpha = 1.0;
+            residual.du_max = [0; 0; 0; 0];
+            residual.use_reference = 1;
+            residual.pinv_damping = 1e-3;
+            residual.A_nom = [];
+            residual.B_nom = [];
+            residual.A_err = [];
+            residual.B_err = [];
+            residual.K = [];
+            residual.dlqr_ok = false;
+            residual.dlqr_message = '';
+            residual.K_norm = 0;
+            residual.B_rank = 0;
+            residual.ctrb_rank = 0;
+            residual.torque_scale = [1; 1; 1];
+            residual.torque_beta = 1.0;
+            residual.delta_tau_prev = zeros(3,1);
+            residual.full_beta = 1.0;
+            residual.delta_u_prev = zeros(4,1);
+            residual.lqr_torque_only = 0;
+            residual.lqr_beta = 1.0;
+            residual.delta_u_lqr_prev = zeros(4,1);
+            residual.use_aligned_reference = 1;
+            residual.mode25_torque_only = 0;
+
+            if ~isfield(param, 'residual') || ~isfield(param.residual, 'mode')
+                return;
+            end
+
+            residual.mode = param.residual.mode;
+            residual.alpha = param.residual.alpha;
+            residual.du_max = param.residual.du_max;
+            residual.use_reference = param.residual.use_reference;
+            residual.pinv_damping = param.residual.pinv_damping;
+            residual.torque_scale = param.residual.torque_scale(:);
+            residual.torque_beta = param.residual.torque_beta;
+            residual.full_beta = param.residual.full_beta;
+            residual.lqr_torque_only = param.residual.lqr_torque_only;
+            residual.lqr_beta = param.residual.lqr_beta;
+            if isfield(param.residual, 'use_aligned_reference')
+                residual.use_aligned_reference = param.residual.use_aligned_reference;
+            end
+            if isfield(param.residual, 'mode25_torque_only')
+                residual.mode25_torque_only = param.residual.mode25_torque_only;
+            end
+
+            if residual.mode == 0
+                return;
+            end
+
+            try
+                mdl = load(param.residual.model_file, 'results_edmd');
+                residual.A_nom = mdl.results_edmd.A_nom;
+                residual.B_nom = mdl.results_edmd.B_nom;
+                residual.A_err = mdl.results_edmd.A_err;
+                residual.B_err = mdl.results_edmd.B_err;
+                residual.loaded = true;
+                residual.B_rank = rank(residual.B_err);
+                residual.ctrb_rank = rank(ctrb(residual.A_err, residual.B_err));
+
+                q_res = eye(size(residual.A_err, 1)) * param.residual.q_scale;
+                r_res = eye(size(residual.B_err, 2)) * param.residual.r_scale;
+                try
+                    residual.K = dlqr(residual.A_err, residual.B_err, q_res, r_res);
+                    residual.dlqr_ok = true;
+                    residual.K_norm = norm(residual.K, 'fro');
+                catch
+                    residual.K = zeros(size(residual.B_err, 2), size(residual.A_err, 1));
+                    residual.dlqr_ok = false;
+                    residual.dlqr_message = 'dlqr failed, K forced to zero';
+                    residual.K_norm = 0;
+                end
+            catch ME
+                warning('Residual model load failed: %s', ME.message);
+                residual.mode = 0;
+            end
+        end
+
+        function delta_u = compute_residual_delta_u(obj, u_nom)
+            delta_u = zeros(4, 1);
+            obj.result.residual_mode = 0;
+
+            if isempty(obj.residual) || ~isfield(obj.residual, 'mode') || obj.residual.mode == 0
+                return;
+            end
+            if ~obj.residual.loaded
+                return;
+            end
+
+            x_cur = obj.current_state(:);
+            x16_cur = [x_cur; u_nom(:)];
+            z_cur = obj.klift_edmd_residual(x16_cur);
+
+            if obj.residual.use_reference == 1
+                x_ref = obj.get_residual_reference_state(1);
+                u_ref = obj.state.ref(13:16, 1);
+                z_ref = obj.klift_edmd_residual([x_ref; u_ref]);
+            else
+                z_ref = zeros(size(z_cur));
+            end
+            z_err = z_cur - z_ref;
+
+            switch obj.residual.mode
+                case 1
+                    delta_u_raw = -obj.residual.K * z_err;
+                    if obj.residual.lqr_torque_only == 1
+                        delta_u_raw(1) = 0;
+                    end
+                    beta = obj.residual.lqr_beta;
+                    delta_u = (1 - beta) * obj.residual.delta_u_lqr_prev + beta * delta_u_raw;
+                    obj.residual.delta_u_lqr_prev = delta_u;
+                    obj.result.delta_u_lqr_raw = delta_u_raw;
+                    obj.result.delta_u_lqr_filtered = delta_u;
+                case 2
+                    x_ref_next = obj.get_residual_reference_state(min(2, size(obj.state.ref, 2)));
+                    u_ref_now = obj.state.ref(13:16, 1);
+                    z_ref_next = obj.klift_edmd_residual([x_ref_next; u_ref_now]);
+                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom * u_nom;
+                    z_target_bar = z_ref_next - z_nom_next;
+                    rhs = z_target_bar - obj.residual.A_err * z_cur;
+                    if obj.residual.mode25_torque_only == 1
+                        Be = obj.residual.B_err(:, 2:4);
+                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
+                        delta_tau = (Be' * Be + reg) \ (Be' * rhs);
+                        delta_u = [0; delta_tau];
+                    else
+                        Be = obj.residual.B_err;
+                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
+                        delta_u = (Be' * Be + reg) \ (Be' * rhs);
+                    end
+                    obj.result.z_ref_next = z_ref_next;
+                    obj.result.z_nom_next = z_nom_next;
+                    obj.result.z_target_bar = z_target_bar;
+                case 3
+                    z_target_bar = -obj.residual.A_err * z_cur;
+                    Be = obj.residual.B_err(:, 2:4);
+                    reg = obj.residual.pinv_damping * eye(size(Be, 2));
+                    delta_tau_raw = (Be' * Be + reg) \ (Be' * z_target_bar);
+                    delta_tau_scaled = obj.residual.torque_scale .* delta_tau_raw;
+                    beta = obj.residual.torque_beta;
+                    delta_tau = (1 - beta) * obj.residual.delta_tau_prev + beta * delta_tau_scaled;
+                    obj.residual.delta_tau_prev = delta_tau;
+                    delta_u = [0; delta_tau];
+                    obj.result.delta_tau_raw = delta_tau_raw;
+                    obj.result.delta_tau_scaled = delta_tau_scaled;
+                    obj.result.delta_tau_filtered = delta_tau;
+                case 5
+                    x_ref_next = obj.get_residual_reference_state(min(2, size(obj.state.ref, 2)));
+                    u_ref_now = obj.state.ref(13:16, 1);
+                    z_ref_next = obj.klift_edmd_residual([x_ref_next; u_ref_now]);
+                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom * u_nom;
+                    z_target_bar = z_ref_next - z_nom_next;
+                    rhs = z_target_bar - obj.residual.A_err * z_cur;
+                    if obj.residual.mode25_torque_only == 1
+                        Be = obj.residual.B_err(:, 2:4);
+                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
+                        delta_tau_raw = (Be' * Be + reg) \ (Be' * rhs);
+                        delta_u_raw = [0; delta_tau_raw];
+                    else
+                        Be = obj.residual.B_err;
+                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
+                        delta_u_raw = (Be' * Be + reg) \ (Be' * rhs);
+                    end
+                    beta = obj.residual.full_beta;
+                    delta_u = (1 - beta) * obj.residual.delta_u_prev + beta * delta_u_raw;
+                    obj.residual.delta_u_prev = delta_u;
+                    obj.result.z_ref_next = z_ref_next;
+                    obj.result.z_nom_next = z_nom_next;
+                    obj.result.z_target_bar = z_target_bar;
+                    obj.result.delta_u_mode2_raw = delta_u_raw;
+                    obj.result.delta_u_mode5_filtered = delta_u;
+                otherwise
+                    delta_u = zeros(4, 1);
+            end
+
+            delta_u = obj.residual.alpha * delta_u;
+            obj.result.delta_u_edmd_raw = delta_u;
+            delta_u = max(min(delta_u, obj.residual.du_max), -obj.residual.du_max);
+            obj.result.residual_mode = obj.residual.mode;
+            obj.result.z_edmd_cur = z_cur;
+            obj.result.z_edmd_ref = z_ref;
+            obj.result.z_edmd_err = z_err;
+            obj.result.z_edmd_err_norm = norm(z_err);
+            obj.result.residual_K_norm = obj.residual.K_norm;
+            obj.result.residual_dlqr_ok = obj.residual.dlqr_ok;
+            obj.result.residual_B_rank = obj.residual.B_rank;
+            obj.result.residual_ctrb_rank = obj.residual.ctrb_rank;
+            obj.result.residual_dlqr_message = obj.residual.dlqr_message;
+        end
+
+        function delta_u = compute_vertical_delta_u(obj, u_nom)
+            delta_u = zeros(4, 1);
+            if isempty(obj.residual) || ~isfield(obj.residual, 'mode')
+                return;
+            end
+            if obj.residual.mode ~= 3
+                return;
+            end
+
+            z_err = obj.state.ref(3,1) - obj.current_state(3);
+            vz_err = obj.state.ref(9,1) - obj.current_state(9);
+            obj.integral_error(3) = obj.integral_error(3) + z_err * obj.param.dt;
+            lim = obj.param.residual.z_int_limit;
+            obj.integral_error(3) = max(min(obj.integral_error(3), lim), -lim);
+
+            thrust_corr = obj.param.residual.z_kp * z_err + ...
+                          obj.param.residual.z_kv * vz_err + ...
+                          obj.param.residual.z_ki * obj.integral_error(3);
+
+            thrust_corr = max(min(thrust_corr, obj.param.residual.du_max(1)), -obj.param.residual.du_max(1));
+            delta_u(1) = thrust_corr;
+
+            obj.result.z_pos_err = z_err;
+            obj.result.z_vel_err = vz_err;
+            obj.result.z_int_err = obj.integral_error(3);
+        end
+
+        function z = klift_edmd_residual(obj, x16)
+            P1 = x16(1);
+            P2 = x16(2);
+            P3 = x16(3);
+            Q1 = x16(4);
+            Q2 = x16(5);
+            Q3 = x16(6);
+            V1 = x16(7);
+            V2 = x16(8);
+            V3 = x16(9);
+            W1 = x16(10);
+            W2 = x16(11);
+            W3 = x16(12);
+
+            c1 = cos(Q1);
+            s1 = sin(Q1);
+            c2 = cos(Q2);
+            s2 = sin(Q2);
+            c3 = cos(Q3);
+            s3 = sin(Q3);
+
+            c1_safe = obj.safe_nonzero(c1, 1e-3);
+            c2_safe = obj.safe_nonzero(c2, 1e-3);
+
+            R13 = c3 * s2 * c1 + s3 * s1;
+            R23 = s3 * s2 * c1 - c3 * s1;
+            R33 = c2 * c1;
+
+            common_z = [P1; P2; P3; ...
+                        Q1; Q2; Q3; ...
+                        V1; V2; V3; ...
+                        W1; W2; W3; ...
+                        R13; R23; R33; ...
+                        1];
+
+            kyo_z = [W1 * W2; ...
+                     W2 * W3; ...
+                     W3 * W1; ...
+                     W2 * c1; ...
+                     W3 * s1; ...
+                     W1 * c2 / c1_safe; ...
+                     W2 * s1 / c2_safe; ...
+                     W3 * c1 / c2_safe; ...
+                     W2 * s1 * s2 / c2_safe; ...
+                     W3 * c1 * s2 / c2_safe];
+
+            z = [common_z; kyo_z];
+        end
+
+        function x_ref = get_residual_reference_state(obj, idx)
+            idx = max(1, idx);
+            if isfield(obj.residual, 'use_aligned_reference') && obj.residual.use_aligned_reference == 1 ...
+                    && ~isempty(obj.residual_ref_state)
+                idx = min(idx, size(obj.residual_ref_state, 2));
+                x_ref = obj.residual_ref_state(:, idx);
+            else
+                idx = min(idx, size(obj.state.ref, 2));
+                x_ref = obj.state.ref(1:12, idx);
+            end
+        end
+
+        function y = safe_nonzero(obj, x, eps_val)
+            if abs(x) < eps_val
+                if x >= 0
+                    y = eps_val;
+                else
+                    y = -eps_val;
+                end
+            else
+                y = x;
+            end
         end
        
         function calB = get_Koopman_B(obj,x,xlift,M,N,params)

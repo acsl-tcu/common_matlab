@@ -5,7 +5,7 @@ function z = quaternions_all_kyo(x)
 %   Z : [X(クォータニオンを含まない); (クォータニオン); (クォータニオンの2乗); (クォータニオンの3乗) ]
 
 % ドローンの固定値
-m = 0.75;
+m = 0.7478;
 lengths = 0.16;% モーター間の距離：正方形を仮定している
 Lx = 0.16; % x軸方向のモーター間距離
 Ly = 0.16; % y軸方向のモーター間距離
@@ -58,7 +58,7 @@ R33 = cos(Q2).*cos(Q1);
 common_z = [P1;P2;P3;Q1;Q2;Q3;V1;V2;V3;W1;W2;W3;
             R13;
             R23;
-            R33;
+            R33];
               1];% 16
 
 %% 磯部先輩観測量 code = 00
@@ -67,12 +67,12 @@ kyo_z = [W1*W2;
            W3*W1;
             W2*cos(Q1);
             W3*sin(Q1);
-             W1*cos(Q2)/cos(Q1);%??どこから
+            W1*cos(Q2)/cos(Q1);%??どこから
             W2*sin(Q1)/cos(Q2);
             W3*cos(Q1)/cos(Q2);
             W2*sin(Q1)*sin(Q2)/cos(Q2);
             W3*cos(Q1)*sin(Q2)/cos(Q2)
-            ]; %10
+            ]; %9
 kudo_z =[sin(Q1);
         cos(Q1);%sin,cos
         sin(Q1)*sin(Q2);
@@ -131,49 +131,49 @@ new_z =  [P1^2; P2^2; P3^2; P1*P2; P1*P3; P2*P3; %6
         U3;
         U4%4
     ]; % 50
-z = [common_z; kyo_z ];
-% %% 45
-% R13 = cos(Q3).*sin(Q2).*cos(Q1) + sin(Q3).*sin(Q1);
-% R23 = sin(Q3).*sin(Q2).*cos(Q1) - cos(Q3).*sin(Q1);
-% R33 = cos(Q2).*cos(Q1);
-% c1 = cos(Q1); s1 = sin(Q1);
-% c2 = cos(Q2); s2 = sin(Q2);
-% c3 = cos(Q3); s3 = sin(Q3);
-% R11 = c2*c3;
-% R12 = c3*s2*s1 - s3*c1;
-% R21 = c2*s3;
-% R22 = s3*s2*s1 + c3*c1;
-% R31 = -s2;
-% R32 = c2*s1;
-% R_full = [R11, R12, R13;
-%           R21, R22, R23;
-%           R31, R32, R33];
-% P_vec = [P1; P2; P3]; 
-% V_vec = [V1; V2; V3]; 
-% g_vec = [0; 0; gravity]; 
-% Omega = [ 0,   -W3,  W2;
-%           W3,   0,  -W1;
-%          -W2,  W1,   0 ];
-% Omega_T = Omega';
-% kp_p1 = R_full' * P_vec;
-% kp_p2 = Omega_T * kp_p1;
-% kp_p3 = Omega_T * kp_p2;
-% kp_y1 = R_full' * V_vec;
-% kp_y2 = Omega_T * kp_y1;
-% kp_y3 = Omega_T * kp_y2;
-% kp_h1 = -R_full' * g_vec;
-% kp_h2 = Omega_T * kp_h1;
-% kp_h3 = Omega_T * kp_h2;
-% kp_z1 = R_full(:);
-% R_Omega = R_full * Omega;
-% kp_z2 = R_Omega(:);
-% koopman_z = [kp_p1; kp_p2; kp_p3; ...   
-%              kp_y1; kp_y2; kp_y3; ...   
-%              kp_h1; kp_h2; kp_h3; ...  
-%              kp_z1; ...                 
-%              kp_z2];                   
-% 
-% z = koopman_z;
+% z = [common_z; kyo_z ];
+%% 45
+R13 = cos(Q3).*sin(Q2).*cos(Q1) + sin(Q3).*sin(Q1);
+R23 = sin(Q3).*sin(Q2).*cos(Q1) - cos(Q3).*sin(Q1);
+R33 = cos(Q2).*cos(Q1);
+c1 = cos(Q1); s1 = sin(Q1);
+c2 = cos(Q2); s2 = sin(Q2);
+c3 = cos(Q3); s3 = sin(Q3);
+R11 = c2*c3;
+R12 = c3*s2*s1 - s3*c1;
+R21 = c2*s3;
+R22 = s3*s2*s1 + c3*c1;
+R31 = -s2;
+R32 = c2*s1;
+R_full = [R11, R12, R13;
+          R21, R22, R23;
+          R31, R32, R33];
+P_vec = [P1; P2; P3]; 
+V_vec = [V1; V2; V3]; 
+g_vec = [0; 0; gravity]; 
+Omega = [ 0,   -W3,  W2;
+          W3,   0,  -W1;
+         -W2,  W1,   0 ];
+Omega_T = Omega';
+kp_p1 = R_full' * P_vec;
+kp_p2 = Omega_T * kp_p1;
+kp_p3 = Omega_T * kp_p2;
+kp_y1 = R_full' * V_vec;
+kp_y2 = Omega_T * kp_y1;
+kp_y3 = Omega_T * kp_y2;
+kp_h1 = -R_full' * g_vec;
+kp_h2 = Omega_T * kp_h1;
+kp_h3 = Omega_T * kp_h2;
+kp_z1 = R_full(:);
+R_Omega = R_full * Omega;
+kp_z2 = R_Omega(:);
+koopman_z = [kp_p1; kp_p2; kp_p3; ...   
+             kp_y1; kp_y2; kp_y3; ...   
+             kp_h1; kp_h2; kp_h3; ...  
+             kp_z1; ...                 
+             kp_z2];                   
+
+z = koopman_z;
 %
 end
 

@@ -1,4 +1,4 @@
-function z = quaternions_all_kyo(x)
+function z = quaternions_all_kyo_45(x)
 % F(x)およびG(x)の全ての項を観測量とする
 %   Z = quartanionParameter(X)
 %   X : [位置P; クォータニオンq or オイラー角 Q; 速度V; 角速度W]を持つ状態量
@@ -131,49 +131,49 @@ new_z =  [P1^2; P2^2; P3^2; P1*P2; P1*P3; P2*P3; %6
         U3;
         U4%4
     ]; % 50
-z = [common_z; kyo_z ];
-% %% 45
-% R13 = cos(Q3).*sin(Q2).*cos(Q1) + sin(Q3).*sin(Q1);
-% R23 = sin(Q3).*sin(Q2).*cos(Q1) - cos(Q3).*sin(Q1);
-% R33 = cos(Q2).*cos(Q1);
-% c1 = cos(Q1); s1 = sin(Q1);
-% c2 = cos(Q2); s2 = sin(Q2);
-% c3 = cos(Q3); s3 = sin(Q3);
-% R11 = c2*c3;
-% R12 = c3*s2*s1 - s3*c1;
-% R21 = c2*s3;
-% R22 = s3*s2*s1 + c3*c1;
-% R31 = -s2;
-% R32 = c2*s1;
-% R_full = [R11, R12, R13;
-%           R21, R22, R23;
-%           R31, R32, R33];
-% P_vec = [P1; P2; P3]; 
-% V_vec = [V1; V2; V3]; 
-% g_vec = [0; 0; gravity]; 
-% Omega = [ 0,   -W3,  W2;
-%           W3,   0,  -W1;
-%          -W2,  W1,   0 ];
-% Omega_T = Omega';
-% kp_p1 = R_full' * P_vec;
-% kp_p2 = Omega_T * kp_p1;
-% kp_p3 = Omega_T * kp_p2;
-% kp_y1 = R_full' * V_vec;
-% kp_y2 = Omega_T * kp_y1;
-% kp_y3 = Omega_T * kp_y2;
-% kp_h1 = -R_full' * g_vec;
-% kp_h2 = Omega_T * kp_h1;
-% kp_h3 = Omega_T * kp_h2;
-% kp_z1 = R_full(:);
-% R_Omega = R_full * Omega;
-% kp_z2 = R_Omega(:);
-% koopman_z = [kp_p1; kp_p2; kp_p3; ...   
-%              kp_y1; kp_y2; kp_y3; ...   
-%              kp_h1; kp_h2; kp_h3; ...  
-%              kp_z1; ...                 
-%              kp_z2];                   
-% 
-% z = koopman_z;
+% z = [common_z; kyo_z ];
+%% 45
+R13 = cos(Q3).*sin(Q2).*cos(Q1) + sin(Q3).*sin(Q1);
+R23 = sin(Q3).*sin(Q2).*cos(Q1) - cos(Q3).*sin(Q1);
+R33 = cos(Q2).*cos(Q1);
+c1 = cos(Q1); s1 = sin(Q1);
+c2 = cos(Q2); s2 = sin(Q2);
+c3 = cos(Q3); s3 = sin(Q3);
+R11 = c2*c3;
+R12 = c3*s2*s1 - s3*c1;
+R21 = c2*s3;
+R22 = s3*s2*s1 + c3*c1;
+R31 = -s2;
+R32 = c2*s1;
+R_full = [R11, R12, R13;
+          R21, R22, R23;
+          R31, R32, R33];
+P_vec = [P1; P2; P3]; 
+V_vec = [V1; V2; V3]; 
+g_vec = [0; 0; gravity]; 
+Omega = [ 0,   -W3,  W2;
+          W3,   0,  -W1;
+         -W2,  W1,   0 ];
+Omega_T = Omega';
+kp_p1 = R_full' * P_vec;
+kp_p2 = Omega_T * kp_p1;
+kp_p3 = Omega_T * kp_p2;
+kp_y1 = R_full' * V_vec;
+kp_y2 = Omega_T * kp_y1;
+kp_y3 = Omega_T * kp_y2;
+kp_h1 = -R_full' * g_vec;
+kp_h2 = Omega_T * kp_h1;
+kp_h3 = Omega_T * kp_h2;
+kp_z1 = R_full(:);
+R_Omega = R_full * Omega;
+kp_z2 = R_Omega(:);
+koopman_z = [kp_p1; kp_p2; kp_p3; ...   
+             kp_y1; kp_y2; kp_y3; ...   
+             kp_h1; kp_h2; kp_h3; ...  
+             kp_z1; ...                 
+             kp_z2];                   
+
+z = [common_z;kyo_z;koopman_z];
 %
 end
 

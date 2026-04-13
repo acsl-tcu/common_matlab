@@ -4,7 +4,7 @@ function judge()
 % =========================================================================
 % 必要な変数が定義されているMATファイルからデータをロード
 % (例: A, B, factor_alpha, est構造体など)
-load('2025-11-07_exp_ob25_2_code00_random');
+load('2026-01-30_exp_ob26_code00_randompp');
 factor_alpha =0.95;
 
 A = est.A;
