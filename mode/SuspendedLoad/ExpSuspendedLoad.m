@@ -10,7 +10,7 @@ logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
-motive = Connector_Natnet('192.168.100.4'); % connect to Motive
+motive = Connector_Natnet('192.168.100.43'); % connect to Motive
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load = motive.result.rigid(2);
@@ -34,8 +34,9 @@ agent.parameter.set("jx", 0.06); %0.0968); %0.968
 agent.parameter.set("jy", 0.06); %0.0968); %0.968
 agent.parameter.set("jz", 0.09); %0.0968); %0.968
 
-agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4")); %有線プロポ
+agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM1")); %有線プロポ
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
+% agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[2,1],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
     p = data.rigid(obj.rigid_id(1)).p;
     pT = data.rigid(obj.rigid_id(2)).p - p;
@@ -50,11 +51,11 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent,"td",10));
 
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},4})); % hovering at(0,0,0)
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[0,0,0]},4})); % hovering at(0,0,0)
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[-0.5;0;1.5], "p1",[1;0;1.5], "t_go",5.0, "t_hold",5.0, "t_back",5.0},4})); %P2P
-agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
+% agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",agent.estimator.result.state.p(3)-L,"te",10)); % zd = -Lとするのがミソ
@@ -67,8 +68,8 @@ agent.set_cha_allocation_for_all("sensor",["motive","sload"]);
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
-% agent.cha_allocation.f.reference =["timevarying","sload"];
-agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
+agent.cha_allocation.f.reference =["timevarying","sload"];
+% agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
 agent.cha_allocation.l.reference =["landing","sload"]; 
 %%
 
