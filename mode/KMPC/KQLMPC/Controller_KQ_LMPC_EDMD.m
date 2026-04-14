@@ -29,7 +29,7 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.ref_input = Controller.input.u; %入力の目標値ー初設定
     Controller.input.lb = [0; -1; -1; -1];
     Controller.input.ub = [10; 1;  1;  1];
-    Controller.residual.mode =2; % 0: off, 1: LQR residual feedback, 2: one-step pseudo inverse, 3: torque EDMD + vertical PI, 5: mode2 + smoothing
+    Controller.residual.mode =0; % 0: off, 1: LQR residual feedback, 2: one-step pseudo inverse, 3: torque EDMD + vertical PI, 5: mode2 + smoothing
     Controller.residual.model_file = 'C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\mode\KMPC\KQLMPC\edmd_residual_model_kyo.mat';
     Controller.residual.alpha = 1.0;
     Controller.residual.du_max = [1.5; 0.3; 0.3; 0.3];
@@ -58,11 +58,11 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
    
     %% 実験用　重み
 
-     Controller.weight.P = 0.5*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
+     Controller.weight.P = 1*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
     Controller.weight.Q = 0.1*diag([300;300;500]);    % 姿勢角15良い気がする
     Controller.weight.V = 0.8*diag([500;500;500]);% 速度  10,20刻み  30;20;10
-    Controller.weight.W = 0.1*diag([200;200;200]);  %角速度　1,2刻み 
-    Controller.weight.R = 50*diag([1; 0.2; 0.1; 0.1]); % 入力
+    Controller.weight.W = 0.05*diag([200;200;200]);  %角速度　1,2刻み 
+    Controller.weight.R = 25*diag([1; 0.2; 0.1; 0.1]); % 入力
     Controller.weight.RP =50*diag([1; 0.1; 0.1; 0.1]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験用　重み
     % Controller.weight.P = 0.7*diag([1000;1000;1000]);    % 位置　10,20刻み  20;1;30

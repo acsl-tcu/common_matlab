@@ -175,6 +175,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
 
             n = size(obj.state.current,1);
             [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt,0.99);
+            % disp(norm(A_d),norm(B_d),max(abs(B_d(:))));
+            % disp(B_d(28:36,2:4));
             [K, ~, ~] = dlqr(A_d,  B_d, obj.Q, obj.R);
             z_err =  obj.state.current - obj.klift(obj.state.ref(1:12, 1),obj.m, obj.n);
             %%
@@ -230,6 +232,10 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % B_d = sys_d.B;
             [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
             % obj.koopman_analysis(A_d, B_d);
+            % disp(norm(A_d));
+            % disp(norm(B_d));
+            % disp(max(abs(B_d(:))));
+            % disp(B_d(28:36,2:4));
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
             % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
@@ -295,22 +301,26 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             end
             base_h = 6 * obj.m + 1;
             end_h = base_h + 3 * obj.m - 1;
-            w_vec(base_h : end_h) = 1;
+            w_vec(base_h : end_h) = 0;
             base_z = 9 * obj.m + 1;
             for k = 1 : obj.n
                 curr_idx = base_z + (k-1) * 9;
                 curr_end = curr_idx + 8;
                 if k == 1
                     w_vec(curr_idx : curr_end) = mean(diag(obj.weight.Q));
+                     w_vec(curr_idx+1)=500;
+                     w_vec(curr_idx+3)=500;
                 elseif k == 2
                     w_vec(curr_idx : curr_end) = mean(diag(obj.weight.W));
+                    w_vec(curr_idx+1)=100;
+                    w_vec(curr_idx+3)=100;
                 else
                     w_vec(curr_idx : curr_end) = 0;
                 end
             end
             Q_stage = diag(w_vec);
             % try, Q_terminal = dare(A_d*0.995, B_d, Q_stage, obj.weight.input); catch, Q_terminal = Q_stage * 2; end
-            Q_terminal = 3*Q_stage;
+            Q_terminal = 1*Q_stage;
             Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
             R_bar  = kron(eye(obj.H), obj.weight.input);
             RP_bar = kron(eye(obj.H), obj.weight.preinputdif);
@@ -331,7 +341,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             if eflag ~= 1
                 disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
             end
-
+            obj.result.eflag= eflag;
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.u_nom = obj.result.input;
             obj.result.delta_u_edmd = obj.compute_residual_delta_u(obj.result.u_nom);
@@ -909,7 +919,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 phi = atan2(Rd(3,2), Rd(3,3));
                 theta = asin(-Rd(3,1));
                 psi = atan2(Rd(2,1), Rd(1,1));
-                euler = [phi;theta;psi];
+                euler = [0;0;0];
                 if norm_s < 1e-6
                     w = [0; 0; 0];
                 else
