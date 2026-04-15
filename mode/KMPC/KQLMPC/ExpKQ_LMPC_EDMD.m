@@ -16,7 +16,7 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 agent = DRONE;
 %agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1, 252])); %プロポ無線
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4")); %プロポ有線
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %プロポ有線
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -48,7 +48,8 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
   % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
 
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
-    app.logger.plot({1, "controller.result.eflag", ""},"fig_num", 5,"phase","f");
+    app.logger.plot({1, "reference.result.state.p", ""},"fig_num", 5,"phase","f");
+    app.logger.plot({1, "controller.result.ref1", ""},"fig_num", 5,"phase","f");
 %    fig = figure(100); clf
 % tiledlayout(2,2,"TileSpacing","compact","Padding","compact")
 % 

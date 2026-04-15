@@ -81,8 +81,8 @@ classdef LANDING_REFERENCE < handle
                 Zd = zeros(1,5);
                 Zd(1) = obj.initialz;
             end
-            % Xd(1:3,1) = obj.base_state(1:3);
-            Xd(1:3,1) =[0;0;obj.base_state(3)];
+            Xd(1:3,1) = obj.base_state(1:3);
+            % Xd(1:3,1) =[0;0;obj.base_state(3)];
             Xd(3,1) = Zd(1);
             Xd(7,1) = Zd(2);
             Xd(11,1) = Zd(3);

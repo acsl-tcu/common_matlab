@@ -235,11 +235,12 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % disp(norm(A_d));
             % disp(norm(B_d));
             % disp(max(abs(B_d(:))));
-            % disp(B_d(28:36,2:4));
+             
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
             % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
-            q_curr = obj.current_state(4:6); 
+            q_curr = obj.current_state(4:6);
+            
             split = 9 * obj.m;               
             z_current = obj.state.current;
             Xr_vec = zeros(n* obj.param.H, 1);
@@ -256,6 +257,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 z_att = obj.klift(xref, obj.m, obj.n);
                 Xr_vec((k-1)*n+1 : k*n) = [z_pos(1:split); z_att(split+1:end)];
             end
+            obj.result.ref = obj.state.ref;
             obj.residual_ref_state = xref_residual;
             Xr = Xr_vec;
             % Ki_z   = 5.0;  
@@ -344,6 +346,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.result.eflag= eflag;
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.u_nom = obj.result.input;
+            fprintf('curp =[%.3f %.3f %.3f]|ref(1)=[%.3f %.3f %.3f]|E_x=%.3f|u(3)=%.4f\n',obj.current_state(1:3),obj.state.ref(1:3,1),obj.state.ref(1,1)-obj.current_state(1),obj.result.input(3));
             obj.result.delta_u_edmd = obj.compute_residual_delta_u(obj.result.u_nom);
             obj.result.delta_u_z = obj.compute_vertical_delta_u(obj.result.u_nom);
             obj.result.u_total_pre_sat = obj.result.u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
@@ -927,7 +930,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     w_x = -dot(hw, b2);
                     w_y = dot(hw, b1);
                     w_z = dot(b3, [0;0;1]) * dyaw;
-                    w = [w_x; w_y; w_z];
+                    w = [0; 0; 0];
                 end
                 xr(1:3, h+1) = ref(1:3);
                 xr(7:9, h+1) = ref(5:7);
