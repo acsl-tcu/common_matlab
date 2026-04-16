@@ -50,6 +50,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
        exec_counter
        residual
        residual_ref_state
+      pos_integ
+    U_integ_single
     end
     methods (Static)
         function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
@@ -137,7 +139,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.residual = obj.initialize_residual_model(param);
             obj.integral_error = zeros(4,1);
             obj.residual_ref_state = [];
-            
+            obj.pos_integ = zeros(3, 1);
+            obj.U_integ_single = zeros(4, 1);
         end
         %-- main()的な
         function result = do(obj,varargin)
@@ -239,6 +242,35 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
             % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
             n = size(obj.state.current,1);
+            % persistent pos_integ
+            % if isempty(pos_integ)
+            %     pos_integ = zeros(3, 1);
+            % end
+            % persistent yaw_integ
+            %     if isempty(yaw_integ), yaw_integ = 0; end
+            %     e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
+            %     yaw_integ = yaw_integ + e_yaw * obj.param.dt;
+            %     yaw_integ = max(min(yaw_integ, 0.2), -0.2);
+            % 
+            % 
+            % 
+            % e_pos = obj.state.ref(1:3, 1) - obj.current_state(1:3);
+            % pos_integ = pos_integ + e_pos * obj.param.dt;
+            % integ_limit = [1.0; 1.0; 0.5];  % xyz 各自的上限
+            % pos_integ = max(min(pos_integ, integ_limit), -integ_limit);
+            % Ki_x = 0.04;   % x 积分 → pitch torque 修正
+            % Ki_y = 0.02;   % y 积分 → roll torque 修正
+            % Ki_z = 0.5;    % z 积分 → thrust 修正（如果需要）
+            %  Ki_yaw = 0.02;
+            % U_integ_single = zeros(4, 1);
+            % U_integ_single(1) = Ki_z * pos_integ(3);             % thrust
+            % U_integ_single(2) = Ki_y * pos_integ(2);             % roll torque（符号可能要反）
+            % U_integ_single(3) = Ki_x * pos_integ(1);            % pitch torque（符号可能要反）
+            % U_integ_single(4) = Ki_yaw * yaw_integ;  % 符号需要验证                                % yaw 不用积分
+            % 
+            % % 保存为 property 供下面使用
+            % obj.pos_integ = pos_integ;
+            % obj.U_integ_single = U_integ_single;
             q_curr = obj.current_state(4:6);
             
             split = 9 * obj.m;               
@@ -281,6 +313,9 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % U_int_seq = repmat(U_comp_single, obj.H, 1);
             % Ur = Ur_vec + U_int_seq;
             Ur = reshape(obj.state.ref(13:16, :), [], 1);
+            % Ur_base = reshape(obj.state.ref(13:16, :), [], 1);
+            % U_integ_seq = repmat(U_integ_single, obj.H, 1);
+            % Ur = Ur_base + U_integ_seq;
             w_vec = zeros(n, 1);
             if obj.m >= 1
                 idx_p1 = 1;
@@ -308,19 +343,29 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             for k = 1 : obj.n
                 curr_idx = base_z + (k-1) * 9;
                 curr_end = curr_idx + 8;
+
                 if k == 1
-                    w_vec(curr_idx : curr_end) = mean(diag(obj.weight.Q));
-                     w_vec(curr_idx+1)=500;
-                     w_vec(curr_idx+3)=500;
+                    % 全部默认用 Q(1,1)（roll 位置的值）
+                    w_vec(curr_idx : curr_end) = obj.weight.Q(1,1);
+                    % 对应 roll/pitch/yaw 的元素，直接用 Q 对应位置的值
+                    w_vec(curr_idx + 1) = obj.weight.Q(3,3);   % yaw
+                    w_vec(curr_idx + 3) = obj.weight.Q(3,3);   % yaw
+                    w_vec(curr_idx + 2) = obj.weight.Q(2,2);   % pitch
+                    w_vec(curr_idx + 5) = obj.weight.Q(1,1);   % roll
+
                 elseif k == 2
-                    w_vec(curr_idx : curr_end) = mean(diag(obj.weight.W));
-                    w_vec(curr_idx+1)=100;
-                    w_vec(curr_idx+3)=100;
+                    w_vec(curr_idx : curr_end) = obj.weight.W(1,1);
+                    w_vec(curr_idx + 1) = obj.weight.W(3,3);
+                    w_vec(curr_idx + 3) = obj.weight.W(3,3);
+                    w_vec(curr_idx + 2) = obj.weight.W(2,2);
+                    w_vec(curr_idx + 5) = obj.weight.W(1,1);
+
                 else
                     w_vec(curr_idx : curr_end) = 0;
                 end
             end
             Q_stage = diag(w_vec);
+            
             % try, Q_terminal = dare(A_d*0.995, B_d, Q_stage, obj.weight.input); catch, Q_terminal = Q_stage * 2; end
             Q_terminal = 1*Q_stage;
             Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
@@ -344,9 +389,10 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
             end
             obj.result.eflag= eflag;
+            % var(2:4,1)=0;
             obj.result.input =var(1:4, 1); % 算出された入力
             obj.result.u_nom = obj.result.input;
-            fprintf('curp =[%.3f %.3f %.3f]|ref(1)=[%.3f %.3f %.3f]|E_x=%.3f|u(3)=%.4f\n',obj.current_state(1:3),obj.state.ref(1:3,1),obj.state.ref(1,1)-obj.current_state(1),obj.result.input(3));
+            % fprintf('curp =[%.3f %.3f %.3f]|ref(1)=[%.3f %.3f %.3f]|E_x=%.3f|u(3)=%.4f\n',obj.current_state(1:3),obj.state.ref(1:3,1),obj.state.ref(1,1)-obj.current_state(1),obj.result.input(3));
             obj.result.delta_u_edmd = obj.compute_residual_delta_u(obj.result.u_nom);
             obj.result.delta_u_z = obj.compute_vertical_delta_u(obj.result.u_nom);
             obj.result.u_total_pre_sat = obj.result.u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
@@ -356,6 +402,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
             % obj.result.input = obj.result.input - obj.result.d_est;
             % obj.result.x_last = obj.state.current;
+            
             obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
             obj.result.eflag = eflag;
             obj.result.var = var;
@@ -957,6 +1004,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             fprintf("t: %f \t input: %f %f %f %f \t J: %f \t sigma: %f", ...
                 obj.param.t, obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4), obj.result.bestcost(1),obj.input.sigma(1));
             fprintf("\n");
+            fprintf('px=%.3f (err=%.3f) | pitch=%.4f | u(3)=%.4f\n', ...
+                obj.current_state(1), ...
+                obj.current_state(1) - obj.state.ref(1,1), ...
+                obj.current_state(5), ...
+                obj.result.input(3));
         end
         function [ExA,ExB] = ExtendedCoefficientMatrix(obj,Param)
             % ECM:Extended Coeifficient Matrix

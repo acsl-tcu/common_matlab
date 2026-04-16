@@ -21,7 +21,7 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
-agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;1.0],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 % agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
                                                                 % , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
@@ -50,6 +50,21 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
     app.logger.plot({1, "reference.result.state.p", ""},"fig_num", 5,"phase","f");
     app.logger.plot({1, "controller.result.ref1", ""},"fig_num", 5,"phase","f");
+    t0id = find(app.logger.Data.phase == 97, 1, 'last') + 1;
+% teid = find(app.logger.Data.phase == 0, 1, 'first') - 1;
+% dt = diff(app.logger.Data.t(t0id:teid));
+% t = app.logger.Data.t(t0id:teid - 1);
+% figure(100)
+% [t, dt];
+% plot(t, dt);
+% % app.logger.plot({1,"p","e"})
+% hold on
+% % yline(0.025,"LineWidth",0.5)
+% % ylim([0 0.05])
+% hold off
+% grid on
+% legend("dt", "upper limit")
+
 %    fig = figure(100); clf
 % tiledlayout(2,2,"TileSpacing","compact","Padding","compact")
 % 

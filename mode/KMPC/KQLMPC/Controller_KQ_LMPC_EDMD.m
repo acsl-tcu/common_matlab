@@ -58,12 +58,12 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
    
     %% 実験用　重み
 
-     Controller.weight.P = 0.5*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 0.5*diag([300;300;500]);    % 姿勢角15良い気がする
-    Controller.weight.V = 0.5*diag([500;500;500]);% 速度  10,20刻み  30;20;10
-    Controller.weight.W = 0.25*diag([200;200;200]);  %角速度　1,2刻み 
-    Controller.weight.R = 5*diag([1; 0.2; 0.1; 0.1]); % 入力
-    Controller.weight.RP =5*diag([1; 0.05; 0.05; 0.05]);  % 1ステップ前の入力との差    0*(無効化)
+     Controller.weight.P = 2*diag([1200;1000;1200]);    % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 0.5*diag([300;500;500]);    % 姿勢角15良い気がする
+    Controller.weight.V = 1.5*diag([700;500;500]);% 速度  10,20刻み  30;20;10
+    Controller.weight.W = 0.3*diag([220;200;200]);  %角速度　1,2刻み 
+    Controller.weight.R = 1*diag([5; 0.05; 0.05; 0.05]); % 入力
+    Controller.weight.RP =0*diag([1; 0.05; 0.05; 0.05]);  % 1ステップ前の入力との差    0*(無効化)
     %%　実験用　重み
     % Controller.weight.P = 0.7*diag([1000;1000;1000]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 0.1*diag([300;300;500]);    % 姿勢角15良い気がする
