@@ -52,6 +52,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
        residual_ref_state
       pos_integ
     U_integ_single
+    pidflag
     end
     methods (Static)
         function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
@@ -141,6 +142,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.residual_ref_state = [];
             obj.pos_integ = zeros(3, 1);
             obj.U_integ_single = zeros(4, 1);
+            obj.pidflag = 0;
+            H = eye(2);
+            f = zeros(2, 1);
+            quadprog(H, f, [], [], [], [], [], [], [], optimset('Display', 'off'));
+            fprintf('[warmup] Optimization toolbox preloaded.\n');
         end
         %-- main()的な
         function result = do(obj,varargin)
@@ -402,8 +408,45 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
             % obj.result.input = obj.result.input - obj.result.d_est;
             % obj.result.x_last = obj.state.current;
-            
-            obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
+            if obj.pidflag ==1 
+                persistent pos_integ
+                if isempty(pos_integ), pos_integ = zeros(3,1); end
+                persistent yaw_integ
+                if isempty(yaw_integ), yaw_integ = 0; end
+                e_pos = obj.state.ref(1:3, 1) - obj.current_state(1:3);
+                e_vel = obj.state.ref(7:9, 1) - obj.current_state(7:9);
+                e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
+                e_yaw_rate = obj.state.ref(12, 1) - obj.current_state(12);
+                 
+                % 积分累积
+              
+                if norm(e_pos(1:2)) < 0.2
+                 pos_integ(1:2) = pos_integ(1:2) + e_pos(1:2)*obj.param.dt;
+                 pos_integ(3) = pos_integ(3) + e_pos(3)*obj.param.dt;
+                else
+                 pos_integ = pos_integ + e_pos * obj.param.dt;
+                end             
+                pos_integ = max(min(pos_integ, [2.0; 2.0; 1.0]), -[2.0; 2.0; 1.0]);
+                yaw_integ = yaw_integ + e_yaw * obj.param.dt;
+                yaw_integ = max(min(yaw_integ, 0.5), -0.5);
+                % 位置环增益（PID）
+                Kp_x = 0.20;   Kd_x = 0.50;   Ki_x = 0.05;
+                Kp_y = 0.20;   Kd_y = 0.55;   Ki_y = 0.05;
+                Kp_z = 2.0;    Kd_z = 1.0;    Ki_z = 0.5;
+                Ki_yaw = 0.03;  Kp_yaw = 0.2;  Kd_yaw = 0.05;
+                % 计算各方向的 u 修正
+                % 符号要实验确定！
+                delta_u_pitch = (Kp_x * e_pos(1) + Kd_x * e_vel(1) + Ki_x * pos_integ(1));
+                delta_u_roll  =  -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * pos_integ(2));
+                delta_u_thrust = (Kp_z * e_pos(3) + Kd_z * e_vel(3) + Ki_z * pos_integ(3));
+                delta_u_yaw = Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * yaw_integ;
+                obj.result.input(4) = obj.result.input(4) + delta_u_yaw;
+                % 叠加到 MPC 输出
+                obj.result.input(1) = obj.result.input(1) + delta_u_thrust;
+                obj.result.input(2) = obj.result.input(2) + delta_u_roll;
+                obj.result.input(3) = obj.result.input(3) + delta_u_pitch;
+                obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
+            end
             obj.result.eflag = eflag;
             obj.result.var = var;
             obj.result.Bestcost_pre = obj.result.bestcost;
