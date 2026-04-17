@@ -55,7 +55,6 @@ agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",25,"center",[0;0;1],"radius",[0.5,0.5,0.5]},4})); % saddle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[-0.5;0;1.5], "p1",[1;0;1.5], "t_go",5.0, "t_hold",5.0, "t_back",5.0},4})); %P2P
-% agent.reference.set_function_class("swaymod", SWAY_REF_MOD(agent, SwayRefMod_Param(dt))); %揺れ抑制（位置＋速度）
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",agent.estimator.result.state.p(3)-L,"te",10)); % zd = -Lとするのがミソ
@@ -69,7 +68,6 @@ agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
 agent.cha_allocation.f.reference =["timevarying","sload"];
-% agent.cha_allocation.f.reference =["timevarying","sload","swaymod"];%揺れ抑制
 agent.cha_allocation.l.reference =["landing","sload"]; 
 %%
 
