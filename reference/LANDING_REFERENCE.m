@@ -2,62 +2,54 @@ classdef LANDING_REFERENCE < handle
     properties
         param
         self
-        vd = 0.5;
+        vd
         dt
         result
         base_state
         base_time = 0;
-        te = 3 % 着陸するまでの時間
-        th_offset
-        th_offset0 = 200;
+        te % 着陸するまでの時間
         initialz % 初期時刻高度（takeoffする前の高度）
         fInit = 0;
     end
 
     methods
-        function obj = LANDING_REFERENCE(self,varargin)
+        function obj = LANDING_REFERENCE(self,opts)
+            arguments
+                self
+                opts.dt
+                opts.zd = [];
+                opts.te = 3;
+                opts.vd = 0.5;
+            end
             % generate landing reference w.r.t. position
             obj.self = self;
             obj.result.state = STATE_CLASS(struct('state_list',["xd","p","v"],'num_list',[20,3,3]));
-            obj.dt = varargin{1};
-            obj.vd = varargin{2};
+            obj.dt = opts.dt;
+            obj.initialz = opts.zd;
+            obj.vd = opts.vd;
+            obj.te = opts.te;
         end
         function  result= do(obj,varargin)
             % [Input] time,cha,logger,env
-
-
-            % if isempty(obj.result.state.xd)  % first take
-            %   fInit = true;
-            %   obj.initialz = obj.self.estimator.result.state.p(3);
-            % else
-            %   obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
-            %   fInit = (obj.self.reference.result.state.p(3) - obj.result.state.xd(3)) > 0.5;
-            % end
+            if isempty(obj.initialz)
+                obj.initialz = obj.self.estimator.result.state.p(3);
+            end
             if obj.fInit < 10 || isempty( obj.base_state ) % 飛行中にlanding modeに入った時点の情報を保存
-              % 空回しの高度を保存
-                    if obj.fInit ==0
-                        obj.initialz = obj.self.estimator.result.state.p(3);
-                    end
-                    obj.base_time=varargin{1}.t;
+                if obj.fInit == 0              % 空回しの高度（=接地時高度）を保存
+                    obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase                    
+                end
+                if obj.fInit == 1            % 直前の高度を保存
                     obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
-                    obj.base_time=varargin{1}.t;
-                    obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
-                    obj.result.state.xd = [obj.base_state;zeros(17,1)];
-                    if isprop(obj.self.input_transform,"param")
-                        obj.th_offset = obj.self.input_transform.param.th_offset;
-                    else
-                        obj.th_offset = obj.th_offset0;
-                    end
-                    obj.fInit = obj.fInit + 1;
-                    disp(obj.fInit)
+                end
+                obj.base_time=varargin{1}.t;            
+                obj.result.state.xd = [obj.base_state;zeros(17,1)];
+                obj.fInit = obj.fInit + 1; % 降下し始めるまでのループカウント
+                % disp(obj.fInit)
             end
 
             obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);
             obj.result.state.p = obj.result.state.xd(1:3,1);
             obj.result.state.v = obj.result.state.xd(5:7,1);
-            if obj.fInit >= 2 % 地面効果対策で obj.te の時間で obj.th_offset -> obj.th_offset0 に変化させる。
-                obj.self.input_transform.param.th_offset = obj.th_offset - (obj.th_offset-obj.th_offset0)*min(obj.te,varargin{1}.t-obj.base_time)/obj.te;
-            end
             result = obj.result;
         end
         function Xd = gen_ref_for_landing(obj,t)

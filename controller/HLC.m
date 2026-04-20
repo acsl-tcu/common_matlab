@@ -4,23 +4,21 @@ classdef HLC < handle
     self
     result
     param
-    parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+    parameter_order = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
   end
 
   methods
     function obj = HLC(self,param)
       obj.self = self;
       obj.param = param;
-      obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
+      obj.param.P = self.parameter.get(obj.parameter_order);
+      obj.result.input = zeros(4,1);
     end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p);
-      xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;
       F2 = obj.param.F2;
@@ -47,7 +45,6 @@ classdef HLC < handle
         vf = Vf(x,xd',P,F1);
         vs = Vs(x,xd',vf,P,F2,F3,F4);
       end
-      %disp([xd(1:3)',x(5:7)',xd(1:3)'-xd0(1:3)']);
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
       obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];

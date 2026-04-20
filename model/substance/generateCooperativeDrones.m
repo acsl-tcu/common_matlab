@@ -107,9 +107,9 @@ B7 = subs(eq7,[ddx0;do0],[0;0;0;0;0;0]);
 tmp=arrayfun(@(eq) fliplr(coeffs(eq,[ddx0;do0])),eq7-B7,'UniformOutput',false);
 A7 = vertcat(tmp{:});
 Addx0do0 = [A6;A7];
-matlabFunction(Addx0do0,"File","Addx0do0_"+string(N),"Vars",{x u physicalParam},'outputs',{'A'})
+matlabFunction_with_input_order(Addx0do0,"File","Addx0do0_"+string(N),"Vars",{x u physicalParam},'outputs',{'A'})
 syms iA [6 6] 
-matlabFunction(-iA*[B6;B7],"File","ddx0do0_"+string(N),"Vars",{x u physicalParam iA},'outputs',{'dX'});
+matlabFunction_with_input_order(-iA*[B6;B7],"File","ddx0do0_"+string(N),"Vars",{x u physicalParam iA},'outputs',{'dX'});
 %% (8)
 syms ddX [6 1]  % ddX = [ddx0;do0]
 rhs81 = ddX(1:3)-g*e3; % 3x1
@@ -124,7 +124,7 @@ doi = vertcat(tmp{:});
 %% 
 
 %dX = [dx0;dr0;ddx0;do0;dqi;dwi;dri;doi];
-matlabFunction([dx0;dr0;ddX;dqi;vertcat(rhs8{:});dri;doi],"File","tmp_cable_suspended_rigid_body_with_"+string(N)+"_drones","Vars",{x u physicalParam ddX},'outputs',{'dX'});
+matlabFunction_with_input_order([dx0;dr0;ddX;dqi;vertcat(rhs8{:});dri;doi],"File","tmp_cable_suspended_rigid_body_with_"+string(N)+"_drones","Vars",{x u physicalParam ddX},'outputs',{'dX'});
 
 
 

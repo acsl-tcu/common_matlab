@@ -1,14 +1,14 @@
 function ref = gen_ref_saddle(param)
 arguments
     param.freq = 10% 周期
-    param.orig = [0 0 1]% サドルの中心
-    param.size = [1 1 0] % 各軸の振幅
+    param.center = [0 0 1]% サドルの中心
+    param.radius = [1 1 0] % 各軸の振幅
     param.phase = -pi % 位相    
 end
 
 T = param.freq;
-origin = param.orig;
-scale = param.size;
+origin = param.center;
+scale = param.radius;
 phase = param.phase;
 syms t real
 syms lx ly real

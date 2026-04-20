@@ -49,4 +49,4 @@ fp = [dp;der;ddpf;dobf];
 %fp = [dp;ob;ddpf;dobf];
 gp = [zeros(3,4);zeros(3,4);ddpG;dobg];
 u = [u1;u2;u3;u4];
-matlabFunction(fp+gp*[u1;u2;u3;u4],'file','roll_pitch_yaw_thrust_force_physical_parameter_model','vars',{xp u cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(fp+gp*[u1;u2;u3;u4],'file','roll_pitch_yaw_thrust_force_physical_parameter_model','vars',{xp u cell2sym(physicalParam)},'outputs',{'dx'});

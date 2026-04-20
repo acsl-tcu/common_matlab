@@ -11,6 +11,7 @@ classdef DRONE < handle
     input_transform
     cha_allocation
     id = 1
+    cha = 's'
   end
 
   methods
@@ -19,7 +20,12 @@ classdef DRONE < handle
       arguments
         args = struct("type","sim");
       end
-      obj.input_transform.do = @(varargin) [];
+      obj.sensor = FUNCTION_CLASS_PROPERTY(obj,"sensor");
+      obj.estimator = FUNCTION_CLASS_PROPERTY(obj,"estimator");
+      obj.reference = FUNCTION_CLASS_PROPERTY(obj,"reference");
+      obj.controller = FUNCTION_CLASS_PROPERTY(obj,"controller");
+      obj.input_transform = FUNCTION_CLASS_PROPERTY(obj,"input_transform");
+      % obj.input_transform.do = @(varargin) [];
       if contains(args.type, "EXP")
         obj.plant = DRONE_EXP_MODEL(args);
       end
@@ -47,6 +53,30 @@ classdef DRONE < handle
           tmp = tmp.(i);
         end
         ax = tmp.show(varargin{:});
+      end
+    end
+
+    function set_cha_allocation_for_all(obj, prop, list)
+      % Use: set_cha_allocation_for_all("sensor","motive")
+      % Use: set_cha_allocation_for_all("estimator",["ekf","loadstate"])
+      % This sets cha_allocation.(prop) and all phases (a/t/f/l) at once.
+      arguments
+        obj
+        prop {mustBeTextScalar}
+        list
+      end
+      prop = string(prop);
+      if isempty(obj.cha_allocation)
+        obj.cha_allocation = struct();
+      end
+      obj.cha_allocation.(prop) = list;
+      phases = {'a','t','f','l'};
+      for k = 1:numel(phases)
+        phase = phases{k};
+        if ~isfield(obj.cha_allocation, phase) || ~isstruct(obj.cha_allocation.(phase))
+          obj.cha_allocation.(phase) = struct();
+        end
+        obj.cha_allocation.(phase).(prop) = list;
       end
     end
 

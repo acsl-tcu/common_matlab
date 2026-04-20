@@ -1,5 +1,4 @@
-%% Initialize
-% do initialize first in main.m
+%% Initialize% do initialize first in main.m
 %クワッドコプタの動的拡大システムの導出
 %拡大する状態はTr(クワッドコプタの合計推力), dTr(合計推力の微分)である
 %clc
@@ -68,10 +67,10 @@ f = [dq;dp;ddpf;dobf;dTr;0]+[g0(:,1);zeros(2,1)]*Tr
 g = [zeros(size(g0,1),1),g0(:,2:end);zeros(1,4);1,zeros(1,3)]
 %% Make function of the quadrotor model : if model is modified, then evaluate this section.
 clc
-matlabFunction(f,'file','Fep.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction(g,'file','Gep.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+matlabFunction_with_input_order(f,'file','Fep.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(g,'file','Gep.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %%
-matlabFunction(f+g*[u1;u2;u3;u4],'file','euler_parameter_thrust_torque_physical_parameter_expand_model','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f+g*[u1;u2;u3;u4],'file','euler_parameter_thrust_torque_physical_parameter_expand_model','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
 
 %% euler angle model : roll-pitch-yaw(XYZ) euler angle 
 syms roll pitch yaw droll dpitch dyaw real
@@ -99,7 +98,7 @@ fp = [dp;der;ddpf;dobf;dTr;0]+[g0(:,1);zeros(2,1)]*Tr;
 gp = [zeros(size(g0,1),1),g0(:,2:end);zeros(1,4);1,zeros(1,3)];
 dX=fp+gp*[u1;u2;u3;u4];
 %%
-matlabFunction(fp+gp*[u1;u2;u3;u4],'file','roll_pitch_yaw_thrust_torque_physical_parameter_expand_model','vars',{xp u cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(fp+gp*[u1;u2;u3;u4],'file','roll_pitch_yaw_thrust_torque_physical_parameter_expand_model','vars',{xp u cell2sym(physicalParam)},'outputs',{'dx'});
 
 %% Calculate Jacobian matrix
 % jacobianA = jacobian(fp+gp*[u1;u2;u3;u4],xp);

@@ -7,7 +7,9 @@ if ~isempty(timerfind)
     app.update_timer = [];
     app.isReady = false;
 end
-app.UIFigure.WindowKeyPressFcn = @app.keyPressFunc;
+if isempty(app.UIFigure.WindowKeyPressFcn)
+    app.UIFigure.WindowKeyPressFcn    = @app.keyPressFunc;
+end
 if app.fStart % to stop
     app.stop_app();
 else % to start

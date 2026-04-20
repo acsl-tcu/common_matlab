@@ -1,9 +1,25 @@
+よく使うブランチ接頭語と意味
+
+| 接頭語            | 典型的な意味・用途                                                          |
+| -------------- | ------------------------------------------------------------------ |
+| feature/       | 新機能の追加・既存機能の拡張用ブランチ。主にプロダクトの振る舞いを変える変更。graphite+1​                 |
+| bugfix/ / fix/ | 既存のバグ修正用。通常の不具合対応で、開発ブランチから派生して戻すときに使う。graphite+1​                 |
+| hotfix/        | 本番環境で致命的な障害が出たときの緊急修正用。main/masterから直接切って、すぐ本番へ反映。geeksforgeeks+1​ |
+| release/       | リリース準備用。最終調整・バージョン番号更新・軽微な修正などをまとめ、本番に出す直前のライン。graphite+1​         |
+| refactor/      | 仕様変更を伴わないコード整理・構造改善用。挙動は変えずに内部品質を上げる変更。pullpanda​                  |
+| docs/          | READMEやドキュメント、仕様書などテキスト類のみ変更するブランチ。dev+1​                          |
+| test/          | テストコード追加・実験的な検証用。試行錯誤のPoCやベンチもここに含めることが多い。openproblems+1​          |
+| chore/         | 依存アップデート、CI設定変更、ビルド設定変更などプロダクト機能に直結しない雑務。                 |
+
 # Change log
-To merge your program into this common project, follow 
+
+To merge your program into this common project, follow
+
 * obj.self.input => obj.self.controller.result.input
 * obj.input => obj.controller.result.input
 
 # 基本ルール
+
 estimator.result.state ：現在時刻の状態
 controller.result.input : 入力
 
@@ -34,6 +50,7 @@ controller.result.input : 入力
 |フラグ|f＋大文字始まり＋大文字区切り|fInitialPosition|
 
 １単語の場合は以下のようにする
+
 | 属性 | 命名ルール | 例 |
 |---|---|---|
 |関数（method）| 動詞 | do |
@@ -47,6 +64,31 @@ controller.result.input : 入力
 * for文で使う i, j ももっと適切な名前が無いか考えよう．
 例えば行列の行方向の繰り返しならi より row の方が明確になる場合もある．
 ただ，長くなりすぎるとこの文字列がうるさくなりすぎるのでバランスが必要．
+
+# LOGGER
+
+LOGGER本体と分割クラスは `assets/logger` に配置している．
+
+## 使い方（基本）
+
+```
+logger = LOGGER(1, size(ts:dt:te, 2), 0, [], []);
+logger.logging(time, 'f', agent);
+logger.save("example");
+```
+
+## ログの読み込み
+
+```
+logger = LOGGER("Data/Sim_data/Log(...).mat");
+% または分割保存ディレクトリ
+logger = LOGGER("Data/Sim_data/Log(...)");
+```
+
+## 補足
+
+- `logger.display_func` と `logger.display_on` は従来通り使用可能
+- 分割クラス: `C_Logger_Display`, `C_Logger_Plot`, `C_Logger_Query`, `C_Logger_Storage`, `C_Logger_Replay`
 
 ## プログラムの中で使われる用語
 
@@ -104,6 +146,8 @@ agent.estimator.ekf がEKFクラスのインスタンスになる．
 カスケードな処理はnameの配列順におこなわれる．
 例：estimator.name : ['lpf','adiff']
 の場合ローパスフィルタをかけた情報を使って後退差分近似微分をおこなうことを意味する．
+
+カスケードを組む際の基本ルールとして，**必ず基準（base）となるモジュールをname配列の先頭に置き，その出力を前提に後段の修飾モジュールを並べる**。例えば reference では `["timevarying","sload"]` のように最初に TIME_VARYING_REFERENCE 系で `result.state.xd` を生成し，続いて SUSPENDED_LOAD_REF_ADJUST のような補正クラスが必要な成分だけを上書きする構成にする。estimator でも同様に `["ekf","loadstate"]` の順で EKF が状態を更新した後に SUSPENDED_LOAD_STATE_MANAGER がchaに応じたブレンドを適用する。これにより各モジュールは「すでにベース値が存在する」ことを前提に安全に処理でき，別のベースを使いたい場合も先頭要素を差し替えるだけで済む。
 
 ### sensor プロパティ
 

@@ -43,16 +43,17 @@ methods
 
         if cha == 't' || cha == 'f' || cha == 'l'
             wh = obj.self.estimator.result.state.w; % estimated state
-            obj.self.estimator.model.do(varargin{:}); % one step prediction using current input
-            whn = obj.self.estimator.model.state.w; % predicted state
-            obj.self.estimator.model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
+            obj.self.estimator.(obj.self.estimator.name(1)).model.do(varargin{:}); % one step prediction using current input
+            whn = obj.self.estimator.(obj.self.estimator.name(1)).model.state.w; % predicted state
+            obj.self.estimator.(obj.self.estimator.name(1)).model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
             % if cha == 'f'
                 gain = obj.param.gain;
-                th_offset = obj.param.th_offset;
+                th_offset = obj.select_th_offset(cha);
             % else
             %     gain = obj.param.gain_tl;
             %     th_offset = obj.param.th_offset_tl;
             % end
+
             T_thr = input(1); % thrust, torque input 
 
             uroll = gain(1) * (whn(1) - wh(1));
@@ -72,6 +73,57 @@ methods
         u = obj.result;
     end
 
+end
+
+methods (Access = private)
+    function th_offset = select_th_offset(obj, cha)
+        th_offset = obj.get_param("th_offset", 0);
+        if obj.get_param("fGroundEffect", 0)
+            if cha == 't' || cha == 'l'
+                z = obj.get_altitude();
+                z_low = obj.get_param("ge_z_low", 0);
+                z_high = obj.get_param("ge_z_high", 0);
+                if z_high <= z_low
+                    alpha = 1;
+                else
+                    alpha = min(max((z - z_low) / (z_high - z_low), 0), 1);
+                end
+                th_low = obj.get_param("ge_th_offset_low", obj.get_param("th_offset_tl", th_offset));
+                th_high = obj.get_param("ge_th_offset_high", th_offset);
+                th_offset = th_low + (th_high - th_low) * alpha;
+            end
+        end
+    end
+
+    function z = get_altitude(obj)
+        z = 0;
+        if isprop(obj.self, "estimator") && isfield(obj.self.estimator, "result")
+            if isprop(obj.self.estimator.result, "state") && isprop(obj.self.estimator.result.state, "p")
+                p = obj.self.estimator.result.state.p;
+                if numel(p) >= 3
+                    z = p(3);
+                    return
+                end
+            end
+        end
+        if isprop(obj.self, "reference") && isfield(obj.self.reference, "result")
+            if isprop(obj.self.reference.result, "state") && isprop(obj.self.reference.result.state, "p")
+                p = obj.self.reference.result.state.p;
+                if numel(p) >= 3
+                    z = p(3);
+                    return
+                end
+            end
+        end
+    end
+
+    function value = get_param(obj, name, fallback)
+        if isstruct(obj.param) && isfield(obj.param, name)
+            value = obj.param.(name);
+        else
+            value = fallback;
+        end
+    end
 end
 
 end

@@ -27,7 +27,7 @@ end
   % Pre-computed constants or internal states
   properties (Access = private)
     param% =  [ 0.5000    0.1600    0.1600    0.0800    0.0800    0.0600    0.0600    0.0600    9.8100    0.0301    0.0301    0.0301    0.0301    0.0000    0.0000    0.0000    0.0000    0.0392];
-    parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+    parameter_order = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     t0
     result% = struct("state",zeros(12,1),"P",eye(12),"G",zeros(12,6));%struct("p",zeros(3,1),"v",zeros(3,1),"q",zeros(3,1),"w",zeros(3,1)));
     state
