@@ -6,7 +6,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.100.139'); % connect to Motive
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive
 % motive = Connector_Natnet('192.168.120.3'); % connect to Motive（総研）
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
@@ -18,7 +18,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
@@ -33,7 +33,7 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,0,0], "phase",-pi/2},"HL"});        % x sin curve
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[0,1,0]},"HL"});                       % y sin curve
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[center+1],"radius",[0,0,0]},"HL"});          % point hovering-
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",-3,"center",center,"radius",[1,1,0]},"HL"});                       % circle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle_3D",{"freq",20,"orig",center,"size",[1,0], "phase",[-pi/2,0]},"HL"});       % 3D circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",-7.5,"orig",center,"radius",1, "x",1},"HL"});                 % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",7.5,"orig",center,"size",[1,0.5], "x",1},"HL"});         % 3D lemniscate
@@ -41,7 +41,7 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",-4,"center",center,"radius",[1,1,0.25], "phase",-pi},"HL"});                    % saddle
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",3.5,"center",center,"radius",[1,1,0.25], "phase",-pi},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle_yaw",{"freq",-5,"center",center,"radius",[1,1,0.25], "yaw_rad",1, "phase",-pi},"HL"});   % saddle with yaw movement
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
