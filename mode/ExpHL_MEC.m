@@ -35,7 +35,7 @@ center = [0;0;takeoff_zd];
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[center+1],"radius",[0,0,0]},"HL"});          % point hovering-
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,1,0]},"HL"});                       % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle_3D",{"freq",20,"orig",center,"size",[1,0], "phase",[-pi/2,0]},"HL"});       % 3D circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",-7.5,"orig",center,"radius",1, "x",1},"HL"});                 % lemniscate
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",-5,"orig",center,"radius",1, "x",1},"HL"});                 % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",7.5,"orig",center,"size",[1,0.5], "x",1},"HL"});         % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",15,"orig",center,"radius",1.0},"HL"});                        % flower
@@ -60,21 +60,21 @@ agent.controller.nominal = HLC(agent,Controller_HL(dt));
 % agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-% onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
-% onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
+onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
+% % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
 
 
-onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx"; % 本論に載せてるやつ(2026/02/09時点)
-% onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
-
-
-% onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
-% onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
-% onnxName = "2026-2-2_10_49_9__DNN21__Plant_data_Exp__Euler__Step=3__100000epoch.onnx";
-% onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
-% onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
-% % % onnxName = "RK4_step=3";
-% onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
+% onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx"; % 本論に載せてるやつ(2026/02/09時点)
+% % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
+% 
+% 
+% % onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
+% % onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
+% % onnxName = "2026-2-2_10_49_9__DNN21__Plant_data_Exp__Euler__Step=3__100000epoch.onnx";
+% % onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
+% % onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
+% % % % onnxName = "RK4_step=3";
+% % onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
 
 onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp__Euler__100000epoch.onnx"; % 入力層が12次元のモデル
 

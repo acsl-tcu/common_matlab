@@ -4,10 +4,11 @@ classdef DNNMEC < handle
     %   ディープニューラルネットワーク(DNN)で補償器を設計
     %   [Inputs]
     %    self: ドローンのagent
-    %    DNN_model_filename = "DNNMEC.onnx": インポートするonnxファイルの名前
-    %    次元数(12,21,24)，状態更新手法("Euler", "RK4")がファイル名に必要
+    %    NN_model_filename = "NNMEC.onnx": インポートするonnxファイルの名前
+    %    "NN12": 次元数(12,21,24)，"Euler":状態更新手法("Euler", "RK4")がファイル名に必要
     
     %   2025/07 作成者:B4小関      学番:2212044
+    %   最終更新：2026/04/21
     
     properties
         self
@@ -15,7 +16,7 @@ classdef DNNMEC < handle
         physical_param
         parameter_name = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
         agent
-        DNN_model_filename  % 読み込みたいONNXモデルのファイル名
+        NN_model_filename  % 読み込みたいONNXモデルのファイル名
         DNNMEC_model        % コード内でのモデル名
         dx_func             % 状態方程式の関数ハンドル
         state_renew_func    % 学習時の状態更新手法に合わせるための関数ハンドル
@@ -28,38 +29,51 @@ classdef DNNMEC < handle
     end
     
     methods
-        function obj = DNNMEC(self, DNN_model_filename)
+        function obj = DNNMEC(self, NN_model_filename)
             % インスタンス
             obj.self = self;
             obj.physical_param = self.parameter.get(obj.parameter_name);
             obj.dx_func = @roll_pitch_yaw_thrust_torque_physical_parameter_model;
 
             %-%-%-% DNN model import & define %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
-            obj.DNN_model_filename = DNN_model_filename;
+            obj.NN_model_filename = NN_model_filename;
             if ~exist("controller/DNN_MODEL", "dir")
                 mkdir("controller\DNN_MODEL")
             elseif isempty(dir("controller/DNN_MODEL/*.onnx"))
                 error("ACSL: Do not exist <onnx> file in controller/DNN_MODEL. ")
             end
-            DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.DNN_model_filename,... % ONNXファイルインポート
+            DNN_model = importNetworkFromONNX("\DNN_MODEL\"+obj.NN_model_filename,... % ONNXファイルインポート
                                                 "InputDataFormats", "BC", ... % 入力層定義
                                                 "OutputDataFormats", "BC");   % 出力層定義 "BC" -> [バッチサイズ, 特徴量]の意味
-            if contains(DNN_model_filename, '21')
-                dim = 21; % 21次元
-                obj.gen_data_func = @(x_p,x_n) [x_p(1:3)-x_n(1:3); x_p(4:end); x_n(4:end)];
-            elseif contains(DNN_model_filename, '12')
-                dim = 12; % 12次元
-                obj.gen_data_func = @(x_p,x_n) x_p - x_n;
-            else
-                dim = 24; % 24次元
+            
+            % NNに続く数字を抽出 (例: "NN24" -> "24")
+            tokens = regexp(NN_model_filename, 'NN(\d+)', 'tokens');
+            if ~isempty(tokens)
+                model_num = tokens{1}{1}; % 文字列としての数字を取得
+                switch model_num
+                    case '21'
+                        dim = 21;
+                        obj.gen_data_func = @(x_p,x_n) [x_p(1:3)-x_n(1:3); x_p(4:end); x_n(4:end)];
+                    case '12'
+                        dim = 12;
+                        obj.gen_data_func = @(x_p,x_n) x_p - x_n;
+                    case '24'
+                        dim = 24;
+                        obj.gen_data_func = @(x_p,x_n) [x_p; x_n];
+                    otherwise
+                        % 例外処理
+                        error('未知のモデル次元です: %s', model_num);
+                end
+            else % NNの記述がない場合のデフォルト
+                dim = 24;
                 obj.gen_data_func = @(x_p,x_n) [x_p; x_n];
             end
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.DNNMEC_model = initialize(DNN_model, dummyInput); % モデルの初期化
 
-            if contains(DNN_model_filename, 'Euler') % 状態更新手法を動的に変更
+            if contains(NN_model_filename, 'Euler') % 状態更新手法を動的に変更
                 obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt);
-            elseif contains(DNN_model_filename, 'RK4')
+            elseif contains(NN_model_filename, 'RK4')
                 obj.state_renew_func = @(x_pre, pre_input, dt) obj.RK4(x_pre, pre_input, dt);
             end
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
@@ -78,7 +92,7 @@ classdef DNNMEC < handle
             obj.result.input = zeros(self.estimator.model.dim(2),1);
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(self.estimator.model.dim(2),1);
-            fprintf('Model file name: %s\n', obj.DNN_model_filename);
+            fprintf('Model file name: %s\n', obj.NN_model_filename);
             msg = "表示内容\n" + ...
                 "ref:px, py, pz,  NaN   est:px, py, pz,  NaN   Delta_input: T, tau_{roll}, tau_{pitch}, tau_{yaw}\n\n";
             fprintf(msg);
@@ -103,10 +117,10 @@ classdef DNNMEC < handle
             x_plant = obj.self.estimator.result.state.get; % 現時刻の推定値
             % -> size = 12*1, contents = [p; q; v; w];
 
-            % DNNへの入力データ
+            % NNへの入力データ
             data = obj.gen_data_func(x_plant, x_nominal);
             obj.result.delta_input = -1*double(predict(obj.DNNMEC_model, data'))'; % predict関数での推論
-            if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % DNN関係　閾値での入力制限
+            if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>obj.tau_lim, obj.result.delta_input(4) = 0; end
