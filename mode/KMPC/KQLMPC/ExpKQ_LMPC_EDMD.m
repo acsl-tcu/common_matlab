@@ -6,7 +6,7 @@ time = TIME(ts,dt,te);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive　
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive　
 motive.getData([], []); % get data from Motive
 rigid_ids = 1; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -48,9 +48,9 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
   % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
 
    % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
-    app.logger.plot({1, "reference.result.state.p", ""},"fig_num", 5,"phase","f");
-    app.logger.plot({1, "controller.result.ref1", ""},"fig_num", 5,"phase","f");
-    t0id = find(app.logger.Data.phase == 97, 1, 'last') + 1;
+    % app.logger.plot({1, "reference.result.state.p", ""},"fig_num", 5,"phase","f");
+    % app.logger.plot({1, "controller.result.ref1", ""},"fig_num", 5,"phase","f");
+% t0id = find(app.logger.Data.phase == 97, 1, 'last') + 1;
 % teid = find(app.logger.Data.phase == 0, 1, 'first') - 1;
 % dt = diff(app.logger.Data.t(t0id:teid));
 % t = app.logger.Data.t(t0id:teid - 1);

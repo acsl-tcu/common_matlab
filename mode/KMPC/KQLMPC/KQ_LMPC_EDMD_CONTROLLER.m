@@ -436,9 +436,9 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 Ki_yaw = 0.03;  Kp_yaw = 0.2;  Kd_yaw = 0.05;
                 % 计算各方向的 u 修正
                 % 符号要实验确定！
-                delta_u_pitch = (Kp_x * e_pos(1) + Kd_x * e_vel(1) + Ki_x * pos_integ(1));
+                delta_u_pitch = (Kp_x * e_pos(1) + Kd_x * e_vel(1)+ Ki_x * pos_integ(1));
                 delta_u_roll  =  -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * pos_integ(2));
-                delta_u_thrust = (Kp_z * e_pos(3) + Kd_z * e_vel(3) + Ki_z * pos_integ(3));
+                delta_u_thrust = (Kp_z * e_pos(3) + Kd_z * e_vel(3)+ Ki_z * pos_integ(3));
                 delta_u_yaw = Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * yaw_integ;
                 obj.result.input(4) = obj.result.input(4) + delta_u_yaw;
                 % 叠加到 MPC 输出
