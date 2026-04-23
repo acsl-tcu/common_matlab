@@ -48,6 +48,10 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.residual.full_beta = 0.1;
     Controller.residual.lqr_torque_only = 1;
     Controller.residual.lqr_beta = 0.2;
+    Controller.du_max = [5.0;    % thrust 每步最大变化 [N]
+                2.0;    % roll torque [N·m]
+                2.0;    % pitch torque [N·m]
+                1.0];   % yaw torque [N·m]
     %% load model from koopman setting in the simxxx & change sampling time
    
     % load(model_file, 'est');
@@ -58,7 +62,7 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
    
     %% 実験用　重み
 
-     Controller.weight.P = 2*diag([1200;1000;1200]);    % 位置　10,20刻み  20;1;30
+     Controller.weight.P = 2*diag([1000;1000;1200]);    % 位置　10,20刻み  20;1;30
     Controller.weight.Q = 0.5*diag([300;500;500]);    % 姿勢角15良い気がする
     Controller.weight.V = 1.5*diag([700;500;500]);% 速度  10,20刻み  30;20;10
     Controller.weight.W = 0.3*diag([220;200;200]);  %角速度　1,2刻み 
