@@ -48,10 +48,10 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.residual.full_beta = 0.1;
     Controller.residual.lqr_torque_only = 1;
     Controller.residual.lqr_beta = 0.2;
-    Controller.du_max = [5.0;    % thrust 每步最大变化 [N]
-                2.0;    % roll torque [N·m]
-                2.0;    % pitch torque [N·m]
-                1.0];   % yaw torque [N·m]
+    Controller.du_max = [0.5;    % thrust 每步最大变化 [N]
+                0.1;    % roll torque [N·m]
+                0.1;    % pitch torque [N·m]
+                0.05];   % yaw torque [N·m]
     %% load model from koopman setting in the simxxx & change sampling time
    
     % load(model_file, 'est');

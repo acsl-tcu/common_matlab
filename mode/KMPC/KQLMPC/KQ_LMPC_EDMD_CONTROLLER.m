@@ -922,6 +922,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
 
     %% ===== Step 1: 扩展矩阵（A_d, B_d 已由调用方离散化好）=====
     n = size(obj.state.current, 1); 
+    A_d= A_d * 0.995;
     [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix( ...
         {A_d, B_d, obj.param.H, n});
 
@@ -1005,7 +1006,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
 
     %% ===== Step 6: QP 的 Hessian 和梯度 =====
     %   J = ‖Z_free + M·ΔU - Xr‖²_Q + ‖ΔU‖²_R
-    R_bar = kron(eye(obj.param.H), obj.weight.input);   % 论文 R 矩阵，惩罚 ΔU
+    R_bar = kron(eye(obj.param.H), obj.weight.input*5000);   % 论文 R 矩阵，惩罚 ΔU
 
     obj.quadH = 2 * (M' * Q_bar * M + R_bar);
     obj.quadH = (obj.quadH + obj.quadH')/2 + 1e-6 * eye(size(obj.quadH));
@@ -1046,6 +1047,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
     obj.result.delta_u_z      = obj.compute_vertical_delta_u(u_nom);
     obj.result.u_total_pre_sat = u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
     obj.result.input = max(min(obj.result.u_total_pre_sat, obj.param.input_max), obj.param.input_min);
+   
 
     %% ===== Step 11: 更新结果和历史 =====
     obj.result.eflag        = eflag;
