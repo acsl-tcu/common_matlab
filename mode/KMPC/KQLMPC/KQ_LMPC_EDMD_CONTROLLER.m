@@ -53,9 +53,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
       pos_integ
     U_integ_single
     pidflag
-    velflag
-    z_prev = [];
-    delta_tau_prev = zeros(4, 1);
+    dobflag = 0
+      d_hat = []           % 扰动估计
+    z_prev_dob = []      % 上一步 z（DOB 用，区别于速度形式的 z_prev）
+    u_prev_dob = []  
+    u_offset_dob % 上一步 u（DOB 用）
     end
     methods (Static)
         function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
@@ -145,8 +147,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.residual_ref_state = [];
             obj.pos_integ = zeros(3, 1);
             obj.U_integ_single = zeros(4, 1);
-            obj.pidflag = 0;
-            obj.velflag = 1;
+            obj.pidflag = 1;
             
             H = eye(2);
             f = zeros(2, 1);
@@ -239,65 +240,60 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.result.pre_u = obj.input.pre_u;
         end
         function K_MPC(obj)
-            % B_d = obj.koopman.B * obj.param.dt;
-            % sys_c = ss(obj.koopman.A, obj.koopman.B, [], []);
-            % sys_d = c2d(sys_c, obj.param.dt, 'zoh');
-            % A_d = sys_d.A;
-            % B_d = sys_d.B;
+            %% ===== 离散化 =====
             [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
-            % obj.koopman_analysis(A_d, B_d);
-            % disp(norm(A_d));
-            % disp(norm(B_d));
-            % disp(max(abs(B_d(:))));
-            if obj.velflag == 1
-                 obj.K_MPC_velocity(A_d, B_d);
-                   return;
+            [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d, B_d, obj.H, obj.param.state_size});
+            n = size(obj.state.current, 1);
+
+          
+            %% ===== DOB 估计扰动（在 MPC 求解之前）=====
+            if obj.dobflag == 1
+                if isempty(obj.z_prev_dob) || isempty(obj.u_prev_dob)
+                    % 首次运行
+                    obj.u_offset_dob = zeros(size(obj.input.pre_u(:,1)));
+                else
+                    % 实测扰动
+                    z_predicted = A_d * obj.z_prev_dob + B_d * obj.u_prev_dob;
+                    d_observed = obj.state.current - z_predicted;
+
+                    % 死区：扰动太小则不更新（避免噪声放大）
+                    if norm(d_observed) > 1e-4
+                        % 正则化最小二乘（替代 pinv，数值更稳定）
+                        lambda_reg = 0.01;
+                        u_offset_inst = (B_d' * B_d + lambda_reg * eye(size(B_d, 2))) \ (B_d' * d_observed);
+
+                        % 一阶低通滤波
+                        alpha_dob = 0.1;
+                        if isempty(obj.u_offset_dob)
+                            obj.u_offset_dob = u_offset_inst;
+                        else
+                            obj.u_offset_dob = alpha_dob * u_offset_inst + (1 - alpha_dob) * obj.u_offset_dob;
+                        end
+                    end
+                    % 死区内不更新 u_offset_dob（保持上一次估计值）
+
+                    % 抗饱和
+                    u_offset_limit = obj.param.input_max * 0.3;
+                    obj.u_offset_dob = max(min(obj.u_offset_dob, u_offset_limit), -u_offset_limit);
+                end
+            else
+                obj.u_offset_dob = zeros(size(obj.input.pre_u(:,1)));
             end
-            [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d,B_d,obj.H,obj.param.state_size});
-            % [obj.koopman.ExA,obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({obj.A_d,B_d,obj.H,obj.param.state_size});
-            n = size(obj.state.current,1);
-            % persistent pos_integ
-            % if isempty(pos_integ)
-            %     pos_integ = zeros(3, 1);
-            % end
-            % persistent yaw_integ
-            %     if isempty(yaw_integ), yaw_integ = 0; end
-            %     e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
-            %     yaw_integ = yaw_integ + e_yaw * obj.param.dt;
-            %     yaw_integ = max(min(yaw_integ, 0.2), -0.2);
-            % 
-            % 
-            % 
-            % e_pos = obj.state.ref(1:3, 1) - obj.current_state(1:3);
-            % pos_integ = pos_integ + e_pos * obj.param.dt;
-            % integ_limit = [1.0; 1.0; 0.5];  % xyz 各自的上限
-            % pos_integ = max(min(pos_integ, integ_limit), -integ_limit);
-            % Ki_x = 0.04;   % x 积分 → pitch torque 修正
-            % Ki_y = 0.02;   % y 积分 → roll torque 修正
-            % Ki_z = 0.5;    % z 积分 → thrust 修正（如果需要）
-            %  Ki_yaw = 0.02;
-            % U_integ_single = zeros(4, 1);
-            % U_integ_single(1) = Ki_z * pos_integ(3);             % thrust
-            % U_integ_single(2) = Ki_y * pos_integ(2);             % roll torque（符号可能要反）
-            % U_integ_single(3) = Ki_x * pos_integ(1);            % pitch torque（符号可能要反）
-            % U_integ_single(4) = Ki_yaw * yaw_integ;  % 符号需要验证                                % yaw 不用积分
-            % 
-            % % 保存为 property 供下面使用
-            % obj.pos_integ = pos_integ;
-            % obj.U_integ_single = U_integ_single;
+
+            %% ===== 参考轨迹 Xr（保持原版 q_mix 逻辑）=====
             q_curr = obj.current_state(4:6);
-            
-            split = 9 * obj.m;               
+            split = 9 * obj.m;
             z_current = obj.state.current;
-            Xr_vec = zeros(n* obj.param.H, 1);
+            Xr_vec = zeros(n * obj.param.H, 1);
             xref_residual = zeros(12, obj.H);
+
             for k = 1:obj.H
-               xref = obj.state.ref(1:12, k);
-                q_ref = xref(4:6); 
-                ratio = (k-1) / (obj.H-1); 
+                xref = obj.state.ref(1:12, k);
+                q_ref = xref(4:6);
+                ratio = (k-1) / (obj.H-1);
                 q_mix = q_curr * (1 - ratio) + q_ref * ratio;
-                xref_ali = xref; 
-                xref_ali(4:6) = q_mix; 
+                xref_ali = xref;
+                xref_ali(4:6) = q_mix;
                 xref_residual(:, k) = xref_ali;
                 z_pos = obj.klift(xref_ali, obj.m, obj.n);
                 z_att = obj.klift(xref, obj.m, obj.n);
@@ -306,187 +302,154 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.result.ref = obj.state.ref;
             obj.residual_ref_state = xref_residual;
             Xr = Xr_vec;
-            % Ki_z   = 5.0;  
-            % Ki_yaw = 0.1;             
-            % if isempty(obj.integral_error)
-            %     obj.integral_error = zeros(4,1); % [x; y; z; yaw]
-            % end
-            % current_pos_yaw = [obj.current_state(1:3); obj.current_state(6)]; 
-            % ref_pos_yaw     = [obj.state.ref(1:3, 1); obj.state.ref(6, 1)];
-            % error_inst      = current_pos_yaw - ref_pos_yaw;          
-            % if abs(error_inst(3)) > 0.005
-            %     obj.integral_error(3) = obj.integral_error(3) + error_inst(3) * obj.param.dt;
-            % end
-            % obj.integral_error(4) = obj.integral_error(4) + error_inst(4) * obj.param.dt;
-            % int_limit = [0; 0; 2.0; 0.5]; 
-            % obj.integral_error = max(min(obj.integral_error, int_limit), -int_limit);
-            % U_comp_single = zeros(4,1);
-            % U_comp_single(1) = -Ki_z * obj.integral_error(3); 
-            % U_comp_single(4) = -Ki_yaw * obj.integral_error(4);
-            % Ur_vec = reshape(obj.state.ref(13:16, :), [], 1);
-            % U_int_seq = repmat(U_comp_single, obj.H, 1);
-            % Ur = Ur_vec + U_int_seq;
-            Ur = reshape(obj.state.ref(13:16, :), [], 1);
-            % Ur_base = reshape(obj.state.ref(13:16, :), [], 1);
-            % U_integ_seq = repmat(U_integ_single, obj.H, 1);
-            % Ur = Ur_base + U_integ_seq;
-            w_vec = zeros(n, 1);
-            if obj.m >= 1
-                idx_p1 = 1;
-                w_vec(idx_p1 : idx_p1+2) = diag(obj.weight.P)*1;
-            end
-            if obj.m >= 2
-                idx_p2 = 4;
 
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.7;
-            end
-            if obj.m >= 3
-                idx_p2 = 7;
-                w_vec(idx_p2 : idx_p2+2) = diag(obj.weight.P) *0.3;
-            end
+            %% ===== 输入参考 =====
+            Ur = reshape(obj.state.ref(13:16, :), [], 1);
+
+            %% ===== 权重矩阵（完全照搬原版）=====
+            w_vec = zeros(n, 1);
+            if obj.m >= 1, w_vec(1:3) = diag(obj.weight.P) * 1; end
+            if obj.m >= 2, w_vec(4:6) = diag(obj.weight.P) * 0.7; end
+            if obj.m >= 3, w_vec(7:9) = diag(obj.weight.P) * 0.3; end
+
             base_y = 3 * obj.m + 1;
             if obj.m >= 1
-                w_vec(base_y : base_y+2) = diag(obj.weight.V);
-                w_vec(base_y+3 : base_y+5) = diag(obj.weight.V)*0.3;
-                w_vec(base_y+6 : base_y+8) = diag(obj.weight.V)*0.0;
+                w_vec(base_y   : base_y+2) = diag(obj.weight.V);
+                w_vec(base_y+3 : base_y+5) = diag(obj.weight.V) * 0.3;
+                w_vec(base_y+6 : base_y+8) = diag(obj.weight.V) * 0.0;
             end
+
             base_h = 6 * obj.m + 1;
-            end_h = base_h + 3 * obj.m - 1;
+            end_h  = base_h + 3 * obj.m - 1;
             w_vec(base_h : end_h) = 0;
+
             base_z = 9 * obj.m + 1;
-            for k = 1 : obj.n
+            for k = 1:obj.n
                 curr_idx = base_z + (k-1) * 9;
                 curr_end = curr_idx + 8;
-
                 if k == 1
-                    % 全部默认用 Q(1,1)（roll 位置的值）
                     w_vec(curr_idx : curr_end) = obj.weight.Q(1,1);
-                    % 对应 roll/pitch/yaw 的元素，直接用 Q 对应位置的值
-                    w_vec(curr_idx + 1) = obj.weight.Q(3,3);   % yaw
-                    w_vec(curr_idx + 3) = obj.weight.Q(3,3);   % yaw
-                    w_vec(curr_idx + 2) = obj.weight.Q(2,2);   % pitch
-                    w_vec(curr_idx + 5) = obj.weight.Q(1,1);   % roll
-
+                    w_vec(curr_idx + 1) = obj.weight.Q(3,3);
+                    w_vec(curr_idx + 3) = obj.weight.Q(3,3);
+                    w_vec(curr_idx + 2) = obj.weight.Q(2,2);
+                    w_vec(curr_idx + 5) = obj.weight.Q(1,1);
                 elseif k == 2
                     w_vec(curr_idx : curr_end) = obj.weight.W(1,1);
                     w_vec(curr_idx + 1) = obj.weight.W(3,3);
                     w_vec(curr_idx + 3) = obj.weight.W(3,3);
                     w_vec(curr_idx + 2) = obj.weight.W(2,2);
                     w_vec(curr_idx + 5) = obj.weight.W(1,1);
-
                 else
                     w_vec(curr_idx : curr_end) = 0;
                 end
             end
-            Q_stage = diag(w_vec);
-            
-            % try, Q_terminal = dare(A_d*0.995, B_d, Q_stage, obj.weight.input); catch, Q_terminal = Q_stage * 2; end
-            Q_terminal = 1*Q_stage;
-            Q_bar = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
-            R_bar  = kron(eye(obj.H), obj.weight.input);
-            RP_bar = kron(eye(obj.H), obj.weight.preinputdif);
-            Up = repmat(obj.input.pre_u(:, 1), obj.H, 1);
+
+            Q_stage    = diag(w_vec);
+            Q_terminal = 1 * Q_stage;
+            Q_bar      = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
+            R_bar      = kron(eye(obj.H), obj.weight.input);
+            RP_bar     = kron(eye(obj.H), obj.weight.preinputdif*diag([1, 50, 50, 20]);
+            Up         = repmat(obj.input.pre_u(:,1), obj.H, 1);
+
+            %% ===== QP 构造与求解 =====
             [obj.quadH, obj.quadf] = obj.gen_Hf(obj.koopman.ExA, obj.koopman.ExB, z_current, ...
                 Q_bar, R_bar, RP_bar, ...
                 Xr, Ur, Up);
-            A = []; b = [];
-            Aeq = []; beq = [];
-            obj.quadH = (obj.quadH + obj.quadH') / 2;
-            obj.quadH = obj.quadH + eye(size(obj.quadH)) * 1e-6;
+
+            obj.quadH = (obj.quadH + obj.quadH') / 2 + 1e-6 * eye(size(obj.quadH));
+
+            A = []; b = []; Aeq = []; beq = [];
             lb = repmat(obj.param.input_min, obj.param.H, 1);
             ub = repmat(obj.param.input_max, obj.param.H, 1);
             obj.options = optimset('Display', 'off');
 
-            [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
+            [var, fval, eflag, ~, ~] = quadprog(obj.quadH, obj.quadf, A, b, Aeq, beq, lb, ub, [], obj.options);
 
             if eflag ~= 1
                 disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
             end
-            obj.result.eflag= eflag;
-            % var(2:4,1)=0;
-            obj.result.input =var(1:4, 1); % 算出された入力
+            obj.result.eflag = eflag;
+
+            %% ===== MPC 名义输出 =====
+            obj.result.input = var(1:4, 1);
             obj.result.u_nom = obj.result.input;
-            % fprintf('curp =[%.3f %.3f %.3f]|ref(1)=[%.3f %.3f %.3f]|E_x=%.3f|u(3)=%.4f\n',obj.current_state(1:3),obj.state.ref(1:3,1),obj.state.ref(1,1)-obj.current_state(1),obj.result.input(3));
-            obj.result.delta_u_edmd = obj.compute_residual_delta_u(obj.result.u_nom);
-            obj.result.delta_u_z = obj.compute_vertical_delta_u(obj.result.u_nom);
-            obj.result.u_total_pre_sat = obj.result.u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
+
+            %% ===== DOB 前馈补偿（叠加在 MPC 输出之前的 nom 上）=====
+            if obj.dobflag == 1
+                obj.result.input = obj.result.input + obj.u_offset_dob;
+                obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
+            end
+
+            %% ===== EDMD 残差补偿（你原有逻辑，保留）=====
+            obj.result.delta_u_edmd  = obj.compute_residual_delta_u(obj.result.u_nom);
+            obj.result.delta_u_z     = obj.compute_vertical_delta_u(obj.result.u_nom);
+            obj.result.u_total_pre_sat = obj.result.input + obj.result.delta_u_edmd + obj.result.delta_u_z;
             obj.result.input = obj.result.u_total_pre_sat;
-            % if ~isfield(obj.result, 'd_est'), obj.result.d_est = zeros(4,1); obj.result.x_last = obj.state.current; end
-            % pred_error = obj.state.current - (A_d * obj.result.x_last + B_d * obj.input.pre_u);
-            % obj.result.d_est = 0.8 * obj.result.d_est + 0.2 * (pinv(B_d) * pred_error);
-            % obj.result.input = obj.result.input - obj.result.d_est;
-            % obj.result.x_last = obj.state.current;
-            if obj.pidflag ==1 
+            obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
+
+            %% ===== PID 补偿（你原有逻辑，保留）=====
+            if obj.pidflag == 1
                 persistent pos_integ
                 if isempty(pos_integ), pos_integ = zeros(3,1); end
                 persistent yaw_integ
                 if isempty(yaw_integ), yaw_integ = 0; end
+
                 e_pos = obj.state.ref(1:3, 1) - obj.current_state(1:3);
                 e_vel = obj.state.ref(7:9, 1) - obj.current_state(7:9);
                 e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
                 e_yaw_rate = obj.state.ref(12, 1) - obj.current_state(12);
-                 
-                % 积分累积
-              
+
                 if norm(e_pos(1:2)) < 0.2
-                 pos_integ(1:2) = pos_integ(1:2) + e_pos(1:2)*obj.param.dt;
-                 pos_integ(3) = pos_integ(3) + e_pos(3)*obj.param.dt;
+                    pos_integ(1:2) = pos_integ(1:2) + e_pos(1:2) * obj.param.dt;
+                    pos_integ(3)   = pos_integ(3) + e_pos(3) * obj.param.dt;
                 else
-                 pos_integ = pos_integ + e_pos * obj.param.dt;
-                end             
+                    pos_integ = pos_integ + e_pos * obj.param.dt;
+                end
                 pos_integ = max(min(pos_integ, [2.0; 2.0; 1.0]), -[2.0; 2.0; 1.0]);
                 yaw_integ = yaw_integ + e_yaw * obj.param.dt;
                 yaw_integ = max(min(yaw_integ, 0.5), -0.5);
-                % 位置环增益（PID）
-                Kp_x = 0.20;   Kd_x = 0.50;   Ki_x = 0.05;
-                Kp_y = 0.20;   Kd_y = 0.55;   Ki_y = 0.05;
-                Kp_z = 2.0;    Kd_z = 1.0;    Ki_z = 0.5;
-                Ki_yaw = 0.03;  Kp_yaw = 0.2;  Kd_yaw = 0.05;
-                % 计算各方向的 u 修正
-                % 符号要实验确定！
-                delta_u_pitch = (Kp_x * e_pos(1) + Kd_x * e_vel(1)+ Ki_x * pos_integ(1));
-                delta_u_roll  =  -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * pos_integ(2));
-                delta_u_thrust = (Kp_z * e_pos(3) + Kd_z * e_vel(3)+ Ki_z * pos_integ(3));
-                delta_u_yaw = Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * yaw_integ;
-                obj.result.input(4) = obj.result.input(4) + delta_u_yaw;
-                % 叠加到 MPC 输出
+
+                Kp_x = 0.20;  Kd_x = 0.50;  Ki_x = 0.05;
+                Kp_y = 0.20;  Kd_y = 0.55;  Ki_y = 0.05;
+                Kp_z = 2.0;   Kd_z = 1.0;   Ki_z = 0.5;
+                Ki_yaw = 0.03; Kp_yaw = 0.2; Kd_yaw = 0.05;
+
+                delta_u_pitch  =  (Kp_x * e_pos(1) + Kd_x * e_vel(1) + Ki_x * pos_integ(1));
+                delta_u_roll   = -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * pos_integ(2));
+                delta_u_thrust =  (Kp_z * e_pos(3) + Kd_z * e_vel(3) + Ki_z * pos_integ(3));
+                delta_u_yaw    =   Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * yaw_integ;
+
                 obj.result.input(1) = obj.result.input(1) + delta_u_thrust;
                 obj.result.input(2) = obj.result.input(2) + delta_u_roll;
                 obj.result.input(3) = obj.result.input(3) + delta_u_pitch;
+                obj.result.input(4) = obj.result.input(4) + delta_u_yaw;
                 obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
             end
-            obj.result.eflag = eflag;
-            obj.result.var = var;
-            obj.result.Bestcost_pre = obj.result.bestcost;
-            obj.result.bestcost = [fval;0];
-            obj.result.kqlmpc = obj.result.input;
-            obj.input.pre_u = obj.result.input;
-            obj.result.pre_u = obj.input.pre_u;
-            % obj.result.bestcost=obj.input.Bestcost_now ;
-            % n = size(obj.state.current,1); % number of observables
-            % %qp def
-            % Q = blkdiag(kron(eye(obj.param.H-1),blkdiag(obj.weight.stagestate,0*eye(n-12))),blkdiag(obj.weight.terminalstate,0*eye(n-12)));
-            % R = kron(eye(obj.param.H),obj.weight.input);
-            % RP = kron(eye(obj.param.H),obj.weight.preinputdif);
-            % Xr = reshape([obj.state.ref(1:12,:);zeros(n-12,obj.param.H)],[],1);
-            % Ur = reshape(obj.state.ref(13:16,:),[],1);
-            % [obj.quadH,obj.quadf]=obj.gen_Hf(obj.koopman.ExA,obj.koopman.ExB,obj.state.current,Q,R,RP,Xr,Ur,obj.input.var);
-            % A = []; b = [];
-            % Aeq = []; beq = [];
-            % lb = repmat(obj.param.input_min,1,obj.param.H);
-            % ub = repmat(obj.param.input_max,1,obj.param.H);
-            % obj.options = optimset('Display', 'off');
-            % [var,fval,eflag,~,~] = quadprog(obj.quadH,obj.quadf,A,b,Aeq,beq,lb,ub,[],obj.options);
-            % if eflag ~= 1
-            %     disp(['Warning: Quadprog failed to find a solution. eflag = ', num2str(eflag)]);
-            % end
-            % obj.result.input =var(1:4, 1); % 算出された入力
-            % obj.result.eflag = eflag;
-            % obj.result.var = var;
-            % obj.result.Bestcost_pre = obj.result.bestcost;
-            % obj.result.bestcost = [fval;0];
-            % obj.input.pre_u = obj.result.input;
-            % obj.result.pre_u = obj.input.pre_u;
+
+            %% ===== 更新结果和历史 =====
+            obj.result.eflag         = eflag;
+            obj.result.var           = var;
+            obj.result.Bestcost_pre  = obj.result.bestcost;
+            obj.result.bestcost      = [fval; 0];
+            obj.result.kqlmpc        = obj.result.input;
+            obj.input.pre_u          = obj.result.input;
+            obj.result.pre_u         = obj.input.pre_u;
+
+            %% ===== DOB 历史更新（用最终实际施加的输入）=====
+            if obj.dobflag == 1
+                obj.z_prev_dob = obj.state.current;
+                obj.u_prev_dob = obj.result.input;   % ★ 不含 PID/EDMD
+            end
+            if obj.dobflag == 1 && ~isempty(obj.z_prev_dob)
+                z_predicted = A_d * obj.z_prev_dob + B_d * obj.u_prev_dob;
+                d_observed = obj.state.current - z_predicted;
+
+                % 投影到位置子空间（看 d 在物理意义清晰的分量上的值）
+                fprintf('[DOB-debug] |d_obs|=%.4f, d_pos=[%.4f %.4f %.4f], u_offset=[%.4f %.4f %.4f %.4f]\n', ...
+                    norm(d_observed), ...
+                    d_observed(1), d_observed(2), d_observed(3), ...
+                    obj.u_offset_dob(1), obj.u_offset_dob(2), obj.u_offset_dob(3), obj.u_offset_dob(4));
+            end
 
         end
         function [H,f] = gen_Hf(obj,A,B,x0,Q,R,Rp,Xr,Ur,Up)
@@ -907,162 +870,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             A(9*M+1:end, 9*M+1:end) = A_so3;
 
         end
-    function K_MPC_velocity(obj, A_d, B_d)
-% ============================================================
-%  速度形式 Koopman MPC —— 严格对应论文 IEEE JOE 2024 公式 (17)(22)
-%
-%  核心思想：
-%     增量系统：Δz(k+1) = A_d·Δz(k) + B_d·Δu(k)        ← 论文(17)
-%     累加恢复：z(k+j)  = z(k) + Σ_{l=1}^{j} Δz(k+l)
-%     代价函数：min ‖Z-Xr‖²_Q + ‖ΔU‖²_R                 ← 论文(22)
-%
-%  决策变量：ΔU = [Δu(0); Δu(1); ...; Δu(H-1)]
-%  复用原有：ExA, ExB（同一套矩阵对原系统和增量系统都成立）
-% ============================================================
-
-    %% ===== Step 1: 扩展矩阵（A_d, B_d 已由调用方离散化好）=====
-    n = size(obj.state.current, 1); 
-    A_d= A_d * 0.995;
-    [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix( ...
-        {A_d, B_d, obj.param.H, n});
-
-    %% ===== Step 2: 构造参考轨迹 Xr（照搬原版 q_mix 姿态渐变逻辑）=====
-    q_curr = obj.current_state(4:6);
-    split  = 9 * obj.m;
-    Xr_vec = zeros(n * obj.param.H, 1);
-    xref_residual = zeros(12, obj.param.H);
-
-    for k = 1:obj.param.H
-        xref  = obj.state.ref(1:12, k);
-        ratio = (k-1) / (obj.param.H-1);
-        q_mix = q_curr * (1 - ratio) + xref(4:6) * ratio;
-
-        xref_ali = xref;
-        xref_ali(4:6) = q_mix;
-        xref_residual(:, k) = xref_ali;
-
-        z_pos = obj.klift(xref_ali, obj.m, obj.n);
-        z_att = obj.klift(xref,     obj.m, obj.n);
-        Xr_vec((k-1)*n+1 : k*n) = ...
-            [z_pos(1:split); z_att(split+1:end)];
-    end
-    obj.result.ref = obj.state.ref;
-    obj.residual_ref_state = xref_residual;
-
-    %% ===== Step 3: 权重矩阵 Q_bar（完全照搬原版 w_vec 构造）=====
-    w_vec = zeros(n, 1);
-
-    if obj.m >= 1, w_vec(1:3) = diag(obj.weight.P) * 1.0; end
-    if obj.m >= 2, w_vec(4:6) = diag(obj.weight.P) * 0.7; end
-    if obj.m >= 3, w_vec(7:9) = diag(obj.weight.P) * 0.3; end
-
-    base_y = 3 * obj.m + 1;
-    if obj.m >= 1
-        w_vec(base_y   : base_y+2) = diag(obj.weight.V);
-        w_vec(base_y+3 : base_y+5) = diag(obj.weight.V) * 0.3;
-        w_vec(base_y+6 : base_y+8) = 0;
-    end
-
-    base_h = 6 * obj.m + 1;
-    w_vec(base_h : base_h + 3*obj.m - 1) = 0;
-
-    base_z = 9 * obj.m + 1;
-    for k = 1:obj.n
-        idx = base_z + (k-1)*9;
-        if k == 1
-            w_vec(idx : idx+8) = obj.weight.Q(1,1);
-            w_vec(idx + [1,3]) = obj.weight.Q(3,3);   % yaw
-            w_vec(idx + 2)     = obj.weight.Q(2,2);   % pitch
-            w_vec(idx + 5)     = obj.weight.Q(1,1);   % roll
-        elseif k == 2
-            w_vec(idx : idx+8) = obj.weight.W(1,1);
-            w_vec(idx + [1,3]) = obj.weight.W(3,3);
-            w_vec(idx + 2)     = obj.weight.W(2,2);
-            w_vec(idx + 5)     = obj.weight.W(1,1);
-        else
-            w_vec(idx : idx+8) = 0;
-        end
-    end
-
-    Q_stage = diag(w_vec);
-    Q_bar   = blkdiag(kron(eye(obj.param.H-1), Q_stage), Q_stage);   % 终端代价 = Q_stage
-
-    %% ===== Step 4: 速度形式核心变量 =====
-    %   Δz_current = z(k) - z(k-1)
-    %   T_cum: ΔZ 序列 → Σ ΔZ 序列 的块下三角累加算子
-    if isempty(obj.z_prev) || any(isnan(obj.z_prev))
-        obj.z_prev = obj.state.current;         % 首次调用: Δz = 0
-    end
-    delta_z = obj.state.current - obj.z_prev;
-    T_cum   = kron(tril(ones(obj.param.H)), eye(n));
-
-    %% ===== Step 5: 预测方程 Z = Z_free + M·ΔU =====
-    %   ΔZ   = ExA·Δz + ExB·ΔU
-    %   Z    = 1⊗z(k) + T_cum·ΔZ
-    %        = [1⊗z(k) + T_cum·ExA·Δz] + [T_cum·ExB]·ΔU
-    Z_free = repmat(obj.state.current, obj.param.H, 1) ...
-           + T_cum * obj.koopman.ExA * delta_z;
-    M      = T_cum * obj.koopman.ExB;
-
-    %% ===== Step 6: QP 的 Hessian 和梯度 =====
-    %   J = ‖Z_free + M·ΔU - Xr‖²_Q + ‖ΔU‖²_R
-    R_bar = kron(eye(obj.param.H), obj.weight.input*5000);   % 论文 R 矩阵，惩罚 ΔU
-
-    obj.quadH = 2 * (M' * Q_bar * M + R_bar);
-    obj.quadH = (obj.quadH + obj.quadH')/2 + 1e-6 * eye(size(obj.quadH));
-    obj.quadf = 2 * M' * Q_bar * (Z_free - Xr_vec);
-
-    %% ===== Step 7: 约束（绝对值 + 变化率 双约束）=====
-    %   绝对值: input_min ≤ u_prev + L_accum·ΔU ≤ input_max
-    %   变化率: |Δu| ≤ du_max （通过 lb/ub）
-    u_prev_stack = repmat(obj.input.pre_u(:,1), obj.param.H, 1);
-    L_accum      = kron(tril(ones(obj.param.H)), eye(size(obj.input.pre_u,1)));
-
-    A_ineq = [ L_accum; -L_accum];
-    b_ineq = [repmat(obj.param.input_max, obj.param.H, 1) - u_prev_stack;
-              u_prev_stack - repmat(obj.param.input_min, obj.param.H, 1)];
-
-    lb = repmat(-obj.param.du_max, obj.param.H, 1);
-    ub = repmat( obj.param.du_max, obj.param.H, 1);
-
-    %% ===== Step 8: 求解 QP =====
-    obj.options = optimset('Display', 'off');
-    [var, fval, eflag] = quadprog(obj.quadH, obj.quadf, ...
-                                   A_ineq, b_ineq, [], [], lb, ub, [], obj.options);
-
-    %% ===== Step 9: 恢复实际输入（带回退保护）=====
-    if eflag ~= 1
-        warning('Velocity-MPC QP failed (eflag=%d), fallback to u_prev', eflag);
-        u_nom = obj.input.pre_u(:,1);
-        var   = zeros(size(obj.input.pre_u,1) * obj.param.H, 1);
-        fval  = NaN;
-    else
-        u_nom = obj.input.pre_u(:,1) + var(1:size(obj.input.pre_u,1));
-    end
-    u_nom = max(min(u_nom, obj.param.input_max), obj.param.input_min);
-
-    %% ===== Step 10: 外部残差补偿（flag 由补偿函数内部控制）=====
-    obj.result.u_nom          = u_nom;
-    obj.result.delta_u_edmd   = obj.compute_residual_delta_u(u_nom);
-    obj.result.delta_u_z      = obj.compute_vertical_delta_u(u_nom);
-    obj.result.u_total_pre_sat = u_nom + obj.result.delta_u_edmd + obj.result.delta_u_z;
-    obj.result.input = max(min(obj.result.u_total_pre_sat, obj.param.input_max), obj.param.input_min);
    
-
-    %% ===== Step 11: 更新结果和历史 =====
-    obj.result.eflag        = eflag;
-    obj.result.var          = var;
-    obj.result.Bestcost_pre = obj.result.bestcost;
-    obj.result.bestcost     = [fval; 0];
-    obj.result.kqlmpc       = obj.result.input;
-
-    % ★ pre_u 存 u_nom（不含外部补偿），保证下一步 MPC 预测模型一致
-    obj.input.pre_u  = u_nom;
-    obj.result.pre_u = obj.input.pre_u;
-
-    % ★ 更新 z_prev，供下一步 Δz 计算
-    obj.z_prev = obj.state.current;
-end
         %% 目標軌道生成
         % function [xr] = generate_reference(obj)
         %     xr = zeros(obj.param.total_size, obj.H);    % initialize
