@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % terminal time
+te = 350; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -20,7 +20,7 @@ logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for 
 
 base = [0,0]; % center
 % base = [1,0]; % base position for Triangle
-base = [-1,0]; % base position for Saddle
+% base = [-1,0]; % base position for Saddle
 % base = [100,100];
 initial_state.p = arranged_position(base, 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];
@@ -45,10 +45,12 @@ agent.plant = MODEL_CLASS(agent, plant);
 agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 1.0;
 
-% agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
-% agent.plant.param(7) = 0.24;
-agent.plant.param(6) = 0.18; % x3
-agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
+agent.plant.param(6) = 0.2; % モデル誤差を陽に入れたSimデータ取得時の値（センサーノイズ無し）
+agent.plant.param(7) = 0.2;
+agent.plant.param(6) = 0.19; % モデル誤差を陽に入れたSimデータ取得時の値（センサーノイズ分散=10^-3）
+agent.plant.param(7) = 0.19;
+% agent.plant.param(6) = 0.18; % x3
+% agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
 % agent.plant.param(6) = 0.15;
 % agent.plant.param(7) = 0.15;
 
@@ -65,8 +67,8 @@ if contains(func2str(agent.plant.method), 'force') % 'thrust_force modelを使�
     EKF_model.param.method  = "roll_pitch_yaw_thrust_force_physical_parameter_model";
     agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,EKF_model),["p", "q"]));
 end
-% agent.sensor = DIRECT_SENSOR(agent, 0.001); % modeファイル内で回すとき
-agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
+agent.sensor = DIRECT_SENSOR(agent, 0.001); % 分散 10^-3
+% agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 
 run("ExpBase");
 takeoff_zd = 1; % だいたい1m
@@ -79,12 +81,13 @@ center = [0;0;takeoff_zd]; % 原点
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",center,"radius",[1,1,0],"phase",0},"HL"});             % circle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0], "x",1},"HL"});                      % 3D lemniscate
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,1,0.25]},"HL"});                    % saddle
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,1,0.25]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10,"orig",center,"radius",1.0},"HL"});                        % flower
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",4.5,"ManualSetting",0,"check",1}});  % random 9th spline
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10});                                       % P2P
@@ -108,38 +111,41 @@ else
     % agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)); % 位置偏差に対するサーボ系HL
 
 
-    % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
-    % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
-    % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
-    % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
-    % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
-    % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
-    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx";
-    % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx";
-    % onnxName = "Sim_mixed_DNNMEC_epoch_100000.onnx";
-     
-    % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
-    % onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
-    % onnxName = "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx";
-    % onnxName = "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx";
-     
-    onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
-    % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
-    % onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
-    % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
-
-    % onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
-    % onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
-    % onnxName = "2026-1-29_10_21_24__DNN21__Plant_data_Sim_mixed__Euler__Step=1__epoch_100000.onnx";
-    % onnxName = "2026-1-29_17_51_43__DNN21__Plant_data_Sim_mixed__Euler__Step=2__epoch_100000.onnx";
-    % onnxName = "2026-1-30_10_17_38__DNN21__Plant_data_Sim_mixed__Euler__Step=3__epoch_100000.onnx";
-    onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
-    onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
-    % % % onnxName = "RK4_step=3";
-    onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
+    % % onnxName = "Step_4_DNNMEC_epoch_100000.onnx";
+    % % onnxName = "Sim_Data_DNNMEC_epoch_100000.onnx";
+    % % onnxName = "Sim_mixed_Data_DNNMEC_epoch_30000.onnx";
+    % % onnxName = "DNNMEC_Exp_data_epoch_100000.onnx";
+    % % onnxName = "Exp_data_DNNMEC_epoch_100000_e-6_0.001_0.001_0.8.onnx"; % <-jx,jy=0.18で暴れて性能劣化
+    % % onnxName = "Exp_data_No_coef_DNNMEC_epoch_100000.onnx";
+    % % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_100000.onnx";
+    % % onnxName = "z_state_coef_No_losscoef_DNNMEC_epoch_6500000.onnx";
+    % % onnxName = "Sim_mixed_DNNMEC_epoch_100000.onnx";
+    % 
+    % % onnxName = "2025-11-25_11_53_4__DNN24__Plant_data_Exp__hidden=1__Euler__epoch_100000.onnx";
+    % % onnxName = "2025-11-11_12_35_26__DNN24__Plant_data_Exp__hidden=3__Euler__epoch_100000.onnx";
+    % % onnxName = "2025-11-24_14_11_26__RNN24__Plant_data_Exp__hidden=1__Euler__epoch_3000.onnx";
+    % % onnxName = "2025-12-12_10_20_44__DNN21__Plant_data_Exp__RK4__hidden=1__epoch_100000.onnx";
+    % 
+    % onnxName = "2025-12-8_12_18_54__DNN21__Plant_data_Exp__Euler__hidden=3__epoch_100000.onnx";
+    % % onnxName = "2025-12-8_12_29_35__DNN21__Plant_data_Exp__Euler__hidden=1__epoch_100000.onnx";
+    % % onnxName = "2025-12-9_18_6_40__DNN21__Plant_data_Sim_mixed__Euler__hidden=3__epoch_100000.onnx";
+    % % onnxName = "2025-12-10_18_0_20__DNN21__Plant_data_Sim_mixed__RK4__hidden=3__epoch_100000.onnx";
+    % 
+    % % onnxName = "2026-1-29_18_0_49__DNN21__Plant_data_Exp__Euler__Step=1__epoch_100000.onnx";
+    % % onnxName = "2026-1-30_10_26_11__DNN21__Plant_data_Exp__Euler__Step=2__epoch_100000.onnx";
+    % % onnxName = "2026-1-29_10_21_24__DNN21__Plant_data_Sim_mixed__Euler__Step=1__epoch_100000.onnx";
+    % % onnxName = "2026-1-29_17_51_43__DNN21__Plant_data_Sim_mixed__Euler__Step=2__epoch_100000.onnx";
+    % % onnxName = "2026-1-30_10_17_38__DNN21__Plant_data_Sim_mixed__Euler__Step=3__epoch_100000.onnx";
+    % onnxName = "2026-2-2_10_20_10__DNN21__Plant_data_Exp__RK4__Step=1__100000epoch.onnx";
+    % onnxName = "2026-2-3_9_50_55__DNN21__Plant_data_Exp__RK4__Step=2__100000epoch.onnx";
+    % % % % onnxName = "RK4_step=3";
+    % onnxName = "2025-12-15_13_22_33__DNN21__Plant_data_Exp__RK4__hidden=3__step=4__epoch_100000.onnx";
+    
 
     % onnxName = "2026-2-2_10_43_54__DNN12__Plant_data_Sim_mixed__Euler__100000epoch.onnx";
-    onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp__Euler__100000epoch.onnx";
+    % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp__Euler__100000epoch.onnx";
+
+    onnxName = "2025-11-25_11_49_8__DNN24__Plant_data_Sim_mixed__Euler__epoch_100000.onnx"; % for IFAC 2026 final ver.
     agent.controller.mec = DNNMEC(agent, onnxName);
 end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
@@ -152,7 +158,7 @@ FS = 18; % FontSize
 fcolor = 1;
 phase = "tfl";
 % phase = "tf";
-% phase = "f";
+phase = "f";
 app.logger.plot({1, "p1:2", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);

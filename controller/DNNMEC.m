@@ -125,7 +125,7 @@ classdef DNNMEC < handle
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
             if abs(obj.result.delta_input(4))>obj.tau_lim, obj.result.delta_input(4) = 0; end
 
-            % obj.result.delta_input = [0;0;0;0]; % 補償入力を無くしてNN-MECを入れない
+            obj.result.delta_input = [0;0;0;0]; % 補償入力を無くしてNN-MECを入れない
             obj.result.delta_input = obj.LPF.update(obj.result.delta_input); % 補償入力delta_uにLPFを掛ける
 
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
