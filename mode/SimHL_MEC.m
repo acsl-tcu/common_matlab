@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 350; % terminal time
+te = 50; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 % in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -45,17 +45,17 @@ agent.plant = MODEL_CLASS(agent, plant);
 agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 1.0;
 
-agent.plant.param(6) = 0.2; % モデル誤差を陽に入れたSimデータ取得時の値（センサーノイズ無し）
-agent.plant.param(7) = 0.2;
-agent.plant.param(6) = 0.19; % モデル誤差を陽に入れたSimデータ取得時の値（センサーノイズ分散=10^-3）
-agent.plant.param(7) = 0.19;
+% agent.plant.param(6) = 0.2; % モデル誤差を陽に入れたSimデータ取得時(Spline)の値（センサーノイズ無し）
+% agent.plant.param(7) = 0.2;
+% agent.plant.param(6) = 0.19; % モデル誤差を陽に入れたSimデータ取得時(Spline)の値（センサーノイズ分散=10^-3）
+% agent.plant.param(7) = 0.19;
 % agent.plant.param(6) = 0.18; % x3
 % agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
-% agent.plant.param(6) = 0.15;
-% agent.plant.param(7) = 0.15;
+% agent.plant.param(6) = 0.24;
+% agent.plant.param(7) = 0.24;
 
-% agent.plant.param(6) = 0.12; % x2
-% agent.plant.param(6) = 0.15; % x2.5
+agent.plant.param(6) = 0.12;
+agent.plant.param(7) = 0.12;
 
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
 % agent.plant.param(4) = 0.07;
@@ -71,15 +71,15 @@ agent.sensor = DIRECT_SENSOR(agent, 0.001); % 分散 10^-3
 % agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 
 run("ExpBase");
-takeoff_zd = 1; % だいたい1m
+takeoff_zd = 0.5; % だいたい1m
 agent.reference.takeoff.zd = takeoff_zd;
 center = [base';takeoff_zd];
 center = [0;0;takeoff_zd]; % 原点
 
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",center,"radius",[0,0,0]},"HL"});                      % center hovering
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[base'+1;takeoff_zd],"radius",[0,0,0]},"HL"});        % point hovering
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[base'+1;takeoff_zd+1],"radius",[0,0,0]},"HL"});        % point hovering
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",center,"radius",[1,1,0],"phase",0},"HL"});             % circle
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",5,"orig",center,"radius",1, "x",1},"HL"});               % lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate_3D",{"freq",10,"orig",center,"size",[1,0], "x",1},"HL"});                      % 3D lemniscate
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",center,"radius",[1,1,0.25]},"HL"});                    % saddle
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",center,"size",1.0},"HL"});                        % triangle
@@ -87,7 +87,7 @@ center = [0;0;takeoff_zd]; % 原点
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",center,"size",1.0},"HL"});                           % heart
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15,"orig",center,"radius",1.0},"HL"});                          % star
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20,"order",9,"point_dt",4.5,"ManualSetting",0,"check",1}});  % random 9th spline
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});  % random 9th spline
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60,"order",9,"point_dt",2.5,"ManualSetting",0,"check",1}});  % random 9th spline
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center...
 %                                                                 , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5});  % P2P
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [-1;-1;takeoff_zd]), 10});                                       % P2P
@@ -145,7 +145,12 @@ else
     % onnxName = "2026-2-2_10_43_54__DNN12__Plant_data_Sim_mixed__Euler__100000epoch.onnx";
     % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp__Euler__100000epoch.onnx";
 
-    onnxName = "2025-11-25_11_49_8__DNN24__Plant_data_Sim_mixed__Euler__epoch_100000.onnx"; % for IFAC 2026 final ver.
+    % =============== for IFAC 2026 final ver. =======================
+    onnxName = "2025-11-25_11_49_8__DNN24__Plant_data_Sim_mixed__Euler__epoch_100000.onnx";
+    onnxName = "2026-4-28_16_40_26__DNN24__Plant_data_Sim_60ptsSpline__SensorNoise_m0.7875_jxjy0.19__Euler__100000epoch.onnx";
+    % onnxName = "2026-4-28_16_40_26__DNN24__Plant_data_Sim_60ptsSpline__SensorNoise_m0.7875_jxjy0.19__Euler__500000epoch.onnx";
+    onnxName = "2026-4-29_10_59_9__DNN24__Plant_data_Sim_60ptsSpline__SensorNoise_m0.7875_jxjy0.19__Euler__1000000epoch.onnx";
+    onnxName = "2026-4-29_20_13_5__DNN24__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch.onnx";
     agent.controller.mec = DNNMEC(agent, onnxName);
 end
 agent.cha_allocation.controller=["nominal","mec"]; % cha_allocationにコントローラー登録
@@ -157,8 +162,9 @@ LW = 1.5; % LineWidth
 FS = 18; % FontSize
 fcolor = 1;
 phase = "tfl";
-% phase = "tf";
-phase = "f";
+phase = "tf";
+% phase = "t";
+% phase = "f";
 app.logger.plot({1, "p1:2", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
