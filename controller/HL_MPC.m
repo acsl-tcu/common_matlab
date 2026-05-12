@@ -20,11 +20,11 @@ classdef HL_MPC < handle
         end
 
         function result = do(obj,varargin)
-            tic
+           
             model = obj.self.estimator.result;
             xd = obj.self.reference.result.state.xd;
             P = obj.param.P;
-
+             phase = varargin{2};
             %% expand reference: single xd -> 20 x H
             xd = xd(:);
             xd = [xd; zeros(max(0, 20 - size(xd, 1)), 1)];
@@ -53,7 +53,8 @@ classdef HL_MPC < handle
             xd(4, :) = mod(xd(4, :) - xd0(4) + pi, 2*pi) - pi;
             xd(4, 1) = 0;
             xd0 = xd(:, 1);
-
+            fprintf('controller: HLMPC,  phase: %s \n',phase);
+            disp(obj.self.reference.result.state.p);
             %% quadprog option
             if isfield(obj.param.mpc, "opt")
                 opt = obj.param.mpc.opt;
@@ -132,8 +133,10 @@ classdef HL_MPC < handle
                 ];
 
             result = obj.result;
+            obj.result.hlmpc = obj.result.input;
+            obj.result.pre_u = obj.result.input;
             obj.show();
-toc
+
         end
         function show(obj)
             % clc;

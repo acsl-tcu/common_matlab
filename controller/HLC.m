@@ -29,8 +29,8 @@ classdef HLC < handle
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp('controller: HLC,  phase: ');
-      disp(phase);
+      fprintf('controller: HLC,  phase: %s \n',phase);
+      
       disp(ref.state.p);
       xd0 =xd;
       P = obj.param.P;
