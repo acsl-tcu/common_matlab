@@ -61,10 +61,18 @@ methods
         obj.result.z4 = z4;
         obj.result.input = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
         result = obj.result;
+        obj.show();
     end
 
     function show(obj)
-        obj.result
+       state_monte = obj.self.estimator.result.state;
+            fprintf("==================================================================\n")
+            fprintf("==================================================================\n")
+            fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \t ws: %f %f %f \n",...
+                    state_monte.p(1), state_monte.p(2), state_monte.p(3),...
+                    state_monte.v(1), state_monte.v(2), state_monte.v(3),...
+                    state_monte.q(1), state_monte.q(2), state_monte.q(3), ...
+                    state_monte.w(1), state_monte.w(2), state_monte.w(3));       % s:state 現在状態
     end
 
 end

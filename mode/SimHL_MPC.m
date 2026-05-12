@@ -22,28 +22,36 @@ initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
-
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
-% agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
-%agent.parameter.set("mass",struct("mass",0.5))
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"init",[0;0;0.6],"radius",1.0},"HL"});
-agent.controller = HLC(agent,Controller_HL(dt));
-%run("ExpBase");
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",7,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
+ % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_heart", {"freq",20,"orig",[0 0 0.6],"size",[1 1 0],"phase",-pi/2}});
+% agent.controller.hlc = HLC(agent,Controller_HL(dt));
+ % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_spline", {"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
+ % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[0,0,0]}, "HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 20}});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 0.6], "size", [1 1 0], "phase", pi/2}}); 
+agent.controller.hlmpc =HL_MPC(agent,Controller_HL_MPC(dt, agent));
+
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation = struct("reference","time_varying", ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
-motive.getData(agent);
 
+agent.cha_allocation.controller = "hlmpc";
+% agent.cha_allocation.f.controller = ["hlmpc"];
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"phase","atfl","ax",app.UIAxes);
-% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"linewidth", 2.5, ...
+    "fontsize", 14);
+% app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te], "linewidth", 2.5, ...
+    "fontsize", 14);
 app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te], "linewidth", 2.5, ...
     "fontsize", 14);
-%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+ app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 4,"phase",'tfl', "color",0, "linewidth", 2.5, ...
+    "fontsize", 14);
 end

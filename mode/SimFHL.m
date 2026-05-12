@@ -20,9 +20,12 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
-agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"orig",[0;0;1],"size",[2,2,0.5]},"HL"});
-agent.controller = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
-run("ExpBase");
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",7,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
+agent.controller.hlc = FUNCTIONAL_HLC(agent,Controller_FHL(dt));
+run("SimBase");
+agent.cha_allocation.reference = "time_varying";
+agent.cha_allocation.controller = "hlc";
+
 function dfunc(app)
 app.logger.plot({1, "p", "pre"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te]);
 % app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
