@@ -48,11 +48,11 @@ function Controller = Controller_HL_MPC(dt, agent)
     %%  exp
     Controller.mpc.Q = {
         diag([100,1]), ...%z
-        diag([300,60,20,1]), ...%x
-        diag([350,60,20,1]), ...%y
+        diag([330,60,20,1]), ...%x
+        diag([330,60,20,1]), ...%y
         diag([100,10])   %yaw
         };
-    Controller.mpc.R = {0.03, 0.03, 0.03, 0.01};%z,x,y,yaw  
+    Controller.mpc.R = {0.03, 0.02, 0.02, 0.01};%z,x,y,yaw  
     %%
     Controller.mpc.lb = {-10, -10, -10, -10};
     Controller.mpc.ub = { 10,  10,  10,  10};

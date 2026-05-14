@@ -38,8 +38,8 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
  % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_heart", {"freq",20,"orig",[0 0 0.6],"size",[1 1 0],"phase",-pi/2}});
 
  % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_spline", {"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
- agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[0,0,0]}, "HL"});
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 20}});
+ % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[0,0,0]}, "HL"});
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 20}});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 0.6], "size", [1 1 0], "phase", pi/2}}); 
 agent.controller.hlmpc =HL_MPC(agent,Controller_HL_MPC(dt, agent));
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
