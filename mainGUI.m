@@ -21,7 +21,7 @@ SimBaseMode = ["SimSuspendedLoad", "SimCooperativeSuspendedLoad", "SimSplitCoope
                 "SimVoronoi", "SimHL", "SimPointMass",...
                 "SimVehicle", "SimSuspendedLoad", "SimFHL",...
                 "SimFHL_Servo", "SimLiDAR", "SimFT",...
-                "SimEL", "SimMPC_Koopman"];
+                "SimEL", "SimMPC_Koopman", "SimHL_MEC"];
 ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedLoadCoop",...
                 "ExpTestMotiveConnection", "ExpHL","ExpFHL", "ExpFHL_Servo",...
                 "ExpFT", "ExpEL", "ExpMPC_Koopman"];
@@ -30,8 +30,9 @@ Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 Setting.mode = SimBaseMode(1); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(2); % SimCoop
-% Setting.mode = SimBaseMode(5); % SimHL
+Setting.mode = SimBaseMode(5); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
+Setting.mode = SimBaseMode(15); % SimHL_MEC
 
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
