@@ -38,7 +38,7 @@ Setting.mode = SimBaseMode(15); % SimHL_MEC
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
 % Setting.mode = ExpBaseMode(5); % ExpHL
-% Setting.mode = ExpBaseMode(11); % ExpHL_MEC
+Setting.mode = ExpBaseMode(11); % ExpHL_MEC
 if contains(Setting.mode, "Exp")
     Setting.fExp = 1;
 else
