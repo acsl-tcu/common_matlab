@@ -1,64 +1,29 @@
-tmp = matlab.desktop.editor.getActive;
-dir = fileparts(tmp.Filename);
-if ~contains(path,dir)
-    cd(erase(dir,'\mode'));
-[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
-cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
-close all hidden; clear ; clc;
-userpath('clear');
-end
-%%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % terminal time
-time = TIME(ts,dt,te); % instance of time class
-in_prog_func = @(app) dfunc(app); % in progress plot
-post_func = @(app) post(app); % function working at the "draw button" pushed.
-motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
-logger = LOGGER(1, size(ts:dt:te,2), 0, [],[]); % instance of LOOGER class for data logging
+te = 10000; % termina time
+time = TIME(ts, dt, te);
+in_prog_func = @(app) in_prog(app);
+post_func = @(app) post(app);
+logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
-base = [0,0]; % center
-initial_state.p = arranged_position(base, 1, 1, 0);
-initial_state.q = [1; 0; 0; 0];
+motive = Connector_Natnet('192.168.100.43'); % connect to Motive 405
+motive.getData([], []); % get data from Motive
+rigid_ids = [1]; % rigid-body number on Motive
+sstate = motive.result.rigid(rigid_ids);
+initial_state.p = sstate.p;
+initial_state.q = sstate.q;
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを使うときはノミナルモデル
-
-% プラントモデル定義 ================================================================================================================================
-plant = Model_EulerAngle(dt, initial_state, 1);
-agent.plant = MODEL_CLASS(agent, plant);
-
-% デフォルト物理パラメータ(DRONE_PARAM.m準拠: 2025/07/07時点)
-% 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
-% 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
-
-% ↓パラメータの上書き モデル誤差をプラントに与える
-agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
-% agent.plant.param(1) = 1.0;
-
-% agent.plant.param(6) = 0.2; % モデル誤差を陽に入れたSimデータ取得時(Spline)の値（センサーノイズ無し）
-% agent.plant.param(7) = 0.2;
-% agent.plant.param(6) = 0.19; % モデル誤差を陽に入れたSimデータ取得時(Spline)の値（センサーノイズ分散=10^-3）
-% agent.plant.param(7) = 0.19;
-% agent.plant.param(6) = 0.18; % x3
-% agent.plant.param(7) = 0.18; % (1;1;1)P2Pでの限界値
-% agent.plant.param(6) = 0.24;
-% agent.plant.param(7) = 0.24;
-
-agent.plant.param(6) = 0.12;
-agent.plant.param(7) = 0.12;
-%===================================================================================================================================================
+% agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
+agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.parameter = DRONE_PARAM("DIATONE");
+agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
-
-
-% agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 分散 10^-3
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -90,7 +55,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"v
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 
-
+% コントローラ設定 =================================================================
+% =================================================================================
 agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
 % agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
 
@@ -101,9 +67,13 @@ onnxName = "2026-5-18_15_0_32__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
 
 agent.controller.set_function_class("nnmec", NNMEC(agent, onnxName));
+% =================================================================================
+% =================================================================================
+
+agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
 
-% cha_allocation ==============================================
+% cha_allocation
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.a.reference = "takeoff";
 agent.cha_allocation.t.reference = "takeoff";

@@ -2,13 +2,14 @@ classdef NNMEC < handle
     %NNMEC
     %   クアッドコプター用モデル誤差補償器(MEC)のプログラム
     %   ニューラルネットワーク(NN)で補償器を設計
+    %   "Deep Leaening Toolbox Converter for ONNX Model Format"が必要
     %   [Inputs]
     %    self: ドローンのagent
     %    NN_model_filename = "NNMEC.onnx": インポートするonnxファイルの名前
     %    "NN12": 次元数(12,21,24)，"Euler":状態更新手法("Euler", "RK4")がファイル名に必要
     
     %   2025/07 作成者:B4小関      学番:2212044
-    %   最終更新：2026/04/21
+    %   最終更新：2026/05/19
     
     properties
         self
