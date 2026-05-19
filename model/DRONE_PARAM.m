@@ -9,7 +9,8 @@ classdef DRONE_PARAM < PARAMETER_CLASS
     % tau = [(Ly - ly)*(T3+T4)-ly*(T1+T2); lx*(T1+T3)-(Lx-lx)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
 
     properties
-        mass % DIATONE
+        name % DIATONE
+        mass
         Lx 
         Ly 
         lx 
