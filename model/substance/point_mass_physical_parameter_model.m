@@ -3,7 +3,7 @@ function dx = point_mass_physical_parameter_model(in1,in2,in3)
 % Input order:
 % in1 (state) = ["", "", "", "dp1", "dp2", "dp3"];
 % in2 (input) = ["u1", "u2", "u3"];
-% in3 (parameter) = ["m", "", "", "", "", "gravity"];
+% in3 (parameter) = ["mass", "", "", "", "", "gravity"];
 
 
 dp1 = in1(4,:);

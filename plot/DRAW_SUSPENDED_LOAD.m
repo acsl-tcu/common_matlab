@@ -73,7 +73,7 @@ classdef DRAW_SUSPENDED_LOAD
 
             obj.xlim = [m(1)-obj.L(1) M(1)+obj.L(1)];
             obj.ylim = [m(2)-obj.L(2) M(2)+obj.L(2)];
-            obj.zlim = [min(0, m(3)-1) M(3)+1];
+            obj.zlim = [min(0, m(3)*1.2) M(3)*1.2];
             if isfield(param, "lims")
                 obj.xlim = param.lims(1,:);
                 obj.ylim = param.lims(2,:);
