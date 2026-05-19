@@ -71,8 +71,7 @@ function show_animation(app)
 if app.logger.k <= 1
     return
 end
-  mov = DRAW_DRONE_MOTION(app.logger, "self", app.agent, "target", 1,...
-          "lims", [ -5 5;  -5 5;  -3 5 ]);
+  mov = DRAW_DRONE_MOTION(app.logger, "self", app.agent, "target", 1);
   mov.animation(app.logger, "self", app.agent, "target", 1, "Motive_ref", 1);
 end
 function v = build_display_vector(agent, time)

@@ -56,9 +56,9 @@ agent.plant.param(7) = 0.12;
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 
-agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001)); % 分散 10^-3
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0)); % 真値を使う
+% agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
+agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 分散 10^-3
+% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -70,7 +70,7 @@ center = [0;0;takeoff_zd]; % 原点
 center_hover    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",center, "radius",[0,0,0]}, 4});
 % point_hover     = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",[base'+1;takeoff_zd+1], "radius",[0,0,0]}, 4});
 % circle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10, "center",center, "radius",1.0}, 4});
-% saddle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4});
+saddle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4});
 % lemniscate      = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",5, "center",center, "radius",1, "x",1}, 4});
 % triangle        = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10, "center",center, "radius",[1,1,0]}, 4});
 % flower          = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4});
@@ -79,12 +79,12 @@ center_hover    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "ce
 % spline9th       = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",4.5, "xylim",[-1,1], "zlim",[0.5,1.5]}}); % 20 points
 % spline9th       = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60, "order",9, "point_dt",4.5, "xylim",[-1,1], "zlim",[0.5,1.5]}}); % 60 points
 
-refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
-refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
-multiP2P        = MULTI_POINT_REFERENCE(agent,refpoints);
+% refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
+% refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
+% multiP2P        = MULTI_POINT_REFERENCE(agent,refpoints);
 
 
-agent.reference.set_function_class("time_varying", center_hover) % 最終的なset．２つ目の引数の名前を適宜変更
+agent.reference.set_function_class("time_varying", saddle) % 最終的なset．２つ目の引数の名前を適宜変更
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -95,8 +95,9 @@ agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
 % agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
 
 
+onnxName = "2026-5-18_15_0_32__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Activation=SiLU__100000epoch.onnx";
 
-onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__100000epoch.onnx";
+% onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__100000epoch.onnx";
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
 
 agent.controller.set_function_class("nnmec", NNMEC(agent, onnxName));
@@ -111,16 +112,12 @@ agent.cha_allocation.l.reference = "landing";
 agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
 
 
-function dfunc(app)
-fanimation = 1;
-fanimation = 0;
+function post(app)
 LW = 1.5; % LineWidth
 FS = 18; % FontSize
 phase = "tfl";
 phase = "tf";
-% phase = "t";
-% phase = "f";
-
+calc_rmse(app.logger);
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({1, "p", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
@@ -129,25 +126,11 @@ app.logger.plot({1, "p", "er"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Lin
 % app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
-
-
-% % Calcurate RMSE
-% target = ["p", "v"];
-% RMSE = [];
-% for i=1:length(target)
-%     ref = app.logger.data(1,target(i),"r", "phase",phase);
-%     data = app.logger.data(1,target(i),"e", "phase",phase);
-%     RMSE = [RMSE; rmse(ref, data, 1)];
-%     fprintf('%s RMSE:\n', target(i))
-%     disp(RMSE(i,:))
-%     disp(sum(RMSE(i,:)))
-% end
-
-
-% output animation
-if fanimation==1
-    show_animation(app);
+show_animation(app);
 end
+
+function dfunc(app)
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 end
 
 
@@ -158,8 +141,7 @@ function show_animation(app)
 if app.logger.k <= 1
     return
 end
-  mov = DRAW_DRONE_MOTION(app.logger, "self", app.agent, "target", 1,...
-          "lims", [ -5 5;  -5 5;  -3 5 ]);
+  mov = DRAW_DRONE_MOTION(app.logger, "self", app.agent, "target", 1);
   mov.animation(app.logger, "self", app.agent, "target", 1, "Motive_ref", 1);
 end
 

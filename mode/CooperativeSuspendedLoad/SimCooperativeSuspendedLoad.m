@@ -6,7 +6,7 @@ N = 4; % 機体数
 
 ts = 0;
 dt = 0.025;
-te = 10;
+te = 50;
 time = TIME(ts, dt, te);
 
 in_prog_func = @(app) dfunc(app);
@@ -136,7 +136,7 @@ function agentObj = configure_single_agent(agentObj, idx, dt, init_state, load_a
         MODEL_CLASS(agentObj, Model_Suspended_Load(dt, init_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"])));
     agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
-    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 2], "radius", [2, 2, 1]}, 5}));
+    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 1], "radius", [2, 2, 1]}, 5}));
     agentObj.reference.set_function_class("offset", COOPERATIVE_LOAD_REF_OFFSET(agentObj, "payload_index", load_agent.id, "rho", load_agent.parameter.rho(:, idx)));
     agentObj.reference.set_function_class("avoid", COLLISION_AVOID_REF(agentObj, "payload_index", load_agent.id));
     agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
@@ -165,8 +165,8 @@ L = app.agent(1).parameter.cableL;
 custom = rdata -[0,0,L];
 app.logger.plot({{1, "p", "r", custom},{app.N, "p", "e"}},"ax",app.UIAxes);
 % app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-% show_cooperative_animation(app);
+app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+show_cooperative_animation(app);
 end
 
 function show_cooperative_animation(app)

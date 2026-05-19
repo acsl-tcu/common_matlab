@@ -13,7 +13,7 @@ fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("loadmass",0.14);%0.0968);%0.968
-agent.parameter.set("cableL",2.0);%0.0968);%0.968
+agent.parameter.set("cableL",1.0);%0.0968);%0.968
 initial_state.q  = [0; 0; 0];
 initial_state.w  = [0; 0; 0];
 initial_state.vL = [0; 0; 0];
@@ -69,17 +69,18 @@ agent.cha_allocation.l.reference =["landing","sload"];
 
 function post(app)
 % シミュレーション終了後の結果表示とアニメーション作成。
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
-% app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+phase = "tfl";
+app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase",phase);
+app.logger.plot({1, "state.mL", "e"},"phase",phase);
+%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase",phase, "fig_num",2);
+% app.logger.plot({1, "p", "er"},"phase",phase, "fig_num",1); % 位置: p_x,p_y,p_z
+% app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase",phase,"fig_num",2);
 app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
-% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-% app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
-% app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
+% app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase",phase,"fig_num",4);
+% app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase",phase,"fig_num",5);
 
 show_suspended_load_animation(app); % アニメーション描画
 end

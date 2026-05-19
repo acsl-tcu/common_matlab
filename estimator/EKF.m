@@ -78,7 +78,7 @@ classdef EKF < handle
                 G = (P_pre*C')/(C*P_pre*C'+obj.R); % Kalman gain
                 % end
                 P = (eye(obj.n)-G*C)*P_pre;	% Update covariance
-                (y-yh)';
+                % (y-yh)' % for debug
                 tmpvalue = xh_pre + G*(y-yh);	% Update state estimate
                 tmpvalue = obj.model.projection(tmpvalue);
                 obj.result.state.set_state(tmpvalue);

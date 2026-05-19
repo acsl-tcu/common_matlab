@@ -4,7 +4,7 @@ function dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(in1,in2,in3)
 % Input order:
 % in1 (state) = ["p1", "p2", "p3", "roll", "pitch", "yaw", "dp1", "dp2", "dp3", "o1", "o2", "o3"];
 % in2 (input) = ["u1", "u2", "u3", "u4"];
-% in3 (parameter) = ["m", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
+% in3 (parameter) = ["mass", "Lx", "Ly", "lx", "ly", "jx", "jy", "jz", "gravity", "km1", "km2", "km3", "km4", "k1", "k2", "k3", "k4"];
 
 
 
