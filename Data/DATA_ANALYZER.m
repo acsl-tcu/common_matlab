@@ -10,7 +10,10 @@ classdef DATA_ANALYZER < handle
 %   % スクリプトフォルダを渡してインスタンス生成
 %   %   → GUI が開き、matファイルを複数選択できる
 %   %   → 選択ごとに LOGGER を生成してデータを取り込む
-%   obj = DATA_ANALYZER(script_dir);
+%   obj = DATA_ANALYZER();                        % デフォルト (divide モード)
+%   obj = DATA_ANALYZER('mode', 'divide');        % 試行ごとに独立分析
+%   obj = DATA_ANALYZER('mode', 'all');           % 全試行データを連結して分析
+%   obj = DATA_ANALYZER('mode', 'all', 'FS', 12, 'fTitle', false);
 %
 %   % 全試行を一括分析・可視化
 %   obj.runAll();
@@ -43,7 +46,7 @@ classdef DATA_ANALYZER < handle
         LogData     % LogData{i}     : i番目の試行の N×M データ行列
         FileNames   % FileNames{i}   : i番目の試行のファイル名（表示用）
         VarNames        % 変数名セル配列 {1×M}（全試行共通）
-        NumTrials       % 試行数
+        NumTrials       % 試行数（divide: 選択ファイル数 / all: 常に1）
         M               % 変数数
 
         % ---- 分析結果キャッシュ（試行ごとに cell 配列で保持）----
@@ -57,22 +60,25 @@ classdef DATA_ANALYZER < handle
     end
 
     properties (Access = public)
+        % ---- 動作モード ----
+        mode        % 'divide' : 試行ごとに独立分析（既定）
+                    % 'all'    : 全試行データを縦結合して一括分析
+
         % ---- 描画設定関連 ----
         FS
         fTitle
-        mode
     end
 
     %% ----------------------------------------------------------------
     %  コンストラクタ
     %% ----------------------------------------------------------------
     methods
-        function obj = DATA_ANALYZER(FS, fTitle, mode)
+        function obj = DATA_ANALYZER(args)
             % DATA_ANALYZER  コンストラクタ
             arguments
-                FS = 10
-                fTitle = true
-                mode string {mustBeMember(mode, {'divide', 'all'})} = 'divide'
+                args.FS = 10
+                args.fTitle = true
+                args.mode string {mustBeMember(args.mode, {'divide', 'all'})} = 'divide'
             end
 
             % ============================================================
@@ -113,7 +119,17 @@ classdef DATA_ANALYZER < handle
             obj.NumTrials = numel(loggers);
             obj.M         = numel(obj.VarNames);
 
-            % キャッシュを試行数分だけ確保
+            % 'all' モード: 全試行データを縦結合して LogData{1} に集約
+            if strcmp(args.mode, 'all')
+                combined = vertcat(obj.LogData{:});
+                obj.LogData   = {combined};
+                obj.FileNames = {'all trials (combined)'};
+                obj.NumTrials = 1;
+                fprintf('[DATA_ANALYZER] allモード: %d 試行を連結 → %d サンプル × %d 変数\n', ...
+                    numel(loggers), size(combined, 1), obj.M);
+            end
+
+            % キャッシュを（有効な）試行数分だけ確保
             obj.Means      = cell(obj.NumTrials, 1);
             obj.Variances  = cell(obj.NumTrials, 1);
             obj.StdDevs    = cell(obj.NumTrials, 1);
@@ -123,12 +139,12 @@ classdef DATA_ANALYZER < handle
             obj.PValues    = cell(obj.NumTrials, 1);
 
             % 引数がある場合、描画設定を上書き
-            obj.FS = FS;
-            obj.fTitle = fTitle;
-            obj.mode = mode;
+            obj.FS     = args.FS;
+            obj.fTitle = args.fTitle;
+            obj.mode   = args.mode;
 
-            fprintf('[DATA_ANALYZER] 初期化完了: %d 試行 × %d 変数\n', ...
-                obj.NumTrials, obj.M);
+            fprintf('[DATA_ANALYZER] 初期化完了: mode=%s / %d 試行 × %d 変数\n', ...
+                obj.mode, obj.NumTrials, obj.M);
             fprintf('  変数: %s\n', strjoin(obj.VarNames, ', '));
         end
     end
