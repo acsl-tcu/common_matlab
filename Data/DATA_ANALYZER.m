@@ -60,9 +60,9 @@ classdef DATA_ANALYZER < handle
     end
 
     properties (Access = public)
-        % ---- 動作モード ----
-        mode        % 'divide' : 試行ごとに独立分析（既定）
-                    % 'all'    : 全試行データを縦結合して一括分析
+        % ---- 動作関連 ----
+        mode        % 'all'    : 全試行データを縦結合して一括分析
+                    % 'divide' : 試行ごとに独立分析（既定）
 
         % ---- 描画設定関連 ----
         FS
@@ -76,10 +76,13 @@ classdef DATA_ANALYZER < handle
         function obj = DATA_ANALYZER(args)
             % DATA_ANALYZER  コンストラクタ
             arguments
-                args.FS = 10
+                args.FS mustBeNonnegative = 10
                 args.fTitle = true
-                args.mode string {mustBeMember(args.mode, {'divide', 'all'})} = 'divide'
+                args.mode string {mustBeMember(args.mode, {'divide', 'all'})} = 'all'
             end
+            obj.FS      = args.FS;
+            obj.fTitle  = args.fTitle;
+            obj.mode    = args.mode;
 
             % ============================================================
             %  ★ 分析対象変数の定義（ここを編集してください）★
@@ -120,7 +123,7 @@ classdef DATA_ANALYZER < handle
             obj.M         = numel(obj.VarNames);
 
             % 'all' モード: 全試行データを縦結合して LogData{1} に集約
-            if strcmp(args.mode, 'all')
+            if strcmp(obj.mode, 'all')
                 combined = vertcat(obj.LogData{:});
                 obj.LogData   = {combined};
                 obj.FileNames = {'all trials (combined)'};
@@ -137,11 +140,6 @@ classdef DATA_ANALYZER < handle
             obj.CovMatrix  = cell(obj.NumTrials, 1);
             obj.CorrMatrix = cell(obj.NumTrials, 1);
             obj.PValues    = cell(obj.NumTrials, 1);
-
-            % 引数がある場合、描画設定を上書き
-            obj.FS     = args.FS;
-            obj.fTitle = args.fTitle;
-            obj.mode   = args.mode;
 
             fprintf('[DATA_ANALYZER] 初期化完了: mode=%s / %d 試行 × %d 変数\n', ...
                 obj.mode, obj.NumTrials, obj.M);
@@ -570,7 +568,7 @@ classdef DATA_ANALYZER < handle
         % ---- ウィンドウ位置（試行番号でオフセット）--------------------
         function pos = figPos(~, type_idx, trial_idx)
             base_x = 30 + (trial_idx - 1) * 40;
-            base_y = 30 + (type_idx  - 1) * 40;
+            base_y = -10 + (type_idx  - 1) * 40;
             pos = [base_x, base_y, 900, 650];
         end
 
