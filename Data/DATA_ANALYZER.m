@@ -23,7 +23,7 @@ classdef DATA_ANALYZER < handle
 %   obj.computeCorrelation();
 %   obj.testSignificance(0.05);
 %   obj.plotHeatmap();
-%   obj.plotScatterMatrix();
+%   obj.plotScatterMatrixALL();
 %   obj.plotVarianceBar();
 %
 % 【分析対象変数の設定】
@@ -33,6 +33,13 @@ classdef DATA_ANALYZER < handle
 %     { 1, 'p', 'e', 'p_e'   }  % agent1 の推定位置
 %     { 1, 'v', 'e', 'v_e'   }  % agent1 の推定速度
 %
+% 【stepオプション（ラグ相関）について】
+%   step=s (s>0) を指定すると、kステップ目と(k+s)ステップ目の間の
+%   クロス相関係数行列を計算します（ラグ相関）。
+%   行列の (i,j) 成分は「変数i の kステップ」と「変数j の k+sステップ」の相関です。
+%   step=0（既定）は通常の同時刻相関です。
+%   例) obj = DATA_ANALYZER('step', 2);  % 2ステップ先との相関
+%
 % 【複数次元データについて】
 %   logger.data() が N×D 行列を返す場合、各列を独立変数として扱います。
 %   表示名は '表示名_1', '表示名_2', ... と自動的に連番が付きます。
@@ -40,20 +47,20 @@ classdef DATA_ANALYZER < handle
     %% ----------------------------------------------------------------
     %  プロパティ
     %% ----------------------------------------------------------------
-    properties (Access = private)
+    properties (Access = public)
         % ---- データ本体 ----
         Loggers     % Loggers{i}     : i番目の試行の LOGGER インスタンス
-        LogData     % LogData{i}     : i番目の試行の N×M データ行列
+        LogData     % LogData{i}     : i番目の試行の N×M データ行列（常に試行数分保持）
         FileNames   % FileNames{i}   : i番目の試行のファイル名（表示用）
         VarNames        % 変数名セル配列 {1×M}（全試行共通）
-        NumTrials       % 試行数（divide: 選択ファイル数 / all: 常に1）
+        NumTrials       % 選択したファイル数（mode に関わらず実際の試行数）
         M               % 変数数
 
         % ---- 分析結果キャッシュ（試行ごとに cell 配列で保持）----
-        Means
-        Variances
-        StdDevs
-        CVs
+        Means       % 平均値
+        Variances   % 分散
+        StdDevs     % 標準偏差(Standard deviation)
+        CVs         % 変動係数(Coefficient of Variation): 平均値に対するデータのばらつきの相対的な大きさ[%]
         CovMatrix
         CorrMatrix
         PValues
@@ -63,6 +70,7 @@ classdef DATA_ANALYZER < handle
         % ---- 動作関連 ----
         mode        % 'all'    : 全試行データを縦結合して一括分析
                     % 'divide' : 試行ごとに独立分析（既定）
+        step        % 何ステップ先のデータとの相関を見るか
 
         % ---- 描画設定関連 ----
         FS
@@ -76,13 +84,15 @@ classdef DATA_ANALYZER < handle
         function obj = DATA_ANALYZER(args)
             % DATA_ANALYZER  コンストラクタ
             arguments
-                args.FS mustBeNonnegative = 10
+                args.FS {mustBeNumeric, mustBeNonnegative} = 10
                 args.fTitle = true
                 args.mode string {mustBeMember(args.mode, {'divide', 'all'})} = 'all'
+                args.step {mustBeNumeric, mustBeNonnegative} = 0
             end
             obj.FS      = args.FS;
             obj.fTitle  = args.fTitle;
             obj.mode    = args.mode;
+            obj.step    = args.step;
 
             % ============================================================
             %  ★ 分析対象変数の定義（ここを編集してください）★
@@ -122,27 +132,24 @@ classdef DATA_ANALYZER < handle
             obj.NumTrials = numel(loggers);
             obj.M         = numel(obj.VarNames);
 
-            % 'all' モード: 全試行データを縦結合して LogData{1} に集約
             if strcmp(obj.mode, 'all')
-                combined = vertcat(obj.LogData{:});
-                obj.LogData   = {combined};
-                obj.FileNames = {'all trials (combined)'};
-                obj.NumTrials = 1;
-                fprintf('[DATA_ANALYZER] allモード: %d 試行を連結 → %d サンプル × %d 変数\n', ...
-                    numel(loggers), size(combined, 1), obj.M);
+                total_n = sum(cellfun(@(d) size(d,1), obj.LogData));
+                fprintf('[DATA_ANALYZER] allモード: %d 試行 (計 %d サンプル) を対象\n', ...
+                    obj.NumTrials, total_n);
             end
 
-            % キャッシュを（有効な）試行数分だけ確保
-            obj.Means      = cell(obj.NumTrials, 1);
-            obj.Variances  = cell(obj.NumTrials, 1);
-            obj.StdDevs    = cell(obj.NumTrials, 1);
-            obj.CVs        = cell(obj.NumTrials, 1);
-            obj.CovMatrix  = cell(obj.NumTrials, 1);
-            obj.CorrMatrix = cell(obj.NumTrials, 1);
-            obj.PValues    = cell(obj.NumTrials, 1);
+            % キャッシュを試行数分確保（divide: 試行ごと / all: インデックス1のみ使用）
+            cache_size     = obj.numCacheSlots();
+            obj.Means      = cell(cache_size, 1);
+            obj.Variances  = cell(cache_size, 1);
+            obj.StdDevs    = cell(cache_size, 1);
+            obj.CVs        = cell(cache_size, 1);
+            obj.CovMatrix  = cell(cache_size, 1);
+            obj.CorrMatrix = cell(cache_size, 1);
+            obj.PValues    = cell(cache_size, 1);
 
-            fprintf('[DATA_ANALYZER] 初期化完了: mode=%s / %d 試行 × %d 変数\n', ...
-                obj.mode, obj.NumTrials, obj.M);
+            fprintf('[DATA_ANALYZER] 初期化完了: mode=%s / step=%d / %d 試行 × %d 変数\n', ...
+                obj.mode, obj.step, obj.NumTrials, obj.M);
             fprintf('  変数: %s\n', strjoin(obj.VarNames, ', '));
         end
     end
@@ -166,27 +173,30 @@ classdef DATA_ANALYZER < handle
             results = struct('trial', {}, 'means', {}, 'variances', {}, ...
                              'stddevs', {}, 'cvs', {});
 
-            for k = 1:obj.NumTrials
-                obj.calcVarianceInternal(k);
+            for k = 1:obj.loopLen()
+                ci = obj.cacheIdx(k);   % キャッシュスロットのインデックス
+                obj.calcVarianceInternal(ci);
 
-                fprintf('\n== 基本統計量: %s ==\n', obj.FileNames{k});
-                hdr = sprintf('%-14s %10s %10s %12s %10s %10s', ...
-                    '変数', '平均', '中央値', '分散(不偏)', '標準偏差', '変動係数');
+                fprintf('\n== 基本統計量: %s ==\n', obj.trialLabel(k));
+                hdr = sprintf('%-10s %10s %9s %12s %8s %10s\n%-10s %14s %10s %12s %10s %12s', ...
+                    '変数', '平均', '中央値', '分散(不偏)', '標準偏差', '変動係数', ...
+                    'Variable', 'Average', 'Median', 'Variance', 'Standard deviation', 'Coefficient of Variation');
                 fprintf('%s\n%s\n', hdr, repmat('-', 1, 70));
 
-                D = obj.LogData{k};
+                % 表示用データ: allモードは全試行結合, divideモードは試行k
+                D = obj.getMergedData(k);
                 for i = 1:obj.M
-                    fprintf('%-14s %10.4f %10.4f %12.4f %10.4f %9.2f%%\n', ...
+                    fprintf('%-14s %10.4f %10.4f %12.4f %12.4f %14.2f%%\n', ...
                         obj.VarNames{i}, ...
-                        obj.Means{k}(i), median(D(:,i)), ...
-                        obj.Variances{k}(i), obj.StdDevs{k}(i), obj.CVs{k}(i));
+                        obj.Means{ci}(i), median(D(:,i)), ...
+                        obj.Variances{ci}(i), obj.StdDevs{ci}(i), obj.CVs{ci}(i));
                 end
 
-                results(k).trial     = obj.FileNames{k};
-                results(k).means     = obj.Means{k};
-                results(k).variances = obj.Variances{k};
-                results(k).stddevs   = obj.StdDevs{k};
-                results(k).cvs       = obj.CVs{k};
+                results(k).trial     = obj.trialLabel(k);
+                results(k).means     = obj.Means{ci};
+                results(k).variances = obj.Variances{ci};
+                results(k).stddevs   = obj.StdDevs{ci};
+                results(k).cvs       = obj.CVs{ci};
             end
         end
 
@@ -201,15 +211,21 @@ classdef DATA_ANALYZER < handle
 
             results = struct('trial', {}, 'cov_matrix', {}, 'corr_matrix', {});
 
-            for k = 1:obj.NumTrials
-                obj.calcCorrInternal(k);
+            for k = 1:obj.loopLen()
+                ci = obj.cacheIdx(k);
+                obj.calcCorrInternal(ci);
 
-                fprintf('\n== 相関係数行列 (Pearson): %s ==\n', obj.FileNames{k});
-                obj.printMatrix(obj.CorrMatrix{k}, '%.4f');
+                if obj.step == 0
+                    fprintf('\n== 相関係数行列 (Pearson): %s ==\n', obj.trialLabel(k));
+                else
+                    fprintf('\n== ラグ相関係数行列 (Pearson, step=%d): %s ==\n', obj.step, obj.trialLabel(k));
+                    fprintf('   行 = kステップの変数 / 列 = k+%dステップの変数\n', obj.step);
+                end
+                obj.printMatrix(obj.CorrMatrix{ci}, '%.4f');
 
-                results(k).trial       = obj.FileNames{k};
-                results(k).cov_matrix  = obj.CovMatrix{k};
-                results(k).corr_matrix = obj.CorrMatrix{k};
+                results(k).trial       = obj.trialLabel(k);
+                results(k).cov_matrix  = obj.CovMatrix{ci};
+                results(k).corr_matrix = obj.CorrMatrix{ci};
             end
         end
 
@@ -218,7 +234,7 @@ classdef DATA_ANALYZER < handle
             % testSignificance  各試行の相関係数に対する両側t検定
             %
             % 引数
-            %   alpha : 有意水準（既定値 0.05）
+            %   alpha : 有意水準（既定値 0.05=5%）
             % 戻り値 results : 1×NumTrials struct 配列
             %   .trial    試行名
             %   .r_matrix M×M 相関係数行列
@@ -228,13 +244,31 @@ classdef DATA_ANALYZER < handle
 
             results = struct('trial', {}, 'r_matrix', {}, 'p_matrix', {});
 
-            for k = 1:obj.NumTrials
-                obj.calcCorrInternal(k);
-                [~, P] = corrcoef(obj.LogData{k});
-                obj.PValues{k} = P;
+            for k = 1:obj.loopLen()
+                ci = obj.cacheIdx(k);
+                obj.calcCorrInternal(ci);
 
-                fprintf('\n== 有意性検定 (α=%.3f): %s ==\n', alpha, obj.FileNames{k});
-                fprintf('%-14s  %-14s  %8s  %10s  %s\n', ...
+                % p値行列の計算
+                if obj.step == 0
+                    % 通常: corrcoef が直接返す p値を使用
+                    [~, P] = corrcoef(obj.getMergedData(k));
+                else
+                    % ラグ相関: r値からt統計量経由でp値を算出
+                    % n_eff = 試行ごとの有効サンプル数の合計
+                    n_eff  = obj.getEffectiveN(k);
+                    R      = obj.CorrMatrix{ci};
+                    t_stat = R .* sqrt((n_eff - 2) ./ max(1 - R.^2, eps));
+                    P      = 2 * (1 - tcdf(abs(t_stat), n_eff - 2));
+                    P(1:obj.M+1:end) = 0;   % 対角成分を0に（自己相関は検定不要）
+                end
+                obj.PValues{ci} = P;
+
+                if obj.step == 0
+                    fprintf('\n== 有意性検定 (α=%.3f): %s ==\n', alpha, obj.trialLabel(k));
+                else
+                    fprintf('\n== ラグ有意性検定 (α=%.3f, step=%d): %s ==\n', alpha, obj.step, obj.trialLabel(k));
+                end
+                fprintf('%-14s  %-12s  %4s  %8s  %10s\n', ...
                     '変数1', '変数2', 'r値', 'p値', '有意');
                 fprintf('%s\n', repmat('-', 1, 62));
 
@@ -242,14 +276,14 @@ classdef DATA_ANALYZER < handle
                     for j = i + 1:obj.M
                         fprintf('%-14s  %-14s  %8.4f  %10.4e  %s\n', ...
                             obj.VarNames{i}, obj.VarNames{j}, ...
-                            obj.CorrMatrix{k}(i,j), P(i,j), ...
+                            obj.CorrMatrix{ci}(i,j), P(i,j), ...
                             obj.sigLabel(P(i,j)));
                     end
                 end
-                fprintf('凡例: *** p<0.001  ** p<0.01  * p<0.05  n.s. 有意差なし\n');
+                fprintf('凡例:\n***: p<0.001    **: p<0.01    *: p<0.05    n.s.: 有意差なし\n');
 
-                results(k).trial    = obj.FileNames{k};
-                results(k).r_matrix = obj.CorrMatrix{k};
+                results(k).trial    = obj.trialLabel(k);
+                results(k).r_matrix = obj.CorrMatrix{ci};
                 results(k).p_matrix = P;
             end
         end
@@ -263,36 +297,59 @@ classdef DATA_ANALYZER < handle
 
             if nargin < 2, showPValue = true; end
 
-            for k = 1:obj.NumTrials
-                obj.calcCorrInternal(k);
-                if showPValue && isempty(obj.PValues{k})
-                    [~, obj.PValues{k}] = corrcoef(obj.LogData{k});
+            for k = 1:obj.loopLen()
+                ci = obj.cacheIdx(k);
+                obj.calcCorrInternal(ci);
+                if showPValue && isempty(obj.PValues{ci})
+                    if obj.step == 0
+                        [~, obj.PValues{ci}] = corrcoef(obj.getMergedData(k));
+                    else
+                        n_eff  = obj.getEffectiveN(k);
+                        R      = obj.CorrMatrix{ci};
+                        t_stat = R .* sqrt((n_eff - 2) ./ max(1 - R.^2, eps));
+                        P      = 2 * (1 - tcdf(abs(t_stat), n_eff - 2));
+                        P(1:obj.M+1:end) = 0;
+                        obj.PValues{ci} = P;
+                    end
                 end
 
-                figure('Name', sprintf('相関ヒートマップ: %s', obj.FileNames{k}), ...
+                % タイトル文字列
+                lbl = obj.trialLabel(k);
+                if obj.step == 0
+                    hmap_title = sprintf('相関係数行列ヒートマップ\n%s', lbl);
+                else
+                    hmap_title = sprintf('ラグ相関係数行列ヒートマップ (step=%d)\n%s', obj.step, lbl);
+                end
+
+                figure('Name', sprintf('相関ヒートマップ: %s', lbl), ...
                        'Position', obj.figPos(1, k));
 
-                imagesc(obj.CorrMatrix{k});
+                imagesc(obj.CorrMatrix{ci});
                 colormap(obj.redblueMap());
                 cb = colorbar;
-                cb.Label.String = 'Pearson r';
+                cb.Label.String = 'ピアソン相関係数(Pearson r)';
                 clim([-1, 1]);
 
                 ax = gca;
                 ax.TickLabelInterpreter = 'latex';
-                ax.XTick = 1:obj.M;  ax.XTickLabel = obj.VarNames; % xlabelを指定した状態(VarNames)に変更
+                ax.XTick = 1:obj.M;  ax.XTickLabel = obj.VarNames;
                 ax.XTickLabelRotation = 45;
                 ax.YTick = 1:obj.M;  ax.YTickLabel = obj.VarNames;
                 ax.TickLength = [0, 0];
                 ax.FontSize = obj.FS*1.1;
+                if strcmp(obj.mode, 'all')
+                    xlabel('base step', 'FontSize',obj.FS)
+                    ylabel(sprintf('base+%d step', obj.step), 'FontSize',obj.FS) % TODO: x,yどちらがbase?
+                end
+                
 
                 for i = 1:obj.M
-                    % ヒートマップの各マスに相関係数を描画
                     for j = 1:obj.M
-                        r_v   = obj.CorrMatrix{k}(i, j);
+                        r_v   = obj.CorrMatrix{ci}(i, j);
                         label = sprintf('%.3f', r_v);
                         if showPValue && i ~= j
-                            label = [label, obj.sigMark(obj.PValues{k}(i,j))]; %#ok<AGROW>
+                            label = [label, obj.sigMark(obj.PValues{ci}(i,j))]; %#ok<AGROW>
+                            % TODO: セル内にlabelをつけるなら、2行目に入れたい。
                         end
                         text(j, i, label, ...
                             'HorizontalAlignment', 'center', ...
@@ -302,8 +359,7 @@ classdef DATA_ANALYZER < handle
                 end
 
                 if obj.fTitle
-                    title(sprintf('相関係数行列ヒートマップ\n%s', obj.FileNames{k}), ...
-                        'FontSize', obj.FS*1.2, 'FontWeight', 'bold');
+                    title(hmap_title, 'FontSize', obj.FS*1.2, 'FontWeight', 'bold');
                     if showPValue
                         subtitle('* p<0.05   ** p<0.01   *** p<0.001', 'FontSize', obj.FS*0.9);
                     end
@@ -312,16 +368,25 @@ classdef DATA_ANALYZER < handle
         end
 
         % ── 5. 散布図行列 ────────────────────────────────────────────
-        function plotScatterMatrix(obj)
-            % plotScatterMatrix  各試行の散布図行列（対角: ヒストグラム）
-            % ！！！！！動作がアホほど重たい！！！！！
+        function plotScatterMatrixALL(obj)
+            % plotScatterMatrixALL  各試行の散布図行列（対角: ヒストグラム）
+            % [TODO]
+            % 全ての散布図を同window内にプロットするのは見にくい。
+            % windowを分けてプロットする"plotScatterMatrixDEVIDE"を作成
+            % その際、最小サイズで良い。
+            % figure生成時に画面上でsize(obj.M)個分を考慮して関係が取れるように配置する。
 
-            for k = 1:obj.NumTrials
-                obj.calcCorrInternal(k);
-                D      = obj.LogData{k};
+            for k = 1:obj.loopLen()
+                ci      = obj.cacheIdx(k);
+                step    = obj.step;
                 colors = lines(obj.M);
+                obj.calcCorrInternal(ci);
 
-                figure('Name', sprintf('散布図行列: %s', obj.FileNames{k}), ...
+                % step対応: 試行境界をまたがないよう試行ごとにペアを作り結合
+                [D_base, D_lag] = obj.getBaseLagData(k);
+
+                lbl = obj.trialLabel(k);
+                figure('Name', sprintf('散布図行列: %s', lbl), ...
                        'Position', obj.figPos(2, k));
 
                 for i = 1:obj.M
@@ -329,12 +394,17 @@ classdef DATA_ANALYZER < handle
                         subplot(obj.M, obj.M, (i-1)*obj.M + j);
 
                         if i == j
-                            histogram(D(:, i), 20, ...
+                            histogram(D_base(:, i), 20, ...
                                 'FaceColor', colors(i,:), ...
                                 'EdgeColor', 'white', 'FaceAlpha', 0.8);
-                            title(obj.VarNames{i}, 'FontSize', obj.FS*0.8, 'FontWeight', 'bold');
+                            if step == 0
+                                title(obj.VarNames{i}, 'FontSize', obj.FS*0.8, 'FontWeight', 'bold', 'Interpreter', 'latex');
+                            else
+                                title(sprintf('%s\\,[k]', obj.VarNames{i}), 'FontSize', obj.FS*0.8, 'FontWeight', 'bold', 'Interpreter', 'latex');
+                            end
                         else
-                            xd = D(:, j);  yd = D(:, i);
+                            xd = D_base(:, j);
+                            yd = D_lag(:, i);
                             scatter(xd, yd, 15, [0.25, 0.5, 0.75], ...
                                 'filled', 'MarkerFaceAlpha', 0.4);
                             hold on;
@@ -342,7 +412,7 @@ classdef DATA_ANALYZER < handle
                             xr = linspace(min(xd), max(xd), 60);
                             plot(xr, polyval(p, xr), 'r-', 'LineWidth', 1.5);
 
-                            r_v = obj.CorrMatrix{k}(i, j);
+                            r_v = obj.CorrMatrix{ci}(i, j);
                             tc  = [0.3, 0.3, 0.3];
                             if abs(r_v) >= 0.5, tc = [0.75, 0.1, 0.1]; end
                             text(0.97, 0.96, sprintf('r=%.2f', r_v), ...
@@ -354,13 +424,23 @@ classdef DATA_ANALYZER < handle
                         end
 
                         grid on; box on; set(gca, 'FontSize', obj.FS*0.7);
-                        if j == 1,     ylabel(obj.VarNames{i}, 'FontSize', obj.FS*0.7, 'Interpreter','latex'); end
-                        if i == obj.M, xlabel(obj.VarNames{j}, 'FontSize', obj.FS*0.7, 'Interpreter','latex'); end
+                        if step == 0
+                            if j == 1,     ylabel(obj.VarNames{i}, 'FontSize', obj.FS*0.7, 'Interpreter', 'latex'); end
+                            if i == obj.M, xlabel(obj.VarNames{j}, 'FontSize', obj.FS*0.7, 'Interpreter', 'latex'); end
+                        else
+                            if j == 1,     ylabel(sprintf('%s\\,[k+%d]', obj.VarNames{i}, step), 'FontSize', obj.FS*0.7, 'Interpreter', 'latex'); end
+                            if i == obj.M, xlabel(sprintf('%s\\,[k]',    obj.VarNames{j}),    'FontSize', obj.FS*0.7, 'Interpreter', 'latex'); end
+                        end
                     end
                 end
 
-                sgtitle(sprintf('散布図行列: %s', obj.FileNames{k}), ...
-                    'FontSize', obj.FS, 'FontWeight', 'bold');
+                if obj.fTitle
+                    if step == 0
+                        sgtitle(sprintf('散布図行列: %s', lbl), 'FontSize', obj.FS, 'FontWeight', 'bold');
+                    else
+                        sgtitle(sprintf('ラグ散布図行列 (step=%d): %s', step, lbl), 'FontSize', obj.FS, 'FontWeight', 'bold');
+                    end
+                end
             end
         end
 
@@ -368,34 +448,38 @@ classdef DATA_ANALYZER < handle
         function plotVarianceBar(obj)
             % plotVarianceBar  各試行の分散・標準偏差を棒グラフで比較
 
-            for k = 1:obj.NumTrials
-                obj.calcVarianceInternal(k);
+            for k = 1:obj.loopLen()
+                ci  = obj.cacheIdx(k);
+                lbl = obj.trialLabel(k);
+                obj.calcVarianceInternal(ci);
 
-                figure('Name', sprintf('分散・標準偏差: %s', obj.FileNames{k}), ...
+                figure('Name', sprintf('分散・標準偏差: %s', lbl), ...
                        'Position', obj.figPos(3, k));
 
                 subplot(1, 2, 1);
                 ax = gca;
-                bar(obj.Variances{k}, 'FaceColor', [0.2, 0.5, 0.8], 'FaceAlpha', 0.8);
+                bar(obj.Variances{ci}, 'FaceColor', [0.2, 0.5, 0.8], 'FaceAlpha', 0.8);
                 set(ax, 'XTick', 1:obj.M, 'XTickLabel', obj.VarNames, ...
                     'XTickLabelRotation', 30, 'FontSize', obj.FS);
                 ax.TickLabelInterpreter = "latex";
-                ylabel('分散（不偏）');
+                ylabel('分散 (Variance)');
                 title('各変数の分散', 'FontWeight', 'bold');
                 grid on; box off;
 
                 subplot(1, 2, 2);
                 ax = gca;
-                bar(obj.StdDevs{k}, 'FaceColor', [0.2, 0.7, 0.5], 'FaceAlpha', 0.8);
+                bar(obj.StdDevs{ci}, 'FaceColor', [0.2, 0.7, 0.5], 'FaceAlpha', 0.8);
                 set(ax, 'XTick', 1:obj.M, 'XTickLabel', obj.VarNames, ...
                     'XTickLabelRotation', 30, 'FontSize', obj.FS);
                 ax.TickLabelInterpreter = "latex";
-                ylabel('標準偏差');
+                ylabel('標準偏差 (Standard deviation)');
                 title('各変数の標準偏差', 'FontWeight', 'bold');
                 grid on; box off;
 
-                sgtitle(sprintf('分散・標準偏差の比較: %s', obj.FileNames{k}), ...
-                    'FontSize', obj.FS*1.1, 'FontWeight', 'bold');
+                if obj.fTitle
+                    sgtitle(sprintf('分散・標準偏差の比較: %s', lbl), ...
+                        'FontSize', obj.FS*1.1, 'FontWeight', 'bold');
+                end
             end
         end
 
@@ -412,7 +496,7 @@ classdef DATA_ANALYZER < handle
             obj.testSignificance(alpha);
             obj.plotVarianceBar();
             obj.plotHeatmap(true);
-            obj.plotScatterMatrix();
+            obj.plotScatterMatrixALL();
             fprintf('\n=== 全試行の分析が完了しました ===\n');
         end
 
@@ -530,21 +614,160 @@ classdef DATA_ANALYZER < handle
         end
 
         % ---- 基本統計量キャッシュ計算 ----------------------------------
-        function calcVarianceInternal(obj, k)
-            if isempty(obj.Means{k})
-                D             = obj.LogData{k};
-                obj.Means{k}     = mean(D);
-                obj.Variances{k} = var(D);
-                obj.StdDevs{k}   = std(D);
-                obj.CVs{k}       = obj.StdDevs{k} ./ abs(obj.Means{k}) * 100;
+        function calcVarianceInternal(obj, ci)
+            % ci : キャッシュスロットインデックス（cacheIdx(k) の結果）
+            if isempty(obj.Means{ci})
+                D = obj.getMergedData(ci);   % allモード: 全試行単純結合（分散は境界無関係）
+                obj.Means{ci}     = mean(D);
+                obj.Variances{ci} = var(D);
+                obj.StdDevs{ci}   = std(D);
+                obj.CVs{ci}       = obj.StdDevs{ci} ./ abs(obj.Means{ci}) * 100;
             end
         end
 
         % ---- 相関係数キャッシュ計算 ------------------------------------
-        function calcCorrInternal(obj, k)
-            if isempty(obj.CorrMatrix{k})
-                obj.CovMatrix{k}  = cov(obj.LogData{k});
-                obj.CorrMatrix{k} = corrcoef(obj.LogData{k});
+        function calcCorrInternal(obj, ci)
+            % ci : キャッシュスロットインデックス（cacheIdx(k) の結果）
+            if isempty(obj.CorrMatrix{ci})
+                step = obj.step;
+
+                % 対象となる試行インデックスを取得
+                if strcmp(obj.mode, 'all')
+                    trial_ids = 1:obj.NumTrials;   % 全試行
+                else
+                    trial_ids = ci;                % divide: ci == 試行番号
+                end
+
+                if step == 0
+                    % 通常の同時刻相関: 単純結合で corrcoef
+                    Data = vertcat(obj.LogData{trial_ids});
+                    obj.CovMatrix{ci}  = cov(Data);
+                    obj.CorrMatrix{ci} = corrcoef(Data);
+                else
+                    % ラグ相関: 各試行ごとに (D_base, D_lag) ペアを作り結合
+                    %   → 試行境界をまたぐペアは一切含まれない
+                    bases = cell(numel(trial_ids), 1);
+                    lags  = cell(numel(trial_ids), 1);
+                    for idx = 1:numel(trial_ids)
+                        Data = obj.LogData{trial_ids(idx)};
+                        N = size(Data, 1);
+                        if N <= step
+                            warning('DATA_ANALYZER: Trial[%d] サンプル数(%d) <= step(%d) のためスキップ', ...
+                                trial_ids(idx), N, step);
+                            continue;
+                        end
+                        bases{idx} = Data(1:N-step, :);
+                        lags{idx}  = Data(1+step:N, :);
+                    end
+                    % 空エントリを除去して結合
+                    valid  = ~cellfun(@isempty, bases);
+                    Data_base = vertcat(bases{valid});
+                    Data_lag  = vertcat(lags{valid});
+
+                    n_eff = size(Data_base, 1);
+                    if n_eff <= 2
+                        error('DATA_ANALYZER: 有効サンプル数が少なすぎます (n_eff=%d)', n_eff);
+                    end
+
+                    % クロス共分散行列: (i,j) = cov(変数i_base, 変数j_lag)
+                    C = (Data_base - mean(Data_base))' * (Data_lag - mean(Data_lag)) / (n_eff - 1);
+                    obj.CovMatrix{ci} = C;
+
+                    % クロス相関係数行列
+                    std_base = std(Data_base);   % 1×M
+                    std_lag  = std(Data_lag);    % 1×M
+                    obj.CorrMatrix{ci} = C ./ (std_base' * std_lag);
+                end
+            end
+        end
+
+        % ---- mode に応じた結合データを返す ----------------------------
+        function D = getMergedData(obj, k)
+            % k : loopLen のループ変数（allモード時は1固定）
+            if strcmp(obj.mode, 'all')
+                D = vertcat(obj.LogData{:});   % 分散用なので単純結合で可
+            else
+                D = obj.LogData{k};
+            end
+        end
+
+        % ---- mode に応じた (D_base, D_lag) ペアを返す ----------------
+        function [D_base, D_lag] = getBaseLagData(obj, k)
+            % k : loopLen のループ変数
+            % step=0 の場合は D_base == D_lag（同じデータ）
+            s = obj.step;
+            if strcmp(obj.mode, 'all')
+                trial_ids = 1:obj.NumTrials;
+            else
+                trial_ids = k;
+            end
+            bases = cell(numel(trial_ids), 1);
+            lags  = cell(numel(trial_ids), 1);
+            for idx = 1:numel(trial_ids)
+                D = obj.LogData{trial_ids(idx)};
+                N = size(D, 1);
+                if s == 0
+                    bases{idx} = D;
+                    lags{idx}  = D;
+                elseif N > s
+                    bases{idx} = D(1:N-s, :);
+                    lags{idx}  = D(1+s:N, :);
+                end
+            end
+            valid  = ~cellfun(@isempty, bases);
+            D_base = vertcat(bases{valid});
+            D_lag  = vertcat(lags{valid});
+        end
+
+        % ---- 有効サンプル数を返す（ラグ相関用）-----------------------
+        function n = getEffectiveN(obj, k)
+            % allモード: 各試行の (N_i - step) の合計
+            % divideモード: (N_k - step)
+            s = obj.step;
+            if strcmp(obj.mode, 'all')
+                n = sum(cellfun(@(d) max(0, size(d,1) - s), obj.LogData));
+            else
+                n = max(0, size(obj.LogData{k}, 1) - s);
+            end
+        end
+
+        % ---- ループ長（allモード=1, divideモード=NumTrials）-----------
+        function L = loopLen(obj)
+            if strcmp(obj.mode, 'all')
+                L = 1;
+            else
+                L = obj.NumTrials;
+            end
+        end
+
+        % ---- キャッシュスロットのインデックス --------------------------
+        function ci = cacheIdx(obj, k)
+            % allモード: 常にスロット1を使用
+            % divideモード: 試行番号 k をそのまま使用
+            if strcmp(obj.mode, 'all')
+                ci = 1;
+            else
+                ci = k;
+            end
+        end
+
+        % ---- キャッシュ確保サイズ --------------------------------------
+        function n = numCacheSlots(obj)
+            % allモード: スロット1つだけ確保
+            % divideモード: 試行数分確保
+            if strcmp(obj.mode, 'all')
+                n = 1;
+            else
+                n = obj.NumTrials;
+            end
+        end
+
+        % ---- 表示用ラベル ---------------------------------------------
+        function lbl = trialLabel(obj, k)
+            if strcmp(obj.mode, 'all')
+                lbl = sprintf('all trials combined (%d trials)', obj.NumTrials);
+            else
+                lbl = obj.FileNames{k};
             end
         end
 
