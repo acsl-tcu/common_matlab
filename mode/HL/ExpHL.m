@@ -26,9 +26,9 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4})); % circle
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4})); % circle
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.25));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
@@ -45,12 +45,13 @@ LW = 1.5;
 FS = 20;
 phase = "tfl";
 app.logger.plot({1, "p", "ers"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "p1-p2","er"}, "fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
+% app.logger.plot({1, "inner_input", ""},"fig_num",2, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "v", "e"},"fig_num",3, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input", ""},"fig_num",4, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "input", ""},"fig_num",5, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "inner_input1:4", ""},"fig_num",6, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "inner_input5:8", ""},"fig_num",7, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2","er"}, "fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
 % show_cooperative_animation(app);
 
 plot_calc_time(app.logger);
