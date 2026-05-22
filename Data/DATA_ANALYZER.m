@@ -88,6 +88,11 @@ classdef DATA_ANALYZER < handle
                 args.fTitle = true
                 args.mode string {mustBeMember(args.mode, {'divide', 'all'})} = 'all'
                 args.step {mustBeNumeric, mustBeNonnegative} = 0
+                args.loggers (:,1) cell {DATA_ANALYZER.mustBeAllLoggers}
+                args.FileNames
+            end
+            if isfield(args, "loggers") && ~isfield(args, "FileNames")
+                error("DATA_ANALYZER: loggersを指定する場合はFileNamesも指定してください。")
             end
             obj.FS      = args.FS;
             obj.fTitle  = args.fTitle;
@@ -120,9 +125,15 @@ classdef DATA_ANALYZER < handle
             % ============================================================
 
             % ---- Step 1: GUI でmatファイルを複数選択 --------------------
-            loggers = obj.selectAndLoadFiles('./Data');
-            if isempty(loggers)
-                error('DATA_ANALYZER: 有効なLOGGERが生成できませんでした。');
+            if isfield(args, 'loggers')
+                loggers = args.loggers;
+                obj.FileNames = args.FileNames;
+                fprintf('引数で指定した %d件のLOGGERを読み込みました。\n',numel(args.loggers))
+            else
+                loggers = obj.selectAndLoadFiles('./Data');
+                if isempty(loggers)
+                    error('DATA_ANALYZER: 有効なLOGGERが生成できませんでした。');
+                end
             end
 
             % ---- Step 2: QUERY_DEFS に従いデータを取り込む --------------
@@ -337,9 +348,9 @@ classdef DATA_ANALYZER < handle
                 ax.YTick = 1:obj.M;  ax.YTickLabel = obj.VarNames;
                 ax.TickLength = [0, 0];
                 ax.FontSize = obj.FS*1.1;
-                if strcmp(obj.mode, 'all')
-                    xlabel('base step', 'FontSize',obj.FS)
-                    ylabel(sprintf('base+%d step', obj.step), 'FontSize',obj.FS) % TODO: x,yどちらがbase?
+                if obj.step > 0
+                    xlabel('base  [k]', 'FontSize', obj.FS);
+                    ylabel(sprintf('lag  [k + %d]', obj.step), 'FontSize', obj.FS);
                 end
                 
 
@@ -830,6 +841,13 @@ classdef DATA_ANALYZER < handle
             g    = [linspace(0.30, 1.0, n), linspace(1.0, 0.2, n) ];
             b    = [ones(1, n),             linspace(1.0, 0.1, n)  ];
             cmap = [r; g; b]';
+        end
+
+        function mustBeAllLoggers(in)
+            % インスタンス生成時にloggerを引数として入れたときの判別を行う関数
+            if ~all(cellfun(@(c) isa(c, 'LOGGER'), in))
+                error('すべてのセル要素は LOGGER クラスである必要があります。');
+            end
         end
 
     end % static methods
