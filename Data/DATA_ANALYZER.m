@@ -381,9 +381,9 @@ classdef DATA_ANALYZER < handle
                 end
 
                 if obj.fTitle
-                    title(hmap_title, 'FontSize', obj.FS*1.2, 'FontWeight', 'bold');
+                    title(hmap_title, 'FontSize', obj.FS*1.2, 'FontWeight', 'bold', 'Interpreter', 'none');
                     if showPValue
-                        subtitle('* p<0.05   ** p<0.01   *** p<0.001', 'FontSize', obj.FS*0.9);
+                        subtitle('* p<0.05   ** p<0.01   *** p<0.001', 'FontSize', obj.FS*0.9, 'Interpreter', 'none');
                     end
                 end
             end
@@ -453,9 +453,9 @@ classdef DATA_ANALYZER < handle
 
                 if obj.fTitle
                     if step == 0
-                        sgtitle(sprintf('散布図行列: %s', lbl), 'FontSize', obj.FS, 'FontWeight', 'bold');
+                        sgtitle(sprintf('散布図行列: %s', lbl), 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
                     else
-                        sgtitle(sprintf('ラグ散布図行列 (step=%d): %s', step, lbl), 'FontSize', obj.FS, 'FontWeight', 'bold');
+                        sgtitle(sprintf('ラグ散布図行列 (step=%d): %s', step, lbl), 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
                     end
                 end
             end
@@ -578,7 +578,7 @@ classdef DATA_ANALYZER < handle
 
                 if obj.fTitle
                     sgtitle(sprintf('分散・標準偏差の比較: %s', lbl), ...
-                        'FontSize', obj.FS*1.1, 'FontWeight', 'bold');
+                        'FontSize', obj.FS*1.1, 'FontWeight', 'bold', 'Interpreter', 'none');
                 end
             end
         end
