@@ -9,7 +9,7 @@ logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive 405
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -20,7 +20,8 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
+agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
+% agent.plant.arming_msg(1:4) = [1500, 1500, 1000, 1500]% default: [500 500 0 500]
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));

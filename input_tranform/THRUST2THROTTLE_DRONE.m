@@ -68,6 +68,7 @@ methods
             obj.result = [uroll, upitch, uthr, uyaw, 1000, 0, 0, 1000]; % CH8 = 1000 required for autonomous flight 
         else
             obj.result = [obj.param.roll_offset, obj.param.pitch_offset, 0, obj.param.yaw_offset, 1000, 0, 0, 0];
+            % obj.result = [1500, 1500, 1500, 1500, 1000, 0, 0, 0];
         end
 
         u = obj.result;
