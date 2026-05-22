@@ -357,15 +357,25 @@ classdef DATA_ANALYZER < handle
                 for i = 1:obj.M
                     for j = 1:obj.M
                         r_v   = obj.CorrMatrix{ci}(i, j);
-                        label = sprintf('%.3f', r_v);
-                        if showPValue && i ~= j
-                            label = [label, obj.sigMark(obj.PValues{ci}(i,j))]; %#ok<AGROW>
-                            % TODO: セル内にlabelをつけるなら、2行目に入れたい。
-                        end
-                        text(j, i, label, ...
+                        r_str = sprintf('%.3f', r_v);
+                        tc    = obj.cellTextColor(r_v);
+                        % r値を1行目に表示
+                        text(j, i - 0.15, r_str, ...
                             'HorizontalAlignment', 'center', ...
+                            'VerticalAlignment',   'middle', ...
                             'FontSize', obj.FS, 'FontWeight', 'bold', ...
-                            'Color', obj.cellTextColor(r_v));
+                            'Color', tc);
+                        % 有意マークを2行目（少し下）に表示
+                        if showPValue && i ~= j
+                            sig_str = obj.sigMark(obj.PValues{ci}(i,j));
+                            if ~isempty(sig_str)
+                                text(j, i + 0.28, sig_str, ...
+                                    'HorizontalAlignment', 'center', ...
+                                    'VerticalAlignment',   'middle', ...
+                                    'FontSize', obj.FS * 0.85, 'FontWeight', 'bold', ...
+                                    'Color', tc);
+                            end
+                        end
                     end
                 end
 
