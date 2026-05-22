@@ -583,6 +583,152 @@ classdef DATA_ANALYZER < handle
             end
         end
 
+        % ── 7b. ラグ相関プロット（入力→状態の全組み合わせ）─────────
+        function plotLagCorr(obj, inputIdx, stateIdx, maxStep)
+            % plotLagCorr  step=1〜maxStep の各ラグにおける相関係数をプロット
+            %
+            % 横軸: ラグ (1〜maxStep ステップ)
+            % 縦軸: 相関係数
+            % サブプロット配置: 行=状態変数, 列=入力変数
+            %
+            % 引数
+            %   inputIdx : 入力変数のインデックス (VarNames の列番号)
+            %              省略時は全変数の後半(input)を自動推定
+            %   stateIdx : 状態変数のインデックス (VarNames の列番号)
+            %              省略時は全変数の前半(state)を自動推定
+            %   maxStep  : 最大ラグ数 (省略時は obj.step、それも0なら10)
+            %
+            % 使用例
+            %   obj.plotLagCorr();                    % 全自動
+            %   obj.plotLagCorr(13:16, 1:12, 20);     % input=13〜16, state=1〜12, maxStep=20
+            arguments
+                obj
+                inputIdx = []
+                stateIdx = []
+                maxStep  = []
+            end
+
+            % --- maxStep の決定 ---
+            if isempty(maxStep)
+                if obj.step > 0
+                    maxStep = obj.step;
+                else
+                    maxStep = 10;
+                end
+            end
+
+            % --- 入力/状態インデックスの自動推定 ---
+            % QUERY_DEFS で attribute='' のものを入力変数とみなす（前後半の境界）
+            % 自動推定が難しい場合は引数で明示的に渡すこと。
+            if isempty(inputIdx) || isempty(stateIdx)
+                % VarNames の先頭から連続して '$' を含むものを状態変数と推定
+                % （QUERY_DEFSの並び順: state系 → input系 を前提）
+                all_idx   = 1:obj.M;
+                % input系は VarNames に 'T' や 'tau' 相当が含まれる後半を想定
+                % 自動判定: 変数名が '$T$','$\tau' で始まるものを input とする
+                is_input  = cellfun(@(n) any(contains(n, {'T$', '\tau', 'input'})), obj.VarNames);
+                if any(is_input)
+                    if isempty(inputIdx), inputIdx = all_idx(is_input);  end
+                    if isempty(stateIdx), stateIdx = all_idx(~is_input); end
+                else
+                    % フォールバック: 後半1/3を入力, 前半2/3を状態とみなす
+                    split     = floor(obj.M * 2/3);
+                    if isempty(stateIdx), stateIdx = 1:split;         end
+                    if isempty(inputIdx), inputIdx = split+1:obj.M;   end
+                end
+            end
+
+            nIn  = numel(inputIdx);
+            nSt  = numel(stateIdx);
+
+            if nIn == 0 || nSt == 0
+                warning('plotLagCorr: inputIdx または stateIdx が空です。');
+                return;
+            end
+
+            % --- 各ラグの相関係数を計算 ---
+            % lagCorr(s, i, j): sステップラグ, 状態i, 入力j の相関
+            lagCorr = zeros(maxStep, nSt, nIn);
+
+            orig_step = obj.step;   % 元の step を退避
+            for s = 1:maxStep
+                obj.step = s;
+                % キャッシュをクリアして再計算
+                cache_sz       = obj.numCacheSlots();
+                obj.CorrMatrix = cell(cache_sz, 1);
+                obj.CovMatrix  = cell(cache_sz, 1);
+
+                for k = 1:obj.loopLen()
+                    ci = obj.cacheIdx(k);
+                    obj.calcCorrInternal(ci);
+                    R = obj.CorrMatrix{ci};   % M×M
+                    % stateIdx(行) × inputIdx(列) の部分行列を取り出す
+                    % CorrMatrix(i,j) = corr(変数i[k], 変数j[k+step])
+                    % → state[k] と input[k+step] の相関 を取得
+                    lagCorr(s, :, :) = lagCorr(s, :, :) + reshape(R(stateIdx, inputIdx), [1, nSt, nIn]);
+                end
+                % loopLen>1(divide)の場合は平均化しない（各試行は独立なので後でループ外に出す設計）
+            end
+            obj.step       = orig_step;   % step を元に戻す
+            obj.CorrMatrix = cell(obj.numCacheSlots(), 1);   % キャッシュリセット
+            obj.CovMatrix  = cell(obj.numCacheSlots(), 1);
+
+            % --- プロット ---
+            lbl       = obj.trialLabel(1);
+            lag_steps = 1:maxStep;
+            colors    = lines(nIn);
+
+            figure('Name', sprintf('Lag Correlation: %s', lbl), ...
+                   'Position', [80, 80, min(320*nIn, 1400), min(240*nSt, 900)]);
+
+            for si = 1:nSt
+                for ii = 1:nIn
+                    subplot(nSt, nIn, (si-1)*nIn + ii);
+                    r_vals = lagCorr(:, si, ii);   % maxStep×1
+
+                    plot(lag_steps, r_vals, '-o', ...
+                        'Color', colors(ii,:), ...
+                        'LineWidth', 1.5, 'MarkerSize', 5, ...
+                        'MarkerFaceColor', colors(ii,:));
+                    hold on;
+                    yline(0,  'k--', 'LineWidth', 0.8);   % ゼロライン
+                    yline( 0.5, ':',  'Color', [0.6 0.6 0.6], 'LineWidth', 0.8);
+                    yline(-0.5, ':',  'Color', [0.6 0.6 0.6], 'LineWidth', 0.8);
+                    hold off;
+
+                    ylim([-1, 1]);
+                    xlim([1, maxStep]);
+                    xticks(lag_steps);
+                    grid on; box on;
+                    ax = gca; ax.FontSize = obj.FS * 0.85;
+
+                    % 軸ラベル: 左端列にstate名, 最下行にinput名
+                    if ii == 1
+                        ylabel(obj.VarNames{stateIdx(si)}, ...
+                            'Interpreter', 'latex', 'FontSize', obj.FS);
+                    end
+                    if si == nSt
+                        xlabel(sprintf('lag step  (input: %s)', obj.VarNames{inputIdx(ii)}), ...
+                            'Interpreter', 'latex', 'FontSize', obj.FS * 0.9);
+                    end
+
+                    % タイトル: 最上行に入力名
+                    if si == 1
+                        title(obj.VarNames{inputIdx(ii)}, ...
+                            'Interpreter', 'latex', 'FontSize', obj.FS);
+                    end
+                end
+            end
+
+            % 全体タイトル
+            if obj.step == 0
+                sup = sprintf('Lag Correlation (step 1-%d): %s', maxStep, lbl);
+            else
+                sup = sprintf('Lag Correlation (step 1-%d, base step=%d): %s', maxStep, orig_step, lbl);
+            end
+            sgtitle(sup, 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
+        end
+
         % ── 7. 一括実行 ──────────────────────────────────────────────
         function runAll(obj, alpha)
             % runAll  全メソッドを試行ごとに順に実行
