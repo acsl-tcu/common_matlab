@@ -184,7 +184,7 @@ classdef DATA_ANALYZER < handle
             obj.testSignificance(alpha);
             obj.plotVarianceBar();
             obj.plotHeatmap(true);
-            obj.plotScatterMatrixALL();
+            % obj.plotScatterMatrixALL();
             % obj.plotScatterMatrixEACH();
             obj.plotLagCorr();
             fprintf('\n=== 全試行の分析が完了しました ===\n');
@@ -487,6 +487,25 @@ classdef DATA_ANALYZER < handle
             base_x = 30 + (trial_idx - 1) * 40;
             base_y = -10 + (type_idx  - 1) * 40;
             pos = [base_x, base_y, 900, 650];
+        end
+
+        % ---- figure Name → 保存ファイル名の解決 ----------------------
+        function base_name = resolveFileName(~, fig_name, name_map)
+            % figure の Name プロパティ先頭を name_map のキーワードと照合し、
+            % 対応するファイル名ベースを返す。一致しない場合はNameを整形して使用。
+            base_name = '';
+            for row = 1:size(name_map, 1)
+                if startsWith(fig_name, name_map{row, 1})
+                    base_name = name_map{row, 2};
+                    return;
+                end
+            end
+            if isempty(base_name)
+                % フォールバック: Name の特殊文字をアンダースコアに置換
+                base_name = regexprep(fig_name, '[\\/:*?<>|　]', '_');
+                base_name = strtrim(base_name);
+                if isempty(base_name), base_name = 'figure'; end
+            end
         end
 
     end % private methods

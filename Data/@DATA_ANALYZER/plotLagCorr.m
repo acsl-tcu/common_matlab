@@ -114,7 +114,7 @@ function plotLagCorr(obj, inputIdx, stateIdx, maxStep)
     % --- figure レイアウト定数（normalized 単位）---
     % 上部に sgtitle・凡例・サブプロットタイトル用の余白を確保し、
     % 各領域が重ならないよう axes を手動配置する。
-    fig_w     = min(400 * nIn + 80, 1600);
+    fig_w     = min(400 * nIn + 80, 1000);
     fig_h     = 520;
     margin_l  = 0.07;    % 左余白 (normalized)
     margin_r  = 0.02;    % 右余白
