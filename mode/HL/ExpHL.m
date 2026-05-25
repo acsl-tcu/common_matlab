@@ -21,17 +21,20 @@ initial_state.w = [0; 0; 0];
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
 agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
-% agent.plant.arming_msg(1:4) = [1500, 1500, 1000, 1500]% default: [500 500 0 500]
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4})); % circle
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.25));
+offset_z = 0.18; % 0.18=マットありの時の床から重心位置まで
+takeoff_zd = 1.0 + offset_z;
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;takeoff_zd],"radius",0},4})); % hovering
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"center",[0;0;takeoff_zd],"radius",1.0},4})); % 
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"center",[0;0;takeoff_zd],"radius",[1.0,1.0,0]},4})); %
 
-agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
+% agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
+agent.controller.set_function_class("hlc", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)));
 
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
@@ -44,14 +47,16 @@ function post(app)
 LW = 1.5;
 FS = 20;
 phase = "tfl";
-app.logger.plot({1, "p", "ers"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input", ""},"fig_num",2, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "v", "e"},"fig_num",3, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input", ""},"fig_num",4, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "p", "er"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "p", "er"},"fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "v", "er"},"fig_num",2, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "e"},"fig_num",3, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "w", "e"},"fig_num",4, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "input", ""},"fig_num",5, "phase",phase, "FontSize",FS, "Linewidth",LW);
+app.logger.plot({1, "input2:4", ""},"fig_num",55, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "inner_input1:4", ""},"fig_num",6, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "inner_input5:8", ""},"fig_num",7, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2","er"}, "fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
+app.logger.plot({1, "p1-p2","er"}, "fig_num",10, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
 % show_cooperative_animation(app);
 
 plot_calc_time(app.logger);

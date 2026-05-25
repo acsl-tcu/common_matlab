@@ -48,7 +48,8 @@ methods
         xd(17:19) = Rb0' * xd(17:19);
 
         if t > 5
-            obj.z = obj.z + xd(1:3) - x(5:7);
+            % obj.z = obj.z + xd(1:3) - x(5:7);
+            obj.z = obj.z + [0;0;xd(3)-x(7)]; % z方向にのみサーボを入れる
         end
 
         %% calc Z
@@ -71,7 +72,7 @@ methods
         obj.result.z3 = z3;
         obj.result.z4 = z4;
         % max,min are applied for the safty
-        obj.result.input = [max(0, min(10, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))];
+        obj.result.input = [max(0, min(30, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))];
         obj.result.z = obj.z;
         result = obj.result;
     end

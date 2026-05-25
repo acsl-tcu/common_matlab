@@ -4,10 +4,10 @@ function u_trans_param = InputTransform_Thrust2Throttle_drone(varargin)
 
     %% transmitter system
     % ↓チューニング用↓
-    u_trans_param.th_offset     = 10;%機体質量と釣り合うスロットルオフセット
+    u_trans_param.th_offset     = 500;%機体質量と釣り合うスロットルオフセット
     u_trans_param.th_offset_tl  = 0;  %テークオフとランディング初期オフセット。
-    u_trans_param.gain          = [100;100;100;10];% [roll, pitch, thrust, yaw]
-    u_trans_param.gain_tl       = [100;100;100;10];%
+    u_trans_param.gain          = [400;400;400;20];% [roll, pitch, yaw, thrust]
+    u_trans_param.gain_tl       = [400;400;400;20];%
 
     %単機飛行用↓
     % u_trans_param.th_offset     = 335;%機体質量と釣り合うスロットルオフセット
