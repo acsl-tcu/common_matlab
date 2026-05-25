@@ -52,24 +52,7 @@ app.logger.plot({1, "p", "ers"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, 
 app.logger.plot({1, "p1-p2","er"}, "fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
 % show_cooperative_animation(app);
 
-% 刻み時間描画
-t0id = find(app.logger.Data.phase==97,1,'last')+1;
-teid = find(app.logger.Data.phase==0,1,'first')-1;
-dt = diff(app.logger.Data.t(t0id:teid));
-t = app.logger.Data.t(t0id:teid-1);
-figure(100)
-ax = gca;
-[t,dt];
-plot(t,dt, Linewidth=LW);
-hold on
-yline(0.025,"LineWidth",LW)
-hold off
-grid on
-legend("dt","25 ms")
-set(ax.XAxis, fontsize=FS-2)
-set(ax.YAxis, fontsize=FS-2)
-set(ax.Legend, 'FontSize',FS-4);
-
+plot_calc_time(app.logger);
 end
 
 function in_prog(app)
