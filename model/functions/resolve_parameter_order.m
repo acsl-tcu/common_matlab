@@ -49,33 +49,35 @@ if isempty(token)
     return
 end
 
+% =======================================================================
 function path = find_substance_file(root_dir, target_name)
-path = "";
-if isstring(target_name)
-    target_name = char(target_name);
-end
-stack = {root_dir};
-while ~isempty(stack)
-    current = stack{end};
-    stack(end) = [];
-    listing = dir(current);
-    for i = 1:numel(listing)
-        name = listing(i).name;
-        if strcmp(name, ".") || strcmp(name, "..")
-            continue
-        end
-        full = fullfile(current, name);
-        if listing(i).isdir
-            stack{end + 1} = full; %#ok<AGROW>
-        else
-            if strcmp(name, target_name)
-                path = full;
-                return
+    path = "";
+    if isstring(target_name)
+        target_name = char(target_name);
+    end
+    stack = {root_dir};
+    while ~isempty(stack)
+        current = stack{end};
+        stack(end) = [];
+        listing = dir(current);
+        for i = 1:numel(listing)
+            name = listing(i).name;
+            if strcmp(name, ".") || strcmp(name, "..")
+                continue
+            end
+            full = fullfile(current, name);
+            if listing(i).isdir
+                stack{end + 1} = full; %#ok<AGROW>
+            else
+                if strcmp(name, target_name)
+                    path = full;
+                    return
+                end
             end
         end
     end
 end
-end
+% =======================================================================
 
 raw = token{1};
 matches = regexp(raw, '"([^"]*)"', 'tokens');
@@ -83,7 +85,7 @@ if isempty(matches)
     return
 end
 
-names = cellfun(@(c) c{1}, matches, 'UniformOutput', false);
+names = cellfun(@(c) c{1}, matches{1}, 'UniformOutput', false);
 parameter_order = reshape(string(names), 1, []);
 
 if ~isempty(expected_count)
@@ -96,18 +98,20 @@ if ~isempty(expected_count)
     end
 end
 
+% =======================================================================
 function token = fallback_parameter_token(text)
-token = {};
-lines = splitlines(text);
-for i = 1:numel(lines)
-    line = lines(i);
-    if contains(line, "(parameter)")
-        inner = regexp(line, '\\[(.*)\\]', 'tokens', 'once');
-        if ~isempty(inner)
-            token = inner;
-            return
+    token = {};
+    lines = splitlines(text);
+    for i = 1:numel(lines)
+        line = lines(i);
+        if contains(line, "(parameter)")
+            inner = regexp(line, '\[(.*)\]', 'tokens', 'once');
+            if ~isempty(inner)
+                token = inner;
+                return
+            end
         end
     end
 end
-end
+% =======================================================================
 end
