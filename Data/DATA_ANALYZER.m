@@ -697,21 +697,39 @@ classdef DATA_ANALYZER < handle
             get_line  = @(si) state_lines{mod(si-1, nLines)+1};
             get_marker= @(si) state_markers{mod(si-1, nmarkers)+1};
 
-            % --- プロット: 1×nIn サブプロット、各サブプロットに全状態を重ね描き ---
+            % --- figure レイアウト定数（normalized 単位）---
+            % 上部に sgtitle・凡例・サブプロットタイトル用の余白を確保し、
+            % 各領域が重ならないよう axes を手動配置する。
+            fig_w     = min(400 * nIn + 80, 1600);
+            fig_h     = 520;
+            margin_l  = 0.07;    % 左余白 (normalized)
+            margin_r  = 0.02;    % 右余白
+            margin_b  = 0.11;    % 下余白（xlabel用）
+            ax_top    = 0.80;    % ax上端: 凡例+sgtitle+subplotタイトル分を下げる
+            ax_height = ax_top - margin_b;
+            gap       = 0.025;   % ax間ギャップ
+            ax_width  = (1 - margin_l - margin_r - gap * (nIn - 1)) / nIn;
+
             lbl       = obj.trialLabel(1);
             lag_steps = 1:maxStep;
 
-            figure('Name', sprintf('Lag Correlation: %s', lbl), ...
-                   'Position', [80, 80, min(400*nIn + 160, 1600), 400]);
+            fig = figure('Name', sprintf('Lag Correlation: %s', lbl), ...
+                         'Position', [80, 80, fig_w, fig_h]);
+
+            ax_handles     = gobjects(nIn, 1);
+            legend_handles = gobjects(nSt, 1);
 
             for ii = 1:nIn
-                ax = subplot(1, nIn, ii);
+                left = margin_l + (ii - 1) * (ax_width + gap);
+                ax   = axes('Parent', fig, ...
+                            'Position', [left, margin_b, ax_width, ax_height]); %#ok<LAXES>
                 hold(ax, 'on');
+                ax_handles(ii) = ax;
 
-                h = gobjects(nSt, 1);   % 凡例ハンドル
+                h = gobjects(nSt, 1);
                 for si = 1:nSt
-                    r_vals = lagCorr(:, si, ii);   % maxStep×1
-                    h(si) = plot(ax, lag_steps, r_vals, ...
+                    r_vals = lagCorr(:, si, ii);
+                    h(si)  = plot(ax, lag_steps, r_vals, ...
                         [get_line(si), get_marker(si)], ...
                         'Color',           get_color(si), ...
                         'LineWidth',        1.5, ...
@@ -736,20 +754,46 @@ classdef DATA_ANALYZER < handle
                 if ii == 1
                     ylabel(ax, 'correlation', 'FontSize', obj.FS);
                 end
+                
                 title(ax, obj.VarNames{inputIdx(ii)}, ...
                     'Interpreter', 'latex', 'FontSize', obj.FS);
 
-                % 凡例を最右列のサブプロットにのみ表示
                 if ii == nIn
-                    lg = legend(ax, h, 'Location', 'eastoutside', ...
-                        'Interpreter', 'latex', 'FontSize', obj.FS * 0.9);
-                    lg.Title.String = 'state';
+                    legend_handles = h;
                 end
             end
 
-            % 全体タイトル
-            sup = sprintf('Lag Correlation (step 1-%d): %s', maxStep, lbl);
-            sgtitle(sup, 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
+            % --- sgtitle（最上部）---
+            if obj.fTitle
+                sup = sprintf('Lag Correlation (step 1-%d): %s', maxStep, lbl);
+                sgtitle(sup, 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
+            end
+
+            % --- 凡例を sgtitle 直下・ax 直上に 2行×6列で固定配置 ---
+            % invisible axes をキャンバスとして使い Position で位置を固定する。
+            % subplot の 'northoutside' は sgtitle と重なるため使用しない。
+            drawnow;
+            ax_dummy = axes('Parent', fig, ...
+                'Position', [0, 0, 1, 1], ...
+                'Visible',  'off', ...
+                'HitTest',  'off');
+            lg = legend(ax_dummy, legend_handles, ...
+                'Interpreter', 'latex', ...
+                'FontSize',    obj.FS, ...
+                'Orientation', 'horizontal', ...
+                'NumColumns',  6, ...
+                'Location',    'north', ...
+                'Box',         'on');
+            lg.Title.String   = 'state';
+            lg.Title.FontSize = obj.FS;
+
+            % 凡例を ax_top のすぐ上に固定（水平中央揃え）
+            drawnow;
+            lg_w    = lg.Position(3);
+            lg_h_v  = lg.Position(4);
+            lg_left = max(0.01, 0.5 - lg_w / 2);
+            lg_bot  = ax_top + 0.05;    % ax 上端から少し上
+            lg.Position = [lg_left, lg_bot, lg_w, lg_h_v];
         end
 
         % ── 7. 一括実行 ──────────────────────────────────────────────
