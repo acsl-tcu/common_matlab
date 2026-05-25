@@ -12,7 +12,9 @@ data = DATA_ANALYZER(mode='all', step=10); % インスタンス生成
 data.plotLagCorr()
 
 %%
-data2 = DATA_ANALYZER(mode='divide', step=2, loggers=data.Loggers, FileNames=data.FileNames); % インスタンス生成
+data2 = DATA_ANALYZER(mode='divide',...
+    step=data.step, loggers=data.Loggers, FileNames=data.FileNames); % インスタンス生成
 % %%
 % data2.plotVarianceBar()
-data2.plotHeatmap(false)
+% data2.plotHeatmap(false)
+data2.plotLagCorr()

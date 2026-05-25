@@ -54,6 +54,7 @@ classdef DATA_ANALYZER < handle
         LogData     % LogData{i}     : i番目の試行の N×M データ行列（常に試行数分保持）
         FileNames   % FileNames{i}   : i番目の試行のファイル名（表示用）
         VarNames        % 変数名セル配列 {1×M}（全試行共通）
+        SystemVals      % システム変数の定義配列 {1xM} 'state' or 'input'
         NumTrials       % 選択したファイル数（mode に関わらず実際の試行数）
         M               % 変数数
 
@@ -102,26 +103,26 @@ classdef DATA_ANALYZER < handle
 
             % ============================================================
             %  ★ 分析対象変数の定義（ここを編集してください）★
-            %  書式: { agentId, variable, attribute, '表示名' }
-            %  attribute: 'e'=推定値, 'r'=参照値, 's'=センサ値, 'p'=プラント値
+            %  書式: { agentId, variable, attribute, '表示名(latex形式)', 'システム変数: state, input'}
+            %  attribute: 'e'=推定値, 'r'=目標値, 's'=センサ値, 'p'=プラント値(Simデータのみ)
             % ============================================================
             QUERY_DEFS = {
-                1, 'p1', 'e', '$x$'
-                1, 'p2', 'e', '$y$'
-                1, 'p3', 'e', '$z$'
-                1, 'v1', 'e', '$v_x$'
-                1, 'v2', 'e', '$v_y$'
-                1, 'v3', 'e', '$v_z$'
-                1, 'q1', 'e', '$\phi$'
-                1, 'q2', 'e', '$\theta$'
-                1, 'q3', 'e', '$\psi$'
-                1, 'w1', 'e', '$\Omega_1$'
-                1, 'w2', 'e', '$\Omega_2$'
-                1, 'w3', 'e', '$\Omega_3$'
-                1, 'input1', '', '$T$'
-                1, 'input2', '', '$\tau_1$'
-                1, 'input3', '', '$\tau_2$'
-                1, 'input4', '', '$\tau_3$'
+                1, 'p1', 'e', '$x$', 'state'
+                1, 'p2', 'e', '$y$', 'state'
+                1, 'p3', 'e', '$z$', 'state'
+                1, 'v1', 'e', '$v_x$', 'state'
+                1, 'v2', 'e', '$v_y$', 'state'
+                1, 'v3', 'e', '$v_z$', 'state'
+                1, 'q1', 'e', '$\phi$', 'state'
+                1, 'q2', 'e', '$\theta$', 'state'
+                1, 'q3', 'e', '$\psi$', 'state'
+                1, 'w1', 'e', '$\Omega_1$', 'state'
+                1, 'w2', 'e', '$\Omega_2$', 'state'
+                1, 'w3', 'e', '$\Omega_3$', 'state'
+                1, 'input1', '', '$T$', 'input'
+                1, 'input2', '', '$\tau_1$', 'input'
+                1, 'input3', '', '$\tau_2$', 'input'
+                1, 'input4', '', '$\tau_3$', 'input'
             };
             % ============================================================
 
@@ -138,7 +139,7 @@ classdef DATA_ANALYZER < handle
             end
 
             % ---- Step 2: QUERY_DEFS に従いデータを取り込む --------------
-            [obj.LogData, obj.VarNames] = obj.extractData(loggers, QUERY_DEFS);
+            [obj.LogData, obj.VarNames, obj.SystemVals] = obj.extractData(loggers, QUERY_DEFS);
 
             obj.Loggers   = loggers;
             obj.NumTrials = numel(loggers);
@@ -617,24 +618,12 @@ classdef DATA_ANALYZER < handle
                 end
             end
 
-            % --- 入力/状態インデックスの自動推定 ---
-            % QUERY_DEFS で attribute='' のものを入力変数とみなす（前後半の境界）
-            % 自動推定が難しい場合は引数で明示的に渡すこと。
-            if isempty(inputIdx) || isempty(stateIdx)
-                % VarNames の先頭から連続して '$' を含むものを状態変数と推定
-                % （QUERY_DEFSの並び順: state系 → input系 を前提）
-                all_idx   = 1:obj.M;
-                % input系は VarNames に 'T' や 'tau' 相当が含まれる後半を想定
-                % 自動判定: 変数名が '$T$','$\tau' で始まるものを input とする
-                is_input  = cellfun(@(n) any(contains(n, {'T$', '\tau', 'input'})), obj.VarNames);
-                if any(is_input)
-                    if isempty(inputIdx), inputIdx = all_idx(is_input);  end
-                    if isempty(stateIdx), stateIdx = all_idx(~is_input); end
-                else
-                    % フォールバック: 後半1/3を入力, 前半2/3を状態とみなす
-                    split     = floor(obj.M * 2/3);
-                    if isempty(stateIdx), stateIdx = 1:split;         end
-                    if isempty(inputIdx), inputIdx = split+1:obj.M;   end
+            % --- システム変数 インデックスの取り出し ---
+            for i = 1:obj.M
+                if strcmp(obj.SystemVals{i}, 'state')
+                    stateIdx = [stateIdx, i];
+                elseif strcmp(obj.SystemVals{i}, 'input')
+                    inputIdx = [inputIdx, i];
                 end
             end
 
@@ -673,59 +662,93 @@ classdef DATA_ANALYZER < handle
             obj.CorrMatrix = cell(obj.numCacheSlots(), 1);   % キャッシュリセット
             obj.CovMatrix  = cell(obj.numCacheSlots(), 1);
 
-            % --- プロット ---
+            % --- 凡例スタイル定義（画像凡例に準拠）---
+            % 色グループ: blue=p/vx/Ωroll, orange=py/vy/Ωpitch, green=pz/vz/Ωyaw
+            % 線種グループ: p=実線, v=破線, φθψ=一点鎖線, Ω=点線
+            state_colors = [
+                0.122, 0.471, 0.706;   % p_x  : blue
+                1.000, 0.498, 0.055;   % p_y  : orange
+                0.173, 0.627, 0.173;   % p_z  : green
+                0.392, 0.710, 0.965;   % v_x  : light blue
+                1.000, 0.733, 0.471;   % v_y  : light orange
+                0.400, 0.800, 0.400;   % v_z  : light green
+                0.839, 0.153, 0.157;   % phi  : red
+                0.580, 0.404, 0.741;   % theta: purple
+                0.549, 0.337, 0.294;   % psi  : brown
+                0.839, 0.153, 0.157;   % Omega_roll  : red (dotted)
+                0.580, 0.404, 0.741;   % Omega_pitch : purple (dotted)
+                0.549, 0.337, 0.294;   % Omega_yaw   : brown (dotted)
+            ];
+            state_lines = {'-', '-', '-', ...   % p: 実線
+                           '--','--','--', ...  % v: 破線
+                           '-.','-.','-.', ...  % φθψ: 一点鎖線
+                           ':',':',':'}; ...    % Ω: 点線
+
+            state_markers = {'o', 'o', 'o',...  % p: 位置
+                             'x', 'x', 'x',...  % v: 速度
+                             '.', '.', '.',...  % q: 姿勢角
+                             '^', '^', '^'};    % w: 各速度
+
+            % stateIdx の数に合わせて色・線種をクリップ
+            nColors = size(state_colors, 1);
+            nLines  = numel(state_lines);
+            nmarkers= numel(state_markers);
+            get_color = @(si) state_colors(mod(si-1, nColors)+1, :);
+            get_line  = @(si) state_lines{mod(si-1, nLines)+1};
+            get_marker= @(si) state_markers{mod(si-1, nmarkers)+1};
+
+            % --- プロット: 1×nIn サブプロット、各サブプロットに全状態を重ね描き ---
             lbl       = obj.trialLabel(1);
             lag_steps = 1:maxStep;
-            colors    = lines(nIn);
 
             figure('Name', sprintf('Lag Correlation: %s', lbl), ...
-                   'Position', [80, 80, min(320*nIn, 1400), min(240*nSt, 900)]);
+                   'Position', [80, 80, min(400*nIn + 160, 1600), 400]);
 
-            for si = 1:nSt
-                for ii = 1:nIn
-                    subplot(nSt, nIn, (si-1)*nIn + ii);
+            for ii = 1:nIn
+                ax = subplot(1, nIn, ii);
+                hold(ax, 'on');
+
+                h = gobjects(nSt, 1);   % 凡例ハンドル
+                for si = 1:nSt
                     r_vals = lagCorr(:, si, ii);   % maxStep×1
+                    h(si) = plot(ax, lag_steps, r_vals, ...
+                        [get_line(si), get_marker(si)], ...
+                        'Color',           get_color(si), ...
+                        'LineWidth',        1.5, ...
+                        'MarkerSize',       2, ...
+                        'MarkerFaceColor',  get_color(si), ...
+                        'DisplayName',      obj.VarNames{stateIdx(si)});
+                end
 
-                    plot(lag_steps, r_vals, '-o', ...
-                        'Color', colors(ii,:), ...
-                        'LineWidth', 1.5, 'MarkerSize', 5, ...
-                        'MarkerFaceColor', colors(ii,:));
-                    hold on;
-                    yline(0,  'k--', 'LineWidth', 0.8);   % ゼロライン
-                    yline( 0.5, ':',  'Color', [0.6 0.6 0.6], 'LineWidth', 0.8);
-                    yline(-0.5, ':',  'Color', [0.6 0.6 0.6], 'LineWidth', 0.8);
-                    hold off;
+                % 基準線
+                yline(ax,  0,   'k--', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+                yline(ax,  0.5, ':',   'Color', [0.6 0.6 0.6], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+                yline(ax, -0.5, ':',   'Color', [0.6 0.6 0.6], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+                hold(ax, 'off');
 
-                    ylim([-1, 1]);
-                    xlim([1, maxStep]);
-                    xticks(lag_steps);
-                    grid on; box on;
-                    ax = gca; ax.FontSize = obj.FS * 0.85;
+                ylim(ax, [-1, 1]);
+                xlim(ax, [1, maxStep]);
+                xticks(ax, lag_steps);
+                grid(ax, 'on'); box(ax, 'on');
+                ax.FontSize = obj.FS * 0.9;
 
-                    % 軸ラベル: 左端列にstate名, 最下行にinput名
-                    if ii == 1
-                        ylabel(obj.VarNames{stateIdx(si)}, ...
-                            'Interpreter', 'latex', 'FontSize', obj.FS);
-                    end
-                    if si == nSt
-                        xlabel(sprintf('lag step  (input: %s)', obj.VarNames{inputIdx(ii)}), ...
-                            'Interpreter', 'latex', 'FontSize', obj.FS * 0.9);
-                    end
+                xlabel(ax, 'lag step', 'FontSize', obj.FS);
+                if ii == 1
+                    ylabel(ax, 'correlation', 'FontSize', obj.FS);
+                end
+                title(ax, obj.VarNames{inputIdx(ii)}, ...
+                    'Interpreter', 'latex', 'FontSize', obj.FS);
 
-                    % タイトル: 最上行に入力名
-                    if si == 1
-                        title(obj.VarNames{inputIdx(ii)}, ...
-                            'Interpreter', 'latex', 'FontSize', obj.FS);
-                    end
+                % 凡例を最右列のサブプロットにのみ表示
+                if ii == nIn
+                    lg = legend(ax, h, 'Location', 'eastoutside', ...
+                        'Interpreter', 'latex', 'FontSize', obj.FS * 0.9);
+                    lg.Title.String = 'state';
                 end
             end
 
             % 全体タイトル
-            if obj.step == 0
-                sup = sprintf('Lag Correlation (step 1-%d): %s', maxStep, lbl);
-            else
-                sup = sprintf('Lag Correlation (step 1-%d, base step=%d): %s', maxStep, orig_step, lbl);
-            end
+            sup = sprintf('Lag Correlation (step 1-%d): %s', maxStep, lbl);
             sgtitle(sup, 'FontSize', obj.FS, 'FontWeight', 'bold', 'Interpreter', 'none');
         end
 
@@ -802,7 +825,7 @@ classdef DATA_ANALYZER < handle
         end
 
         % ---- QUERY_DEFS に従い各 LOGGER からデータを取り出す ----------
-        function [log_data, var_names] = extractData(obj, loggers, query_defs)
+        function [log_data, var_names, system_vals] = extractData(obj, loggers, query_defs)
             % QUERY_DEFS の各行を logger.data() で取得し、
             % N×M のデータ行列と変数名セル配列を返す。
             % 多次元変数は列ごとに分割して独立変数として扱う。
@@ -810,11 +833,13 @@ classdef DATA_ANALYZER < handle
             n_trials   = numel(loggers);
             log_data   = cell(n_trials, 1);
             var_names  = {};    % 初回試行で確定
+            system_vals = {};   % 初回試行で確定('state' or 'input'を格納)
 
             for k = 1:n_trials
                 lg      = loggers{k};
                 cols    = {};
                 vnames  = {};
+                svals   = {};
 
                 for q = 1:size(query_defs, 1)
                     agent_id  = query_defs{q, 1};
@@ -837,6 +862,7 @@ classdef DATA_ANALYZER < handle
                                 vnames{end+1} = sprintf('%s%d', disp_name, d); %#ok<AGROW>
                             end
                         end
+                        svals{end+1} = query_defs{q, 5};
 
                     catch ME
                         warning('Trial[%d] "%s" の取得失敗: %s', k, disp_name, ME.message);
@@ -854,6 +880,7 @@ classdef DATA_ANALYZER < handle
                 % 変数名は最初の試行で確定
                 if k == 1
                     var_names = vnames;
+                    system_vals = svals;
                 end
 
                 fprintf('  Trial[%d]: %d サンプル × %d 変数\n', k, min_n, numel(vnames));
