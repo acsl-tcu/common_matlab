@@ -3,18 +3,18 @@
 clear; clc; close all;
 
 %%
-data = DATA_ANALYZER(mode='all', step=10); % インスタンス生成
-% data.runAll();
-% data.plotScatterMatrix()
-% data.plotVarianceBar()
-% data.plotHeatmap(false)
-% data.plotScatterMatrixEACH();
-data.plotLagCorr()
+data_all = DATA_ANALYZER(mode='all', step=10); % インスタンス生成
+data_all.runAll();
+% data_all.plotScatterMatrix()
+% data_all.plotVarianceBar()
+% data_all.plotHeatmap(false)
+% data_all.plotScatterMatrixEACH();
+% data_all.plotLagCorr()
 
 %%
-data2 = DATA_ANALYZER(mode='divide',...
-    step=data.step, loggers=data.Loggers, FileNames=data.FileNames); % インスタンス生成
-% %%
-% data2.plotVarianceBar()
-% data2.plotHeatmap(false)
-data2.plotLagCorr()
+data_divide = DATA_ANALYZER(mode='divide',...
+                step=data_all.step, loggers=data_all.Loggers, FileNames=data_all.FileNames); % data_allのloggersを引継ぎ
+data_divide.runAll();
+% data_divide.plotVarianceBar()
+% data_divide.plotHeatmap(false)
+% data_divide.plotLagCorr()
