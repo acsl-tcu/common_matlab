@@ -25,8 +25,9 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-offset_z = 0.18; % 0.18=マットありの時の床から重心位置まで
-takeoff_zd = 1.0 + offset_z;
+mat_height = 0.05; % 5cm
+takeoff_zd = 0.5;
+takeoff_zd = takeoff_zd + mat_height;
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;takeoff_zd],"radius",0},4})); % hovering
@@ -55,7 +56,7 @@ app.logger.plot({1, "w", "e"},"fig_num",4, "phase",phase, "FontSize",FS, "Linewi
 app.logger.plot({1, "input", ""},"fig_num",5, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "input2:4", ""},"fig_num",55, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "inner_input1:4", ""},"fig_num",6, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "inner_input5:8", ""},"fig_num",7, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "inner_input5:8", ""},"fig_num",7, "phase",phase, "FontSize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2","er"}, "fig_num",10, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
 % show_cooperative_animation(app);
 

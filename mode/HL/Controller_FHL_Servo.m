@@ -15,8 +15,8 @@ Cc4 = [1 0 0 0];
 
 % 機体名：足柄 2026/01/19 小関チューニング %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Controller.F1=lqrd([Ac2,zeros(2,1);-Cc2,0],[Bc2;0],diag([100,10,0.01]),[1],dt);                                % z
-Controller.F2=lqrd([Ac4,zeros(4,1);-Cc4,0],[Bc4;0],diag([3000,2000,200,1,0.001]),[0.01],dt); % xdiag([100,10,10,1])
-Controller.F3=lqrd([Ac4,zeros(4,1);-Cc4,0],[Bc4;0],diag([3000,2000,200,1,0.001]),[0.01],dt); % ydiag([100,10,10,1])
+Controller.F2=lqrd([Ac4,zeros(4,1);-Cc4,0],[Bc4;0],diag([3000,2000,200,1,0.001]),[0.005],dt); % xdiag([100,10,10,1])
+Controller.F3=lqrd([Ac4,zeros(4,1);-Cc4,0],[Bc4;0],diag([3000,2000,200,1,0.001]),[0.005],dt); % ydiag([100,10,10,1])
 Controller.F4=lqrd(Ac2,Bc2,diag([200,1]),[0.1],dt);                       % ヨー角
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 syms x [3 1] real % Model_EulerAngle_Servoを使う前提
@@ -36,6 +36,7 @@ Controller.type="FUNCTIONAL_HLC_SERVO";
 Controller.name="hlc";
 Controller.param=Controller;
 
+disp('=== Controller subsystem gains respectively as follows. ===')
 disp(Controller.F1)
 disp(Controller.F2)
 disp(Controller.F3)
