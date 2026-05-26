@@ -94,7 +94,6 @@ app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase,  "fig_num",8, "color",0); 
 % show_suspended_load_animation(app);
 
 plot_calc_time(app.logger);
-
 % Graphplot(app)
 end
 

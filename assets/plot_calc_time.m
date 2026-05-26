@@ -33,4 +33,3 @@ set(ax.Legend, 'FontSize',FS-4);
 xlabel("Time [s]", "FontSize",FS);
 ylabel("Computation time [ms]", "FontSize",FS)
 end
-
