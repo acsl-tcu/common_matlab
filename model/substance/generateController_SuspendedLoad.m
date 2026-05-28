@@ -225,6 +225,63 @@ clc
 % matlabFunction(subs(He, [xdRef vInput1], [XD V1v]),'file','He.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) e1 physicalParam},'outputs',{'mat'});
 % %%
 % matlabFunction(beta1,'file','beta1.m','vars',{obj t x physicalParam},'outputs',{'beta1'});
+%% =====================================================================
+%% 相対次数4の高次CBF（ECBF）制約の自動生成スクリプト（追記分）
+%% =====================================================================
+disp("Start: 4th-order ECBF constraint generation.");
+
+% 1. 障害物の位置と安全半径をシンボリック変数として定義
+syms ox oy R_safe real
+syms k0_cbf k1_cbf k2_cbf k3_cbf real % CBF用の極配置ゲイン
+
+% 2. ペイロード（負荷）の位置・速度を抽出
+% pl1 = pl(1), pl2 = pl(2), dpl1 = dpl(1), dpl2 = dpl(2)
+px_L = pl1; py_L = pl2;
+vx_L = dpl1; vy_L = dpl2;
+
+% 3. バリア関数 h とその時間微分（1階〜3階）を代数的に計算
+% ※HLCによる線形化空間（4連続積分器）をベースに微分します
+h_cbf = (px_L - ox)^2 + (py_L - oy)^2 - R_safe^2;
+
+% 1階微分 (h_dot)
+h_dot = 2*(px_L - ox)*vx_L + 2*(py_L - oy)*vy_L;
+
+% 2階微分 (h_ddot) -> 運動方程式の加速度（d2pl）は仮想入力 V2, V3 レベルに相当
+% 線形化空間において d2pl_x = ax_L, d3pl_x = jx_L などの高階関係を代数微分
+% ここでは、負荷の4階微分が直接 [V2; V3] (仮想入力) になる性質を利用するため、
+% 状態量ベクトル空間として、pl と dpl のダイナミクスのみをターゲットにします。
+
+% 状態 pl, dpl, d2pl, d3pl をそれぞれ時間微分したときの関係式を定義
+% 線形化されているため： d4(pl1)/dt4 = V2, d4(pl2)/dt4 = V3 となります。
+syms ax_L ay_L jx_L jy_L real % 加速度(2階), ジャーク(3階)のシンボリック変数
+
+h_ddot  = 2*(vx_L^2 + vy_L^2) + 2*(px_L - ox)*ax_L + 2*(py_L - oy)*ay_L;
+
+h_dddot = 6*(vx_L*ax_L + vy_L*ay_L) + 2*(px_L - ox)*jx_L + 2*(py_L - oy)*jy_L;
+
+% 4階微分 (h_4dot) -> ここでついに第2層の仮想入力 V2, V3 が現れる！
+% d(jx_L)/dt = V2 , d(jy_L)/dt = V3
+h_4dot  = 6*(ax_L^2 + ay_L^2) + 8*(vx_L*jx_L + vy_L*jy_L) + 2*(px_L - ox)*V2 + 2*(py_L - oy)*V3;
+
+% 4. 仮想入力 V2, V3 に対する線形制約 A_v * [V2; V3] >= b_v の形に分離
+% A_v * [V2; V3] >= - Lf4h - k3_cbf*h_dddot - k2_cbf*h_ddot - k1_cbf*h_dot - k0_cbf*h_cbf
+
+A_v = jacobian(h_4dot, [V2; V3]); % [2*(px_L - ox), 2*(py_L - oy)] になります
+Lf4h = h_4dot - A_v * [V2; V3];   % V2, V3 を含まない残りの項
+
+% 不等式の右辺 (b_v) の構築
+b_v = - Lf4h - k3_cbf*h_dddot - k2_cbf*h_ddot - k1_cbf*h_dot - k0_cbf*h_cbf;
+
+% 5. MATLAB関数としてファイルに出力
+% 実行時に必要な状態量とパラメータをすべてVarsに詰め込みます
+cbf_params = [ox, oy, R_safe, k0_cbf, k1_cbf, k2_cbf, k3_cbf];
+virtual_states = [ax_L; ay_L; jx_L; jy_L]; % HLC内部または差分で計算する中間状態
+
+matlabFunction(A_v, b_v, 'File', 'Get_ECBF_LinearSpace_Constraint.m', ...
+    'Vars', {x, virtual_states, cbf_params}, ...
+    'Outputs', {'A_v', 'b_v'});
+
+disp("ECBF constraint function 'Get_ECBF_LinearSpace_Constraint.m' has been generated successfully!");
 
 %% Local functions
 function tmp = DeleteCommentLine(fname)
