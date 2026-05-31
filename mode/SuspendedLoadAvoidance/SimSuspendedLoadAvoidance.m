@@ -7,7 +7,8 @@ post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
-fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
+% fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
+fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  Euler:[roll, pitch, yaw]  U:[T, tx, ty, tz]  mL\n\n");
 
 % drone plant setting
 agent = DRONE;
@@ -49,10 +50,10 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"center",[0;0;1.5],"radius",[15,15,0]},4})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 20.0}, 4}));
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 20.0}, 4}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
@@ -105,21 +106,33 @@ app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_n
 show_suspended_load_animation(app); % アニメーション描画
 end
 
+% function show_suspended_load_animation(app)
+% % 単機の吊り下げモデルをアニメーション表示する。
+% if app.logger.k <= 1
+%     return
+% end
+% 
+% mov = DRAW_SUSPENDED_LOAD(app.logger, ...
+%     "target", 1, ...
+%     "self", app.agent(1));
+% mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
+% 
+% % mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
+% 
+% % mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
+% %     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+% end
 function show_suspended_load_animation(app)
-% 単機の吊り下げモデルをアニメーション表示する。
+% 単機の吊り下げモデルを障害物回避マージン付きでアニメーション表示する。
 if app.logger.k <= 1
     return
 end
 
-mov = DRAW_SUSPENDED_LOAD(app.logger, ...
+% 新しい回避対応版クラスをインスタンス化
+mov = DRAW_SUSPENDED_LOAD_AVOIDANCE(app.logger, ...
     "target", 1, ...
     "self", app.agent(1));
-mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
-
-% mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
-
-% mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
-%     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+mov.animation(app.logger,"target", 1,"self", app.agent(1)); % 表示開始
 end
 
 function in_prog(app)
@@ -129,17 +142,57 @@ end
 
 
 
+% function v = build_display_vector(agent, time)
+% % コンソール表示用の文字列を作る。
+% % 参照位置、推定位置、入力、推定質量を並べる。
+% idx = 1;
+% if ~isprop(agent(idx).reference.result.state, "xd")
+%     v = [];
+%     return
+% end
+% xd = agent(idx).reference.result.state.xd;
+% if isfield(agent(idx).estimator.result, "state")
+%     p = agent(idx).estimator.result.state.p;
+%     if isprop(agent(idx).estimator.result.state, "mL")
+%         mL = agent(idx).estimator.result.state.mL;
+%     else
+%         mL = NaN;
+%     end
+% else
+%     p = [NaN; NaN; NaN];
+%     mL = NaN;
+% end
+% u = agent(idx).controller.result.input;
+% v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
+% end
 function v = build_display_vector(agent, time)
 % コンソール表示用の文字列を作る。
-% 参照位置、推定位置、入力、推定質量を並べる。
+% 参照位置、推定位置、機体姿勢(新規追加)、入力、推定質量を並べる。
 idx = 1;
 if ~isprop(agent(idx).reference.result.state, "xd")
     v = [];
     return
 end
 xd = agent(idx).reference.result.state.xd;
+
+% 推定状態の取得
 if isfield(agent(idx).estimator.result, "state")
     p = agent(idx).estimator.result.state.p;
+    
+    % --- 機体姿勢(オイラー角)の抽出ロジック ---
+    if isprop(agent(idx).estimator.result.state, "q")
+        q_state = agent(idx).estimator.result.state.q;
+        % クオータニオン（4成分）か Euler（3成分）かを自動判別して[Roll; Pitch; Yaw]に変換
+        if numel(q_state) == 4
+            euler = Quat2Eul(q_state); 
+        else
+            euler = q_state; % 既に3成分（オイラー角）として保持されている場合
+        end
+    else
+        euler = [NaN; NaN; NaN];
+    end
+    
+    % 質量推定の抽出
     if isprop(agent(idx).estimator.result.state, "mL")
         mL = agent(idx).estimator.result.state.mL;
     else
@@ -147,8 +200,14 @@ if isfield(agent(idx).estimator.result, "state")
     end
 else
     p = [NaN; NaN; NaN];
+    euler = [NaN; NaN; NaN];
     mL = NaN;
 end
+
 u = agent(idx).controller.result.input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
+
+% コンソール表示フォーマットの生成
+% R:目標位置, P:現在の推定位置, E:現在の機体姿勢(Roll, Pitch, Yaw), U:制御入力, mL:推定質量
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : E [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f", ...
+    agent(idx).cha, time.t, xd(1:3)', p', euler', u', mL);
 end

@@ -1,48 +1,197 @@
 % function obs = ENVIRONMENT_OBSTACLE()
-% % ENVIRONMENT_OBSTACLE 障害物の配置情報を一元管理する関数（複数対応版）
-% %   構造体配列として定義することで、コントローラ側を書き換えずに障害物を増減できます。
+% % ENVIRONMENT_OBSTACLE 障害物の配置情報を一元管理する関数（デバッグ強制発動版）
 % 
-%     % --- 障害物 1 の定義 (直線軌道の経路上付近) ---
-%     obs(1).p_obs  = [1.0; 0.8; 3.0]; % 中心座標 [x; y; z]
-%     obs(1).r_obs  = 0.25;            % 物理半径 [m]
-%     obs(1).margin = 0.15;            % 安全マージン [m]
-%     obs(1).R_safe = obs(1).r_obs + obs(1).margin; % 制御用安全半径
-% 
-%     % --- 障害物 2 の定義 (少し離れた位置、または2つ目の関門) ---
-%     obs(2).p_obs  = [1.8; 1.5; 3.0]; % 中心座標 [x; y; z]
-%     obs(2).r_obs  = 0.25;            % 物理半径 [m]
-%     obs(2).margin = 0.15;            % 安全マージン [m]
-%     obs(2).R_safe = obs(2).r_obs + obs(2).margin; % 制御用安全半径
-% end
-
-% function obs = ENVIRONMENT_OBSTACLE()
-% % ENVIRONMENT_OBSTACLE 障害物の配置情報を一元管理する関数（複数対応版）
-% 
-%     % --- 障害物 1 の定義 (軌道のほぼ中心、かつ吊り荷が通りやすい位置) ---
-%     obs(1).p_obs  = [0; 5.0; 3]; % z方向も少し下げて吊り荷にぶつけます
-%     obs(1).r_obs  = 0.5;            
-%     obs(1).margin = 0.1;              % マージンを少し広げて確実に捉えます
+%     % --- 障害物 1 の定義 (吊り荷の現在高度に完全一致) ---
+%     obs(1).p_obs  = [0.05; 7.0; 0.916]; 
+%     obs(1).r_obs  = 0.50;            
+%     obs(1).margin = 0.3;            
 %     obs(1).R_safe = obs(1).r_obs + obs(1).margin; 
 % 
-%     % % --- 障害物 2 の定義 (後半の関門) ---
-%     obs(2).p_obs  = [0; 5.0; 1.0]; 
-%     obs(2).r_obs  = 0.5;            
-%     obs(2).margin = 0.1;            
+%     % --- 障害物 2 の定義 (十分に離した前進回廊へ配置) ---
+%     obs(2).p_obs  = [0.05; 15.0; 0.916]; 
+%     obs(2).r_obs  = 0.50;            
+%     obs(2).margin = 0.3;            
 %     obs(2).R_safe = obs(2).r_obs + obs(2).margin; 
 % end
 
 function obs = ENVIRONMENT_OBSTACLE()
-% ENVIRONMENT_OBSTACLE 障害物の配置情報を一元管理する関数（デバッグ強制発動版）
+% ENVIRONMENT_OBSTACLE 障害物の配置情報を一元管理する関数（全形状網羅・デバッグ版）
+% 
+% 制御バリア関数 (CBF) の球体判定を満たすため、
+% さまざまな原形をすっぽり包み込む「最小の真球 (Bounding Sphere)」を自動計算します。
 
-    % --- 障害物 1 の定義 (吊り荷の現在高度に完全一致) ---
-    obs(1).p_obs  = [0.05; 7.0; 0.916]; 
-    obs(1).r_obs  = 0.50;            
+    %% =========================================================================
+    %  1. 円柱 (Cylinder) -> ポールや電柱など
+    %  =========================================================================
+    p_center1 = [1.0; 15.0; 5.0];
+    cyl_param = [0.5, 10.0]; % [底面半径 r, 高さ h]
+    
+    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param);
     obs(1).margin = 0.3;            
     obs(1).R_safe = obs(1).r_obs + obs(1).margin; 
 
-    % --- 障害物 2 の定義 (十分に離した前進回廊へ配置) ---
-    obs(2).p_obs  = [0.05; 15.0; 0.916]; 
-    obs(2).r_obs  = 0.50;            
-    obs(2).margin = 0.3;            
-    obs(2).R_safe = obs(2).r_obs + obs(2).margin; 
+    % %% =========================================================================
+    % %  1. 真球 (Sphere)
+    % %  =========================================================================
+    % p_center1 = [0.0; 5.0; 1.0]; % 中心
+    % r_sphere  = 0.5; % 単純な半径
+    % 
+    % [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('sphere', p_center1, r_sphere);
+    % obs(1).margin = 0.3;            
+    % obs(1).R_safe = obs(1).r_obs + obs(1).margin; 
+    % 
+    % %% =========================================================================
+    % %  2. 円柱 (Cylinder) -> ポールや電柱など
+    % %  =========================================================================
+    % p_center2 = [2.0; 5.0; 1.0];
+    % cyl_param = [0.4, 2.0]; % [底面半径 r, 高さ h]
+    % 
+    % [obs(2).p_obs, obs(2).r_obs] = get_bounding_sphere('cylinder', p_center2, cyl_param);
+    % obs(2).margin = 0.3;            
+    % obs(2).R_safe = obs(2).r_obs + obs(2).margin; 
+    % 
+    % %% =========================================================================
+    % %  3. 直方体 / 四角柱 (Box) -> コンテナ、ビル、壁など
+    % %  =========================================================================
+    % p_center3 = [-2.0; 5.0; 1.0];
+    % box_param = [1.0, 0.8, 1.5]; % [X幅 dx, Y幅 dy, Z幅 dz]
+    % 
+    % [obs(3).p_obs, obs(3).r_obs] = get_bounding_sphere('box', p_center3, box_param);
+    % obs(3).margin = 0.3;            
+    % obs(3).R_safe = obs(3).r_obs + obs(3).margin; 
+    % 
+    % %% =========================================================================
+    % %  4. 正三角柱 (Prism) -> 屋根状の構造物など
+    % %  =========================================================================
+    % p_center4 = [0.0; 10.0; 1.0];
+    % prism_param = [1.2, 2.0]; % [底面正三角形の1辺の長さ a, 高さ h]
+    % 
+    % [obs(4).p_obs, obs(4).r_obs] = get_bounding_sphere('prism', p_center4, prism_param);
+    % obs(4).margin = 0.3;            
+    % obs(4).R_safe = obs(4).r_obs + obs(4).margin; 
+    % 
+    % %% =========================================================================
+    % %  5. 円錐 (Cone) -> カラーコーン、木（簡易表現）など
+    % %  =========================================================================
+    % p_center5 = [2.0; 10.0; 1.0];
+    % cone_param = [0.6, 1.8]; % [底面半径 r, 高さ h]
+    % 
+    % [obs(5).p_obs, obs(5).r_obs] = get_bounding_sphere('cone', p_center5, cone_param);
+    % obs(5).margin = 0.3;            
+    % obs(5).R_safe = obs(5).r_obs + obs(5).margin; 
+    % 
+    % %% =========================================================================
+    % %  6. 正四角錐 (Pyramid) -> ピラミッド形状、テントなど
+    % %  =========================================================================
+    % p_center6 = [-2.0; 10.0; 1.0];
+    % pyramid_param = [1.5, 1.2]; % [底面の1辺の長さ a, 高さ h]
+    % 
+    % [obs(6).p_obs, obs(6).r_obs] = get_bounding_sphere('pyramid', p_center6, pyramid_param);
+    % obs(6).margin = 0.3;            
+    % obs(6).R_safe = obs(6).r_obs + obs(6).margin; 
+    % 
+    % %% =========================================================================
+    % %  7. カスタム多面体 (Custom) -> 斜めの柱、歪んだ幾何学形状など
+    % %  =========================================================================
+    % % [底面4点 + 上面4点] の計8頂点を絶対座標で定義する例（ねじれた四角柱）
+    % % 行列のサイズは [3 x 頂点数]
+    % vertices = [
+    %     % --- 底面の4頂点 [x; y; z] ---
+    %     -0.5,  0.5,  0.5, -0.5, ... % X
+    %     14.5, 14.5, 15.5, 15.5, ... % Y
+    %      0.0,  0.0,  0.0,  0.0;     % Z
+    %     % --- 上面の4頂点 [x; y; z] (少しすぼまって傾いている) ---
+    %     -0.2,  0.2,  0.1, -0.3, ... % X
+    %     14.7, 14.7, 15.3, 15.3, ... % Y
+    %      2.5,  2.5,  2.5,  2.5      % Z
+    % ];
+    % 
+    % % custom の場合は内部で頂点の平均から真球中心を自動計算するため、第2引数は [] でOK
+    % [p_obs7, r_obs7] = get_bounding_sphere('custom', [], vertices);
+    % 
+    % obs(7).p_obs  = p_obs7; 
+    % obs(7).r_obs  = r_obs7;            
+    % obs(7).margin = 0.3;            
+    % obs(7).R_safe = obs(7).r_obs + obs(7).margin; 
+
 end
+
+
+
+
+
+% %% =========================================================================
+% %  サブ関数: 真球包囲ロジック (コア計算部分)
+% %  =========================================================================
+% function [p_obs, r_obs] = get_bounding_sphere(type, p_center, params)
+% % GET_BOUNDING_SPHERE 任意の形状をすっぽり覆う真球の中心と半径を計算する（拡張版）
+% %
+% % 入力:
+% %   type     : 'sphere', 'cylinder', 'box', 'prism', 'cone', 'pyramid', 'custom'
+% %   p_center : 形状の中心（または基準点）座標 [x; y; z]
+% %   params   : 各形状に応じたパラメータ
+% %
+% % 出力:
+% %   p_obs    : 真球の中心座標 [x; y; z]
+% %   r_obs    : 真球の半径 (スカラー)
+% 
+%     p_obs = p_center; 
+% 
+%     switch lower(type)
+%         case 'sphere' % 球
+%             r_obs = params; % params: 半径
+% 
+%         case 'cylinder' % 円柱
+%             % params: [底面半径 r, 高さ h]
+%             r_obs = sqrt(params(1)^2 + (params(2)/2)^2);
+% 
+%         case 'box' % 四角柱
+%             % params: [X幅dx, Y幅dy, Z幅dz]
+%             r_obs = sqrt((params(1)/2)^2 + (params(2)/2)^2 + (params(3)/2)^2);
+% 
+%         case 'prism' % 三角錐
+%             % params: [底面正三角形の1辺 a, 高さ h]
+%             r_tri = params(1) / sqrt(3);
+%             r_obs = sqrt(r_tri^2 + (params(2)/2)^2);
+% 
+%         case 'cone' % 円錐
+%             % --- 5. 円錐 ---
+%             % params: [底面半径 r, 高さ h]
+%             r_cone = params(1);
+%             h_cone = params(2);
+%             % 簡易的に底面中心から高さh/2を真球中心とし、頂点と底面端をカバーする
+%             % 頂点までの距離: h/2, 底面フチまでの距離: sqrt(r^2 + (h/2)^2)
+%             r_obs = max(h_cone/2, sqrt(r_cone^2 + (h_cone/2)^2));
+% 
+%         case 'pyramid' % 資格推
+%             % --- 6. 正四角錐 ---
+%             % params: [底面の1辺 a, 高さ h]
+%             a = params(1);
+%             h = params(2);
+%             r_bottom = sqrt(2) * (a / 2); % 底面の中心から角までの距離
+%             % 底面中心から高さh/2を真球中心とする
+%             r_obs = max(h/2, sqrt(r_bottom^2 + (h/2)^2));
+% 
+%         case 'custom' % カスタム
+%             % --- 7. カスタム（底面・上面の全頂点指定） ---
+%             % params: [3 x N] の行列 (各列が頂点の [x; y; z] 座標)
+%             % ※p_center は無視し、頂点の平均から自動で中心を再計算します。
+% 
+%             vertices = params; 
+%             p_obs = mean(vertices, 2); % 全頂点の平均を真球の中心とする
+% 
+%             % 中心から最も遠い頂点までの距離を半径にする
+%             max_dist = 0;
+%             num_vertices = size(vertices, 2);
+%             for i = 1:num_vertices
+%                 dist = norm(vertices(:, i) - p_obs);
+%                 if dist > max_dist
+%                     max_dist = dist;
+%                 end
+%             end
+%             r_obs = max_dist;
+% 
+%         otherwise
+%             error('未対応の形状タイプです。');
+%     end
+% end

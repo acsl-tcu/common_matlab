@@ -19,7 +19,7 @@ userpath('clear');
 clc
 SimBaseMode = ["SimSuspendedLoad", "SimCooperativeSuspendedLoad", "SimSplitCooperateiveLoad",...
                 "SimVoronoi", "SimHL", "SimPointMass",...
-                "SimVehicle", "SimSuspendedLoad", "SimFHL",...
+                "SimVehicle", "SimSuspendedLoad", "SimFHL",...l
                 "SimFHL_Servo", "SimLiDAR", "SimFT",...
                 "SimEL", "SimMPC_Koopman","SimSuspendedLoadAvoidance"];
 ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedLoadCoop",...
@@ -28,6 +28,7 @@ ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedL
 
 Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
+% Setting.mode = SimBaseMode(1); % SimSuspendedLoad
 Setting.mode = SimBaseMode(15); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(2); % SimCoop
 % Setting.mode = SimBaseMode(5); % SimHL
