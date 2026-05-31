@@ -604,29 +604,109 @@ classdef DRAW_SUSPENDED_LOAD_AVOIDANCE
             % ENVIRONMENT_OBSTACLE からデータを引っ張り、環境を描画する
             try
                 obs_list = ENVIRONMENT_OBSTACLE();
-                [sx, sy, sz] = sphere(24); % 高精細な真球メッシュ
+                [sx, sy, sz] = sphere(24); % マージン球用の高密度メッシュ
                 hold(obj.ax, "on");
                 
                 for i = 1:length(obs_list)
                     xo = obs_list(i).p_obs;
                     ro = obs_list(i).r_obs;
-                    R_safe = obs_list(i).R_safe; % 物理安全境界
-                    R_cbf  = R_safe + 0.5;       % CBF減速開始を想定した外側案内領域
+                    R_safe = obs_list(i).R_safe; 
+                    R_cbf  = R_safe + 0.5; % CBFアクティブ警戒領域（最外層）
                     
-                    % ① 障害物の大元本体（不透明・ソリッドな赤）
+                    % -----------------------------------------------------------
+                    % 層①：障害物のオリジナル「元の幾何学形状」（不透明ソリッド赤）
+                    % -----------------------------------------------------------
+                    switch lower(obs_list(i).type)
+                        case 'sphere'
+                            % 1. 真球
+                            r_sp = obs_list(i).raw_param;
+                            pc = obs_list(i).p_center;
+                            obj.obs_handles(end+1) = surf(obj.ax, sx*r_sp + pc(1), sy*r_sp + pc(2), sz*r_sp + pc(3), ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                                
+                        case 'cylinder'
+                            % 2. 円柱 (現在これが発動します)
+                            r_cyl = obs_list(i).raw_param(1);
+                            h_cyl = obs_list(i).raw_param(2);
+                            pc = obs_list(i).p_center;
+                            [cx, cy, cz] = cylinder(obj.ax, r_cyl, 24);
+                            cz = cz * h_cyl + (pc(3) - h_cyl/2); % 高度の中心をパチッと合わせる
+                            % 側面の描画
+                            obj.obs_handles(end+1) = surf(obj.ax, cx + pc(1), cy + pc(2), cz, ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                            % 上面・底面の蓋の描画
+                            patch(obj.ax, cx(1,:)+pc(1), cy(1,:)+pc(2), cz(1,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
+                            patch(obj.ax, cx(2,:)+pc(1), cy(2,:)+pc(2), cz(2,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
+                                
+                        case 'box'
+                            % 3. 直方体 / 四角柱
+                            dx = obs_list(i).raw_param(1); dy = obs_list(i).raw_param(2); dz = obs_list(i).raw_param(3);
+                            pc = obs_list(i).p_center;
+                            v_box = [ -1 -1 -1; 1 -1 -1; 1 1 -1; -1 1 -1; -1 -1 1; 1 -1 1; 1 1 1; -1 1 1] .* [dx, dy, dz]/2 + pc';
+                            f_box = [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8];
+                            obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_box, 'Vertices', v_box, ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                                
+                        case 'prism'
+                            % 4. 正三角柱
+                            a_tri = obs_list(i).raw_param(1); h_pri = obs_list(i).raw_param(2);
+                            pc = obs_list(i).p_center;
+                            r_tri = a_tri / sqrt(3);
+                            th_tri = [0, 120, 240] * pi / 180;
+                            tx = r_tri * cos(th_tri); ty = r_tri * sin(th_tri);
+                            v_pri = [tx', ty', zeros(3,1)-h_pri/2; tx', ty', zeros(3,1)+h_pri/2] + pc';
+                            f_pri = [1 2 3 NaN; 4 5 6 NaN; 1 2 5 4; 2 3 6 5; 3 1 4 6];
+                            obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_pri, 'Vertices', v_pri, ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                                
+                        case 'cone'
+                            % 5. 円錐
+                            r_co = obs_list(i).raw_param(1); h_co = obs_list(i).raw_param(2);
+                            pc = obs_list(i).p_center;
+                            [cx, cy, cz] = cylinder(obj.ax, [r_co, 0], 24);
+                            cz = cz * h_co + (pc(3) - h_co/2);
+                            obj.obs_handles(end+1) = surf(obj.ax, cx + pc(1), cy + pc(2), cz, ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                            patch(obj.ax, cx(1,:)+pc(1), cy(1,:)+pc(2), cz(1,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
+                                
+                        case 'pyramid'
+                            % 6. 正四角錐
+                            a_py = obs_list(i).raw_param(1); h_py = obs_list(i).raw_param(2);
+                            pc = obs_list(i).p_center;
+                            d_py = a_py / 2;
+                            v_py = [-d_py, -d_py, -h_py/2; d_py, -d_py, -h_py/2; d_py, d_py, -h_py/2; -d_py, d_py, -h_py/2; 0, 0, h_py/2] + pc';
+                            f_py = [1 2 3 4; 1 2 5 NaN; 2 3 5 NaN; 3 4 5 NaN; 4 1 5 NaN];
+                            obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_py, 'Vertices', v_py, ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                                
+                        case 'custom'
+                            % 7. カスタム任意多面体
+                            v_cust = obs_list(i).raw_param;
+                            pc = obs_list(i).p_center;
+                            % 頂点データから凸包（3Dソリッド体）を自動ビルドしてプロット
+                            [f_cust, v_cust_mod] = convhull(v_cust(1,:), v_cust(2,:), v_cust(3,:));
+                            obj.obs_handles(end+1) = trisurf(f_cust, v_cust_mod(:,1), v_cust_mod(:,2), v_cust_mod(:,3), ...
+                                'Parent', obj.ax, 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                                
+                        otherwise
+                            obj.obs_handles(end+1) = surf(obj.ax, sx*ro + xo(1), sy*ro + xo(2), sz*ro + xo(3), ...
+                                'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                    end
+                    
+                    % -----------------------------------------------------------
+                    % 層②：数式計算で丸め込んだ「近似真球バリア」（半透明オレンジ）
+                    % -----------------------------------------------------------
                     obj.obs_handles(end+1) = surf(obj.ax, sx*ro + xo(1), sy*ro + xo(2), sz*ro + xo(3), ...
-                        'FaceColor', [0.8 0.2 0.2], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
+                        'FaceColor', [1.0 0.5 0.0], 'EdgeColor', 'none', 'FaceAlpha', 0.25);
                     
-                    % ② 周囲の物理安全球（半透明なオレンジマージン）
+                    % -----------------------------------------------------------
+                    % 層③：さらに外側の制御上の「安全マージン境界」（薄い半透明黄色）
+                    % -----------------------------------------------------------
                     obj.obs_handles(end+1) = surf(obj.ax, sx*R_safe + xo(1), sy*R_safe + xo(2), sz*R_safe + xo(3), ...
-                        'FaceColor', [1.0 0.6 0.0], 'EdgeColor', 'none', 'FaceAlpha', 0.25);
-                        
-                    % ③ さらに外側の安全警戒領域（ごく薄い半透明な黄色のCBFアクティブエリア）
-                    obj.obs_handles(end+1) = surf(obj.ax, sx*R_cbf + xo(1), sy*R_cbf + xo(2), sz*R_cbf + xo(3), ...
-                        'FaceColor', [1.0 1.0 0.2], 'EdgeColor', 'none', 'FaceAlpha', 0.10);
+                        'FaceColor', [1.0 1.0 0.1], 'EdgeColor', 'none', 'FaceAlpha', 0.10);
                 end
             catch
-                disp('⚠️ [Visualizer WARNING] ENVIRONMENT_OBSTACLE の読み込み、または描画に失敗しました。');
+                disp('⚠️ [Visualizer ERROR] 3層幾何学障害物グラフィックスの生成に失敗しました。');
             end
 
             %% 🛡️ 【新規追加】単機牽引システム側の「保護球（2つ）」のグラフィックス初期化
