@@ -327,6 +327,24 @@ methods
         obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; 
         obj.result.xd = xd;
         obj.result.x = x;
+        %% =================================================================
+        % 📦 【新規追記】安全情報のログ自動格納（LOGGER変更不要版）
+        % =================================================================
+        % ① 障害物の配置設定を丸ごと controller.result に埋め込む
+        obj.result.obs_info = ENVIRONMENT_OBSTACLE();
+        
+        % ② リアルタイムな2つの保護球の中心位置 [x; y; z] を計算して埋め込む (3×2の行列)
+        xq = model.state.p; % 機体位置
+        L_cable = obj.self.parameter.get("cableL");
+        n_vec = (pL - xq) / L_cable; % ケーブルの単位方向ベクトル
+        lambda_vals = [0.25, 0.75];
+        
+        sphere_pos = zeros(3, 2);
+        for j = 1:2
+            sphere_pos(:, j) = xq + lambda_vals(j) * L_cable * n_vec;
+        end
+        obj.result.protection_spheres = sphere_pos; %後で保護球の大きさなども
+        %% =================================================================
         result = obj.result;
     end
 
