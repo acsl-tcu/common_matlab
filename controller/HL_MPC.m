@@ -22,15 +22,52 @@ classdef HL_MPC < handle
         function result = do(obj,varargin)
            
             model = obj.self.estimator.result;
-            xd = obj.self.reference.result.state.xd;
             P = obj.param.P;
              phase = varargin{2};
-            %% expand reference: single xd -> 20 x H
-            xd = xd(:);
-            xd = [xd; zeros(max(0, 20 - size(xd, 1)), 1)];
-            xd = repmat(xd, 1, obj.param.H);
+            %% reference horizon for MPC
+            H = obj.param.H;
+            dt = obj.param.dt;
+            pad_xd = @(x) [x(:); zeros(max(0, 20 - numel(x)), 1)];
 
-            xd0 = xd(:, 1);
+            xd0 = pad_xd(obj.self.reference.result.state.xd);
+            xd_world = zeros(20, H);
+            ref_obj = [];
+
+            try
+                ref_name = obj.self.cha_allocation.(char(phase)).reference;
+                if ~isempty(ref_name)
+                    ref_obj = obj.self.reference.(char(ref_name(1)));
+                end
+            catch
+            end
+
+            for j = 1:H
+                tau = j * dt;
+                xd_j = [];
+                try
+                    if ~isempty(ref_obj) && ismethod(ref_obj, "gen_ref_for_take_off")
+                        xd_j = ref_obj.gen_ref_for_take_off(varargin{1}.t - ref_obj.base_time + tau);
+                    elseif ~isempty(ref_obj) && ismethod(ref_obj, "gen_ref_for_landing")
+                        xd_j = ref_obj.gen_ref_for_landing(varargin{1}.t - ref_obj.base_time + tau);
+                    elseif ~isempty(ref_obj) && isprop(ref_obj, "func") && isprop(ref_obj, "t") && ~isempty(ref_obj.t)
+                        xd_j = ref_obj.func(varargin{1}.t - ref_obj.t + tau);
+                    end
+                catch
+                    xd_j = [];
+                end
+
+                if isempty(xd_j)
+                    xd_j = xd0;
+                    xd_j(1:4) = xd0(1:4) + xd0(5:8) * tau + xd0(9:12) * tau^2 / 2 + xd0(13:16) * tau^3 / 6 + xd0(17:20) * tau^4 / 24;
+                    xd_j(5:8) = xd0(5:8) + xd0(9:12) * tau + xd0(13:16) * tau^2 / 2 + xd0(17:20) * tau^3 / 6;
+                    xd_j(9:12) = xd0(9:12) + xd0(13:16) * tau + xd0(17:20) * tau^2 / 2;
+                    xd_j(13:16) = xd0(13:16) + xd0(17:20) * tau;
+                end
+
+                xd_world(:, j) = pad_xd(xd_j);
+            end
+
+            xd = xd_world;
 
             %% yaw coordinate transform
             Rb0 = RodriguesQuaternion(Eul2Quat([0; 0; xd0(4)]));
@@ -42,6 +79,12 @@ classdef HL_MPC < handle
                 model.state.w
                 ];
 
+            xd0(1:3)   = Rb0' * xd0(1:3);
+            xd0(5:7)   = Rb0' * xd0(5:7);
+            xd0(9:11)  = Rb0' * xd0(9:11);
+            xd0(13:15) = Rb0' * xd0(13:15);
+            xd0(17:19) = Rb0' * xd0(17:19);
+
             for k = 1:size(xd, 2)
                 xd(1:3, k)   = Rb0' * xd(1:3, k);
                 xd(5:7, k)   = Rb0' * xd(5:7, k);
@@ -50,9 +93,9 @@ classdef HL_MPC < handle
                 xd(17:19, k) = Rb0' * xd(17:19, k);
             end
 
-            xd(4, :) = mod(xd(4, :) - xd0(4) + pi, 2*pi) - pi;
-            xd(4, 1) = 0;
-            xd0 = xd(:, 1);
+            yaw0 = xd0(4);
+            xd0(4) = 0;
+            xd(4, :) = mod(xd(4, :) - yaw0 + pi, 2*pi) - pi;
             fprintf('controller: HLMPC,  phase: %s \n',phase);
             disp(obj.self.reference.result.state.p);
             %% quadprog option
@@ -82,7 +125,8 @@ classdef HL_MPC < handle
             end
 
             vf = V(1:obj.param.mpc.Nvf)';   % 1 x 4
-
+            Vf_seq = V(:);
+            z1_pred = reshape(Sx * z1 + Su * Vf_seq, 2, []);
             %% calc Z2 Z3 Z4
             z2 = Z2(x, xd0', vf, P);
             z3 = Z3(x, xd0', vf, P);
@@ -91,7 +135,8 @@ classdef HL_MPC < handle
             %% calc vs by QP-MPC
             Zs = {z2, z3, z4};
             vs = zeros(3, 1);
-
+            Vs_seq = cell(3, 1);
+            Zs_pred = cell(3, 1);
             for s = 1:3
                 id = s + 1;
 
@@ -106,12 +151,14 @@ classdef HL_MPC < handle
                 V = quadprog( ...
                     Hq, f, [], [], [], [], ...
                     obj.param.mpc.lbq{id}, obj.param.mpc.ubq{id}, [], opt);
-
                 if isempty(V)
                     V = zeros(obj.param.mpc.N, 1);
                 end
+                Vs_seq{s} = V(:);
+                nx = size(obj.param.mpc.A{id}, 1);
+                Zs_pred{s} = reshape(Sx * Zs{s} + Su * Vs_seq{s}, nx, []);
 
-                vs(s) = V(1);
+               vs(s) = Vs_seq{s}(1);
             end
 
             %% calc actual input
@@ -131,10 +178,30 @@ classdef HL_MPC < handle
                 max(-1, min(1,  tmp(3)));
                 max(-1, min(1,  tmp(4)))
                 ];
-
-            result = obj.result;
             obj.result.hlmpc = obj.result.input;
             obj.result.pre_u = obj.result.input;
+            Npred = min([ ...
+                size(z1_pred, 2), ...
+                size(Zs_pred{1}, 2), ...
+                size(Zs_pred{2}, 2) ...
+                ]);
+
+            pred_local = [
+                xd(1, 1:Npred) + Zs_pred{1}(1, 1:Npred);
+                xd(2, 1:Npred) + Zs_pred{2}(1, 1:Npred);
+                xd(3, 1:Npred) + z1_pred(1, 1:Npred)
+                ];
+
+            pred_world = Rb0 * pred_local;
+
+            obj.result.hlmpc_pred_pos = pred_world;   % 3 x Npred，用于动画
+            obj.result.hlmpc_pred_local = pred_local;
+            obj.result.hlmpc_ref_pos = xd_world(1:3, 1:Npred);
+            obj.result.hlmpc_pred_z = z1_pred;
+            obj.result.hlmpc_pred_xy = Zs_pred;
+            obj.result.hlmpc_Vf_seq = Vf_seq;
+            obj.result.hlmpc_Vs_seq = Vs_seq;
+            result = obj.result;
             obj.show();
 
         end

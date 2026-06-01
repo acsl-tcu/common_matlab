@@ -57,7 +57,7 @@ function Controller = Controller_HL_MPC(dt, agent)
     Controller.mpc.lb = {-10, -10, -10, -10};
     Controller.mpc.ub = { 10,  10,  10,  10};
 
-Controller.mpc.Nvf = 4;
+Controller.mpc.Nvf = Controller.H ;
     %  Controller.weight.P = diag([50;50;20]);    % 位置　10,20刻み  20;1;30
     % Controller.weight.Q = 1e4*diag([1;1;1]);    % 速度  10,20刻み  30;20;10
     % Controller.weight.V = diag([50;50;100]); % 15良い気がする
