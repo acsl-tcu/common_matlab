@@ -12,6 +12,7 @@ properties
     flight_phase % flight phase input to figure handle FH
     hover_thrust_force % hovering時のthrust force
     state
+    dt = 0.020
 end
 
 methods
@@ -43,6 +44,7 @@ methods
 
         if cha == 't' || cha == 'f' || cha == 'l'
             wh = obj.self.estimator.result.state.w; % estimated state
+            varargin{1}.dt = obj.dt;
             obj.self.estimator.(obj.self.estimator.name(1)).model.do(varargin{:}); % one step prediction using current input
             whn = obj.self.estimator.(obj.self.estimator.name(1)).model.state.w; % predicted state
             obj.self.estimator.(obj.self.estimator.name(1)).model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
