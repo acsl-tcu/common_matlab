@@ -91,9 +91,11 @@ app.logger.plot({1, "p", "esr"},"ax",app.UIAxes, "phase",phase, "fig_num",1, "Li
 % app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",3, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
 % app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1, "input", ""}, "phase",phase,"fig_num",51, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1, "inner_input1:4", ""}, "phase",phase,"fig_num",52, "Linewidth",LW, "Fontsize",FS);
 % app.logger.plot({{1, "input", ""}, {1, "controller.result.nominal_input", ""},...
 %     {1, "controller.result.delta_input", ""}}, "phase",phase,"fig_num",5); % inputをまとめて見る
-app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS, "color",0);
+app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS, "color",0);
 plot_calc_time(app.logger);
 % show_animation(app);
 end
