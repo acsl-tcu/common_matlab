@@ -15,6 +15,7 @@ classdef HL_MPC < handle
             obj.param = param;
             obj.param.P = self.parameter.get(obj.parameter_name);
             obj.result.input = zeros(self.estimator.model.dim(2),1);
+            obj.result.prev_vHL = zeros(4,1);
             obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
             obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル
         end
@@ -104,7 +105,14 @@ classdef HL_MPC < handle
             else
                 opt = optimoptions('quadprog', 'Display', 'off');
             end
-
+            if isfield(obj.result, "prev_vHL")|| numel(obj.result.prev_vHL)~=4
+                obj.result.prev_vHL = zeros(4,1);
+            end
+            if isfield(obj.param.mpc, "delay_step")
+                delay_step = max(0,round(obj.param.mpc.delay_step));
+            else
+                delay_step = 0;
+            end
             %% calc z1 and vf by QP-MPC
             z1 = Z1(x, xd0', P);
 
@@ -113,8 +121,11 @@ classdef HL_MPC < handle
             Qb = obj.param.mpc.Qb{1};
             Hq = obj.param.mpc.Hq{1};
             Hq = (Hq + Hq') / 2;
-
+      
             f = 2 * Su' * Qb * Sx * z1;
+            Rd0 = obj.param.mpc.Rd0{1};
+            Hq(1,1)=Hq(1,1)+2*Rd0;
+            f(1) =f(1)-2*Rd0*obj.result.prev_vHL(1);
 
             V = quadprog( ...
                 Hq, f, [], [], [], [], ...
@@ -147,7 +158,9 @@ classdef HL_MPC < handle
                 Hq = (Hq + Hq') / 2;
 
                 f = 2 * Su' * Qb * Sx * Zs{s};
-
+                Rd0 = obj.param.mpc.Rd0{id};
+                Hq(1,1)=Hq(1,1)+2*Rd0;
+                f(1) =f(1)-2*Rd0*obj.result.prev_vHL(id);
                 V = quadprog( ...
                     Hq, f, [], [], [], [], ...
                     obj.param.mpc.lbq{id}, obj.param.mpc.ubq{id}, [], opt);
@@ -157,8 +170,8 @@ classdef HL_MPC < handle
                 Vs_seq{s} = V(:);
                 nx = size(obj.param.mpc.A{id}, 1);
                 Zs_pred{s} = reshape(Sx * Zs{s} + Su * Vs_seq{s}, nx, []);
-
-               vs(s) = Vs_seq{s}(1);
+               apply_id = min(1 + delay_step,numel(Vs_seq{s}));
+               vs(s) = Vs_seq{s}(apply_id);
             end
 
             %% calc actual input
@@ -166,6 +179,7 @@ classdef HL_MPC < handle
 
             %% result
             obj.result.uHL = [vf(1); vs];
+            obj.result.prev_vHL =[vf(1);vs];
             obj.result.vf = vf;
             obj.result.z1 = z1;
             obj.result.z2 = z2;

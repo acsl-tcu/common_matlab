@@ -15,7 +15,8 @@ arguments
     param.freq      = 20         % 总飞行周期 [s]
     % 默认给出的是一个边长为1的正方形 (位于 z=1 的高度)
     % 顺序: 起点 -> 右下角 -> 右上角 -> 左上角 -> 回到起点
-    param.waypoints = [0 0 0.6; 1 0 0.6; 1 1 0.6; 0 1 0.6; 0 0 0.6] 
+    param.hold_time  = 5
+    param.waypoints = [0 0 0.6; 1.5 0 0.6; 1.5 1.5 0.6; 0 1.5 0.6; 0 0 0.6] 
 end
 
 T_total = param.freq;
@@ -30,28 +31,34 @@ if num_segments < 1
 end
 
 % 计算每条边的飞行时间（这里假设每段路程平均分配时间）
-T_seg = T_total / num_segments;
+T_move_total = param.freq;
+T_hold = param.hold_time;
+
+T_seg = T_move_total / num_segments;
 
 % ── 参照関数（15次元列ベクトル） ───────────────────────────────
 % 这里不再使用 syms 求导，而是用局部函数实时计算五次多项式状态
-ref = @(t) ptp_state(t, pts, T_seg, num_segments);
+ref = @(t) ptp_state(t, pts, T_seg,T_hold, num_segments);
 
 fprintf("gen_ref_ptp: T_total=%.1fs, 共有 %d 个点，构成 %d 条线段\n", T_total, N, num_segments);
 fprintf("              每条线段分配时间: %.2f [s]\n", T_seg);
 end
 
 %% 局部函数：计算任意时刻 t 的无人机状态
-function state = ptp_state(t, pts, T_seg, num_segments)
+function state = ptp_state(t, pts, T_seg, T_hold,num_segments)
     % 1. 限制 t 的范围，防止超出总时间
-    t = max(0, min(t, T_seg * num_segments));
+    T_block = T_seg + T_hold ;
+    T_total = T_block * num_segments;
+
+    t = max(0, min(t, T_total));
 
     % 2. 判断当前时间 t 属于哪一条线段
-    idx = floor(t / T_seg) + 1;
+    idx = floor(t / T_block) + 1;
     if idx > num_segments
         idx = num_segments;
-        t_local = T_seg; % 保持在最后一条线段的终点
+        t_local = T_seg+T_hold; % 保持在最后一条线段的终点
     else
-        t_local = t - (idx - 1) * T_seg; % 当前线段内经历的时间
+        t_local = t - (idx - 1) * T_block; % 当前线段内经历的时间
     end
 
     % 获取当前线段的起点 p0 和终点 p1
@@ -60,14 +67,13 @@ function state = ptp_state(t, pts, T_seg, num_segments)
 
     % 3. Minimum Jerk (5次多项式) 轨迹计算
     % 归一化时间 tau (0 到 1)
-    tau = t_local / T_seg;
-
-    if tau >= 1
+    if t_local >= T_seg
         pos  = p1;
         vel  = zeros(3,1);
         acc  = zeros(3,1);
         jerk = zeros(3,1);
     else
+        tau = t_local / T_seg;
         % 5次多项式系数运算
         c_p = 10*tau^3 - 15*tau^4 + 6*tau^5;
         c_v = (30*tau^2 - 60*tau^3 + 30*tau^4) / T_seg;
