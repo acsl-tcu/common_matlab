@@ -97,8 +97,8 @@ classdef HL_MPC < handle
             yaw0 = xd0(4);
             xd0(4) = 0;
             xd(4, :) = mod(xd(4, :) - yaw0 + pi, 2*pi) - pi;
-            fprintf('controller: HLMPC,  phase: %s \n',phase);
-            disp(obj.self.reference.result.state.p);
+            % fprintf('controller: HLMPC,  phase: %s \n',phase);
+            % disp(obj.self.reference.result.state.p);
             %% quadprog option
             if isfield(obj.param.mpc, "opt")
                 opt = obj.param.mpc.opt;
@@ -216,7 +216,7 @@ classdef HL_MPC < handle
             obj.result.hlmpc_Vf_seq = Vf_seq;
             obj.result.hlmpc_Vs_seq = Vs_seq;
             result = obj.result;
-            obj.show();
+            % obj.show();
 
         end
         function show(obj)

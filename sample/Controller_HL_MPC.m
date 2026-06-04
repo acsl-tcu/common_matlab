@@ -5,8 +5,10 @@ Controller.input.Constinput = 10;
 Controller.input.range = [[10;30;30;10], [0.1;0.1;0.1;0.1]]; % max min
 Controller.input.Bestcost_now = [1e5, 1e3];
 Controller.input.Constsigma = 5.0*[1;1;1;1];
+% Controller.dt = 0.05; % MPCステップ幅
+% Controller.H = 18;  circle
 Controller.dt = 0.025; % MPCステップ幅
-Controller.H = 55;
+Controller.H = 55;  
 %% common param
 Controller.m = agent.parameter.mass;
 Controller.state_size = 12;
@@ -45,20 +47,31 @@ Controller.mpc.B = {Bd2int, Bd4int, Bd4int, Bd2int};
 %     diag([100,10])   %yaw
 %     };
 % Controller.mpc.R = {0.01, 0.015, 0.015, 0.01};%z,x,y,yaw
-%%  exp
+%%  exp good for hovering p2p
 Controller.mpc.Q = {
-    diag([100,3]), ...%z
-    diag(2*[1000,600,85,6]), ...%x
-    diag(2*[900,500,75,5]), ...%y
-    diag([100,10])   %yaw
+    diag([100,10]), ...%z
+    diag([6200,1400,70,10]), ...%x
+    diag([4200,1400,70,10]), ...%y
+    diag([120,15])   %yaw
     };
-Controller.mpc.R = {0.1, 0.1, 0.1, 0.5};%z,x,y,yaw
-Controller.mpc.Rd= {0.1, 0.04, 0.04, 0.005};
-Controller.mpc.Rd0= {0.025, 0.025, 0.025, 0.005};
-Controller.mpc.delay_step = 5;
+Controller.mpc.R = {0.1, 0.09, 0.08, 0.002};%z,x,y,yaw
+Controller.mpc.Rd= {0.1, 0.08, 0.05, 0.0006};
+Controller.mpc.Rd0= {0.05, 0.025, 0.025, 0.005};
+Controller.mpc.delay_step = 0;
+%% circle
+% Controller.mpc.Q = {
+%     diag([100,3]), ...%z
+%     diag([4000,3200,35,1]), ...%x
+%     diag([4000,3200,35,21]), ...%y
+%     diag([120,15])   %yaw
+%     };
+% Controller.mpc.R = {0.08, 0.045, 0.045, 0.02};%z,x,y,yaw
+% Controller.mpc.Rd= {0.02, 0.002, 0.002, 0.003};
+% Controller.mpc.Rd0= {0.02, 0.0001, 0.0001, 0.003};
+% Controller.mpc.delay_step = 0;
 %%
-Controller.mpc.lb = {-10, -10, -10, -10};
-Controller.mpc.ub = { 10,  10,  10,  10};
+Controller.mpc.lb = {-10, -25, -25, -10};
+Controller.mpc.ub = { 10,  25,  25,  10};
 
 Controller.mpc.Nvf = Controller.H ;
 %  Controller.weight.P = diag([50;50;20]);    % 位置　10,20刻み  20;1;30
