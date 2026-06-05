@@ -49,7 +49,7 @@ classdef LANDING_REFERENCE < handle
                         obj.th_offset = obj.th_offset0;
                     end
                     obj.fInit = obj.fInit + 1;
-                    disp(obj.fInit)
+                    % disp(obj.fInit)
             end
 
             obj.result.state.xd = obj.gen_ref_for_landing(varargin{1}.t-obj.base_time);

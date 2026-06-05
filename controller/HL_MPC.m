@@ -175,6 +175,7 @@ classdef HL_MPC < handle
             end
 
             %% calc actual input
+          
             tmp = Uf(x, xd0', vf, P) + Us(x, xd0', vf, vs, P);
 
             %% result
