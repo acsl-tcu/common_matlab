@@ -184,6 +184,105 @@ clc
     % % For check
 %     Vf(0,x0,Xd(0))
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
+
+%% =========================================================================
+%% HO-CBF (高次制御バリア関数) の自動導出セクション
+%% =========================================================================
+disp("Start: HO-CBF Symbolic Derivation for Load (6th) and Drone (4th)");
+
+% 1. CBF用の新しいシンボリックパラメータの定義
+% (ENVIRONMENT_OBSTACLE から渡される数値を格納する変数)
+syms ox oy oz ro real       % 障害物の中心座標 (ox,oy,oz) と包囲半径 ro
+syms r_load r_drone real    % 荷物・ドローンそれぞれの保護球半径
+syms a1 a2 a3 a4 a5 a6 real % 荷物用(6次)HO-CBFの収束ゲイン \alpha_1 ~ \alpha_6
+syms b1 b2 b3 b4 real       % ドローン用(4次)HO-CBFの収束ゲイン \beta_1 ~ \beta_4
+
+% 制御入力ベクトル u (第2層の実トルク: [u2; u3; u4])
+u_vec = [u2; u3; u4];
+
+%% -------------------------------------------------------------------------
+%% 2. 荷物の6次CBF制約の導出 (相対次数6)
+%% -------------------------------------------------------------------------
+% 基礎となる距離関数 h_load (Payload基準)
+h_load = 0.5 * ((pl1 - ox)^2 + (pl2 - oy)^2 + (pl3 - oz)^2 - (ro + r_load)^2);
+
+% 1層目~5層目までの補助関数 \psi を順次リー微分で計算
+% 各階の微分で f1 (自律項) を用いて状態を進める (Yawや推力干渉の影響を切り離した安全な空間)
+psi1 = LieD(h_load, f1, x) + a1 * h_load;
+psi2 = LieD(psi1,   f1, x) + a2 * psi1;
+psi3 = LieD(psi2,   f1, x) + a3 * psi2;
+psi4 = LieD(psi3,   f1, x) + a4 * psi3;
+psi5 = LieD(psi4,   f1, x) + a5 * psi4;
+
+% 6層目（最終層）: ここで初めて g1 を用いて入力 u_vec が現れる
+% \dot{\psi}_5 + \alpha_6 * \psi_5 >= 0  -->  L_f\psi_5 + L_g\psi_5 * u + \alpha_6 * \psi_5 >= 0
+Lf_psi5 = LieD(psi5, f1, x);
+Lg_psi5 = LieD(psi5, g1, x); % これが u_vec の係数行列になる
+
+% QPに投入する形 (A_load * u >= b_load) に整理
+A_cbf_load = Lg_psi5;
+b_cbf_load = -Lf_psi5 - a6 * psi5;
+
+
+%% -------------------------------------------------------------------------
+%% 3. ドローン本体の4次CBF制約の導出 (相対次数4)
+%% -------------------------------------------------------------------------
+% 荷物の位置 pl と紐の方向ベクトル pT からドローン本体の位置を逆算
+p_drone_x = pl1 + cableL * pT1;
+p_drone_y = pl2 + cableL * pT2;
+p_drone_z = pl3 + cableL * pT3;
+
+% 基礎となる距離関数 h_drone
+h_drone = 0.5 * ((p_drone_x - ox)^2 + (p_drone_y - oy)^2 + (p_drone_z - oz)^2 - (ro + r_drone)^2);
+
+% 1層目~3層目までの補助関数 \phi を順次リー微分
+phi1 = LieD(h_drone, f1, x) + b1 * h_drone;
+phi2 = LieD(phi1,    f1, x) + b2 * phi1;
+phi3 = LieD(phi2,    f1, x) + b3 * phi2;
+
+% 4層目（最終層）: ドローンは4回目で入力に到達するため、ここで g1 を用いる
+Lf_phi3 = LieD(phi3, f1, x);
+Lg_phi3 = LieD(phi3, g1, x); % これが u_vec の係数行列になる
+
+% QPに投入する形 (A_drone * u >= b_drone) に整理
+A_cbf_drone = Lg_phi3;
+b_cbf_drone = -Lf_phi3 - b4 * phi3;
+
+
+%% -------------------------------------------------------------------------
+%% 4. MATLAB Function への自動書き出し (コードジェネレーション)
+%% -------------------------------------------------------------------------
+
+% === 【修正】セル配列内の時変関数 v1(t) を、独立した単なる変数に置換する ===
+v_vars = cell2sym(V1v);
+
+% cellfun を使って、各セルの時変関数から (t) を剥ぎ取った静的変数のセルを生成
+V1v_sym_cell = cellfun(@(f) sym(argnames(f)), V1v, 'UniformOutput', false);
+v_sym = cell2sym(V1v_sym_cell); % シンボリック配列に変換
+
+% 数式内の v1(t) などをすべて静的な変数 [v1; v2; ...] に置換
+A_cbf_load  = subs(A_cbf_load,  v_vars, v_sym);
+b_cbf_load  = subs(b_cbf_load,  v_vars, v_sym);
+A_cbf_drone = subs(A_cbf_drone, v_vars, v_sym);
+b_cbf_drone = subs(b_cbf_drone, v_vars, v_sym);
+% =========================================================================
+
+disp("Start: Exporting CBF functions to .m files");
+% 共通で必要なパラメータのパッキング
+cbfParam_load  = [ox; oy; oz; ro; r_load;  a1; a2; a3; a4; a5; a6; physicalParam(:)];
+cbfParam_drone = [ox; oy; oz; ro; r_drone; b1; b2; b3; b4;         physicalParam(:)];
+
+% 荷物のCBF係数関数ファイルの生成（vars には置換後の v_sym を渡す）
+matlabFunction(A_cbf_load, b_cbf_load, 'file', 'CBF_Constraints_Load.m', ...
+    'vars', {obj, x, cell2sym(XD), v_sym, cbfParam_load, t}, ...
+    'outputs', {'A_load', 'b_load'});
+
+% ドローンのCBF係数関数ファイルの生成（vars には置換後の v_sym を渡す）
+matlabFunction(A_cbf_drone, b_cbf_drone, 'file', 'CBF_Constraints_Drone.m', ...
+    'vars', {obj, x, cell2sym(XD), v_sym, cbfParam_drone, t}, ...
+    'outputs', {'A_drone', 'b_drone'});
+
+disp("Completed: HO-CBF functions generated successfully!");
 %% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
 % % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
 % % Usage: u = Uf(...) + Us(...)
@@ -225,63 +324,7 @@ clc
 % matlabFunction(subs(He, [xdRef vInput1], [XD V1v]),'file','He.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) e1 physicalParam},'outputs',{'mat'});
 % %%
 % matlabFunction(beta1,'file','beta1.m','vars',{obj t x physicalParam},'outputs',{'beta1'});
-%% =====================================================================
-%% 相対次数4の高次CBF（ECBF）制約の自動生成スクリプト（追記分）
-%% =====================================================================
-disp("Start: 4th-order ECBF constraint generation.");
 
-% 1. 障害物の位置と安全半径をシンボリック変数として定義
-syms ox oy R_safe real
-syms k0_cbf k1_cbf k2_cbf k3_cbf real % CBF用の極配置ゲイン
-
-% 2. ペイロード（負荷）の位置・速度を抽出
-% pl1 = pl(1), pl2 = pl(2), dpl1 = dpl(1), dpl2 = dpl(2)
-px_L = pl1; py_L = pl2;
-vx_L = dpl1; vy_L = dpl2;
-
-% 3. バリア関数 h とその時間微分（1階〜3階）を代数的に計算
-% ※HLCによる線形化空間（4連続積分器）をベースに微分します
-h_cbf = (px_L - ox)^2 + (py_L - oy)^2 - R_safe^2;
-
-% 1階微分 (h_dot)
-h_dot = 2*(px_L - ox)*vx_L + 2*(py_L - oy)*vy_L;
-
-% 2階微分 (h_ddot) -> 運動方程式の加速度（d2pl）は仮想入力 V2, V3 レベルに相当
-% 線形化空間において d2pl_x = ax_L, d3pl_x = jx_L などの高階関係を代数微分
-% ここでは、負荷の4階微分が直接 [V2; V3] (仮想入力) になる性質を利用するため、
-% 状態量ベクトル空間として、pl と dpl のダイナミクスのみをターゲットにします。
-
-% 状態 pl, dpl, d2pl, d3pl をそれぞれ時間微分したときの関係式を定義
-% 線形化されているため： d4(pl1)/dt4 = V2, d4(pl2)/dt4 = V3 となります。
-syms ax_L ay_L jx_L jy_L real % 加速度(2階), ジャーク(3階)のシンボリック変数
-
-h_ddot  = 2*(vx_L^2 + vy_L^2) + 2*(px_L - ox)*ax_L + 2*(py_L - oy)*ay_L;
-
-h_dddot = 6*(vx_L*ax_L + vy_L*ay_L) + 2*(px_L - ox)*jx_L + 2*(py_L - oy)*jy_L;
-
-% 4階微分 (h_4dot) -> ここでついに第2層の仮想入力 V2, V3 が現れる！
-% d(jx_L)/dt = V2 , d(jy_L)/dt = V3
-h_4dot  = 6*(ax_L^2 + ay_L^2) + 8*(vx_L*jx_L + vy_L*jy_L) + 2*(px_L - ox)*V2 + 2*(py_L - oy)*V3;
-
-% 4. 仮想入力 V2, V3 に対する線形制約 A_v * [V2; V3] >= b_v の形に分離
-% A_v * [V2; V3] >= - Lf4h - k3_cbf*h_dddot - k2_cbf*h_ddot - k1_cbf*h_dot - k0_cbf*h_cbf
-
-A_v = jacobian(h_4dot, [V2; V3]); % [2*(px_L - ox), 2*(py_L - oy)] になります
-Lf4h = h_4dot - A_v * [V2; V3];   % V2, V3 を含まない残りの項
-
-% 不等式の右辺 (b_v) の構築
-b_v = - Lf4h - k3_cbf*h_dddot - k2_cbf*h_ddot - k1_cbf*h_dot - k0_cbf*h_cbf;
-
-% 5. MATLAB関数としてファイルに出力
-% 実行時に必要な状態量とパラメータをすべてVarsに詰め込みます
-cbf_params = [ox, oy, R_safe, k0_cbf, k1_cbf, k2_cbf, k3_cbf];
-virtual_states = [ax_L; ay_L; jx_L; jy_L]; % HLC内部または差分で計算する中間状態
-
-matlabFunction(A_v, b_v, 'File', 'Get_ECBF_LinearSpace_Constraint.m', ...
-    'Vars', {x, virtual_states, cbf_params}, ...
-    'Outputs', {'A_v', 'b_v'});
-
-disp("ECBF constraint function 'Get_ECBF_LinearSpace_Constraint.m' has been generated successfully!");
 
 %% Local functions
 function tmp = DeleteCommentLine(fname)
