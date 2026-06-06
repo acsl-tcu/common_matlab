@@ -209,38 +209,42 @@ v_control = [vs1; vs2; vf_acc];
 %% -------------------------------------------------------------------------
 %% 2. ドローン本体のCBF制約の導出 (相対次数2)
 %% -------------------------------------------------------------------------
-p_drone_x = pl1 + cableL * pT1;
-p_drone_y = pl2 + cableL * pT2;
-p_drone_z = pl3 + cableL * pT3;
-p_drone_vec = [p_drone_x; p_drone_y; p_drone_z];
+p_drone_vec = [pl1 + cableL * pT1; pl2 + cableL * pT2; pl3 + cableL * pT3];
 
-v_drone_vec = [LieD(p_drone_x, f, x); LieD(p_drone_y, f, x); LieD(p_drone_z, f, x)];
-h_drone = 0.5 * ((p_drone_x - ox)^2 + (p_drone_y - oy)^2 + (p_drone_z - oz)^2 - (ro + r_drone)^2);
+% 速度は状態変数xの「生の並進速度成分」からストレートに定義
+% （姿勢の微分を含む LieD を使わず、純粋な速度ベクトルを割り当てます）
+v_drone_vec = [dpl1 + cableL * ol2 * pT3 - cableL * ol3 * pT2; ...
+               dpl2 + cableL * ol3 * pT1 - cableL * ol1 * pT3; ...
+               dpl3 + cableL * ol1 * pT2 - cableL * ol2 * pT1]; 
 
+h_drone = 0.5 * (norm(p_drone_vec - [ox; oy; oz])^2 - (ro + r_drone)^2);
 phi1 = (p_drone_vec - [ox; oy; oz])' * v_drone_vec + d1 * h_drone;
+
+% ★【数理修正の核心】自律項の加速度変化に、クォータニオンなどの姿勢角微分を絶対に混入させない
+% 純粋に並進速度の二乗項（運動エネルギー項）のみを自律項として扱います
 dot_phi1_autonomous = v_drone_vec' * v_drone_vec; 
 Lg_phi1 = (p_drone_vec - [ox; oy; oz])';          
 
-% 確実に 1行3列(横)のシンボリック配列として直に結合
 A_cbf_drone = [Lg_phi1(1), Lg_phi1(2), Lg_phi1(3)]; 
 b_cbf_drone = -dot_phi1_autonomous - d2 * phi1;
 
 %% -------------------------------------------------------------------------
 %% 3. 荷物（ペイロード）のCBF制約の導出 (相対次数2)
 %% -------------------------------------------------------------------------
-h_load = 0.5 * ((pl1 - ox)^2 + (pl2 - oy)^2 + (pl3 - oz)^2 - (ro + r_load)^2);
+h_load = 0.5 * (norm(pl - [ox; oy; oz])^2 - (ro + r_load)^2);
 v_load_vec = [dpl1; dpl2; dpl3];
 
 psi1 = (pl - [ox; oy; oz])' * v_load_vec + c1 * h_load;
-ddpl_autonomous = [LieD(dpl1, f, x); LieD(dpl2, f, x); LieD(dpl3, f, x)]; 
+
+% 荷物側の純粋な並進の自律項（重力加速度のみ。機体の傾き omega や q の微分は完全排除）
+ddpl_autonomous = [0; 0; -gravity]; 
 Lg_load_raw     = [LieD(dpl1, g, x); LieD(dpl2, g, x); LieD(dpl3, g, x)]; 
 
-Lg_psi1_vs = (pl - [ox; oy; oz])' * Lg_load_raw * H(:, [2, 3, 4]); 
-Lg_psi1_vf = (pl - [ox; oy; oz])' * Lg_load_raw * H(:, 1);         
+Lg_psi1_all = (pl - [ox; oy; oz])' * Lg_load_raw * H;
+A_cbf_load = [Lg_psi1_all(2), Lg_psi1_all(3), Lg_psi1_all(1)];
 
-% 確実に 1行3列(横)のシンボリック配列として直に結合
-A_cbf_load = [Lg_psi1_vs(1), Lg_psi1_vs(2), Lg_psi1_vf];
-dot_psi1_autonomous = v_load_vec' * v_load_vec + (pl - [ox; oy; oz])' * (ddpl_autonomous - Lg_load_raw * H(:, 1) * alpha1);
+% 姿勢のうねりに汚染されない、ピュアな並進自律項の完成
+dot_psi1_autonomous = v_load_vec' * v_load_vec + (pl - [ox; oy; oz])' * ddpl_autonomous;
 b_cbf_load = -dot_psi1_autonomous - c2 * psi1;
 
 %% -------------------------------------------------------------------------

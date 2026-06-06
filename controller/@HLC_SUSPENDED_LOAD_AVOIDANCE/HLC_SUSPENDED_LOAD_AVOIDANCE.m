@@ -44,56 +44,124 @@ methods
         F1 = Param.F1; F2 = Param.F2; F3 = Param.F3; F4 = Param.F4; 
         
         % -----------------------------------------------------------------
-        % フェーズ①：名目上の仮想入力（目標加速度）の計算
+        % ★【完全復元】フェーズ①：名目上の仮想入力（目標加速度）の計算
         % -----------------------------------------------------------------
         vf_nominal = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); 
         vs_nominal = obj.Vs_SuspendedLoadxyDst(x, xd', vf_nominal, P, F2, F3, F4); 
         
         % -----------------------------------------------------------------
         % フェーズ②：安全制約（CBF）パラメータの準備
+        % ★【完全環境同期】手入力を廃止し、ENVIRONMENT_OBSTACLE.m からダイレクト取得
         % -----------------------------------------------------------------
-        ox = 0.0; oy = 14.0; oz = 1.5;    
-        ro = sqrt(0.5^2 + (3.0/2)^2); 
+        obs_env = ENVIRONMENT_OBSTACLE();
+        ox = obs_env(1).p_obs(1);
+        oy = obs_env(1).p_obs(2);
+        oz = obs_env(1).p_obs(3);
+        ro = obs_env(1).r_obs;
+        
         r_drone = 0.3; r_load = 0.2;  
-        c1 = 2.0; c2 = 2.0; 
-        d1 = 2.0; d2 = 2.0; 
+        
+        % 回避壁の感度ゲイン（危険圏でグワッと力強く横スライドさせるための黄金比）
+        c1 = 2.0; c2 = 0.5; 
+        d1 = 2.0; d2 = 0.5;
         
         cbfParam_load  = [ox; oy; oz; ro; r_load;  c1; c2; P(:)];
         cbfParam_drone = [ox; oy; oz; ro; r_drone; d1; d2; P(:)];
         
-        % QP用に入力名目値を [3x1] の縦ベクトルとしてパッキング
         u_nominal = [vs_nominal(1); vs_nominal(2); vf_nominal(1)]; 
         u_nominal = u_nominal(:); 
         
-        % -----------------------------------------------------------------
-        % フェーズ③：CBF関数の呼び出しとQPの実行
-        % -----------------------------------------------------------------
-        t_current = 0.0; 
-        % 自動生成された関数へ、3次元の u_nominal をダイレクトに引き渡す
-        [A_load,  b_load]  = CBF_Constraints_Load(obj,  x, xd', u_nominal, cbfParam_load,  t_current);
-        [A_drone, b_drone] = CBF_Constraints_Drone(obj, x, xd', u_nominal, cbfParam_drone, t_current);
+        % 1. シミュレータ本来のFlight Changeフラグ（varargin{2}）の生状態を取得
+        is_flight_now = false;
+        if length(varargin) >= 2
+            if strcmp(varargin{2}, 'f') || string(varargin{2}) == "f"
+                is_flight_now = true;
+            end
+        end
         
-        % 不等式 A*u <= b の形式へガッチャンコ (2x3 行列 と 2x1 ベクトル)
-        A_qp = -[A_load; A_drone];
-        b_qp = -[b_load; b_drone];
+        % =================================================================
+        % ★【数理修正の核心】
+        % インデックスのズレ（x(8:10)）を完全に排除し、
+        % コントローラ内の生の 3次元荷物位置「pL」を使って正確な距離を評価します。
+        % =================================================================
+        current_h_load_eval = 0.5 * ((pL(1) - ox)^2 + (pL(2) - oy)^2 + (pL(3) - oz)^2 - (ro + r_load)^2);
         
-        H_mat = eye(3);
-        f_vec = -u_nominal;
-        options = optimoptions('quadprog', 'Display', 'off');
-        [u_safe, ~, exitflag] = quadprog(H_mat, f_vec, A_qp, b_qp, [], [], [], [], [], options);
-        u_safe = u_safe(:); 
+        % 毎ステップの状況をシミュレーションを止めずにコマンドウィンドウへ出力
+        fprintf('--- MONITOR -> t: %.3f | is_flight: %d | h_eval: %.2f | ', xd(1), is_flight_now, current_h_load_eval);
+        
+        % 判定：Flight phase であり、かつ本物の余裕度が危険圏内（10m以内）に突入したとき
+        if is_flight_now && (current_h_load_eval <= 10.0)
+            
+            t_current = 0.0; 
+            [A_load_raw,  b_load_raw]  = CBF_Constraints_Load(obj,  x, xd', u_nominal, cbfParam_load,  t_current);
+            [A_drone_raw, b_drone_raw] = CBF_Constraints_Drone(obj, x, xd', u_nominal, cbfParam_drone, t_current);
+            
+            % 現在の結合状態（これが quadprog に引き渡される生データです）
+            A_qp = -[A_load_raw(1:3); A_drone_raw(1:3)];
+            b_qp = -[b_load_raw(1); b_drone_raw(1)];
+            
+            % =================================================================
+            % 🚨【最重要：オレンジ球侵入の瞬間を捉える完全フリーズデバッグ】
+            % =================================================================
+            % 荷物の位置がオレンジの球の内部（h_eval < 0：つまり突っ切っている状態）に
+            % 1マスでも侵入した瞬間に、その裏の数理をコンソールに引きずり出します。
+            if current_h_load_eval < 0
+                fprintf('\n=========== 🚨 CBF PENETRATION CRITICAL LOG 🚨 ===========\n');
+                fprintf('タイムステップ t: %.3f\n', xd(1));
+                fprintf('本物の荷物余裕度 h_eval: %f (マイナス＝オレンジ球の内部に侵入中)\n', current_h_load_eval);
+                
+                % 1. 関数から返ってきた生の A と b
+                disp('--- [関数から返ってきた生の制約（荷物）] ---');
+                fprintf('A_load_raw (1x3): [%s]\n', num2str(A_load_raw(1:3)));
+                fprintf('b_load_raw (スカラー): %f\n', b_load_raw(1));
+                
+                % 2. 現在コントローラが要求している名目加速度
+                disp('--- [名目コントローラが要求している入力 u_nominal] ---');
+                fprintf('u_nominal (X, Y, Z): [%s]\n', num2str(u_nominal'));
+                
+                % 3. クアッドプログに実際に渡る A_qp と b_qp の状態での評価
+                % 通常、安全であるならば A_qp * u_nominal <= b_qp が成り立たなければならず、
+                % 侵入しているなら「A_qp * u_nominal - b_qp > 0 (ルール違反)」となっていなければおかしい。
+                val_load_qp = A_qp(1,:) * u_nominal - b_qp(1);
+                disp('--- [QPに課している不等式制約の評価 (A_qp * u - b_qp)] ---');
+                fprintf('荷物制約の評価値: %f\n', val_load_qp);
+                
+                % 4. なぜ突き抜けるのか？符号の関係をチェック
+                % 生の式 (A_raw * u - b_raw) の状態での評価
+                val_load_raw = A_load_raw(1:3) * u_nominal - b_load_raw(1);
+                fprintf('生の数式の評価値 (A_raw * u - b_raw): %f\n', val_load_raw);
+                fprintf('===========================================================\n\n');
+                
+                error('CBF_PENETRATION_STOP: オレンジ球内部への侵入を検知。上の数理ログを回収してください。');
+            end
+            % =================================================================
+            
+            fprintf('STATUS: [CBF-QP ON (本物の回避起動！)]\n');
+            
+            H_mat = eye(3);
+            f_vec = -u_nominal;
+            options = optimoptions('quadprog', 'Display', 'off');
+            
+            [u_safe, ~, exitflag] = quadprog(H_mat, f_vec, A_qp, b_qp, [], [], [], [], [], options);
+            u_safe = u_safe(:);
+            
+            current_h_load = current_h_load_eval;
+            p_drone_curr = pL + P(7) * pT; 
+            current_h_drone = 0.5 * ((p_drone_curr(1) - ox)^2 + (p_drone_curr(2) - oy)^2 + (p_drone_curr(3) - oz)^2 - (ro + r_drone)^2);
+        else
+            fprintf('STATUS: [CBF OFF (安全直進中)]\n');
+            
+            u_safe = u_nominal;
+            exitflag = 1;
+            current_h_load = 999.0; current_h_drone = 999.0;
+        end
+        % =================================================================
         
         % -----------------------------------------------------------------
         % ［クリーン版］リアルタイム・デバッグログ
         % -----------------------------------------------------------------
-        current_h_load = 0.5 * ((x(8) - ox)^2 + (x(9) - oy)^2 + (x(10) - oz)^2 - (ro + r_load)^2);
-        p_drone_curr = [x(8) + P(7)*x(14); x(9) + P(7)*x(15); x(10) + P(7)*x(16)];
-        current_h_drone = 0.5 * ((p_drone_curr(1) - ox)^2 + (p_drone_curr(2) - oy)^2 + (p_drone_curr(3) - oz)^2 - (ro + r_drone)^2);
-        
-        fprintf('\n--- CBF-QP Debug Log --- \n');
-        fprintf('h_load (荷物余裕): %f, h_drone (ドローン余裕): %f\n', current_h_load, current_h_drone);
-        diff_u = u_safe - u_nominal;
-        fprintf('Correction -> X: %f, Y: %f, Z: %f (ExitFlag: %d)\n', diff_u(1), diff_u(2), diff_u(3), exitflag);
+        fprintf('    └─ h_load: %.2f | Correction -> X: %.4f, Y: %.4f, Z: %.4f\n', ...
+            current_h_load, u_safe(1)-u_nominal(1), u_safe(2)-u_nominal(2), u_safe(3)-u_nominal(3));
         
         % -----------------------------------------------------------------
         % フェーズ④：安全加速度の格納 ＆ 高次微分の同調再合成
