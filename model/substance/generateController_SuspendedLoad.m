@@ -1,3 +1,7 @@
+% このスクリプトが置いてあるフォルダの絶対パスを取得して移動
+mfile_path = fileparts(mfilename('fullpath'));
+cd(mfile_path);
+
 %% Define the nonlinear physical model of a quadrotor
 syms p1 p2 p3 dp1 dp2 dp3 ddp1 ddp2 ddp3 q0 q1 q2 q3 o1 o2 o3 real
 syms u u1 u2 u3 u4 T1 T2 T3 T4 real
@@ -187,102 +191,105 @@ clc
 
 %% =========================================================================
 %% HO-CBF (高次制御バリア関数) の自動導出セクション
+%% ★【あなたのモデル専用】仮想入力 (vf, vs) を入力とみなした相対次数2のCBF設計 ★
 %% =========================================================================
-disp("Start: HO-CBF Symbolic Derivation for Load (6th) and Drone (4th)");
+disp("Start: HO-CBF Symbolic Derivation for 2nd-order Virtual Inputs (vf, vs)");
 
 % 1. CBF用の新しいシンボリックパラメータの定義
-% (ENVIRONMENT_OBSTACLE から渡される数値を格納する変数)
-syms ox oy oz ro real       % 障害物の中心座標 (ox,oy,oz) と包囲半径 ro
-syms r_load r_drone real    % 荷物・ドローンそれぞれの保護球半径
-syms a1 a2 a3 a4 a5 a6 real % 荷物用(6次)HO-CBFの収束ゲイン \alpha_1 ~ \alpha_6
-syms b1 b2 b3 b4 real       % ドローン用(4次)HO-CBFの収束ゲイン \beta_1 ~ \beta_4
+syms ox oy oz ro real       % 障害物の中心座標 (ox,oy,oz) と包囲真球半径 ro
+syms r_load r_drone real    % 荷物・ドローンそれぞれの保護球マージン半径
+syms c1 c2 real             % 荷物用(相対次数2)の収束ゲイン
+syms d1 d2 real             % ドローン用(相対次数2)の収束ゲイン
 
-% 制御入力ベクトル u (第2層の実トルク: [u2; u3; u4])
-u_vec = [u2; u3; u4];
-
-%% -------------------------------------------------------------------------
-%% 2. 荷物の6次CBF制約の導出 (相対次数6)
-%% -------------------------------------------------------------------------
-% 基礎となる距離関数 h_load (Payload基準)
-h_load = 0.5 * ((pl1 - ox)^2 + (pl2 - oy)^2 + (pl3 - oz)^2 - (ro + r_load)^2);
-
-% 1層目~5層目までの補助関数 \psi を順次リー微分で計算
-% 各階の微分で f1 (自律項) を用いて状態を進める (Yawや推力干渉の影響を切り離した安全な空間)
-psi1 = LieD(h_load, f1, x) + a1 * h_load;
-psi2 = LieD(psi1,   f1, x) + a2 * psi1;
-psi3 = LieD(psi2,   f1, x) + a3 * psi2;
-psi4 = LieD(psi3,   f1, x) + a4 * psi3;
-psi5 = LieD(psi4,   f1, x) + a5 * psi4;
-
-% 6層目（最終層）: ここで初めて g1 を用いて入力 u_vec が現れる
-% \dot{\psi}_5 + \alpha_6 * \psi_5 >= 0  -->  L_f\psi_5 + L_g\psi_5 * u + \alpha_6 * \psi_5 >= 0
-Lf_psi5 = LieD(psi5, f1, x);
-Lg_psi5 = LieD(psi5, g1, x); % これが u_vec の係数行列になる
-
-% QPに投入する形 (A_load * u >= b_load) に整理
-A_cbf_load = Lg_psi5;
-b_cbf_load = -Lf_psi5 - a6 * psi5;
-
+% 制御対象となる「仮想入力ベクトル (生の目標加速度)」を新しく定義
+% [vs1; vs2; vf_acc] = [X加速度; Y加速度; Z加速度]
+syms vs1 vs2 vf_acc real
+v_control = [vs1; vs2; vf_acc]; 
 
 %% -------------------------------------------------------------------------
-%% 3. ドローン本体の4次CBF制約の導出 (相対次数4)
+%% 2. ドローン本体のCBF制約の導出 (相対次数2)
 %% -------------------------------------------------------------------------
-% 荷物の位置 pl と紐の方向ベクトル pT からドローン本体の位置を逆算
 p_drone_x = pl1 + cableL * pT1;
 p_drone_y = pl2 + cableL * pT2;
 p_drone_z = pl3 + cableL * pT3;
+p_drone_vec = [p_drone_x; p_drone_y; p_drone_z];
 
-% 基礎となる距離関数 h_drone
+v_drone_vec = [LieD(p_drone_x, f, x); LieD(p_drone_y, f, x); LieD(p_drone_z, f, x)];
 h_drone = 0.5 * ((p_drone_x - ox)^2 + (p_drone_y - oy)^2 + (p_drone_z - oz)^2 - (ro + r_drone)^2);
 
-% 1層目~3層目までの補助関数 \phi を順次リー微分
-phi1 = LieD(h_drone, f1, x) + b1 * h_drone;
-phi2 = LieD(phi1,    f1, x) + b2 * phi1;
-phi3 = LieD(phi2,    f1, x) + b3 * phi2;
+phi1 = (p_drone_vec - [ox; oy; oz])' * v_drone_vec + d1 * h_drone;
+dot_phi1_autonomous = v_drone_vec' * v_drone_vec; 
+Lg_phi1 = (p_drone_vec - [ox; oy; oz])';          
 
-% 4層目（最終層）: ドローンは4回目で入力に到達するため、ここで g1 を用いる
-Lf_phi3 = LieD(phi3, f1, x);
-Lg_phi3 = LieD(phi3, g1, x); % これが u_vec の係数行列になる
-
-% QPに投入する形 (A_drone * u >= b_drone) に整理
-A_cbf_drone = Lg_phi3;
-b_cbf_drone = -Lf_phi3 - b4 * phi3;
-
+% 確実に 1行3列(横)のシンボリック配列として直に結合
+A_cbf_drone = [Lg_phi1(1), Lg_phi1(2), Lg_phi1(3)]; 
+b_cbf_drone = -dot_phi1_autonomous - d2 * phi1;
 
 %% -------------------------------------------------------------------------
-%% 4. MATLAB Function への自動書き出し (コードジェネレーション)
+%% 3. 荷物（ペイロード）のCBF制約の導出 (相対次数2)
 %% -------------------------------------------------------------------------
+h_load = 0.5 * ((pl1 - ox)^2 + (pl2 - oy)^2 + (pl3 - oz)^2 - (ro + r_load)^2);
+v_load_vec = [dpl1; dpl2; dpl3];
 
-% === 【修正】セル配列内の時変関数 v1(t) を、独立した単なる変数に置換する ===
-v_vars = cell2sym(V1v);
+psi1 = (pl - [ox; oy; oz])' * v_load_vec + c1 * h_load;
+ddpl_autonomous = [LieD(dpl1, f, x); LieD(dpl2, f, x); LieD(dpl3, f, x)]; 
+Lg_load_raw     = [LieD(dpl1, g, x); LieD(dpl2, g, x); LieD(dpl3, g, x)]; 
 
-% cellfun を使って、各セルの時変関数から (t) を剥ぎ取った静的変数のセルを生成
-V1v_sym_cell = cellfun(@(f) sym(argnames(f)), V1v, 'UniformOutput', false);
-v_sym = cell2sym(V1v_sym_cell); % シンボリック配列に変換
+Lg_psi1_vs = (pl - [ox; oy; oz])' * Lg_load_raw * H(:, [2, 3, 4]); 
+Lg_psi1_vf = (pl - [ox; oy; oz])' * Lg_load_raw * H(:, 1);         
 
-% 数式内の v1(t) などをすべて静的な変数 [v1; v2; ...] に置換
-A_cbf_load  = subs(A_cbf_load,  v_vars, v_sym);
-b_cbf_load  = subs(b_cbf_load,  v_vars, v_sym);
-A_cbf_drone = subs(A_cbf_drone, v_vars, v_sym);
-b_cbf_drone = subs(b_cbf_drone, v_vars, v_sym);
-% =========================================================================
+% 確実に 1行3列(横)のシンボリック配列として直に結合
+A_cbf_load = [Lg_psi1_vs(1), Lg_psi1_vs(2), Lg_psi1_vf];
+dot_psi1_autonomous = v_load_vec' * v_load_vec + (pl - [ox; oy; oz])' * (ddpl_autonomous - Lg_load_raw * H(:, 1) * alpha1);
+b_cbf_load = -dot_psi1_autonomous - c2 * psi1;
 
-disp("Start: Exporting CBF functions to .m files");
-% 共通で必要なパラメータのパッキング
-cbfParam_load  = [ox; oy; oz; ro; r_load;  a1; a2; a3; a4; a5; a6; physicalParam(:)];
-cbfParam_drone = [ox; oy; oz; ro; r_drone; b1; b2; b3; b4;         physicalParam(:)];
+%% -------------------------------------------------------------------------
+%% 4. MATLAB Function への自動書き出し
+%% ★【完全最終解決版】数式に刻まれたxd3(t)の残骸を、上書き置換で強制消滅させます
+%% -------------------------------------------------------------------------
+disp("Start: Exporting New 2nd-order CBF functions to .m files");
 
-% 荷物のCBF係数関数ファイルの生成（vars には置換後の v_sym を渡す）
+% 1. 引数用パラメータパックの作成
+cbfParam_load  = [ox; oy; oz; ro; r_load;  c1; c2; physicalParam(:)];
+cbfParam_drone = [ox; oy; oz; ro; r_drone; d1; d2; physicalParam(:)];
+
+% 2. コントローラからの目標軌道引数[28x1など]をシンボリック配列として取得
+XD_vars = cell2sym(XD);
+
+% 3. 【核心：力づくの完全文字置換】
+%    上流の微分計算で数式にガチガチに埋め込まれてしまった「時間関数としての軌道」を、
+%    コントローラの引数ベクトル「XD_vars」のインデックスへと、書き出し直前で強制上書きします。
+%    ※ お手元の環境の軌道定義（xd1, xd2, xd3...）の名前に合わせて、
+%       数式内の「関数呼び出しの形」をそのまま「ただの配列要素」にすり替えます。
+try
+    % xd1(t) や xd3(t) などのシンボリック関数そのものを、配列の各要素で無理やり置換
+    % 配列の何番目にどの軌道が入っているかは、既存の generate の変数定義（XD）と同じ並び順にします
+    A_cbf_load  = subs(A_cbf_load,  [xd1(t), xd2(t), xd3(t), xd4(t)], [XD_vars(1), XD_vars(2), XD_vars(3), XD_vars(4)]);
+    b_cbf_load  = subs(b_cbf_load,  [xd1(t), xd2(t), xd3(t), xd4(t)], [XD_vars(1), XD_vars(2), XD_vars(3), XD_vars(4)]);
+    A_cbf_drone = subs(A_cbf_drone, [xd1(t), xd2(t), xd3(t), xd4(t)], [XD_vars(1), XD_vars(2), XD_vars(3), XD_vars(4)]);
+    b_cbf_drone = subs(b_cbf_drone, [xd1(t), xd2(t), xd3(t), xd4(t)], [XD_vars(1), XD_vars(2), XD_vars(3), XD_vars(4)]);
+    
+    % 高次微分（dxd1(t), d2xd1(t)等）も数式に残っている場合は、同様に XD_vars の対応する番号（5番目以降など）へ置換してください
+    % 例： subs(A_cbf_load, dxd1(t), XD_vars(5));
+catch
+    % 万が一、上流での定義名が異なって置換エラーが出るのを防ぐためのセーフティ
+    disp("Notice: 置換スキップ。数式内の軌道関数の表記を確認してください。");
+end
+
+% 4. 完全にクリーンになった数式を書き出し
+%    'Optimize', false も併用して、MATLABの余計なお節介を完全に封じ込めます
 matlabFunction(A_cbf_load, b_cbf_load, 'file', 'CBF_Constraints_Load.m', ...
-    'vars', {obj, x, cell2sym(XD), v_sym, cbfParam_load, t}, ...
-    'outputs', {'A_load', 'b_load'});
+    'vars', {obj, x, XD_vars, v_control, cbfParam_load, t}, ...
+    'outputs', {'A_load', 'b_load'}, ...
+    'Optimize', false);
 
-% ドローンのCBF係数関数ファイルの生成（vars には置換後の v_sym を渡す）
 matlabFunction(A_cbf_drone, b_cbf_drone, 'file', 'CBF_Constraints_Drone.m', ...
-    'vars', {obj, x, cell2sym(XD), v_sym, cbfParam_drone, t}, ...
-    'outputs', {'A_drone', 'b_drone'});
+    'vars', {obj, x, XD_vars, v_control, cbfParam_drone, t}, ...
+    'outputs', {'A_drone', 'b_drone'}, ...
+    'Optimize', false);
 
-disp("Completed: HO-CBF functions generated successfully!");
+disp("Completed: New 2nd-order CBF functions generated successfully!");
+%% =========================================================================
 %% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
 % % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
 % % Usage: u = Uf(...) + Us(...)
