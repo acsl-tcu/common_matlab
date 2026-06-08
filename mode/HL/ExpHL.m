@@ -32,7 +32,7 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"v
 
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 
-agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
+agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, dt, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.a.reference="takeoff";

@@ -12,11 +12,12 @@ properties
     flight_phase % flight phase input to figure handle FH
     hover_thrust_force % hovering時のthrust force
     state
+    dt = 0.025
 end
 
 methods
 
-    function obj = THRUST2THROTTLE_DRONE(self, param)
+    function obj = THRUST2THROTTLE_DRONE(self, dt, param)
         obj.self = self;
         obj.param = param;
         obj.param.roll_offset = self.plant.arming_msg(1);
@@ -27,6 +28,7 @@ methods
         P = self.parameter.get;
         obj.hover_thrust_force = P(1) * P(9);
         obj.state = state_copy(self.estimator.result.state);
+        obj.dt = dt;
     end
 
     function u = do(obj, varargin)
@@ -43,6 +45,7 @@ methods
 
         if cha == 't' || cha == 'f' || cha == 'l'
             wh = obj.self.estimator.result.state.w; % estimated state
+            varargin{1}.dt = obj.dt;
             obj.self.estimator.(obj.self.estimator.name(1)).model.do(varargin{:}); % one step prediction using current input
             whn = obj.self.estimator.(obj.self.estimator.name(1)).model.state.w; % predicted state
             obj.self.estimator.(obj.self.estimator.name(1)).model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
