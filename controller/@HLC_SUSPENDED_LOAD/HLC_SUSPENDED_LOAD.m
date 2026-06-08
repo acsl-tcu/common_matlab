@@ -50,12 +50,7 @@ methods
         deltaYaw = sign(cross(yawdUnit, yawUnit)) * acos(yawdUnit' * yawUnit); % 目標角度からみた機体角度との誤差
         xd(4) = -deltaYaw(3) + yaw; % yaw打ち消しと誤差をyawの目標角に入れる．
         %目標値の格納
-        % 🌟 既存の高次微分データを破壊せず、28次元に満たない場合のみ末尾をゼロ埋めする
-        if original_size < 28
-            xd = [xd(:); zeros(28 - original_size, 1)];
-        else
-            xd = xd(:); % 縦ベクトル化のみ行う（既存の高次微分はすべて無傷で維持）
-        end
+        xd = [xd; zeros(28 - size(xd, 1), 1)];
 
         % 階層型線形化による入力計算
         % 仮想入力のゲイン
