@@ -190,111 +190,86 @@ clc
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
 %% =========================================================================
-%% HO-CBF (高次制御バリア関数) の自動導出セクション 【論文数理完全適合版】
+%% HO-CBF (高次制御バリア関数) の自動導出セクション 【階層型モデル同調版】
 %% =========================================================================
-disp("Start: HO-CBF Symbolic Derivation for 2nd-order Virtual Inputs (vf, vs)");
+clc
+disp("Start: HO-CBF 修正版の導出を開始します...");
 
-% 1. CBF用のシンボリックパラメータの定義
-syms ox oy oz ro real       % 障害物の中心座標 (ox,oy,oz) と包囲真球半径 ro
-syms r_load r_drone real    % 荷物・ドローンそれぞれの保護球マージン半径
-syms c1 c2 real             % 荷物用(相対次数2)の収束ゲイン
-syms d1 d2 real             % ドローン用(相対次数2)の収束ゲイン
-
-% 🌟 論文の制御入力展開に合わせ、[vs1; vs2; vf_acc] を定義
-syms vs1 vs2 vf_acc real
-v_control = [vs1; vs2; vf_acc]; 
-
-% 🌟 論文のデカップル理論に基づき、外乱シンボルを一度「0」として公称モデルを抽出
+% 🌟 論文のデカップリング理論に基づき、未知の外乱(dstx, dsty)を0とした公称モデルを抽出
 f_nominal = subs(f, [dstx, dsty], [0, 0]);
-g_nominal = g; % 入力行列は外乱に依存しないためそのまま
+g_nominal = g;
 
-%% -------------------------------------------------------------------------
-%% 2. ドローン本体のCBF制約の導出 (相対次数2)
-%% -------------------------------------------------------------------------
-% 🌟 バグ修正：ドローン位置・速度を、状態方程式と完全に結合している
-%   機体の基本変数 [p1; p2; p3] および [dp1; dp2; dp3] を直接用いてリー微分を計算します。
-p_drone_vec = [p1; p2; p3];
-v_drone_vec = [dp1; dp2; dp3]; 
+syms ox oy oz ro real       % 障害物情報
+syms r_load r_drone real    % マージン
+syms c1 c2 d1 d2 real       % CBFゲイン
 
-h_drone = 0.5 * (norm(p_drone_vec - [ox; oy; oz])^2 - (ro + r_drone)^2);
+% 🌟 最適化変数（QPの出力）を「機体の公称並進加速度」として定義
+syms ax_cmd ay_cmd az_cmd real
+u_acc_space = [ax_cmd; ay_cmd; az_cmd];
 
-% 相対次数1段目のハーフバリア式
-phi1 = (p_drone_vec - [ox; oy; oz])' * v_drone_vec + d1 * h_drone;
+%% 1. ドローン本体のCBF (相対次数 2)
+p_drone = [p1; p2; p3];
+v_drone = [dp1; dp2; dp3]; % 機体自身の速度を使用
+h_drone = 0.5 * (norm(p_drone - [ox; oy; oz])^2 - (ro + r_drone)^2);
+dot_h_drone = (p_drone - [ox; oy; oz])' * v_drone;
 
-% 🌟 機体ダイナミクスが持つ本来の並進加速度（f_nominalの8~10番目）を正確に引き戻す
-ddp_system_autonomous = f_nominal(8:10); 
-Lg_dp = g_nominal(8:10, :); % 機体速度に対する入力ゲイン
+% 1段目のバリア条件
+phi1_drone = dot_h_drone + d1 * h_drone;
 
-% ドローン側のCBF時間微分式の組み立て
-dot_phi1_autonomous = v_drone_vec' * v_drone_vec + (p_drone_vec - [ox; oy; oz])' * ddp_system_autonomous; 
-Lg_phi1 = (p_drone_vec - [ox; oy; oz])' * Lg_dp * H;          
+% 2段目の微分
+dot_phi1_drone_autonomous = v_drone' * v_drone + d1 * dot_h_drone;
+Lg_phi1_drone = (p_drone - [ox; oy; oz])'; % 入力加速度にかかるゲイン
 
-% 仮想入力 v_control = [vs1; vs2; vf_acc] に対するゲイン行列 A と 境界 b
-A_cbf_drone = [Lg_phi1(1), Lg_phi1(2), Lg_phi1(3)]; 
-b_cbf_drone = -dot_phi1_autonomous - d2 * phi1;
+% ドローン側の方程式: A_drone * u_acc_space >= b_drone
+A_drone_sym = Lg_phi1_drone; 
+b_drone_sym = - dot_phi1_drone_autonomous - d2 * phi1_drone;
 
-%% -------------------------------------------------------------------------
-%% 3. 荷物（ペイロード）のCBF制約の導出 (相対次数2)
-%% -------------------------------------------------------------------------
+%% 2. 荷物（ペイロード）のCBF (相対次数 2)
 h_load = 0.5 * (norm(pl - [ox; oy; oz])^2 - (ro + r_load)^2);
-v_load_vec = [dpl1; dpl2; dpl3];
+v_load = [dpl1; dpl2; dpl3];
+dot_h_load = (pl - [ox; oy; oz])' * v_load;
+phi1_load = dot_h_load + c1 * h_load;
 
-psi1 = (pl - [ox; oy; oz])' * v_load_vec + c1 * h_load;
+% 公称モデル f_nominal から、荷物加速度 ddpl_autonomous (11~13番目) を正確に抽出
+ddpl_autonomous = f_nominal(11:13);
+Lg_ddpl = g_nominal(11:13, 1:3); % 入力加速度から荷物加速度へのダイレクトゲイン
 
-% 🌟 荷物位置 [dpl1~3] に対応する公称ダイナミクス（f_nominalの11~13番目）からリー微分を計算
-ddpl_system_autonomous = f_nominal(11:13); 
-Lg_load_raw = g_nominal(11:13, :); 
+dot_phi1_load_autonomous = v_load' * v_load + (pl - [ox; oy; oz])' * ddpl_autonomous + c1 * dot_h_load;
+Lg_phi1_load = (pl - [ox; oy; oz])' * Lg_ddpl;
 
-Lg_psi1_all = (pl - [ox; oy; oz])' * Lg_load_raw * H;
+% 荷物側の方程式: A_load * u_acc_space >= b_load
+A_load_sym = Lg_phi1_load;
+b_load_sym = - dot_phi1_load_autonomous - c2 * phi1_load;
 
-% 軸の順序を v_control = [vs1; vs2; vf_acc] の並び順に完全同調
-A_cbf_load = [Lg_psi1_all(1), Lg_psi1_all(2), Lg_psi1_all(3)];
-dot_psi1_autonomous = v_load_vec' * v_load_vec + (pl - [ox; oy; oz])' * ddpl_system_autonomous;
-b_cbf_load = -dot_psi1_autonomous - c2 * psi1;
-
-%% -------------------------------------------------------------------------
-%% 4. 幾何学的関係式による状態の「機体⇔荷物」相互置換＆クリーンアップ
-%% -------------------------------------------------------------------------
-disp("Start: Clean up and state substitution for physical consistency");
-
-% 幾何学的な閉ループ関係式を定義
+%% 3. 変数の置換と完全クリーンアップ（xへの統一）
+% 幾何学的閉ループ関係（機体状態を荷物状態へ変換）
 p_equiv  = pl + cableL * pT;
-% 速度の関係式： v = vL + L * (wL x pT)
 wL_cross_pT = [ol2*pT3 - ol3*pT2; ol3*pT1 - ol1*pT3; ol1*pT2 - ol2*pT1];
 dp_equiv = dpl + cableL * wL_cross_pT;
 
-% 生成された数式内に残っている [p1~3, dp1~3] を、すべてセンサーデータから直接取れる
-% 荷物状態 [pl, dpl, pT, ol] にシンボリック置換し、数式内の変数を「x」へ完全統一します。
-A_cbf_drone = subs(A_cbf_drone, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-b_cbf_drone = subs(b_cbf_drone, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
+% 置換の実行 (変数の名前の不整合を完全修正)
+A_drone_sym = subs(A_drone_sym, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
+b_drone_sym = subs(b_drone_sym, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
+A_load_sym  = subs(A_load_sym,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
+b_load_sym  = subs(b_load_sym,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
 
-A_cbf_load  = subs(A_cbf_load,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-b_cbf_load  = subs(b_cbf_load,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
+% 軌道参照変数の置換
+A_load_sym  = subs(A_load_sym,  xdReff, XDf);
+b_load_sym  = subs(b_load_sym,  xdReff, XDf);
+A_drone_sym = subs(A_drone_sym, xdReff, XDf);
+b_drone_sym = subs(b_drone_sym, xdReff, XDf);
 
-% 軌道微分の置換
-A_cbf_load  = subs(A_cbf_load,  xdReff, XDf);
-b_cbf_load  = subs(b_cbf_load,  xdReff, XDf);
-A_cbf_drone = subs(A_cbf_drone, xdReff, XDf);
-b_cbf_drone = subs(b_cbf_drone, xdReff, XDf);
-
-%% -------------------------------------------------------------------------
-%% 5. クイック出力関数化
-%% -------------------------------------------------------------------------
-disp("Start: Exporting New 2nd-order CBF functions to .m files");
+%% 4. 関数ファイルの出力
+disp("新・CBF関数の書き出し中...");
 cbfParam_load  = [ox; oy; oz; ro; r_load;  c1; c2; physicalParam(:)];
 cbfParam_drone = [ox; oy; oz; ro; r_drone; d1; d2; physicalParam(:)];
 XD_vars = cell2sym(XD);
 
-matlabFunction(A_cbf_load, b_cbf_load, 'file', 'CBF_Constraints_Load.m', ...
-    'vars', {obj, x, XD_vars, v_control, cbfParam_load, t}, ...
-    'outputs', {'A_load', 'b_load'}, ...
-    'Optimize', true);
-
-matlabFunction(A_cbf_drone, b_cbf_drone, 'file', 'CBF_Constraints_Drone.m', ...
-    'vars', {obj, x, XD_vars, v_control, cbfParam_drone, t}, ...
-    'outputs', {'A_drone', 'b_drone'}, ...
-    'Optimize', true);
-disp("Success: CBF functions generation completed successfully!");
+matlabFunction(A_load_sym, b_load_sym, 'file', 'CBF_Constraints_Load.m', ...
+    'vars', {obj, x, XD_vars, u_acc_space, cbfParam_load, t}, 'outputs', {'A_load', 'b_load'}, 'Optimize', true);
+matlabFunction(A_drone_sym, b_drone_sym, 'file', 'CBF_Constraints_Drone.m', ...
+    'vars', {obj, x, XD_vars, u_acc_space, cbfParam_drone, t}, 'outputs', {'A_drone', 'b_drone'}, 'Optimize', true);
+disp("CBF再生成が正常に完了しました！");
 %% =========================================================================
 %% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
 % % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
