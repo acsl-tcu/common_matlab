@@ -33,7 +33,7 @@ syms t real
 ref=@(t) [x_0+r*sin(2*pi*t/T+phase); %x
     y_0 + r*cos(2*pi*t/T+phase); %y
     z_0; %z
-    0];
+    pi/2];
 
 % 圧倒的に遅いので以下のような書き方はしないこと
 % xdf =@(t) [xd1(t),xd2(t),xd3(t),xd4(t)];
