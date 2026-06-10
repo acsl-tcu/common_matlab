@@ -12,12 +12,12 @@ properties
     flight_phase % flight phase input to figure handle FH
     hover_thrust_force % hovering時のthrust force
     state
-    dt = 0.025
+    dt
 end
 
 methods
 
-    function obj = THRUST2THROTTLE_DRONE(self, dt, param)
+    function obj = THRUST2THROTTLE_DRONE(self, param)
         obj.self = self;
         obj.param = param;
         obj.param.roll_offset = self.plant.arming_msg(1);
@@ -28,7 +28,7 @@ methods
         P = self.parameter.get;
         obj.hover_thrust_force = P(1) * P(9);
         obj.state = state_copy(self.estimator.result.state);
-        obj.dt = dt;
+        obj.dt = obj.param.dt;
     end
 
     function u = do(obj, varargin)

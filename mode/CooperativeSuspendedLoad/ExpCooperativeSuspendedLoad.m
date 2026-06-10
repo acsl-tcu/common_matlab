@@ -157,7 +157,7 @@ else
 end
 
 agentObj.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agentObj,Controller_CooperativeSuspededLoad(dt,agentObj)));
-agentObj.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agentObj, dt, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
+agentObj.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agentObj, dt, InputTransform_Thrust2Throttle_drone(dt))); % 推力からスロットルに変換
 
 agentObj.set_cha_allocation_for_all("sensor","motive");
 agentObj.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);

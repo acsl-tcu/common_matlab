@@ -61,7 +61,7 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 
 agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 % agent.controller.set_function_class("hl",HLC(agent,Controller_HL(dt)));
-agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, dt, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
+agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, dt, InputTransform_Thrust2Throttle_drone(dt))); % 推力からスロットルに変換
 
 agent.set_cha_allocation_for_all("sensor",["motive","sload"]);
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);

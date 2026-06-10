@@ -22,7 +22,7 @@ agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [1
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"])));
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
-agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, dt, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
+agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, dt, InputTransform_Thrust2Throttle_drone(dt))); % 推力からスロットルに変換
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},4}));
 
 %% 
