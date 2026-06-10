@@ -4,8 +4,7 @@ function obs = ENVIRONMENT_OBSTACLE()
 % 制御バリア関数 (CBF) の球体判定を満たすため、
 % さまざまな原形をすっぽり包み込む「最小の真球 (Bounding Sphere)」を自動計算します。
 
-    % 共通の安全マージン厚み
-    margin_val = 0.7;
+
 
     %% =========================================================================
     %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
@@ -17,9 +16,7 @@ function obs = ENVIRONMENT_OBSTACLE()
     obs(1).type = 'cylinder';
     obs(1).raw_param = cyl_param;
     obs(1).p_center = p_center1;
-    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param);
-    obs(1).margin = margin_val;            
-    obs(1).R_safe = obs(1).r_obs + obs(1).margin; 
+    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param); 
 
     % %% =========================================================================
     % %  2. 真球 (Sphere)
@@ -31,8 +28,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(2).raw_param = r_sphere;
     % obs(2).p_center = p_center2;
     % [obs(2).p_obs, obs(2).r_obs] = get_bounding_sphere('sphere', p_center2, r_sphere);
-    % obs(2).margin = margin_val;            
-    % obs(2).R_safe = obs(2).r_obs + obs(2).margin; 
     % 
     % %% =========================================================================
     % %  3. 直方体 / 四角柱 (Box) -> コンテナ、ビル、壁など
@@ -44,8 +39,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(3).raw_param = box_param;
     % obs(3).p_center = p_center3;
     % [obs(3).p_obs, obs(3).r_obs] = get_bounding_sphere('box', p_center3, box_param);
-    % obs(3).margin = margin_val;            
-    % obs(3).R_safe = obs(3).r_obs + obs(3).margin; 
     % 
     % %% =========================================================================
     % %  4. 正三角柱 (Prism) -> 屋根状の構造物など
@@ -57,8 +50,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(4).raw_param = prism_param;
     % obs(4).p_center = p_center4;
     % [obs(4).p_obs, obs(4).r_obs] = get_bounding_sphere('prism', p_center4, prism_param);
-    % obs(4).margin = margin_val;            
-    % obs(4).R_safe = obs(4).r_obs + obs(4).margin; 
     % 
     % %% =========================================================================
     % %  5. 円錐 (Cone) -> カラーコーン、木（簡易表現）など
@@ -70,8 +61,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(5).raw_param = cone_param;
     % obs(5).p_center = p_center5;
     % [obs(5).p_obs, obs(5).r_obs] = get_bounding_sphere('cone', p_center5, cone_param);
-    % obs(5).margin = margin_val;            
-    % obs(5).R_safe = obs(5).r_obs + obs(5).margin; 
     % 
     % %% =========================================================================
     % %  6. 正四角錐 (Pyramid) -> ピラミッド形状、テントなど
@@ -83,8 +72,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(6).raw_param = pyramid_param;
     % obs(6).p_center = p_center6;
     % [obs(6).p_obs, obs(6).r_obs] = get_bounding_sphere('pyramid', p_center6, pyramid_param);
-    % obs(6).margin = margin_val;            
-    % obs(6).R_safe = obs(6).r_obs + obs(6).margin; 
     % 
     % %% =========================================================================
     % %  7. カスタム多面体 (Custom) -> 斜めの柱、歪んだ幾何学形状など
@@ -99,8 +86,6 @@ function obs = ENVIRONMENT_OBSTACLE()
     % obs(7).raw_param = vertices;
     % obs(7).p_center = mean(vertices, 2);
     % [obs(7).p_obs, obs(7).r_obs] = get_bounding_sphere('custom', [], vertices);
-    % obs(7).margin = margin_val;            
-    % obs(7).R_safe = obs(7).r_obs + obs(7).margin; 
 end
 
 
