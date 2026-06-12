@@ -63,7 +63,7 @@ load_state.qi = pT_sgn * reshape(pTpre ./ vecnorm(pTpre), [], 1);
 
 agent(N + 1).plant = MODEL_CLASS(agent(N + 1), Model_Suspended_Cooperative_Load(dt, load_state, 1, N, qtype));
 %% 牽引物のセンサ・推定・参照・制御
-agent(N + 1).sensor.set_function_class("direct", DIRECT_SENSOR(agent(N + 1), 0.0, struct("output_list", ["p", "Q"])));
+agent(N + 1).sensor.set_function_class("direct", DIRECT_SENSOR(agent(N + 1), 0.0, "output_list",["p", "Q"]));
 agent(N + 1).estimator.set_function_class("direct", DIRECT_ESTIMATOR(agent(N + 1), struct("model", MODEL_CLASS(agent(N + 1), Model_Suspended_Cooperative_Load(dt, load_state, 1, N, qtype)))));
 agent(N + 1).reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent(N + 1), {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 2], "radius", [2, 2, 1]}, 5}));
 agent(N + 1).controller.set_function_class("input_merge", COOPERATIVE_INPUT_MERGE(agent(N + 1), "payload_index", agent(N + 1).id));
