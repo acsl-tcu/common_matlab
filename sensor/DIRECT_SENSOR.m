@@ -20,7 +20,7 @@ methods
             noise = 0;
             args.output_list = self.plant.state.list;
             args.do = [];
-            args.q_type = 3; % 現状使っていない。モデルの姿勢角次元数に依存しない形で陽に指定して取り出せるようにしたい。
+            args.q_type = 3; % 現状使っていない。モデル(plant)の姿勢角次元数に依存しない形で陽に指定して取り出せるようにしたい。
         end
 
         obj.self = self;
