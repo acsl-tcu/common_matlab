@@ -12,7 +12,7 @@ arguments
     opts.B = []
     opts.P = []
     opts.Q = []
-    opts.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3)]);   
+    opts.R = []   
     opts.sensor_name = "output";
     opts.output_func = @(x,C) C*x; % output function
 end
@@ -46,7 +46,18 @@ if isempty(opts.Q)
 else
     Estimator.Q = opts.Q;
 end
-Estimator.R = opts.R;
+
+
+if isempty(opts.R)
+    if Estimator.model.state.type == 3 % 姿勢がオイラー角の場合
+        Estimator.R = diag([1e-5*ones(1,3), 1e-8*ones(1,3)]);
+    elseif  Estimator.model.state.type == 4 % 姿勢がオイラーパラメータの場合
+        Estimator.R = diag([1e-5*ones(1,3), 1e-8*ones(1,4)]);
+    end
+else
+    Estimator.R = opts.R;
+end
+
 if isempty(opts.B)
     if Estimator.model.state.type == 3 % 姿勢がオイラー角の場合
         %Estimator.B = [eye(6)*dt^2;eye(6)*dt]; % システムノイズが加わるチャンネル
