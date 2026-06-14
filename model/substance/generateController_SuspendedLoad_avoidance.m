@@ -331,7 +331,7 @@ syms lambda_val real                        % 荷物(0)〜ドローン(1)の分�
 FG_top_synced = simplify(f_nominal + g_nominal * H * [v1_cmd; u2_cmd; u3_cmd; 0]);
 
 % 5. 配置割合 lambda_val に応じた保護球の汎用位置ベクトルの定義
-p_sphere = pl + lambda_val * cableL * pT;
+p_sphere = pl - lambda_val * cableL * pT;
 
 % 6. バリア関数（ゼロ超レベルセット）の基礎定義
 syms r_sphere real 
