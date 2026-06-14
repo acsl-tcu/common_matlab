@@ -158,7 +158,7 @@ methods
 
     end
 
-    function result = do(obj, varargin)
+    function result = do(obj, t, varargin)
         Param = obj.param; % param (optional) : 構造体：ゲインF1-F4
         model = obj.self.estimator.result; % 推定した状態
         ref = obj.self.reference.result; % 目標値
@@ -237,21 +237,24 @@ methods
             ox_val = obs_env(i).p_obs(1);
             oy_val = obs_env(i).p_obs(2);
             oz_val = obs_env(i).p_obs(3);
-            ro_val = obs_env(i).r_obs; % get_bounding_sphereで幅を持たせた半径 
+            ro_val = obs_env(i).r_obs; 
             
             for j = 1:num_spheres
                 lambda_j = protection_config(j, 1);
                 r_sph_j  = protection_config(j, 2);
                 
-                % パラメータベクトルのパッキング (自動生成関数の引数の並びと完全一致させる)
-                cbfParam = [ox_val; oy_val; oz_val; ro_val; r_sph_j; lambda_j; ...
-                            K_gains(1); K_gains(2); K_gains(3); K_gains(4); K_gains(5); ...
-                            P(:)];
+                % 🚨【超重要修正】：自動生成関数の引数の並びに「完全」に一致させる
+                % 1〜11番目の固定パラメータを配置
+                cbf_base = [ox_val; oy_val; oz_val; ro_val; r_sph_j; lambda_j; ...
+                            K_gains(1); K_gains(2); K_gains(3); K_gains(4); K_gains(5)];
                         
-                % 各軸共通の次数5の制約式を呼び出し
-                [A_s, b_s] = obj.CBF_Constraints_Synced_Order5(x, xd', cbfParam, t);
+                % 12〜20番目に physicalParam（＝現在のPベクトル）を縦ベクトルにして結合
+                cbfParam = [cbf_base; P(:)]; 
+                        
+                % 🚨【呼び出し方の修正】：ダミーの第一引数（[]）を忘れずに付与
+                [A_s, b_s] = CBF_Constraints_Synced_Order5([], x, xd', cbfParam, t);
                 
-                % quadprogの標準形式 (A_qp * v <= b_qp) に合わせるため符合反転
+                % quadprog用の不等式 (A_qp * v <= b_qp) に蓄積（符合反転）
                 A_qp = [A_qp; -A_s];
                 b_qp = [b_qp;  b_s];
             end
