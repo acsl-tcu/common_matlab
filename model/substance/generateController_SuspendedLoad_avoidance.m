@@ -376,17 +376,34 @@ A_sphere_clean = subs(A_sphere_clean, [v1_cmd, u2_cmd, u3_cmd, xdReff], [0, 0, 0
 b_sphere_clean = subs(b_sphere_clean, [v1_cmd, u2_cmd, u3_cmd, xdReff], [0, 0, 0, XDf]);
 
 %% -----------------------------------------------------------------
-%% Mファイル関数へのエクスポート
+%% Mファイル関数へのエクスポート（HLCの引数順に完全同期化）
 %% -----------------------------------------------------------------
-disp('💾 新・完全同期型高次CBF関数ファイルをエクスポート中...');
-cbfParam_compiled = [ox; oy; oz; ro; r_sphere; lambda_val; k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; physicalParam(:)];
+disp('💾 HLCのP配列（9要素）に完全同期したCBF関数ファイルをエクスポート中...');
+
+% 🚨【ここを新規追加】：HLC側が持っている P ベクトルの並び順をシンボルで完全再現する
+% P = [mass, jx, jy, jz, gravity, loadmass, cableL, 0, 0];
+syms mass_hlc jx_hlc jy_hlc jz_hlc gravity_hlc loadmass_hlc cableL_hlc dummy1 dummy2 real
+
+P_hlc_style = [mass_hlc; jx_hlc; jy_hlc; jz_hlc; gravity_hlc; loadmass_hlc; cableL_hlc; dummy1; dummy2];
+
+% 🚨【ここを新規追加】：数式内部で使われている元の physicalParam の変数を、HLCの順序へ置換する
+% 元の定義：[m, Lx, Ly, lx, ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL, dstx, dsty]
+A_sphere_hlc = subs(A_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
+                                    [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
+b_sphere_hlc = subs(b_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
+                                    [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
+
+% 関数のコンパイル用パラメータ配列を再構築
+cbfParam_compiled = [ox; oy; oz; ro; r_sphere; lambda_val; k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; P_hlc_style(:)];
+
 XD_vars = cell2sym(XD);
 
-matlabFunction(A_sphere_clean, b_sphere_clean, 'file', 'CBF_Constraints_Synced_Order5.m', ...
+% 新しい変数群で関数を書き出す
+matlabFunction(A_sphere_hlc, b_sphere_hlc, 'file', 'CBF_Constraints_Synced_Order5.m', ...
     'vars', {obj, x, XD_vars, cbfParam_compiled, t}, 'outputs', {'A_s', 'b_s'}, 'Optimize', true);
 
 disp('========================================================================');
-disp('🎉 [デカップリング完全保護] 高次CBF関数ファイルが正常に出力されました！');
+disp('🎉 [HLC完全互換バージョン] 高次CBF関数ファイルが正常に出力されました！');
 disp('========================================================================');
 
 %% =========================================================================
