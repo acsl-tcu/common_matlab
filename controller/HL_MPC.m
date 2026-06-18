@@ -6,6 +6,9 @@ classdef HL_MPC < handle
         param
         Vf
         Vs
+        mec          % EDMD-MEC 模型
+        du_prev = zeros(4,1);
+        use_mec = 0;   % 想关掉补偿就设 false
         parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     end
 
@@ -18,6 +21,7 @@ classdef HL_MPC < handle
             obj.result.prev_vHL = zeros(4,1);
             obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
             obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル
+            L = load('mec_model_HLMPC.mat'); obj.mec = L.model;
         end
 
         function result = do(obj,varargin)
@@ -177,6 +181,67 @@ classdef HL_MPC < handle
             %% calc actual input
           
             tmp = Uf(x, xd0', vf, P) + Us(x, xd0', vf, vs, P);
+            % ===== EDMD-MEC residual compensation =====
+            u_nominal = tmp;
+            du = zeros(4,1);
+
+            if obj.use_mec && strcmp(char(phase), 'f')
+                est = obj.self.estimator.result.state;
+
+                g = 9.81;
+                Rk = est.getq("rotmat");
+                Re3_k = Rk(:,3);
+
+                zk = build_phi(est.p(:), est.q(:), est.v(:), est.w(:), Re3_k);
+
+                % HLMPC already predicts the reference horizon.
+                % Use the first predicted reference as the one-step EDMD target.
+                xd_ref_now = xd_world(:,1);
+                xd_ref_now = [xd_ref_now; zeros(max(0, 20 - numel(xd_ref_now)), 1)];
+
+                pref = xd_ref_now(1:3);
+                vref = xd_ref_now(5:7);
+                aref = xd_ref_now(9:11);
+
+                if norm(vref(1:2)) < 1e-6
+                    yawr = xd_ref_now(4);
+                else
+                    yawr = atan2(vref(2), vref(1));
+                end
+
+                acmd = aref + [0;0;g];
+                if norm(acmd) < 1e-6
+                    zb = [0;0;1];
+                else
+                    zb = acmd / norm(acmd);
+                end
+
+                xc = [cos(yawr); sin(yawr); 0];
+                yb = cross(zb, xc);
+                yb = yb / max(norm(yb), 1e-6);
+                xb = cross(yb, zb);
+
+                Rr = [xb, yb, zb];
+                Re3r = zb;
+                eulr = obj.R2eul_local(Rr);
+
+                zref = build_phi(pref, eulr, vref, est.w(:), Re3r);
+
+                rk     = zref - obj.mec.Ar * zk - obj.mec.Br * u_nominal;
+                du_raw = obj.mec.M * rk;
+
+                du = (1 - obj.mec.beta) * obj.du_prev + obj.mec.beta * ...
+                    max(min(du_raw, obj.mec.dumax), -obj.mec.dumax);
+
+                obj.du_prev = du;
+                tmp = u_nominal + du;
+            end
+
+            obj.result.u_nominal = u_nominal;
+            obj.result.input_nominal = u_nominal;
+            obj.result.delta_u_mec = du;
+            obj.result.delta_u_edmd = du;
+% ========================================
 
             %% result
             obj.result.uHL = [vf(1); vs];
@@ -219,6 +284,13 @@ classdef HL_MPC < handle
             result = obj.result;
             % obj.show();
 
+        end
+        function e = R2eul_local(~, R)
+            % ZYX -> [roll; pitch; yaw]
+            e = [ ...
+                atan2(R(3,2), R(3,3)); ...
+                asin(max(min(-R(3,1), 1), -1)); ...
+                atan2(R(2,1), R(1,1)) ];
         end
         function show(obj)
             % clc;

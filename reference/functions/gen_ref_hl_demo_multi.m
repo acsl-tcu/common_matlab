@@ -13,19 +13,20 @@ function ref = gen_ref_hl_demo_multi(param)
 
 arguments
     param.hover (1,3) double = [0 0 0.6]
-    param.loops (1,1) double = 5
+    param.loops (1,1) double = 3
     param.square_size (1,1) double = 1.0
     param.figure8_size (1,3) double = [0.85 0.85 0.0]
     param.saddle_size (1,3) double = [0.55 0.55 0.30]
     param.circle_radius (1,1) double = 1.0
     param.square_period (1,1) double = 12
-    param.figure8_period (1,1) double = 15
+    param.figure8_period (1,1) double = 12
     param.saddle_period (1,1) double = 12
     param.circle_period (1,1) double = 12
     param.hold_start (1,1) double = 4
     param.hold_between (1,1) double = 2
     param.hold_end (1,1) double = 5
     param.ramp_fraction (1,1) double = 0.12
+    param.transition_time (1,1) double = 2.0
 end
 
 cfg = struct();
@@ -43,6 +44,7 @@ cfg.hold_start = param.hold_start;
 cfg.hold_between = param.hold_between;
 cfg.hold_end = param.hold_end;
 cfg.ramp_fraction = min(0.35, max(0.05, param.ramp_fraction));
+cfg.transition_time = max(0, param.transition_time);
 cfg.segments = build_schedule(cfg);
 cfg.total_time = cfg.segments(end).t1;
 
@@ -55,6 +57,7 @@ fprintf('  hover=[%.2f %.2f %.2f], square side=%.2f m, fig8=[%.2f %.2f %.2f], sa
     cfg.hover(1), cfg.hover(2), cfg.hover(3), cfg.square_size, ...
     cfg.figure8_size(1), cfg.figure8_size(2), cfg.figure8_size(3), ...
     cfg.saddle_size(1), cfg.saddle_size(2), cfg.saddle_size(3), cfg.circle_radius);
+fprintf('  each periodic section uses %.1f s transitions; loops count only full-size cycles\n', cfg.transition_time);
 end
 
 function segments = build_schedule(cfg)
@@ -63,12 +66,16 @@ t = 0;
 [segments, t] = add_segment(segments, t, 'hold_start', cfg.hold_start);
 [segments, t] = add_segment(segments, t, 'square', cfg.square_period * cfg.loops);
 [segments, t] = add_segment(segments, t, 'hold_between', cfg.hold_between);
-[segments, t] = add_segment(segments, t, 'figure8', cfg.figure8_period * cfg.loops);
+[segments, t] = add_segment(segments, t, 'figure8', periodic_duration(cfg, 'figure8'));
 [segments, t] = add_segment(segments, t, 'hold_between', cfg.hold_between);
-[segments, t] = add_segment(segments, t, 'saddle', cfg.saddle_period * cfg.loops);
+[segments, t] = add_segment(segments, t, 'saddle', periodic_duration(cfg, 'saddle'));
 [segments, t] = add_segment(segments, t, 'hold_between', cfg.hold_between);
-[segments, t] = add_segment(segments, t, 'circle', cfg.circle_period * cfg.loops);
+[segments, t] = add_segment(segments, t, 'circle', periodic_duration(cfg, 'circle'));
 [segments, ~] = add_segment(segments, t, 'hold_end', cfg.hold_end);
+end
+
+function duration = periodic_duration(cfg, kind)
+duration = periodic_period(cfg, kind) * cfg.loops + 2 * cfg.transition_time;
 end
 
 function [segments, t] = add_segment(segments, t, name, duration)
@@ -146,20 +153,50 @@ end
 
 function xd = periodic_state(t, duration, cfg, kind)
 t = min(max(t, 0), duration);
-omega = 2 * pi * cfg.loops / duration;
-ramp_time = max(2.0, cfg.ramp_fraction * duration);
-ramp_time = min(ramp_time, 0.45 * duration);
-[env, denv, ddenv, dddenv, ddddenv] = envelope7(t, duration, ramp_time);
+period = periodic_period(cfg, kind);
+main_duration = period * cfg.loops;
+transition_time = min(cfg.transition_time, 0.25 * main_duration);
+omega = 2 * pi / period;
 
-[a0, a1, a2, a3, a4] = periodic_shape(t, omega, cfg, kind);
+[a0s, a1s, a2s, a3s, a4s] = periodic_shape(0, omega, cfg, kind);
+[a0e, a1e, a2e, a3e, a4e] = periodic_shape(main_duration, omega, cfg, kind);
 
-pos = cfg.hover + env * a0;
-vel = denv * a0 + env * a1;
-acc = ddenv * a0 + 2 * denv * a1 + env * a2;
-jerk = dddenv * a0 + 3 * ddenv * a1 + 3 * denv * a2 + env * a3;
-snap = ddddenv * a0 + 4 * dddenv * a1 + 6 * ddenv * a2 + 4 * denv * a3 + env * a4;
+p_hover = cfg.hover;
+z3 = zeros(3, 1);
+p_start = cfg.hover + a0s;
+p_end = cfg.hover + a0e;
 
-xd = pack_state(pos, vel, acc, jerk, snap);
+if transition_time > 0 && t < transition_time
+    xd = hermite9_state(t, transition_time, ...
+        p_hover, z3, z3, z3, z3, ...
+        p_start, a1s, a2s, a3s, a4s);
+    return;
+end
+
+if t <= transition_time + main_duration
+    tau = min(max(t - transition_time, 0), main_duration);
+    [a0, a1, a2, a3, a4] = periodic_shape(tau, omega, cfg, kind);
+    xd = pack_state(cfg.hover + a0, a1, a2, a3, a4);
+    return;
+end
+
+tau = min(max(t - transition_time - main_duration, 0), transition_time);
+xd = hermite9_state(tau, transition_time, ...
+    p_end, a1e, a2e, a3e, a4e, ...
+    p_hover, z3, z3, z3, z3);
+end
+
+function period = periodic_period(cfg, kind)
+switch kind
+    case 'figure8'
+        period = cfg.figure8_period;
+    case 'saddle'
+        period = cfg.saddle_period;
+    case 'circle'
+        period = cfg.circle_period;
+    otherwise
+        period = 1;
+end
 end
 
 function [a0, a1, a2, a3, a4] = periodic_shape(t, omega, cfg, kind)
@@ -195,35 +232,71 @@ switch kind
 end
 end
 
-function [e, e1, e2, e3, e4] = envelope7(t, duration, ramp_time)
-if t < ramp_time
-    u = t / ramp_time;
-    sgn = 1;
-    scale = ramp_time;
-elseif t > duration - ramp_time
-    u = (duration - t) / ramp_time;
-    sgn = -1;
-    scale = ramp_time;
-else
-    e = 1; e1 = 0; e2 = 0; e3 = 0; e4 = 0;
-    return;
+function xd = hermite9_state(t, T, p0, v0, a0, j0, snap0, p1, v1, a1, j1, snap1)
+T = max(T, eps);
+t = min(max(t, 0), T);
+u = t / T;
+
+c = zeros(10, 3);
+c(1, :) = p0(:)';
+c(2, :) = (T * v0(:))';
+c(3, :) = (T^2 * a0(:) / 2)';
+c(4, :) = (T^3 * j0(:) / 6)';
+c(5, :) = (T^4 * snap0(:) / 24)';
+
+n_low = 0:4;
+known = c(1:5, :);
+target = [ ...
+    p1(:)'; ...
+    (T * v1(:))'; ...
+    (T^2 * a1(:))'; ...
+    (T^3 * j1(:))'; ...
+    (T^4 * snap1(:))'];
+
+known_terms = [ ...
+    ones(1, 5); ...
+    n_low; ...
+    n_low .* max(n_low - 1, 0); ...
+    n_low .* max(n_low - 1, 0) .* max(n_low - 2, 0); ...
+    n_low .* max(n_low - 1, 0) .* max(n_low - 2, 0) .* max(n_low - 3, 0)] * known;
+
+n_high = 5:9;
+A = [ ...
+    ones(1, 5); ...
+    n_high; ...
+    n_high .* (n_high - 1); ...
+    n_high .* (n_high - 1) .* (n_high - 2); ...
+    n_high .* (n_high - 1) .* (n_high - 2) .* (n_high - 3)];
+c(6:10, :) = A \ (target - known_terms);
+
+n = (0:9)';
+u_pow = u .^ n;
+pos = (u_pow' * c)';
+
+du_pow = zeros(10, 1);
+ddu_pow = zeros(10, 1);
+dddu_pow = zeros(10, 1);
+ddddu_pow = zeros(10, 1);
+for i = 2:10
+    ni = n(i);
+    du_pow(i) = ni * u^(ni - 1);
+    if ni >= 2
+        ddu_pow(i) = ni * (ni - 1) * u^(ni - 2);
+    end
+    if ni >= 3
+        dddu_pow(i) = ni * (ni - 1) * (ni - 2) * u^(ni - 3);
+    end
+    if ni >= 4
+        ddddu_pow(i) = ni * (ni - 1) * (ni - 2) * (ni - 3) * u^(ni - 4);
+    end
 end
 
-[f0, f1, f2, f3, f4] = smooth7(u);
-e = f0;
-e1 = sgn * f1 / scale;
-e2 = f2 / scale^2;
-e3 = sgn * f3 / scale^3;
-e4 = f4 / scale^4;
-end
+vel = (du_pow' * c)' / T;
+acc = (ddu_pow' * c)' / T^2;
+jerk = (dddu_pow' * c)' / T^3;
+snap = (ddddu_pow' * c)' / T^4;
 
-function [f0, f1, f2, f3, f4] = smooth7(u)
-u = min(max(u, 0), 1);
-f0 = 35*u^4 - 84*u^5 + 70*u^6 - 20*u^7;
-f1 = 140*u^3 - 420*u^4 + 420*u^5 - 140*u^6;
-f2 = 420*u^2 - 1680*u^3 + 2100*u^4 - 840*u^5;
-f3 = 840*u - 5040*u^2 + 8400*u^3 - 4200*u^4;
-f4 = 840 - 10080*u + 25200*u^2 - 16800*u^3;
+xd = pack_state(pos, vel, acc, jerk, snap);
 end
 
 function [c0, c1, c2, c3, c4] = min_jerk_coeff(t, T)
