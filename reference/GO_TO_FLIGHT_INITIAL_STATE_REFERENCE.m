@@ -67,8 +67,7 @@ classdef GO_TO_FLIGHT_INITIAL_STATE_REFERENCE < handle
             obj.fConvergence)
             if obj.fInit == 2
                 obj.base_time = t;
-                obj.base_state = [obj.self.estimator.result.state.p(1:2);...% x,y : current position
-                                  obj.self.reference.result.state.p(3);...  % z : reference using at takeoff phase
+                obj.base_state = [obj.self.reference.result.state.p;...     % x,y,z : reference using at takeoff phase
                                   obj.self.estimator.result.state.q(3)];    % yaw: current yaw angle
                 obj.fInit = obj.fInit + 1;
             end
