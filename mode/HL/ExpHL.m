@@ -9,7 +9,7 @@ logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive 405
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -40,8 +40,6 @@ agent.cha_allocation.t.reference="takeoff";
 agent.cha_allocation.l.reference="landing";
 
 function post(app)
-LW = 1.5;
-FS = 20;
 phase = "tfl";
 FS = 16; %FontSize
 LW = 1.5;%LineWidth
