@@ -167,7 +167,11 @@ classdef STATE_CLASS < matlab.mixin.SetGetExactNames & dynamicprops & matlab.mix
       end
       len = length(value);
       if mod(len,obj.type)==0
-        q = value;
+        if obj.type ==3 % オイラー角の場合±piに押し込み
+          q = wrapToPi(value);
+        else
+          q = value;
+        end
       else
         switch obj.type
           case 4 % 出力がunit quaternionの場合
