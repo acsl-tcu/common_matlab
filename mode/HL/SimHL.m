@@ -32,7 +32,6 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
-%agent.parameter.set("mass",struct("mass",0.5))
 
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 
@@ -51,19 +50,34 @@ agent.cha_allocation.l.reference="landing";
 motive.getData(agent);
 %% utility functions
 function post(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+phase = "tfl";
+FS = 16; %FontSize
+LW = 1.5;%LineWidth
+app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
+
+% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 show_animation(app);
 end
 function dfunc(app)
-app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "p", "per"},"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "q", "s"},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "er"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-%app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
+phase = "tfl";
+FS = 16; %FontSize
+LW = 1.5;%LineWidth
+app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
+
+% app.logger.plot({1, "p", "er"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "e"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2", "er"},"fig_num",60, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",61, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 end
 function show_animation(app)
 % 協調吊り下げ（複数ドローン＋牽引物）のアニメーションを生成する。
