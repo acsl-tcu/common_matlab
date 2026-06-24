@@ -20,6 +20,8 @@ classdef EKF < handle
         self
         model
         timer= [];
+        fEulerAngle = false;
+        qIndex = [] %fEulerAngle=true の時だけ使用
     end
 
     methods
@@ -47,6 +49,12 @@ classdef EKF < handle
             obj.result.G = zeros(obj.n,size(obj.R,2));
             if ~isfield(obj.self.estimator,"result")
                 obj.self.estimator.result = obj.result;
+            end
+            if any(param.output_list=="q") && obj.model.state.type==3
+                % センサ出力に姿勢角qを含む かつ オイラー角で定義されている
+                obj.fEulerAngle = true;
+                full_state_list = repelem(obj.model.state.list, obj.model.state.num_list);
+                obj.qIndex = find(full_state_list=="q");
             end
         end
 
@@ -79,7 +87,9 @@ classdef EKF < handle
                 % end
                 P = (eye(obj.n)-G*C)*P_pre;	% Update covariance
                 z = y-yh;
-                z(4:6) = wrapToPi(z(4:6));
+                if obj.fEulerAngle
+                    z(obj.qIndex) = wrapToPi(z(obj.qIndex));
+                end
                 tmpvalue = xh_pre + G*z;	% Update state estimate
                 tmpvalue = obj.model.projection(tmpvalue);
                 obj.result.state.set_state(tmpvalue);

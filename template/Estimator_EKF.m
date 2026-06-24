@@ -144,7 +144,7 @@ switch modelName
         Estimator.R = 1e-5*eye(p);
         disp(modelName)
 end
-Estimator.list=output;
+Estimator.output_list=output;
 end
 
 function mat = zeroone(row,col,idx)
