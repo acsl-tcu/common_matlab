@@ -3,7 +3,7 @@ classdef TAKEOFF_REFERENCE < handle
     param
     self
     base_time
-    base_state
+    base_state % [x;y;z;yaw]
     ts
     te % 目標高度に到達するまでの時間
     zd % goal altitude
@@ -28,8 +28,9 @@ classdef TAKEOFF_REFERENCE < handle
       % [Input] time,cha,logger,env
       if (obj.fInit < 2 || isempty( obj.base_state )) 
           obj.base_time=varargin{1}.t;
-          obj.base_state = obj.self.estimator.result.state.p; % x,y : current position, z : reference using at flight phase
-          obj.result.state.xd = [obj.base_state;zeros(17,1)];
+          obj.base_state = [obj.self.estimator.result.state.p;... % x,y : current position, z : reference using at flight phase
+                            obj.self.estimator.result.state.q(3)];% yaw: current yaw angle
+          obj.result.state.xd = [obj.base_state;zeros(16,1)];
           if varargin{2} == 't'
             obj.fInit = obj.fInit + 1;
           end
@@ -69,7 +70,7 @@ classdef TAKEOFF_REFERENCE < handle
         d3tra = 0;
         d4tra = 0;
       end
-      Xd(1:3,1) = obj.base_state(1:3);
+      Xd(1:4,1) = obj.base_state(1:4);
       Xd(3,1) = tra + Xd(3,1);
       Xd(7,1) = dtra;
       Xd(11,1) = ddtra;
