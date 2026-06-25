@@ -128,11 +128,13 @@ if app.logger.k <= 1
     return
 end
 
+actual_rl = app.agent(1).controller.result.rl;
 % 新しい回避対応版クラスをインスタンス化
 mov = DRAW_SUSPENDED_LOAD_AVOIDANCE(app.logger, ...
     "target", 1, ...
-    "self", app.agent(1));
-mov.animation(app.logger,"target", 1,"self", app.agent(1)); % 表示開始
+    "self", app.agent(1), ...
+    "rl", actual_rl);
+mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl); % 表示開始
 end
 
 function in_prog(app)
