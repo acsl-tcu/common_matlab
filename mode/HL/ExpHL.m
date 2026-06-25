@@ -9,7 +9,7 @@ logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive 405
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -40,16 +40,21 @@ agent.cha_allocation.t.reference="takeoff";
 agent.cha_allocation.l.reference="landing";
 
 function post(app)
-LW = 1.5;
-FS = 20;
 phase = "tfl";
-app.logger.plot({1, "p", "ers"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes2,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
-% app.logger.plot({1, "inner_input", ""},"ax",app.UIAxes6,"xrange",[app.time.ts,app.time.te]);
-app.logger.plot({1, "p1-p2","er"}, "fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
+FS = 16; %FontSize
+LW = 1.5;%LineWidth
+app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
+
+% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "inner_input", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+
 % show_cooperative_animation(app);
 
 plot_calc_time(app.logger);

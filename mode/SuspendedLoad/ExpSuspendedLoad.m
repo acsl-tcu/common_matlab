@@ -10,7 +10,7 @@ logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load = motive.result.rigid(2);
