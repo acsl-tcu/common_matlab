@@ -40,22 +40,36 @@ agent.cha_allocation.t.reference="takeoff";
 agent.cha_allocation.l.reference="landing";
 
 function post(app)
+LW = 1.5;
+FS = 16;
 phase = "tfl";
-FS = 16; %FontSize
-LW = 1.5;%LineWidth
-app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
-
-% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-
-% show_cooperative_animation(app);
+% phase = "t";
+app.logger.plot({1, "p", "er"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p", "er"}, "fig_num",10, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1:2", "er"}, "fig_num",11, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "p1", "er"}, "fig_num",12, "phase",phase, "FontSize",FS, "Linewidth",LW); % x
+% % app.logger.plot({1, "p2", "er"}, "fig_num",13, "phase",phase, "FontSize",FS, "Linewidth",LW); % y
+% % app.logger.plot({1, "p3", "er"}, "fig_num",14, "phase",phase, "FontSize",FS, "Linewidth",LW); % z
+% 
+% % app.logger.plot({1, "v", "e"}, "fig_num",20, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% app.logger.plot({1, "q", "es"}, "fig_num",30, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "w", "e"}, "fig_num",40, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% 
+% app.logger.plot({1, "input", ""}, "fig_num",50, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "input2:4", ""}, "fig_num",51, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "input1", ""}, "fig_num",52, "phase",phase, "FontSize",FS, "Linewidth",LW); % thrust
+% % app.logger.plot({1, "input2", ""}, "fig_num",53, "phase",phase, "FontSize",FS, "Linewidth",LW); % roll torque
+% % app.logger.plot({1, "input3", ""}, "fig_num",54, "phase",phase, "FontSize",FS, "Linewidth",LW); % pitch torque
+% % app.logger.plot({1, "input4", ""}, "fig_num",55, "phase",phase, "FontSize",FS, "Linewidth",LW); % yaw torque
+% 
+% app.logger.plot({1, "inner_input1:4", ""}, "fig_num",60, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "inner_input1:2", ""}, "fig_num",61, "phase",phase, "FontSize",FS, "Linewidth",LW);
+% % app.logger.plot({1, "inner_input3", ""}, "fig_num",62, "phase",phase, "FontSize",FS, "Linewidth",LW); % thrust
+% % app.logger.plot({1, "inner_input1", ""}, "fig_num",63, "phase",phase, "FontSize",FS, "Linewidth",LW); % rol torque
+% % app.logger.plot({1, "inner_input2", ""}, "fig_num",64, "phase",phase, "FontSize",FS, "Linewidth",LW); % pitch torque
+% % app.logger.plot({1, "inner_input4", ""}, "fig_num",65, "phase",phase, "FontSize",FS, "Linewidth",LW); % yaw torque
+% app.logger.plot({1, "p1-p2","er"}, "fig_num",100, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
+% % show_cooperative_animation(app);
 
 plot_calc_time(app.logger);
 end
