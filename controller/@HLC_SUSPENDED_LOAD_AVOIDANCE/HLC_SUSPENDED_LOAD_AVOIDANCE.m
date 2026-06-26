@@ -67,61 +67,77 @@ methods
         %% =========================================================================
         % 1. 障害物定義関数から環境情報を動的に取得
         obs_env = ENVIRONMENT_OBSTACLE(); 
-        
-        % 今回は最初のアクティブな障害物 (obs(1): 円柱を包囲した真球) をターゲットにします
-        % ※ 複数障害物がある場合は、ここでループを回すか、最も近いものを選択します
-        target_obs = obs_env(1); 
-        
-        % 最小包囲球の中心 [xo; yo; zo] と 半径 ro を抽出
-        xo = target_obs.p_obs(1);
-        yo = target_obs.p_obs(2);
-        zo = target_obs.p_obs(3);
-        ro = target_obs.r_obs;
-        obs_params = [xo; yo; zo; ro];
+        num_obs = length(obs_env);
         
         % 2. 荷物の物理半径 rl
-        % ※ 必要に応じて parameter から取得するか、固定値を設定してください
         rl_val = 0.5; 
         obj.result.rl = rl_val;
-        obj.result.p_obs = obs_params(1:3); % 障害物の中心座標 [xo; yo; zo]
-        obj.result.r_obs = obs_params(4);    % 幾何バッファ込みの真球半径 ro
         
-        % 3. HOCBFのクラスK関数ゲイン [gamma1; ...; gamma6]
-        % ※ 挙動が不安定な場合は数値を小さく(例: 0.5)、効きが甘い場合は大きく(例: 5.0)調整してください
-        % gamma_params = [2.0; 2.0; 2.0; 2.0; 2.0; 2.0];
+        % LOGGER保存用セル配列の初期化 (可変個数のためセル配列でストック)
+        log_p_obs = cell(1, num_obs);
+        log_r_obs = cell(1, num_obs);
+        log_r_minimal = cell(1, num_obs);
+        
+        % QP用制約の累積用初期化
+        A_qp_total = [];
+        b_qp_total = [];
+        
+        % HOCBFのクラスK関数ゲイン [gamma1; ...; gamma6]
         gamma_params = [5.0; 5.0; 5.0; 5.0; 5.0; 5.0];
+        V4_val = tmp(4); % yawトルク固定値
         
-        % 4. 2nd layerの理想入力から、固定する u4 (yawトルク) を抽出
-        V4_val = tmp(4); 
+        % 全障害物についてループを回し、制約条件をすべて縦に積み上げる
+        for i = 1:num_obs
+            % 現在のターゲット障害物のパラメータ抽出
+            xo = obs_env(i).p_obs(1);
+            yo = obs_env(i).p_obs(2);
+            zo = obs_env(i).p_obs(3);
+            ro = obs_env(i).r_obs;
+            obs_params = [xo; yo; zo; ro];
+            
+            % 🌟 各障害物の時系列情報をログバッファ用配列に回収
+            log_p_obs{i} = obs_env(i).p_obs;     % 中心座標 [x; y; z]
+            log_r_obs{i} = obs_env(i).r_obs;     % マージン（d_margin）込みの半径
+            
+            % 🌟 構造体が持っている d_margin を使って、シンプルに一発逆算！
+            % 分岐がなくなったので、今後どんな新しい形状が増えてもコードは一切変わりません。
+            if isfield(obs_env(i), 'd_margin')
+                log_r_minimal{i} = ro - obs_env(i).d_margin;
+            else
+                log_r_minimal{i} = ro; % フォールバック用
+            end
+            
+            % 単一障害物に対する QP 制約行列 A_qp (1×2), b_qp (1×1) を生成
+            [A_qp_single, b_qp_single] = CBF_Constraints_xy(obj, x, xd, vf, V4_val, obs_params, gamma_params, rl_val, P);
+            
+            % 行列を縦に結合
+            A_qp_total = [A_qp_total; A_qp_single];
+            b_qp_total = [b_qp_total; b_qp_single];
+        end
         
-        % 5. オフライン生成した関数から QP用の制約行列 A_qp, b_qp を取得
-        % ※ xd, vf の受け渡し形式は既存の Uf 等の命名規則に合わせて cell2sym を模擬した形にしています
-        [A_qp, b_qp] = CBF_Constraints_xy(obj, x, xd, vf, V4_val, obs_params, gamma_params, rl_val, P);
+        % 🌟 動的に格納したセル配列を丸ごと logger 保存プロパティへセット
+        obj.result.p_obs     = log_p_obs;
+        obj.result.r_obs     = log_r_obs;
+        obj.result.r_minimal = log_r_minimal;
         
-        % 6. QP (二次計画法) の実行
-        % 理想の roll, pitch 入力 [u2_nominal; u3_nominal]
-        u_nominal = tmp(2:3); 
+        % 3. QP (二次計画法) の実行
+        u_nominal = tmp(2:3); % 理想の roll, pitch 入力
         
-        % 目的関数: (u - u_nominal)' * H * (u - u_nominal) を最小化するため、Hは単位行列
         H_qp = eye(2);
-        f_qp = -u_nominal; % MATLABの quadprog 形式 1/2*u'*H*u + f'*u
+        f_qp = -u_nominal;
         
-        % トルクの物理限界制約 (必要に応じて設定、ここでは既存のmin/max制限 [-1, 1] に合わせています)
         lb = [-1; -1];
         ub = [ 1;  1];
         
-        % quadprog オプション（出力を非表示にして高速化）
         options = optimoptions('quadprog', 'Display', 'off');
         
-        % 最適化問題を解いて安全な roll, pitch 入力を決定
-        [u_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_qp, b_qp, [], [], lb, ub, [], options);
+        % 拡張された累積制約 A_qp_total, b_qp_total を使って最適化
+        [u_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_qp_total, b_qp_total, [], [], lb, ub, [], options);
         
-        % 万が一 QP が解けなかった（可行解なしなど）場合のセーフティ
         if exitflag < 1
-            u_safe = u_nominal; % 最悪の場合は元の入力をそのまま使用
+            u_safe = u_nominal; % 可行解がない場合の緊急セーフティ
         end
         
-        % 7. QPによって修正された安全な入力を再格納
         tmp(2:3) = u_safe;
         %% =========================================================================
 
