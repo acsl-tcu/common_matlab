@@ -71,7 +71,7 @@
 %     end
 % end
 
-function [p_obs, r_obs] = get_bounding_sphere(type, p_center, params)
+function [p_obs, r_obs] = get_bounding_sphere(type, p_center, params, safety_buffer_width)
 % GET_BOUNDING_SPHERE 任意の形状を余裕を持って幅広く覆う真球の中心と半径を計算する（論文完全準拠版）
 %
 % 入力:
@@ -88,7 +88,7 @@ function [p_obs, r_obs] = get_bounding_sphere(type, p_center, params)
     % 🌟 【論文準拠のコア修正】外付けマージンを全廃した代わりに、
     % 障害物自身を最初から幅広く包み込むための「幾何学的安全バッファ幅 (m)」をここで定義します。
     % 実機のサイズや環境のタイトさに合わせて 0.3 ～ 0.6 程度で調整してください。
-    safety_buffer_width = 0.5; 
+    % safety_buffer_width = 0.5; 
 
     switch lower(type)
         case 'sphere' % 球

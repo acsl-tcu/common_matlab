@@ -12,11 +12,14 @@ function obs = ENVIRONMENT_OBSTACLE()
     % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
     p_center1 = [0.5; 7.5; 3]; 
     cyl_param = [0.5, 6.0]; % [底面半径 r, 高さ h]
+
+    % 💡 今回この実験で使いたい安全マージンをここで定義
+    d_margin = 0.5;
     
     obs(1).type = 'cylinder';
     obs(1).raw_param = cyl_param;
     obs(1).p_center = p_center1;
-    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param); 
+    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param,d_margin); 
 
     % %% =========================================================================
     % %  2. 真球 (Sphere)
