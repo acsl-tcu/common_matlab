@@ -60,6 +60,7 @@ properties (Access = public)
     update_timer;
     N = 1;
     t0 = 0;
+    tmp = zeros(10000,12); % total dt, drawnow, motivegetData, do_calc, do内7つ, time
 end
 
 % Callbacks that handle component events
