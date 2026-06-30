@@ -22,21 +22,21 @@ function obs = ENVIRONMENT_OBSTACLE()
     obs(1).d_margin = d_margin(1);
     [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param,d_margin(1)); 
 
-    %% =========================================================================
-    %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
-    %  =========================================================================
-    % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
-    p_center2 = [0.5; 5; 3]; 
-    cy2_param = [0.5, 6.0]; % [底面半径 r, 高さ h]
-
-    % 💡 今回この実験で使いたい安全マージンをここで定義
-    d_margin(2) = 0.2;
-    
-    obs(2).type = 'cylinder';
-    obs(2).raw_param = cy2_param;
-    obs(2).p_center = p_center2;
-    obs(2).d_margin = d_margin(2);
-    [obs(2).p_obs, obs(2).r_obs] = get_bounding_sphere('cylinder', p_center2, cy2_param,d_margin(2));
+    % %% =========================================================================
+    % %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
+    % %  =========================================================================
+    % % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
+    % p_center2 = [0.5; 5; 3]; 
+    % cy2_param = [0.5, 6.0]; % [底面半径 r, 高さ h]
+    % 
+    % % 💡 今回この実験で使いたい安全マージンをここで定義
+    % d_margin(2) = 0.2;
+    % 
+    % obs(2).type = 'cylinder';
+    % obs(2).raw_param = cy2_param;
+    % obs(2).p_center = p_center2;
+    % obs(2).d_margin = d_margin(2);
+    % [obs(2).p_obs, obs(2).r_obs] = get_bounding_sphere('cylinder', p_center2, cy2_param,d_margin(2));
 
     % %% =========================================================================
     % %  2. 真球 (Sphere)

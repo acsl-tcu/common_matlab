@@ -51,7 +51,7 @@ methods
         xd(4) = -deltaYaw(3) + yaw; % yaw打ち消しと誤差をyawの目標角に入れる．
         %目標値の格納
         xd = [xd; zeros(28 - size(xd, 1), 1)];
-
+        tic
         % 階層型線形化による入力計算
         % 仮想入力のゲイン
         F1 = Param.F1; % z方向サブシステムのゲイン
@@ -70,7 +70,7 @@ methods
         %obj.result.aa=toc;
         tmp = [uf(1); us]; % 実入力へ変換
         obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
-
+        obj.result.controllertime=toc;
         % 安全のため入力値に制限を付ける．推定した牽引物質量や紐の長さ，外乱などを表示．
         %disp("time: "+ num2str(t,2)+" z position of drone:
         %"+num2str(model.state.p(3),3)+" estimated load mass:

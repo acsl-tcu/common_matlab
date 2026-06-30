@@ -44,28 +44,40 @@ methods
         
         %目標値の格納
         xd = [xd; zeros(28 - size(xd, 1), 1)];
-        
+
+        tic_start = tic;
         % 階層型線形化による入力計算
         % 仮想入力のゲイン
+        tic_linear = tic;
         F1 = Param.F1; % z方向サブシステムのゲイン
         F2 = Param.F2; % x方向サブシステムのゲイン
         F3 = Param.F3; % y方向サブシステムのゲイン
         F4 = Param.F4; % yaw方向サブシステムのゲイン
+        tic_vf = tic;
         vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); % 実験で刻み時間が変わったときに対応
+        obj.result.t_vf = toc(tic_vf);
+        tic_vs = tic;
         vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); % 第二層x,y,yawサブシステムの仮想入力の計算
+        obj.result.t_vs = toc(tic_vs);
+        tic_uf = tic;
         uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); % 第一層の仮想入力の実入力(推力)への変換
-        
+        obj.result.t_uf = toc(tic_uf);
+        tic_beta = tic;
         beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); % 第二層のbetaの逆行列
+        obj.result.t_beta = toc(tic_beta);
+        tic_alpha= tic;
         vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
+        obj.result.t_alpha = toc(tic_alpha);
         us = beta2 \ vs_alpha2; % 第二層の実入力（roll,pitch,yawのトルク）への変換（理想値）
         
         tmp = [uf(1); us]; % 理想の実入力 [u1; u2; u3; u4]
         obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
-
+        obj.result.t_linear = toc(tic_linear);
         %% =========================================================================
         %% 【追加】高次制御バリア関数 (HOCBF) による安全フィルター (QP)
         %% =========================================================================
         % 1. 障害物定義関数から環境情報を動的に取得
+        tic_cbf_setup = tic;
         obs_env = ENVIRONMENT_OBSTACLE(); 
         num_obs = length(obs_env);
         
@@ -85,7 +97,9 @@ methods
         % HOCBFのクラスK関数ゲイン [gamma1; ...; gamma6]
         gamma_params = [5.0; 5.0; 5.0; 5.0; 5.0; 5.0];
         V4_val = tmp(4); % yawトルク固定値
+        obj.result.t_cbf_setup = toc(tic_cbf_setup);
         
+        tic_loop = tic;
         % 全障害物についてループを回し、制約条件をすべて縦に積み上げる
         for i = 1:num_obs
             % 現在のターゲット障害物のパラメータ抽出
@@ -114,6 +128,7 @@ methods
             A_qp_total = [A_qp_total; A_qp_single];
             b_qp_total = [b_qp_total; b_qp_single];
         end
+        obj.result.t_loop = toc(tic_loop); % ループ全体（制約生成）にかかった時間
         
         % 🌟 動的に格納したセル配列を丸ごと logger 保存プロパティへセット
         obj.result.p_obs     = log_p_obs;
@@ -121,6 +136,7 @@ methods
         obj.result.r_minimal = log_r_minimal;
         
         % 3. QP (二次計画法) の実行
+        tic_qp = tic;
         u_nominal = tmp(2:3); % 理想の roll, pitch 入力
         
         H_qp = eye(2);
@@ -139,6 +155,8 @@ methods
         end
         
         tmp(2:3) = u_safe;
+        obj.result.t_qp = toc(tic_qp);
+        obj.result.controllertime=toc(tic_start);
         %% =========================================================================
 
         % 安全のため入力値に制限を付ける．

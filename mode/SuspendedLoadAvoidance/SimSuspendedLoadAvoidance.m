@@ -53,7 +53,7 @@ L = agent.parameter.cableL;
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",30,"center",[0;0;2.5],"radius",[15,15,0]},4})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 20.0}, 4}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 4}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
@@ -92,18 +92,26 @@ agent.cha_allocation.l.reference =["landing","sload"];
 function post(app)
 % シミュレーション終了後の結果表示とアニメーション作成。
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+app.logger.plot({1, "controller.result.controllertime", ""}, "phase", "f", "fig_num", 2);
+app.logger.plot({1, "controller.result.t_loop", ""}, "phase", "f", "fig_num", 3);
+app.logger.plot({1, "controller.result.t_linear", ""}, "phase", "f", "fig_num", 4);
+app.logger.plot({1, "controller.result.t_vf", ""}, "phase", "f", "fig_num", 5);
+app.logger.plot({1, "controller.result.t_vs", ""}, "phase", "f", "fig_num", 6);
+app.logger.plot({1, "controller.result.t_uf", ""}, "phase", "f", "fig_num", 7);
+app.logger.plot({1, "controller.result.t_beta", ""}, "phase", "f", "fig_num", 8);
+app.logger.plot({1, "controller.result.t_alpha", ""}, "phase", "f", "fig_num", 9);
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
-app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
+% app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
 % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
 % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
 
-show_suspended_load_animation(app); % アニメーション描画
+% show_suspended_load_animation(app); % アニメーション描画
 end
 
 % function show_suspended_load_animation(app)
@@ -135,6 +143,7 @@ mov = DRAW_SUSPENDED_LOAD_AVOIDANCE(app.logger, ...
     "self", app.agent(1), ...
     "rl", actual_rl);
 mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl); % 表示開始
+% mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl,"mp4", true, "pause", 0); % 表示開始
 end
 
 function in_prog(app)

@@ -667,11 +667,11 @@ g1_yaw = g1(:, 3);  % u4 に掛かる列
 
 % 階層的なCBFの導出
 % ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
-cbf1 = LieD(h_cbf, f1, x) + diff(h_cbf, t) + gamma1 * h_cbf;
-cbf2 = LieD(cbf1,  f1, x) + diff(cbf1,  t) + gamma2 * cbf1;
-cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma3 * cbf2;
-cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma4 * cbf3;
-cbf5 = LieD(cbf4,  f1, x) + diff(cbf4,  t) + gamma5 * cbf4;
+cbf1 = LieD(h_cbf, f1, x) + diff(h_cbf, t) + gamma1 * h_cbf; %h2
+cbf2 = LieD(cbf1,  f1, x) + diff(cbf1,  t) + gamma2 * cbf1; %h3
+cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma3 * cbf2; %h4
+cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma4 * cbf3; %h5
+cbf5 = LieD(cbf4,  f1, x) + diff(cbf4,  t) + gamma5 * cbf4; %h6
 
 % 最上階（6階）の計算：ここに u2, u3 が現れる
 % cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
