@@ -36,8 +36,7 @@ else
 end
 
 
-set_dt_ms = opts.set_dt*10^3; % [ms]に変換
-
+% ------- range設定 -------
 data_offset = 4; %空回し対策用
 phase_data = logger.Data.phase(data_offset+1:end);
 phase = double(char(opts.phase));
@@ -45,6 +44,8 @@ mask = ismember(phase_data, phase);
 is_start = [mask(1); diff(mask)==1];
 is_end   = [diff(mask)==-1; mask(end)];
 data_range = find(is_start)+data_offset : find(is_end)+data_offset;
+% ------ ------
+
 t = logger.Data.t(data_range);
 phase_data = phase_data(data_range);
 % phase_plot = [];
@@ -57,6 +58,13 @@ phase_data = phase_data(data_range);
 %     end
 % end
 total_dt = calc_time.total(data_range).*10^3;
+
+set_dt_ms = opts.set_dt*10^3; % [ms]に変換
+if max(total_dt)>set_dt_ms
+    set_dt_labelpos = "top";
+else
+    set_dt_labelpos = "bottom";
+end
 loop_dt = [];
 loop_legtxt = [];
 for tag = target4loop(2:end)
@@ -87,7 +95,7 @@ hold on; grid on; grid minor;
 plot(ax, t,loop_dt, "LineWidth",LW);
 % xline(5, "Label","takeoff")
 % xline(10, "Label","landing")
-if opts.fset_dt, yline(set_dt_ms, "--", "Set sampling time", "LineWidth",LW*0.75, "FontSize",FS*0.75); end
+if opts.fset_dt, plot_yline(set_dt_ms, FS, LW, set_dt_labelpos); end
 xlim([min(t), max(t)]);
 legend(replace(target4loop,"_"," "), "Location","best")
 xlabel("Time [s]")
@@ -108,7 +116,7 @@ for N = 1:agentN
     plot(ax, t,total_dt, "LineWidth",LW);
     hold on; grid on; grid minor;
     plot(ax, t,do_dt{N}, "LineWidth",LW);
-    if opts.fset_dt, yline(set_dt_ms, "--", "Set sampling time", "LineWidth",LW*0.75, "FontSize",FS*0.75); end
+    if opts.fset_dt, plot_yline(set_dt_ms, FS, LW, set_dt_labelpos); end
     xlim([min(t), max(t)]);
     xlabel("Time [s]")
     ylabel("Calculation time [ms]")
@@ -129,6 +137,10 @@ function msg = gen_msg(dont_exist_var)
     msg = "TIMEクラスが引数になく、" + string(dont_exist_var) + "が存在しないため実行できません。";
 end
 
+
+function plot_yline(dt_ms, FS, LW, LabelPosition)
+    yline(dt_ms, "--", "Set sampling time", "LineWidth",LW*0.75, "FontSize",FS*0.75, "LabelVerticalAlignment",LabelPosition);
+end
 
 function [ts te] = find_phase_change_time(time, phase_data, cha)
 % time, phase_data共にopts.phaseで指定した部分を取り出した後のもの
