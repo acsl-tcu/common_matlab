@@ -67,7 +67,7 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 %     % 初期化時の startupFcn での空アクセスは完全に無害化してスルー
 % end
 % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_AVOIDANCE(agent, Controller_HL_Suspended_Load(dt, agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LOAD_XY(agent, Controller_HL_Suspended_Load(dt, agent)));
 % % =================================================================
 % % 🔍 [SimScript Debug] コントローラの登録状態を完全可視化
 % % =================================================================

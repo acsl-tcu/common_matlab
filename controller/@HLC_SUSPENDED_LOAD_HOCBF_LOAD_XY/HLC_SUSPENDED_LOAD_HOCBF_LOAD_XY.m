@@ -1,4 +1,4 @@
-classdef HLC_SUSPENDED_LOAD_AVOIDANCE < handle
+classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_XY < handle
 % クアッドコプター用階層型線形化を使った入力算出（HOCBF安全フィルター付き）
 properties
     self
@@ -6,7 +6,7 @@ properties
     param
 end
 methods
-    function obj = HLC_SUSPENDED_LOAD_AVOIDANCE(self, param)
+    function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_XY(self, param)
         obj.self = self;
         obj.param = param;
     end
@@ -33,8 +33,10 @@ methods
         end
         P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
-        
-        % yaw角の定義域の問題を回避
+
+        % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
+        % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
+        % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
         yaw = wrapToPi(model.state.q(3)); % 機体yaw角[-pi,pi]にする特にyaw
         yawd = xd(4); % 目標yaw角
         yawUnit = [cos(yaw); sin(yaw); 0]; % yawの方向ベクトル
@@ -52,26 +54,25 @@ methods
         F2 = Param.F2; % x方向サブシステムのゲイン
         F3 = Param.F3; % y方向サブシステムのゲイン
         F4 = Param.F4; % yaw方向サブシステムのゲイン
-        % === デバッグ用：各ステップの開始リアル時刻を記録（エラー回避版） ===
         time_log = cell(1, 6);
         
         tic;
         time_log{1} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
-        vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); 
+        vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); % 実験で刻み時間が変わったときに対応
         
         time_log{2} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
-        vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); 
+        vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); % 第二層x,y,yawサブシステムの仮想入力の計算
         
         time_log{3} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
-        uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); 
+        uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); % 第一層の仮想入力の実入力(推力)への変換
         
         time_log{4} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
-        beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); 
+        beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); % 第二層のbetaの逆行列
         
         time_log{5} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
-        vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); 
+        vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
         
-        time_log{6} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
+        time_log{6} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS'); % 第二層の実入力（roll,pitch,yawのトルク）への変換：bate^(-1)*(vs - alpha) %h234*invbeta2*a2;
         us = beta2 \ vs_alpha2; 
         
         total_time = toc;
@@ -90,8 +91,8 @@ methods
             fprintf('====================================================\n');
         end
         
-        tmp = [uf(1); us]; 
-        obj.result.tmp = tmp;
+        tmp = [uf(1); us]; % 実入力へ変換
+        obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
         %% =========================================================================
         %% 【追加】高次制御バリア関数 (HOCBF) による安全フィルター (QP)
         %% =========================================================================
