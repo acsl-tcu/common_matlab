@@ -51,10 +51,10 @@ methods
 
   function store_calc_time4do_calculation(obj, do_dt, log_dt)
       % do_dt(配列の要素順)はtarget4doの順番に合わせる
-      for i = 1:length(obj.target4loop)
+      for i = 1:length(obj.target4do)
           tag = obj.target4do(i);
           if tag == "logging"
-              obj.calc_time.(tag)(obj.k) = log_dt(i);
+              obj.calc_time.(tag)(obj.k) = log_dt;
           else
               obj.calc_time.(tag)(obj.k,:) = do_dt(i,:);
           end
