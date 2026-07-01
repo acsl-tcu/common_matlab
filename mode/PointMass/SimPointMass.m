@@ -11,6 +11,7 @@ post_func = @(app) post(app);
 %%
 fExp = 0;
 logger = LOGGER(1, size(ts:dt:te, 2), fExp, [],[]);
+logger.set_time_handler(time);
 
 clear initial_state
 initial_state.p = [-1];

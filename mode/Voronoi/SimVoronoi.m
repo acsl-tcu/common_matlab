@@ -9,6 +9,7 @@ post_func = @(app) post(app); % post procedure
 N = 3; % number of agent
 
 logger = LOGGER(1:N, size(ts:dt:te, 2), 0, [],[]); % logger class instance for logging
+logger.set_time_handler(time);
 env = DENSITY_MAP(Env_2DCoverage); % Weighted 2D grid map
 arranged_pos = arranged_position([0, 0], N, 1, 0); % initial position
 

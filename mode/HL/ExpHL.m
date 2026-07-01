@@ -8,6 +8,7 @@ post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
 motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405

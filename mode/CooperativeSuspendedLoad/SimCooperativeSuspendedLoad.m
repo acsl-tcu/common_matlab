@@ -14,6 +14,7 @@ post_func = @(app) post(app);
 logger = LOGGER(1:N + 1, size(ts:dt:te, 2), 0, [], []); % 1..N: 単機牽引, N+1: 牽引物
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 %% 全体ダイナミクスの初期状態（牽引物）

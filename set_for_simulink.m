@@ -27,6 +27,7 @@ time = TIME(ts,dt,te,N); % instance of time class
 
 motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
+logger.set_time_handler(time);
 
 initial_state.p = arranged_position([0, 0], 1, 1, 0);
 initial_state.q = [1; 0; 0; 0];

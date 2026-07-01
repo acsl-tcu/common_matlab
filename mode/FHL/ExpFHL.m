@@ -6,6 +6,7 @@ time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
+logger.set_time_handler(time);
 
 motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
