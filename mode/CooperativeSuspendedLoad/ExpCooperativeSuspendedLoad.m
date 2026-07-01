@@ -4,7 +4,7 @@
 % ・牽引物エージェント (agent(1)) は参照軌道を決めるだけで制御は行わない
 
 ts = 0; dt = 0.025; te = 10000;
-time = TIME(ts, dt, te);
+time = TIME(ts, dt, te, N); % この場所じゃダメ。21行目以降に記述する。Nの値は注視すること。
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 

@@ -1,7 +1,8 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.00001; % sampling period
 te = 10; % termina time
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) [];
 post_func = @(app) [];
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);

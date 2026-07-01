@@ -13,6 +13,7 @@ end
   while app.fStart 
     tStart = tic;
     drawnow
+    t2 = toc(tStart);
     if app.cha0 ~= app.cha % exec once per another key press
       switch app.cha
         case {'q',' '}
@@ -40,11 +41,13 @@ end
       end
       app.cha0 = app.cha;
     end
+    t3 = tic;
     if ~isempty(app.motive)
       app.motive.getData(app.agent);            
     end
+    t3 = toc(t3);
     app.TimeSlider.Value = app.time.t;
-    app.do_calculation();
+    t4=tic; app.do_calculation(); t4=toc(t4);
     if app.fExp
         app.time.dt = toc(tStart);
     end
@@ -53,6 +56,7 @@ end
     else
         app.time.t = 0;
     end
+    app.time.store_calc_time4loop([app.time.dt, t2, t3, t4]);
     if ~app.isReady || app.time.t >= app.time.te
       break
     end

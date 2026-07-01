@@ -19,10 +19,11 @@ userpath('clear');
 Flag.Exe.Mode = "Sim";
 
 %%
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 300; % terminal time
-time = TIME(ts,dt,te); % instance of time class
+time = TIME(ts,dt,te,N); % instance of time class
 
 motive = Connector_Natnet_sim(1, dt, 0); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging

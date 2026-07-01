@@ -6,8 +6,8 @@ N = 4; % 機体数
 
 ts = 0;
 dt = 0.025;
-te = 10;
-time = TIME(ts, dt, te);
+te = 50;
+time = TIME(ts, dt, te, N+1); % N+1: 牽引物含む
 
 in_prog_func = @(app) dfunc(app);
 post_func = @(app) post(app);

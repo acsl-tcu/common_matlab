@@ -1,7 +1,8 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 25; % terminal time
-time = TIME(ts,dt,te); % instance of time class
+time = TIME(ts,dt,te,N); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)

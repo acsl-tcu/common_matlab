@@ -1,7 +1,8 @@
+N = 1; % the number of agents
 ts = 0;
 dt = 0.025;
 te = 10;
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);

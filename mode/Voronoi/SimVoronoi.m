@@ -1,7 +1,8 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.1; % sampling period
 te = 10; % terminal time
-time = TIME(ts,dt,te); % time class instance
+time = TIME(ts,dt,te,N); % time class instance
 in_prog_func = @(app) in_prog(app); % in progress procedure
 post_func = @(app) post(app); % post procedure
 
