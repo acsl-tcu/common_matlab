@@ -165,6 +165,7 @@ rdata = app.logger.data(app.N,"p","r");
 L = app.agent(1).parameter.cableL;
 custom = rdata -[0,0,L];
 app.logger.plot({{1, "p", "r", custom},{app.N, "p", "e"}},"ax",app.UIAxes);
+plot_calc_time(app.logger, app.time);
 % app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % show_cooperative_animation(app);

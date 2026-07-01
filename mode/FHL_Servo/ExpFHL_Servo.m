@@ -56,7 +56,7 @@ app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Line
 % app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 
-plot_calc_time(app.logger);
+plot_calc_time(app.logger, app.time);
 end
 function in_prog(app)
 app.TextArea.Text = ["estimator : " + app.agent(1).estimator.result.state.get()];

@@ -59,7 +59,7 @@ app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Line
 
 % show_cooperative_animation(app);
 
-plot_calc_time(app.logger);
+plot_calc_time(app.logger, app.time);
 end
 
 function in_prog(app)
