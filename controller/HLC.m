@@ -19,7 +19,7 @@ classdef HLC < handle
       model = obj.self.estimator.result;
       ref = obj.self.reference.result;
       xd = ref.state.xd;
-      disp(ref.state.p');
+      disp(model.state.p');
       xd0 =xd;
       P = obj.param.P;
       F1 = obj.param.F1;
