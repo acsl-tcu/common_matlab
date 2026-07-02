@@ -1,13 +1,15 @@
 clc
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; %0.025; % sampling period
 te = 10000; % termina time
-time = TIME(ts, dt, te);
+time = TIME(ts, dt, te, N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
@@ -93,7 +95,7 @@ app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase,  "fig_num",8, "color",0); 
 % app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
 % show_suspended_load_animation(app);
 
-plot_calc_time(app.logger);
+plot_calc_time(app.logger, app.time);
 % Graphplot(app)
 end
 
