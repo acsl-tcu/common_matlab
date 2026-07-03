@@ -35,8 +35,10 @@ else
     target4do = time_class.target4do;
 end
 
+is_valid_phase(opts.phase);
 
-% ------- range設定 -------
+
+% ------- data_range設定 -------
 data_offset = 4; %空回し対策用
 phase_data = logger.Data.phase(data_offset+1:end);
 phase = double(char(opts.phase));
@@ -48,6 +50,8 @@ data_range = find(is_start)+data_offset : find(is_end)+data_offset;
 
 t = logger.Data.t(data_range);
 phase_data = phase_data(data_range);
+phase_plot_func = gen_phase_plot_func(t, phase_data, phase);
+
 % phase_plot = [];
 % for ph = phase
 %     switch ph
@@ -93,9 +97,10 @@ ax = gca;
 plot(ax, t,total_dt, "LineWidth",LW);
 hold on; grid on; grid minor;
 plot(ax, t,loop_dt, "LineWidth",LW);
+phase_plot_func();
 % xline(5, "Label","takeoff")
 % xline(10, "Label","landing")
-if opts.fset_dt, plot_yline(set_dt_ms, FS, LW, set_dt_labelpos); end
+if opts.fset_dt, plot_set_dt(set_dt_ms, FS, LW, set_dt_labelpos); end
 xlim([min(t), max(t)]);
 legend(replace(target4loop,"_"," "), "Location","best")
 xlabel("Time [s]")
@@ -116,7 +121,8 @@ for N = 1:agentN
     plot(ax, t,total_dt, "LineWidth",LW);
     hold on; grid on; grid minor;
     plot(ax, t,do_dt{N}, "LineWidth",LW);
-    if opts.fset_dt, plot_yline(set_dt_ms, FS, LW, set_dt_labelpos); end
+    phase_plot_func();
+    if opts.fset_dt, plot_set_dt(set_dt_ms, FS, LW, set_dt_labelpos); end
     xlim([min(t), max(t)]);
     xlabel("Time [s]")
     ylabel("Calculation time [ms]")
@@ -137,12 +143,73 @@ function msg = gen_msg(dont_exist_var)
     msg = "TIMEクラスが引数になく、" + string(dont_exist_var) + "が存在しないため実行できません。";
 end
 
+function is_valid_phase(inputStr)
+    % 許可されているベース文字列
+    allowedBase = "atfl";
+    
+    % 入力を文字列型に変換
+    inputStr = string(inputStr);
+    
+    % 判定処理
+    % contains が false、または空文字の場合にエラーをスロー
+    if ~contains(allowedBase, inputStr) || strlength(inputStr) == 0
+        error("エラー: '%s' は許可されていない文字列です。'atfl' の部分文字列である必要があります。", inputStr);
+    end
+    
+    % 正常な場合は何も返さない（必要に応じて true を返しても構いません）
+end
 
-function plot_yline(dt_ms, FS, LW, LabelPosition)
+function plot_set_dt(dt_ms, FS, LW, LabelPosition)
     yline(dt_ms, "--", "Set sampling time", "LineWidth",LW*0.75, "FontSize",FS*0.75, "LabelVerticalAlignment",LabelPosition);
 end
 
-function [ts te] = find_phase_change_time(time, phase_data, cha)
-% time, phase_data共にopts.phaseで指定した部分を取り出した後のもの
-    % find()
+function phase_plot_func = gen_phase_plot_func(time, phase_data, phase_seq)
+    % nameMap: 数値と名称の対応
+    nameMap = containers.Map({97, 116, 102, 108}, {'approach', 'takeoff', 'flight', 'landing'});
+    
+    % 境界点（遷移地点）を特定
+    % phase_dataにおいて値が切り替わったインデックスを探す
+    diff_indices = find(diff(phase_data) ~= 0);
+    
+    % 遷移対象を格納するリスト
+    boundary_info = {};
+    
+    for i = 1:length(diff_indices)
+        idx = diff_indices(i);
+        prev_val = phase_data(idx);
+        next_val = phase_data(idx + 1);
+        
+        % 指定された phase_seq 内の遷移であるか確認
+        if ismember(prev_val, phase_seq) && ismember(next_val, phase_seq)
+            boundary_info{end+1} = struct(...
+                'time', time(idx + 1), ...
+                'left_label', nameMap(prev_val), ...
+                'right_label', nameMap(next_val));
+        end
+    end
+    
+    % 無名関数として返す
+    phase_plot_func = @() plot_boundary_lines(boundary_info);
+end
+
+% 補助関数：境界に2本の線を引く
+function plot_boundary_lines(boundary_info)
+    hold on;
+    for i = 1:length(boundary_info)
+        t = boundary_info{i}.time;
+        
+        linespec = '--k';
+        labelpos = 'top';
+        % 左側のラベルを持つ線 (右側にオフセットして文字を配置)
+        xl1 = xline(t, linespec, boundary_info{i}.left_label, ...
+            'LabelVerticalAlignment', labelpos, ...
+            'LabelHorizontalAlignment', 'left');
+        xl1.LabelOrientation = 'aligned';
+        
+        % 右側のラベルを持つ線 (左側にオフセットして文字を配置)
+        xl2 = xline(t, linespec, boundary_info{i}.right_label, ...
+            'LabelVerticalAlignment', labelpos, ...
+            'LabelHorizontalAlignment', 'right');
+        xl2.LabelOrientation = 'aligned';
+    end
 end
