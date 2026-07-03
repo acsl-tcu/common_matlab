@@ -55,10 +55,10 @@ classdef MOTIVE < handle
                 args.initq = [];
                 % --- 定常偏差補正のパラメータ ---
                 args.bias_enable = true;
-                args.bias_tau = 1.0;       % [s] 補正を反映する時定数（緩やかさ）
+                args.bias_tau = 2.0;       % [s] 補正を反映する時定数（緩やかさ）
                 args.bias_ref_time = 2.0;  % [s] referenceが一定（完全一致）とみなす時間
                 args.bias_att_time = 2.0;  % [s] 姿勢が一定とみなす時間
-                args.bias_sigma_deg = 0.01; % [deg] 姿勢変動の許容幅 σ
+                args.bias_sigma_deg = 1; % [deg] 姿勢変動の許容幅 σ
             end
 
             %%% Output equation %%%
@@ -233,6 +233,7 @@ classdef MOTIVE < handle
                         % ホバリング開始を検知（初回のみ）：この瞬間のq_measを使ってbiasを逆算
                         % q_true = q_reported * bias.q が roll=pitch=0, yaw=yaw_d(理想姿勢)となるように
                         % bias.q = conj(q_reported) * q_zero_rp(yaw_d)
+                        disp('Judge stable in MOTIVE class.')
                         yaw_d = ref(4); % reference yaw（現在yawではなく目標yaw）
                         q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d])');
                         obj.bias.q_target = conj(q_meas) * q_zero_rp;
