@@ -8,8 +8,9 @@ arguments
     opts.FontSize = 16;
     opts.LineWidth = 1.0;
     opts.set_dt = 0.025;
-    opts.fset_dt = true;
+    opts.fset_dt = true; % 設定した計算時間plotフラグ
     opts.phase = "tfl";
+    opts.fphase = true; % phase切替線plotフラグ
 end
 FS = opts.FontSize;
 LW = opts.LineWidth;
@@ -97,9 +98,7 @@ ax = gca;
 plot(ax, t,total_dt, "LineWidth",LW);
 hold on; grid on; grid minor;
 plot(ax, t,loop_dt, "LineWidth",LW);
-phase_plot_func();
-% xline(5, "Label","takeoff")
-% xline(10, "Label","landing")
+if opts.fphase, phase_plot_func(); end
 if opts.fset_dt, plot_set_dt(set_dt_ms, FS, LW, set_dt_labelpos); end
 xlim([min(t), max(t)]);
 legend(replace(target4loop,"_"," "), "Location","best")
@@ -121,7 +120,7 @@ for N = 1:agentN
     plot(ax, t,total_dt, "LineWidth",LW);
     hold on; grid on; grid minor;
     plot(ax, t,do_dt{N}, "LineWidth",LW);
-    phase_plot_func();
+    if opts.fphase, phase_plot_func(); end
     if opts.fset_dt, plot_set_dt(set_dt_ms, FS, LW, set_dt_labelpos); end
     xlim([min(t), max(t)]);
     xlabel("Time [s]")
