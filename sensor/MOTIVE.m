@@ -35,6 +35,8 @@ classdef MOTIVE < handle
              %   .att_count   : att_bufferの有効サンプル数（capを超えない）
              %   .att_idx     : att_bufferの次回書き込み位置
              %   .is_hovering : ホバリング検出フラグ
+             %   .calibrated  : bias.q_targetの算出が既に一度実行済みかどうか
+             %                  （trueになった後は再度ホバリングを検出してもq_targetを再計算しない）
              %   .last_t      : 前回update_bias呼び出し時刻（dt計算用）
     end
 
@@ -94,6 +96,7 @@ classdef MOTIVE < handle
             obj.bias.q = quaternion(1, 0, 0, 0);        % 恒等回転（補正なし）で初期化
             obj.bias.q_target = obj.bias.q;
             obj.bias.is_hovering = false;
+            obj.bias.calibrated = false;
             obj.bias.last_t = [];
 
             % 循環バッファのサイズを確保しておく（dtより速いループでも溢れないよう余裕(x2)を持たせる）
@@ -225,13 +228,16 @@ classdef MOTIVE < handle
 
             if ref_const && att_const
                 if ~obj.bias.is_hovering
-                    % ホバリング開始を検知：この瞬間のq_measを使ってbiasを逆算
-                    % q_true = q_reported * bias.q が roll=pitch=0, yaw=yaw_d(理想姿勢)となるように
-                    % bias.q = conj(q_reported) * q_zero_rp(yaw_d)
-                    yaw_d = ref(4); % reference yaw（現在yawではなく目標yaw）
-                    q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d])');
-                    obj.bias.q_target = conj(q_meas) * q_zero_rp;
                     obj.bias.is_hovering = true;
+                    if ~obj.bias.calibrated
+                        % ホバリング開始を検知（初回のみ）：この瞬間のq_measを使ってbiasを逆算
+                        % q_true = q_reported * bias.q が roll=pitch=0, yaw=yaw_d(理想姿勢)となるように
+                        % bias.q = conj(q_reported) * q_zero_rp(yaw_d)
+                        yaw_d = ref(4); % reference yaw（現在yawではなく目標yaw）
+                        q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d])');
+                        obj.bias.q_target = conj(q_meas) * q_zero_rp;
+                        obj.bias.calibrated = true;
+                    end
                 end
             else
                 obj.bias.is_hovering = false;
