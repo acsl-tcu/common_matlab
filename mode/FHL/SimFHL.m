@@ -22,7 +22,7 @@ agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 %=====================
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"center",[0;0;1],"radius",2},4}));
 agent.controller.set_function_class("fhl", FUNCTIONAL_HLC(agent,Controller_FHL(dt)));
 for i = 1:length(agent)

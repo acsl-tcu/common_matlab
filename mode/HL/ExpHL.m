@@ -22,7 +22,7 @@ agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
 agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
 agent.parameter = DRONE_PARAM("DIATONE");
-agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent,motive, dt));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering

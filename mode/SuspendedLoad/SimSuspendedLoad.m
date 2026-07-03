@@ -25,6 +25,14 @@ initial_state.v = [0; 0; 0];
 % Note: set the model error after setting "plant"
 agent.plant = MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state,1,agent));%dt,initial,id,agent,modelName
 agent.parameter.set("loadmass",0.01);%0.0968);%0.968
+agent.plant.projection = @create_angle_bias;
+function x = create_angle_bias(x)
+    bias_eul = [5; 0; 0]; % degreeだけ定常偏差を起こす
+    bias_quat= quaternion(Eul2Quat([deg2rad(bias_eul)])');
+    q = conj(bias_quat)*quaternion(Eul2Quat(x(4:6))');
+    [q1,q2,q3,q4] = parts(q);
+    x = [x(1:3);Quat2Eul([q1;q2;q3;q4]);x(7:end)];
+end
 
 % Sim only: getData works after setting "plant"
 motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
@@ -33,7 +41,7 @@ motive.getData(agent);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
 % Motiveの生データから、機体姿勢と吊り荷位置・ケーブル方向を整理する。
 % 出力は推定器の入力として [p; euler; pL; pT] の形に整形する。
@@ -49,8 +57,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[0,0,0]},4})); %円系軌道
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
@@ -73,9 +81,9 @@ app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.
 % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
-app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+% app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
 % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
@@ -119,6 +127,7 @@ end
 xd = agent(idx).reference.result.state.xd;
 if isfield(agent(idx).estimator.result, "state")
     p = agent(idx).estimator.result.state.p;
+    q = agent(idx).estimator.result.state.q;
     if isprop(agent(idx).estimator.result.state, "mL")
         mL = agent(idx).estimator.result.state.mL;
     else
@@ -126,8 +135,9 @@ if isfield(agent(idx).estimator.result, "state")
     end
 else
     p = [NaN; NaN; NaN];
+    q = [NaN; NaN; NaN];
     mL = NaN;
 end
 u = agent(idx).controller.result.input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : Q [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', q', u', mL);
 end

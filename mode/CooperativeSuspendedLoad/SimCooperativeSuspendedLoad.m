@@ -130,7 +130,7 @@ function agentObj = configure_single_agent(agentObj, idx, dt, init_state, load_a
     rigid_ids = [2 * idx, 1]; % [機体, 牽引物]
     rho_i = load_agent.parameter.rho(:, idx);
     agentObj.sensor.set_function_class("loadsync", COOPERATIVE_LOAD_SYNC(agentObj, "payload_index", load_agent.id, "rho", rho_i, "li", agentObj.parameter.cableL));
-    agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive, "output_func", @(obj, data) output_func(obj, data, rho_i), "rigid_id", rigid_ids, "state_list", {["p", "q"], "p"}));
+    agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive, dt, "output_func", @(obj, data) output_func(obj, data, rho_i), "rigid_id", rigid_ids, "state_list", {["p", "q"], "p"}));
 
     agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF_SuspendedLoad(agentObj, dt, ...
         MODEL_CLASS(agentObj, Model_Suspended_Load(dt, init_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"])));

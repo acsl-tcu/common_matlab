@@ -33,7 +33,7 @@ agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
 agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
 
-agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 % agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 分散 10^-3
 % agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 

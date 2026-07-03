@@ -29,7 +29,7 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
 %agent.sensor.lidar = LiDAR3D_SIM(agent,Sensor_LiDAR3D(1, 'env', env, 'theta_range', pi / 2, 'phi_range', -pi:0.1:pi, 'noise', 3.0E-2, 'seed', 3)); % 2D lidar
 agent.sensor.set_function_class("lidar", LiDAR3D_SIM(agent,Sensor_LiDAR3D(1, 'env', env, 'R0', Rodrigues([0,1,0],pi/6),'p0',[1;0;1],'theta_range', pi/2, 'phi_range', 0, 'noise', 0, 'seed', 0)));
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 agent.sensor.do = @sensor_do;
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1],"radius",[2,2,0.5]}}));
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));

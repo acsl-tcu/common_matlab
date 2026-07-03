@@ -35,8 +35,8 @@ agent.parameter.set("jy", 0.06); %0.0968); %0.968
 agent.parameter.set("jz", 0.09); %0.0968); %0.968
 
 agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %有線プロポ
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
-% agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[2,1],"state_list",{["p","q"],"p"}));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
+% agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[2,1],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
     p = data.rigid(obj.rigid_id(1)).p;
     pT = data.rigid(obj.rigid_id(2)).p - p;
