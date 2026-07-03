@@ -1,12 +1,14 @@
+N = 1; % the number of agents
 ts = 0;
 dt = 0.025;
 te = 10;
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 motive = Connector_Natnet_sim(dt);              % 3rd arg is a flag for noise (1 : active )
 

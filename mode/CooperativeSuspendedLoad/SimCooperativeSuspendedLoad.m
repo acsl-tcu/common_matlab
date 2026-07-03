@@ -6,14 +6,15 @@ N = 4; % 機体数
 
 ts = 0;
 dt = 0.025;
-te = 10;
-time = TIME(ts, dt, te);
+te = 50;
+time = TIME(ts, dt, te, N+1); % N+1: 牽引物含む
 
 in_prog_func = @(app) dfunc(app);
 post_func = @(app) post(app);
 logger = LOGGER(1:N + 1, size(ts:dt:te, 2), 0, [], []); % 1..N: 単機牽引, N+1: 牽引物
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 %% 全体ダイナミクスの初期状態（牽引物）
@@ -164,6 +165,7 @@ rdata = app.logger.data(app.N,"p","r");
 L = app.agent(1).parameter.cableL;
 custom = rdata -[0,0,L];
 app.logger.plot({{1, "p", "r", custom},{app.N, "p", "e"}},"ax",app.UIAxes);
+plot_calc_time(app.logger, app.time);
 % app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
 % show_cooperative_animation(app);

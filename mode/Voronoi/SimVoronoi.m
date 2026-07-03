@@ -1,13 +1,15 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.1; % sampling period
 te = 10; % terminal time
-time = TIME(ts,dt,te); % time class instance
+time = TIME(ts,dt,te,N); % time class instance
 in_prog_func = @(app) in_prog(app); % in progress procedure
 post_func = @(app) post(app); % post procedure
 
 N = 3; % number of agent
 
 logger = LOGGER(1:N, size(ts:dt:te, 2), 0, [],[]); % logger class instance for logging
+logger.set_time_handler(time);
 env = DENSITY_MAP(Env_2DCoverage); % Weighted 2D grid map
 arranged_pos = arranged_position([0, 0], N, 1, 0); % initial position
 
