@@ -17,7 +17,9 @@ classdef HLC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(self.estimator.model.dim(2),1);
-      L = load('mec_model_HL.mat'); obj.mec = L.model;
+      if obj.use_mec
+         L = load('mec_model_HL.mat'); obj.mec = L.model;
+      end
     end
 
     function result = do(obj,varargin)
