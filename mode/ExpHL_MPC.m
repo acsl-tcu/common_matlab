@@ -34,13 +34,13 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
 
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",7,"orig",[0;0;0.6],"size",[1,-1,0]},"HL"});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",7,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
  % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_heart", {"freq",20,"orig",[0 0 0.6],"size",[1 1 0],"phase",-pi/2}});
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",10,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});
- agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_spline", {"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
+% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});
+ % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_spline", {"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
  % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[0,0,0]}, "HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 24,"hold_time",5,}});
-% agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 0.6], "size", [1 1 0], "phase", pi/2}}); 
+agent.reference.time_varying = TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 0.6], "size", [1 1 0], "phase", pi/2}}); 
 % agent.reference.time_varying = MPC_POINT_REFERENCE(agent, {struct("f", [0;0;0.6], "g", [0;-1;0.6], "h",[-1;-1;0.6],"j",[-1;1;0.6],"k",[1;1;0.6],"z",[1;-1;0.6],"v",[-1;-1;0.6]), 6}); % P2P
 agent.controller.hlmpc =HL_MPC(agent,Controller_HL_MPC(dt, agent));
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
