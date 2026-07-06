@@ -54,10 +54,10 @@ classdef MOTIVE < handle
                 args.initq = [];
                 % --- 定常偏差補正のパラメータ ---
                 args.bias_enable = true;   % 補正使用の有無
-                args.bias_tau = 2.0;       % [s] 補正を反映する時定数（緩やかさ）
+                args.bias_tau = 1.0;       % [s] 補正を反映する時定数（緩やかさ）
                 args.bias_ref_time = 2.0;  % [s] referenceが一定（完全一致）とみなす時間
                 args.bias_att_time = 2.0;  % [s] 姿勢が一定とみなす時間
-                args.bias_sigma_deg = 1; % [deg] 姿勢変動の許容幅 σ
+                args.bias_sigma_rad = 0.01; % [rad] 姿勢変動の許容幅 σ
             end
 
             %%% Output equation %%%
@@ -90,7 +90,7 @@ classdef MOTIVE < handle
             obj.bias.tau = args.bias_tau;
             obj.bias.ref_time = args.bias_ref_time;
             obj.bias.att_time = args.bias_att_time;
-            obj.bias.sigma_deg = args.bias_sigma_deg;
+            obj.bias.sigma_rad = args.bias_sigma_rad;
             obj.bias.dt = dt;
             obj.bias.q = quaternion(1, 0, 0, 0);        % 恒等回転（補正なし）で初期化
             obj.bias.q_target = obj.bias.q;
@@ -175,6 +175,8 @@ classdef MOTIVE < handle
             % obj.result.on_feature_num = data.local_marker_nums(id);
             % obj.result.dt = data.time - obj.old_time;
             obj.result.output = output;
+            [bias_q1, bias_q2, bias_q3, bias_q4] = parts(obj.bias.q);
+            obj.result.bias_q = Quat2Eul([bias_q1, bias_q2, bias_q3, bias_q4]');
             % obj.old_time = data.time;
             result = obj.result;
         end % function do
@@ -224,7 +226,7 @@ classdef MOTIVE < handle
 
             % referenceは許容幅を設けず、完全に一致しているか(tol=0)で判定する
             ref_const = obj.check_window_constant(obj.bias.ref_buffer, obj.bias.ref_count, obj.bias.ref_time, 0);
-            att_const = obj.check_window_constant(obj.bias.att_buffer, obj.bias.att_count, obj.bias.att_time, deg2rad(obj.bias.sigma_deg));
+            att_const = obj.check_window_constant(obj.bias.att_buffer, obj.bias.att_count, obj.bias.att_time, obj.bias.sigma_rad);
 
             if ref_const && att_const
                 if ~obj.bias.is_hovering
