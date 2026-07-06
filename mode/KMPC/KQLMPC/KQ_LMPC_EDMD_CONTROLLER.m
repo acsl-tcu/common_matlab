@@ -1,64 +1,94 @@
 classdef KQ_LMPC_EDMD_CONTROLLER< handle
+% =========================================================================
+%  KQ-LMPC (Koopman Quasi-linear LPV-MPC) + 补偿系(EDMD残差/垂直PI/PID/DOB)
+%  -----------------------------------------------------------------------
+%  核心: K_MPC() 内の LPV-MPC (解析的Koopman A + 状態依存B(沿horizon更新) + QP)
+%  补偿手段はすべて flag で切替, デフォルト全OFF (纯LPV-MPC):
+%    - obj.pidflag         : 外部PID补偿       (デフォルト 0)
+%    - obj.dobflag         : DOB扰动估计       (デフォルト 0)
+%    - param.residual.mode : EDMD残差补偿      (デフォルト 0)
+%    - obj.lpvflag         : B沿horizon逐步更新 (デフォルト 1 = 修正版, 0 = 旧冻结B)
+%  旧モンテカルロ/STL/K_LQRテスト実装はコメントアウト済み
+%  -----------------------------------------------------------------------
+%  [構造修正一覧]
+%   (1) B行列: 当前状态处冻结 → 沿horizon逐步更新 (lpvflag, 长horizon抖振の主因対策)
+%   (2) A_d・B積分核: 定数なのに毎周期再離散化していた → コンストラクタでキャッシュ
+%   (3) persistent変数(firstRun/pos_integ/yaw_integ) → プロパティ化
+%       (同一MATLABセッションで再実験すると前回の値が残るバグを解消)
+%   (4) DOB: 前馈符号が逆(外乱を倍加する向き) → 減算に修正 / 予測は前周期のBと対で実施
+%   (5) PID条件積分: if/else両分岐が同一処理で条件が無意味だった → anti-windupとして実装
+%   (6) 隠し重み diag([1,50,50,20]) → weight.RP_axis としてパラメータファイルへ
+%   (7) generate_reference: 計算直後に破棄していた euler/w (死代码) を整理
+% =========================================================================
+% =========================================================================
 
     properties
-        options % QP
-        param
-        current_state
-        input
-        state
-        const
-        reference
-        fRemove
-        model
-        result
-        self
-        sigma
-        tss
+        % ===== コア (LPV-MPC本体で使用) =====
+        options        % quadprog options
+        param          % Controller_KQ_LMPC_EDMD.m で設定したパラメータ
+        current_state  % 現在状態 (12次元)
+        input          % 入力関連
+        state          % lifted状態・参照
+        result         % 出力 (framework/loggerから参照)
+        self           % agent
+        % ----- 旧実装の名残り (未使用) -----
+        % const
+        % reference
+        % fRemove
+        % model
+        % sigma
+        % tss
     end
     properties
-        % よく使うパラメータはobj.○○とする
-        modelf
-        modelp
-        P % drone parameter
-        N % 現時刻のパーティクル数
-        H % horizon
-        weight
-        koopman
-        qpparam % 二次計画法QPのパラメータ
-        previous_input % 前時刻入力
-        gen_beq
-        removeN
-        survive
-        removeX
-        flag
-        reinput
-        reEva
-        StageStateSTLsum
-        STL_period = [2,4]
-        quadH
-        quadf
-        sw
-        drf
-        act
-        m=3
-        n=2
-        Q
-        R
-        A_d
-        last_u_ff
-        integral_error
-       exec_counter
-       residual
-       residual_ref_state
-      pos_integ
-    U_integ_single
-    pidflag
-    dobflag = 0
-      d_hat = []           % 扰动估计
-    z_prev_dob = []      % 上一步 z（DOB 用，区别于速度形式的 z_prev）
-    u_prev_dob = []  
-    u_offset_dob % 上一步 u（DOB 用）
+        modelf         % plantのmethod
+        P              % ドローンパラメータ
+        H              % 予測ホライズン
+        weight         % MPC重み
+        koopman        % 解析的Koopman A/B
+        quadH          % QPのHessian
+        quadf          % QPの勾配
+        m = 3          % 観測量チェーン次数 (p, y, h)
+        n = 2          % SO(3)ブロック数
+        lpvflag = 1    % [修正] 1: B沿horizon逐步更新(真LPV, デフォルト), 0: 当前状态处冻结B(旧実装・対照用)
+        first_run_done = 0 % [修正] 初回スキップ判定 (旧persistent firstRunの置き換え)
+        % ----- 补偿系 (flag/modeで有効化, デフォルトOFF) -----
+        pidflag            % 外部PID补偿 ON/OFF
+        dobflag = 0        % DOB扰动估计 ON/OFF
+        integral_error     % 垂直PI用 (residual.mode==3)
+        residual           % EDMD残差补偿
+        residual_ref_state
+        z_prev_dob = []    % DOB: 前ステップ z
+        u_prev_dob = []    % DOB: 前ステップ u
+        u_offset_dob       % DOB: 入力オフセット推定
+        B_prev_dob = []    % [修正] DOB: 前周期のB_d (予測はz,u,Bを同周期の組で行う)
+        yaw_integ = 0      % [修正] PID: yaw積分 (旧persistentの置き換え)
+        pos_integ
+        U_integ_single
+        % ----- 旧MC/STL/K_LQRテスト実装の名残り (未使用) -----
+        % N              % モンテカルロ粒子数
+        % Q              % K_LQR用
+        % R              % K_LQR用
+        % A_d
+        % last_u_ff
+        % exec_counter
+        % d_hat
+        % qpparam
+        % previous_input
+        % gen_beq
+        % removeN
+        % survive
+        % removeX
+        % flag
+        % reinput
+        % reEva
+        % StageStateSTLsum
+        % sw
+        % drf
+        % act
+        % modelp
+        % STL_period = [2,4]
     end
+
     methods (Static)
         function [Ad, Bd] = c2d_rk4(Ac, Bc, dt, damp_factor)
             if nargin < 4
@@ -78,81 +108,77 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
     end
     methods
         function obj = KQ_LMPC_EDMD_CONTROLLER(self, param)
-            %-- 変数定義
-            obj.self = self; % agent
-            obj.param = param; % param = Controller_MPC_HLMC.mで設定したパラメーター
-            %% flag defination
+            %% ===== 基本設定 =====
+            obj.self = self;                  % agent
+            obj.param = param;                % Controller_KQ_LMPC_EDMD.m のパラメータ
             obj.modelf = obj.self.plant.method;
-            obj.P = obj.self.parameter.get(); % ドローンのパラメータ（質量，ロータ間距離，慣性モーメントなど）
-            obj.N = param.particle_num; % サンプル数
-            obj.H = param.H; % ホライズン
-            % 重みの配列サイズ変換
-            obj.weight = param.weight; % 重みを変数に保存
-            obj.weight.stagestate = blkdiag(obj.weight.P, obj.weight.Q, obj.weight.V, obj.weight.W); % blkdiagで配列同士を結合
-            obj.weight.terminalstate = blkdiag(obj.weight.Pf, obj.weight.Qf, obj.weight.Vf, obj.weight.Wf);
-            obj.weight.input = param.weight.R;  % 目標入力
-            obj.weight.preinputdif = param.weight.RP; % 前ステップとの入力
-            % 入力の初期化
-            obj.result.input = obj.param.ref_input; % 目標入力 初期時刻にresultを定義しておかないと実行時にエラー出る
-            obj.input = obj.param.input; %入力関連のみ
-            obj.input.pre_u = repmat(obj.result.input,1,obj.H); % 前入力
-            obj.input.var = repmat(obj.param.ref_input,obj.H,1);
-            obj.result.Bestcost_STL = 0;
-            obj.input.sigma = param.input.Initsigma;
-            % MPCパラメータ初期化 = メモリの確保
-            obj.result.bestx(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1); % - 制約外は前の評価値を引き継ぐ
-            obj.result.besty(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1); % - 制約外は前の評価値を引き継ぐ
-            obj.result.bestz(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1); % - 制約外は前の評価値を引き継ぐ
-            obj.state.state_data = zeros(obj.param.state_size,obj.H, obj.N);
-            obj.result.Evaluationtra = zeros(obj.N, 2);
+            obj.P = obj.self.parameter.get(); % ドローンのパラメータ (質量, 慣性モーメントなど)
+            obj.H = param.H;                  % 予測ホライズン
+
+            %% ===== 机能flag (补偿手段, 默认全部关闭 → 纯LPV-MPC) =====
+            obj.pidflag = 0;   % 外部PID补偿 (1=ON)  ※テスト・補足用
+            obj.dobflag = 0;   % DOB扰动估计 (1=ON)  ※テスト用
+            obj.lpvflag = 1;   % [修正] B沿horizon逐步更新 (1=真LPV/修正版, 0=旧冻结B対照)
+            % EDMD残差补偿は param.residual.mode で切替 (0=OFF, デフォルト)
+
+            %% ===== MPC 重み =====
+            obj.weight = param.weight;
+            obj.weight.input = param.weight.R;        % 入力の目標値との差
+            obj.weight.preinputdif = param.weight.RP; % 前ステップ入力との差 (Δu)
+            if ~isfield(obj.weight, 'RP_axis')        % [修正] 旧: K_MPC内に隠れていた各軸倍率
+                obj.weight.RP_axis = [1; 50; 50; 20]; % 旧パラメータファイルとの互換用フォールバック
+            end
+            % 下記2つは K_MPC 内で w_vec を直接構成するため未使用
+            % obj.weight.stagestate = blkdiag(obj.weight.P, obj.weight.Q, obj.weight.V, obj.weight.W);
+            % obj.weight.terminalstate = blkdiag(obj.weight.Pf, obj.weight.Qf, obj.weight.Vf, obj.weight.Wf);
+
+            %% ===== 入力・結果の初期化 =====
+            obj.result.input = obj.param.ref_input; % 初期時刻にresultを定義しておかないと実行時エラー
+            obj.input = obj.param.input;
+            obj.input.pre_u = repmat(obj.result.input, 1, obj.H); % 前入力
+            obj.input.sigma = param.input.Initsigma;              % show()の表示専用
             obj.result.pre_u = obj.input.pre_u;
-            sc = 0.01;
-            px = [1, 1, 1];
-            vx = [1, 1, 1];
-            w_p = [800, 500, 0];
-            w_v = [300, 300, 0];
-            w_g = 0* ones(1, obj.m);
-            w_z = [300, 200];
-            q_vec = [ kron(w_p, px), ...
-                kron(w_v, vx), ...
-                kron(w_g, ones(1,3)), ...
-                kron(w_z, ones(1,9)) ] * sc;
-            obj.Q = diag(q_vec);
-            obj.R = diag([10; 100; 100; 100]);
-            % obj.Q = eye(45);
-            % scale = 0.01;
-            % obj.Q(1:3, 1:3) =500 * eye(3) * scale;%p
-            % obj.Q(4:6, 4:6) = 500 * eye(3) * scale;%p＾2
-            % obj.Q(7:9, 7:9) = 0 * eye(3) * scale;%p＾3
-            % obj.Q(10:12, 10:12) = 300 * eye(3) * scale;%v
-            % obj.Q(13:15, 13:15) = 300 * eye(3) * scale;%v＾2
-            % obj.Q(16:18, 16:18) = 0 * eye(3) * scale;%v＾3
-            % obj.Q(19:27, 19:27) = 0.1 * eye(9) * scale;  %g
-            % obj.Q(28:36, 28:36) = 300 * eye(9) * scale;%q
-            % obj.Q(37:45, 37:45) = 200 * eye(9) * scale;%w
-            % obj.R = diag([2; 100; 100; 100]);
-            % obj.input.mu = param.ref_input;
-            % A, B行列定義 z, x, y, yawの順番ベクトル化 speical defination for koopman
-            % obj.koopman = param.koopman;
-            % C = repmat({obj.koopman.C}, 1, obj.H);
-            % obj.koopman.ExC = blkdiag(C{:});
-            % [obj.koopman.ExA,obj.koopman.ExB] = ExtendedCoefficientMatrix_kyo({obj.koopman.A,obj.koopman.B,obj.H,param.state_size}); % 一括計算 2025/1/21確認
-            %%Koopman予測に基づく拡張行列  　
-            obj.koopman.A =zeros(45,45);
-            obj.koopman.B =zeros(45,4);
             obj.result.bestcost = obj.input.Bestcost_now;
-            obj.koopman.A=obj.get_Koopman_A(obj.m,obj.n);
+
+            %% ===== 解析的 Koopman モデル (Aは構造固定, Bは毎ステップ現在状態で構成) =====
+            obj.koopman.A = zeros(45, 45);
+            obj.koopman.B = zeros(45, 4);
+            obj.koopman.A = obj.get_Koopman_A(obj.m, obj.n);
+            % [修正] Aは定数 → 離散化A_dとB積分核(4次Taylor)は初回のみ計算してキャッシュ
+            %        旧実装は毎周期 c2d_rk4 で再計算していた (結果は同一, 計算だけ無駄)
+            Mk = obj.koopman.A * obj.param.dt;
+            obj.koopman.A_d  = eye(45) + Mk + (1/2)*Mk^2 + (1/6)*Mk^3 + (1/24)*Mk^4;
+            obj.koopman.Bint = (eye(45) + (1/2)*Mk + (1/6)*Mk^2 + (1/24)*Mk^3) * obj.param.dt; % B_d = Bint * B_c
+
+            %% ===== 补偿系の初期化 (flag OFFでも構造体だけ用意しておく) =====
             obj.residual = obj.initialize_residual_model(param);
-            obj.integral_error = zeros(4,1);
+            obj.integral_error = zeros(4, 1);
             obj.residual_ref_state = [];
             obj.pos_integ = zeros(3, 1);
+            obj.yaw_integ = 0;
             obj.U_integ_single = zeros(4, 1);
-            obj.pidflag = 1;
-            
+
+            %% ===== quadprog ウォームアップ (初回求解の遅延防止) =====
             H = eye(2);
             f = zeros(2, 1);
             quadprog(H, f, [], [], [], [], [], [], [], optimset('Display', 'off'));
             fprintf('[warmup] Optimization toolbox preloaded.\n');
+
+            %% ----- 以下は旧モンテカルロ/K_LQRテスト用 (未使用のためコメントアウト) -----
+            % obj.N = param.particle_num;
+            % obj.input.var = repmat(obj.param.ref_input, obj.H, 1);
+            % obj.result.Bestcost_STL = 0;
+            % obj.result.bestx(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1);
+            % obj.result.besty(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1);
+            % obj.result.bestz(1, :) = repmat(obj.input.Bestcost_now(1), obj.param.H, 1);
+            % obj.state.state_data = zeros(obj.param.state_size, obj.H, obj.N); % 50000粒子分の巨大メモリ確保 (QP経路では不要)
+            % obj.result.Evaluationtra = zeros(obj.N, 2);
+            % --- K_LQR用の重み ---
+            % sc = 0.01; px = [1, 1, 1]; vx = [1, 1, 1];
+            % w_p = [800, 500, 0]; w_v = [300, 300, 0]; w_g = 0*ones(1, obj.m); w_z = [300, 200];
+            % q_vec = [kron(w_p, px), kron(w_v, vx), kron(w_g, ones(1,3)), kron(w_z, ones(1,9))] * sc;
+            % obj.Q = diag(q_vec);
+            % obj.R = diag([10; 100; 100; 100]);
         end
         %-- main()的な
         function result = do(obj,varargin)
@@ -172,9 +198,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             toc
         end
         function result = controller_KMC(obj,varargin)
-            persistent firstRun
-            if isempty(firstRun)
-                firstRun = true;
+            % [修正] persistent → プロパティ化
+            % 旧実装のpersistentはオブジェクトを作り直しても値が残るため,
+            % 同一セッションで実験を再実行すると初回スキップが働かなかった
+            if obj.first_run_done == 0
+                obj.first_run_done = 1;
                 result = obj.result;
                 return
             end
@@ -185,7 +213,14 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.K_MPC();
             result = obj.result;
         end
-
+        %% =================================================================
+        %  [テスト用・未使用] K_LQR : lifted状態に対する dlqr フィードバック
+        %  LPV-MPCとの比較実験用。復帰する場合:
+        %   1) 下の %{ %} を外す
+        %   2) コンストラクタの obj.Q, obj.R とプロパティ Q, R を復帰
+        %   3) controller_KMC 内の obj.K_LQR() を有効化
+        %% =================================================================
+        %{
         function K_LQR(obj)
 
             n = size(obj.state.current,1);
@@ -239,28 +274,56 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.input.pre_u = obj.result.input;
             obj.result.pre_u = obj.input.pre_u;
         end
+        %}
+        %% =================================================================
+        %  [核心] LPV-MPC: 解析Koopman A(固定) + B(沿horizon逐步更新, lpvflag=1) → QP求解
+        %  流程: 离散化(缓存) → 逐步B + 扩展预测矩阵 → 参考lift → 权重 → gen_Hf → quadprog
+        %  ※ DOB/EDMD/垂直PI/PID 均为可选补偿, flag默认OFF时本函数=纯LPV-MPC
+        %% =================================================================
         function K_MPC(obj)
-            %% ===== 离散化 =====
-            [A_d, B_d] = KQ_LMPC_EDMD_CONTROLLER.c2d_rk4(obj.koopman.A, obj.koopman.B, obj.param.dt);
-            [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d, B_d, obj.H, obj.param.state_size});
+            %% ===== 离散化 + 预测矩阵 =====
+            A_d = obj.koopman.A_d; % [修正] Aは定数: キャッシュ済みA_dを使用 (旧: 毎周期c2d_rk4)
+            if obj.lpvflag == 1
+                %% [修正·核心] B沿horizon逐步更新 (真LPV预测)
+                % 旧実装: 当前状态のBを全horizonで冻结 → B(R,ω)は未来H步で不変と仮定
+                %   → 长horizon时远端预测失真, 每拍计划翻转 = 输入抖振の構造要因
+                % 修正: 各step kのBを「当前状态 → 参考状态」の線形ブレンド状態で評価
+                %   (追従が良ければブレンド≈参考軌道, 誤差が大きい近端は当前状态を反映)
+                B_seq = cell(obj.H, 1);
+                B_seq{1} = obj.koopman.Bint * obj.koopman.B; % k=1は当前状态 (controller_KMCで構築済みのBを再利用)
+                for k = 2:obj.H
+                    ratio = (k-1) / max(obj.H-1, 1);
+                    x_k = (1-ratio)*obj.current_state(:) + ratio*obj.state.ref(1:12, k);
+                    Bc_k = obj.get_Koopman_B(x_k, obj.klift(x_k, obj.m, obj.n), obj.m, obj.n, obj.param);
+                    B_seq{k} = obj.koopman.Bint * Bc_k;
+                end
+                B_d = B_seq{1}; % 近端B (DOB等で使用)
+                [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix_LPV(A_d, B_seq, obj.H);
+            else
+                % 旧実装: 当前状态处冻结B (対照実験用に保持)
+                B_d = obj.koopman.Bint * obj.koopman.B;
+                [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d, B_d, obj.H, obj.param.state_size});
+            end
             n = size(obj.state.current, 1);
 
           
-            %% ===== DOB 估计扰动（在 MPC 求解之前）=====
+            %% ===== [补偿·可选] DOB 估计扰动 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
                 if isempty(obj.z_prev_dob) || isempty(obj.u_prev_dob)
                     % 首次运行
                     obj.u_offset_dob = zeros(size(obj.input.pre_u(:,1)));
                 else
                     % 实测扰动
-                    z_predicted = A_d * obj.z_prev_dob + B_d * obj.u_prev_dob;
+                    if isempty(obj.B_prev_dob), obj.B_prev_dob = B_d; end
+                    % [修正] 予測は「前周期のz,u,B」の組で行う (旧: 当周期のB_dを流用)
+                    z_predicted = obj.B_prev_dob * obj.u_prev_dob + A_d * obj.z_prev_dob;
                     d_observed = obj.state.current - z_predicted;
 
                     % 死区：扰动太小则不更新（避免噪声放大）
                     if norm(d_observed) > 1e-4
                         % 正则化最小二乘（替代 pinv，数值更稳定）
                         lambda_reg = 0.01;
-                        u_offset_inst = (B_d' * B_d + lambda_reg * eye(size(B_d, 2))) \ (B_d' * d_observed);
+                        u_offset_inst = (obj.B_prev_dob' * obj.B_prev_dob + lambda_reg * eye(size(obj.B_prev_dob, 2))) \ (obj.B_prev_dob' * d_observed); % [修正] dと同じ周期のBで射影
 
                         % 一阶低通滤波
                         alpha_dob = 0.1;
@@ -275,6 +338,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     % 抗饱和
                     u_offset_limit = obj.param.input_max * 0.3;
                     obj.u_offset_dob = max(min(obj.u_offset_dob, u_offset_limit), -u_offset_limit);
+                    % [修正] デバッグ表示をここへ移動 (旧: K_MPC末尾で同時刻のzと比較する誤った再計算をしていた)
+                    fprintf('[DOB] |d_obs|=%.4f, d_pos=[%.4f %.4f %.4f], u_offset=[%.4f %.4f %.4f %.4f]\n', ...
+                        norm(d_observed), ...
+                        d_observed(1), d_observed(2), d_observed(3), ...
+                        obj.u_offset_dob(1), obj.u_offset_dob(2), obj.u_offset_dob(3), obj.u_offset_dob(4));
                 end
             else
                 obj.u_offset_dob = zeros(size(obj.input.pre_u(:,1)));
@@ -306,7 +374,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             %% ===== 输入参考 =====
             Ur = reshape(obj.state.ref(13:16, :), [], 1);
 
-            %% ===== 权重矩阵（完全照搬原版）=====
+            %% ===== 权重矩阵 (lifted空间中的stage权重 w_vec) =====
             w_vec = zeros(n, 1);
             if obj.m >= 1, w_vec(1:3) = diag(obj.weight.P) * 1; end
             if obj.m >= 2, w_vec(4:6) = diag(obj.weight.P) * 0.7; end
@@ -348,7 +416,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             Q_terminal = 1 * Q_stage;
             Q_bar      = blkdiag(kron(eye(obj.H-1), Q_stage), Q_terminal);
             R_bar      = kron(eye(obj.H), obj.weight.input);
-            RP_bar     = kron(eye(obj.H), obj.weight.preinputdif*diag([1, 50, 50, 20]);
+            RP_bar     = kron(eye(obj.H), obj.weight.preinputdif*diag(obj.weight.RP_axis)); % [修正] 隠し倍率[1,50,50,20]を weight.RP_axis としてパラメータ化
             Up         = repmat(obj.input.pre_u(:,1), obj.H, 1);
 
             %% ===== QP 构造与求解 =====
@@ -374,50 +442,49 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.result.input = var(1:4, 1);
             obj.result.u_nom = obj.result.input;
 
-            %% ===== DOB 前馈补偿（叠加在 MPC 输出之前的 nom 上）=====
+            %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
-                obj.result.input = obj.result.input + obj.u_offset_dob;
+                % [修正] 符号: d ≈ B·δ と推定した δ (外乱の入力等価量) は指令から「引く」ことで打ち消す
+                %        旧実装は加算しており, 外乱を打ち消すどころか倍加する向きだった
+                obj.result.input = obj.result.input - obj.u_offset_dob;
                 obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
             end
 
-            %% ===== EDMD 残差补偿（你原有逻辑，保留）=====
+            %% ===== [补偿·可选] EDMD 残差补偿 (param.residual.mode~=0 时启用, 默认OFF) =====
             obj.result.delta_u_edmd  = obj.compute_residual_delta_u(obj.result.u_nom);
             obj.result.delta_u_z     = obj.compute_vertical_delta_u(obj.result.u_nom);
             obj.result.u_total_pre_sat = obj.result.input + obj.result.delta_u_edmd + obj.result.delta_u_z;
             obj.result.input = obj.result.u_total_pre_sat;
             obj.result.input = max(min(obj.result.input, obj.param.input_max), obj.param.input_min);
 
-            %% ===== PID 补偿（你原有逻辑，保留）=====
+            %% ===== [补偿·可选] 外部PID补偿 (pidflag==1 时启用, 默认OFF) =====
             if obj.pidflag == 1
-                persistent pos_integ
-                if isempty(pos_integ), pos_integ = zeros(3,1); end
-                persistent yaw_integ
-                if isempty(yaw_integ), yaw_integ = 0; end
-
+                % [修正] persistent → プロパティ化 (再実験時に積分値が残るバグを解消)
                 e_pos = obj.state.ref(1:3, 1) - obj.current_state(1:3);
                 e_vel = obj.state.ref(7:9, 1) - obj.current_state(7:9);
                 e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
                 e_yaw_rate = obj.state.ref(12, 1) - obj.current_state(12);
 
+                % [修正] 条件積分(anti-windup): 旧実装はif/else両分岐が同一処理で条件が無意味だった
+                % 意図通り「xy誤差が大きい過渡中はxy積分を停止, zは常に積分」として実装
                 if norm(e_pos(1:2)) < 0.2
-                    pos_integ(1:2) = pos_integ(1:2) + e_pos(1:2) * obj.param.dt;
-                    pos_integ(3)   = pos_integ(3) + e_pos(3) * obj.param.dt;
+                    obj.pos_integ = obj.pos_integ + e_pos * obj.param.dt;
                 else
-                    pos_integ = pos_integ + e_pos * obj.param.dt;
+                    obj.pos_integ(3) = obj.pos_integ(3) + e_pos(3) * obj.param.dt;
                 end
-                pos_integ = max(min(pos_integ, [2.0; 2.0; 1.0]), -[2.0; 2.0; 1.0]);
-                yaw_integ = yaw_integ + e_yaw * obj.param.dt;
-                yaw_integ = max(min(yaw_integ, 0.5), -0.5);
+                obj.pos_integ = max(min(obj.pos_integ, [2.0; 2.0; 1.0]), -[2.0; 2.0; 1.0]);
+                obj.yaw_integ = obj.yaw_integ + e_yaw * obj.param.dt;
+                obj.yaw_integ = max(min(obj.yaw_integ, 0.5), -0.5);
 
                 Kp_x = 0.20;  Kd_x = 0.50;  Ki_x = 0.05;
                 Kp_y = 0.20;  Kd_y = 0.55;  Ki_y = 0.05;
                 Kp_z = 2.0;   Kd_z = 1.0;   Ki_z = 0.5;
                 Ki_yaw = 0.03; Kp_yaw = 0.2; Kd_yaw = 0.05;
 
-                delta_u_pitch  =  (Kp_x * e_pos(1) + Kd_x * e_vel(1) + Ki_x * pos_integ(1));
-                delta_u_roll   = -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * pos_integ(2));
-                delta_u_thrust =  (Kp_z * e_pos(3) + Kd_z * e_vel(3) + Ki_z * pos_integ(3));
-                delta_u_yaw    =   Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * yaw_integ;
+                delta_u_pitch  =  (Kp_x * e_pos(1) + Kd_x * e_vel(1) + Ki_x * obj.pos_integ(1));
+                delta_u_roll   = -(Kp_y * e_pos(2) + Kd_y * e_vel(2) + Ki_y * obj.pos_integ(2));
+                delta_u_thrust =  (Kp_z * e_pos(3) + Kd_z * e_vel(3) + Ki_z * obj.pos_integ(3));
+                delta_u_yaw    =   Kp_yaw * e_yaw + Kd_yaw * e_yaw_rate + Ki_yaw * obj.yaw_integ;
 
                 obj.result.input(1) = obj.result.input(1) + delta_u_thrust;
                 obj.result.input(2) = obj.result.input(2) + delta_u_roll;
@@ -435,20 +502,12 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.input.pre_u          = obj.result.input;
             obj.result.pre_u         = obj.input.pre_u;
 
-            %% ===== DOB 历史更新（用最终实际施加的输入）=====
+            %% ===== [补偿·可选] DOB 历史更新 (dobflag==1 时启用) =====
             if obj.dobflag == 1
                 obj.z_prev_dob = obj.state.current;
-                obj.u_prev_dob = obj.result.input;   % ★ 不含 PID/EDMD
-            end
-            if obj.dobflag == 1 && ~isempty(obj.z_prev_dob)
-                z_predicted = A_d * obj.z_prev_dob + B_d * obj.u_prev_dob;
-                d_observed = obj.state.current - z_predicted;
-
-                % 投影到位置子空间（看 d 在物理意义清晰的分量上的值）
-                fprintf('[DOB-debug] |d_obs|=%.4f, d_pos=[%.4f %.4f %.4f], u_offset=[%.4f %.4f %.4f %.4f]\n', ...
-                    norm(d_observed), ...
-                    d_observed(1), d_observed(2), d_observed(3), ...
-                    obj.u_offset_dob(1), obj.u_offset_dob(2), obj.u_offset_dob(3), obj.u_offset_dob(4));
+                obj.u_prev_dob = obj.result.input; % [修正] 実際に印加する最終入力(補償込み)。旧コメント「不含PID/EDMD」は実装と矛盾していた
+                obj.B_prev_dob = B_d;              % [修正] 次周期の予測用に同周期のBを対で保存
+                % (旧: ここでz_predictedを再計算しデバッグ表示 → 同時刻のzと比較する誤った計算のため推定部へ移動済み)
             end
 
         end
@@ -468,7 +527,10 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             f = (2*(A*x0 - Xr)'*Q*B - 2*Ur'*R - 2*Up'*Rp)';
 
         end
-       
+
+        %% =================================================================
+        %  以下、补偿系 (flag/modeで有効化, デフォルトOFF)
+        %% =================================================================
         function residual = initialize_residual_model(obj, param)
             residual = struct();
             residual.mode = 0;
@@ -762,7 +824,10 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 y = x;
             end
         end
-       
+
+        %% =================================================================
+        %  以下、解析的 Koopman モデル構成 (LPV-MPC核心の構成要素)
+        %% =================================================================
         function calB = get_Koopman_B(obj,x,xlift,M,N,params)
             p1 = xlift(1:3);
             y1 = xlift(3*M+1 : 3*M+3);
@@ -870,83 +935,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             A(9*M+1:end, 9*M+1:end) = A_so3;
 
         end
-   
-        %% 目標軌道生成
-        % function [xr] = generate_reference(obj)
-        %     xr = zeros(obj.param.total_size, obj.H);    % initialize
-        %     RefTime = obj.self.reference.time_var.func; % 時間関数の取得
-        %     % for h = 0:obj.param.H-1
-        %     %     t = obj.param.t + obj.param.dt * h; % reference生成の時刻をずらす
-        %     %     ref = RefTime(t);
-        %     %     xr(1:3, h+1) = ref(1:3);
-        %     %     xr(7:9, h+1) = ref(5:7);
-        %     %     xr(4:6, h+1) =   [0;0;0]; % 姿勢角
-        %     %     xr(10:12, h+1) = [0;0;0];
-        %     %     xr(13:16, h+1) = obj.param.ref_input; % MC -> 0.6597,   HL -> 0
-        %     % end
-        %     g = 9.81;
-        %     prev_euler = zeros(3,1);
-        %     for h = 0:obj.H-1
-        %         t   = obj.param.t + obj.param.dt * h;    % reference生成の時刻をずらす
-        %         ref = RefTime(t);                        % 20x1
-        %         acc = ref(9:11);                         % ddx, ddy, ddz
-        %         yaw = ref(4);                            % yaw
-        %         s  = acc + [0;0;g];
-        %         b3 = s / norm(s);
-        %         b1c = [cos(yaw); sin(yaw); 0];
-        %         v = cross(b3, b1c);
-        %         if norm(v) < 1e-6
-        %             if abs(b3(3))<0.9, b1=[0;0;1]; else, b1=[1;0;0]; end
-        %             b2 = cross(b3,b1); b2=b2/norm(b2); b1=cross(b2,b3);
-        %         else
-        %             b2 = v/norm(v);  b1 = cross(b2,b3);
-        %         end
-        %         Rd = [b1,b2,b3];
-        %         phi   = atan2(Rd(3,2), Rd(3,3));
-        %         theta = asin(-Rd(3,1));
-        %         psi   = atan2(Rd(2,1), Rd(1,1));
-        %         euler = [phi;theta;psi];
-        %         if h == 0 && obj.H > 1
-        %             t_next   = t + obj.param.dt;
-        %             ref_next = RefTime(t_next);
-        %             acc_n    = ref_next(9:11);
-        %             yaw_n    = ref_next(4);
-        %             s_n  = acc_n + [0;0;g];
-        %             b3_n = s_n / norm(s_n);
-        %             b1c_n = [cos(yaw_n); sin(yaw_n); 0];
-        %             v_n = cross(b3_n, b1c_n);
-        %             if norm(v_n) < 1e-6
-        %                 if abs(b3_n(3))<0.9, b1_n=[0;0;1]; else, b1_n=[1;0;0]; end
-        %                 b2_n = cross(b3_n,b1_n); b2_n=b2_n/norm(b2_n); b1_n=cross(b2_n,b3_n);
-        %             else
-        %                 b2_n = v_n/norm(v_n);  b1_n = cross(b2_n,b3_n);
-        %             end
-        %             Rd_n = [b1_n,b2_n,b3_n];
-        %             phi_n   = atan2(Rd_n(3,2), Rd_n(3,3));
-        %             theta_n = asin(-Rd_n(3,1));
-        %             psi_n   = atan2(Rd_n(2,1), Rd_n(1,1));
-        %             euler_n = [phi_n;theta_n;psi_n];
-        %             euler_dot = (euler_n - euler) / obj.param.dt;
-        %             euler_dot(3) = ref(8);
-        %         elseif h == 0 && obj.H == 1
-        %             euler_dot = [0;0;ref(8)];
-        %         else
-        %             euler_dot = (euler - prev_euler) / obj.param.dt;
-        %             euler_dot(3) = ref(8);
-        %         end
-        %         prev_euler = euler;
-        %         T = [ 1, 0, -sin(theta);
-        %             0, cos(phi),  cos(theta)*sin(phi);
-        %             0, -sin(phi), cos(theta)*cos(phi) ];
-        %         w = T * euler_dot;
-        %         xr(1:3,   h+1) = ref(1:3);
-        %         xr(7:9,   h+1) = ref(5:7);
-        %         xr(4:6,   h+1) = euler;
-        %         xr(10:12, h+1) = w;
-        %         xr(13, h+1) = norm(s)*obj.param.m;
-        %         xr(14:16, h+1) = 0;
-        %     end
-        % end
+
+        %% 目標軌道生成 (differential-flatness ベース)
         function [xr] = generate_reference(obj)
             xr = zeros(obj.param.total_size, obj.H);
             RefTime = obj.self.reference.time_var.func;
@@ -959,40 +949,29 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 t = obj.param.tau + obj.param.dt * (h);
                 ref = RefTime(t);
                 acc = ref(9:11);
-                vel = ref(5:7);
-                jerk = ref(13:15);
-                yaw = 0;
-                dyaw = 0;
                 s = acc + [0;0;g];
-                norm_s = norm(s);
-                if norm_s < 1e-6
-                    b3 = [0; 0; 1];
-                else
-                    b3 = s / norm_s;
-                end
-                b1c = [cos(yaw); sin(yaw); 0];
-                v = cross(b3, b1c);
-                if norm(v) < 1e-6
-                    if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
-                    b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
-                else
-                    b2 = v/norm(v);
-                end
-                b1 = cross(b2, b3);
-                Rd = [b1,b2,b3];
-                phi = atan2(Rd(3,2), Rd(3,3));
-                theta = asin(-Rd(3,1));
-                psi = atan2(Rd(2,1), Rd(1,1));
-                euler = [0;0;0];
-                if norm_s < 1e-6
-                    w = [0; 0; 0];
-                else
-                    hw = (jerk - dot(b3, jerk) * b3) / norm_s;
-                    w_x = -dot(hw, b2);
-                    w_y = dot(hw, b1);
-                    w_z = dot(b3, [0;0;1]) * dyaw;
-                    w = [0; 0; 0];
-                end
+                norm_s = norm(s); % 参考推力の大きさ (質量を掛けてxr(13)へ)
+                % [整理] 参考姿态・角速度は現状「意図的にゼロ」(悬停系タスク前提)。
+                % 旧実装はdifferential flatnessでeuler/wを計算した直後に破棄していた(死代码)。
+                % 姿态・角速度前馈を使う場合は以下を有効化:
+                % yaw = 0; dyaw = 0;
+                % jerk = ref(13:15);
+                % b3 = s / max(norm_s, 1e-6);
+                % b1c = [cos(yaw); sin(yaw); 0];
+                % v = cross(b3, b1c);
+                % if norm(v) < 1e-6
+                %     if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
+                %     b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
+                % else
+                %     b2 = v/norm(v);
+                % end
+                % b1 = cross(b2, b3);
+                % Rd = [b1, b2, b3];
+                % euler = [atan2(Rd(3,2), Rd(3,3)); asin(-Rd(3,1)); atan2(Rd(2,1), Rd(1,1))];
+                % hw = (jerk - dot(b3, jerk) * b3) / max(norm_s, 1e-6);
+                % w = [-dot(hw, b2); dot(hw, b1); dot(b3, [0;0;1]) * dyaw];
+                euler = [0; 0; 0];
+                w = [0; 0; 0];
                 xr(1:3, h+1) = ref(1:3);
                 xr(7:9, h+1) = ref(5:7);
                 xr(4:6, h+1) = euler;
@@ -1052,121 +1031,28 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             ExB = S;
 
         end
-        function koopman_analysis(obj,A, B)
-            %         [n, ~] = size(A);
-            %         [~, m] = size(B);
-            %
-            %         fprintf('========== Koopman系統解析 ==========\n');
-            %         fprintf('状態次元: %d, 入力次元: %d\n\n', n, m);
-            %
-            %         %% 安定性解析
-            %         fprintf('--- 安定性解析 ---\n');
-            %         eig_vals = eig(A);
-            %         max_eig = max(abs(eig_vals));
-            %
-            %         fprintf('固有値:\n');
-            %         for i = 1:length(eig_vals)
-            %             fprintf('  λ%d = %.4f%+.4fi (|λ| = %.4f)\n', ...
-            %                 i, real(eig_vals(i)), imag(eig_vals(i)), abs(eig_vals(i)));
-            %         end
-            %
-            %         fprintf('最大固有値の絶対値: %.4f\n', max_eig);
-            %         if max_eig < 1
-            %             fprintf('判定: ✓ 安定 (単位円内)\n');
-            %         elseif max_eig == 1
-            %             fprintf('判定: ⚠ 臨界安定\n');
-            %         else
-            %             fprintf('判定: ✗ 不安定\n');
-            %         end
-            %         fprintf('安定余裕: %.4f\n\n', 1 - max_eig);
-            %
-            %         %% 可制御性解析
-            %         fprintf('--- 可制御性解析 ---\n');
-            %         C = B;
-            %         for i = 1:n-1
-            %             C = [C, A^i * B];
-            %         end
-            %         rank_C = rank(C);
-            %         ctrl_rate = (rank_C / n) * 100;
-            %
-            %         fprintf('可制御性行列のランク: %d/%d\n', rank_C, n);
-            %         if rank_C == n
-            %             fprintf('判定: ✓ 完全可制御\n');
-            %         else
-            %             fprintf('判定: ✗ 不完全可制御\n');
-            %             fprintf('不可制御部分空間: %d次元\n', n - rank_C);
-            %         end
-            %         fprintf('可制御度: %.1f%%\n\n', ctrl_rate);
-            %
-            %         %% データ影響解析
-            %         fprintf('--- データ影響解析 ---\n');
-            %
-            %         % A行列要素の影響
-            %         fprintf('【A行列】重要要素トップ5:\n');
-            %         A_inf = abs(A) / (sum(abs(A(:))) + eps);
-            %         [~, idx] = sort(A_inf(:), 'descend');
-            %         for i = 1:min(5, length(idx))
-            %             [r, c] = ind2sub(size(A), idx(i));
-            %             fprintf('  A(%d,%d)=%.4f, 影響率: %.2f%%\n', ...
-            %                 r, c, A(r,c), A_inf(r,c)*100);
-            %         end
-            %
-            %         % B行列要素の影響
-            %         fprintf('【B行列】重要要素トップ5:\n');
-            %         B_inf = abs(B) / (sum(abs(B(:))) + eps);
-            %         [~, idx_B] = sort(B_inf(:), 'descend');
-            %         for i = 1:min(5, length(idx_B))
-            %             [r, c] = ind2sub(size(B), idx_B(i));
-            %             fprintf('  B(%d,%d)=%.4f, 影響率: %.2f%%\n', ...
-            %                 r, c, B(r,c), B_inf(r,c)*100);
-            %         end
-            %
-            %         % 状態結合強度
-            %         fprintf('【状態結合】各状態への影響:\n');
-            %         coupling = sum(abs(A), 2);
-            %         [~, s_idx] = sort(coupling, 'descend');
-            %         for i = 1:n
-            %             si = s_idx(i);
-            %             fprintf('  x%d: 結合強度=%.4f, 影響率: %.2f%%\n', ...
-            %                 si, coupling(si), (coupling(si)/sum(coupling))*100);
-            %         end
-            %
-            %         % 入力チャネル影響
-            %         fprintf('【入力チャネル】システムへの影響:\n');
-            %         inp_inf = sum(abs(B), 1);
-            %         [~, i_idx] = sort(inp_inf, 'descend');
-            %         for i = 1:m
-            %             ii = i_idx(i);
-            %             fprintf('  u%d: 影響強度=%.4f, 影響率: %.2f%%\n', ...
-            %                 ii, inp_inf(ii), (inp_inf(ii)/sum(inp_inf))*100);
-            %         end
-            %
-            %         %% 総合評価
-            %         fprintf('\n--- 総合評価 ---\n');
-            %         fprintf('安定性: %s\n', obj.iif(max_eig<1, '✓ 安定', '✗ 不安定'));
-            %         fprintf('可制御性: %s\n', obj.iif(rank_C==n, '✓ 完全可制御', sprintf('✗ 部分可制御(%.1f%%)', ctrl_rate)));
-            %         fprintf('システム状態: ');
-            %         if max_eig<1 && rank_C==n
-            %             fprintf('良好 - 安定かつ完全可制御\n');
-            %         elseif max_eig<1
-            %             fprintf('中 - 安定だが不可制御モード有\n');
-            %         elseif rank_C==n
-            %             fprintf('中 - 不安定だが完全可制御\n');
-            %         else
-            %             fprintf('不良 - 不安定かつ不可制御モード有\n');
-            %         end
-            %         fprintf('=====================================\n');
-            %     end
-            %
-            %     function out = iif(obj,cond, true_val, false_val)
-            %         if cond
-            %             out = true_val;
-            %         else
-            %             out = false_val;
-            %         end
-            %     end
-            % end
-           
+        function [ExA, ExB] = ExtendedCoefficientMatrix_LPV(obj, A_d, B_seq, Horizon)
+            % [修正·新規] step毎に異なるB_kに対応した予測行列の構成 (真LPV)
+            %   x_{k} = A^k x_0 + Σ_{j=1..k} A^(k-j) B_j u_{j}
+            % B_seqが全て同一なら旧ExtendedCoefficientMatrixと数値的に一致する
+            nx = size(A_d, 1);
+            nu = size(B_seq{1}, 2);
+            Apow = cell(Horizon + 1, 1); % Apow{k+1} = A_d^k
+            Apow{1} = eye(nx);
+            for k = 1:Horizon
+                Apow{k+1} = A_d * Apow{k};
+            end
+            ExA = zeros(Horizon*nx, nx);
+            for i = 1:Horizon
+                ExA((i-1)*nx+1 : i*nx, :) = Apow{i+1};
+            end
+            ExB = zeros(Horizon*nx, Horizon*nu);
+            for j = 1:Horizon
+                Bj = B_seq{j};
+                for i = j:Horizon
+                    ExB((i-1)*nx+1 : i*nx, (j-1)*nu+1 : j*nu) = Apow{i-j+1} * Bj;
+                end
+            end
         end
     end
 end
