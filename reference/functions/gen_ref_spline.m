@@ -18,7 +18,6 @@ end
 
 ManualSetting = param.ManualSetting;
 %% ここから処理開始
-
     if ManualSetting ==1
         disp('Loading reference data from mat');
         % load(strcat('../Data/reference/', filename));

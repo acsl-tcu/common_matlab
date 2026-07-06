@@ -1,11 +1,20 @@
- ts = 0; % initial time
+tmp = matlab.desktop.editor.getActive;
+dir = fileparts(tmp.Filename);
+if ~contains(path,dir)
+    cd(erase(dir,'\mode'));
+[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+close all hidden; clear ; clc;
+userpath('clear');
+end
+ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 60; % terminal time
+te = 120; % terminal time
 % instance of time class
 post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
-initial_state.p = arranged_position([0, 0], 1, 1,0.6); % [x, y], 1, 1, z
+initial_state.p = arranged_position([0, 0], 1, 1,0); % [x, y], 1, 1, z
 initial_state.q = [1; 0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
@@ -14,14 +23,16 @@ initial_state.w = [0; 0; 0];
   %               -0.0150;0.0018;-0.0001;
   %               -0.0141;0.0040;-0.0050]; 
 %%
-% for j = 1:120
+
+% for j = 1:1
+
  % fprintf('Initializing... N:%d \n', j);
  % clear logger agent
  time = TIME(ts,dt,te); 
  % logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
  agent = DRONE;
 agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
- % agent.plant.param(1) = 0.73; % ５％増->0.7875, ５％減->0.7125
+ agent.plant.param(1) = 0.71; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 1.0;
 
 % agent.plant.param(6) = 0.24; % (1;1;1)P2PでのNNMECを入れたときの限界値
@@ -31,8 +42,10 @@ agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % agent.plant.param(6) = 0.15;
 % agent.plant.param(7) = 0.15;
 
-% agent.plant.param(6) = 0.12; % x2
-% agent.plant.param(7) = 0.12; % x2.5
+
+agent.plant.param(6) = 0.003; % x2
+agent.plant.param(7) = 0.006; % x2.5
+agent.plant.param(8) = 0.01;
 
 % agent.plant.param(10:13) = [0.003, 0.003, 0.003, 0.003];
 % agent.plant.param(4) = 0.07;
@@ -44,7 +57,9 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 % switch traj_index
 %     case 1       
 %       agent.reference = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[1,1,0]}, "HL"});
-%     case 2       
+
+%     case 2      
+
 %         agent.reference = TIME_VARYING_REFERENCE(agent, {"gen_ref_spline", {"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 %     case 3  
 %       agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",20,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});
@@ -53,7 +68,9 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 %     case 5  
 %         agent.reference = TIME_VARYING_REFERENCE(agent, {"gen_ref_heart", {"freq",20,"orig",[0 0 0.6],"size",[1 1 0],"phase",-pi/2}});
 %     case 6 
-%           agent.reference = TIME_VARYING_REFERENCE(agent, {"gen_ref_saddle", {"freq",7,"orig",[0;0;0.6],"size",[0,0,0]}, "HL"});
+
+%           agent.reference = TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 0.6], "size", [1 1 0], "phase", pi/2}});
+
 % end
         agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",7,"orig",[0;0;0.6],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",12,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
@@ -69,17 +86,29 @@ agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Eule
 % agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", [0;0;0.6], "g", [0;-1;0.6], "h",[0;1;0.6],"j",[0;0;0.6],"k",[1;0;0.6],"z",[0;0;0.6]), 6}); % P2P
 % agent.reference.time_var = RANDOM_POINT_REFERENCE(agent,{[0;0;0.6],[0;0;0.6],6,5}); % P2P
 %2つのコントローラの設定---------------------------------------------------------------------------------------------------
-agent.controller.hlc = HLC(agent,Controller_HL(dt));
-agent.controller.kqlmpc = KQ_LMPC_CONTROLLER(agent,Controller_KQ_LMPC(dt,agent)); %最適化手法：QP
+
+% agent.controller.hlc = HLC(agent,Controller_HL(dt));
+agent.controller.hlc_edmd = HLC_EDMD_MEC(agent, Controller_HL_EDMD_MEC(dt, ...
+    'C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\KQLMPC\edmd_residual_model_hl_plant.mat', ...
+    'plant',1));
+% agent.controller = KQ_LMPC_CONTROLLER(agent,Controller_KQ_LMPC(dt,agent)); %最適化手法：QP
+
 agent.reference.takeoff = TAKEOFF_REFERENCE(agent,[]);
 agent.reference.landing = LANDING_REFERENCE(agent,dt,0.1);
 agent.cha_allocation = struct("reference","time_varying", ...
     "a",struct("reference","takeoff"), "t",struct("reference","takeoff"),"l",struct("reference","landing"));
 
+
+
+% run("SimBase");
+
 agent.cha_allocation.reference = "time_var";
-agent.cha_allocation.controller = "hlc";
-% agent.cha_allocation.f.controller = ["kqlmpc","hlc"];
-agent.cha_allocation.f.controller = ["kqlmpc"];
+agent.cha_allocation.controller = "hlc_edmd";
+agent.cha_allocation.f.controller = ["hlc_edmd"];
+% agent.cha_allocation.controller = "hlc";
+% agent.cha_allocation.f.controller = ["hlc"];
+% agent.cha_allocation.f.controller = ["kqlmpc"];
+
 % timeidx = 60/dt;
 % for i = 1:timeidx       
 %         tic
@@ -94,8 +123,24 @@ agent.cha_allocation.f.controller = ["kqlmpc"];
 %         all = toc;
 % 
 % end
+
 %      logger.save(strcat('KQLMPC_', num2str(j)));
 %  end
+
+% logger.plot({1, "p", "er"},"fig_num", 5,"xrange",[time.ts,time.te],"linewidth", 2.5, ...
+    % "fontsize", 14);
+% app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "v", "e"},"ax",app.UIAxes3,"xrange",[app.time.ts,app.time.te]);
+% app.logger.plot({1, "input", ""},"fig_num", 2,"xrange",[app.time.ts,app.time.te], "linewidth", 2.5, ...
+    % "fontsize", 14);
+% app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te], "linewidth", 2.5, ...
+    % "fontsize", 14);
+% logger.plot({1, "p1-p2-p3", "er"},"fig_num", 4,"phase",'tfl', "color",0, "linewidth", 2.5, ...
+%     "fontsize", 14);
+%      logger.save(strcat('HL_', num2str(j)));
+% end
+
+
 function post(app)
 % app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"linewidth", 2.5, ...
 %     "fontsize", 14);
