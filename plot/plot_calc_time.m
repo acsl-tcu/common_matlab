@@ -52,17 +52,7 @@ data_range = find(is_start)+data_offset : find(is_end)+data_offset;
 t = logger.Data.t(data_range);
 phase_data = phase_data(data_range);
 phase_plot_func = gen_phase_plot_func(t, phase_data, phase);
-
-% phase_plot = [];
-% for ph = phase
-%     switch ph
-%         case 97 %'a'
-%         case 116 %'t'
-%         case 102 %'f'
-%         case 108 %'l'
-%     end
-% end
-total_dt = calc_time.total(data_range).*10^3;
+total_dt = calc_time.total(data_range).*10^3; % [ms]に変換
 
 set_dt_ms = opts.set_dt*10^3; % [ms]に変換
 if max(total_dt)>set_dt_ms
@@ -70,6 +60,7 @@ if max(total_dt)>set_dt_ms
 else
     set_dt_labelpos = "bottom";
 end
+
 loop_dt = [];
 loop_legtxt = [];
 for tag = target4loop(2:end)
@@ -88,9 +79,15 @@ for N = 1:agentN
     do_dt{N} = do_dt{N}.*10^3; % [ms]に変換
 end
 
+% ------- 統計情報(平均・最小・最大・最頻値)の計算・表示 -------
+stats_table = calc_calc_time_stats(target4loop, target4do, total_dt, loop_dt, do_dt, agentN);
+disp("===== 計算時間の統計 [ms] =====")
+disp(stats_table)
+% ------ ------
+
 figNumber = 1112; %基本的に被らないようなユニークなのが良き
 figMarginFromLeft = 50;
-fig1 = figure(figNumber);
+fig1 = figure(figNumber); %target4loop用のfig
 clf
 fig1.Name = 'Calculation time in loop';
 fig1.Position(1) = figMarginFromLeft;
@@ -110,7 +107,7 @@ set(ax.Legend, 'FontSize',FS-4);
 hold off;
 
 
-fig2 = figure(figNumber+1);
+fig2 = figure(figNumber+1); %target4do用のfig
 clf
 fig2.Name = 'Calculation time in do_calculation';
 fig2.Position(1) = fig1.Position(1)+fig1.Position(3)+figMarginFromLeft;
@@ -135,9 +132,54 @@ for N = 1:agentN
         set(ax.Legend, 'FontSize',FS-4);
     end
 end
-end
+end %plot_calc_time
 
 %% local function
+function stats_table = calc_calc_time_stats(target4loop, target4do, total_dt, loop_dt, do_dt, agentN)
+    % target4loop, target4doの各要素について
+    % 平均値・最小値・最大値・最頻値を計算し、tableにまとめて返す
+    % (target4doはエージェント全体のデータを結合して統計を算出)
+
+    tags = [target4loop, target4do];
+    n = length(tags);
+    Mean_ms   = zeros(n,1);
+    Min_ms    = zeros(n,1);
+    Max_ms    = zeros(n,1);
+    Median_ms = zeros(n,1);
+    Mode_ms   = zeros(n,1);
+
+    % --- target4loopの統計 ---
+    for i = 1:length(target4loop)
+        if i == 1
+            data = total_dt; % "total"
+        else
+            data = loop_dt(:, i-1); % target4loop(2:end)に対応
+        end
+        Mean_ms(i)   = mean(data);
+        Min_ms(i)    = min(data);
+        Max_ms(i)    = max(data);
+        Median_ms(i) = median(data);
+        Mode_ms(i)   = mode(data);
+    end
+
+    % --- target4doの統計(全エージェント分を結合) ---
+    offset = length(target4loop);
+    for j = 1:length(target4do)
+        data = [];
+        for N = 1:agentN
+            data = [data; do_dt{N}(:,j)];
+        end
+        Mean_ms(offset+j)   = mean(data);
+        Min_ms(offset+j)    = min(data);
+        Max_ms(offset+j)    = max(data);
+        Median_ms(offset+j) = median(data);
+        Mode_ms(offset+j)   = mode(data);
+    end
+
+    Tag = tags(:);
+    stats_table = table(Tag, Mean_ms, Min_ms, Max_ms, Median_ms, Mode_ms);
+end %calc_calc_time_stats
+
 function msg = gen_msg(dont_exist_var)
     msg = "TIMEクラスが引数になく、" + string(dont_exist_var) + "が存在しないため実行できません。";
 end
@@ -150,12 +192,10 @@ function is_valid_phase(inputStr)
     inputStr = string(inputStr);
     
     % 判定処理
-    % contains が false、または空文字の場合にエラーをスロー
+    % contains が false、または空文字の場合にエラー
     if ~contains(allowedBase, inputStr) || strlength(inputStr) == 0
         error("エラー: '%s' は許可されていない文字列です。'atfl' の部分文字列である必要があります。", inputStr);
     end
-    
-    % 正常な場合は何も返さない（必要に応じて true を返しても構いません）
 end
 
 function plot_set_dt(dt_ms, FS, LW, LabelPosition)
@@ -189,7 +229,7 @@ function phase_plot_func = gen_phase_plot_func(time, phase_data, phase_seq)
     
     % 無名関数として返す
     phase_plot_func = @() plot_boundary_lines(boundary_info);
-end
+end %gen_phase_plot_func
 
 % 補助関数：境界に2本の線を引く
 function plot_boundary_lines(boundary_info)
