@@ -16,8 +16,7 @@ classdef MOTIVE < handle
         state_list
         q_type
         output_func
-
-        bias % 定常偏差補正(hovering bias correction)関連をまとめた構造体
+        bias % 定常偏差補正関連をまとめた構造体
              %   .enable      : true: 補正機能を有効化
              %   .q           : 現在適用中の補正quaternion（q_true = q_reported * bias.q）
              %   .q_target    : ホバリング検出時に推定された補正quaternionの目標値
@@ -54,7 +53,7 @@ classdef MOTIVE < handle
                 args.initial_yaw_angle = 0;
                 args.initq = [];
                 % --- 定常偏差補正のパラメータ ---
-                args.bias_enable = true;
+                args.bias_enable = true;   % 補正使用の有無
                 args.bias_tau = 2.0;       % [s] 補正を反映する時定数（緩やかさ）
                 args.bias_ref_time = 2.0;  % [s] referenceが一定（完全一致）とみなす時間
                 args.bias_att_time = 2.0;  % [s] 姿勢が一定とみなす時間
@@ -99,9 +98,10 @@ classdef MOTIVE < handle
             obj.bias.calibrated = false;
             obj.bias.last_t = [];
 
-            % 循環バッファのサイズを確保しておく（dtより速いループでも溢れないよう余裕(x2)を持たせる）
-            n_ref = max(2, ceil(obj.bias.ref_time * 2 / dt) + 1);
-            n_att = max(2, ceil(obj.bias.att_time * 2 / dt) + 1);
+            % 循環バッファのサイズを確保しておく
+            margin = 2; % dtより速いループでも溢れないようmarginを持たせる
+            n_ref = max(2, ceil(obj.bias.ref_time * margin / dt) + 1);
+            n_att = max(2, ceil(obj.bias.att_time * margin / dt) + 1);
             obj.bias.ref_cap = n_ref;
             obj.bias.att_cap = n_att;
             obj.bias.ref_buffer = nan(n_ref, 5); % 列: [t, x_d, y_d, z_d, yaw_d]
@@ -119,8 +119,8 @@ classdef MOTIVE < handle
             output = [];
 
             % --- 定常偏差補正に使うref, tを取得（存在しなければ今回はスキップ） ---
-            t_now = varargin{1}.t;
             if obj.bias.enable
+                t_now = varargin{1}.t;
                 ref_now = [];
                 try
                     if ~isempty(obj.self.reference) && ~isempty(obj.self.reference.result)
@@ -230,13 +230,25 @@ classdef MOTIVE < handle
                 if ~obj.bias.is_hovering
                     obj.bias.is_hovering = true;
                     if ~obj.bias.calibrated
-                        % ホバリング開始を検知（初回のみ）：この瞬間のq_measを使ってbiasを逆算
-                        % q_true = q_reported * bias.q が roll=pitch=0, yaw=yaw_d(理想姿勢)となるように
-                        % bias.q = conj(q_reported) * q_zero_rp(yaw_d)
+                        % ホバリング開始を検知（初回のみ）：
+                        % 1ステップのq_measだけでなく、判定に使った時間窓内の
+                        % roll, pitch, yaw_d それぞれの中央値を使ってbiasを逆算する
+                        % （外れ値・ノイズの影響を受けにくくするため）
                         disp('Judge stable in MOTIVE class.')
-                        yaw_d = ref(4); % reference yaw（現在yawではなく目標yaw）
-                        q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d])');
-                        obj.bias.q_target = conj(q_meas) * q_zero_rp;
+
+                        att_vals = obj.get_recent_window(obj.bias.att_buffer, obj.bias.att_count, obj.bias.att_time);
+                        ref_vals = obj.get_recent_window(obj.bias.ref_buffer, obj.bias.ref_count, obj.bias.ref_time);
+
+                        roll_med = median(att_vals(:, 1));
+                        pitch_med = median(att_vals(:, 2));
+                        yaw_d_med = median(ref_vals(:, 4)); % ref_vals列: [x_d, y_d, z_d, yaw_d]
+
+                        % q_true = q_meas * bias.q が roll=pitch=0, yaw=yaw_d_med(理想姿勢)となるように
+                        % bias.q = conj(q_meas) * q_zero_rp(yaw_d_med)
+                        % ここでq_measは中央値(roll_med, pitch_med, yaw_d_med)から合成した姿勢
+                        q_meas_med = quaternion(Eul2Quat([roll_med; pitch_med; yaw_d_med])');
+                        q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d_med])');
+                        obj.bias.q_target = conj(q_meas_med) * q_zero_rp;
                         obj.bias.calibrated = true;
                     end
                 end
@@ -284,6 +296,19 @@ classdef MOTIVE < handle
             mask = rows(:, 1) >= t_newest - win;
             vals = rows(mask, 2:end);
             tf = all(max(vals, [], 1) - min(vals, [], 1) <= tol(:)');
+        end
+
+        function vals = get_recent_window(obj, buf, valid_count, win)
+            % check_window_constantと同じ窓の切り出し方で、直近win秒分の
+            % 有効データ（時刻列を除いた値部分）を返す。中央値等の統計量算出に使う。
+            if valid_count == 0
+                vals = [];
+                return;
+            end
+            rows = buf(1:valid_count, :);
+            t_newest = max(rows(:, 1));
+            mask = rows(:, 1) >= t_newest - win;
+            vals = rows(mask, 2:end);
         end
 
         function num_list = get_num_list(obj, list)
