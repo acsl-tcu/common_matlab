@@ -16,7 +16,7 @@ classdef MECKC < handle
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
+      obj.result.input = zeros(4,1);
     end
 
     function result = do(obj,varargin)
@@ -59,7 +59,7 @@ classdef MECKC < handle
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
-      obj.result.input=varargin{5}.controller.nominal.result.u_nominal+obj.result.delta_u;%un+Δu      
+      obj.result.input=varargin{5}.controller.result.input+obj.result.delta_u;%un+Δu      
       result = obj.result;
     end
   end
