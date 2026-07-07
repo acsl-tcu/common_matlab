@@ -29,7 +29,7 @@ initial_state.w = [0; 0; 0];
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE"); %ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
 % プラントモデル定義 ================================================================================================================================
-% plant_model = Model_EulerAngle(dt, initial_state, 1);
+plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % デフォルト物理パラメータ(DRONE_PARAM準拠: 2025/07/07時点)
 % 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
@@ -39,20 +39,22 @@ agent.parameter = DRONE_PARAM("DIATONE"); %ノミナルモデル．DRONE_PARAM�
 % plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
 % plant_model.param.param(1) = 0.8;
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
-% % plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% % plant_model.param.param(7) = 0.185; % 
+plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.185; % 
+% agent.parameter = DRONE_PARAM("DIATONE", "jx", 0.185);
+% agent.parameter = DRONE_PARAM("DIATONE", "jy", 0.185);
 % plant_model.param.param(8) = 0.6; % 0.18 < jzぐらいが良き
 % plant_model.param.param(10) = 0.6; % ５％減->0.028595
 % plant_model.param.param(13) = 0.3;
 % plant_model.param.param(14) = 0.008;
-% agent.plant = MODEL_CLASS(agent,plant_model);
-agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+agent.plant = MODEL_CLASS(agent,plant_model);
+% agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1)); % Model_Quat13
 %===================================================================================================================================================
 agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0,struct("output_list",["p","q"])));
 % agent.sensor = DIRECT_SENSOR(agent, 0.0); % modeファイル内で回すとき
 % agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
-%同じかなーって思って使ってたんだけど，zの変数が多分かぶったんかなぁ動かなかったからとりあえず下で，
+
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
 
 
@@ -60,7 +62,11 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"orig",[0;0;1],"radius",1.0},"HL"});
 % agent.reference.time_varying = MY_POINT_REFERENCE(agent, {struct("f", [0;0;1], "g", [1;1;1], "h",[0;0;1]), 15}); % P2P
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0},"HL"});
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
+
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
+
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
@@ -70,9 +76,11 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"v
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10,"orig",[0;0;1],"size",1.0},"HL"});
 % agent.reference.time_varying = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10,"orig",[0;0;1],"size",1.0},"HL"});
 
-agent.cha_allocation.reference = "time_varying";
+
+
 agent.cha_allocation.a.reference="takeoff";
 agent.cha_allocation.t.reference="takeoff";
+agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.l.reference="landing";
 
 
