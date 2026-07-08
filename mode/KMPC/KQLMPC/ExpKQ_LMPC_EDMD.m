@@ -19,10 +19,11 @@ agent = DRONE;
 agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %プロポ有線
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
-agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
+agent.sensor = MOTIVE(agent, motive, dt);
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
-% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
-agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",8,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
+% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 20}});
+% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 % agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
                                                                 % , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P
@@ -35,8 +36,8 @@ agent.controller.result.input = [0;0;0;0];
 run("ExpBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
-% agent.cha_allocation.f.controller = ["kqlmpc"];
-agent.cha_allocation.f.controller = ["kqlmpc","hlc"];
+agent.cha_allocation.f.controller = ["kqlmpc"];
+% agent.cha_allocation.f.controller = ["kqlmpc","hlc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
@@ -48,7 +49,7 @@ app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
  app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
   % app.agent.animation(app.logger, "target",1, "fig_num",999, "mp4",1, "phase",'tfl');
 
-   app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
+   % app.logger.plot({{1, "controller.result.hlc", ""},{1, "controller.result.kqlmpc", ""}},"fig_num", 5,"phase","f");
     % app.logger.plot({1, "reference.result.state.p", ""},"fig_num", 5,"phase","f");
     % app.logger.plot({1, "controller.result.ref1", ""},"fig_num", 5,"phase","f");
 % t0id = find(app.logger.Data.phase == 97, 1, 'last') + 1;

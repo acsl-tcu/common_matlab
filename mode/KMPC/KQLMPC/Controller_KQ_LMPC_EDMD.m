@@ -17,7 +17,7 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.input_size = 4;
     Controller.total_size = Controller.state_size + Controller.input_size;
     Controller.dt = 0.025;          % MPCステップ幅
-    Controller.H = 12;              % predict horizon
+    Controller.H = 30;              % predict horizon
     Controller.input.u = [Controller.m * 9.81; 0; 0; 0]; % 総推力，トルク
     torque_th = 1.5; thrust_th = 1.5;
     Controller.input_max = [Controller.m * 9.81 + thrust_th; torque_th; torque_th; torque_th];
@@ -61,13 +61,13 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.residual.lqr_beta = 0.2;
 
 %% ===== 実験用 重み =====
-    Controller.weight.P = 2*diag([1000;1000;1200]);   % 位置　10,20刻み  20;1;30
-    Controller.weight.Q = 0.5*diag([300;500;500]);    % 姿勢角15良い気がする
-    Controller.weight.V = 1.5*diag([700;500;500]);    % 速度  10,20刻み  30;20;10
-    Controller.weight.W = 0.3*diag([220;200;200]);    % 角速度　1,2刻み
+    Controller.weight.P = 2*diag([1000;1000;1000]);   % 位置　10,20刻み  20;1;30
+    Controller.weight.Q = 0.5*diag([300;300;300]);    % 姿勢角15良い気がする
+    Controller.weight.V = 3*diag([600;600;500]);    % 速度  10,20刻み  30;20;10
+    Controller.weight.W = 0.3*diag([200;200;200]);    % 角速度　1,2刻み
     % --- 入力系の重みを少し増やして入力の安定化 (抖振抑制) ---
-    Controller.weight.R  = 3*diag([1; 0.5; 0.5; 0.5]);      % 入力          (旧: 1*diag([1; 0.5; 0.5; 0.5]))
-    Controller.weight.RP = 100*diag([1; 0.05; 0.05; 0.05]); % Δu(前ステップ差) (旧: 100*diag([1; 0.05; 0.05; 0.05]))
+    Controller.weight.R  = 10*diag([0.1; 0.5; 0.5; 0.5]);      % 入力          (旧: 1*diag([1; 0.5; 0.5; 0.5]))
+    Controller.weight.RP = 150*diag([1; 0.05; 0.05; 0.05]); % Δu(前ステップ差) (旧: 100*diag([1; 0.05; 0.05; 0.05]))
     Controller.weight.RP_axis = [1; 50; 50; 20]; % [修正] Δuの各軸倍率 (旧: K_MPC内に隠れていた diag([1,50,50,20]))
     %   → Δuの実効重み = RP .* RP_axis (thrust:150, roll/pitch:375, yaw:150)
 
