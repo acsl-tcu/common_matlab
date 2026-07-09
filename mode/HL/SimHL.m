@@ -25,7 +25,8 @@ logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
 initial_state.p = arranged_position([0, 0], 1, 1, 0);
-initial_state.q = [1; 0; 0; 0];
+% initial_state.q = [1; 0; 0; 0];
+initial_state.q = [0; 0; 0];
 initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
@@ -33,7 +34,9 @@ initial_state.w = [0; 0; 0];
 agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE");
 % agent.parameter = DRONE_PARAM("DIATONE", "mass", 0.7);
-agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
+% agent.plant = MODEL_CLASS(agent,Model_Quat13(dt, initial_state, 1));
+agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
+%agent.parameter.set("mass",struct("mass",0.5))
 
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 % agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 分散 10^-3
@@ -41,7 +44,7 @@ agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",5,"center",[0;0;1],"radius",0},4}));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
@@ -54,19 +57,20 @@ agent.cha_allocation.l.reference="landing";
 motive.getData(agent);
 %% utility functions
 function post(app)
+fcolor=1;
+LW = 1.5; % LineWidth
+FS = 18; % FontSize
 phase = "tfl";
-FS = 16; %FontSize
-LW = 1.5;%LineWidth
-app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
+app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase",phase, "Linewidth",LW, "Fontsize",FS);
+app.logger.plot({1,"reference.result.state.xd1:4",""}, "phase",phase, "fig_num",1, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1,"controller.result.xd1:4",""}, "phase",phase, "fig_num",2, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "p1:2", "er"}, "phase",phase, "fig_num",10, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",20, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "v", "er"}, "phase",phase, "fig_num",30, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",40, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+app.logger.plot({1, "input", ""}, "phase",phase, "fig_num",50, "Linewidth",LW, "Fontsize",FS, "color",fcolor);
+% app.logger.plot({1, "p1-p2", "er"}, "phase",phase, "fig_num",6, "Linewidth",LW, "Fontsize",FS, "color",0);
 
-% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 show_animation(app);
 end
 function dfunc(app)
