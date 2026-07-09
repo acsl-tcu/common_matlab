@@ -61,7 +61,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
         u_prev_dob = []    % DOB: 前ステップ u
         u_offset_dob       % DOB: 入力オフセット推定
         B_prev_dob = []    % [修正] DOB: 前周期のB_d (予測はz,u,Bを同周期の組で行う)
-        yaw_integ = 0      % [修正] PID: yaw積分 (旧persistentの置き換え)
+        yaw_integ = 0  
+        yawcompflag = 1% [修正] PID: yaw積分 (旧persistentの置き換え)
         pos_integ
         U_integ_single
         % ----- 旧MC/STL/K_LQRテスト実装の名残り (未使用) -----
@@ -118,7 +119,8 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             %% ===== 机能flag (补偿手段, 默认全部关闭 → 纯LPV-MPC) =====
             obj.pidflag = 0;   % 外部PID补偿 (1=ON)  ※テスト・補足用
             obj.dobflag = 0;   % DOB扰动估计 (1=ON)  ※テスト用
-            obj.lpvflag = 1;   % [修正] B沿horizon逐步更新 (1=真LPV/修正版, 0=旧冻结B対照)
+            obj.lpvflag = 1; 
+            obj.yawcompflag = 1;  % yaw恒値外乱(反トルク不平衡)の積分補償 (1=ON)% [修正] B沿horizon逐步更新 (1=真LPV/修正版, 0=旧冻结B対照)
             % EDMD残差补偿は param.residual.mode で切替 (0=OFF, デフォルト)
 
             %% ===== MPC 重み =====
@@ -203,6 +205,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             % 同一セッションで実験を再実行すると初回スキップが働かなかった
             if obj.first_run_done == 0
                 obj.first_run_done = 1;
+                % [熱起動] 切替直前にHLCが実際に印加していた入力でpre_uを初期化
+                u_last = obj.self.controller.result.input;
+                if numel(u_last) == 4 && all(isfinite(u_last))
+                    obj.input.pre_u = repmat(u_last(:), 1, obj.H);
+                end
                 result = obj.result;
                 return
             end
@@ -441,7 +448,15 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             %% ===== MPC 名义输出 =====
             obj.result.input = var(1:4, 1);
             obj.result.u_nom = obj.result.input;
-
+           %% ===== [补偿] yaw恒値外乱の積分補償 (yawcompflag==1) =====
+           if obj.yawcompflag == 1
+               e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
+               obj.yaw_integ = obj.yaw_integ + e_yaw * obj.param.dt;
+               obj.yaw_integ = max(min(obj.yaw_integ, 1.0), -1.0);   % 積分値クランプ
+               u_yaw_comp = 0.02 * obj.yaw_integ;                     % Ki = 0.02
+               u_yaw_comp = max(min(u_yaw_comp, 0.05), -0.05);        % 出力クランプ ±0.05 N·m
+               obj.result.input(4) = obj.result.input(4) + u_yaw_comp;
+           end
             %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
                 % [修正] 符号: d ≈ B·δ と推定した δ (外乱の入力等価量) は指令から「引く」ことで打ち消す
@@ -954,23 +969,23 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 % [整理] 参考姿态・角速度は現状「意図的にゼロ」(悬停系タスク前提)。
                 % 旧実装はdifferential flatnessでeuler/wを計算した直後に破棄していた(死代码)。
                 % 姿态・角速度前馈を使う場合は以下を有効化:
-                % yaw = 0; dyaw = 0;
-                % jerk = ref(13:15);
-                % b3 = s / max(norm_s, 1e-6);
-                % b1c = [cos(yaw); sin(yaw); 0];
-                % v = cross(b3, b1c);
-                % if norm(v) < 1e-6
-                %     if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
-                %     b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
-                % else
-                %     b2 = v/norm(v);
-                % end
-                % b1 = cross(b2, b3);
-                % Rd = [b1, b2, b3];
-                % euler = [atan2(Rd(3,2), Rd(3,3)); asin(-Rd(3,1)); atan2(Rd(2,1), Rd(1,1))];
+                yaw = 0; dyaw = 0;
+                jerk = ref(13:15);
+                b3 = s / max(norm_s, 1e-6);
+                b1c = [cos(yaw); sin(yaw); 0];
+                v = cross(b3, b1c);
+                if norm(v) < 1e-6
+                    if abs(b3(3)) < 0.9, temp_b1=[0;0;1]; else, temp_b1=[1;0;0]; end
+                    b2 = cross(b3, temp_b1); b2 = b2/norm(b2);
+                else
+                    b2 = v/norm(v);
+                end
+                b1 = cross(b2, b3);
+                Rd = [b1, b2, b3];
+                euler = [atan2(Rd(3,2), Rd(3,3)); asin(-Rd(3,1)); atan2(Rd(2,1), Rd(1,1))];
                 % hw = (jerk - dot(b3, jerk) * b3) / max(norm_s, 1e-6);
                 % w = [-dot(hw, b2); dot(hw, b1); dot(b3, [0;0;1]) * dyaw];
-                euler = [0; 0; 0];
+                % % euler = [0; 0; 0];
                 w = [0; 0; 0];
                 xr(1:3, h+1) = ref(1:3);
                 xr(7:9, h+1) = ref(5:7);
