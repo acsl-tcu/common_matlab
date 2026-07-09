@@ -21,6 +21,7 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
         queryHandler
         storageHandler
         replayHandler
+        timeHandler = []; % TIMEクラス用
     end
 
     properties (Dependent)
@@ -165,6 +166,11 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 name = []
                 opt.range = 1:length(obj.Data.phase); %find(obj.Data.phase,1,'last');
                 opt.separate = false;
+            end
+            if ~isempty(obj.timeHandler)
+                obj.Data.calc_time = obj.timeHandler.calc_time;
+                obj.Data.target4loop = obj.timeHandler.target4loop;
+                obj.Data.target4do = obj.timeHandler.target4do;
             end
             obj.storageHandler.save_log(obj, name, opt);
 
@@ -313,6 +319,10 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                 obj.queryHandler = C_Logger_Query;
             end
             X = obj.queryHandler.take_matrix(x, row, col);
+        end
+
+        function set_time_handler(obj, timeObj)
+            obj.timeHandler = timeObj;
         end
 
     end

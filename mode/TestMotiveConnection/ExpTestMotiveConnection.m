@@ -1,10 +1,12 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.00001; % sampling period
 te = 10; % termina time
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) [];
 post_func = @(app) [];
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
+logger.set_time_handler(time);
 
 motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
