@@ -27,15 +27,6 @@ initial_state.v = [0; 0; 0];
 % Note: set the model error after setting "plant"
 agent.plant = MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state,1,agent));%dt,initial,id,agent,modelName
 agent.parameter.set("loadmass",0.01);%0.0968);%0.968
-agent.plant.projection = @create_angle_bias;
-function x = create_angle_bias(x)
-    bias_eul = [5; 0; 0]; % degreeだけ定常偏差を起こす
-    bias_quat= quaternion(Eul2Quat([deg2rad(bias_eul)])');
-    q = conj(bias_quat)*quaternion(Eul2Quat(x(4:6))');
-    [q1,q2,q3,q4] = parts(q);
-    x = [x(1:3);Quat2Eul([q1;q2;q3;q4]);x(7:end)];
-end
-
 % Sim only: getData works after setting "plant"
 motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
 motive.getData(agent);
@@ -59,8 +50,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[0,0,0]},4})); %円系軌道
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[0,0,0]},4})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
