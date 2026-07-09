@@ -23,8 +23,7 @@ classdef MOTIVE < handle
              %   .tau         : bias.qをbias.q_targetへ追従させる時定数[s]（大きいほど緩やか）
              %   .ref_time    : referenceが一定とみなす継続時間しきい値 [s]
              %   .att_time    : 姿勢(roll,pitch)が一定とみなす継続時間しきい値 [s]
-             %   .sigma_deg   : 姿勢変動の許容幅 σ [deg]
-             %   .dt          : 制御周期[s]（バッファサイズ算出用）
+             %   .sigma_rad   : 姿勢変動の許容幅 σ [rad]
              %   .ref_buffer  : [t, ref...] を格納する固定長循環バッファ（未使用行はNaN）
              %   .ref_cap     : ref_bufferの確保サイズ（行数）
              %   .ref_count   : ref_bufferの有効サンプル数（capを超えない）
@@ -52,12 +51,7 @@ classdef MOTIVE < handle
                 args.state_list = {["p","q"]}; % outputを構成する状態リスト {["p","q"],"p"}：rigid_id1からp,q、 rigid_id2からpを取りoutputを構成する
                 args.initial_yaw_angle = 0;
                 args.initq = [];
-                % --- 定常偏差補正のパラメータ ---
-                args.bias_enable = true;   % 補正使用の有無
-                args.bias_tau = 1.0;       % [s] 補正を反映する時定数（緩やかさ）
-                args.bias_ref_time = 2.0;  % [s] referenceが一定（完全一致）とみなす時間
-                args.bias_att_time = 2.0;  % [s] 姿勢が一定とみなす時間
-                args.bias_sigma_rad = 0.01; % [rad] 姿勢変動の許容幅 σ
+                args.bias_enable = true; % 定常偏差補正使用の有無
             end
 
             %%% Output equation %%%
@@ -87,13 +81,12 @@ classdef MOTIVE < handle
 
             % --- 定常偏差補正の初期化 ---
             obj.bias.enable = args.bias_enable;
-            obj.bias.tau = args.bias_tau;
-            obj.bias.ref_time = args.bias_ref_time;
-            obj.bias.att_time = args.bias_att_time;
-            obj.bias.sigma_rad = args.bias_sigma_rad;
-            obj.bias.dt = dt;
-            obj.bias.q = quaternion(1, 0, 0, 0);        % 恒等回転（補正なし）で初期化
-            obj.bias.q_target = obj.bias.q;
+            obj.bias.tau = 1.0; %[s]
+            obj.bias.ref_time = 2.0; %[s]
+            obj.bias.att_time = 2.0; %[s]
+            obj.bias.sigma_rad = 0.01; %[rad]
+            obj.bias.q = quaternion(1, 0, 0, 0); % 恒等回転（補正なし）で初期化（TODO: 陽に指定した回転を入れれるようにしたい）
+            obj.bias.q_target = quaternion(1, 0, 0, 0);
             obj.bias.is_hovering = false;
             obj.bias.calibrated = false;
             obj.bias.last_t = [];
@@ -176,7 +169,8 @@ classdef MOTIVE < handle
             % obj.result.dt = data.time - obj.old_time;
             obj.result.output = output;
             [bias_q1, bias_q2, bias_q3, bias_q4] = parts(obj.bias.q);
-            obj.result.bias_q = Quat2Eul([bias_q1, bias_q2, bias_q3, bias_q4]');
+            obj.result.bias_quat= [bias_q1, bias_q2, bias_q3, bias_q4];
+            obj.result.bias_eul = Quat2Eul([bias_q1, bias_q2, bias_q3, bias_q4]');
             % obj.old_time = data.time;
             result = obj.result;
         end % function do
@@ -195,19 +189,18 @@ classdef MOTIVE < handle
             %        t      : 現在時刻[s]
             %        q_meas : 現在の姿勢quaternion
             %
-            % 原因：Vicon上で剛体を定義した瞬間の姿勢を無条件に基準(0)として
-            %       扱ってしまうため、キャリブレーション時に機体が水平でなかった分だけ
-            %       恒常的なroll/pitchオフセットが乗る。このオフセットは
+            % 原因：MOTIVE上で剛体定義を行うと，その瞬間の姿勢に依らずに各軸と平行に剛体の座標軸が定義される．
+            %      そのため，剛体定義時に機体が水平でなかった分だけ定常的なroll, pitch, yawオフセットが乗る．
+            %      このオフセットは
             %       「reportされる姿勢 q_reported(t) = q_true(t) * bias.q」
             %       という形（世界座標基準で固定されたbias.q、右から作用）で表せる。
-            %       （bias.qはyawに依存せず一定 -> 一度求めれば全方位で有効）
             %
             % 条件：
             %   ・reference [x_d;y_d;z_d;yaw_d] がbias.ref_time秒以上、完全に一致
             %   ・roll,pitchがbias.att_time秒以上、bias.sigma_deg以内で一定
             % を満たした瞬間の実測quaternionから、
             % 「その瞬間roll=pitch=0、yaw=yaw_d（現在のyawではなくreferenceのyaw）」
-            % となるようなbias.qを逆算し、bias.tauの時定数でbias.q_targetへ緩やかに追従させる（slerp）。
+            % となるようなbias.qを逆算し，bias.tauの時定数でbias.q_targetへ緩やかに追従させる．
 
             [q1,q2,q3,q4] = parts(q_meas);
             eul = Quat2Eul([q1,q2,q3,q4]'); % [roll; pitch; yaw]
@@ -247,7 +240,6 @@ classdef MOTIVE < handle
 
                         % q_true = q_meas * bias.q が roll=pitch=0, yaw=yaw_d_med(理想姿勢)となるように
                         % bias.q = conj(q_meas) * q_zero_rp(yaw_d_med)
-                        % ここでq_measは中央値(roll_med, pitch_med, yaw_d_med)から合成した姿勢
                         q_meas_med = quaternion(Eul2Quat([roll_med; pitch_med; yaw_d_med])');
                         q_zero_rp = quaternion(Eul2Quat([0; 0; yaw_d_med])');
                         obj.bias.q_target = conj(q_meas_med) * q_zero_rp;
@@ -258,7 +250,6 @@ classdef MOTIVE < handle
                 obj.bias.is_hovering = false;
             end
 
-            % --- 緩やかな追従：bias.qをbias.q_targetへslerpで近づける ---
             if isempty(obj.bias.last_t)
                 dt = 0;
             else
@@ -268,7 +259,7 @@ classdef MOTIVE < handle
 
             if dt > 0 && obj.bias.tau > 0
                 alpha = min(1, dt / obj.bias.tau);
-                obj.bias.q = slerp(obj.bias.q, obj.bias.q_target, alpha);
+                obj.bias.q = slerp(obj.bias.q, obj.bias.q_target, alpha); % 緩やかな追従：bias.qをbias.q_targetへslerpで近づける
             end
         end %function update_bias
 
@@ -282,7 +273,7 @@ classdef MOTIVE < handle
             % win         : 判定に用いる時間窓[s]
             % tol         : 許容変動幅（スカラー、または各列に対応する行ベクトル/列ベクトル）
             %
-            % 循環バッファのため「先頭行が最古」という前提を置かず、min/maxで評価する。
+            % 循環バッファのため「先頭行が最古」という前提を置かず、tのmin/maxで評価する。
             if valid_count == 0
                 tf = false;
                 return;
