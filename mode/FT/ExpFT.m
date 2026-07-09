@@ -21,7 +21,7 @@ agent = DRONE;
 agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", [100, 252]));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,initial_state,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone())); % already
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1],"radius",[1,1,0]},4}));
 fApprox_FTxy = 0;%approximate x,y directional FTC input : 1

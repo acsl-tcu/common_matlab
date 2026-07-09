@@ -38,7 +38,7 @@ agent = WHILL;
 agent.parameter = VEHICLE_PARAM("VEHICLE3");
 agent.plant = MODEL_CLASS(agent,Model_Three_Vehicle(dt, initial_state,1));
 agent.estimator.set_function_class("ekf", EKF(agent,Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_Three_Vehicle(dt, initial_state, 1)),["p", "q"],"B",1e-3,"Q",[1;1;0;0;0;1])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 agent.sensor.set_function_class("lrf", LiDAR3D_SIM(agent,Sensor_LiDAR3D(1, 'env', env, 'theta_range', pi / 2, 'phi_range', -pi:0.01:pi,'noise',0.04)));
 %agent.sensor.lrf = LiDAR_SIM(agent,Sensor_LiDAR(1,'angle_range', -pi:0.1:pi)); % 2D lidar
 agent.sensor.do = @sensor_do; % synthesis of sensors

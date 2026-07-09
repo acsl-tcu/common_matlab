@@ -117,7 +117,7 @@ payloadAgent.estimator.do = @(varargin)[];
 payloadAgent.estimator.result.state = STATE_CLASS(struct('state_list', ["p", "q"], "num_list", [3, 3]));
 payloadAgent.estimator.result.state.p = rigid.p;
 payloadAgent.estimator.result.state.q = eul;
-payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, motive, "initial_yaw_angle", eul(3)));
+payloadAgent.sensor.set_function_class("motive", MOTIVE(payloadAgent, motive, dt, "initial_yaw_angle", eul(3)));
 payloadAgent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(payloadAgent, {"gen_ref_saddle", {"freq", 12, "center", [0; 0; 0.7], "radius", [0.8, 0.8, 0]}, 5}));
 payloadAgent.controller.do = @(varargin)[];
 payloadAgent.controller.result.input = [0; 0; 0; 0];
@@ -131,7 +131,7 @@ agentObj.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agentObj.parameter.set("cableL", cableLen);
 agentObj.plant = DRONE_EXP_MODEL(agentObj, Model_Drone_Exp(dt, initial_state, "serial", com));
 
-agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive,"output_func",@motive_output,"rigid_id",rigidIdPair,"state_list",{["p","q"],"p"}));
+agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive, dt,"output_func",@motive_output,"rigid_id",rigidIdPair,"state_list",{["p","q"],"p"}));
 
 agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF_CooperativeSuspendedLoad(agentObj,dt,...
     MODEL_CLASS(agentObj,Model_Suspended_Load(dt, initial_state, idx,agentObj,"Load_mL_HL")),...
