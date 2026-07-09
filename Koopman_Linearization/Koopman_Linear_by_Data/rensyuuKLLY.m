@@ -26,8 +26,8 @@ disp(c);
 % L=1/\sqrt(q) USになる
 %だからvは不要だから以下の特異値分解ではU,S,~になってる
 
-[U,S,~] = svd(Psi, 'econ');     %econはエコノミーサイズで分解．分解制度を損なわずにできるらしい
-L = (1/sqrt(q)) * U * S;
+[Usvd,S,~] = svd(Psi, 'econ');     %econはエコノミーサイズで分解．分解制度を損なわずにできるらしい
+L = (1/sqrt(q)) * Usvd * S;
 
 % L = (1/sqrt(q)) * Psi;    %文章通りに作るならこっち，ただ(観測量＋入力)×(データ数)行列になる
 disp('L')
@@ -40,6 +40,7 @@ disp(check_L);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
+
 yalmip('clear');
 %Uは求めたいクープマン作用素U=[A B]=観測量X(観測量+入力)行列
 %WはLMIの補助関数
@@ -52,6 +53,9 @@ U = sdpvar(p_theta, p, 'full');
 W = sdpvar(p_theta, p_theta, 'symmetric');
 nu = sdpvar(1,1);
 
+rho_bar = 0.99;
+P = eye(p_theta);
+
 %%
 %制約をいれるリスト作り
 Constraints = [];
@@ -63,6 +67,15 @@ M = [W, U*L;
      (U*L)', eye(size(L,2))];
 
 Constraints = [Constraints, M >= 1e-6*eye(size(M,1))];
+
+A = U(:,1:p_theta);
+
+Stab = [rho_bar*P, A'*P;
+        P*A,       rho_bar*P];
+
+Constraints = [Constraints, ...
+    Stab >= 1e-6*eye(size(Stab,1))];
+
 
 %%
 
@@ -81,3 +94,11 @@ disp(diagnostics.info)
 
 U_val = value(U);
 disp(size(U_val))
+
+A_val = U_val(:,1:p_theta);
+
+disp('max abs eig(A)')
+disp(max(abs(eig(A_val))))
+
+disp('eig(A)')
+disp(eig(A_val))
