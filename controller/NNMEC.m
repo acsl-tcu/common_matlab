@@ -30,7 +30,12 @@ classdef NNMEC < handle
     end
     
     methods
-        function obj = NNMEC(self, NN_model_filename)
+        function obj = NNMEC(self, NN_model_filename, opts)
+            arguments
+                self % agent
+                NN_model_filename
+                opts.view_analyzer = false; 
+            end
             % インスタンス
             obj.self = self;
             obj.physical_param = self.parameter.get(obj.parameter_name);
@@ -48,7 +53,7 @@ classdef NNMEC < handle
                                                 "OutputDataFormats", "BC");   % 出力層定義 "BC" -> [バッチサイズ, 特徴量]の意味
             
             % NNに続く数字を抽出 (例: "NN24" -> "24")
-            tokens = regexp(NN_model_filename, 'NN(\d+)', 'tokens');
+            tokens = regexp(obj.NN_model_filename, 'NN(\d+)', 'tokens');
             if ~isempty(tokens)
                 model_num = tokens{1}{1}; % 文字列としての数字を取得
                 switch model_num
@@ -65,17 +70,18 @@ classdef NNMEC < handle
                         % 例外処理
                         error('未知のモデル次元です: %s', model_num);
                 end
-            else % NNの記述がない場合のデフォルト
+            else % "NN"の記述がない場合のデフォルト
                 dim = 24;
                 obj.gen_data_func = @(x_p,x_n) [x_p; x_n];
             end
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.NNMEC_model = initialize(NN_model, dummyInput); % モデルの初期化
+            if opts.view_analyzer, analyzeNetwork(obj.NNMEC_model); end
 
-            if contains(NN_model_filename, 'Euler') % 状態更新手法を動的に変更
-                obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt);
-            elseif contains(NN_model_filename, 'RK4')
+            if contains(NN_model_filename, 'RK4') % 状態更新手法を動的に変更
                 obj.state_renew_func = @(x_pre, pre_input, dt) obj.RK4(x_pre, pre_input, dt);
+            else
+                obj.state_renew_func = @(x_pre, pre_input, dt) obj.Euler(x_pre, pre_input, dt); % default: Euler
             end
             %-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%-%
 
