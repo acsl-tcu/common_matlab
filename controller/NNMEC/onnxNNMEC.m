@@ -1,15 +1,17 @@
 classdef onnxNNMEC < handle
-    %NNMEC
+    %onnxNNMEC
     %   クアッドコプター用モデル誤差補償器(MEC)のプログラム
     %   ニューラルネットワーク(NN)で補償器を設計
-    %   "Deep Leaening Toolbox Converter for ONNX Model Format"が必要
+    %   onnx(Open Neural Network Exchange)を利用したクラス
+    %   Required: "Deep Leaening Toolbox Converter for ONNX Model Format"
+    %
     %   [Inputs]
     %    self: ドローンのagent
     %    NN_model_filename = "NNMEC.onnx": インポートするonnxファイルの名前
-    %    "NN12": 次元数(12,21,24)，"Euler":状態更新手法("Euler", "RK4")がファイル名に必要
+    %    Requied: "NN12": 次元数(12,21,24)，"Euler":状態更新手法("Euler", "RK4")
     
     %   2025/07 作成者:B4小関      学番:2212044
-    %   最終更新：2026/05/19
+    %   最終更新：2026/07/10
     
     properties
         self
@@ -46,7 +48,7 @@ classdef onnxNNMEC < handle
             if ~exist("controller\NNMEC\NN_Model\onnx", "dir")
                 mkdir("controller\NNMEC\NN_Model\onnx")
             elseif isempty(dir("controller\NNMEC\NN_Model\onnx\*.onnx"))
-                error("ACSL: Do not exist <onnx> file in controller\NNMEC\NN_Model\onnx. ")
+                error("onnxNNMEC: Do not exist <onnx> file in controller\NNMEC\NN_Model\onnx. ")
             end
             if endsWith(obj.NN_model_filename, ".onnx")
                 onnxPath = fullfile("\NNMEC\NN_Model\onnx\", obj.NN_model_filename);
@@ -107,7 +109,7 @@ classdef onnxNNMEC < handle
             obj.x_pre = self.estimator.result.state.get;
             obj.pre_input = zeros(input_dim,1);
             fprintf('Model file name: %s\n', obj.NN_model_filename);
-        end
+        end % function onnxNNMEC
         
         function result = do(obj, varargin)
             %-%-%-% ノミナル状態更新 ※状態更新の手法は学習時のものと合わせる %-%-%-%
@@ -142,7 +144,7 @@ classdef onnxNNMEC < handle
             obj.result.nominal_input = varargin{5}.controller.nominal.result.input; % ノミナル入力を保存
             obj.result.input = obj.result.nominal_input + obj.result.delta_input;
             result = obj.result;
-        end
+        end % function do
 
 
 
