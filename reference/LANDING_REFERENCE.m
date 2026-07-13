@@ -5,7 +5,7 @@ classdef LANDING_REFERENCE < handle
         vd
         dt
         result
-        base_state
+        base_state % [x;y;z;yaw]
         base_time = 0;
         te % 着陸するまでの時間
         initialz % 初期時刻高度（takeoffする前の高度）
@@ -36,13 +36,17 @@ classdef LANDING_REFERENCE < handle
             end
             if obj.fInit < 10 || isempty( obj.base_state ) % 飛行中にlanding modeに入った時点の情報を保存
                 if obj.fInit == 0              % 空回しの高度（=接地時高度）を保存
-                    obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase                    
+                    obj.base_state = [obj.self.estimator.result.state.p(1:2);... % x,y : current position
+                                      obj.self.reference.result.state.p(3);... % z : reference using at flight phase
+                                      obj.self.estimator.result.state.q(3)]; % yaw: current yaw angle
                 end
                 if obj.fInit == 1            % 直前の高度を保存
-                    obj.base_state = [obj.self.estimator.result.state.p(1:2);obj.self.reference.result.state.p(3)]; % x,y : current position, z : reference using at flight phase
+                    obj.base_state = [obj.self.estimator.result.state.p(1:2);... % x,y : current position
+                                      obj.self.reference.result.state.p(3);... % z : reference using at flight phase
+                                      obj.self.estimator.result.state.q(3)]; % yaw: current yaw angle
                 end
                 obj.base_time=varargin{1}.t;            
-                obj.result.state.xd = [obj.base_state;zeros(17,1)];
+                obj.result.state.xd = [obj.base_state;zeros(16,1)];
                 obj.fInit = obj.fInit + 1; % 降下し始めるまでのループカウント
                 % disp(obj.fInit)
             end
@@ -73,7 +77,7 @@ classdef LANDING_REFERENCE < handle
                 Zd = zeros(1,5);
                 Zd(1) = obj.initialz;
             end
-            Xd(1:3,1) = obj.base_state(1:3);
+            Xd(1:4,1) = obj.base_state(1:4);
             Xd(3,1) = Zd(1);
             Xd(7,1) = Zd(2);
             Xd(11,1) = Zd(3);
