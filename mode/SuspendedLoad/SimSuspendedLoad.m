@@ -49,8 +49,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
@@ -80,6 +80,48 @@ app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_n
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
 % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
+
+%周波数応答の確認
+% phase f のみのデータを logger.data で直接取得
+% U  = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
+Fs = 1/0.025;
+u   = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
+pL  = app.logger.data(1, "estimator.result.state.pL", "e", "phase", "f");
+pLq = app.logger.data(1, "estimator.result.state.q", "e", "phase", "f");
+size(u)
+size(pL)
+size(pLq)   % 4列ならクォータニオン、3列ならオイラー角
+disp(size(pLq))
+figure;
+% --- 位置(z,x,y)の周波数応答 ---
+for i = 1:4
+    if i == 1
+        ci = 1; co = 3; use_pLq = false;
+        nm = 'z';
+    elseif i == 2
+        ci = 3; co = 1; use_pLq = false;
+        nm = 'x';
+    elseif i == 3
+        ci = 2; co = 2; use_pLq = false;
+        nm = 'y';
+    else
+        ci = 4; co = 3; use_pLq = true;   % yaw入力 (us(3)を想定), pLq の3列目 = yaw
+        nm = 'yaw';
+    end
+
+    if use_pLq
+        [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
+    else
+        [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
+    end
+
+    subplot(2,4,i);
+    semilogx(2*pi*f, 20*log10(abs(h)));
+    grid on; title(nm); ylabel('Gain dB'); xlabel('\omega [rad/s]');
+    subplot(2,4,i+4);
+    semilogx(2*pi*f, unwrap(angle(h))*180/pi);
+    grid on; ylabel('Phase deg'); xlabel('\omega [rad/s]');
+end
 
 show_suspended_load_animation(app); % アニメーション描画
 end

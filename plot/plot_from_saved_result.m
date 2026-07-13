@@ -39,8 +39,7 @@ clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fsave = 0;
-% fsave = 2;
-% fsave = 5;
+
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
 % 0:no save
@@ -84,29 +83,7 @@ settings.savefolder = 'plot\fig';  % default
 % settings.savefolder = "\\192.168.100.209\ws2025\Work2025\YosukeKOSEKI\Drone results(Exp_data)\2025.10.21_DNNMEC triangle and saddle\6_fig\png";
 
 settings.savename = '2_HLonly_triangle';
-% settings.savename = '6_DNNMEC_triangle';
-% settings.savename = '11_HLonly_saddle';
-% settings.savename = '13_DNNMEC_saddle';
-% settings.savename = '3_HLonly_P2P';
-% settings.savename = '5_DNNMEC_P2P';
 
-% settings.savename = 'sim_HL_only_Standard';
-% settings.savename = 'sim_HL_only_m=0.7125';
-% settings.savename = 'sim_HL_only_Ix=0.01';
-% settings.savename = 'sim_HL_only_Iy=0.21';
-% settings.savename = 'sim_HL_only_Iy=0.19_add';
-
-% settings.savename = 'No1_m_Ix_Iy_DNNMEC';
-% settings.savename = 'No1_m_Ix_Iy_HLonly';
-% settings.savename = 'No2_m+_DNNMEC';
-% settings.savename = 'No3_m-_DNNMEC';
-% settings.savename = 'No4_Ix_DNNMEC';
-% settings.savename = 'No5_Iy_DNNMEC';
-% settings.savename = 'No6_Ix_Iy_DNNMEC';
-% settings.savename = 'No6_Ix_Iy_HLonly';
-% settings.savename = 'm=1.0_DNNMEC';
-
-% settings.savename = 'Exp_data_for_learing_dt=2.5';
 
 % estimator, sensor, reference, (plant) どの値を表示するかは
 % 途中のキーボード入力で決定します．
@@ -171,10 +148,10 @@ for i=1:length(settings.target)
             tmp = settings.attribute;
             fcolor = 0;
             att = select_attribute(settings.target(i), tmp);
-            case "controller.result.xd1:3"
-    ylabel = "Reference position $x_d$ [m]";
-    tmp = "";        % attribute は使わない
-    att = "";        % ← 重要
+        case "controller.result.xd1:3"
+            ylabel = "Reference position $x_d$ [m]";
+            tmp = "";        % attribute は使わない
+            att = "";        % ← 重要
 
         otherwise
             if contains(settings.target(i), 'input') % "input"が入っていたら
@@ -250,30 +227,30 @@ for i=1:length(settings.target)
             end
             ylim([y_min y_max])
 
-            case "controller.result.xd1:3"
-    set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+        case "controller.result.xd1:3"
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
 
-    % ===== xd を直接 logger.data ではなく cell から取得 =====
-    cr = logger.Data.agent(settings.agent_id).controller.result;
-    N  = numel(cr);
+            % ===== xd を直接 logger.data ではなく cell から取得 =====
+            cr = logger.Data.agent(settings.agent_id).controller.result;
+            N  = numel(cr);
 
-    xd = zeros(N,3);
-    for k = 1:N
-        xd(k,:) = cr{k}.xd(1:3).';
-    end
+            xd = zeros(N,3);
+            for k = 1:N
+                xd(k,:) = cr{k}.xd(1:3).';
+            end
 
-    t = logger.Data.t(1:N);
+            t = logger.Data.t(1:N);
 
-    plot(ax, t, xd(:,1), ...
-             t, xd(:,2), ...
-             t, xd(:,3), ...
-             'LineWidth', settings.linewidth)
+            plot(ax, t, xd(:,1), ...
+                t, xd(:,2), ...
+                t, xd(:,3), ...
+                'LineWidth', settings.linewidth)
 
-    grid(ax,'on')
-    legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
-        'Interpreter','latex')
+            grid(ax,'on')
+            legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
+                'Interpreter','latex')
 
-    ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
+            ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
 
         otherwise
             if contains(settings.target(i), '2:4') % target = "input2:4"用
@@ -365,89 +342,7 @@ for i=1:length(settings.target)
     end
 end
 disp_rmse(logger,settings.phase)
-
-%% Frequency Analysis
-% % % phase = "f";
-% % % FS = settings.fontsize;
-% % % LW = settings.linewidth;
-% % % time = logger.data(0,'t',"", "phase",phase);
-% % % % data_name = "estimator.result.state.p";
-% % % % data_name = "estimator.result.state.q";
-% % % % data_name = "estimator.result.state.v";
-% % % data_name = "estimator.result.state.w";
-% % % % data_name = "controller.result.input";
-% % % data_name = "controller.result.input2:4";
-% % % % data_name = "controller.result.delta_input";
-% % % % data_name = "controller.result.delta_input2:4";
-% % % data = logger.data(1,data_name,"", "phase",phase);
-% % %
-% % % Y = fft(data);
-% % % lenY = size(Y,2);
-% % % if logger.fExp==1
-% % %     dt = logger.data(1,"sensor.result.dt","", "phase",phase);
-% % %     dt_ave = sum(dt)/length(dt);
-% % % elseif logger.fExp==0
-% % %     dt_ave = 0.025; % Simデータの場合dt=25msで固定
-% % % end
-% % % % dt_ave=0.025;
-% % % Fs = 1/dt_ave;
-% % % L = length(data);
-% % % f = Fs*(0:(L/2))/L; % 周波数軸の作成
-% % % f = f(1:end-1);
-% % % P = zeros(length(f),lenY);
-% % % for i=1:lenY, P(:,i) = abs(Y(1:floor(L/2),i))./(L/2); end % 片側スペクトルの計算
-% % % fig = figure;
-% % % ax = gca;
-% % % plot(f,P(:,1),LineWidth=LW)
-% % % hold on
-% % % for i=2:lenY, plot(f,P(:,i),LineWidth=LW); end
-% % % set(ax.YLabel, 'String', '$|P_1(f)|$', 'Interpreter','latex', 'FontSize',FS)
-% % %
-% % % % plot(f,Y(:,1))
-% % % % hold on
-% % % % for i=2:size(Y,2)
-% % % %     plot(f,Y(:,i))
-% % % % end
-% % % % set(ax.YLabel, 'String', 'Fourier Transform', 'Interpreter','latex', 'FontSize',FS)
-% % %
-% % % % plot(f,10*log10(P.^2))
-% % % % set(ax.YLabel, 'String', '$20log_{10}P_1(f)$', 'Interpreter','latex', 'FontSize',FS)
-% % %
-% % % if data_name == "estimator.result.state.p", legend('$x$', '$y$', '$z$', 'Interpreter','latex');
-% % % elseif data_name == "estimator.result.state.v", legend('$v_x$', '$v_y$', '$v_z$', 'Interpreter','latex');
-% % % elseif data_name == "estimator.result.state.q", legend('$\theta_{roll}$', '$\theta_{pitch}$', '$\theta_{yaw}$', 'Interpreter','latex');
-% % % elseif data_name == "estimator.result.state.w", legend('$\omega_{roll}$', '$\omega_{pitch}$', '$\omega_{yaw}$', 'Interpreter','latex');
-% % % elseif data_name == "controller.result.input", legend('$u_{thrust}$','$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
-% % % elseif data_name == "controller.result.input2:4"
-% % %     legend('$u_{roll}$', '$u_{pitch}$', '$u_{yaw}$', 'Interpreter','latex');
-% % %     h = findobj(gca, 'Type', 'line');
-% % %     set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
-% % %     set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
-% % %     set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
-% % % elseif data_name == "controller.result.delta_input", legend('$\Delta u_{thrust}$','$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
-% % % elseif data_name == "controller.result.delta_input2:4"
-% % %     legend('$\Delta u_{roll}$', '$\Delta u_{pitch}$', '$\Delta u_{yaw}$', 'Interpreter','latex');
-% % %     h = findobj(gca, 'Type', 'line');
-% % %     set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
-% % %     set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
-% % %     set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
-% % % else, legend;
-% % % end
-% % % xlim([0 2])
-% % % % ylim([0 0.5])
-% % % set(ax.Legend, 'FontSize',FS-4)
-% % % % title(ax, data_name, Fontsize=FS);
-% % % set(ax.XLabel, 'String', 'Frequency $f$ [Hz]', 'Interpreter','latex', 'FontSize',FS)
-% % % set(ax.XAxis, fontsize=FS-2)
-% % % set(ax.YAxis, fontsize=FS-2)
-% % % grid on;
-
-%% TODO
-% % % % % ↓このプロットの仕方にも対応できるようにしたい↓
-% % % % logger.plot({{1, "p", "e"},{1, "controller.result.nominal_p", ""}}, "phase",settings.phase, "fig_num",100, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
-% % % % logger.plot({{1, "v", "e"},{1, "controller.result.nominal_v", ""}}, "phase",settings.phase, "fig_num",101, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
-% % % % logger.plot({{1, "q", "e"},{1, "controller.result.nominal_q", ""}}, "phase",settings.phase, "fig_num",102, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
-% % % % logger.plot({{1, "w", "e"},{1, "controller.result.nominal_w", ""}}, "phase",settings.phase, "fig_num",103, "Linewidth",settings.linewidth, "Fontsize",settings.fontsize, 'color',settings.fcolor);
+disp_bode(logger, "tf")
 
 %% Local functions
 function att = select_attribute(target, attribute)
@@ -588,6 +483,40 @@ fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
 fprintf('=====================================\n\n');
 end
 
+function disp_bode(logger, phase)
+% 周波数応答(Bode線図)を確認する関数
+% disp_bode(app.logger, "f")
+
+for i = 1:4
+    if i == 1
+        ci = 1; co = 3; use_pLq = false;
+        nm = 'z';
+    elseif i == 2
+        ci = 3; co = 1; use_pLq = false;
+        nm = 'x';
+    elseif i == 3
+        ci = 2; co = 2; use_pLq = false;
+        nm = 'y';
+    else
+        ci = 4; co = 3; use_pLq = true;   % yaw入力 (us(3)を想定), pLq の3列目 = yaw
+        nm = 'yaw';
+    end
+
+    if use_pLq
+        [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
+    else
+        [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
+    end
+
+    subplot(2,4,i);
+    semilogx(2*pi*f, 20*log10(abs(h)));
+    grid on; title(nm); ylabel('Gain dB'); xlabel('\omega [rad/s]');
+    subplot(2,4,i+4);
+    semilogx(2*pi*f, unwrap(angle(h))*180/pi);
+    grid on; ylabel('Phase deg'); xlabel('\omega [rad/s]');
+end
+end
+
 % function rmse_xyz = disp_rmse(logger, phase)
 % % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
 % % Usage:
@@ -614,7 +543,7 @@ end
 % rmse_x = sqrt(mean(diff(:,1).^2, "omitnan"));
 % rmse_y = sqrt(mean(diff(:,2).^2, "omitnan"));
 % rmse_z = sqrt(mean(diff(:,3).^2, "omitnan"));
-% 
+%
 % rmse_xyz = [rmse_x, rmse_y, rmse_z];
 % % ===== 表示 =====
 % fprintf('\n===== Position RMSE =====\n');
