@@ -75,7 +75,7 @@ class InferenceWrapper(nn.Module):
             self.model = RNNModel(**config)
         else:
             self.model = NNModel(**config)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval() # 推論モードに設定
         self.architecture_info = self._extract_info(config)
 

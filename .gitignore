@@ -1050,3 +1050,4 @@ Temporary Items
 assemblypath.txt
 
 *.gif
+/Pythonenv
