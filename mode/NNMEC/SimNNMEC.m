@@ -94,8 +94,10 @@ onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0
 % Learn Exp
 % onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__1000000epoch";
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
+ptName = "tmp__6epoch_model";
 
-agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
+% agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
+agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
 
 
