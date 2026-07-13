@@ -1,104 +1,465 @@
-clear;clc;
+% % % function output = KL(X,U,Y,F,flg)
+% % % %クープマン線形化によって線形アフィン系状態方程式の係数行列ABCを求める
+% % % %   output=
+% % % %
+% % % %
+% % % %
+% % % %
+% % % % clear;clc;
+% % % 
+% % % p = 8;          % Psiの行数(観測量+入力の数)
+% % % p_theta = 26;    % Theta_plusの行数(観測量の数)
+% % % q = 100;        % データ数
+% % % 
+% % % Psi = randn(p, q);
+% % % Theta_plus = randn(p_theta, q);
+% % % 
+% % % %%
+% % % G = (1/q) * Theta_plus * Psi';
+% % % H = (1/q) * Psi * Psi';
+% % % % c = (1/q) * Theta_plus * Theta_plus';
+% % % c = (1/q) * trace(Theta_plus * Theta_plus');
+% % % 
+% % % disp('G');
+% % % disp(size(G));
+% % % disp('H');
+% % % disp(size(H));
+% % % disp('c');
+% % % disp(c);
+% % % 
+% % % %%
+% % % % 特異値分解して同じだけど？小さいサイズのLを得ることができる
+% % % %psi=USV^Tと置くと，psipsi^T=US(US)^Tになり，psi=USを得る．
+% % % % L=1/\sqrt(q) USになる
+% % % %だからvは不要だから以下の特異値分解ではU,S,~になってる
+% % % 
+% % % [Usvd,S,~] = svd(Psi, 'econ');     %econはエコノミーサイズで分解．分解制度を損なわずにできるらしい
+% % % L = (1/sqrt(q)) * Usvd * S;
+% % % 
+% % % % L = (1/sqrt(q)) * Psi;    %文章通りに作るならこっち，ただ(観測量＋入力)×(データ数)行列になる
+% % % disp('L')
+% % % disp(size(L))
+% % % 
+% % % check_L=norm(H - L*L', 'fro');
+% % % 
+% % % fprintf('Lが適しているか');
+% % % disp(check_L);
+% % % 
+% % % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % % %%
+% % % 
+% % % yalmip('clear');
+% % % %Uは求めたいクープマン作用素U=[A B]=観測量X(観測量+入力)行列
+% % % %WはLMIの補助関数
+% % % %nu_varは||UL||_F^2の上限を示す補助関数
+% % % 
+% % % %sdpvarはこの変数を最適化問題の未知関数として扱ってねって関数
+% % % %sdpvar(行数，列数，行列の種類)
+% % % 
+% % % U = sdpvar(p_theta, p, 'full');
+% % % W = sdpvar(p_theta, p_theta, 'symmetric');
+% % % nu = sdpvar(1,1);
+% % % 
+% % % rho_bar = 0.99;
+% % % P = eye(p_theta);
+% % % 
+% % % %%
+% % % %制約をいれるリスト作り
+% % % Constraints = [];
+% % % 
+% % % Constraints = [Constraints, trace(W) <= nu];
+% % % Constraints = [Constraints, W >= 1e-6*eye(p_theta)];
+% % % 
+% % % M = [W, U*L;
+% % %      (U*L)', eye(size(L,2))];
+% % % 
+% % % Constraints = [Constraints, M >= 1e-6*eye(size(M,1))];
+% % % 
+% % % A = U(:,1:p_theta);
+% % % 
+% % % Stab = [rho_bar*P, A'*P;
+% % %         P*A,       rho_bar*P];
+% % % 
+% % % Constraints = [Constraints, ...
+% % %     Stab >= 1e-6*eye(size(Stab,1))];
+% % % 
+% % % 
+% % % %%
+% % % 
+% % % Objective = c - 2*trace(U*G') + nu;
+% % % 
+% % % %ソルバーはsdpt3を使って，計算中の情報をコマンドウィンドウに表示する設定
+% % % options = sdpsettings('solver','sdpt3','verbose',0);
+% % % %constraintsを満たす範囲でobjectiveを最小にするそれぞれを求める
+% % % diagnostics = optimize(Constraints, Objective, options);
+% % % 
+% % % % options = sdpsettings('verbose',1);
+% % % % diagnostics = optimize(Constraints, Objective, options);
+% % % 
+% % % disp(diagnostics.problem)
+% % % disp(diagnostics.info)
+% % % 
+% % % U_val = value(U);
+% % % disp(size(U_val))
+% % % 
+% % % A_val = U_val(:,1:p_theta);
+% % % 
+% % % disp('max abs eig(A)')
+% % % disp(max(abs(eig(A_val))))
+% % % 
+% % % disp('eig(A)')
+% % % disp(eig(A_val))
 
-p = 8;          % Psiの行数(観測量+入力の数)
-p_theta = 6;    % Theta_plusの行数(観測量の数)
-q = 100;        % データ数
 
-Psi = randn(p, q);
-Theta_plus = randn(p_theta, q);
+function [U_val, A_val, B_val, P_val, result] = ...
+    solve_koopman_alternating(psi, Theta_plus, rho_bar, max_iter, tolerance)
+%SOLVE_KOOPMAN_ALTERNATING
+% 交互最適化によって安定性制約付きKoopman作用素 U=[A B] を求める
+%
+% 入力
+%   Psi        : p × q
+%                [観測量; 入力]を並べたデータ行列
+%
+%   Theta_plus : p_theta × q
+%                次時刻の観測量データ行列
+%
+%   rho_bar    : 安定性の上限
+%                省略時 0.99
+%
+%   max_iter   : 最大反復回数
+%                省略時 30
+%
+%   tolerance  : 収束判定値
+%                省略時 1e-5
+%
+% 出力
+%   U_val      : Koopman作用素 U=[A B]
+%   A_val      : 状態・観測量部分
+%   B_val      : 入力部分
+%   P_val      : Lyapunov行列
+%   result     : 計算結果を格納した構造体
+
+    %% 初期値
+    if nargin < 3 || isempty(rho_bar)
+        rho_bar = 0.99;
+    end
+
+    if nargin < 4 || isempty(max_iter)
+        max_iter = 30;
+    end
+
+    if nargin < 5 || isempty(tolerance)
+        tolerance = 1e-5;
+    end
+
+    remi = round(size(X,2) / 5);
+j = 0;
+for i = 1:size(X,2)%1:Data.num
+    
+        dx = [X(:,i);U(:,i)]; % hermite
+        dy = [Y(:,i);U(:,i)];
+   
+    Xlift(:,i) = F(dx); 
+    Ylift(:,i) = F(dy);
+    if rem(i, remi) == 0
+        j = j+1;
+        fprintf('convert %d times observables \n', remi*j);
+        toc
+    end
+end
 
 %%
-G = (1/q) * Theta_plus * Psi';
-H = (1/q) * Psi * Psi';
-% c = (1/q) * Theta_plus * Theta_plus';
-c = (1/q) * trace(Theta_plus * Theta_plus');
+psi=[Xlift ; U];
+Theta_plus = Ylift;
 
-disp('G');
-disp(size(G));
-disp('H');
-disp(size(H));
-disp('c');
-disp(c);
+    %% サイズの自動取得
+    [p, q] = size(psi);
+    [p_theta, q_theta] = size(Theta_plus);
 
-%%
-% 特異値分解して同じだけど？小さいサイズのLを得ることができる
-%psi=USV^Tと置くと，psipsi^T=US(US)^Tになり，psi=USを得る．
-% L=1/\sqrt(q) USになる
-%だからvは不要だから以下の特異値分解ではU,S,~になってる
+    % 入力数
+    n_u = p - p_theta;
 
-[Usvd,S,~] = svd(Psi, 'econ');     %econはエコノミーサイズで分解．分解制度を損なわずにできるらしい
-L = (1/sqrt(q)) * Usvd * S;
+    if q ~= q_theta
+        error(['PsiとTheta_plusのデータ数が一致していません。\n' ...
+               'Psiの列数          : %d\n' ...
+               'Theta_plusの列数   : %d'], ...
+               q, q_theta);
+    end
 
-% L = (1/sqrt(q)) * Psi;    %文章通りに作るならこっち，ただ(観測量＋入力)×(データ数)行列になる
-disp('L')
-disp(size(L))
+    if n_u < 0
+        error(['Psiの行数がTheta_plusの行数より小さくなっています。\n' ...
+               'p = %d, p_theta = %d'], ...
+               p, p_theta);
+    end
 
-check_L=norm(H - L*L', 'fro');
+    fprintf('====================================\n');
+    fprintf('p         = %d\n', p);
+    fprintf('p_theta   = %d\n', p_theta);
+    fprintf('n_u       = %d\n', n_u);
+    fprintf('q         = %d\n', q);
+    fprintf('rho_bar   = %.4f\n', rho_bar);
+    fprintf('====================================\n');
 
-fprintf('Lが適しているか');
-disp(check_L);
+    %% G, H, c
+    G = (1/q) * Theta_plus * psi';
+    H = (1/q) * psi * psi';
+    c = (1/q) * trace(Theta_plus * Theta_plus');
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
+    %% H = L*L'を満たすL
+    [Usvd, S, ~] = svd(psi, 'econ');
+    L = (1/sqrt(q)) * Usvd * S;
 
-yalmip('clear');
-%Uは求めたいクープマン作用素U=[A B]=観測量X(観測量+入力)行列
-%WはLMIの補助関数
-%nu_varは||UL||_F^2の上限を示す補助関数
+    L_error = norm(H - L*L', 'fro');
 
-%sdpvarはこの変数を最適化問題の未知関数として扱ってねって関数
-%sdpvar(行数，列数，行列の種類)
+    fprintf('size(G) = %d × %d\n', size(G,1), size(G,2));
+    fprintf('size(H) = %d × %d\n', size(H,1), size(H,2));
+    fprintf('size(L) = %d × %d\n', size(L,1), size(L,2));
+    fprintf('||H - LL''||_F = %.6e\n\n', L_error);
 
-U = sdpvar(p_theta, p, 'full');
-W = sdpvar(p_theta, p_theta, 'symmetric');
-nu = sdpvar(1,1);
+    %% YALMIP
+    yalmip('clear');
 
-rho_bar = 0.99;
-P = eye(p_theta);
+    options = sdpsettings( ...
+        'solver', 'sdpt3', ...
+        'verbose', 0);
 
-%%
-%制約をいれるリスト作り
-Constraints = [];
+    epsilon = 1e-6;
 
-Constraints = [Constraints, trace(W) <= nu];
-Constraints = [Constraints, W >= 1e-6*eye(p_theta)];
+    %% Pの初期値
+    P_val = eye(p_theta);
 
-M = [W, U*L;
-     (U*L)', eye(size(L,2))];
+    %% 収束判定用
+    U_previous = [];
+    objective_previous = [];
 
-Constraints = [Constraints, M >= 1e-6*eye(size(M,1))];
+    objective_history = nan(max_iter,1);
+    U_change_history = nan(max_iter,1);
+    P_change_history = nan(max_iter,1);
+    max_eig_history = nan(max_iter,1);
+    eta_history = nan(max_iter,1);
 
-A = U(:,1:p_theta);
+    converged = false;
 
-Stab = [rho_bar*P, A'*P;
-        P*A,       rho_bar*P];
+    %% 交互最適化
+    for iter = 1:max_iter
 
-Constraints = [Constraints, ...
-    Stab >= 1e-6*eye(size(Stab,1))];
+        fprintf('---------- iteration %d ----------\n', iter);
 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Step 1：Pを固定して U, W, nu を最適化
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%
+        U = sdpvar(p_theta, p, 'full');
+        W = sdpvar(p_theta, p_theta, 'symmetric');
+        nu = sdpvar(1,1);
 
-Objective = c - 2*trace(U*G') + nu;
+        % Psiの最初のp_theta行が観測量であることを仮定
+        A = U(:,1:p_theta);
 
-%ソルバーはsdpt3を使って，計算中の情報をコマンドウィンドウに表示する設定
-options = sdpsettings('solver','sdpt3','verbose',0);
-%constraintsを満たす範囲でobjectiveを最小にするそれぞれを求める
-diagnostics = optimize(Constraints, Objective, options);
+        Constraints_U = [];
 
-% options = sdpsettings('verbose',1);
-% diagnostics = optimize(Constraints, Objective, options);
+        Constraints_U = [Constraints_U, ...
+            trace(W) <= nu];
 
-disp(diagnostics.problem)
-disp(diagnostics.info)
+        Constraints_U = [Constraints_U, ...
+            W >= epsilon * eye(p_theta)];
 
-U_val = value(U);
-disp(size(U_val))
+        % W >= U*L*L'*U' のSchur補行列
+        M = [W,       U*L;
+             (U*L)', eye(size(L,2))];
 
-A_val = U_val(:,1:p_theta);
+        Constraints_U = [Constraints_U, ...
+            M >= epsilon * eye(size(M,1))];
 
-disp('max abs eig(A)')
-disp(max(abs(eig(A_val))))
+        % P_valは数値なので、Aに関してLMIになる
+        Stab_U = [rho_bar * P_val, A' * P_val;
+                  P_val * A,       rho_bar * P_val];
 
-disp('eig(A)')
-disp(eig(A_val))
+        Constraints_U = [Constraints_U, ...
+            Stab_U >= epsilon * eye(2*p_theta)];
+
+        Objective_U = c - 2*trace(U*G') + nu;
+
+        diagnostics_U = optimize( ...
+            Constraints_U, Objective_U, options);
+
+        if diagnostics_U.problem ~= 0
+            error(['Uの最適化に失敗しました。\n' ...
+                   'iteration : %d\n' ...
+                   'problem   : %d\n' ...
+                   'info      : %s'], ...
+                   iter, diagnostics_U.problem, diagnostics_U.info);
+        end
+
+        U_val = value(U);
+        A_val = U_val(:,1:p_theta);
+
+        if n_u > 0
+            B_val = U_val(:,p_theta+1:end);
+        else
+            B_val = [];
+        end
+
+        objective_val = value(Objective_U);
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Step 2：Aを固定して P を最適化
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        P = sdpvar(p_theta, p_theta, 'symmetric');
+        eta = sdpvar(1,1);
+
+        Constraints_P = [];
+
+        Constraints_P = [Constraints_P, ...
+            P >= epsilon * eye(p_theta)];
+
+        % Pの定数倍による不定性を除く
+        Constraints_P = [Constraints_P, ...
+            trace(P) == p_theta];
+
+        Constraints_P = [Constraints_P, ...
+            eta >= 0];
+
+        % A_valは数値なので、Pに関してLMIになる
+        Stab_P = [rho_bar * P, A_val' * P;
+                  P * A_val,   rho_bar * P];
+
+        % 安定性制約の余裕etaを最大化
+        Constraints_P = [Constraints_P, ...
+            Stab_P >= eta * eye(2*p_theta)];
+
+        diagnostics_P = optimize( ...
+            Constraints_P, -eta, options);
+
+        if diagnostics_P.problem ~= 0
+            error(['Pの最適化に失敗しました。\n' ...
+                   'iteration : %d\n' ...
+                   'problem   : %d\n' ...
+                   'info      : %s'], ...
+                   iter, diagnostics_P.problem, diagnostics_P.info);
+        end
+
+        P_new = value(P);
+        eta_val = value(eta);
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % 収束判定
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        if isempty(U_previous)
+            U_change = inf;
+            objective_change = inf;
+        else
+            U_change = norm(U_val - U_previous, 'fro') ...
+                / max(1, norm(U_previous, 'fro'));
+
+            objective_change = abs( ...
+                objective_val - objective_previous) ...
+                / max(1, abs(objective_previous));
+        end
+
+        P_change = norm(P_new - P_val, 'fro') ...
+            / max(1, norm(P_val, 'fro'));
+
+        eigenvalues = eig(A_val);
+        max_abs_eig = max(abs(eigenvalues));
+
+        objective_history(iter) = objective_val;
+        U_change_history(iter) = U_change;
+        P_change_history(iter) = P_change;
+        max_eig_history(iter) = max_abs_eig;
+        eta_history(iter) = eta_val;
+
+        fprintf('Objective          = %.8e\n', objective_val);
+        fprintf('max|eig(A)|        = %.8f\n', max_abs_eig);
+        fprintf('U change           = %.6e\n', U_change);
+        fprintf('P change           = %.6e\n', P_change);
+        fprintf('objective change   = %.6e\n', objective_change);
+        fprintf('stability margin   = %.6e\n\n', eta_val);
+
+        % 次の反復に使用
+        U_previous = U_val;
+        objective_previous = objective_val;
+        P_val = P_new;
+
+        % Uと目的関数が両方ほぼ変化しなくなったら終了
+        if iter >= 2 && ...
+                U_change < tolerance && ...
+                objective_change < tolerance
+
+            converged = true;
+
+            fprintf('収束しました。\n');
+            fprintf('iteration = %d\n\n', iter);
+            break;
+        end
+    end
+
+    %% 最大反復回数まで収束しなかった場合
+    if ~converged
+        fprintf(['最大反復回数までに指定した収束条件を' ...
+                 '満たしませんでした。\n']);
+        fprintf('iteration = %d\n\n', iter);
+    end
+
+    %% 最終結果
+    eigenvalues = eig(A_val);
+    max_abs_eig = max(abs(eigenvalues));
+
+    fprintf('====================================\n');
+    fprintf('最終結果\n');
+    fprintf('size(U)       = %d × %d\n', ...
+        size(U_val,1), size(U_val,2));
+    fprintf('size(A)       = %d × %d\n', ...
+        size(A_val,1), size(A_val,2));
+    fprintf('size(B)       = %d × %d\n', ...
+        size(B_val,1), size(B_val,2));
+    fprintf('max|eig(A)|   = %.8f\n', max_abs_eig);
+    fprintf('iteration     = %d\n', iter);
+    fprintf('converged     = %d\n', converged);
+    fprintf('====================================\n');
+
+    fprintf('\neig(A)\n');
+    disp(eigenvalues);
+
+    %% 結果を構造体に保存
+    result = struct;
+
+    result.p = p;
+    result.p_theta = p_theta;
+    result.n_u = n_u;
+    result.q = q;
+
+    result.G = G;
+    result.H = H;
+    result.c = c;
+    result.L = L;
+    result.L_error = L_error;
+
+    result.U = U_val;
+    result.A = A_val;
+    result.B = B_val;
+    result.P = P_val;
+
+    result.eigenvalues = eigenvalues;
+    result.max_abs_eig = max_abs_eig;
+
+    result.iteration = iter;
+    result.converged = converged;
+
+    result.objective_history = ...
+        objective_history(1:iter);
+
+    result.U_change_history = ...
+        U_change_history(1:iter);
+
+    result.P_change_history = ...
+        P_change_history(1:iter);
+
+    result.max_eig_history = ...
+        max_eig_history(1:iter);
+
+    result.eta_history = ...
+        eta_history(1:iter);
+end

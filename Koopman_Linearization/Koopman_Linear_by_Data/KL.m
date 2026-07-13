@@ -8,7 +8,8 @@ function output = KL(X,U,Y,F,flg)
 %   F             観測量 関数ハンドル
 tic
 %Xlift,Yliftを計算する
-remi = round(size(X,2) / 5); j = 0;
+remi = round(size(X,2) / 5);
+j = 0;
 for i = 1:size(X,2)%1:Data.num
     % if flg.hermite
         dx = [X(:,i);U(:,i)]; % hermite
