@@ -47,7 +47,7 @@ classdef PythonNNMEC
             obj.NN_model_filename = string(NN_model_filename);
             if ~exist("controller\NNMEC\NN_Model\pt", "dir")
                 mkdir("controller\NNMEC\NN_Model\pt")
-            elseif isempty(dir("controller\NNMEC\NN_Model\pt\*.pth"))
+            elseif isempty(dir("controller\NNMEC\NN_Model\pt\*.pt"))
                 error("PythonNNMEC: Do not exist <pt> file in controller\NNMEC\NN_Model\pt. ")
             end
             ptPath = fullfile("controller", "NNMEC", "NN_Model", "pt", obj.NN_model_filename);
