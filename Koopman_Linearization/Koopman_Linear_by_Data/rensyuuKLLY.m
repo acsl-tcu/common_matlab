@@ -168,6 +168,9 @@ psi=[Xlift ; U];
 Theta_plus = Ylift;
 
     %% サイズの取得
+    %pが観測量+入力の個数，p_thetaが観測量
+    %qを持つものはデータの個数
+
     [p, q] = size(psi);
     [p_theta, q_theta] = size(Theta_plus);
 
@@ -220,25 +223,35 @@ Theta_plus = Ylift;
     options = sdpsettings( ...
         'solver', 'sdpt3', ...
         'verbose', 0);
+    %'verbose',0で途中経過を非表示，１で表示
 
-    epsilon = 1e-6;
+    epsilon = 1e-6;     %Uの変化量がこれより小さくなったら収束とみなす
 
     %% Pの初期値
-    P_val = eye(p_theta);
+    P_val = eye(p_theta);       %Pの最初の初期設定
 
     %% 収束判定用
+    %前回の値を保存する
     U_previous = [];
     objective_previous = [];
-%max_iterは何回反復で交互最適化を行うか
-    objective_history = nan(max_iter,1);
-    U_change_history = nan(max_iter,1);
-    P_change_history = nan(max_iter,1);
-    max_eig_history = nan(max_iter,1);
-    eta_history = nan(max_iter,1);
 
+%max_iterは何回反復で交互最適化を行うか
+    %目的関数の結果の履歴保存
+    objective_history = nan(max_iter,1);
+    %Uがどれくらい変化したかの履歴保存，ちゃんと収束の方向に動いているか確認    
+    U_change_history = nan(max_iter,1);
+    %Pの変化量の保存
+    P_change_history = nan(max_iter,1);
+    %Aの最大固有値の保存，安定性の確認が一旦できる
+    max_eig_history = nan(max_iter,1);
+    % %角反復で得たηの保存，目的関数とか収束状況との関係確認，いらないかも
+    % eta_history = nan(max_iter,1);
+    
+    %収束したか
     converged = false;
 
     %% 交互最適化
+    %Pを固定してUを求める，Uから得たAからPを求める
     for iter = 1:max_iter
 
         fprintf('---------- iteration %d ----------\n', iter);
@@ -251,10 +264,12 @@ Theta_plus = Ylift;
         W = sdpvar(p_theta, p_theta, 'symmetric');
         nu = sdpvar(1,1);
 
-        % Psiの最初のp_theta行が観測量であることを仮定
+        %Ｕは（観測量）×（観測量＋入力）のサイズのはず
         A = U(:,1:p_theta);
 
+        %Uを求めるための制約の入れ物
         Constraints_U = [];
+
 
         Constraints_U = [Constraints_U, ...
             trace(W) <= nu];
@@ -268,6 +283,7 @@ Theta_plus = Ylift;
 
         Constraints_U = [Constraints_U, ...
             M >= epsilon * eye(size(M,1))];
+%%%%%%%%%%%%%%%%%%%%%%%%ここまで確認済み%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % P_valは数値なので、Aに関してLMIになる
         Stab_U = [rho_bar * P_val, A' * P_val;
