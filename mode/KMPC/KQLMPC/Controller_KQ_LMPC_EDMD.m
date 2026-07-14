@@ -41,12 +41,12 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
 
 %% ===== [补偿·可选] EDMD残差补偿の設定 (mode=0 でOFF, デフォルト) =====
     Controller.residual.mode = 0; % 0: off(デフォルト), 1: LQR residual feedback, 2: one-step pseudo inverse, 3: torque EDMD + vertical PI, 5: mode2 + smoothing
-    Controller.residual.model_file = 'C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\mode\KMPC\KQLMPC\edmd_residual_model_kyo.mat';
-    Controller.residual.alpha = 1.0;
-    Controller.residual.du_max = [1.5; 0.3; 0.3; 0.3];
+    Controller.residual.model_file = 'C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\edmd_residual_model_LPVMPC.mat';
+    Controller.residual.alpha = 0.15;
+   Controller.residual.du_max = [0; 0.1; 0.1; 0];   % yaw通道关闭(第4项0), 推力也显式0
     Controller.residual.q_scale = 200.0;
     Controller.residual.r_scale = 0.02;
-    Controller.residual.pinv_damping = 1e-2;
+   Controller.residual.pinv_damping = 3e-2;          % 1e-2 → 3e-2, 入场瞬态再压一压
     Controller.residual.use_reference = 1;
     Controller.residual.use_aligned_reference = 1;
     Controller.residual.mode25_torque_only = 1;

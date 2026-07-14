@@ -550,7 +550,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             residual = struct();
             residual.mode = 0;
             residual.loaded = false;
-            residual.alpha = 1.0;
+            residual.alpha = 0.15;
             residual.du_max = [0; 0; 0; 0];
             residual.use_reference = 1;
             residual.pinv_damping = 1e-3;
@@ -651,7 +651,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 z_ref = zeros(size(z_cur));
             end
             z_err = z_cur - z_ref;
-
+           u_hover_res = [obj.param.m * obj.param.gravity; 0; 0; 0]; % [修正] 残差学習は偏差座標 u~=u-hover
             switch obj.residual.mode
                 case 1
                     delta_u_raw = -obj.residual.K * z_err;
@@ -667,7 +667,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     x_ref_next = obj.get_residual_reference_state(min(2, size(obj.state.ref, 2)));
                     u_ref_now = obj.state.ref(13:16, 1);
                     z_ref_next = obj.klift_edmd_residual([x_ref_next; u_ref_now]);
-                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom * u_nom;
+                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom *(u_nom - u_hover_res);
                     z_target_bar = z_ref_next - z_nom_next;
                     rhs = z_target_bar - obj.residual.A_err * z_cur;
                     if obj.residual.mode25_torque_only == 1
@@ -700,7 +700,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     x_ref_next = obj.get_residual_reference_state(min(2, size(obj.state.ref, 2)));
                     u_ref_now = obj.state.ref(13:16, 1);
                     z_ref_next = obj.klift_edmd_residual([x_ref_next; u_ref_now]);
-                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom * u_nom;
+                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom *(u_nom - u_hover_res);
                     z_target_bar = z_ref_next - z_nom_next;
                     rhs = z_target_bar - obj.residual.A_err * z_cur;
                     if obj.residual.mode25_torque_only == 1
