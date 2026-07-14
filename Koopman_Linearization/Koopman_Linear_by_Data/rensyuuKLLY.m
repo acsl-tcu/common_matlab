@@ -112,7 +112,7 @@
 
 
 function [U_val, A_val, B_val, P_val, result] = ...
-    solve_koopman_alternating(psi, Theta_plus, rho_bar, max_iter, tolerance)
+    rensyuuKLLY(X,U,Y,F,flg)
 %SOLVE_KOOPMAN_ALTERNATING
 % 交互最適化によって安定性制約付きKoopman作用素 U=[A B] を求める
 %
@@ -140,19 +140,14 @@ function [U_val, A_val, B_val, P_val, result] = ...
 %   result     : 計算結果を格納した構造体
 
     %% 初期値
-    if nargin < 3 || isempty(rho_bar)
+    
         rho_bar = 0.99;
-    end
-
-    if nargin < 4 || isempty(max_iter)
         max_iter = 30;
-    end
-
-    if nargin < 5 || isempty(tolerance)
         tolerance = 1e-5;
-    end
+    
+%%
 
-    remi = round(size(X,2) / 5);
+remi = round(size(X,2) / 5);
 j = 0;
 for i = 1:size(X,2)%1:Data.num
     
@@ -172,7 +167,7 @@ end
 psi=[Xlift ; U];
 Theta_plus = Ylift;
 
-    %% サイズの自動取得
+    %% サイズの取得
     [p, q] = size(psi);
     [p_theta, q_theta] = size(Theta_plus);
 
@@ -216,7 +211,10 @@ Theta_plus = Ylift;
     fprintf('size(L) = %d × %d\n', size(L,1), size(L,2));
     fprintf('||H - LL''||_F = %.6e\n\n', L_error);
 
+
+
     %% YALMIP
+    %%%%%%%%%%%%%%%%%%%%ここから最小化問題%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     yalmip('clear');
 
     options = sdpsettings( ...
@@ -231,7 +229,7 @@ Theta_plus = Ylift;
     %% 収束判定用
     U_previous = [];
     objective_previous = [];
-
+%max_iterは何回反復で交互最適化を行うか
     objective_history = nan(max_iter,1);
     U_change_history = nan(max_iter,1);
     P_change_history = nan(max_iter,1);
