@@ -61,12 +61,12 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.residual.lqr_beta = 0.2;
 
 %% ===== 実験用 重み =====
-  Controller.weight.P  = 1.2*diag([1200; 1200; 1200]);  % 位置: 2000→1200, 外环松30%+
-Controller.weight.Q  = 0.5*diag([300; 500; 500]);     % 姿态: 维持验证值, yaw不动
-Controller.weight.V  = 1.2*diag([700; 500; 500]);     % 速度: 1050→840, 同步降
+  Controller.weight.P  = 1.2*diag([1200; 1200; 1800]);  % 位置: 2000→1200, 外环松30%+
+Controller.weight.Q  = 0.5*diag([300; 500; 700]);     % 姿态: 维持验证值, yaw不动
+Controller.weight.V  = 1.2*diag([700; 500; 650]);     % 速度: 1050→840, 同步降
 Controller.weight.W  = 0.4*diag([220; 200; 200]);     % 角速度: 66→88, 相对阻尼反而变厚
-Controller.weight.R  = 2*diag([1; 0.5; 0.5; 0.5]);    % 输入: 不动, 内环保持灵敏
-Controller.weight.RP = 150*diag([1; 0.05; 0.05; 0.05]);
+Controller.weight.R  = 2*diag([0.2; 0.5; 0.5; 0.5]);    % 输入: 不动, 内环保持灵敏
+Controller.weight.RP = 150*diag([0.2; 0.05; 0.05; 0.05]);
 Controller.weight.RP_axis = [1; 50; 50; 20];          % yaw维持验证值, 这轮不碰
 
     Controller.weight.Pf = Controller.weight.P;

@@ -452,10 +452,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
            if obj.yawcompflag == 1
                e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
                obj.yaw_integ = obj.yaw_integ + e_yaw * obj.param.dt;
-               obj.yaw_integ = max(min(obj.yaw_integ, 1.0), -1.0);   % 積分値クランプ
+               obj.yaw_integ = max(min(obj.yaw_integ, 2.5), -2.5);   % 積分値クランプ
                u_yaw_comp = 0.02 * obj.yaw_integ;                     % Ki = 0.02
                u_yaw_comp = max(min(u_yaw_comp, 0.05), -0.05);        % 出力クランプ ±0.05 N·m
                obj.result.input(4) = obj.result.input(4) + u_yaw_comp;
+              
            end
             %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
@@ -550,7 +551,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             residual = struct();
             residual.mode = 0;
             residual.loaded = false;
-            residual.alpha = 0.15;
+            residual.alpha = 1;
             residual.du_max = [0; 0; 0; 0];
             residual.use_reference = 1;
             residual.pinv_damping = 1e-3;
