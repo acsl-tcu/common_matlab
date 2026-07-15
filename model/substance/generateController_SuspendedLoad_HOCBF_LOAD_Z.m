@@ -189,525 +189,120 @@ clc
 %     Vf(0,x0,Xd(0))
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
-% %% =========================================================================
-% %% HO-CBF (高次制御バリア関数) の自動導出セクション 【最上流レイヤー同調・完全復元版・修正版】
-% %% =========================================================================
-% clc
-% disp('========================================================================');
-% disp(' 最上流仮想入力 [v1; u2; u3] に完全同期したHO-CBF関数の生成を開始します');
-% disp('========================================================================');
-% 
-% % 🌟 1. 未知の外乱(dstx, dsty)を0とした「公称全システムダイナミクス」の抽出
-% f_nominal = subs(f, [dstx, dsty], [0, 0]); % FLxyDstから作成した状態空間方程式のドリフト項 0,0としているため外乱無し
-% g_nominal = g; % 入力ゲイン行列
-% 
-% % 🌟 2. 最上流の操作変数 [v1_cmd; u2_cmd; u3_cmd] の定義　z,x,yの仮想入力の定義
-% syms v1_cmd u2_cmd u3_cmd real
-% u_top_layer = [v1_cmd; u2_cmd; u3_cmd];
-% 
-% % 各階層のCBFチェーンゲインの定義
-% syms k_cbf1 k_cbf2 k_cbf3 k_cbf4 k_cbf5 real % 荷物用(相対次数5)
-% syms d1 d2 real                             % ドローン用(相対次数2)
-% syms ox oy oz ro real                       % 障害物情報
-% syms r_load r_drone real                    % 安全マージン
-% 
-% % 高度線形化行列 H を適用した、最上流入力同期型の公称閉ループダイナミクスを全プロセスで使用
-% % (第4入力はyaw用のダミーとして0をパッキング)
-% FG_top_drone = simplify(f_nominal + g_nominal * H * [v1_cmd; u2_cmd; u3_cmd; 0]);
-% 
-% %% -----------------------------------------------------------------
-% %% 1. ドローン本体のCBF (相対次数 2)
-% %% -----------------------------------------------------------------
-% disp('▶️ [Drone Layer] ドローン本体の距離関数 h_drone を定義中...');
-% p_drone = [p1; p2; p3]; % ドローンの位置
-% v_drone = [dp1; dp2; dp3]; % ドローンの速度
-% h_drone_sym = 0.5 * ((p_drone(1) - ox)^2 + (p_drone(2) - oy)^2 + (p_drone(3) - oz)^2 - (ro + r_drone)^2); % 制御バリア関数ℎ=1/2 (‖𝑟_𝑞^𝑖+𝑟_𝑜^𝑗 ‖^2−(𝑟_𝑜^𝑖+𝑟_𝑞^𝑗 )^2 )
-% 
-% % 1段目の全微分（ダイナミクスには一貫して FG_top_drone を使用）
-% dot_h_drone = LieD(h_drone_sym, FG_top_drone, x);
-% phi1_drone = dot_h_drone + d1 * h_drone_sym;
-% 
-% % 2段目の全微分
-% dot_phi1_drone_total = LieD(phi1_drone, FG_top_drone, x);
-% 
-% % 【確実な代数分離】jacobianによるAの抽出と、残差によるbの抽出
-% A_drone_top_sym = jacobian(dot_phi1_drone_total, u_top_layer);
-% b_pure_drone    = simplify(dot_phi1_drone_total - A_drone_top_sym * u_top_layer);
-% b_drone_top_sym = b_pure_drone + d2 * phi1_drone;
-% 
-% %% -----------------------------------------------------------------
-% %% 2. 荷物（ペイロード）のCBF (相対次数 5)
-% %% -----------------------------------------------------------------
-% disp('▶️ [Load Layer] 荷物の距離関数 h0 から相対次数5のバックステッピングを展開中...');
-% h0 = 0.5 * ((pl(1) - ox)^2 + (pl(2) - oy)^2 + (pl(3) - oz)^2 - (ro + r_load)^2);
-% 
-% % 各階層の時間発展において、部分線形化が考慮された FG_top_drone を一貫して使用
-% h1 = simplify(LieD(h0, FG_top_drone, x) + k_cbf1 * h0);
-% h2 = simplify(LieD(h1, FG_top_drone, x) + k_cbf2 * h1);
-% h3 = simplify(LieD(h2, FG_top_drone, x) + k_cbf3 * h2);
-% h4 = simplify(LieD(h3, FG_top_drone, x) + k_cbf4 * h3);
-% 
-% disp('▶️ [Load Layer 5] 荷物側の最上流入力結合マトリクスを展開中...');
-% dot_h4_total = LieD(h4, FG_top_drone, x);
-% 
-% % 【確実な代数分離】jacobianによるAの抽出と、残差によるbの抽出
-% A_load_top_sym = jacobian(dot_h4_total, u_top_layer);
-% b_pure_load    = simplify(dot_h4_total - A_load_top_sym * u_top_layer);
-% b_load_top_sym = b_pure_load + k_cbf5 * h4;
-% 
-% %% -----------------------------------------------------------------
-% %% 3. 変数の置換と完全クリーンアップ（xおよび参照XDへの幾何マッピング）
-% %% -----------------------------------------------------------------
-% disp('▶️ 幾何学的閉ループ関係による状態変数 x への置換を実行中...');
-% p_equiv  = pl + cableL * pT;
-% wL_cross_pT = [ol2*pT3 - ol3*pT2; ol3*pT1 - ol1*pT2; ol1*pT2 - ol2*pT1];
-% dp_equiv = dpl + cab
-% leL * wL_cross_pT;
-% 
-% % 全シンボリック式の置換調停
-% A_drone_top_sym = subs(A_drone_top_sym, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% b_drone_top_sym = subs(b_drone_top_sym, [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% A_load_top_sym  = subs(A_load_top_sym,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% b_load_top_sym  = subs(b_load_top_sym,  [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% 
-% A_load_top_sym  = subs(A_load_top_sym,  xdReff, XDf);
-% b_load_top_sym  = subs(b_load_top_sym,  xdReff, XDf);
-% A_drone_top_sym = subs(A_drone_top_sym, xdReff, XDf);
-% b_drone_top_sym = subs(b_drone_top_sym, xdReff, XDf);
-% 
-% %% 【確定解決版】4. Mファイル関数としてのエクスポート
-% disp('💾 新・最上流同期型CBF関数の書き出し中（変数クリーンアップ実施）...');
-% 
-% % 🌟超重要：数式の奥深くに残った入力変数のゴミを、0を代入することで完全に消滅させる
-% % すでにjacobianでAとbに分離した後のため、0を代入しても数理的な値は一切変わりません
-% A_load_top_clean  = subs(A_load_top_sym,  [v1_cmd, u2_cmd, u3_cmd], [0, 0, 0]);
-% b_load_top_clean  = subs(b_load_top_sym,  [v1_cmd, u2_cmd, u3_cmd], [0, 0, 0]);
-% A_drone_top_clean = subs(A_drone_top_sym, [v1_cmd, u2_cmd, u3_cmd], [0, 0, 0]);
-% b_drone_top_clean = subs(b_drone_top_sym, [v1_cmd, u2_cmd, u3_cmd], [0, 0, 0]);
-% 
-% % 🌟パラメータをすべて「確実に1次元の縦ベクトル」として結合する
-% cbfParam_top_load  = [ox; oy; oz; ro; r_load;  k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; physicalParam(:)];
-% cbfParam_top_drone = [ox; oy; oz; ro; r_drone; d1; d2; physicalParam(:)];
-% 
-% XD_vars = cell2sym(XD);
-% 
-% % 🌟引数にはクリーンアップした数式（_clean）を渡す
-% matlabFunction(A_load_top_clean, b_load_top_clean, 'file', 'CBF_Constraints_Load_TopLayer.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_top_load, t}, 'outputs', {'A_load_top', 'b_load_top'}, 'Optimize', true);
-% 
-% matlabFunction(A_drone_top_clean, b_drone_top_clean, 'file', 'CBF_Constraints_Drone.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_top_drone, t}, 'outputs', {'A_drone_top', 'b_drone_top'}, 'Optimize', true);
-% 
-% disp('========================================================================');
-% disp('🎉 [エラー解消] ドローン用＆荷物用の複数障害物対応HLC関数が完全に出力されました！');
-% disp('========================================================================');
-
-% %% =========================================================================
-% %% HO-CBF (高度階層型線形化・完全デカップリング保護版) 自動導出セクション
-% %% =========================================================================
-% clc
-% disp('========================================================================');
-% disp(' 最上流仮想入力 [v1_cmd; v2_cmd; v3_cmd] に対する相対次数5のHO-CBFを生成します');
-% disp('========================================================================');
-% 
-% % 1. 公称システムの抽出（未知外乱dstx, dstyを0として公称閉ループダイナミクスを構築）ここは問題ない
-% f_nominal = subs(f, [dstx, dsty], [0, 0]); 
-% g_nominal = g; 
-% 
-% % クラス(HLC)側の v_nominal = [vf_nominal(1); vs_nominal(1); vs_nominal(2)] と完全同期した変更する入力　問題なし
-% syms v1_cmd v2_cmd v3_cmd real
-% u_top_layer = [v1_cmd; v2_cmd; v3_cmd];
-% 
-% % HO-CBFチェーンゲイン 問題なし
-% syms k_cbf1 k_cbf2 k_cbf3 k_cbf4 k_cbf5 real
-% % 障害物情報と保護半径のシンボル　問題なし
-% syms ox oy oz ro real                       
-% syms r_sphere real 
-% syms lambda_val real                        % 荷物(0)〜ドローン(1)の分割位置
-% 
-% % 🚨【バグ修正解決】：HLCコントローラが実際に計算している2層の結合ダイナミクスを完璧に再現
-% % 1層目の高度仮想入力に v1_cmd を、2層目の水平・yaw仮想入力に [v2_cmd; v3_cmd; 0] をマッピング
-% % これにより、水平移動のシンボルが 5次の全微分チェーン（Lie微分）に100%漏れなく結合します！
-% us_cbf_link = beta2 \ ([v2_cmd; v3_cmd; 0] - alpha2); 
-% uf_cbf_link = H(1,1) * (-alpha1 + v1_cmd); % 未定義変数エラーを解消する正しいシンボリック表現
-% 
-% % 全系実入力ベクトル [uf; us] を構成（yaw用の第4入力は0で固定）
-% % 上流のダイナミクス合成時に残ったダミー変数 [u2, u3, u4] を 0 に落として数式を完全にクリーンアップ
-% u_full_dynamic = [uf_cbf_link; us_cbf_link];
-% u_full_dynamic = subs(u_full_dynamic, [u2, u3, u4], [0, 0, 0]);
-% 
-% % 公称プラントモデルに完全結合閉ループダイナミクスをドッキング
-% FG_top_synced = simplify(f_nominal + g_nominal * u_full_dynamic);
-% 
-% % 5. 配置割合 lambda_val に応じた保護球の汎用位置ベクトルの定義
-% p_sphere = pl - lambda_val * cableL * pT;
-% 
-% % 6. バリア関数（ゼロ超レベルセット）の基礎定義
-% h0_sphere = 0.5 * ((p_sphere(1) - ox)^2 + (p_sphere(2) - oy)^2 + (p_sphere(3) - oz)^2 - (ro + r_sphere)^2);
-% 
-% %% -----------------------------------------------------------------
-% %% 相対次数5のHO-CBFバックステッピング展開
-% %% -----------------------------------------------------------------
-% disp('▶️ [HO-CBF] 5階層の全微分（Lie微分チェーン）を計算中...');
-% h1_s = simplify(LieD(h0_sphere, FG_top_synced, x) + k_cbf1 * h0_sphere);
-% h2_s = simplify(LieD(h1_s, FG_top_synced, x) + k_cbf2 * h1_s);
-% h3_s = simplify(LieD(h2_s, FG_top_synced, x) + k_cbf3 * h2_s);
-% h4_s = simplify(LieD(h3_s, FG_top_synced, x) + k_cbf4 * h3_s); 
-% % 5階層目（ここで最上流入力 [v1_cmd, v2_cmd, v3_cmd] が代数的に結合します）
-% dot_h4_sphere = LieD(h4_s, FG_top_synced, x);
-% 
-% %% -----------------------------------------------------------------
-% %% 幾何学的マッピング変数（等価式）の明示的定義
-% %% -----------------------------------------------------------------
-% p_equiv  = pl + cableL * pT;                                     
-% wL_cross_pT = [ol2.*pT3 - ol3.*pT2; ol3.*pT1 - ol1.*pT3; ol1.*pT2 - ol2.*pT1]; 
-% dp_equiv = dpl + cableL * wL_cross_pT;                           
-% 
-% %% -----------------------------------------------------------------
-% %% 操作入力マトリクス A_s と残差ベクトル b_s の代数分離と完全置換
-% %% -----------------------------------------------------------------
-% disp('▶️ [HO-CBF] 操作入力マトリクス A_s と残差ベクトル b_s の代数分離を実行中...');
-% A_sphere_sym = jacobian(dot_h4_sphere, u_top_layer);
-% b_pure_sphere = simplify(dot_h4_sphere - A_sphere_sym * u_top_layer);
-% b_sphere_sym = b_pure_sphere + k_cbf5 * h4_s;
-% 
-% disp('▶️ [HO-CBF] 幾何学マッピングおよび不要成分の完全クリーンアップ中...');
-% A_sphere_clean = subs(A_sphere_sym,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% b_sphere_clean = subs(b_sphere_sym,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% 
-% % 数式に残ったダミー入力変数の消滅処理と参照軌道の置換
-% A_sphere_clean = subs(A_sphere_clean, [v1_cmd, v2_cmd, v3_cmd, xdReff], [0, 0, 0, XDf]);
-% b_sphere_clean = subs(b_sphere_clean, [v1_cmd, v2_cmd, v3_cmd, xdReff], [0, 0, 0, XDf]);
-% 
-% disp('💾 HLCのP配列（9要素）に完全同期したCBF関数ファイルをエクスポート中...');
-% syms mass_hlc jx_hlc jy_hlc jz_hlc gravity_hlc loadmass_hlc cableL_hlc dummy1 dummy2 real
-% P_hlc_style = [mass_hlc; jx_hlc; jy_hlc; jz_hlc; gravity_hlc; loadmass_hlc; cableL_hlc; dummy1; dummy2];
-% 
-% A_sphere_hlc = subs(A_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% b_sphere_hlc = subs(b_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% 
-% cbfParam_compiled = [ox; oy; oz; ro; r_sphere; lambda_val; k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; P_hlc_style(:)];
-% XD_vars = cell2sym(XD);
-% 
-% % Mファイル関数を上書きエクスポート
-% matlabFunction(A_sphere_hlc, b_sphere_hlc, 'file', 'CBF_Constraints_Synced_Order5.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_compiled, t}, 'outputs', {'A_s', 'b_s'}, 'Optimize', true);
-% 
-% disp('========================================================================');
-% disp('🎉 [水平回避・完全開通] 3軸すべてに数式が詰まった高次CBF関数が正常に出力されました！');
-% disp('========================================================================');
-
-% %% =========================================================================
-% %% HO-CBF (水平2軸・相対次数5・実入力ベース軽量版) 自動導出セクション
-% %% =========================================================================
-% clc
-% disp('========================================================================');
-% disp(' 🌟 メモリ爆発を完全に回避した、荷物の水平に対する相対次数5のHO-CBFを生成します');
-% disp('========================================================================');
-% 
-% % 1. 公称システムの抽出（未知外乱dstx, dstyを0として公称閉ループダイナミクスを構築）
-% f_nominal = subs(f, [dstx, dsty], [0, 0]); 
-% g_nominal = g; 
-% 
-% % 🚨【メモリ防衛】：逆行列は絶対に計算せず、実入力 [u2; u3; u4] の文字のまま結合します！
-% % yaw用の第4入力は0固定
-% syms u2_cmd u3_cmd real
-% u_top_layer = [u2_cmd; u3_cmd];
-% 
-% % 1层目の高度方向は名目入力のままで結合（uf = H(:,1)*(-alpha1 + v1(t))）
-% uf_cbf_link = H(1,1) * (-alpha1 + v1(t)); 
-% 
-% % 全系実入力ベクトルを安全に結合（ダミー変数u2, u3, u4から一度完全に切り離して再パッキング）
-% u_full_dynamic = [uf_cbf_link; u2_cmd; u3_cmd; 0];
-% u_full_dynamic = subs(u_full_dynamic, [u2, u3, u4], [0, 0, 0]);
-% 
-% % 公称プラントモデルにドッキング（文字数が肥大化しない超軽量な式になります）
-% FG_top_synced = simplify(f_nominal + g_nominal * u_full_dynamic);
-% 
-% % HO-CBFチェーンゲインと保護半径定義
-% syms k_cbf1 k_cbf2 k_cbf3 k_cbf4 k_cbf5 real
-% syms ox oy oz ro r_sphere lambda_val real                        
-% 
-% p_sphere = pl - lambda_val * cableL * pT;
-% % 水平方向だけの2次元バリア関数（Z軸はHLCに任せるため拘束から解放）
-% h0_sphere = 0.5 * ((p_sphere(1) - ox)^2 + (p_sphere(2) - oy)^2 - (ro + r_sphere)^2);
-% 
-% %% -----------------------------------------------------------------
-% %% 相対次数5のHO-CBFバックステッピング展開（たったこれだけの式なので爆速処理）
-% %% -----------------------------------------------------------------
-% disp('▶️ [HO-CBF] 水平5階層の全微分（Lie微分チェーン）を計算中...');
-% h1_s = simplify(LieD(h0_sphere, FG_top_synced, x) + k_cbf1 * h0_sphere);
-% h2_s = simplify(LieD(h1_s, FG_top_synced, x) + k_cbf2 * h1_s);
-% h3_s = simplify(LieD(h2_s, FG_top_synced, x) + k_cbf3 * h2_s);
-% h4_s = simplify(LieD(h3_s, FG_top_synced, x) + k_cbf4 * h3_s); 
-% % 5階層目（ここで実入力 [u2_cmd, u3_cmd] が代数的に美しく結合します）
-% dot_h4_sphere = LieD(h4_s, FG_top_synced, x);
-% 
-% %% -----------------------------------------------------------------
-% %% 操作入力マトリクス A_s と残差ベクトル b_s の代数分離と完全置換
-% %% -----------------------------------------------------------------
-% disp('▶️ [HO-CBF] 操作入力の代数分離を実行中...');
-% % 🚨 逆行列を介していないため、極めて短く綺麗なヤコビアンが抽出されます
-% A_sphere_sym = jacobian(dot_h4_sphere, u_top_layer);
-% b_pure_sphere = simplify(dot_h4_sphere - A_sphere_sym * u_top_layer);
-% b_sphere_sym = b_pure_sphere + k_cbf5 * h4_s;
-% 
-% disp('▶️ [HO-CBF] 幾何学マッピングおよび不要成分の完全クリーンアップ中...');
-% p_equiv  = pl + cableL * pT;                                     
-% wL_cross_pT = [ol2.*pT3 - ol3.*pT2; ol3.*pT1 - ol1.*pT3; ol1.*pT2 - ol2.*pT1]; 
-% dp_equiv = dpl + cableL * wL_cross_pT;                           
-% 
-% A_sphere_clean = subs(A_sphere_sym,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% b_sphere_clean = subs(b_sphere_sym,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% 
-% % 参照軌道(XD)への置換とダミー文字の完全消去
-% A_sphere_clean = subs(A_sphere_clean, [v1(t), u2_cmd, u3_cmd, xdReff], [v1, 0, 0, XDf]);
-% b_sphere_clean = subs(b_sphere_clean, [v1(t), u2_cmd, u3_cmd, xdReff], [v1, 0, 0, XDf]);
-% 
-% disp('💾 HLCのP配列（9要素）に完全同期中...');
-% syms mass_hlc jx_hlc jy_hlc jz_hlc gravity_hlc loadmass_hlc cableL_hlc dummy1 dummy2 real
-% P_hlc_style = [mass_hlc; jx_hlc; jy_hlc; jz_hlc; gravity_hlc; loadmass_hlc; cableL_hlc; dummy1; dummy2];
-% 
-% % 確実な最終一括置換
-% A_sphere_hlc = subs(A_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% b_sphere_hlc = subs(b_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% 
-% cbfParam_compiled = [ox; oy; oz; ro; r_sphere; lambda_val; k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; P_hlc_style(:)];
-% XD_vars = cell2sym(XD);
-% 
-% % Mファイル関数を上書きエクスポート
-% matlabFunction(A_sphere_hlc, b_sphere_hlc, 'file', 'CBF_Constraints_Synced_Order5.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_compiled, t}, 'outputs', {'A_s', 'b_s'}, 'Optimize', true);
-% 
-% disp('========================================================================');
-% disp('🎉 [軽量化・完全開通] メモリ不足を完全に克服した5次CBF関数が出力されました！');
-% disp('========================================================================');
-
-% %% =========================================================================
-% %% HO-CBF (水平2軸・相対次数5・完全メモリ防衛＆代数隔離版)
-% %% =========================================================================
-% clc
-% disp('========================================================================');
-% disp(' 🌟 メモリ爆発を100%回避する、最上流仮想入力に対する5次CBFを生成します');
-% disp('========================================================================');
-% 
-% % 🌟 1. 公称ダイナミクスを極限まで軽量化
-% % 未知外乱(dstx, dsty)を0とした公称システムを抽出
-% f_nominal = subs(f, [dstx, dsty], [0, 0]); 
-% g_nominal = g; 
-% 
-% % 🌟 2. 仮想入力を「ただの独立した文字の集まり」として定義
-% % 微分計算中に複雑な分数式（逆行列やalpha1, 2）が混ざるのを完全に遮断します
-% syms v1_cbf v2_cmd v3_cmd v4_cbf real
-% u_virtual_layer = [v2_cmd; v3_cmd]; % CBFの調整対象（水平の仮想入力）
-% 
-% % 全系の入力ベクトルを、ただの「シンプルな文字の並び」としてパッキング
-% % 1層目の高度(v1)や4軸目のyaw(v4)は、ここでは独立した文字変数として扱います
-% u_nominal_simple = [v1_cbf; v2_cmd; v3_cmd; v4_cbf];
-% 
-% % 閉ループダイナミクスをドッキング
-% % 逆行列などを一切含まないため、数式は非常に軽量なままです
-% FG_top_synced = simplify(f_nominal + g_nominal * u_nominal_simple);
-% 
-% % 🌟 3. バリア関数の定義
-% % 障害物情報と保護半径のシンボル
-% syms ox oy oz ro r_sphere lambda_val real                        
-% syms k_cbf1 k_cbf2 k_cbf3 k_cbf4 k_cbf5 real % HO-CBFチェーンゲイン
-% 
-% p_sphere = pl - lambda_val * cableL * pT;
-% % 水平方向の安全性を評価する2次元バリア関数
-% h0_sphere = 0.5 * ((p_sphere(1) - ox)^2 + (p_sphere(2) - oy)^2 - (ro + r_sphere)^2);
-
-% %% =========================================================================
-% %% HO-CBF (水平2軸・相対次数5・完全メモリ防衛＆代数隔離版) 【エラー完全解決・最終開通版】
-% %% =========================================================================
-% clc
-% disp('========================================================================');
-% disp(' 🌟 メモリ爆発を100%回避する、最上流仮想入力に対する5次CBFを生成します');
-% disp('========================================================================');
-% 
-% % 1. 公称ダイナミクスを極限まで軽量化
-% f_nominal = subs(f, [dstx, dsty], [0, 0]); 
-% g_nominal = g; 
-% 
-% % 2. 仮想入力を独立した文字として定義
-% syms v1_cbf v2_cmd v3_cmd v4_cbf real
-% u_virtual_layer = [v2_cmd; v3_cmd]; % CBFの調整対象（水平の仮想入力）
-% u_nominal_simple = [v1_cbf; v2_cmd; v3_cmd; v4_cbf];
-% 
-% % 閉ループダイナミクスをドッキング
-% FG_top_synced = simplify(f_nominal + g_nominal * u_nominal_simple);
-% 
-% % 3. 荷物用バリア関数の定義
-% syms ox oy oz ro r_sphere lambda_val real                        
-% syms k_cbf1 k_cbf2 k_cbf3 k_cbf4 k_cbf5 real % 荷物用HO-CBFチェーンゲイン
-% p_sphere = pl - lambda_val * cableL * pT;
-% h0_sphere = 0.5 * ((p_sphere(1) - ox)^2 + (p_sphere(2) - oy)^2 - (ro + r_sphere)^2);
-% 
-% %% -----------------------------------------------------------------
-% %% 荷物側：相対次数5のHO-CBFバックステッピング展開
-% %% -----------------------------------------------------------------
-% disp('▶️ [Load-CBF] 独立文字のまま5階層の全微分（Lie微分チェーン）を計算中...');
-% h1_s = simplify(LieD(h0_sphere, FG_top_synced, x) + k_cbf1 * h0_sphere);
-% h2_s = simplify(LieD(h1_s, FG_top_synced, x) + k_cbf2 * h1_s);
-% h3_s = simplify(LieD(h2_s, FG_top_synced, x) + k_cbf3 * h2_s);
-% h4_s = simplify(LieD(h3_s, FG_top_synced, x) + k_cbf4 * h3_s); 
-% dot_h4_sphere = LieD(h4_s, FG_top_synced, x);
-% 
-% %% -----------------------------------------------------------------
-% %% 操作入力マトリクス A_s と残差ベクトル b_s の代数分離
-% %% -----------------------------------------------------------------
-% disp('▶️ [Load-CBF] 仮想入力 [v2_cmd, v3_cmd] に対する代数分離を実行中...');
-% A_sphere_raw = jacobian(dot_h4_sphere, u_virtual_layer);
-% b_pure_sphere = simplify(dot_h4_sphere - A_sphere_raw * u_virtual_layer);
-% b_sphere_sym = b_pure_sphere + k_cbf5 * h4_s;
-% 
-% disp('▶️ [Load-CBF] 幾何学マッピング置換を実行中...');
-% p_equiv  = pl + cableL * pT;                                     
-% wL_cross_pT = [ol2.*pT3 - ol3.*pT2; ol3.*pT1 - ol1.*pT3; ol1.*pT2 - ol2.*pT1]; 
-% dp_equiv = dpl + cableL * wL_cross_pT;                           
-% A_sphere_clean = subs(A_sphere_raw,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% b_sphere_clean = subs(b_sphere_sym,   [p1; p2; p3; dp1; dp2; dp3], [p_equiv; dp_equiv]);
-% 
-% % 参照軌道(XD)の置換
-% A_sphere_clean = subs(A_sphere_clean, xdReff, XDf);
-% b_sphere_clean = subs(b_sphere_clean, xdReff, XDf);
-% 
-% disp('💾 HLCのP配列に完全同期した軽量荷物用CBF関数ファイルをエクスポート中...');
-% syms mass_hlc jx_hlc jy_hlc jz_hlc gravity_hlc loadmass_hlc cableL_hlc dummy1 dummy2 real
-% P_hlc_style = [mass_hlc; jx_hlc; jy_hlc; jz_hlc; gravity_hlc; loadmass_hlc; cableL_hlc; dummy1; dummy2];
-% A_sphere_hlc = subs(A_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% b_sphere_hlc = subs(b_sphere_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                     [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% 
-% % 🌟【最重要・真の解決】：診断レポートの通り数式の底に残存していた v2_cmd, v3_cmd をここで一撃で完全消滅させます
-% A_sphere_hlc = subs(A_sphere_hlc, [v2_cmd, v3_cmd], [0, 0]);
-% b_sphere_hlc = subs(b_sphere_hlc, [v2_cmd, v3_cmd], [0, 0]);
-% 
-% % A_s, b_s の中から「v2_cmd」と「v3_cmd」は跡形もなく消えたため、引数（Vars）に含めません。
-% cbfParam_load_compiled = [ox; oy; oz; ro; r_sphere; lambda_val; k_cbf1; k_cbf2; k_cbf3; k_cbf4; k_cbf5; v1_cbf; v4_cbf; P_hlc_style(:)];
-% XD_vars = cell2sym(XD);
-% 
-% % 5次関数のエクスポート
-% matlabFunction(A_sphere_hlc, b_sphere_hlc, 'file', 'CBF_Constraints_Synced_Order5.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_load_compiled, t}, 'outputs', {'A_s', 'b_s'}, 'Optimize', true);
-% disp('🎉 [5次・荷物用] が正常に出力されました！続けてドローン用（2次）を生成します。');
-% 
-% 
-% %% =========================================================================
-% %% HO-CBF (ドローン本体・相対次数2・完全メモリ防衛＆代数隔離版)
-% %% =========================================================================
-% disp('------------------------------------------------------------------------');
-% syms k_drone1 k_drone2 real
-% syms r_drone real % ドローン用の安全マージン半径
-% 
-% % 1. ドローン本体用の2次元（水平面内）バリア関数の定義
-% h0_drone = 0.5 * ((p_equiv(1) - ox)^2 + (p_equiv(2) - oy)^2 - (ro + r_drone)^2);
-% 
-% %% -----------------------------------------------------------------
-% %% ドローン側：相対次数2のHO-CBFバックステッピング展開
-% %% -----------------------------------------------------------------
-% disp('▶️ [Drone-CBF] 独立文字のまま2階層の全微分（Lie微分チェーン）を計算中...');
-% h1_drone = simplify(LieD(h0_drone, FG_top_synced, x) + k_drone1 * h0_drone);
-% dot_h1_drone = LieD(h1_drone, FG_top_synced, x);
-% 
-% disp('▶️ [Drone-CBF] 仮想入力 [v2_cmd, v3_cmd] に対する代数分離を実行中...');
-% A_drone_raw = jacobian(dot_h1_drone, u_virtual_layer);
-% b_pure_drone = simplify(dot_h1_drone - A_drone_raw * u_virtual_layer);
-% b_drone_sym = b_pure_drone + k_drone2 * h1_drone;
-% 
-% A_drone_clean = subs(A_drone_raw, xdReff, XDf);
-% b_drone_clean = subs(b_drone_sym, xdReff, XDf);
-% 
-% disp('💾 HLCのP配列に完全同期したドローン用CBF関数ファイルをエクスポート中...');
-% A_drone_hlc = subs(A_drone_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                   [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% b_drone_hlc = subs(b_drone_clean, [m, jx, jy, jz, gravity, mL, cableL], ...
-%                                   [mass_hlc, jx_hlc, jy_hlc, jz_hlc, gravity_hlc, loadmass_hlc, cableL_hlc]);
-% 
-% % 🌟【最重要・真の解決】：ドローン用も、matlabFunctionの直前で完全に残骸を消滅させます
-% A_drone_hlc = subs(A_drone_hlc, [v2_cmd, v3_cmd], [0, 0]);
-% b_drone_hlc = subs(b_drone_hlc, [v2_cmd, v3_cmd], [0, 0]);
-% 
-% % ドローン用からも消滅した「v2_cmd」「v3_cmd」を削除したパラメータを指定
-% cbfParam_drone_compiled = [ox; oy; oz; ro; r_drone; k_drone1; k_drone2; v1_cbf; v4_cbf; P_hlc_style(:)];
-% 
-% % 2次関数のエクスポート
-% matlabFunction(A_drone_hlc, b_drone_hlc, 'file', 'CBF_Constraints_Drone.m', ...
-%     'vars', {obj, x, XD_vars, cbfParam_drone_compiled, t}, 'outputs', {'A_drone', 'b_drone'}, 'Optimize', true);
-% 
-% disp('========================================================================');
-% disp('🎉 [完全開通] 5次(荷物) ＆ 2次(ドローン) の両方のMファイルがエラー無しで出力されました！');
-% disp('========================================================================');
-
 %% =========================================================================
-%% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
+%% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート
 %% =========================================================================
 disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+FG_z = simplify(f+g*[u1;u2;u3;u4]);
+g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
+f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
+simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
 
 % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
 syms xo yo zo ro real
 syms rl real
 % 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
-h_cbf = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
+h_cbf_z = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
 
 % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
-syms gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 real
+syms gamma1 gamma2 real
+g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
 
-% 3. 6階の高次CBFをリー微分(LieD)を用いて順次計算
-% f1, g1 は 2nd layer で求めた [u2; u3; u4] に対するシステム方程式
-% 今回は u4 (yaw) の項は既知（理想値）として扱うため、g1の3列目を取り出して処理します
-g1_xy = g1(:, 1:2); % u2, u3 に掛かる列だけを抽出
-g1_yaw = g1(:, 3);  % u4 に掛かる列
+% 3. 2階の高次CBFの導出（相対次数2）
+% cbf1 (h)   >= 0 
+% cbf2 (dot_h + gamma1 * h) >= 0
+cbf2 = LieD(h_cbf_z, f_z, x) + diff(h_cbf_z, t) + gamma1 * h_cbf_z; %h2
 
-% 階層的なCBFの導出
-% ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
-cbf1 = LieD(h_cbf, f1, x) + diff(h_cbf, t) + gamma1 * h_cbf; %h2
-cbf2 = LieD(cbf1,  f1, x) + diff(cbf1,  t) + gamma2 * cbf1; %h3
-cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma3 * cbf2; %h4
-cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma4 * cbf3; %h5
-cbf5 = LieD(cbf4,  f1, x) + diff(cbf4,  t) + gamma5 * cbf4; %h6
 
-% 最上階（6階）の計算：ここに u2, u3 が現れる
-% cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
-L_f_cbf5  = LieD(cbf5, f1, x) + diff(cbf5, t);
-L_g_cbf5  = LieD(cbf5, g1_xy, x);  % [1 x 2] のベクトル（u2, u3 の係数 β）
-L_gy_cbf5 = LieD(cbf5, g1_yaw, x); % (u4 の係数)
+% 4. 最適化問題（QP）へのマッピング
+% cbf2_dot + gamma2 * cbf2 >= 0  を導出
+% ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
+L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
 
-% 最終的な安全条件式: cbf6_dot + gamma6 * cbf5 >= 0
-% つまり、 L_g_cbf5 * [u2; u3] + L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5 >= 0
-% これを QP用の形式 「 A_qp * [u2; u3] <= b_qp 」に整理します。
-% 不等号を反転させるため、符号をマイナスにします。
+% A_qp * u1 <= b_qp の形に変形（符号反転）
+A_cbf_sym = -L_g_cbf2; 
+b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
 
-A_cbf_sym = -L_g_cbf5; % [1 x 2] のシンボリック行ベクトル
-b_cbf_sym = L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5; % シンボリックスカラー
+% 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
 
-% 4. 実際の数値シミュレーション側で代入しやすいよう、変数を置き換え (xdRef -> XDf, vInput1f -> V1vf)
-% 2nd layerの入力 u4（yaw用）には、コントローラが後で計算する実入力の4番目の要素を指定できるように V4 を代入
-syms V4 real
-A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-
-% 5. 高速計算用に関数ファイル (Mファイル) としてエクスポート
-% クラスK関数のゲインも外部から与えられるように引数に含めます
-gamma_params = [gamma1; gamma2; gamma3; gamma4; gamma5; gamma6];
+% 6. Mファイルとして関数エクスポート
+gamma_params = [gamma1; gamma2];
 obs_params = [xo; yo; zo; ro];
 sys_params = rl;
-
 XD_sym = cell2sym(XD);
-XD_sym = XD_sym(:); % 強制的に縦ベクトル化
+XD_sym = XD_sym(:); % 縦ベクトル化
 
-disp("Exporting: CBF_Constraints_xy.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xy.m', ...
-               'vars', {obj, x, XD_sym, cell2sym(V1v), V4, obs_params, gamma_params, sys_params, physicalParam}, ...
-               'outputs', {'A_qp', 'b_qp'});
-
+disp("Exporting: CBF_Constraints_z.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_z.m', ...
+    'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
+    'outputs', {'A_qp', 'b_qp'});
 disp("Done: CBF関数の生成が完了しました！");
+% %% =========================================================================
+% %% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
+% %% =========================================================================
+% disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+% 
+% % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
+% syms xo yo zo ro real
+% syms rl real
+% % 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
+% h_cbf = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
+% 
+% % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
+% syms gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 real
+% 
+% % 3. 6階の高次CBFをリー微分(LieD)を用いて順次計算
+% % f1, g1 は 2nd layer で求めた [u2; u3; u4] に対するシステム方程式
+% % 今回は u4 (yaw) の項は既知（理想値）として扱うため、g1の3列目を取り出して処理します
+% g1_xy = g1(:, 1:2); % u2, u3 に掛かる列だけを抽出
+% g1_yaw = g1(:, 3);  % u4 に掛かる列
+% 
+% % 階層的なCBFの導出
+% % ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
+% cbf1 = LieD(h_cbf, f1, x) + diff(h_cbf, t) + gamma1 * h_cbf; %h2
+% cbf2 = LieD(cbf1,  f1, x) + diff(cbf1,  t) + gamma2 * cbf1; %h3
+% cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma3 * cbf2; %h4
+% cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma4 * cbf3; %h5
+% cbf5 = LieD(cbf4,  f1, x) + diff(cbf4,  t) + gamma5 * cbf4; %h6
+% 
+% % 最上階（6階）の計算：ここに u2, u3 が現れる
+% % cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
+% L_f_cbf5  = LieD(cbf5, f1, x) + diff(cbf5, t);
+% L_g_cbf5  = LieD(cbf5, g1_xy, x);  % [1 x 2] のベクトル（u2, u3 の係数 β）
+% L_gy_cbf5 = LieD(cbf5, g1_yaw, x); % (u4 の係数)
+% 
+% % 最終的な安全条件式: cbf6_dot + gamma6 * cbf5 >= 0
+% % つまり、 L_g_cbf5 * [u2; u3] + L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5 >= 0
+% % これを QP用の形式 「 A_qp * [u2; u3] <= b_qp 」に整理します。
+% % 不等号を反転させるため、符号をマイナスにします。
+% 
+% A_cbf_sym = -L_g_cbf5; % [1 x 2] のシンボリック行ベクトル
+% b_cbf_sym = L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5; % シンボリックスカラー
+% 
+% % 4. 実際の数値シミュレーション側で代入しやすいよう、変数を置き換え (xdRef -> XDf, vInput1f -> V1vf)
+% % 2nd layerの入力 u4（yaw用）には、コントローラが後で計算する実入力の4番目の要素を指定できるように V4 を代入
+% syms V4 real
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
+% 
+% % 5. 高速計算用に関数ファイル (Mファイル) としてエクスポート
+% % クラスK関数のゲインも外部から与えられるように引数に含めます
+% gamma_params = [gamma1; gamma2; gamma3; gamma4; gamma5; gamma6];
+% obs_params = [xo; yo; zo; ro];
+% sys_params = rl;
+% 
+% XD_sym = cell2sym(XD);
+% XD_sym = XD_sym(:); % 強制的に縦ベクトル化
+% 
+% disp("Exporting: CBF_Constraints_xy.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xy.m', ...
+%                'vars', {obj, x, XD_sym, cell2sym(V1v), V4, obs_params, gamma_params, sys_params, physicalParam}, ...
+%                'outputs', {'A_qp', 'b_qp'});
+% 
+% disp("Done: CBF関数の生成が完了しました！");
 %% =========================================================================
 %% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
 % % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
