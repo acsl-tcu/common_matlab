@@ -106,3 +106,14 @@ class InferenceWrapper(nn.Module):
             # print(f"[DEBUG] output shape: {out.shape}, values: {out}") # outputの形状と値をMATLABコマンドウィンドウ上に出力
 
         return out.numpy()
+    
+
+if __name__ == "__main__": # デバッグ用のテストコード
+    # 確認したいモデルのフルパス
+    model_full_path = r"\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\01_Python_ML\RNN-LearnExp\tmp__2026-7-15_12_15_52__RNN12__Exp_random__Euler__Device=NVIDIA GeForce RTX 4090\epoch_4\__4epoch_model.pt"
+    inference_wrapper = InferenceWrapper(model_full_path)
+
+    # テスト入力データ
+    test_input = np.random.rand(10, inference_wrapper.architecture_info['input_size']).tolist()  # 10サンプルのランダムデータ
+    predictions = inference_wrapper.predict(test_input)
+    print("Predictions:", predictions)

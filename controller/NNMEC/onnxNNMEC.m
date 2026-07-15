@@ -78,8 +78,8 @@ classdef onnxNNMEC < handle
                         error('未知のモデル次元です: %s', model_num);
                 end
             else % "NN"の記述がない場合のデフォルト
-                dim = 24;
-                obj.gen_data_func = @(x_p,x_n) [x_p; x_n];
+                dim = 12;
+                obj.gen_data_func = @(x_p,x_n) x_p - x_n;
             end
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.NNMEC_model = initialize(NN_model, dummyInput); % モデルの初期化
