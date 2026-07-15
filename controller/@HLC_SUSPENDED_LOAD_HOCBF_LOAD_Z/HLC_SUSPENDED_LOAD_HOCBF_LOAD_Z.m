@@ -1,4 +1,4 @@
-classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_XYZYAW < handle
+classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z < handle
 % クアッドコプター用階層型線形化を使った入力算出（HOCBF安全フィルター付き）
 properties
     self
@@ -6,7 +6,7 @@ properties
     param
 end
 methods
-    function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_XYZYAW(self, param)
+    function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z(self, param)
         obj.self = self;
         obj.param = param;
     end
@@ -98,7 +98,7 @@ methods
         %% =========================================================================
         % 1. 障害物定義関数から環境情報を動的に取得
         tic_cbf_setup = tic;
-        obs_env = ENVIRONMENT_OBSTACLE_HOCBF_Z(); 
+        obs_env = ENVIRONMENT_OBSTACLE(); 
         num_obs = length(obs_env);
         
         % 2. 荷物の物理半径 rl
