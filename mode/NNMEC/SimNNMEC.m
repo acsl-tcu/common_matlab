@@ -19,6 +19,7 @@ motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture 
 logger = LOGGER(1, size(ts:dt:te,2), 0, [],[]); % instance of LOOGER class for data logging
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  delta_U:[T, tx, ty, tz]\n\n");
 
 base = [0,0]; % center
@@ -62,8 +63,8 @@ center = [0;0;takeoff_zd]; % 原点
 % center_hover    = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",center, "radius",[0,0,0]}, 4});
 % point_hover     = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",[base'+1;takeoff_zd+1], "radius",[0,0,0]}, 4});
 % circle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10, "center",center, "radius",1.0}, 4});
-saddle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",center, "radius",[1,1,0.25]}, 4});
-% lemniscate      = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",0}, 4});
+% saddle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4});
+lemniscate      = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1}, 4});
 % triangle        = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10, "center",center, "radius",[1,1,0]}, 4});
 % flower          = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4});
 % heart           = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4});
@@ -78,7 +79,7 @@ saddle          = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "ce
 % multiP2P        = MULTI_POINT_REFERENCE(agent,refpoints);
 
 
-agent.reference.set_function_class("time_varying", saddle) % 最終的なset．２つ目の引数の名前を適宜変更
+agent.reference.set_function_class("time_varying", lemniscate) % 最終的なset．２つ目の引数の名前を適宜変更
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -95,14 +96,14 @@ onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0
 % onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__1000000epoch";
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
 
-
-ptName = "2026-7-13_16_30_56__DNN12__Sim_60ptsSplineXdirection__m0.7875_jxjy0.19__Euler__1000000epoch_model.pt";
+onnxName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch";
+ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model";
 RNNptName = "tmp__2026-7-15_12_15_52__RNN12__Exp_random__Euler__4epoch_model.pt";
 
-% agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
+agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
 % agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
-agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName));
+% agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName));
 
 
 % cha_allocation ==============================================

@@ -172,7 +172,6 @@ classdef PythonRNNMEC
             end
                 
             data_py = py.numpy.array(permute(obj.data.RNN_input, [3,2,1])); % [Batch=1, Seqence Length, Input Size] の3次元に整形
-
             py_result = obj.RNNMEC_model.predict(data_py); % Pythonスクリプトでの推論
             tmp = double(py_result)';
             obj.result.delta_input = tmp(:,end);
