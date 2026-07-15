@@ -49,18 +49,18 @@ class RNNModel(nn.Module):
         super(RNNModel, self).__init__()
         # RNNは通常hidden_sizeは単一値だが、リストで来る可能性もあるため先頭を使用
         hidden_size = hidden_sizes[0] if isinstance(hidden_sizes, (list, tuple)) else hidden_sizes
+        hidden_size = int(hidden_size[0]) # nn.RNNでのエラー回避用
 
         # nn.RNNのnonlinearityは'tanh'か'relu'のみ対応
         nonlinearity = activation_function.lower() if activation_function.lower() in ('tanh', 'relu') else 'relu'
 
         self.rnn = nn.RNN(input_size, hidden_size, num_layers,
                            batch_first=True, nonlinearity=nonlinearity)
-        self.fc = nn.Linear(hidden_size, output_size)
-        self.activation_function = self._get_activation(activation_function)
+        self.linears = nn.Linear(hidden_size, output_size)
 
     def forward(self, x, h0=None):
         out, hn = self.rnn(x, h0)
-        out = self.fc(out)
+        out = self.linears(out)
         return out, hn
 
 
@@ -105,5 +105,4 @@ class InferenceWrapper(nn.Module):
                 out = self.model(x)
             # print(f"[DEBUG] output shape: {out.shape}, values: {out}") # outputの形状と値をMATLABコマンドウィンドウ上に出力
 
-        return out.numpy().tolist()
-    
+        return out.numpy()
