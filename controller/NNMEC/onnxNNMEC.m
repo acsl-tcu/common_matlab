@@ -94,7 +94,7 @@ classdef onnxNNMEC < handle
 
             fc = 1.5; % LPFのカットオフ周波数
             Ts = 0.025; % サンプリング周波数
-            obj.LPF = LOW_PASS_FILTER(fc, Ts);
+            % obj.LPF = LOW_PASS_FILTER(fc, Ts);
             
             % データ関連の初期化
             obj.result.nominal_p = zeros(3,1);
