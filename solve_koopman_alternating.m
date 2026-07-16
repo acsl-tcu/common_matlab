@@ -1,6 +1,5 @@
-
 function [U_val, A_val, B_val, P_val, result] = ...
-    rensyuuKLLY(X,U,Y,F,~)
+    solve_koopman_alternating(Psi, Theta_plus, rho_bar, max_iter, tolerance)
 %SOLVE_KOOPMAN_ALTERNATING
 % 交互最適化によって安定性制約付きKoopman作用素 U=[A B] を求める
 %
@@ -28,39 +27,37 @@ function [U_val, A_val, B_val, P_val, result] = ...
 %   result     : 計算結果を格納した構造体
 
     %% 初期値
-    
+    if nargin < 3 || isempty(rho_bar)
         rho_bar = 0.99;
-        max_iter = 30;
-        tolerance = 1e-5;
-    
-%%
-
-remi = round(size(X,2) / 5);
-j = 0;
-for i = 1:size(X,2)%1:Data.num
-    
-        dx = [X(:,i);U(:,i)]; % hermite
-        dy = [Y(:,i);U(:,i)];
-   
-    Xlift(:,i) = F(dx); 
-    Ylift(:,i) = F(dy);
-    if rem(i, remi) == 0
-        j = j+1;
-        fprintf('convert %d times observables \n', remi*j);
-        toc
     end
-end
 
-%%
-psi=[Xlift ; U];
-Theta_plus = Ylift;
+    if nargin < 4 || isempty(max_iter)
+        max_iter = 30;
+    end
 
-    %% サイズの取得
-    %   p       ：観測量+入力の個数，
-    %   p_theta ：観測量
-    %qを持つものはデータの個数
+    if nargin < 5 || isempty(tolerance)
+        tolerance = 1e-5;
+    end
 
-    [p, q] = size(psi);
+    %% 入力データの確認
+    validateattributes(Psi, ...
+        {'numeric'}, {'2d', 'real', 'finite'}, ...
+        mfilename, 'Psi');
+
+    validateattributes(Theta_plus, ...
+        {'numeric'}, {'2d', 'real', 'finite'}, ...
+        mfilename, 'Theta_plus');
+
+    validateattributes(rho_bar, ...
+        {'numeric'}, {'scalar', 'real', 'positive', 'finite'}, ...
+        mfilename, 'rho_bar');
+
+    if rho_bar >= 1
+        error('rho_barは0より大きく1未満にしてください。');
+    end
+
+    %% サイズの自動取得
+    [p, q] = size(Psi);
     [p_theta, q_theta] = size(Theta_plus);
 
     % 入力数
@@ -88,12 +85,12 @@ Theta_plus = Ylift;
     fprintf('====================================\n');
 
     %% G, H, c
-    G = (1/q) * Theta_plus * psi';
-    H = (1/q) * psi * psi';
+    G = (1/q) * Theta_plus * Psi';
+    H = (1/q) * Psi * Psi';
     c = (1/q) * trace(Theta_plus * Theta_plus');
 
     %% H = L*L'を満たすL
-    [Usvd, S, ~] = svd(psi, 'econ');
+    [Usvd, S, ~] = svd(Psi, 'econ');
     L = (1/sqrt(q)) * Usvd * S;
 
     L_error = norm(H - L*L', 'fro');
@@ -103,44 +100,31 @@ Theta_plus = Ylift;
     fprintf('size(L) = %d × %d\n', size(L,1), size(L,2));
     fprintf('||H - LL''||_F = %.6e\n\n', L_error);
 
-
-
     %% YALMIP
-    %%%%%%%%%%%%%%%%%%%%ここから最小化問題%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     yalmip('clear');
 
     options = sdpsettings( ...
         'solver', 'sdpt3', ...
         'verbose', 0);
-    %'verbose',0で途中経過を非表示，１で表示
 
-    epsilon = 1e-6;     %Uの変化量がこれより小さくなったら収束とみなす
+    epsilon = 1e-6;
 
     %% Pの初期値
-    P_val = eye(p_theta);       %Pの最初の初期設定
+    P_val = eye(p_theta);
 
     %% 収束判定用
-    %前回の値を保存する
     U_previous = [];
     objective_previous = [];
 
-%max_iterは何回反復で交互最適化を行うか
-    %目的関数の結果の履歴保存
     objective_history = nan(max_iter,1);
-    %Uがどれくらい変化したかの履歴保存，ちゃんと収束の方向に動いているか確認    
     U_change_history = nan(max_iter,1);
-    %Pの変化量の保存
     P_change_history = nan(max_iter,1);
-    %Aの最大固有値の保存，安定性の確認が一旦できる
     max_eig_history = nan(max_iter,1);
-    % %角反復で得たηの保存，目的関数とか収束状況との関係確認，いらないかも
-    % eta_history = nan(max_iter,1);
-    
-    %収束したか
+    eta_history = nan(max_iter,1);
+
     converged = false;
 
     %% 交互最適化
-    %Pを固定してUを求める，Uから得たAからPを求める
     for iter = 1:max_iter
 
         fprintf('---------- iteration %d ----------\n', iter);
@@ -150,16 +134,13 @@ Theta_plus = Ylift;
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         U = sdpvar(p_theta, p, 'full');
-        nu = sdpvar(1,1);
         W = sdpvar(p_theta, p_theta, 'symmetric');
-        
+        nu = sdpvar(1,1);
 
-        %Ｕは（観測量）×（観測量＋入力）のサイズのはず
+        % Psiの最初のp_theta行が観測量であることを仮定
         A = U(:,1:p_theta);
 
-        %Uを求めるための制約の入れ物
         Constraints_U = [];
-
 
         Constraints_U = [Constraints_U, ...
             trace(W) <= nu];
@@ -168,19 +149,18 @@ Theta_plus = Ylift;
             W >= epsilon * eye(p_theta)];
 
         % W >= U*L*L'*U' のSchur補行列
-        matrix_M = [W,       U*L;
+        M = [W,       U*L;
              (U*L)', eye(size(L,2))];
 
         Constraints_U = [Constraints_U, ...
-            matrix_M >= epsilon * eye(size(matrix_M,1))];
+            M >= epsilon * eye(size(M,1))];
 
-        % P_valはていすうだからAに関してLMIになる
-        
-        matrix_P = [rho_bar * P_val, A' * P_val;
-                  P_val' * A,       rho_bar * P_val];
+        % P_valは数値なので、Aに関してLMIになる
+        Stab_U = [rho_bar * P_val, A' * P_val;
+                  P_val * A,       rho_bar * P_val];
 
         Constraints_U = [Constraints_U, ...
-            matrix_P >= epsilon * eye(2*p_theta)];
+            Stab_U >= epsilon * eye(2*p_theta)];
 
         Objective_U = c - 2*trace(U*G') + nu;
 
@@ -210,21 +190,19 @@ Theta_plus = Ylift;
         % Step 2：Aを固定して P を最適化
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        %   Pはリアプノふ方程式の行列，正定行列である必要あり
-        P = sdpvar(p_theta, p_theta, 'symmetric');
-        %etaを入れると安定性を半正定値境界ぎりぎり責めなくて良くなる
+
         %   etaを使うか使わないか問題
         %   eta無し条件を満たすPなら何でもよいので、どれか1個返してください
         %   数値誤差の影響を受けやすいらしい・・・？
-        eta = sdpvar(1,1);
+        P = sdpvar(p_theta, p_theta, 'symmetric');
+        % eta = sdpvar(1,1);
 
         Constraints_P = [];
-        
-        %   P>0の制約
+
         Constraints_P = [Constraints_P, ...
             P >= epsilon * eye(p_theta)];
 
-        % Pの定数倍による不定性を除く
+        %   Pが大きくない過ぎないようにする
         %   最初はeye(26)だからtraceは26になるから，とりあえず，そのままでいいのかなと
         Constraints_P = [Constraints_P, ...
             trace(P) == p_theta];
@@ -236,17 +214,11 @@ Theta_plus = Ylift;
         % stab_Pはあのいつもの最後のやつ
         % 2倍の観測量×観測量のサイズになるはず
         Stab_P = [rho_bar * P, A_val' * P;
-                  P * A_val,   rho_bar * P];
+                  P' * A_val,   rho_bar * P];
 
         % 安定性制約の余裕etaを最大化
-        Constraints_P = [Constraints_P, ...
-            Stab_P >= eta * eye(2*p_theta)];
-
-        
-        % 安定性条件
-        Constraints_P = [Constraints_P, ...
-                        Stab_P >= 0];
-
+        % Constraints_P = [Constraints_P, ...
+            % Stab_P >= eta * eye(2*p_theta)];
 
         diagnostics_P = optimize( ...
             Constraints_P, -eta, options);
@@ -260,9 +232,6 @@ Theta_plus = Ylift;
         end
 
         P_new = value(P);
-        % 数値誤差による非対称成分を除く（これは何？）
-        P_new = (P_new + P_new') / 2;
-
         eta_val = value(eta);
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -326,7 +295,6 @@ Theta_plus = Ylift;
     end
 
     %% 最終結果
-    
     eigenvalues = eig(A_val);
     max_abs_eig = max(abs(eigenvalues));
 
@@ -350,15 +318,13 @@ Theta_plus = Ylift;
     result = struct;
 
     result.p = p;
-    %普通のクープマンで求めてる
     result.p_theta = p_theta;
     result.n_u = n_u;
     result.q = q;
 
     result.G = G;
     result.H = H;
-    % result.c = c;
-    result.C = X*pinv(Xlift);
+    result.c = c;
     result.L = L;
     result.L_error = L_error;
 

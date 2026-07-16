@@ -138,10 +138,13 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-    est = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+     [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+     % est = KL(Data.X,Data.U,Data.Y,F,flg);
 end
 
-est.observable = F;
+
+
+% est.observable = F;
 fprintf('\n＜クープマン線形化が完了しました＞\n')
 
 %% Simulation by Estimated model(構築したモデルでシミュレーション)
