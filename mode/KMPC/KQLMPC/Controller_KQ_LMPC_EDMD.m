@@ -23,8 +23,11 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
     Controller.input_max = [Controller.m * 9.81 + thrust_th; torque_th; torque_th; torque_th];
     Controller.input_min = [Controller.m * 9.81 - thrust_th;-torque_th;-torque_th;-torque_th];
     Controller.ref_input = Controller.input.u; % 入力の目標値ー初設定
+    Controller.yaw_trim = 0.006;
     Controller.input.Bestcost_now = [1e5, 1e3]; % show()/初期化用
     Controller.input.Initsigma = [0.1;1.5e-2;1.5e-2;1.5e-2]; % show()の表示専用
+    Controller.aug_lambda = 0.02;   % d̂の更新率 (時定数 dt/λ ≈ 1.3s)
+Controller.aug_dmax   = 0.05;   % d̂の限幅 [N·m]
     %% ----- 旧モンテカルロ実装の残り (QP経路では未使用のためコメントアウト) -----
     % Controller.particle_num = 50000;  % mento carlo number of samples
     % Controller.input.Maxinput = 1.5;
@@ -62,11 +65,11 @@ function Controller = Controller_KQ_LMPC_EDMD(dt, agent)
 
 %% ===== 実験用 重み =====
   Controller.weight.P  = 1.2*diag([1200; 1200; 1800]);  % 位置: 2000→1200, 外环松30%+
-Controller.weight.Q  = 0.5*diag([300; 500; 700]);     % 姿态: 维持验证值, yaw不动
+Controller.weight.Q  = 0.5*diag([300; 500; 800]);     % 姿态: 维持验证值, yaw不动
 Controller.weight.V  = 1.2*diag([700; 500; 650]);     % 速度: 1050→840, 同步降
-Controller.weight.W  = 0.4*diag([220; 200; 200]);     % 角速度: 66→88, 相对阻尼反而变厚
-Controller.weight.R  = 2*diag([0.2; 0.5; 0.5; 0.5]);    % 输入: 不动, 内环保持灵敏
-Controller.weight.RP = 150*diag([0.2; 0.05; 0.05; 0.05]);
+Controller.weight.W  = 0.4*diag([220; 200; 400]);     % 角速度: 66→88, 相对阻尼反而变厚
+Controller.weight.R  = 2*diag([0.2; 0.5; 0.5; 1]);    % 输入: 不动, 内环保持灵敏
+Controller.weight.RP = 150*diag([0.2; 0.05; 0.05; 0.5]);
 Controller.weight.RP_axis = [1; 50; 50; 20];          % yaw维持验证值, 这轮不碰
 
     Controller.weight.Pf = Controller.weight.P;

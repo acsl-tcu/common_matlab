@@ -65,6 +65,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
         yawcompflag = 1% [修正] PID: yaw積分 (旧persistentの置き換え)
         pos_integ
         U_integ_single
+        augflag = 1        % [方案C] yaw外乱増広 ON/OFF
+        d_psi_hat = 0      % yaw等価外乱の推定値
+        z_prev_aug = []    % 前周期 z
+        u_prev_aug = []    % 前周期 u (実印加)
+        B_prev_aug = []    % 前周期 B_d
         % ----- 旧MC/STL/K_LQRテスト実装の名残り (未使用) -----
         % N              % モンテカルロ粒子数
         % Q              % K_LQR用
@@ -120,7 +125,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             obj.pidflag = 0;   % 外部PID补偿 (1=ON)  ※テスト・補足用
             obj.dobflag = 0;   % DOB扰动估计 (1=ON)  ※テスト用
             obj.lpvflag = 1; 
-            obj.yawcompflag = 1;  % yaw恒値外乱(反トルク不平衡)の積分補償 (1=ON)% [修正] B沿horizon逐步更新 (1=真LPV/修正版, 0=旧冻结B対照)
+            obj.yawcompflag = 0;  % yaw恒値外乱(反トルク不平衡)の積分補償 (1=ON)% [修正] B沿horizon逐步更新 (1=真LPV/修正版, 0=旧冻结B対照)
             % EDMD残差补偿は param.residual.mode で切替 (0=OFF, デフォルト)
 
             %% ===== MPC 重み =====
@@ -301,6 +306,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 for k = 2:obj.H
                     ratio = (k-1) / max(obj.H-1, 1);
                     x_k = (1-ratio)*obj.current_state(:) + ratio*obj.state.ref(1:12, k);
+                    x_k(6) = obj.current_state(6);     % 
                     Bc_k = obj.get_Koopman_B(x_k, obj.klift(x_k, obj.m, obj.n), obj.m, obj.n, obj.param);
                     B_seq{k} = obj.koopman.Bint * Bc_k;
                 end
@@ -312,8 +318,16 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 [obj.koopman.ExA, obj.koopman.ExB] = obj.ExtendedCoefficientMatrix({A_d, B_d, obj.H, obj.param.state_size});
             end
             n = size(obj.state.current, 1);
+            %% ===== [方案C] yaw外乱の推定 =====
+            if obj.augflag == 1 && ~isempty(obj.z_prev_aug)
+                r_k  = obj.state.current - (A_d*obj.z_prev_aug + obj.B_prev_aug*obj.u_prev_aug);
+                b4   = obj.B_prev_aug(:, 4);
+                d_inst = (b4' * r_k) / (b4' * b4);
+                obj.d_psi_hat = (1 - obj.param.aug_lambda)*obj.d_psi_hat + obj.param.aug_lambda*d_inst;
+                obj.d_psi_hat = max(min(obj.d_psi_hat, obj.param.aug_dmax), -obj.param.aug_dmax);
+                obj.result.d_psi_hat = obj.d_psi_hat;   % logger記録用
+            end
 
-          
             %% ===== [补偿·可选] DOB 估计扰动 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
                 if isempty(obj.z_prev_dob) || isempty(obj.u_prev_dob)
@@ -367,6 +381,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 q_ref = xref(4:6);
                 ratio = (k-1) / (obj.H-1);
                 q_mix = q_curr * (1 - ratio) + q_ref * ratio;
+                q_mix(3) = obj.current_state(6);   % 
                 xref_ali = xref;
                 xref_ali(4:6) = q_mix;
                 xref_residual(:, k) = xref_ali;
@@ -425,7 +440,9 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             R_bar      = kron(eye(obj.H), obj.weight.input);
             RP_bar     = kron(eye(obj.H), obj.weight.preinputdif*diag(obj.weight.RP_axis)); % [修正] 隠し倍率[1,50,50,20]を weight.RP_axis としてパラメータ化
             Up         = repmat(obj.input.pre_u(:,1), obj.H, 1);
-
+            if obj.augflag == 1
+                Xr = Xr - obj.koopman.ExB * kron(ones(obj.H,1), [0;0;0;1]) * obj.d_psi_hat;
+            end
             %% ===== QP 构造与求解 =====
             [obj.quadH, obj.quadf] = obj.gen_Hf(obj.koopman.ExA, obj.koopman.ExB, z_current, ...
                 Q_bar, R_bar, RP_bar, ...
@@ -448,17 +465,17 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             %% ===== MPC 名义输出 =====
             obj.result.input = var(1:4, 1);
             obj.result.u_nom = obj.result.input;
+            obj.result.input(4) = obj.result.input(4) + obj.param.yaw_trim;
            %% ===== [补偿] yaw恒値外乱の積分補償 (yawcompflag==1) =====
            if obj.yawcompflag == 1
-               e_yaw = obj.state.ref(6, 1) - obj.current_state(6);
-               obj.yaw_integ = obj.yaw_integ + e_yaw * obj.param.dt;
-               obj.yaw_integ = max(min(obj.yaw_integ, 2.5), -2.5);   % 積分値クランプ
-               u_yaw_comp = 0.02 * obj.yaw_integ;                     % Ki = 0.02
-               u_yaw_comp = max(min(u_yaw_comp, 0.05), -0.05);        % 出力クランプ ±0.05 N·m
-               obj.result.input(4) = obj.result.input(4) + u_yaw_comp;
-              
+               e_psi = obj.state.ref(6, 1) - obj.current_state(6);
+               obj.yaw_integ = obj.yaw_integ + e_psi * obj.param.dt;
+               obj.yaw_integ = max(min(obj.yaw_integ, 1.5), -1.5);   % 積分クランプ
+               u_i = 0.02 * obj.yaw_integ;                            % Ki = 0.02 (天花板0.03)
+               u_i = max(min(u_i, 0.05), -0.05);
+               obj.result.input(4) = obj.result.input(4) + u_i + obj.param.yaw_trim;
            end
-            %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
+           %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
                 % [修正] 符号: d ≈ B·δ と推定した δ (外乱の入力等価量) は指令から「引く」ことで打ち消す
                 %        旧実装は加算しており, 外乱を打ち消すどころか倍加する向きだった
@@ -525,7 +542,11 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 obj.B_prev_dob = B_d;              % [修正] 次周期の予測用に同周期のBを対で保存
                 % (旧: ここでz_predictedを再計算しデバッグ表示 → 同時刻のzと比較する誤った計算のため推定部へ移動済み)
             end
-
+           if obj.augflag == 1
+                obj.z_prev_aug = obj.state.current;
+                obj.u_prev_aug = obj.result.input;   % 補償・trim込みの最終印加値
+                obj.B_prev_aug = B_d;
+            end
         end
         function [H,f] = gen_Hf(obj,A,B,x0,Q,R,Rp,Xr,Ur,Up)
             % calc H and f matrices for quadprog
@@ -992,7 +1013,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 xr(7:9, h+1) = ref(5:7);
                 xr(4:6, h+1) = euler;
                 xr(10:12, h+1) = w;
-                xr(13, h+1) = norm_s * obj.param.m;
+                  xr(13, h+1) = norm_s * obj.param.m;
                 xr(14:16, h+1) = 0;
             end
         end
