@@ -848,6 +848,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                 idx = min(idx, size(obj.state.ref, 2));
                 x_ref = obj.state.ref(1:12, idx);
             end
+             x_ref(6) = obj.current_state(6); 
         end
 
         function y = safe_nonzero(obj, x, eps_val)

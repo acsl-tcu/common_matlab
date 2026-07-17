@@ -43,7 +43,7 @@ agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % agent.plant.param(10) = 0.003;
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-agent.sensor = MOTIVE(agent, Sensor_Motive(1,0, motive));
+agent.sensor = MOTIVE(agent, motive, dt);
 % agent.sensor = DIRECT_SENSOR(agent, 0.0);
 % traj_index = mod(floor((j-1)/20), 6) + 1;
 % switch traj_index

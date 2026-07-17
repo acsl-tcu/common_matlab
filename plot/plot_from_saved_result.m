@@ -50,8 +50,8 @@ ftitle = 1; % defalt=1 -> グラフタイトルあり
 settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
-% settings.target = ["p", "v", "input"];
+% settings.target = ["p", "q", "v", "w", "input", "p1-p2", "p1-p2-p3"];
+settings.target = ["p1-p2-p3"];
 % プロットしたいグラフの情報                                          %
 % p: position    q: angle    v: velocity    w: angular velocity     %
 % input: controller input                                           %
