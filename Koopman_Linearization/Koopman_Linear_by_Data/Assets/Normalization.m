@@ -1,44 +1,40 @@
 %正規化を行うための関数
 
-function  data = Normalization(Data)
+function  data = Normalization(data)
 % 正規化(平均:0,標準偏差:1)
 
 %平均値の算出
-for i = 1:size(Data.X,1)
-    meanValue.x(i,:) = mean(Data.X(i,:));
-    meanValue.y(i,:) = mean(Data.Y(i,:));
+for i = 1:size(data.X,1)
+    meanValue.x(i,:) = mean(data.X(i,:));
+    meanValue.y(i,:) = mean(data.Y(i,:));
 end
 
-for i = 1:4
-    meanValue.u(i,:) = mean(Data.U(i,:));
-end
+    meanValue.U(1,:) = mean(data.U(1,:));
+
 
 
 %標準偏差の算出
-for i = 1:size(Data.X,1)
-    stdValue.x(i,:) = std(Data.X(i,:));
-    stdValue.y(i,:) = std(Data.Y(i,:));
+for i = 1:size(data.X,1)
+    stdValue.x(i,:) = std(data.X(i,:));
+    stdValue.y(i,:) = std(data.Y(i,:));
 end
 
-for i = 1:4
-    stdValue.u(i,:) = std(Data.U(i,:));
-end
+    stdValue.U(1,:) = std(data.U(1,:));
 
 %データの正規化
-for i = 1:size(Data.X,1)
-    data.x(i,:) = (Data.X(i,:) - meanValue.x(i))/stdValue.x(i);
-    data.y(i,:) = (Data.Y(i,:) - meanValue.y(i))/stdValue.y(i);
+for i = 1:size(data.X,1)
+    data.x(i,:) = (data.X(i,:) - meanValue.x(i))/stdValue.x(i);
+    data.y(i,:) = (data.Y(i,:) - meanValue.y(i))/stdValue.y(i);
 end
 
-for i = 1:4
-    data.u(i,:) = (Data.U(i,:)-meanValue.u(i))/stdValue.u(i);
-end
+    data.U(1,:) = (data.U(1,:)-meanValue.U(1))/stdValue.U(1);
+
 
 data.meanValue.x = meanValue.x;
 data.meanValue.y = meanValue.y;
-data.meanValue.u = meanValue.u;
+data.meanValue.U = meanValue.U;
 data.stdValue.x = stdValue.x;
 data.stdValue.y = stdValue.y;
-data.stdValue.u = stdValue.u;
+data.stdValue.U = stdValue.U;
 
 end
