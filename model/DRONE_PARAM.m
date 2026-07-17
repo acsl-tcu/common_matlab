@@ -44,9 +44,16 @@ classdef DRONE_PARAM < PARAMETER_CLASS
                 param.Ly = 0.16;
                 param.lx = 0.16/2;%0.05;
                 param.ly = 0.16/2;%0.05;
-                param.jx = 0.12;
-                param.jy = 0.12;
-                param.jz = 0.12;
+                param.jx = 0.00618;
+                param.jy = 0.00822;
+                param.jz = 0.01205;
+                % 慣性モーメント同定用params
+                    % m_motor=33.8 g (モータ＋プロペラ1個)
+                    %  m_body=981 g (中心部FC, 脚, バッテリーなど)
+                    %  w_body(x) = 25.5 cm
+                    %  w_boby(y) = 20 cm
+                    %  h_body(z) = 12 cm
+                    %  L = 16 cm
                 param.gravity = 9.81;
                 param.km1 = 0.0301; % ロータ定数
                 param.km2 = 0.0301; % ロータ定数
