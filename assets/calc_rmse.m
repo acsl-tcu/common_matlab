@@ -1,7 +1,7 @@
 function calc_rmse(logger,target,phase)
 %CALC_RMSE targetで指定したstateのRMSE: Root Mean Squared Errorを計算
 %   logger: LOGGERクラス
-%   target: referenceデータが存在していることが望ましい
+%   target: referenceデータが存在していることが望ましい。存在しない場合は0をtarget dataとする。
 %   phase: RMSE値を計算したいphase
 arguments
     logger
@@ -22,4 +22,3 @@ for i=1:length(target)
     disp(RMSE(i,:))
 end
 end
-

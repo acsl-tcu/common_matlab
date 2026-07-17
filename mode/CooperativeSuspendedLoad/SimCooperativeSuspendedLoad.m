@@ -7,13 +7,14 @@ N = 4; % 機体数
 ts = 0;
 dt = 0.025;
 te = 50;
-time = TIME(ts, dt, te);
+time = TIME(ts, dt, te, N+1); % N+1: 牽引物含む
 
 in_prog_func = @(app) dfunc(app);
 post_func = @(app) post(app);
 logger = LOGGER(1:N + 1, size(ts:dt:te, 2), 0, [], []); % 1..N: 単機牽引, N+1: 牽引物
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 %% 全体ダイナミクスの初期状態（牽引物）
@@ -130,13 +131,13 @@ function agentObj = configure_single_agent(agentObj, idx, dt, init_state, load_a
     rigid_ids = [2 * idx, 1]; % [機体, 牽引物]
     rho_i = load_agent.parameter.rho(:, idx);
     agentObj.sensor.set_function_class("loadsync", COOPERATIVE_LOAD_SYNC(agentObj, "payload_index", load_agent.id, "rho", rho_i, "li", agentObj.parameter.cableL));
-    agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive, "output_func", @(obj, data) output_func(obj, data, rho_i), "rigid_id", rigid_ids, "state_list", {["p", "q"], "p"}));
+    agentObj.sensor.set_function_class("motive", MOTIVE(agentObj, motive, dt, "output_func", @(obj, data) output_func(obj, data, rho_i), "rigid_id", rigid_ids, "state_list", {["p", "q"], "p"}));
 
     agentObj.estimator.set_function_class("ekf", EKF(agentObj, Estimator_EKF_SuspendedLoad(agentObj, dt, ...
         MODEL_CLASS(agentObj, Model_Suspended_Load(dt, init_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"])));
     agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
-    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 1], "radius", [2, 2, 1]}, 5}));
+    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 2], "radius", [2, 2, 1]}, 5}));
     agentObj.reference.set_function_class("offset", COOPERATIVE_LOAD_REF_OFFSET(agentObj, "payload_index", load_agent.id, "rho", load_agent.parameter.rho(:, idx)));
     agentObj.reference.set_function_class("avoid", COLLISION_AVOID_REF(agentObj, "payload_index", load_agent.id));
     agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
@@ -164,9 +165,10 @@ rdata = app.logger.data(app.N,"p","r");
 L = app.agent(1).parameter.cableL;
 custom = rdata -[0,0,L];
 app.logger.plot({{1, "p", "r", custom},{app.N, "p", "e"}},"ax",app.UIAxes);
+plot_calc_time(app.logger, app.time);
 % app.logger.plot({{app.N, "p", "er"}},"ax",app.UIAxes,"phase","tfl");
-app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-show_cooperative_animation(app);
+% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+% show_cooperative_animation(app);
 end
 
 function show_cooperative_animation(app)

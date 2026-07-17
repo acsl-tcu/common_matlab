@@ -1,12 +1,14 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
 % drone plant setting
@@ -33,7 +35,7 @@ motive.getData(agent);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
 % Motiveの生データから、機体姿勢と吊り荷位置・ケーブル方向を整理する。
 % 出力は推定器の入力として [p; euler; pL; pT] の形に整形する。

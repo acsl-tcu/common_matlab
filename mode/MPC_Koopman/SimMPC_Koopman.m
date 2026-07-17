@@ -1,14 +1,16 @@
 clc
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 10; % terminal time
-time = TIME(ts,dt,te); % instance of time class
+time = TIME(ts,dt,te,N); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % instance of LOOGER class for data logging
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 initial_state.p = arranged_position([0, 0], 1, 1, 1); % [x, y], 機数，1, z (初期位置)
 % initial_state.q = [1; 0; 0; 0];
@@ -20,7 +22,7 @@ initial_state.w = [0; 0; 0];
 % agent.plant = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % agent.parameter = DRONE_PARAM("DIATONE");
 % agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
-% agent.sensor = MOTIVE(agent, motive);
+% agent.sensor = MOTIVE(agent, motive, dt);
 % agent.reference = TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,0]},4});
 % % agent.reference = MULTI_POINT_REFERENCE(agent,{struct("f",[0;0;0],"g",[0;0;1],"h",[0;0;0],"j",[0;0;1]),5});
 % % agent.reference = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",60,"center",[0;0;1],"radius",[1,1,1]},4});
@@ -39,7 +41,7 @@ agent = DRONE;
 agent.parameter = POINT_MASS_PARAM("rigid","row","A",A,"B",B,"C",C,"D",0);
 agent.plant = MODEL_CLASS(agent,Model_Discrete(dt,initial_state,1,"FREE",agent));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"])));
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt));
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"Case_study_trajectory",{[0,0,1]},4}));
 agent.controller.set_function_class("mpc", MPC_CONTROLLER_KOOPMAN_quadprog_simulation(agent,Controller_MPC_Koopman(agent))); %最適化手法：QP
 

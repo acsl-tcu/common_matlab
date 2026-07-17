@@ -1,16 +1,18 @@
 clc
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; %0.025; % sampling period
 te = 10000; % termina time
-time = TIME(ts, dt, te);
+time = TIME(ts, dt, te, N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
-motive = Connector_Natnet('192.168.100.43'); % connect to Motive
+motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
 motive.getData([], []); % get data from Motive
 Drone = motive.result.rigid(1);
 Load = motive.result.rigid(2);
@@ -35,8 +37,8 @@ agent.parameter.set("jy", 0.06); %0.0968); %0.968
 agent.parameter.set("jz", 0.09); %0.0968); %0.968
 
 agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3")); %有線プロポ
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
-% agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[2,1],"state_list",{["p","q"],"p"}));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
+% agent.sensor.set_function_class("motive", MOTIVE(agent, motive, dt,"output_func",@motive_output,"rigid_id",[2,1],"state_list",{["p","q"],"p"}));
 function y = motive_output(obj,data)
     p = data.rigid(obj.rigid_id(1)).p;
     pT = data.rigid(obj.rigid_id(2)).p - p;
@@ -93,8 +95,7 @@ app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase,  "fig_num",8, "color",0); 
 % app.logger.plot({1, "controller.result.xd1:3","r"},"fig_num",20);
 % show_suspended_load_animation(app);
 
-plot_calc_time(app.logger);
-
+plot_calc_time(app.logger, app.time);
 % Graphplot(app)
 end
 

@@ -1,15 +1,17 @@
 clc
 close all
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.05; % sampling period
 te = 100; % termina time
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);   
 post_func = @(app) post(app);
 
 %%
 fExp = 0;
 logger = LOGGER(1, size(ts:dt:te, 2), fExp, [],[]);
+logger.set_time_handler(time);
 
 clear initial_state
 initial_state.p = [-1];

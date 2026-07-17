@@ -1,12 +1,14 @@
+N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 10000; % termina time
-time = TIME(ts, dt, te);
+time = TIME(ts, dt, te, N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [], []);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
+logger.set_time_handler(time);
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]\n\n");
 
 motive = Connector_Natnet('192.168.100.59'); % connect to Motive 405
@@ -20,22 +22,17 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
+agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
 agent.parameter = DRONE_PARAM("DIATONE");
-agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
+agent.sensor.set_function_class("motive", MOTIVE(agent,motive, dt));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-mat_height = 0.05; % 5cm
-takeoff_zd = 0.5;
-takeoff_zd = takeoff_zd + mat_height;
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",0},4})); % hovering
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4})); % circle
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;takeoff_zd],"radius",0},4})); % hovering
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"center",[0;0;takeoff_zd],"radius",1.0},4})); % 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",20,"center",[0;0;takeoff_zd],"radius",[1.0,1.0,0]},4})); %
 
-% agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
-agent.controller.set_function_class("hlc", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt)));
+agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
@@ -45,22 +42,24 @@ agent.cha_allocation.t.reference="takeoff";
 agent.cha_allocation.l.reference="landing";
 
 function post(app)
-LW = 1.5;
-FS = 20;
 phase = "tfl";
-app.logger.plot({1, "p", "er"}, "ax",app.UIAxes, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "p", "er"},"fig_num",1, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "v", "er"},"fig_num",2, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "q", "e"},"fig_num",3, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "w", "e"},"fig_num",4, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "input", ""},"fig_num",5, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "input2:4", ""},"fig_num",55, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "inner_input1:4", ""},"fig_num",6, "phase",phase, "FontSize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input5:8", ""},"fig_num",7, "phase",phase, "FontSize",FS, "Linewidth",LW);
-app.logger.plot({1, "p1-p2","er"}, "fig_num",10, "phase",phase, "FontSize",FS, "Linewidth",LW, "color",0);
+FS = 16; %FontSize
+LW = 1.5;%LineWidth
+app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
+
+% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "inner_input", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+
 % show_cooperative_animation(app);
 
-plot_calc_time(app.logger);
+plot_calc_time(app.logger, app.time);
 end
 
 function in_prog(app)
