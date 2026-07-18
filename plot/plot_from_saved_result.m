@@ -12,20 +12,20 @@
 % プロットしたいフェーズを選べるようになると嬉しい
 
 %% 初期化&パスの設定
-clear all
-cf = pwd;
-
-if contains(mfilename('fullpath'), "mainGUI")
-    cd(fileparts(mfilename('fullpath')));
-else
-    tmp = matlab.desktop.editor.getActive;
-    cd(fileparts(erase(tmp.Filename, "plot\plot_from_saved_result.m")));
-end
-
-[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
-cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
-close all hidden; clear; clc;
-userpath('clear');
+% clear all
+% cf = pwd;
+% 
+% if contains(mfilename('fullpath'), "mainGUI")
+%     cd(fileparts(mfilename('fullpath')));
+% else
+%     tmp = matlab.desktop.editor.getActive;
+%     cd(fileparts(erase(tmp.Filename, "plot\plot_from_saved_result.m")));
+% end
+% 
+% [~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+% cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+% close all hidden; clear; clc;
+% userpath('clear');
 
 %% データの読み込み
 fprintf('MATファイルを選択してください:')

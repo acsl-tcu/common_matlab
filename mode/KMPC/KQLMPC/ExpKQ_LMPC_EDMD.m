@@ -21,7 +21,7 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)), ["p", "q"]));
 agent.sensor = MOTIVE(agent, motive, dt);
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone_KMPC()); % 推力からスロットルに変換
-agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
+% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",12,"orig",[0;0;0.6],"size",[1,1,0]},"HL"});
 % wp = [ 0    0    0.6;    % 起点 = 悬停交接点(不驻留, 起飞后无缝进入)
 %        0    0    0.4;
 %        0    0    1.0;
@@ -31,7 +31,7 @@ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq"
 %        0.8 -0.8  0.6];
 % agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 30, "hold_time", 8, "waypoints", wp}});
 % agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_ptp", {"freq", 20}});
-% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",12,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",12,"orig",[0 0 0.6],"size",[1 1 0],"phase",0}});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 % agent.reference.time_var = MY_POINT_REFERENCE(agent, {struct("f", center, "g", [1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd-0.5], "x",center...
                                                                 % , "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+0.5], "n",center), 7.5}); % P2P

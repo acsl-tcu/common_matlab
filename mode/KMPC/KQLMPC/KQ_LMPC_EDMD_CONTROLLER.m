@@ -473,7 +473,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                obj.yaw_integ = max(min(obj.yaw_integ, 1.5), -1.5);   % 積分クランプ
                u_i = 0.02 * obj.yaw_integ;                            % Ki = 0.02 (天花板0.03)
                u_i = max(min(u_i, 0.05), -0.05);
-               obj.result.input(4) = obj.result.input(4) + u_i + obj.param.yaw_trim;
+               obj.result.input(4) = obj.result.input(4) + u_i ;%+ obj.param.yaw_trim;
            end
            %% ===== [补偿·可选] DOB 前馈补偿 (dobflag==1 时启用, 默认OFF) =====
             if obj.dobflag == 1
@@ -719,28 +719,22 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     obj.result.delta_tau_scaled = delta_tau_scaled;
                     obj.result.delta_tau_filtered = delta_tau;
                 case 5
-                    x_ref_next = obj.get_residual_reference_state(min(2, size(obj.state.ref, 2)));
-                    u_ref_now = obj.state.ref(13:16, 1);
-                    z_ref_next = obj.klift_edmd_residual([x_ref_next; u_ref_now]);
-                    z_nom_next = obj.residual.A_nom * z_cur + obj.residual.B_nom *(u_nom - u_hover_res);
-                    z_target_bar = z_ref_next - z_nom_next;
-                    rhs = z_target_bar - obj.residual.A_err * z_cur;
+                    % [MEC公式] 残差前馈: r_hatを名義Bで打ち消す (参考不使用→跟踪误差混入なし)
+                    r_hat = obj.residual.A_err * z_cur + obj.residual.B_err * (u_nom - u_hover_res);
                     if obj.residual.mode25_torque_only == 1
-                        Be = obj.residual.B_err(:, 2:4);
-                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
-                        delta_tau_raw = (Be' * Be + reg) \ (Be' * rhs);
+                        Bn = obj.residual.B_nom(:, 2:4);
+                        reg = obj.residual.pinv_damping * eye(size(Bn, 2));
+                        delta_tau_raw = -(Bn' * Bn + reg) \ (Bn' * r_hat);
                         delta_u_raw = [0; delta_tau_raw];
                     else
-                        Be = obj.residual.B_err;
-                        reg = obj.residual.pinv_damping * eye(size(Be, 2));
-                        delta_u_raw = (Be' * Be + reg) \ (Be' * rhs);
+                        Bn = obj.residual.B_nom;
+                        reg = obj.residual.pinv_damping * eye(size(Bn, 2));
+                        delta_u_raw = -(Bn' * Bn + reg) \ (Bn' * r_hat);
                     end
                     beta = obj.residual.full_beta;
                     delta_u = (1 - beta) * obj.residual.delta_u_prev + beta * delta_u_raw;
                     obj.residual.delta_u_prev = delta_u;
-                    obj.result.z_ref_next = z_ref_next;
-                    obj.result.z_nom_next = z_nom_next;
-                    obj.result.z_target_bar = z_target_bar;
+                    obj.result.r_hat_edmd = r_hat;
                     obj.result.delta_u_mode2_raw = delta_u_raw;
                     obj.result.delta_u_mode5_filtered = delta_u;
                 otherwise
