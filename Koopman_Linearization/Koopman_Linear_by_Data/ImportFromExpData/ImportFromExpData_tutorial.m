@@ -18,7 +18,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
     %データの個数をチェック
     data.N = find(logger.Data.t,1,'last');
     data.uN = 4; %入力の個数
-    data.fExp = logger.fExp;z
+    data.fExp = logger.fExp;
     
     %% Get data
     % 状態毎に分割して保存

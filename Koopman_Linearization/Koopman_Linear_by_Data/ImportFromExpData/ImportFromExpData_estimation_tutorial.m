@@ -18,7 +18,7 @@ logger = logger.(string(fieldnames(logger)));
 clear data % 読み込んだファイル内のdataと同名の変数を初期化
 
 %データの個数をチェック
-data.N = find(logger.Data.t,1,'last');
+data.N = find(logger.Data.k,1,'last');
 data.uN = 4; %入力の個数
 data.fExp = logger.fExp;
 

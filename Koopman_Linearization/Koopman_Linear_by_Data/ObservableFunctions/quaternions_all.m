@@ -4,8 +4,9 @@ function z = quaternions_all(x)
 %   X : [位置P; クォータニオンq or オイラー角 Q; 速度V; 角速度W]を持つ状態量
 %   Z : [X(クォータニオンを含まない); (クォータニオン); (クォータニオンの2乗); (クォータニオンの3乗) ]
 
-% 状態がクォータニオンを用いた13次元の場合
-%　xがq;p;v;wの順番の場合
+
+% % 状態がクォータニオンを用いた13次元の場合
+% %　xがq;p;v;wの順番の場合
 % if size(x,1) == 13
 %     q = x(1:4);                           % クォータニオン
 %     eul = quat2eul(q');                   % MATLABの関数（ZYX順）
@@ -170,12 +171,13 @@ function z = quaternions_all(x)
 % 
 % 
 %              ];
-
-%% まとめ
+% 
+% %% まとめ
 % z = [common_z; isobe_z]; % 00先輩のあの26状態がコレ．
+% 
+% % z = [common_z; isobe_z;Rdot;qdotdot]; % 01
+% 
+% end
+
 % これはセグウェイモデルの改善用
 z = x;
-% z = [common_z; isobe_z;Rdot;qdotdot]; % 01
-
-end
-

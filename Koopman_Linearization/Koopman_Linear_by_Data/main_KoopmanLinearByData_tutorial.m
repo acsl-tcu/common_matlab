@@ -105,11 +105,13 @@ fprintf('\n＜データセットの結合が完了しました＞\n')
 flg.normalize = input('\n＜正規化を行いますか＞\n はい:1，いいえ:0：','s');
 if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
     Ndata = Normalization(Data);
-    Data.X = Ndata.x;
-    Data.Y = Ndata.y;
+    Data.X = Ndata.X;
+    Data.Y = Ndata.Y;
     Data.U = Ndata.U;
     disp('正規化が完了しました')
 end
+
+
 
 %% クォータニオンのノルムをチェック(クォータニオンのノルムは1にならなければいけないという制約がある)
 % 閾値を下回った or 上回った場合注意文を提示
