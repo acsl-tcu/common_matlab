@@ -33,7 +33,7 @@ Setting.mode = SimBaseMode(1); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(2); % SimCoop
 Setting.mode = SimBaseMode(5); % SimHL
 % Setting.mode = SimBaseMode(7); % SimFHL
-Setting.mode = SimBaseMode(15); % SimNNMEC
+Setting.mode = SimBaseMode(15); % SimNNMEC PR時は消す
 
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection

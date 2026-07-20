@@ -43,6 +43,7 @@ classdef PythonRNNMEC
                 self % agent
                 NN_model_filename
                 opts.view_model_info = true;
+                opts.len = 4;
             end
             % インスタンス
             obj.self = self;
@@ -111,7 +112,7 @@ classdef PythonRNNMEC
 
             py.importlib.import_module('NNMEC_inference');
             obj.RNNMEC_model = py.NNMEC_inference.InferenceWrapper(ptPath);
-            obj.Sequence_len = 10; % TODO: obj.RNNMEC_modelから自動取得したい
+            obj.Sequence_len = opts.len; % TODO: obj.RNNMEC_modelから自動取得したい
             if opts.view_model_info, disp(obj.RNNMEC_model.architecture_info); end
 
             if contains(NN_model_filename, 'RK4') % 状態更新手法を動的に変更
@@ -174,7 +175,7 @@ classdef PythonRNNMEC
             data_py = py.numpy.array(permute(obj.data.RNN_input, [3,2,1])); % [Batch=1, Seqence Length, Input Size] の3次元に整形
             py_result = obj.RNNMEC_model.predict(data_py); % Pythonスクリプトでの推論
             tmp = double(py_result)';
-            obj.result.delta_input = tmp(:,end);
+            obj.result.delta_input = -1*tmp(:,end);
             if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
