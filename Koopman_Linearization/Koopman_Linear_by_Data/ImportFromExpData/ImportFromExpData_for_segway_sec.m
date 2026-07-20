@@ -1,4 +1,4 @@
-function data = ImportFromExpData_for_segway(expData_Filename)
+function data = ImportFromExpData_for_segway_sec(expData_Filename,~,~,~,~,~,~)
 %INPORTFROMEXPDATA ドローンの実験データから入出力を抜き出す関数
 %   expData_Filename : 実験データの保存場所
 %   Data     : 出力変数をまとめる構造体
@@ -20,26 +20,27 @@ function data = ImportFromExpData_for_segway(expData_Filename)
     data.uN = 1; %入力の個数
     
     
-    % % % data.fExp = logger.fExp;
-    % % % 
-    % % % %% Get data
-    % % % % 状態毎に分割して保存
-    % % % % XYに結合する際の都合で↓時系列,→状態
-    % % % %drone_phase  115:stop  97:arming  116:take off  102:flight  108:landing
-    % % % 
+    data.fExp = logger.fExp;
+
+    %% Get data
+    % 状態毎に分割して保存
+    % XYに結合する際の都合で↓時系列,→状態
+    %drone_phase  115:stop  97:arming  116:take off  102:flight  108:landing
+
     % % % if logger.fExp==1 || logger.fExp == 0%fExp:1 実機データ
     % % % %--------------------time----------------------
     % % %     data.t = logger.Data.t;
     % % %     data.phase = logger.Data.phase;
     % % %     if setting == 1
-            % % % datarange = 1
-            % % % data.datarange = str2double(datarange);
+    % % %         datarange = input('\n＜使用するデータ範囲を選択してください＞\n1:take off～flight \n2:take off～landing \n3:flight～flight最後 \n4:flight～landing \n5:特定の範囲を設定\n選択された値：','s');
+    % % %         data.datarange = str2double(datarange);
     % % %         data.IDX = 0;
     % % %         data.phase2 = 0;
     % % %         data.range = 0;
     % % % 
-                % % % data.startIndex = find(data.phase==116,1,'first');
-                % % % data.endIndex = find(data.phase == 102,1,'last');
+    % % %         if data.datarange == 1
+    % % %             data.startIndex = find(data.phase==116,1,'first');
+    % % %             data.endIndex = find(data.phase == 102,1,'last');
     % % %         elseif data.datarange == 2
     % % %             data.startIndex = find(data.phase==116,1,'first');
     % % %             data.endIndex = find(data.phase == 108,1,'last');
@@ -68,9 +69,9 @@ function data = ImportFromExpData_for_segway(expData_Filename)
     % % %             end
     % % %         end
     % % %     else
-            % % % if datarange == 1
-            % % %     data.startIndex = find(data.phase==116,1,'first');
-            % % %     data.endIndex = find(data.phase == 102,1,'last');
+    % % %         if datarange == 1
+    % % %             data.startIndex = find(data.phase==116,1,'first');
+    % % %             data.endIndex = find(data.phase == 102,1,'last');
     % % %         elseif datarange == 2
     % % %             data.startIndex = find(data.phase==116,1,'first');
     % % %             data.endIndex = find(data.phase == 108,1,'last');
@@ -144,7 +145,6 @@ function data = ImportFromExpData_for_segway(expData_Filename)
 
         %シミュレーションデータで線形化するときはこっちが実行される(特段いじる必要なし)
         data.startIndex = 1;
-        data.datarange = 1;
         data.endIndex = data.N;
     %--------------------time----------------------
         data.t = logger.Data.t(1:data.N);
@@ -163,26 +163,25 @@ function data = ImportFromExpData_for_segway(expData_Filename)
         % end
         % plot(logger.Data.t(data.startIndex:data.endIndex),data.input) %入力の確認
         %---------------------------------------------------------------------------------------------
-   
     %% Set Dataset and Input
     % クープマン線形化のためのデータセットに結合
     % 行：12状態, 列：時系列
 
-    % % % if data.vxyz == 0 %速度vzから位置zを算出してデータセットに使う場合
-    % % %     for i=1:data.N-1
-    % % %     data.X(:,i) = [data.est.p(i,1:2)';data.est.z(:,i);data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
-    % % %     data.Y(:,i) = [data.est.p(i+1,1:2)';data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
-    % % %     data.U(:,i) = [data.input(i,:)'];
-    % % %     data.T(:,i) = [data.t(i,1)];
-    % % %     end
-    % % % elseif data.vxyz == 1 % vx, vy, vzから位置を算出する
-    % % %     for i=1:data.N-1
-    % % %     data.X(:,i) = [data.est.z(:,i);data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
-    % % %     data.Y(:,i) = [data.est.p(i+1,1:2)';data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
-    % % %     data.U(:,i) = [data.input(i,:)'];
-    % % %     data.T(:,i) = [data.t(i,:)];
-    % % %     end
-    % % % else
+    if data.vxyz == 0 %速度vzから位置zを算出してデータセットに使う場合
+        for i=1:data.N-1
+        data.X(:,i) = [data.est.p(i,1:2)';data.est.z(:,i);data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
+        data.Y(:,i) = [data.est.p(i+1,1:2)';data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
+        data.U(:,i) = [data.input(i,:)'];
+        data.T(:,i) = [data.t(i,1)];
+        end
+    elseif data.vxyz == 1 % vx, vy, vzから位置を算出する
+        for i=1:data.N-1
+        data.X(:,i) = [data.est.z(:,i);data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
+        data.Y(:,i) = [data.est.p(i+1,1:2)';data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
+        data.U(:,i) = [data.input(i,:)'];
+        data.T(:,i) = [data.t(i,:)];
+        end
+    else
         for i=1:data.N-1
         data.X(:,i) = [data.est.p(i,:)';data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
         data.Y(:,i) = [data.est.p(i+1,:)';data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
@@ -190,4 +189,5 @@ function data = ImportFromExpData_for_segway(expData_Filename)
         data.T(:,i) = [data.t(i,:)];
         end
     end
-% end
+  
+end

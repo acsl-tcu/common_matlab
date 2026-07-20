@@ -153,7 +153,7 @@ for i = 1:Data.HowmanyDataset
     else
         if i == 1 %66 ~ 78はコマンドウィンドウから入力するのに必要(クープマン線形化には関係ない)
             setting = 1;
-            Dataset = ImportFromExpData_for_segway(append(loading_filename,'_',num2str(i),'.mat'),setting);
+            Dataset = ImportFromExpData_for_segway(append(loading_filename,'_',num2str(i),'.mat'));
             % datarange = Dataset.datarange;
             % range = Dataset.range;
             % IDX = Dataset.IDX;
@@ -163,7 +163,8 @@ for i = 1:Data.HowmanyDataset
             fprintf('\n')
         else
             setting = 0;
-            Dataset = ImportFromExpData_tutorial(append(loading_filename,'_',num2str(i),'.mat'),setting,datarange,range,IDX,phase2,vz_z);
+            
+            ImportFromExpData_for_segway(append(loading_filename,'_',num2str(i),'.mat'));
         end
     end
     if i==1
