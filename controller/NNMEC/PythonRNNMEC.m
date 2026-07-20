@@ -5,6 +5,7 @@ classdef PythonRNNMEC
     %   推論時にPythonスクリプトを呼び出してdoするクラス
     %   Required: common_matlab\Pythonenv ←Pythonの仮想実行環境
     %           controller\NNMEC\Readme4PythonNNMEC.txtに環境構築方法を記載
+    %   Required: MATLAB version 2024b
     %
     %   [Inputs]
     %    self: ドローンのagent
@@ -72,7 +73,7 @@ classdef PythonRNNMEC
             %TODO: 既にPyenvを使う設定なら下は実行しないようにしたい。
             msg = sprintf("Python仮想環境をロード中...\n" + ...
                           "Loading Python virtual environment...\n");
-            fin_msg = sprintf("=== ロード完了  Complete loading ===\n");
+            fin_msg = sprintf("ロード完了  Complete loading ===\n");
             if isempty(pyenv)
                 disp(msg);
                 pyenv("Version",Pythonenv_path); % MATLABにPython仮想実行環境を登録
