@@ -105,9 +105,9 @@ fprintf('\n＜データセットの結合が完了しました＞\n')
 flg.normalize = input('\n＜正規化を行いますか＞\n はい:1，いいえ:0：','s');
 if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
     Ndata = Normalization(Data);
-    Data.X = Ndata.X;
-    Data.Y = Ndata.Y;
-    Data.U = Ndata.U;
+    Data.X = Ndata.x;
+    Data.Y = Ndata.y;
+    Data.U = Ndata.u;
     disp('正規化が完了しました')
 end
 
@@ -140,8 +140,8 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-     [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
-     % est = KL(Data.X,Data.U,Data.Y,F,flg);
+     % [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+     est = KL(Data.X,Data.U,Data.Y,F,flg);
 end
 
 

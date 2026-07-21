@@ -46,7 +46,7 @@ classdef MECKC < handle
         
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
-        load('kalman_gain.mat','K_full');
+        load('kalman_gain_befor.mat','K_full');
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
@@ -59,7 +59,7 @@ classdef MECKC < handle
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
-      obj.result.input=varargin{5}.controller.result.input+obj.result.delta_u;%un+Δu      
+      obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu      
       result = obj.result;
     end
   end
