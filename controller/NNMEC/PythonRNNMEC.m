@@ -176,7 +176,7 @@ classdef PythonRNNMEC
             data_py = py.numpy.array(permute(obj.data.RNN_input, [3,2,1])); % [Batch=1, Seqence Length, Input Size] の3次元に整形
             py_result = obj.RNNMEC_model.predict(data_py); % Pythonスクリプトでの推論
             tmp = double(py_result)';
-            obj.result.delta_input = -1*tmp(:,end);
+            obj.result.delta_input = -1*tmp(:,end); % -1がないとダメ
             if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
