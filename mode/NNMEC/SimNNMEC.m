@@ -97,13 +97,16 @@ onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
 
 onnxName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch";
-ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model";
+% ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model";
+
+
+ptName = "2026-7-21_11_35_47__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Activation=ReLU__Middle=48__20000epoch_model.pt";
 RNNptName = "2026-7-17_14_28_21__RNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__20000epoch_model.pt";
 
 % agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
-% agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
+agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
-agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",4));
+% agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",10));
 
 
 % cha_allocation ==============================================
@@ -131,6 +134,7 @@ app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Line
 % app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 show_animation(app);
+% plot_calc_time(app.logger, app.time);
 end
 
 function dfunc(app)
