@@ -98,12 +98,12 @@ onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0
 
 onnxName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch";
 ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model";
-RNNptName = "tmp__2026-7-15_12_15_52__RNN12__Exp_random__Euler__4epoch_model.pt";
+RNNptName = "2026-7-17_14_28_21__RNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__20000epoch_model.pt";
 
-agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
+% agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
 % agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
-% agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName));
+agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",4));
 
 
 % cha_allocation ==============================================
