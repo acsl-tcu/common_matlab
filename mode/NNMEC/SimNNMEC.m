@@ -104,9 +104,9 @@ ptName = "2026-7-21_11_35_47__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__A
 RNNptName = "2026-7-17_14_28_21__RNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__20000epoch_model.pt";
 
 % agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
-agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
+% agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
-% agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",10));
+agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",4));
 
 
 % cha_allocation ==============================================
