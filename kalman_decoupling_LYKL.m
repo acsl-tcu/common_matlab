@@ -1,7 +1,10 @@
 clear;
 clc;
 
-load("LYKL_1124.mat");
+% load("retry_LYKL.mat");
+
+loadFileName = input('読み込むファイル名(.mat不要)：','s');
+load([loadFileName '.mat']);
 % load("koopman_common_z_.mat")
 
 
@@ -51,8 +54,7 @@ fprintf('不可制御部分空間の次元 : %d\n', n - rank_Mc);
 fprintf('可観測部分空間の次元   : %d\n', rank_Mo);
 fprintf('不可観測部分空間の次元 : %d\n', n - rank_Mo);
 
-[eigs_a, eigs_b, eigs_c, eigs_d, info] = ...
-    kalman_mode_eigs(est.A, est.B, est.C, true);
+
 
 
 
@@ -77,5 +79,10 @@ K_full = dlqr(est.A, est.B, Q, Rc );
 % disp(eig(A_deco));
 
 %%
-save('kalman_gainたち\LYKL_1124_byKD_LYKL.mat','K_full');
-fprintf("ゲインをkalman_gain_all_LYKL_sec.matとして保存しました");
+saveFileName = [loadFileName '_gain.mat'];
+
+save(saveFileName, 'K_full');
+% save([loadFileName 'byKD_LYKL.mat'], 'K_full');
+% save('kalman_gainたち\retry_KL_byKD_LYKL.mat','K_full');
+% fprintf("ゲインをkalman_gain_all_LYKL_sec.matとして保存しました");
+fprintf('"%s" として保存しました。\n', saveFileName);

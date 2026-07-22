@@ -2,7 +2,7 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("KL_1126.mat");
+load("retry_KL.mat");
 % load("koopman_common_z_.mat")
 %速度から位置を積分して求める
 % est.A = [zeros(3,3),eye(3,3),zeros(3,20);
@@ -201,5 +201,5 @@ disp(eig(est.A))
 fprintf("ゲイン使ったときのＡ－ＢＫのeig")
 disp(eig(A_deco))
 
-save('kalman_gainたち\KL_1126_gain_byKD.mat','K_full');
+save('kalman_gainたち\retry_KL_gain_byKD.mat','K_full');
 fprintf("ゲインをkalman_gain_senpai_common.matとして保存しました");

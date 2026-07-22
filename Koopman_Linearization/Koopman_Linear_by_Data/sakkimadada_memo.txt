@@ -1,0 +1,6 @@
+=== datasetsd 内のファイル一覧 ===
+
+madada_1.mat
+madada_2.mat
+madada_3.mat
+madada_4.mat

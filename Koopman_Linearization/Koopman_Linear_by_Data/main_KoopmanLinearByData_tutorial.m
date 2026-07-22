@@ -28,6 +28,7 @@ setting = 0; %この値はいじらない
 FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
 
 folderPath = 'datasetsd'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
+files = dir(folderPath);
 % folderPath = 'KMPCSimデータセット'
 fileList = dir(fullfile(folderPath,'*.mat')); %対象のファイルを取得
 fprintf('\n＜データセットに使用するファイル名の統一を行います＞\n')
@@ -143,8 +144,10 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-     [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
-     % est = KL(Data.X,Data.U,Data.Y,F,flg);
+     tic
+     % [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+     est = KL(Data.X,Data.U,Data.Y,F,flg);
+     calT = toc;
 end
 
 
@@ -219,6 +222,47 @@ else
     simResult.state.w = simResult.Xhat(10:12,:);
 end
 simResult.state.N = simResult.reference.N-1;
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%実験メモ追加%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% 保存先
+targetPath = append(nowFolder,'\',FileName);
+
+%% メモファイル名
+[saveFolder, name, ~] = fileparts(targetPath);
+memoFilePath = fullfile(saveFolder, [name '_memo.txt']);
+
+%% メモファイル作成
+fid = fopen(memoFilePath, 'w');
+
+if fid == -1
+    error('メモファイルを作成できませんでした。');
+end
+
+%% 作成日時を記録
+today = datetime('now','Format','yyyy/MM/dd HH:mm:ss');
+
+fprintf(fid, '========== 実験メモ ==========\n');
+fprintf(fid, '作成日時 : %s\n', char(today));
+fprintf(fid, 'データセット : %s\n\n', folderPath);
+
+fprintf(fid, '=== %s 内のファイル一覧 ===\n\n', folderPath);
+
+for i = 1:length(files)
+    if ~files(i).isdir
+        fprintf(fid, '%s\n', files(i).name);
+    end
+end
+
+fclose(fid);
+
+fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+
+
+fprintf("実行時間: %.3f 秒\n", calT);
 
 save(targetpath,'est','Data','simResult','F')
 disp('Saved to')

@@ -46,7 +46,7 @@ classdef MECKC < handle
         
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
-        load('kalman_gainたち\LYKL_1124_byKD_LYKL.mat','K_full');
+        load('kalman_gainたち\retry_LYKL_gain.mat','K_full');
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
