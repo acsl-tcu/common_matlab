@@ -52,7 +52,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[10;10;3.0], "t_go",10.0, "t_hold",5.0, "t_back",10.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
@@ -82,48 +82,68 @@ app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_n
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
 % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
-
-%周波数応答の確認
-% phase f のみのデータを logger.data で直接取得
-% U  = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
-Fs = 1/0.025;
-u   = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
-pL  = app.logger.data(1, "estimator.result.state.pL", "e", "phase", "f");
-pLq = app.logger.data(1, "estimator.result.state.q", "e", "phase", "f");
-size(u)
-size(pL)
-size(pLq)   % 4列ならクォータニオン、3列ならオイラー角
-disp(size(pLq))
-figure;
-% --- 位置(z,x,y)の周波数応答 ---
-for i = 1:4
-    if i == 1
-        ci = 1; co = 3; use_pLq = false;
-        nm = 'z';
-    elseif i == 2
-        ci = 3; co = 1; use_pLq = false;
-        nm = 'x';
-    elseif i == 3
-        ci = 2; co = 2; use_pLq = false;
-        nm = 'y';
-    else
-        ci = 4; co = 3; use_pLq = true;   % yaw入力 (us(3)を想定), pLq の3列目 = yaw
-        nm = 'yaw';
-    end
-
-    if use_pLq
-        [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
-    else
-        [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
-    end
-
-    subplot(2,4,i);
-    semilogx(2*pi*f, 20*log10(abs(h)));
-    grid on; title(nm); ylabel('Gain dB'); xlabel('\omega [rad/s]');
-    subplot(2,4,i+4);
-    semilogx(2*pi*f, unwrap(angle(h))*180/pi);
-    grid on; ylabel('Phase deg'); xlabel('\omega [rad/s]');
-end
+% disp_bode(app.logger, "f")
+% %周波数応答の確認
+% % phase f のみのデータを logger.data で直接取得
+% % U  = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
+% Fs = 1/0.025;
+% u   = app.logger.data(1, "controller.result.tmp", "", "phase", "f");
+% pL  = app.logger.data(1, "estimator.result.state.pL", "e", "phase", "f");
+% pLq = app.logger.data(1, "estimator.result.state.q", "e", "phase", "f");
+% size(u)
+% size(pL)
+% size(pLq)   % 4列ならクォータニオン、3列ならオイラー角
+% disp(size(pLq))
+% figure;
+% % --- 位置(z,x,y)の周波数応答 ---
+% Fs = 1/0.025;
+% 
+% for i = 1:4
+%     if i == 1
+%         ci = 1; co = 3; use_pLq = false; nm = 'z';
+%     elseif i == 2
+%         ci = 3; co = 1; use_pLq = false; nm = 'x';
+%     elseif i == 3
+%         ci = 2; co = 2; use_pLq = false; nm = 'y';
+%     else
+%         ci = 4; co = 3; use_pLq = true;  nm = 'yaw';
+%     end
+% 
+%     if use_pLq
+%         [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
+%     else
+%         [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
+%     end
+%     omega = 2*pi*f;
+% 
+%     % 0Hz成分を除いた正の周波数のみで桁(decade)を計算
+%     omega_pos = omega(omega > 0);
+%     dec_min = floor(log10(omega_pos(1)));
+%     dec_max = ceil(log10(omega_pos(end)));
+%     xticks_dec = 10.^(dec_min:dec_max);
+% 
+%     % --- 軸ごとに個別の横長の図を作成 ---
+%     figure('Color','w', 'Position', [100 100 900 500]);
+%     t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
+%     title(t, nm, 'FontSize', 17);
+% 
+%     % ゲイン線図
+%     nexttile;
+%     semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
+%     grid on; box on;
+%     ylabel('Gain [dB]', 'FontSize', 15);
+%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+%     xlim([omega_pos(1) omega(end)]);
+% 
+%     % 位相線図
+%     nexttile;
+%     semilogx(omega, unwrap(angle(h))*180/pi, 'LineWidth', 1.5);
+%     grid on; box on;
+%     ylabel('Phase [deg]', 'FontSize', 15);
+%     xlabel('\omega [rad/s]', 'FontSize', 15);
+%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+%     xlim([omega_pos(1) omega(end)]);
+% end
 
 show_suspended_load_animation(app); % アニメーション描画
 end
@@ -174,4 +194,114 @@ else
 end
 u = agent(idx).controller.result.input;
 v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
+end
+
+
+function disp_rmse(logger, phase)
+% estimator と reference の position を取得（Nx3）
+p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
+p_ref = logger.data(1,"p","r","phase",phase);
+% サイズチェック
+N = min(size(p_est,1), size(p_ref,1));
+p_est = p_est(1:N,:);
+p_ref = p_ref(1:N,:);
+diff = p_est - p_ref;
+RMSE_x = sqrt(mean(diff(:,1).^2));
+RMSE_y = sqrt(mean(diff(:,2).^2));
+RMSE_z = sqrt(mean(diff(:,3).^2));
+fprintf('\n===== Position RMSE (total time) =====\n');
+fprintf(' RMSE_x = %.6f [m]\n', RMSE_x);
+fprintf(' RMSE_y = %.6f [m]\n', RMSE_y);
+fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
+fprintf('=====================================\n\n');
+end
+
+
+
+
+function disp_bode(logger, phase)
+% 周波数応答(Bode線図)とコヒーレンスを確認する関数
+% disp_bode(app.logger, "f")
+% u(n-1) と y(n) を対応させる（一制御周期前の入力を使用）
+% 区間長はデータ長に応じて自動調整（n_segments分割）
+
+Fs = 1/0.025;
+n_segments = 4;   % 分割数（前回8→4に変更。区間を長くして低周波の分解能を優先）
+
+u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
+pL  = logger.data(1, "estimator.result.state.pL", "e", "phase", phase);
+pLq = logger.data(1, "estimator.result.state.q", "e", "phase", phase);
+
+for i = 1:4
+    if i == 1
+        ci = 1; co = 3; use_pLq = false; nm = 'z';
+    elseif i == 2
+        ci = 3; co = 1; use_pLq = false; nm = 'x';
+    elseif i == 3
+        ci = 2; co = 2; use_pLq = false; nm = 'y';
+    else
+        ci = 4; co = 3; use_pLq = true;  nm = 'yaw';
+    end
+
+    if use_pLq
+        y_out = pLq(:,co);
+    else
+        y_out = pL(:,co);
+    end
+
+    % --- u(n-1) と y(n) を対応させる ---
+    N = length(y_out);
+    u_n_minus_1 = u(1:N-1, ci);
+    y_n         = y_out(2:N);
+
+    % --- 区間長をデータ長から自動計算 ---
+    Nd = length(y_n);
+    wl = floor(Nd / n_segments * 2);
+    wl = 2^floor(log2(wl));
+    window = hann(wl);
+    noverlap = round(wl/2);
+    nfft = wl*2;
+
+    [h,f]     = tfestimate(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+    [cxy, fc] = mscohere(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+
+    omega   = 2*pi*f;
+    omega_c = 2*pi*fc;
+
+    omega_pos = omega(omega > 0);
+    dec_min = floor(log10(omega_pos(1)));
+    dec_max = ceil(log10(omega_pos(end)));
+    xticks_dec = 10.^(dec_min:dec_max);
+
+    % --- Bode線図 ---
+    figure('Color','w', 'Position', [100 100 900 500]);
+    t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
+    title(t, sprintf('%s (u(n-1) \\rightarrow y(n)), phase=%s, wl=%d', nm, phase, wl), 'FontSize', 17);
+
+    nexttile;
+    semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
+    grid on; box on;
+    ylabel('Gain [dB]', 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
+
+    nexttile;
+    semilogx(omega, unwrap(angle(h))*180/pi, 'LineWidth', 1.5);
+    grid on; box on;
+    ylabel('Phase [deg]', 'FontSize', 15);
+    xlabel('\omega [rad/s]', 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
+
+    % --- コヒーレンス ---
+    figure('Color','w', 'Position', [1050 100 900 300]);
+    semilogx(omega_c, cxy, 'LineWidth', 1.5);
+    grid on; box on;
+    ylim([0 1]);
+    xlabel('\omega [rad/s]', 'FontSize', 15);
+    ylabel('Coherence', 'FontSize', 15);
+    title(sprintf('%s coherence (wl=%d)', nm, wl), 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
+end
 end
