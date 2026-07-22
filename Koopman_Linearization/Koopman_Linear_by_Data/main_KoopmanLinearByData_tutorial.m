@@ -34,7 +34,10 @@ fprintf('\n＜データセットに使用するファイル名の統一を行い
 
 % 読み込むデータファイル名は同じにする必要がある：学習データ
 % loading_filename_1 みたいな感じになる
-loading_filename = input('\n統一するファイル名を入力してください(※ .matは含まない):','s');
+% loading_filename = input('\n統一するファイル名を入力してください(※ .matは含まない):','s');
+
+loading_filename = FileName;
+
 
 for i = 1:length(fileList)
     oldFileName = fullfile(folderPath,fileList(i).name);
@@ -102,14 +105,14 @@ end
 
 fprintf('\n＜データセットの結合が完了しました＞\n')
 
-flg.normalize = input('\n＜正規化を行いますか＞\n はい:1，いいえ:0：','s');
-if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
+flg.normalize = input('\n＜正規化を行います＞\n はい:1，いいえ:0：','s');
+% if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
     Ndata = Normalization(Data);
     Data.X = Ndata.x;
     Data.Y = Ndata.y;
     Data.U = Ndata.u;
     disp('正規化が完了しました')
-end
+% end
 
 
 
@@ -140,10 +143,9 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-     % [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
-     est = KL(Data.X,Data.U,Data.Y,F,flg);
+     [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+     % est = KL(Data.X,Data.U,Data.Y,F,flg);
 end
-
 
 
 % est.observable = F;

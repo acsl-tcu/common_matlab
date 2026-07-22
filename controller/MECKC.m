@@ -17,7 +17,7 @@ classdef MECKC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(4,1);
-    end
+      end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
@@ -46,7 +46,7 @@ classdef MECKC < handle
         
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
-        load('kalman_gain_befor.mat','K_full');
+        load('kalman_gainたち\LYKL_1124_byKD_LYKL.mat','K_full');
         e = z_n-z_p;
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%

@@ -2,15 +2,8 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("all_KL.mat");
-% load("second_model.mat");
-% load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
-% load("third_model.mat",'est');
-% load("z.mat",'est');
-% load("without1.mat");
-% load("integral_p.mat");
-% load("all_qua.mat");
-
+load("KL_1126.mat");
+% load("koopman_common_z_.mat")
 %速度から位置を積分して求める
 % est.A = [zeros(3,3),eye(3,3),zeros(3,20);
 %      zeros(23,3),est.A];
@@ -194,11 +187,19 @@ Qc = I(1:k,1:k);
 %HLは[1;0.05;0.05;0.1]
 % Rc = 1*eye(4);
 Rc = diag([1;0.1;0.1;1]);
-Kc = dlqr(Ac, Bc, Qc, Rc);
-K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
-K_full = K_all/T_inv;
+% Kc = dlqr(Ac, Bc, Qc, Rc);
+% K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
+% K_full = K_all/T_inv;
+
+%%
+K_full = dlqr(est.A,est.B,Q,Rc);
+
+
 A_deco = est.A - est.B * K_full;
+fprintf("元のＡ行列のeig");
+disp(eig(est.A))
+fprintf("ゲイン使ったときのＡ－ＢＫのeig")
 disp(eig(A_deco))
-% K_full = dlqr(est.A,est.B,Q,Rc);
-save('kalman_gain_befor.mat','K_full');
-fprintf("ゲインをkalman_gain_befor.matとして保存しました");
+
+save('kalman_gainたち\KL_1126_gain_byKD.mat','K_full');
+fprintf("ゲインをkalman_gain_senpai_common.matとして保存しました");
