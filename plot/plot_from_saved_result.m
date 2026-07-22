@@ -54,15 +54,15 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
-% settings.target = ["p","q", "input", "inner_input1:4","p1-p2", "v"];
-% settings.target = ["p", "input", "inner_input", "p1-p2","controller.result.mL"]; %質量推定用
+% settings.target = ["p","c","q", "input", "inner_input1:4","p1-p2", "v"];
+% settings.target = ["p", "input", "inner_input", "p1-p2","estimator.result.state.mL"]; %質量推定用
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
 % settings.target = ["p", "controller.result.delta_input"];
-settings.target = ["p", "v","p1-p2"];
-% settings.target = "input2:4";
-% settings.target = "p1-p2";
+% settings.target = ["p", "v","p1-p2"];
+% % settings.target = "input2:4";
+settings.target = ["p1-p2",];
 % settings.target = "controller.result.xd";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
@@ -73,10 +73,10 @@ settings.target = ["p", "v","p1-p2"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
-settings.fontsize = 16;    % default=11 オススメ=18　
+settings.phase = "tf";
+% settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
-% settings.fontsize = 24;    % スライド向け
+settings.fontsize = 24;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
@@ -342,7 +342,7 @@ for i=1:length(settings.target)
     end
 end
 disp_rmse(logger,settings.phase)
-disp_bode(logger, "tf")
+disp_bode(logger, "f")
 
 %% Local functions
 function att = select_attribute(target, attribute)
@@ -483,39 +483,155 @@ fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
 fprintf('=====================================\n\n');
 end
 
+
+
+
 function disp_bode(logger, phase)
-% 周波数応答(Bode線図)を確認する関数
+% 周波数応答(Bode線図)とコヒーレンスを確認する関数
 % disp_bode(app.logger, "f")
+% u(n-1) と y(n) を対応させる（一制御周期前の入力を使用）
+% 区間長はデータ長に応じて自動調整（n_segments分割）
+
+Fs = 1/0.025;
+n_segments = 4;   % 分割数（前回8→4に変更。区間を長くして低周波の分解能を優先）
+
+u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
+pL  = logger.data(1, "estimator.result.state.pL", "e", "phase", phase);
+pLq = logger.data(1, "estimator.result.state.q", "e", "phase", phase);
 
 for i = 1:4
     if i == 1
-        ci = 1; co = 3; use_pLq = false;
-        nm = 'z';
+        ci = 1; co = 3; use_pLq = false; nm = 'z';
     elseif i == 2
-        ci = 3; co = 1; use_pLq = false;
-        nm = 'x';
+        ci = 3; co = 1; use_pLq = false; nm = 'x';
     elseif i == 3
-        ci = 2; co = 2; use_pLq = false;
-        nm = 'y';
+        ci = 2; co = 2; use_pLq = false; nm = 'y';
     else
-        ci = 4; co = 3; use_pLq = true;   % yaw入力 (us(3)を想定), pLq の3列目 = yaw
-        nm = 'yaw';
+        ci = 4; co = 3; use_pLq = true;  nm = 'yaw';
     end
 
     if use_pLq
-        [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
+        y_out = pLq(:,co);
     else
-        [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
+        y_out = pL(:,co);
     end
 
-    subplot(2,4,i);
-    semilogx(2*pi*f, 20*log10(abs(h)));
-    grid on; title(nm); ylabel('Gain dB'); xlabel('\omega [rad/s]');
-    subplot(2,4,i+4);
-    semilogx(2*pi*f, unwrap(angle(h))*180/pi);
-    grid on; ylabel('Phase deg'); xlabel('\omega [rad/s]');
+    % --- u(n-1) と y(n) を対応させる ---
+    N = length(y_out);
+    u_n_minus_1 = u(1:N-1, ci);
+    y_n         = y_out(2:N);
+
+    % --- 区間長をデータ長から自動計算 ---
+    Nd = length(y_n);
+    wl = floor(Nd / n_segments * 2);
+    wl = 2^floor(log2(wl));
+    window = hann(wl);
+    noverlap = round(wl/2);
+    nfft = wl*2;
+
+    [h,f]     = tfestimate(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+    [cxy, fc] = mscohere(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+
+    omega   = 2*pi*f;
+    omega_c = 2*pi*fc;
+
+    omega_pos = omega(omega > 0);
+    dec_min = floor(log10(omega_pos(1)));
+    dec_max = ceil(log10(omega_pos(end)));
+    xticks_dec = 10.^(dec_min:dec_max);
+
+    % --- Bode線図 ---
+    figure('Color','w', 'Position', [100 100 900 500]);
+    t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
+    title(t, sprintf('%s (u(n-1) \\rightarrow y(n)), phase=%s, wl=%d', nm, phase, wl), 'FontSize', 17);
+
+    nexttile;
+    semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
+    grid on; box on;
+    ylabel('Gain [dB]', 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
+
+    nexttile;
+    semilogx(omega, unwrap(angle(h))*180/pi, 'LineWidth', 1.5);
+    grid on; box on;
+    ylabel('Phase [deg]', 'FontSize', 15);
+    xlabel('\omega [rad/s]', 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
+
+    % --- コヒーレンス ---
+    figure('Color','w', 'Position', [1050 100 900 300]);
+    semilogx(omega_c, cxy, 'LineWidth', 1.5);
+    grid on; box on;
+    ylim([0 1]);
+    xlabel('\omega [rad/s]', 'FontSize', 15);
+    ylabel('Coherence', 'FontSize', 15);
+    title(sprintf('%s coherence (wl=%d)', nm, wl), 'FontSize', 15);
+    set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+    xlim([omega_pos(1) omega(end)]);
 end
 end
+
+% function disp_bode(logger, phase)
+% % 周波数応答(Bode線図)を確認する関数
+% % disp_bode(app.logger, "f")
+% Fs = 1/0.025;
+%
+% u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
+% pL  = logger.data(1, "estimator.result.state.pL", "e", "phase", phase);
+% pLq = logger.data(1, "estimator.result.state.q", "e", "phase", phase);
+%
+%
+% Fs = 1/0.025;
+%
+% for i = 1:4
+%     if i == 1
+%         ci = 1; co = 3; use_pLq = false; nm = 'z';
+%     elseif i == 2
+%         ci = 3; co = 1; use_pLq = false; nm = 'x';
+%     elseif i == 3
+%         ci = 2; co = 2; use_pLq = false; nm = 'y';
+%     else
+%         ci = 4; co = 3; use_pLq = true;  nm = 'yaw';
+%     end
+%
+%     if use_pLq
+%         [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
+%     else
+%         [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
+%     end
+%     omega = 2*pi*f;
+%
+%     % 0Hz成分を除いた正の周波数のみで桁(decade)を計算
+%     omega_pos = omega(omega > 0);
+%     dec_min = floor(log10(omega_pos(1)));
+%     dec_max = ceil(log10(omega_pos(end)));
+%     xticks_dec = 10.^(dec_min:dec_max);
+%
+%     % --- 軸ごとに個別の横長の図を作成 ---
+%     figure('Color','w', 'Position', [100 100 900 500]);
+%     t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
+%     title(t, nm, 'FontSize', 17);
+%
+%     % ゲイン線図
+%     nexttile;
+%     semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
+%     grid on; box on;
+%     ylabel('Gain [dB]', 'FontSize', 15);
+%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+%     xlim([omega_pos(1) omega(end)]);
+%
+%     % 位相線図
+%     nexttile;
+%     semilogx(omega, unwrap(angle(h))*180/pi, 'LineWidth', 1.5);
+%     grid on; box on;
+%     ylabel('Phase [deg]', 'FontSize', 15);
+%     xlabel('\omega [rad/s]', 'FontSize', 15);
+%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
+%     xlim([omega_pos(1) omega(end)]);
+% end
+% end
 
 % function rmse_xyz = disp_rmse(logger, phase)
 % % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
