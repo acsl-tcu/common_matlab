@@ -1,0 +1,16 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 12:58:53
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+neko_1.mat
+neko_2.mat
+neko_3.mat
+neko_4.mat
+neko_5.mat
+neko_6.mat
+neko_7.mat
+neko_8.mat
+neko_9.mat
+LYKL回数 : 2

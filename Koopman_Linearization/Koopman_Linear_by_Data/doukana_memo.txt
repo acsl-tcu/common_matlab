@@ -1,0 +1,14 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 13:03:01
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+-x-y_HL_1_Log(24-Nov-2025_14_57_27).mat
+-x-y_HL_2_Log(24-Nov-2025_14_59_23).mat
+-x-y_HL_3_Log(24-Nov-2025_15_03_28).mat
+-x-y_HL_4_Log(24-Nov-2025_15_06_00).mat
+-x-y_HL_5_Log(24-Nov-2025_15_09_15).mat
+R0.5_-x-y_MEC_5_Log(24-Nov-2025_14_52_23).mat
+low_battery_R0.5_-x-y_MEC_5_Log(24-Nov-2025_14_47_18).mat
+KLでした

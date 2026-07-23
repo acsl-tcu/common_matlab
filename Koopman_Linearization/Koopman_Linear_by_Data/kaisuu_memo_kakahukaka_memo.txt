@@ -1,0 +1,15 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 09:54:18
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+30kara50he_LYKL_1.mat
+30kara50he_LYKL_2.mat
+30kara50he_LYKL_3.mat
+30kara50he_LYKL_4.mat
+30kara50he_LYKL_5.mat
+30kara50he_LYKL_6.mat
+30kara50he_LYKL_7.mat
+30kara50he_LYKL_8.mat
+30kara50he_LYKL_9.mat

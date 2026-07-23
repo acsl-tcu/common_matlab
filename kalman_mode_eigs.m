@@ -1,19 +1,5 @@
 function [eigs_a, eigs_b, eigs_c, eigs_d, info] = kalman_mode_eigs(A, B, C, doPlot, tol)
-%KALMAN_MODE_EIGS  Kalman decomposition and pole classification.
-%
-% [eigs_a,eigs_b,eigs_c,eigs_d,info] = kalman_mode_eigs(A,B,C)
-% analyzes x(k+1)=Ax(k)+Bu(k), y(k)=Cx(k), and classifies its modes:
-%   eigs_a : controllable,   unobservable
-%   eigs_b : controllable,   observable
-%   eigs_c : uncontrollable, unobservable
-%   eigs_d : uncontrollable, observable
-%
-% The fourth input selects plotting (default: true). The fifth input is the
-% numerical tolerance. The plot contains the unit circle, so it is intended
-% especially for discrete-time systems.
-%
-% info also contains whole-system tests:
-%   isControllable, isObservable, isStabilizable, isDetectable
+
 
     narginchk(3, 5);
     if nargin < 4 || isempty(doPlot), doPlot = true; end
@@ -43,7 +29,7 @@ function [eigs_a, eigs_b, eigs_c, eigs_d, info] = kalman_mode_eigs(A, B, C, doPl
     else
         [U,S,~] = svd(QR' * QN, 'econ');
         s = diag(S);
-        common = find(abs(1-s) <= max(10*tol, sqrt(eps)));
+        common = abs(1-s) <= max(10*tol, sqrt(eps));
         Qa = local_range(QR * U(:,common), tol);
     end
 
@@ -90,6 +76,43 @@ function [eigs_a, eigs_b, eigs_c, eigs_d, info] = kalman_mode_eigs(A, B, C, doPl
     badDetectabilityEigs = ...
         unobservableEigs(abs(unobservableEigs) >= 1-stabilityTol);
 
+    % Extract the controllable subsystem and design its discrete-time LQR.
+    % Qc = I means that every controllable state has weight 1.
+    if rR == 0
+        error('The system has no controllable state, so dlqr cannot be used.');
+    end
+    if size(B,2) ~= 4
+        error(['Rc = diag([1 0.1 0.1 1]) requires B to have exactly ' ...
+               'four input columns.']);
+    end
+
+    controllableIdx = 1:rR;
+    Ac = Abar(controllableIdx,controllableIdx);
+    Bc = Bbar(controllableIdx,:);
+    Qc = eye(rR);
+    Rc = diag([1; 0.1; 0.1; 1]);
+
+    % dlqr uses u(k) = -Kc*xc(k) in the controllable coordinates.
+    if exist('dlqr','file') == 0
+        error(['The dlqr function was not found. Install or enable ' ...
+               'Control System Toolbox to perform the LQR design.']);
+    end
+    [Kc, Sc, closedLoopEigsC] = dlqr(Ac, Bc, Qc, Rc);
+
+    % Return the gain to the original x coordinates:
+    % x = T*xbar, u = -[Kc 0]*xbar = -K*x.
+    Kbar = [Kc zeros(size(B,2),n-rR)];
+    K = Kbar / T;
+    Aclosed = A - B*K;
+    closedLoopEigs = eig(Aclosed);
+
+    if ~isempty(badStabilizabilityEigs)
+        warning('kalman_mode_eigs:NotStabilizable', ...
+            ['The controllable part was designed by dlqr, but the full ' ...
+             'system cannot be stabilized because it has an unstable ' ...
+             'uncontrollable mode.']);
+    end
+
     info.T = T;
     info.Abar = Abar;
     info.Bbar = Bbar;
@@ -103,6 +126,18 @@ function [eigs_a, eigs_b, eigs_c, eigs_d, info] = kalman_mode_eigs(A, B, C, doPl
     info.isDetectable = isempty(badDetectabilityEigs);
     info.badStabilizabilityEigs = badStabilizabilityEigs;
     info.badDetectabilityEigs = badDetectabilityEigs;
+    info.Ac = Ac;
+    info.Bc = Bc;
+    info.Qc = Qc;
+    info.Rc = Rc;
+    info.Kc = Kc;
+    info.Sc = Sc;
+    info.closedLoopEigsC = closedLoopEigsC;
+    info.Kbar = Kbar;
+    info.K = K;
+    info.Aclosed = Aclosed;
+    info.closedLoopEigs = closedLoopEigs;
+    info.isClosedLoopStable = all(abs(closedLoopEigs) < 1-stabilityTol);
 
     fprintf('a: controllable / unobservable   = %d mode(s)\n', na);
     fprintf('b: controllable / observable     = %d mode(s)\n', nb);
@@ -132,6 +167,15 @@ function [eigs_a, eigs_b, eigs_c, eigs_d, info] = kalman_mode_eigs(A, B, C, doPl
         fprintf('System test: NOT detectable (discrete time)\n');
         fprintf('Unobservable unstable/boundary eigenvalue(s):\n');
         disp(info.badDetectabilityEigs);
+    end
+    fprintf('LQR gain Kc for the controllable subsystem:\n');
+    disp(info.Kc);
+    fprintf('LQR gain K in the original coordinates:\n');
+    disp(info.K);
+    if info.isClosedLoopStable
+        fprintf('Closed-loop test: stable (all poles are inside the unit circle)\n');
+    else
+        fprintf('Closed-loop test: NOT stable\n');
     end
 
     if doPlot

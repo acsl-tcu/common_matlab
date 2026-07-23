@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 09:36:30
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+LYKL_30_henka_Check_1.mat
+LYKL_30_henka_Check_2.mat
+LYKL_30_henka_Check_3.mat
+LYKL_30_henka_Check_4.mat
+LYKL_30_henka_Check_5.mat
+LYKL_30_henka_Check_6.mat
+LYKL_30_henka_Check_7.mat
+LYKL_30_henka_Check_8.mat
+LYKL_30_henka_Check_9.mat
+
+回数：３０

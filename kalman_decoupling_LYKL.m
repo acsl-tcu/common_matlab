@@ -72,14 +72,16 @@ Rc = diag([1;0.1;0.1;1]);
 K_full = dlqr(est.A, est.B, Q, Rc );
 
 %%
-% A_deco = est.A - est.B * K_full;
-% fprintf("元のＡ行列のeig");
-% disp(eig(est.A));
-% fprintf("ゲイン使ったときのＡ－ＢＫのeig");
-% disp(eig(A_deco));
+A_deco = est.A - est.B * K_full;
+fprintf("元のＡ行列のeig");
+disp(eig(est.A));
+fprintf("ゲイン使ったときのＡ－ＢＫのeig");
+disp(eig(A_deco));
 
 %%
-saveFileName = [loadFileName '_gain.mat'];
+% saveFileName = [loadFileName '_2_gain_KD_LYKL.mat'];
+saveFolder = fullfile(pwd, 'kalman_gainたち');
+saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD_LYKL.mat']);
 
 save(saveFileName, 'K_full');
 % save([loadFileName 'byKD_LYKL.mat'], 'K_full');

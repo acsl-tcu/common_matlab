@@ -23,9 +23,27 @@ flg.weight = 0; %重み付き最小2乗法
 setting = 0; %この値はいじらない
 %---------------------------------------------
 
+%%
+
+method = input('KL または LYKL を入力してください：', 's');
+
+if strcmpi(method, 'KL')
+    % KLの場合の処理
+    disp('KLを実行します');
+
+elseif strcmpi(method, 'LYKL')
+    % LYKLの場合の処理
+    disp('LYKLを実行します');
+
+else
+    error('入力は KL または LYKL にしてください。');
+end
+
 %% 
 %データ保存先ファイル名(逐次変更しないと，上書きされる)
 FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
+[~, baseName, ~] = fileparts(FileName);
+
 
 folderPath = 'datasetsd'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
 files = dir(folderPath);
@@ -33,18 +51,36 @@ files = dir(folderPath);
 fileList = dir(fullfile(folderPath,'*.mat')); %対象のファイルを取得
 fprintf('\n＜データセットに使用するファイル名の統一を行います＞\n')
 
+nFiles = length(fileList);
+% 元の名前と変更後の名前を記録
+originalFilePaths = cell(nFiles, 1);
+renamedFilePaths  = cell(nFiles, 1);
 % 読み込むデータファイル名は同じにする必要がある：学習データ
 % loading_filename_1 みたいな感じになる
 % loading_filename = input('\n統一するファイル名を入力してください(※ .matは含まない):','s');
 
+% FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
 loading_filename = FileName;
 
+% for i = 1:length(fileList)
+%     oldFileName = fullfile(folderPath,fileList(i).name);
+%     newFileName = fullfile(folderPath,[append(loading_filename,'_',num2str(i),'.mat')]);
+%     movefile(oldFileName, newFileName); %名前の変更
+% end
 
-for i = 1:length(fileList)
-    oldFileName = fullfile(folderPath,fileList(i).name);
-    newFileName = fullfile(folderPath,[append(loading_filename,'_',num2str(i),'.mat')]);
-    movefile(oldFileName, newFileName); %名前の変更
+for i = 1:nFiles
+
+    oldFileName = fullfile(folderPath, fileList(i).name);
+    newFileName = fullfile( ...
+        folderPath, sprintf('%s_%d.mat', baseName, i));
+
+    % ここが必須
+    originalFilePaths{i} = oldFileName;
+    renamedFilePaths{i}  = newFileName;
+
+    movefile(oldFileName, newFileName);
 end
+
 
 Data.HowmanyDataset = numel(fileList); %読み込むデータ数
 if Data.HowmanyDataset > 0
@@ -144,10 +180,20 @@ fprintf('\n＜クープマン線形化を実行＞\n')
 if flg.bilinear == 1
     est = KL_biLinear(Data.X,Data.U,Data.Y,F);
 else
-     tic
-     % [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+    if strcmpi(method, 'KL')
+   
+     disp('KL');
      est = KL(Data.X,Data.U,Data.Y,F,flg);
-     calT = toc;
+     
+
+     elseif strcmpi(method, 'LYKL')
+    % LYKLの場合の処理
+    disp('LYKL');
+      tic
+    [~, ~, ~, ~, est] = rensyuuKLLY(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+    calT = toc;
+    end
+
 end
 
 
@@ -223,6 +269,21 @@ else
 end
 simResult.state.N = simResult.reference.N-1;
 
+for i = 1:nFiles
+
+    src = renamedFilePaths{i};
+    dst = originalFilePaths{i};
+
+    if ~(ischar(src) || (isstring(src) && isscalar(src)))
+        error('renamedFilePaths{%d} が文字列ではありません。', i);
+    end
+
+    if ~(ischar(dst) || (isstring(dst) && isscalar(dst)))
+        error('originalFilePaths{%d} が文字列ではありません。', i);
+    end
+
+    movefile(src, dst);
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%実験メモ追加%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -255,6 +316,19 @@ for i = 1:length(files)
     end
 end
 
+if strcmpi(method, 'KL')
+   
+     disp('KL');
+     fprintf(fid, 'KLでした');
+     
+
+     elseif strcmpi(method, 'LYKL')
+    % LYKLの場合の処理
+    disp('LYKL');
+    fprintf(fid, 'LYKL回数 : %d\n', est.iteration);
+    fprintf("実行時間: %.3f 秒\n", calT);
+end
+
 fclose(fid);
 
 fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
@@ -262,7 +336,7 @@ fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
 
-fprintf("実行時間: %.3f 秒\n", calT);
+
 
 save(targetpath,'est','Data','simResult','F')
 disp('Saved to')

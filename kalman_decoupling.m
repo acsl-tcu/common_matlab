@@ -1,15 +1,11 @@
 clear;
 clc;
-% load("without_w1.mat");
-% load("koopman_model_first.mat",'est');
-load("retry_KL.mat");
-% load("koopman_common_z_.mat")
-%速度から位置を積分して求める
-% est.A = [zeros(3,3),eye(3,3),zeros(3,20);
-%      zeros(23,3),est.A];
-% est.B = [zeros(3,4);est.B];
-% est.C = [est.C,zeros(12,3)];
 
+%%
+loadFileName = input('読み込むファイル名(.mat不要)：','s');
+load([loadFileName '.mat']);
+
+%%
 % 可制御性行列
 n = size(est.A, 1);
 tol = 1e-14; % 許容誤差
@@ -138,7 +134,7 @@ for i = 1:size(plot_data, 1)
             'MarkerFaceColor', 'none', ...
             'LineWidth', 1.5, ...
             'MarkerSize', 9);
-        
+
         h_legend = [h_legend, p];
         legend_labels{end+1} = sprintf('%s (%d個)', plot_data{i,4}, length(current_eigs));
     end
@@ -187,12 +183,12 @@ Qc = I(1:k,1:k);
 %HLは[1;0.05;0.05;0.1]
 % Rc = 1*eye(4);
 Rc = diag([1;0.1;0.1;1]);
-% Kc = dlqr(Ac, Bc, Qc, Rc);
-% K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
-% K_full = K_all/T_inv;
+Kc = dlqr(Ac, Bc, Qc, Rc);
+K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
+K_full = K_all/T_inv;
 
 %%
-K_full = dlqr(est.A,est.B,Q,Rc);
+% K_full = dlqr(est.A,est.B,Q,Rc);
 
 
 A_deco = est.A - est.B * K_full;
@@ -201,5 +197,16 @@ disp(eig(est.A))
 fprintf("ゲイン使ったときのＡ－ＢＫのeig")
 disp(eig(A_deco))
 
-save('kalman_gainたち\retry_KL_gain_byKD.mat','K_full');
-fprintf("ゲインをkalman_gain_senpai_common.matとして保存しました");
+%%
+saveFolder = fullfile(pwd, 'kalman_gainたち');
+saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD.mat']);
+
+save(saveFileName, 'K_full');
+fprintf('"%s" として保存しました。\n', saveFileName);
+
+
+% save([loadFileName 'byKD_LYKL.mat'], 'K_full');
+% save('kalman_gainたち\retry_KL_byKD_LYKL.mat','K_full');
+% fprintf("ゲインをkalman_gain_all_LYKL_sec.matとして保存しました");
+% save('kalman_gainたち\retry_KL_gain_byKD.mat','K_full');
+% fprintf("ゲインをkalman_gain_senpai_common.matとして保存しました");

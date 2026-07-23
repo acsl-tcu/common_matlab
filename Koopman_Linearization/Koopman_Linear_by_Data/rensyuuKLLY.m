@@ -389,4 +389,15 @@ Theta_plus = Ylift;
         eta_history(1:iter);
 
    
+      %% 目的関数の値をプロット
+    valid_idx = ~isnan(objective_history);
+    
+    figure;
+    plot(find(valid_idx), objective_history(valid_idx), ...
+        '-o', 'LineWidth', 1.5);
+    
+    xlabel('反復回数');
+    ylabel('目的関数の値 ||U^{(k)} - U^{(k-1)}||_F');
+    title('目的関数の履歴');
+    grid on;
 end

@@ -1,0 +1,15 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 09:58:17
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+kaisuu_memo_kakahukaka_1.mat
+kaisuu_memo_kakahukaka_2.mat
+kaisuu_memo_kakahukaka_3.mat
+kaisuu_memo_kakahukaka_4.mat
+kaisuu_memo_kakahukaka_5.mat
+kaisuu_memo_kakahukaka_6.mat
+kaisuu_memo_kakahukaka_7.mat
+kaisuu_memo_kakahukaka_8.mat
+kaisuu_memo_kakahukaka_9.mat

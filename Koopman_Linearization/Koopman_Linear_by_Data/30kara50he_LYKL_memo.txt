@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/23 09:41:07
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+mokutekikansuu_henka_Check_1.mat
+mokutekikansuu_henka_Check_2.mat
+mokutekikansuu_henka_Check_3.mat
+mokutekikansuu_henka_Check_4.mat
+mokutekikansuu_henka_Check_5.mat
+mokutekikansuu_henka_Check_6.mat
+mokutekikansuu_henka_Check_7.mat
+mokutekikansuu_henka_Check_8.mat
+mokutekikansuu_henka_Check_9.mat
+
+回数：５０
