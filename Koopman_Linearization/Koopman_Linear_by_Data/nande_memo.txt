@@ -1,0 +1,14 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/24 12:52:45
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+kyounobun_1.mat
+kyounobun_2.mat
+kyounobun_3.mat
+kyounobun_4.mat
+kyounobun_5.mat
+kyounobun_6.mat
+kyounobun_7.mat
+KLでした

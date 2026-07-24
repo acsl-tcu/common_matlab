@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/24 13:56:26
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+-x-y_HL_2_Log(24-Nov-2025_14_59_23).mat
+-x-y_HL_4_Log(24-Nov-2025_15_06_00).mat
+R0.5_-x-y_MEC_1_Log(24-Nov-2025_14_28_47).mat
+R0.5_-x-y_MEC_4_Log(24-Nov-2025_14_35_21).mat
+R1_-x-y_MEC_2_Log(24-Nov-2025_13_45_27).mat
+R1_-x-y_MEC_4_Log(24-Nov-2025_13_50_28).mat
+center_HL_1_Log(26-Nov-2025_14_40_45).mat
+center_R0.5_4_Log(26-Nov-2025_15_30_43).mat
+center_R1_MEC_3_Log(26-Nov-2025_15_04_39).mat
+牽引物に電池入りR1_center_MEC_2_Log(26-Nov-2025_14_20_02).mat
+KLでした

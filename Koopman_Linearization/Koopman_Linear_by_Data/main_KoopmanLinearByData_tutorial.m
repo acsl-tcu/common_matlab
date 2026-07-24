@@ -42,8 +42,8 @@ end
 %% 
 %データ保存先ファイル名(逐次変更しないと，上書きされる)
 FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
-[~, baseName, ~] = fileparts(FileName);
-
+% [~, baseName, ~] = fileparts(FileName);
+[~, baseName, ext] = fileparts(FileName);
 
 folderPath = 'datasetsd'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
 files = dir(folderPath);
@@ -77,6 +77,8 @@ for i = 1:nFiles
     % ここが必須
     originalFilePaths{i} = oldFileName;
     renamedFilePaths{i}  = newFileName;
+    % fprintf('src: %s\n', src);
+    % fprintf('dst: %s\n', dst);
 
     movefile(oldFileName, newFileName);
 end
@@ -285,10 +287,19 @@ for i = 1:nFiles
     movefile(src, dst);
 end
 
+if strcmp(method, 'KL')
+
+    saveFileName = [baseName, '_KL', ext];
+
+elseif strcmp(method, 'LYKL')
+
+    saveFileName = [baseName, '_LYKL', ext];
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%実験メモ追加%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 保存先
-targetPath = append(nowFolder,'\',FileName);
+targetPath = fullfile(nowFolder, saveFileName);
 
 %% メモファイル名
 [saveFolder, name, ~] = fileparts(targetPath);
@@ -338,9 +349,16 @@ fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
 
 
 
-save(targetpath,'est','Data','simResult','F')
+% 保存先のフルパス
+targetPath = fullfile(nowFolder, saveFileName);
+
+% 保存
+save(targetPath, 'est', 'Data', 'simResult', 'F');
+
+% save(targetpath,'est','Data','simResult','F')
+
 disp('Saved to')
-disp(targetpath)
+disp(targetPath)
 
 %% データセット内のファイルの移動 Dataの中のなんというフォルダに入るか
 % parentFolderPath = 'Data';
