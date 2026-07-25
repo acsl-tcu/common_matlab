@@ -1,0 +1,41 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/25 12:10:03
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+-x-y_HL_1_Log(24-Nov-2025_14_57_27).mat
+-x-y_HL_2_Log(24-Nov-2025_14_59_23).mat
+-x-y_HL_3_Log(24-Nov-2025_15_03_28).mat
+-x-y_HL_4_Log(24-Nov-2025_15_06_00).mat
+-x-y_HL_5_Log(24-Nov-2025_15_09_15).mat
+R0.5_-x-y_MEC_1_Log(24-Nov-2025_14_28_47).mat
+R0.5_-x-y_MEC_2_Log(24-Nov-2025_14_30_52).mat
+R0.5_-x-y_MEC_3_Log(24-Nov-2025_14_33_18).mat
+R0.5_-x-y_MEC_4_Log(24-Nov-2025_14_35_21).mat
+R0.5_-x-y_MEC_5_Log(24-Nov-2025_14_52_23).mat
+R1_-x-y_MEC_1_Log(24-Nov-2025_13_42_41).mat
+R1_-x-y_MEC_2_Log(24-Nov-2025_13_45_27).mat
+R1_-x-y_MEC_3_Log(24-Nov-2025_13_48_09).mat
+R1_-x-y_MEC_4_Log(24-Nov-2025_13_50_28).mat
+R1_-x-y_MEC_5_Log(24-Nov-2025_13_52_38).mat
+center_HL_1_Log(26-Nov-2025_14_40_45).mat
+center_HL_2_Log(26-Nov-2025_14_42_52).mat
+center_HL_3_Log(26-Nov-2025_14_44_48).mat
+center_HL_4_Log(26-Nov-2025_14_47_26).mat
+center_HL_5_Log(26-Nov-2025_14_49_42).mat
+center_R0.5_1_Log(26-Nov-2025_15_21_47).mat
+center_R0.5_2_Log(26-Nov-2025_15_25_16).mat
+center_R0.5_3_Log(26-Nov-2025_15_27_46).mat
+center_R0.5_4_Log(26-Nov-2025_15_30_43).mat
+center_R0.5_5_Log(26-Nov-2025_15_43_40).mat
+center_R1_MEC_1_Log(26-Nov-2025_14_59_29).mat
+center_R1_MEC_2_Log(26-Nov-2025_15_02_16).mat
+center_R1_MEC_3_Log(26-Nov-2025_15_04_39).mat
+center_R1_MEC_4_Log(26-Nov-2025_15_08_40).mat
+center_R1_MEC_5_Log(26-Nov-2025_15_10_53).mat
+low_battery_R0.5_-x-y_MEC_5_Log(24-Nov-2025_14_47_18).mat
+牽引物に電池入りR1_center_MEC_1_Log(26-Nov-2025_14_17_28).mat
+牽引物に電池入りR1_center_MEC_2_Log(26-Nov-2025_14_20_02).mat
+牽引物に電池入りR1_center_MEC_miss_Log(26-Nov-2025_14_22_59).mat
+LYKL回数 : 30

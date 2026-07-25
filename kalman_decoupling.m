@@ -5,109 +5,7 @@ clc;
 loadFileName = input('読み込むファイル名(.mat不要)：','s');
 load([loadFileName '.mat']);
 
-A = est.A;
-B = est.B;
-C = est.C;
 
-n = size(A, 1);
-
-%% 数値計算用許容誤差
-tol = 100 * max(size(A)) * eps(max(1, norm(A, 2)));
-
-%% 可制御性・可観測性行列
-Mc = ctrb(A, B);
-Mo = obsv(A, C);
-
-%% ランク
-rank_Mc = rank(Mc, tol);
-rank_Mo = rank(Mo, tol);
-
-%% 可制御部分空間の正規直交基底
-Qc = orth(Mc, tol);
-
-%% 可制御部分空間の直交補空間
-% Quc：不可制御モードを含む座標方向
-Quc = null(Qc', tol);
-
-%% 座標変換行列
-% Tは直交行列なので T^{-1} = T'
-T = [Qc, Quc];
-
-A_bar = T' * A * T;
-B_bar = T' * B;
-C_bar = C * T;
-
-%% 可制御・不可制御ブロックの次元
-nc  = rank_Mc;
-nuc = n - rank_Mc;
-
-%% 不可制御ブロックの抽出
-if nuc > 0
-
-    A_uc = A_bar(nc+1:end, nc+1:end);
-    uncontrollable_eigs = eig(A_uc);
-
-    % 離散時間系：単位円内なら安定
-    is_uncontrollable_stable = ...
-        all(abs(uncontrollable_eigs) < 1 - tol);
-
-else
-
-    A_uc = [];
-    uncontrollable_eigs = [];
-    is_uncontrollable_stable = true;
-
-end
-
-%% 可安定化性
-is_controllable = (rank_Mc == n);
-is_observable   = (rank_Mo == n);
-
-% 不可制御モードがすべて安定なら可安定化
-is_stabilizable = is_uncontrollable_stable;
-
-%% 結果表示
-fprintf('状態数                 : %d\n', n);
-fprintf('可制御部分空間の次元   : %d\n', rank_Mc);
-fprintf('不可制御部分空間の次元 : %d\n', n - rank_Mc);
-fprintf('可観測部分空間の次元   : %d\n', rank_Mo);
-fprintf('不可観測部分空間の次元 : %d\n', n - rank_Mo);
-
-fprintf('\n');
-
-if is_controllable
-
-    disp('このシステムは「可制御」です。');
-    disp('したがって、このシステムは「可安定化」です。');
-
-elseif is_stabilizable
-
-    disp('このシステムは「不可制御」ですが「可安定化」です。');
-    disp('不可制御固有値はすべて単位円内にあります。');
-
-else
-
-    disp('このシステムは「不可制御」であり「可安定化ではありません」。');
-    disp('単位円上または単位円外の不可制御固有値が存在します。');
-
-end
-
-%% 不可制御固有値の表示
-if isempty(uncontrollable_eigs)
-
-    disp('不可制御固有値はありません。');
-
-else
-
-    disp('不可制御固有値：');
-    disp(uncontrollable_eigs);
-
-    disp('不可制御固有値の絶対値：');
-    disp(abs(uncontrollable_eigs));
-
-end
-
-%%
 % 可制御性行列
 n = size(est.A, 1);
 tol = 1e-14; % 許容誤差
@@ -236,7 +134,7 @@ for i = 1:size(plot_data, 1)
             'MarkerFaceColor', 'none', ...
             'LineWidth', 1.5, ...
             'MarkerSize', 9);
-
+        
         h_legend = [h_legend, p];
         legend_labels{end+1} = sprintf('%s (%d個)', plot_data{i,4}, length(current_eigs));
     end
@@ -288,16 +186,7 @@ Rc = diag([1;0.1;0.1;1]);
 Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
-
-%%
 % K_full = dlqr(est.A,est.B,Q,Rc);
-
-
-A_deco = est.A - est.B * K_full;
-fprintf("元のＡ行列のeig");
-disp(eig(est.A))
-fprintf("ゲイン使ったときのＡ－ＢＫのeig")
-disp(eig(A_deco))
 
 %%
 saveFolder = fullfile(pwd, 'kalman_gainたち');
@@ -305,10 +194,3 @@ saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD.mat']);
 
 save(saveFileName, 'K_full');
 fprintf('"%s" として保存しました。\n', saveFileName);
-
-
-% save([loadFileName 'byKD_LYKL.mat'], 'K_full');
-% save('kalman_gainたち\retry_KL_byKD_LYKL.mat','K_full');
-% fprintf("ゲインをkalman_gain_all_LYKL_sec.matとして保存しました");
-% save('kalman_gainたち\retry_KL_gain_byKD.mat','K_full');
-% fprintf("ゲインをkalman_gain_senpai_common.matとして保存しました");

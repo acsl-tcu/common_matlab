@@ -1,82 +1,82 @@
-
 function [U_val, A_val, B_val, P_val, result] = ...
     rensyuuKLLY(X,U,Y,F,~)
-%SOLVE_KOOPMAN_ALTERNATING
+%SOLVE_KOOPMAN_ALTERNATING_FIXED
 % 交互最適化によって安定性制約付きKoopman作用素 U=[A B] を求める
 %
+% ★このバージョンでの修正点（元コードからの変更）
+%   元コードでは、Koopman観測量に定数項(=1)を含めているため、
+%   Aは必ず固有値 λ=1 を一つ持つ。これは
+%     ・定数方向は入力uで励起できない（本質的に不可制御）
+%     ・にもかかわらず安定性LMI（rho_bar<1のSchur補行列条件）を
+%       "全次元"のAに課すと、定数方向にも rho_bar<1 を要求してしまい、
+%       数値的に矛盾／悪条件（リアプノフ方程式の退化、Gramianが
+%       見かけ上フルランクになる等）を引き起こす。
+%
+%   対策：
+%     1. Xlift（観測量）の中から「全データで値が1で一定」の行を
+%        自動検出し const_idx とする。
+%     2. Step1のSDPで、Uのconst_idx行を
+%          U(const_idx, :) = [0,...,0, 1, 0,...,0]  (const_idx列だけ1)
+%        に「厳密に固定」する等式制約を追加。
+%        → 定数観測量は「次の時刻でも定数のまま・入力の影響を受けない」
+%          という物理的に正しい構造をハードコードし、
+%          最適化変数から実質的に外す。
+%     3. 安定性LMI（Step1のmatrix_P、Step2のStab_P）は
+%        定数方向を除いた (p_theta-1) 次元の動的部分空間
+%        A_dyn = A(dyn_idx, dyn_idx) にのみ課す。
+%        P も (p_theta-1)×(p_theta-1) の縮約版になる。
+%     4. これにより固有値1の方向はLMIの外に置かれるので、
+%        「rho_bar<1を要求しつつ実は1が混じっている」という矛盾が解消。
+%        最終的なAは「厳密に1の定数モード」＋「rho_bar未満に安定化
+%        された25次元の動的モード」という、ユーザーの分析
+%        （ctrbfで25、定数方向は不可制御）と整合する構造になる。
+%
 % 入力
-%   Psi        : p × q
-%                [観測量; 入力]を並べたデータ行列
-%
-%   Theta_plus : p_theta × q
-%                次時刻の観測量データ行列
-%
-%   rho_bar    : 安定性の上限
-%                省略時 0.99
-%
-%   max_iter   : 最大反復回数
-%                省略時 30
-%
-%   tolerance  : 収束判定値
-%                省略時 1e-5
+%   X, U, Y    : 状態・入力・次時刻状態のデータ
+%   F          : 観測量へのリフト関数 (dx) -> Xlift(:,i)
 %
 % 出力
-%   U_val      : Koopman作用素 U=[A B]
-%   A_val      : 状態・観測量部分
-%   B_val      : 入力部分
-%   P_val      : Lyapunov行列
+%   U_val      : Koopman作用素 U=[A B]（const_idx行は厳密に固定済み）
+%   A_val, B_val, P_val : 状態・入力部分、Lyapunov行列（動的部分のみ）
 %   result     : 計算結果を格納した構造体
+%                （result.const_idx, result.dyn_idx を追加）
 
     %% 初期値
-    
-        rho_bar = 0.99;
-        max_iter = 30;
-        tolerance = 1e-5;
-    
-%%
+    rho_bar   = 0.99;
+    max_iter  = 30;
+    tolerance = 1e-5;
 
-remi = round(size(X,2) / 5);
-j = 0;
-for i = 1:size(X,2)%1:Data.num
-    
-        dx = [X(:,i);U(:,i)]; % hermite
+    %% リフト
+    remi = round(size(X,2) / 5);
+    j = 0;
+    for i = 1:size(X,2)
+        dx = [X(:,i);U(:,i)];
         dy = [Y(:,i);U(:,i)];
-   
-    Xlift(:,i) = F(dx); 
-    Ylift(:,i) = F(dy);
-    if rem(i, remi) == 0
-        j = j+1;
-        fprintf('convert %d times observables \n', remi*j);
-        toc
+        Xlift(:,i) = F(dx);
+        Ylift(:,i) = F(dy);
+        if rem(i, remi) == 0
+            j = j+1;
+            fprintf('convert %d times observables \n', remi*j);
+            toc
+        end
     end
-end
 
-%%
-psi=[Xlift ; U];
-Theta_plus = Ylift;
+    psi        = [Xlift ; U];
+    Theta_plus = Ylift;
 
     %% サイズの取得
-    %   p       ：観測量+入力の個数，
-    %   p_theta ：観測量
-    %qを持つものはデータの個数
-
-    [p, q] = size(psi);
+    [p, q]             = size(psi);
     [p_theta, q_theta] = size(Theta_plus);
-
-    % 入力数
     n_u = p - p_theta;
 
     if q ~= q_theta
         error(['PsiとTheta_plusのデータ数が一致していません。\n' ...
                'Psiの列数          : %d\n' ...
-               'Theta_plusの列数   : %d'], ...
-               q, q_theta);
+               'Theta_plusの列数   : %d'], q, q_theta);
     end
-
     if n_u < 0
         error(['Psiの行数がTheta_plusの行数より小さくなっています。\n' ...
-               'p = %d, p_theta = %d'], ...
-               p, p_theta);
+               'p = %d, p_theta = %d'], p, p_theta);
     end
 
     fprintf('====================================\n');
@@ -87,6 +87,31 @@ Theta_plus = Ylift;
     fprintf('rho_bar   = %.4f\n', rho_bar);
     fprintf('====================================\n');
 
+    %% ★定数観測量（λ=1方向）の自動検出
+    const_tol = 1e-8;
+    is_const_row = all(abs(Xlift - 1) < const_tol, 2);
+    const_idx = find(is_const_row);
+
+    if isempty(const_idx)
+        warning(['定数観測量が見つかりませんでした。' ...
+                 '安定性LMIは従来通り全次元に課します。']);
+        has_const = false;
+        const_idx = [];
+        dyn_idx   = 1:p_theta;
+    else
+        if numel(const_idx) > 1
+            warning(['定数観測量が複数見つかりました。先頭のみ' ...
+                     '固定し、残りは通常の状態として扱います。']);
+            const_idx = const_idx(1);
+        end
+        has_const = true;
+        dyn_idx = setdiff(1:p_theta, const_idx);
+        fprintf('定数観測量を検出: index = %d（λ=1に固定）\n', const_idx);
+        fprintf('動的部分空間の次元 = %d\n', numel(dyn_idx));
+    end
+
+    p_theta_dyn = numel(dyn_idx);
+
     %% G, H, c
     G = (1/q) * Theta_plus * psi';
     H = (1/q) * psi * psi';
@@ -95,7 +120,6 @@ Theta_plus = Ylift;
     %% H = L*L'を満たすL
     [Usvd, S, ~] = svd(psi, 'econ');
     L = (1/sqrt(q)) * Usvd * S;
-
     L_error = norm(H - L*L', 'fro');
 
     fprintf('size(G) = %d × %d\n', size(G,1), size(G,2));
@@ -103,44 +127,26 @@ Theta_plus = Ylift;
     fprintf('size(L) = %d × %d\n', size(L,1), size(L,2));
     fprintf('||H - LL''||_F = %.6e\n\n', L_error);
 
-
-
     %% YALMIP
-    %%%%%%%%%%%%%%%%%%%%ここから最小化問題%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     yalmip('clear');
+    options = sdpsettings('solver', 'sdpt3', 'verbose', 0);
+    epsilon = 1e-6;
 
-    options = sdpsettings( ...
-        'solver', 'sdpt3', ...
-        'verbose', 0);
-    %'verbose',0で途中経過を非表示，１で表示
-
-    epsilon = 1e-6;     %Uの変化量がこれより小さくなったら収束とみなす
-
-    %% Pの初期値
-    P_val = eye(p_theta);       %Pの最初の初期設定
+    %% Pの初期値（★動的部分空間のみのサイズ）
+    P_val = eye(p_theta_dyn);
 
     %% 収束判定用
-    %前回の値を保存する
-    U_previous = [];
-    objective_previous = [];
+    U_previous          = [];
+    objective_previous  = [];
+    objective_history   = nan(max_iter,1);
+    U_change_history    = nan(max_iter,1);
+    P_change_history    = nan(max_iter,1);
+    max_eig_history      = nan(max_iter,1);
+    eta_history          = nan(max_iter,1);   % ★元コードで未初期化だったバグを修正
 
-%max_iterは何回反復で交互最適化を行うか
-    %目的関数の結果の履歴保存
-    objective_history = nan(max_iter,1);
-    %Uがどれくらい変化したかの履歴保存，ちゃんと収束の方向に動いているか確認    
-    U_change_history = nan(max_iter,1);
-    %Pの変化量の保存
-    P_change_history = nan(max_iter,1);
-    %Aの最大固有値の保存，安定性の確認が一旦できる
-    max_eig_history = nan(max_iter,1);
-    % %角反復で得たηの保存，目的関数とか収束状況との関係確認，いらないかも
-    % eta_history = nan(max_iter,1);
-    
-    %収束したか
     converged = false;
 
     %% 交互最適化
-    %Pを固定してUを求める，Uから得たAからPを求める
     for iter = 1:max_iter
 
         fprintf('---------- iteration %d ----------\n', iter);
@@ -149,43 +155,41 @@ Theta_plus = Ylift;
         % Step 1：Pを固定して U, W, nu を最適化
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        U = sdpvar(p_theta, p, 'full');
+        U  = sdpvar(p_theta, p, 'full');
         nu = sdpvar(1,1);
-        W = sdpvar(p_theta, p_theta, 'symmetric');
-        
+        W  = sdpvar(p_theta, p_theta, 'symmetric');
 
-        %Ｕは（観測量）×（観測量＋入力）のサイズのはず
         A = U(:,1:p_theta);
 
-        %Uを求めるための制約の入れ物
         Constraints_U = [];
 
+        Constraints_U = [Constraints_U, trace(W) <= nu];
+        Constraints_U = [Constraints_U, W >= epsilon * eye(p_theta)];
 
-        Constraints_U = [Constraints_U, ...
-            trace(W) <= nu];
-
-        Constraints_U = [Constraints_U, ...
-            W >= epsilon * eye(p_theta)];
-
-        % W >= U*L*L'*U' のSchur補行列
         matrix_M = [W,       U*L;
-             (U*L)', eye(size(L,2))];
-
+                    (U*L)', eye(size(L,2))];
         Constraints_U = [Constraints_U, ...
             matrix_M >= epsilon * eye(size(matrix_M,1))];
 
-        % P_valはていすうだからAに関してLMIになる
-        
-        matrix_P = [rho_bar * P_val, A' * P_val;
-                  P_val' * A,       rho_bar * P_val];
+        % ★定数観測量の行を厳密に固定
+        %   （次時刻でも定数のまま、かつ入力・他状態に依存しない）
+        if has_const
+            e_const = zeros(1, p);
+            e_const(const_idx) = 1;
+            Constraints_U = [Constraints_U, ...
+                U(const_idx, :) == e_const];
+        end
 
+        % ★安定性LMIは動的部分空間 A_dyn = A(dyn_idx,dyn_idx) のみに課す
+        A_dyn = A(dyn_idx, dyn_idx);
+        matrix_P = [rho_bar * P_val,        A_dyn' * P_val;
+                    P_val' * A_dyn,         rho_bar * P_val];
         Constraints_U = [Constraints_U, ...
-            matrix_P >= epsilon * eye(2*p_theta)];
+            matrix_P >= epsilon * eye(2*p_theta_dyn)];
 
         Objective_U = c - 2*trace(U*G') + nu;
 
-        diagnostics_U = optimize( ...
-            Constraints_U, Objective_U, options);
+        diagnostics_U = optimize(Constraints_U, Objective_U, options);
 
         if diagnostics_U.problem ~= 0
             error(['Uの最適化に失敗しました。\n' ...
@@ -207,49 +211,25 @@ Theta_plus = Ylift;
         objective_val = value(Objective_U);
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Step 2：Aを固定して P を最適化
+        % Step 2：Aを固定して P を最適化（★動的部分空間のみ）
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        %   Pはリアプノふ方程式の行列，正定行列である必要あり
-        P = sdpvar(p_theta, p_theta, 'symmetric');
-        %etaを入れると安定性を半正定値境界ぎりぎり責めなくて良くなる
-        %   etaを使うか使わないか問題
-        %   eta無し条件を満たすPなら何でもよいので、どれか1個返してください
-        %   数値誤差の影響を受けやすいらしい・・・？
+        P   = sdpvar(p_theta_dyn, p_theta_dyn, 'symmetric');
         eta = sdpvar(1,1);
 
         Constraints_P = [];
-        
-        %   P>0の制約
-        Constraints_P = [Constraints_P, ...
-            P >= epsilon * eye(p_theta)];
+        Constraints_P = [Constraints_P, P >= epsilon * eye(p_theta_dyn)];
+        Constraints_P = [Constraints_P, trace(P) == p_theta_dyn];
 
-        % Pの定数倍による不定性を除く
-        %   最初はeye(26)だからtraceは26になるから，とりあえず，そのままでいいのかなと
-        Constraints_P = [Constraints_P, ...
-            trace(P) == p_theta];
+        A_val_dyn = A_val(dyn_idx, dyn_idx);
 
-        % Constraints_P = [Constraints_P, ...
-            % eta >= 0];
+        Stab_P = [rho_bar * P,        A_val_dyn' * P;
+                  P * A_val_dyn,      rho_bar * P];
 
-        % A_valは数値なので、Pに関してLMIになる
-        % stab_Pはあのいつもの最後のやつ
-        % 2倍の観測量×観測量のサイズになるはず
-        Stab_P = [rho_bar * P, A_val' * P;
-                  P * A_val,   rho_bar * P];
+        Constraints_P = [Constraints_P, Stab_P >= eta * eye(2*p_theta_dyn)];
+        Constraints_P = [Constraints_P, Stab_P >= 0];
 
-        % 安定性制約の余裕etaを最大化
-        Constraints_P = [Constraints_P, ...
-            Stab_P >= eta * eye(2*p_theta)];
-
-        
-        % 安定性条件
-        Constraints_P = [Constraints_P, ...
-                        Stab_P >= 0];
-
-
-        diagnostics_P = optimize( ...
-            Constraints_P, -eta, options);
+        diagnostics_P = optimize(Constraints_P, -eta, options);
 
         if diagnostics_P.problem ~= 0
             error(['Pの最適化に失敗しました。\n' ...
@@ -260,9 +240,7 @@ Theta_plus = Ylift;
         end
 
         P_new = value(P);
-        % 数値誤差による非対称成分を除く（これは何？）
         P_new = (P_new + P_new') / 2;
-
         eta_val = value(eta);
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -275,23 +253,20 @@ Theta_plus = Ylift;
         else
             U_change = norm(U_val - U_previous, 'fro') ...
                 / max(1, norm(U_previous, 'fro'));
-
-            objective_change = abs( ...
-                objective_val - objective_previous) ...
+            objective_change = abs(objective_val - objective_previous) ...
                 / max(1, abs(objective_previous));
         end
 
-        P_change = norm(P_new - P_val, 'fro') ...
-            / max(1, norm(P_val, 'fro'));
+        P_change = norm(P_new - P_val, 'fro') / max(1, norm(P_val, 'fro'));
 
-        eigenvalues = eig(A_val);
-        max_abs_eig = max(abs(eigenvalues));
+        eigenvalues  = eig(A_val);
+        max_abs_eig  = max(abs(eigenvalues));
 
         objective_history(iter) = objective_val;
-        U_change_history(iter) = U_change;
-        P_change_history(iter) = P_change;
-        max_eig_history(iter) = max_abs_eig;
-        eta_history(iter) = eta_val;
+        U_change_history(iter)  = U_change;
+        P_change_history(iter)  = P_change;
+        max_eig_history(iter)   = max_abs_eig;
+        eta_history(iter)       = eta_val;
 
         fprintf('Objective          = %.8e\n', objective_val);
         fprintf('max|eig(A)|        = %.8f\n', max_abs_eig);
@@ -300,25 +275,18 @@ Theta_plus = Ylift;
         fprintf('objective change   = %.6e\n', objective_change);
         fprintf('stability margin   = %.6e\n\n', eta_val);
 
-        % 次の反復に使用
-        U_previous = U_val;
+        U_previous         = U_val;
         objective_previous = objective_val;
         P_val = P_new;
 
-        % Uと目的関数が両方ほぼ変化しなくなったら終了
-        if iter >= 2 && ...
-                U_change < tolerance && ...
-                objective_change < tolerance
-
+        if iter >= 2 && U_change < tolerance && objective_change < tolerance
             converged = true;
-
             fprintf('収束しました。\n');
             fprintf('iteration = %d\n\n', iter);
             break;
         end
     end
 
-    %% 最大反復回数まで収束しなかった場合
     if ~converged
         fprintf(['最大反復回数までに指定した収束条件を' ...
                  '満たしませんでした。\n']);
@@ -326,21 +294,22 @@ Theta_plus = Ylift;
     end
 
     %% 最終結果
-    
     eigenvalues = eig(A_val);
     max_abs_eig = max(abs(eigenvalues));
 
     fprintf('====================================\n');
     fprintf('最終結果\n');
-    fprintf('size(U)       = %d × %d\n', ...
-        size(U_val,1), size(U_val,2));
-    fprintf('size(A)       = %d × %d\n', ...
-        size(A_val,1), size(A_val,2));
-    fprintf('size(B)       = %d × %d\n', ...
-        size(B_val,1), size(B_val,2));
+    fprintf('size(U)       = %d × %d\n', size(U_val,1), size(U_val,2));
+    fprintf('size(A)       = %d × %d\n', size(A_val,1), size(A_val,2));
+    fprintf('size(B)       = %d × %d\n', size(B_val,1), size(B_val,2));
     fprintf('max|eig(A)|   = %.8f\n', max_abs_eig);
     fprintf('iteration     = %d\n', iter);
     fprintf('converged     = %d\n', converged);
+    if has_const
+        fprintf('定数方向(index=%d)は厳密に固有値1に固定、\n', const_idx);
+        fprintf('動的部分(次元=%d)はrho_bar=%.4f未満に安定化\n', ...
+            p_theta_dyn, rho_bar);
+    end
     fprintf('====================================\n');
 
     fprintf('\neig(A)\n');
@@ -349,15 +318,13 @@ Theta_plus = Ylift;
     %% 結果を構造体に保存
     result = struct;
 
-    result.p = p;
-    %普通のクープマンで求めてる
+    result.p       = p;
     result.p_theta = p_theta;
-    result.n_u = n_u;
-    result.q = q;
+    result.n_u     = n_u;
+    result.q       = q;
 
     result.G = G;
     result.H = H;
-    % result.c = c;
     result.C = X*pinv(Xlift);
     result.L = L;
     result.L_error = L_error;
@@ -365,39 +332,32 @@ Theta_plus = Ylift;
     result.U = U_val;
     result.A = A_val;
     result.B = B_val;
-    result.P = P_val;
+    result.P = P_val;              % ★動的部分空間のみのサイズ
 
-    result.eigenvalues = eigenvalues;
-    result.max_abs_eig = max_abs_eig;
+    result.has_const = has_const;
+    result.const_idx = const_idx;  % ★追加：定数(λ=1)観測量の行番号
+    result.dyn_idx   = dyn_idx;    % ★追加：安定化された動的部分空間の行番号
+    result.A_dyn     = A_val(dyn_idx, dyn_idx); % ★追加：動的部分のみのA
+
+    result.eigenvalues  = eigenvalues;
+    result.max_abs_eig  = max_abs_eig;
 
     result.iteration = iter;
     result.converged = converged;
 
-    result.objective_history = ...
-        objective_history(1:iter);
+    result.objective_history = objective_history(1:iter);
+    result.U_change_history  = U_change_history(1:iter);
+    result.P_change_history  = P_change_history(1:iter);
+    result.max_eig_history   = max_eig_history(1:iter);
+    result.eta_history       = eta_history(1:iter);
 
-    result.U_change_history = ...
-        U_change_history(1:iter);
-
-    result.P_change_history = ...
-        P_change_history(1:iter);
-
-    result.max_eig_history = ...
-        max_eig_history(1:iter);
-
-    result.eta_history = ...
-        eta_history(1:iter);
-
-   
-      %% 目的関数の値をプロット
+    %% 目的関数の値をプロット
     valid_idx = ~isnan(objective_history);
-    
+
     figure;
-    plot(find(valid_idx), objective_history(valid_idx), ...
-        '-o', 'LineWidth', 1.5);
-    
+    plot(find(valid_idx), objective_history(valid_idx), '-o', 'LineWidth', 1.5);
     xlabel('反復回数');
-    ylabel('目的関数の値 ||U^{(k)} - U^{(k-1)}||_F');
+    ylabel('目的関数の値');
     title('目的関数の履歴');
     grid on;
 end

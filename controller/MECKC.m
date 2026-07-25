@@ -46,7 +46,9 @@ classdef MECKC < handle
         
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
-        load('first_LYKL_gain_KD_LYKL.mat','K_full');
+        % load('koopman_common_z__gain_KD.mat','K_full');
+        load('20250708_LYKL_gain_KD.mat','K_full');
+        
         % % data = load('first_KL_gain_KD.mat');
         % % K = data.K;
         e = z_n-z_p;
@@ -59,7 +61,7 @@ classdef MECKC < handle
         obj.result.z_p_back = z_p(14:26);
         obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
-        obj.result.delta_u = 0;%unだけ確認したいとき
+        % obj.result.delta_u = 0;%unだけ確認したいとき
         
       obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu      
       result = obj.result;

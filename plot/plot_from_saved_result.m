@@ -51,7 +51,7 @@ fsave = 0;
 % 5:save as ".eps"
 
 ftitle = 0; % default=1 -> グラフタイトルあり
-settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
+settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
@@ -74,7 +74,7 @@ settings.target = ["p", "v","p1-p2"];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
+settings.phase = "tf";
 settings.fontsize = 16;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け

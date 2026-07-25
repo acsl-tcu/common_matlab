@@ -1,0 +1,21 @@
+========== 実験メモ ==========
+作成日時 : 2026/07/25 09:33:52
+データセット : datasetsd
+
+=== datasetsd 内のファイル一覧 ===
+
+delta_u_test_Log(08-Jul-2025_14_10_15).mat
+saddle_Log(08-Jul-2025_16_10_01).mat
+spline_0.8,0.4,0.5,0.5_Log(08-Jul-2025_15_59_49).mat
+spline_4kai_Log(08-Jul-2025_14_25_53).mat
+spline_battery_Log(08-Jul-2025_15_30_31).mat
+spline_point15_Log(08-Jul-2025_14_20_21).mat
+spline_roll,pitch,0.2_Log(08-Jul-2025_15_43_55).mat
+spline_roll,pitch,0.4_Log(08-Jul-2025_15_49_22).mat
+spline_roll,pitch,0.6_Log(08-Jul-2025_15_53_18).mat
+spline_te_50_Log(08-Jul-2025_15_22_23).mat
+spline_v_1.0_Log(08-Jul-2025_16_06_48).mat
+supline_0.9,0.4,0.4,0.4_Log(08-Jul-2025_15_39_28).mat
+supline_test_Log(08-Jul-2025_14_05_27).mat
+supline_test_Log(08-Jul-2025_14_05_41).mat
+KLでした
