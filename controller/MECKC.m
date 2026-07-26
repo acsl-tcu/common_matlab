@@ -47,7 +47,7 @@ classdef MECKC < handle
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
         % load('koopman_common_z__gain_KD.mat','K_full');
-        load('20250708_LYKL_gain_KD.mat','K_full');
+        load('202511_KL_gain_KD.mat','K_full');
         
         % % data = load('first_KL_gain_KD.mat');
         % % K = data.K;
