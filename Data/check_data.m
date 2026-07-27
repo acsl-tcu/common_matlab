@@ -19,6 +19,9 @@ if ischar(fileNames)
     fileNames = {fileNames};
 end
 
+%% kの合計を初期化
+kTotal = 0;
+
 %% 選択したファイルを順番に確認
 for fileIdx = 1:length(fileNames)
 
@@ -60,4 +63,29 @@ for fileIdx = 1:length(fileNames)
 
     end
 
+    %% kを合計
+%% logger.k を合計
+%% kを合計
+%% log.k を合計
+if isfield(data, 'log') && isstruct(data.log) && isfield(data.log, 'k')
+
+    currentK = data.log.k;
+
+    if isnumeric(currentK) && isscalar(currentK)
+        kTotal = kTotal + currentK;
+        fprintf('このファイルの log.k：%g\n', currentK);
+    else
+        warning('%s の log.k は数値スカラーではありません。', fileName);
+    end
+
+else
+    warning('%s には log.k がありません。', fileName);
 end
+
+end
+
+%% 全ファイルのkの合計を表示
+fprintf('\n\n');
+fprintf('========================================\n');
+fprintf('全ファイルの k の合計：%g\n', kTotal);
+fprintf('========================================\n');
