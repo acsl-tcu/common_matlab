@@ -189,6 +189,57 @@ clc
 %     Vf(0,x0,Xd(0))
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
+% %% =========================================================================
+% %% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート
+% %% =========================================================================
+% disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+% FG_z = simplify(f+g*[u1;u2;u3;u4]);
+% g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
+% f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
+% simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
+% 
+% % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
+% syms xo yo zo ro real
+% syms rl real
+% % 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
+% h_cbf_z = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
+% 
+% % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
+% syms gamma1 gamma2 real
+% g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
+% 
+% % 3. 2階の高次CBFの導出（相対次数2）
+% % cbf1 (h)   >= 0 
+% % cbf2 (dot_h + gamma1 * h) >= 0
+% cbf2 = LieD(h_cbf_z, f_z, x) + diff(h_cbf_z, t) + gamma1 * h_cbf_z; %h2
+% 
+% 
+% % 4. 最適化問題（QP）へのマッピング
+% % cbf2_dot + gamma2 * cbf2 >= 0  を導出
+% % ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
+% L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+% L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
+% 
+% % A_qp * u1 <= b_qp の形に変形（符号反転）
+% A_cbf_sym = -L_g_cbf2; 
+% b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
+% 
+% % 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% % 6. Mファイルとして関数エクスポート
+% gamma_params = [gamma1; gamma2];
+% obs_params = [xo; yo; zo; ro];
+% sys_params = rl;
+% XD_sym = cell2sym(XD);
+% XD_sym = XD_sym(:); % 縦ベクトル化
+% 
+% disp("Exporting: CBF_Constraints_z.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_z.m', ...
+%     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp'});
+% disp("Done: CBF関数の生成が完了しました！");
 %% =========================================================================
 %% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート
 %% =========================================================================
@@ -201,9 +252,16 @@ simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
 % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
 syms xo yo zo ro real
 syms rl real
-% 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
-h_cbf_z = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
 
+% physicalParam からケーブル長 L を参照
+L_cable = physicalParam(7);
+
+% 🌟 【核心部】 安全関数の基準位置を「ロープ（リンク）の中心点 p_mid」に設定
+p_mid = pl - 0.5 * L_cable * pT;
+
+% 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
+h_cbf_z = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+cbf1 = h_cbf_z;
 % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
 syms gamma1 gamma2 real
 g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
@@ -211,7 +269,7 @@ g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
 % 3. 2階の高次CBFの導出（相対次数2）
 % cbf1 (h)   >= 0 
 % cbf2 (dot_h + gamma1 * h) >= 0
-cbf2 = LieD(h_cbf_z, f_z, x) + diff(h_cbf_z, t) + gamma1 * h_cbf_z; %h2
+cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
 
 
 % 4. 最適化問題（QP）へのマッピング
@@ -235,10 +293,78 @@ sys_params = rl;
 XD_sym = cell2sym(XD);
 XD_sym = XD_sym(:); % 縦ベクトル化
 
-disp("Exporting: CBF_Constraints_z.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_z.m', ...
+disp("Exporting: CBF_Constraints_zlink.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink.m', ...
     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
     'outputs', {'A_qp', 'b_qp'});
+disp("Done: CBF関数の生成が完了しました！");
+%% =========================================================================
+%% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
+%% =========================================================================
+disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+
+% 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
+syms xo yo zo ro real
+syms rl real
+
+% physicalParam からケーブル長 L を参照
+L_cable = physicalParam(7);
+
+% 🌟 【核心部】 安全関数の基準位置を「ロープ（リンク）の中心点 p_mid」に設定
+p_mid = pl - 0.5 * L_cable * pT;
+
+% 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
+h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+cbf1 = h_cbf_xy;
+
+
+% 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
+syms gamma1 gamma2 gamma3 gamma4 real
+
+% 3. 6階の高次CBFをリー微分(LieD)を用いて順次計算
+% f1, g1 は 2nd layer で求めた [u2; u3; u4] に対するシステム方程式
+% 今回は u4 (yaw) の項は既知（理想値）として扱うため、g1の3列目を取り出して処理します
+g1_xy = g1(:, 1:2); % u2, u3 に掛かる列だけを抽出
+g1_yaw = g1(:, 3);  % u4 に掛かる列
+
+% 階層的なCBFの導出
+% ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
+cbf2 = LieD(cbf1, f1, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
+cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma2 * cbf2; %h3
+cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma3 * cbf3; %h4
+
+% 最上階（6階）の計算：ここに u2, u3 が現れる
+% cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
+L_f_cbf4  = LieD(cbf4, f1, x) + diff(cbf4, t);
+L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] のベクトル（u2, u3 の係数 β）
+L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % (u4 の係数)
+
+% これを QP用の形式 「 A_qp * [u2; u3] <= b_qp 」に整理します。
+% 不等号を反転させるため、符号をマイナスにします。
+
+A_cbf_sym = -L_g_cbf4; % [1 x 2] のシンボリック行ベクトル
+b_cbf_sym = L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4; % シンボリックスカラー
+
+% 4. 実際の数値シミュレーション側で代入しやすいよう、変数を置き換え (xdRef -> XDf, vInput1f -> V1vf)
+% 2nd layerの入力 u4（yaw用）には、コントローラが後で計算する実入力の4番目の要素を指定できるように V4 を代入
+syms V4 real
+A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
+b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
+
+% 5. 高速計算用に関数ファイル (Mファイル) としてエクスポート
+% クラスK関数のゲインも外部から与えられるように引数に含めます
+gamma_params = [gamma1; gamma2; gamma3; gamma4];
+obs_params = [xo; yo; zo; ro];
+sys_params = rl;
+
+XD_sym = cell2sym(XD);
+XD_sym = XD_sym(:); % 強制的に縦ベクトル化
+
+disp("Exporting: CBF_Constraints_xylink.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xylink.m', ...
+               'vars', {obj, x, XD_sym, cell2sym(V1v), V4, obs_params, gamma_params, sys_params, physicalParam}, ...
+               'outputs', {'A_qp', 'b_qp'});
+
 disp("Done: CBF関数の生成が完了しました！");
 % %% =========================================================================
 % %% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
