@@ -30,7 +30,7 @@ clearvars -except logger filename
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % fsave = 0;
-fsave = 4;
+fsave = 1;
 % fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
@@ -223,7 +223,8 @@ for i=1:length(settings.target)
             xlim([min(data(:,1)) max(data(:,1))])
             ylim([min(data(:,2)) max(data(:,2))])
             zlim([min(data(:,3)) max(data(:,3))])
-            view(2) %平面で見たいとき用
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % view(2) %平面で見たいとき用
         case "inner_input1:4"
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
             plegend = set_legend(settings.target(i), chars);
