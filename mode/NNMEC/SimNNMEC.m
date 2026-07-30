@@ -62,18 +62,18 @@ center = [0;0;takeoff_zd]; % 原点
 
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",center, "radius",[0,0,0]}, 4}); % center_hover
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",[base'+1;takeoff_zd+1], "radius",[0,0,0]}, 4}); % point_hover
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10, "center",center, "radius",1.0}, 4}); % circle
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4}); % saddle
-ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1}, 4}); % lemniscate
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10, "center",center, "radius",[1,1,0]}, 4}); % triangle
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); % flower
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); % heart
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); % star
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10, "center",center, "radius",1.0}, 4}); %                     circle
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4}); %               saddle
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1}, 4}); %            lemniscate
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10, "center",center, "radius",[1,1,0]}, 4}); %               triangle
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); %                     flower
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); %                      heart
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); %                       star
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",4.5, ...
-%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); % spline9th 20 points
+%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); %  spline9th 20 points
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60, "order",9, "point_dt",2.5, ...
-%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); % spline9th 60 points
-
+%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); %  spline9th 60 points
+% 
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
 % ref = MULTI_POINT_REFERENCE(agent,refpoints); % multiP2P
