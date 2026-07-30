@@ -596,7 +596,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             residual.delta_u_lqr_prev = zeros(4,1);
             residual.use_aligned_reference = 1;
             residual.mode25_torque_only = 0;
-
+            residual.pinv_rel = 0.05;
             if ~isfield(param, 'residual') || ~isfield(param.residual, 'mode')
                 return;
             end
@@ -611,6 +611,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
             residual.full_beta = param.residual.full_beta;
             residual.lqr_torque_only = param.residual.lqr_torque_only;
             residual.lqr_beta = param.residual.lqr_beta;
+            residual.pinv_rel = param.residual.pinv_rel;
             if isfield(param.residual, 'use_aligned_reference')
                 residual.use_aligned_reference = param.residual.use_aligned_reference;
             end
@@ -719,17 +720,13 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     obj.result.delta_tau_scaled = delta_tau_scaled;
                     obj.result.delta_tau_filtered = delta_tau;
                 case 5
-                    % [MEC公式] 残差前馈: r_hatを名義Bで打ち消す (参考不使用→跟踪误差混入なし)
                     r_hat = obj.residual.A_err * z_cur + obj.residual.B_err * (u_nom - u_hover_res);
+                    Bn = obj.residual.B_nom;
+                    g2 = diag(Bn' * Bn);
+                    reg = diag(obj.residual.pinv_rel * g2 + 1e-8);    % 列相対減衰: 各通道一律~95%兌現
+                    delta_u_raw = -(Bn' * Bn + reg) \ (Bn' * r_hat);
                     if obj.residual.mode25_torque_only == 1
-                        Bn = obj.residual.B_nom(:, 2:4);
-                        reg = obj.residual.pinv_damping * eye(size(Bn, 2));
-                        delta_tau_raw = -(Bn' * Bn + reg) \ (Bn' * r_hat);
-                        delta_u_raw = [0; delta_tau_raw];
-                    else
-                        Bn = obj.residual.B_nom;
-                        reg = obj.residual.pinv_damping * eye(size(Bn, 2));
-                        delta_u_raw = -(Bn' * Bn + reg) \ (Bn' * r_hat);
+                        delta_u_raw(1) = 0;                            % 消融実験用に開関は残す
                     end
                     beta = obj.residual.full_beta;
                     delta_u = (1 - beta) * obj.residual.delta_u_prev + beta * delta_u_raw;
