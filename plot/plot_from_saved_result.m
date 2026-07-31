@@ -54,15 +54,14 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
-% settings.target = ["p","c","q", "input", "inner_input1:4","p1-p2", "v"];
-% settings.target = ["p", "input", "inner_input", "p1-p2","estimator.result.state.mL"]; %質量推定用
+% settings.target = ["p",  "input", "estimator.result.state.pL",{{"p", "r"},{"estimator.result.state.pL", "e"}}, "p1-p2"];
+settings.target = {"p", "input", {"p", "estimator.result.state.pL"}, "p1-p2"};
+% settings.target = ["p","q", "input"];
+% settings.target = ["p", "input", "inner_input", "p1-p2","estimator.result.state.pL","estimator.result.state.mL"]; %質量推定用 exp
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
-% settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
-% settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
 % settings.target = ["p", "controller.result.delta_input"];
 % settings.target = ["p", "v","p1-p2"];
-% % settings.target = "input2:4";
-settings.target = ["p1-p2",];
+% settings.target = ["p1-p2",];
 % settings.target = "controller.result.xd";
 % "controller.result.nominal_input","controller.result.delta_input"
 % settings.target = ["input", "input2:4", "controller.result.nominal_input2:4", "controller.result.delta_input2:4"];
@@ -98,199 +97,243 @@ end
 
 for i=1:length(settings.target)
     fcolor = settings.fcolor;
-    switch settings.target(i)
-        case "p"
-            ylabel = "Position [m]";
-            tmp = settings.attribute;
-            att = select_attribute(settings.target(i), tmp);
-        case "q"
-            ylabel = "Angle [rad]";
-            tmp = settings.attribute;
-            tmp(3) = []; % "esr"の内，無いものを消去
-            att = select_attribute(settings.target(i), tmp);
-        case "v"
-            ylabel = "Velocity [m/s]";
-            tmp = settings.attribute;
-            tmp(2) = [];
-            att = select_attribute(settings.target(i), tmp);
-        case "w"
-            ylabel = "Angular velocity [rad/s]";
-            tmp = settings.attribute;
-            tmp(2:3) = [];
-            att = select_attribute(settings.target(i), tmp);
-        case "input"
-            ylabel = "Controller input [N],[Nm]";
-            tmp = settings.attribute;
-            tmp(2:3) = [];
-            att = "";
-        case "inner_input"
-            ylabel = "Transmitter input [N],[Nm]";
-            tmp = settings.attribute;
-            tmp(:) = [];
-            tmp = "";
-            att = "";
-        case "inner_input1:4"
-            ylabel = "Transmitter input [N], [Nm]";
-            tmp = settings.attribute;
-            tmp(:) = [];
-            tmp = "";
-            att = "";
-        case "p1-p2"
-            xlabel = "$x$ [m]";
-            ylabel = "$y$ [m]";
-            tmp = settings.attribute;
-            fcolor = 0;
-            att = select_attribute(settings.target(i), tmp);
-        case "p1-p2-p3"
-            xlabel = "$x$ [m]";
-            ylabel = "$y$ [m]";
-            zlabel = "$z$ [m]";
-            tmp = settings.attribute;
-            fcolor = 0;
-            att = select_attribute(settings.target(i), tmp);
-        case "controller.result.xd1:3"
-            ylabel = "Reference position $x_d$ [m]";
-            tmp = "";        % attribute は使わない
-            att = "";        % ← 重要
+    tgt = settings.target{i};
 
-        otherwise
-            if contains(settings.target(i), 'input') % "input"が入っていたら
-                if contains(settings.target(i), 'delta_input') % MEC用
-                    if contains(settings.target(i), '2:4'), ylabel = "Compensation torque input [Nm]";
-                    else                                  , ylabel = "Compensation input [N] [Nm]"; end
-                elseif contains(settings.target(i), 'nominal_input') % MECのノミナル入力用
-                    if contains(settings.target(i), '2:4'), ylabel = "Nominal torque input [Nm]";
-                    else                                  , ylabel = "Nominal input [N] [Nm]"; end
-                else % 知らない"input"用
-                    if contains(settings.target(i), '2:4'), ylabel = "Torque input [Nm]";
-                    else                                  , ylabel = "Input [N] [Nm]"; end
+    if iscell(tgt)
+        % ========== 複数フィールドを1つのfigureに重ねてプロットする ==========
+        % 例: tgt = {"p", "estimator.result.state.pL"}
+        parts = string(tgt);
+        ylabel = "Position [m]";
+        tmp = settings.attribute;
+
+        field_atts = cell(1, numel(parts));
+        for pIdx = 1:numel(parts)
+            field_atts{pIdx} = select_attribute(parts(pIdx), tmp);
+        end
+
+        tstr = strjoin(parts, '_');   % ファイル名・識別用（switch文には通さない）
+        att  = strjoin(cellfun(@char, field_atts, 'UniformOutput', false), '');
+
+        figure(i); clf
+        hold on
+        legend_entries = {};
+        for pIdx = 1:numel(parts)
+            chars = string(split(field_atts{pIdx}, ""));
+            chars(chars == "") = [];
+            for cIdx = 1:numel(chars)
+                data = logger.data(1, parts(pIdx), chars(cIdx), "phase", settings.phase);
+                t = logger.Data.t(1:size(data,1));
+                plot(t, data(:,1), t, data(:,2), t, data(:,3), ...
+                    'LineWidth', settings.linewidth)
+                plegend_part = set_legend("p", chars(cIdx));   % {$x$..,$y$..,$z$..} を再利用
+                for axIdx = 1:3
+                    legend_entries{end+1} = plegend_part{axIdx} + " (" + parts(pIdx) + ")"; %#ok<AGROW>
                 end
+            end
+        end
+        hold off
+        grid on
+
+        fig = gcf;
+        ax = gca;
+        set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+        set(ax.XLabel, 'String', '$t$ [s]', 'Interpreter','latex')
+        legend(legend_entries, 'Interpreter','latex')
+
+        data = [];
+        for pIdx = 1:numel(parts)
+            chars = string(split(field_atts{pIdx}, ""));
+            chars(chars == "") = [];
+            for cIdx = 1:numel(chars)
+                data = [data; logger.data(1, parts(pIdx), chars(cIdx), "phase", settings.phase)]; %#ok<AGROW>
+            end
+        end
+        y_min = min(data(:)); y_max = max(data(:));
+        if y_min == y_max, y_max = y_max + 0.000000001; end
+        ylim([y_min y_max])
+
+    else
+        % ========== 元の単一フィールド用の処理（変更なし） ==========
+        tstr = string(tgt);
+        switch tstr
+            case "p"
+                ylabel = "Position [m]";
+                tmp = settings.attribute;
+                att = select_attribute(tstr, tmp);
+            case "q"
+                ylabel = "Angle [rad]";
+                tmp = settings.attribute;
+                tmp(3) = [];
+                att = select_attribute(tstr, tmp);
+            case "v"
+                ylabel = "Velocity [m/s]";
+                tmp = settings.attribute;
+                tmp(2) = [];
+                att = select_attribute(tstr, tmp);
+            case "w"
+                ylabel = "Angular velocity [rad/s]";
+                tmp = settings.attribute;
+                tmp(2:3) = [];
+                att = select_attribute(tstr, tmp);
+            case "input"
+                ylabel = "Controller input [N],[Nm]";
+                tmp = settings.attribute;
+                tmp(2:3) = [];
+                att = "";
+            case "inner_input"
+                ylabel = "Transmitter input [N],[Nm]";
+                tmp = settings.attribute;
+                tmp(:) = [];
                 tmp = "";
                 att = "";
-            else % 例外来たらこれ↓
+            case "inner_input1:4"
+                ylabel = "Transmitter input [N], [Nm]";
                 tmp = settings.attribute;
-                att = select_attribute(settings.target(i), tmp);
-            end
-    end
-    logger.plot({settings.agent_id, settings.target(i), att}, ...
-        'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
-        'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
+                tmp(:) = [];
+                tmp = "";
+                att = "";
+            case "p1-p2"
+                xlabel = "$x$ [m]";
+                ylabel = "$y$ [m]";
+                tmp = settings.attribute;
+                fcolor = 0;
+                att = select_attribute(tstr, tmp);
+            case "p1-p2-p3"
+                xlabel = "$x$ [m]";
+                ylabel = "$y$ [m]";
+                zlabel = "$z$ [m]";
+                tmp = settings.attribute;
+                fcolor = 0;
+                att = select_attribute(tstr, tmp);
+            case "controller.result.xd1:3"
+                ylabel = "Reference position $x_d$ [m]";
+                tmp = "";
+                att = "";
 
-    fig = gcf;
-    ax = gca;
-
-    chars = string(split(att, ""));
-    chars(chars == "") = [];
-    switch settings.target(i)
-        case "p1-p2"
-            set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
-            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            est_data = logger.data(1,"p","e","phase",settings.phase);
-            ref_data = logger.data(1,"p","r","phase",settings.phase);
-            data = [est_data;ref_data];
-            xlim([min(data(:,1)) max(data(:,1))])
-            ylim([min(data(:,2)) max(data(:,2))])
-        case "p1-p2-p3"
-            set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
-            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            set(ax.ZLabel, 'String', zlabel, 'Interpreter','latex')
-            est_data = logger.data(1,"p","e","phase",settings.phase);
-            ref_data = logger.data(1,"p","r","phase",settings.phase);
-            data = [est_data;ref_data];
-            xlim([min(data(:,1)) max(data(:,1))])
-            ylim([min(data(:,2)) max(data(:,2))])
-            zlim([min(data(:,3)) max(data(:,3))])
-        case "inner_input1:4"
-            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            plegend = set_legend(settings.target(i), chars);
-            set(ax.Legend, 'String', plegend, 'Interpreter','latex');
-            data = logger.data(1,settings.target(i),"","phase",settings.phase);
-            y_min=0;
-            y_max=0;
-            for j=1:size(data,2)
-                if y_min>min(data(:,j)), y_min=min(data(:,j)); end
-                if y_max<max(data(:,j)), y_max=max(data(:,j)); end
-            end
-            ylim([y_min y_max])
-        case "p"
-            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-            plegend = set_legend(settings.target(i), chars);
-            set(ax.Legend, 'String', plegend, 'Interpreter','latex');
-            est_data = logger.data(1,settings.target(i),"e","phase",settings.phase);
-            ref_data = logger.data(1,settings.target(i),"r","phase",settings.phase);
-            data = [est_data;ref_data];
-            y_min=0;
-            y_max=0;
-            for j=1:size(est_data,2)
-                if y_min>min(data(:,j)), y_min=min(data(:,j)); end
-                if y_max<max(data(:,j)), y_max=max(data(:,j)); end
-            end
-            ylim([y_min y_max])
-
-        case "controller.result.xd1:3"
-            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-
-            % ===== xd を直接 logger.data ではなく cell から取得 =====
-            cr = logger.Data.agent(settings.agent_id).controller.result;
-            N  = numel(cr);
-
-            xd = zeros(N,3);
-            for k = 1:N
-                xd(k,:) = cr{k}.xd(1:3).';
-            end
-
-            t = logger.Data.t(1:N);
-
-            plot(ax, t, xd(:,1), ...
-                t, xd(:,2), ...
-                t, xd(:,3), ...
-                'LineWidth', settings.linewidth)
-
-            grid(ax,'on')
-            legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
-                'Interpreter','latex')
-
-            ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
-
-        otherwise
-            if contains(settings.target(i), '2:4') % target = "input2:4"用
-                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-                plegend = set_legend(settings.target(i), chars);
-                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
-                h = findobj(ax, 'Type', 'line');
-                set(h(1), 'Color', [0.4940, 0.1840, 0.5560]) % デフォルト紫
-                set(h(2), 'Color', [0.9290, 0.6940, 0.1250]) % デフォルト黄色
-                set(h(3), 'Color', [0.8500, 0.3250, 0.0980]) % デフォルト赤　　なぜか順番は逆
-                data = logger.data(1,settings.target(i),"e","phase",settings.phase);
-                y_min=0;
-                y_max=0;
-                for j=1:size(data,2)
-                    if y_min>min(data(:,j)), y_min=min(data(:,j)); end
-                    if y_max<max(data(:,j)), y_max=max(data(:,j)); end
-                end
-                if y_min==y_max, y_max=y_max+1; end
-                ylim([y_min y_max])
-            else
-                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
-                plegend = set_legend(settings.target(i), chars);
-                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
-                % data = logger.data(1,settings.target(i),"e","phase",settings.phase);
-                if att == ""
-                    data = logger.data(1,settings.target(i),"","phase",settings.phase);
+            otherwise
+                if contains(tstr, 'input')
+                    if contains(tstr, 'delta_input')
+                        if contains(tstr, '2:4'), ylabel = "Compensation torque input [Nm]";
+                        else                    , ylabel = "Compensation input [N] [Nm]"; end
+                    elseif contains(tstr, 'nominal_input')
+                        if contains(tstr, '2:4'), ylabel = "Nominal torque input [Nm]";
+                        else                    , ylabel = "Nominal input [N] [Nm]"; end
+                    else
+                        if contains(tstr, '2:4'), ylabel = "Torque input [Nm]";
+                        else                    , ylabel = "Input [N] [Nm]"; end
+                    end
+                    tmp = "";
+                    att = "";
                 else
-                    data = logger.data(1,settings.target(i),att,"phase",settings.phase);
+                    tmp = settings.attribute;
+                    att = select_attribute(tstr, tmp);
                 end
+        end
+        logger.plot({settings.agent_id, tstr, att}, ...
+            'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
+            'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
 
-                y_min=0;
-                y_max=0;
+        fig = gcf;
+        ax = gca;
+
+        chars = string(split(att, ""));
+        chars(chars == "") = [];
+        switch tstr
+            case "p1-p2"
+                set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
+                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                est_data = logger.data(1,"p","e","phase",settings.phase);
+                ref_data = logger.data(1,"p","r","phase",settings.phase);
+                data = [est_data;ref_data];
+                xlim([min(data(:,1)) max(data(:,1))])
+                ylim([min(data(:,2)) max(data(:,2))])
+            case "p1-p2-p3"
+                set(ax.XLabel, 'String', xlabel, 'Interpreter','latex')
+                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                set(ax.ZLabel, 'String', zlabel, 'Interpreter','latex')
+                est_data = logger.data(1,"p","e","phase",settings.phase);
+                ref_data = logger.data(1,"p","r","phase",settings.phase);
+                data = [est_data;ref_data];
+                xlim([min(data(:,1)) max(data(:,1))])
+                ylim([min(data(:,2)) max(data(:,2))])
+                zlim([min(data(:,3)) max(data(:,3))])
+            case "inner_input1:4"
+                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                plegend = set_legend(tstr, chars);
+                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
+                data = logger.data(1,tstr,"","phase",settings.phase);
+                y_min=0; y_max=0;
                 for j=1:size(data,2)
                     if y_min>min(data(:,j)), y_min=min(data(:,j)); end
                     if y_max<max(data(:,j)), y_max=max(data(:,j)); end
                 end
-                if y_min==y_max, y_max=y_max+0.000000001; end
                 ylim([y_min y_max])
-            end
+            case "p"
+                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                plegend = set_legend(tstr, chars);
+                set(ax.Legend, 'String', plegend, 'Interpreter','latex');
+                est_data = logger.data(1,tstr,"e","phase",settings.phase);
+                ref_data = logger.data(1,tstr,"r","phase",settings.phase);
+                data = [est_data;ref_data];
+                y_min=0; y_max=0;
+                for j=1:size(est_data,2)
+                    if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                    if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+                end
+                ylim([y_min y_max])
+
+            case "controller.result.xd1:3"
+                set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                cr = logger.Data.agent(settings.agent_id).controller.result;
+                N  = numel(cr);
+                xd = zeros(N,3);
+                for k = 1:N
+                    xd(k,:) = cr{k}.xd(1:3).';
+                end
+                t = logger.Data.t(1:N);
+                plot(ax, t, xd(:,1), t, xd(:,2), t, xd(:,3), 'LineWidth', settings.linewidth)
+                grid(ax,'on')
+                legend(ax, {'$x_d$','$y_d$','$z_d$'}, 'Interpreter','latex')
+                ylim(ax, [-1.5 1.5])
+
+            otherwise
+                if contains(tstr, '2:4')
+                    set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                    plegend = set_legend(tstr, chars);
+                    set(ax.Legend, 'String', plegend, 'Interpreter','latex');
+                    h = findobj(ax, 'Type', 'line');
+                    set(h(1), 'Color', [0.4940, 0.1840, 0.5560])
+                    set(h(2), 'Color', [0.9290, 0.6940, 0.1250])
+                    set(h(3), 'Color', [0.8500, 0.3250, 0.0980])
+                    data = logger.data(1,tstr,"e","phase",settings.phase);
+                    y_min=0; y_max=0;
+                    for j=1:size(data,2)
+                        if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                        if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+                    end
+                    if y_min==y_max, y_max=y_max+1; end
+                    ylim([y_min y_max])
+                else
+                    set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+                    plegend = set_legend(tstr, chars);
+                    set(ax.Legend, 'String', plegend, 'Interpreter','latex');
+                    if att == ""
+                        data = logger.data(1,tstr,"","phase",settings.phase);
+                    else
+                        data = logger.data(1,tstr,att,"phase",settings.phase);
+                    end
+                    y_min=0; y_max=0;
+                    for j=1:size(data,2)
+                        if y_min>min(data(:,j)), y_min=min(data(:,j)); end
+                        if y_max<max(data(:,j)), y_max=max(data(:,j)); end
+                    end
+                    if y_min==y_max, y_max=y_max+0.000000001; end
+                    ylim([y_min y_max])
+                end
+        end
     end
+
+    % ========== 共通フッター（元のまま：タイトル・凡例位置・保存） ==========
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
@@ -299,25 +342,23 @@ for i=1:length(settings.target)
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
     end
-    figname_att = erase(char(settings.target(i)),':');
-    start_idx = 0; % 初期化
+    figname_att = erase(char(tstr),':');
     start_idx = strfind(figname_att, 'result.');
     if ~isempty(start_idx)
-        % target="~~.result.~~"があったらresult.を含めてその前を削除
         end_of_match = start_idx + length('result.');
         figname_att = figname_att(end_of_match:end);
     end
-    if isfield(settings, 'savename') && (ischar(settings.savename) || isstring(settings.savename)) % settings.savenameの存在確認
+    if isfield(settings, 'savename') && (ischar(settings.savename) || isstring(settings.savename))
         if fsave==1,    filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.fig'};
         elseif fsave==2,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.png'};
         elseif fsave==3,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.jpg'};
         elseif fsave==4,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.pdf'};
         elseif fsave==5,filename_cell = {settings.savefolder, '\', settings.savename, '_', figname_att, '.eps'};
         else,           filename_cell = {""};
-        end % ファイルのフルパスをcell配列化
+        end
         string_cell     = cellfun(@string, filename_cell, 'UniformOutput', false);
         string_array    = [string_cell{:}];
-        str             = strjoin(string_array,''); % str型に変更
+        str             = strjoin(string_array,'');
         if fsave==1
             savefig(str);
         elseif fsave==2 || fsave==3 || fsave==4 || fsave==5
@@ -342,7 +383,7 @@ for i=1:length(settings.target)
     end
 end
 disp_rmse(logger,settings.phase)
-disp_bode(logger, "f")
+disp_bode(logger, "f", 5) 
 
 %% Local functions
 function att = select_attribute(target, attribute)
@@ -484,15 +525,20 @@ fprintf('=====================================\n\n');
 end
 
 
-
-
-function disp_bode(logger, phase)
+function disp_bode(logger, phase, method)
 % 周波数応答(Bode線図)とコヒーレンスを確認する関数
-% disp_bode(app.logger, "f")
+% disp_bode(app.logger, "f", 1)
+% method: 1=tfestimate, 2=etfe, 3=spa, 4=cpsd/pwelch手動計算, 5=ssest, 6=tfest
 % u(n-1) と y(n) を対応させる（一制御周期前の入力を使用）
 % 区間長はデータ長に応じて自動調整（n_segments分割）
+arguments
+    logger
+    phase
+    method = 1   % 省略時はtfestimate（デフォルト）
+end
 
 Fs = 1/0.025;
+dt = 1/Fs;
 n_segments = 4;   % 分割数（前回8→4に変更。区間を長くして低周波の分解能を優先）
 
 u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
@@ -529,10 +575,55 @@ for i = 1:4
     noverlap = round(wl/2);
     nfft = wl*2;
 
-    [h,f]     = tfestimate(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
-    [cxy, fc] = mscohere(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+    % --- 推定方法の切り替え ---
+    switch method
+        case 1
+            % tfestimate（H1推定、Welch法）
+            [h,f] = tfestimate(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
+            omega = 2*pi*f;
 
-    omega   = 2*pi*f;
+        case 2
+            % etfe（生のスペクトル比）
+            data_id = iddata(y_n, u_n_minus_1, dt);
+            g = etfe(data_id);
+            [mag, ph, w] = bode(g);
+            h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
+            omega = squeeze(w);
+
+        case 3
+            % spa（強い平滑化のスペクトル解析）
+            data_id = iddata(y_n, u_n_minus_1, dt);
+            g = spa(data_id);
+            [mag, ph, w] = bode(g);
+            h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
+            omega = squeeze(w);
+
+        case 4
+            % cpsd/pwelchによるH1推定を手動計算
+            [Pyx, f] = cpsd(y_n, u_n_minus_1, window, noverlap, nfft, Fs);
+            [Pxx, ~] = pwelch(u_n_minus_1, window, noverlap, nfft, Fs);
+            h = Pyx ./ Pxx;
+            omega = 2*pi*f;
+
+        case 5
+            % ssest（状態空間モデルとして同定）
+            data_id = iddata(y_n, u_n_minus_1, dt);
+            sys = ssest(data_id, 2);
+            [mag, ph, w] = bode(sys);
+            h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
+            omega = squeeze(w);
+
+        case 6
+            % tfest（伝達関数モデルとして同定）
+            data_id = iddata(y_n, u_n_minus_1, dt);
+            sys = tfest(data_id, 2, 2);
+            [mag, ph, w] = bode(sys);
+            h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
+            omega = squeeze(w);
+    end
+
+    % コヒーレンスは常にmscohereで計算（推定方法によらず共通の指標として使用）
+    [cxy, fc] = mscohere(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
     omega_c = 2*pi*fc;
 
     omega_pos = omega(omega > 0);
@@ -543,7 +634,7 @@ for i = 1:4
     % --- Bode線図 ---
     figure('Color','w', 'Position', [100 100 900 500]);
     t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
-    title(t, sprintf('%s (u(n-1) \\rightarrow y(n)), phase=%s, wl=%d', nm, phase, wl), 'FontSize', 17);
+    title(t, sprintf('%s (u(n) \\rightarrow y(n+1)), phase=%s, wl=%d, method=%d', nm, phase, wl, method), 'FontSize', 17);
 
     nexttile;
     semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
@@ -573,65 +664,6 @@ for i = 1:4
 end
 end
 
-% function disp_bode(logger, phase)
-% % 周波数応答(Bode線図)を確認する関数
-% % disp_bode(app.logger, "f")
-% Fs = 1/0.025;
-%
-% u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
-% pL  = logger.data(1, "estimator.result.state.pL", "e", "phase", phase);
-% pLq = logger.data(1, "estimator.result.state.q", "e", "phase", phase);
-%
-%
-% Fs = 1/0.025;
-%
-% for i = 1:4
-%     if i == 1
-%         ci = 1; co = 3; use_pLq = false; nm = 'z';
-%     elseif i == 2
-%         ci = 3; co = 1; use_pLq = false; nm = 'x';
-%     elseif i == 3
-%         ci = 2; co = 2; use_pLq = false; nm = 'y';
-%     else
-%         ci = 4; co = 3; use_pLq = true;  nm = 'yaw';
-%     end
-%
-%     if use_pLq
-%         [h,f] = tfestimate(u(:,ci), pLq(:,co), [], [], [], Fs);
-%     else
-%         [h,f] = tfestimate(u(:,ci), pL(:,co), [], [], [], Fs);
-%     end
-%     omega = 2*pi*f;
-%
-%     % 0Hz成分を除いた正の周波数のみで桁(decade)を計算
-%     omega_pos = omega(omega > 0);
-%     dec_min = floor(log10(omega_pos(1)));
-%     dec_max = ceil(log10(omega_pos(end)));
-%     xticks_dec = 10.^(dec_min:dec_max);
-%
-%     % --- 軸ごとに個別の横長の図を作成 ---
-%     figure('Color','w', 'Position', [100 100 900 500]);
-%     t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
-%     title(t, nm, 'FontSize', 17);
-%
-%     % ゲイン線図
-%     nexttile;
-%     semilogx(omega, 20*log10(abs(h)), 'LineWidth', 1.5);
-%     grid on; box on;
-%     ylabel('Gain [dB]', 'FontSize', 15);
-%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
-%     xlim([omega_pos(1) omega(end)]);
-%
-%     % 位相線図
-%     nexttile;
-%     semilogx(omega, unwrap(angle(h))*180/pi, 'LineWidth', 1.5);
-%     grid on; box on;
-%     ylabel('Phase [deg]', 'FontSize', 15);
-%     xlabel('\omega [rad/s]', 'FontSize', 15);
-%     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
-%     xlim([omega_pos(1) omega(end)]);
-% end
-% end
 
 % function rmse_xyz = disp_rmse(logger, phase)
 % % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
