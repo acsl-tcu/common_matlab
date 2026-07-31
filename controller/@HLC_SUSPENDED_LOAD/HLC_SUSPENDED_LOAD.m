@@ -72,7 +72,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             %obj.result.aa=toc;
             tmp = [uf(1); us]; % 実入力へ変換
 
-            tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
+            % tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
 
             obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
 
@@ -106,7 +106,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                 %c2d(..., dt, 'tustin')連続系の伝達関数をdtをもとに離散系に変換
                 [bx, ax] = tfdata(dx, 'v'); %伝達関数の係数を数値ベクトルで保管保管
                 zx0 = zeros(max(length(ax), length(bx)) - 1, 1); %メモリの初期化
-                obj.notchx = struct('b', bx, 'a', ax, 'z', zx0);
+                obj.notchx = struct('b', bx, 'a', ax, 'z', zx0); %名前づけで楽に
 
                 % pitch用フィルタ設計
                 dy = c2d(tf([1 2*zz(2)*wn wn^2], [1 2*zp(2)*wn wn^2]), dt, 'tustin');

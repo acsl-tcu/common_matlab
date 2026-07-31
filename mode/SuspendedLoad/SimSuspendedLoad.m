@@ -51,7 +51,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",15,"center",[0;0;1.5],"radius",[1,1,0]},4})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[10;10;3.0], "t_go",10.0, "t_hold",5.0, "t_back",10.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
@@ -72,7 +72,8 @@ agent.cha_allocation.l.reference =["landing","sload"];
 function post(app)
 % シミュレーション終了後の結果表示とアニメーション作成。
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+app.logger.plot({1, "p1-p2", "re"},"phase","f", "fig_num",300);
+% app.logger.plot({1, "state.mL", "e"},"phase","f");
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
