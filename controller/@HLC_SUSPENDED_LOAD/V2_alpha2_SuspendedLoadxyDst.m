@@ -555,10 +555,6 @@ t585 = -ol2.*(t152-t426);
 t594 = pT1.*t580;
 t597 = pT2.*t581;
 t603 = t242+t481;
-if abs(t603) < eps_safe
-    t603 = sign(t603) * eps_safe;
-    if t603 == 0, t603 = eps_safe; end
-end
 t605 = t75+t574;
 t606 = t75+t575;
 t607 = t238+t239+t240;
