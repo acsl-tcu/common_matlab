@@ -106,6 +106,6 @@ saveFolder = fullfile(pwd, 'kalman_gainたち');
 if ~exist(saveFolder, 'dir')
     mkdir(saveFolder);
 end
-saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD_LYKL_fixed.mat']);
+saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD_LYKL_fixed2.mat']);
 save(saveFileName, 'K_full', 'K_dyn', 'const_idx', 'dyn_idx');
 fprintf('"%s" として保存しました。\n', saveFileName);
