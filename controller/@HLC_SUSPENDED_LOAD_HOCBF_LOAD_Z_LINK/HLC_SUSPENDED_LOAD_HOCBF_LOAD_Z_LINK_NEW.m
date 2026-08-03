@@ -904,7 +904,7 @@
 % end
 % end
 
-classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z_LINK < handle
+classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z_LINK_NEW < handle
 % クアッドコプター用階層型線形化（z解析的CBF ＋ xy実入力結合型HOCBF ＋ ケーブル角度制限付き）
 properties
     self
@@ -912,7 +912,7 @@ properties
     param
 end
 methods
-    function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z_LINK(self, param)
+    function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_Z_LINK_NEW(self, param)
         obj.self = self;
         obj.param = param;
         % 🌟 初期化時のログ参照エラー防止（安全ガード）
