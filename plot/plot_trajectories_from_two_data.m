@@ -202,9 +202,9 @@ if targetIsStationary
     ylim(yCenter + 0.6 * xySpan * [-1 1]);
 
     axis equal;
-    xlabel('\Deltax from target [cm]');
-    ylabel('\Deltay from target [cm]');
-    title('XY motion around the stationary target (phase = 102)');
+    xlabel('$ x$ [cm]', 'Interpreter', 'latex');
+    ylabel('$ y$ [cm]', 'Interpreter', 'latex');
+    % title('XY motion around the stationary target (phase = 102)');
     fprintf('Stationary target detected: showing the XY motion in cm.\n');
 else
     plot3(flightA.target(:,1), flightA.target(:,2), flightA.target(:,3), ...
@@ -218,10 +218,10 @@ else
 
     axis equal;
     view(3);
-    xlabel('x [m]');
-    ylabel('y [m]');
+    xlabel('$x$ [m]', 'Interpreter', 'latex');
+    ylabel('$y$ [m]', 'Interpreter', 'latex');
     zlabel('z [m]');
-    title('Flight-phase trajectories');
+    % title('Flight-phase trajectories');
 end
 
 grid on;
