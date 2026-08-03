@@ -240,68 +240,14 @@ clc
 %     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
 %     'outputs', {'A_qp', 'b_qp'});
 % disp("Done: CBF関数の生成が完了しました！");
-%% =========================================================================
-%% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート
-%% =========================================================================
-disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
-FG_z = simplify(f+g*[u1;u2;u3;u4]);
-g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
-f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
-simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
-
-% 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
-syms xo yo zo ro real
-syms rl real
-
-% physicalParam からケーブル長 L を参照
-L_cable = physicalParam(7);
-
-% 🌟 【核心部】 安全関数の基準位置を「ロープ（リンク）の中心点 p_mid」に設定
-p_mid = pl - 0.5 * L_cable * pT;
-
-% 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
-h_cbf_z = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
-cbf1 = h_cbf_z;
-% 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
-syms gamma1 gamma2 real
-g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
-
-% 3. 2階の高次CBFの導出（相対次数2）
-% cbf1 (h)   >= 0 
-% cbf2 (dot_h + gamma1 * h) >= 0
-cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
-
-
-% 4. 最適化問題（QP）へのマッピング
-% cbf2_dot + gamma2 * cbf2 >= 0  を導出
-% ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
-L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
-L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
-
-% A_qp * u1 <= b_qp の形に変形（符号反転）
-A_cbf_sym = -L_g_cbf2; 
-b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
-
-% 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
-A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
-b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
-
-% 6. Mファイルとして関数エクスポート
-gamma_params = [gamma1; gamma2];
-obs_params = [xo; yo; zo; ro];
-sys_params = rl;
-XD_sym = cell2sym(XD);
-XD_sym = XD_sym(:); % 縦ベクトル化
-
-disp("Exporting: CBF_Constraints_zlink.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink.m', ...
-    'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
-    'outputs', {'A_qp', 'b_qp'});
-disp("Done: CBF関数の生成が完了しました！");
 % %% =========================================================================
-% %% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
+% %% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート
 % %% =========================================================================
 % disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+% FG_z = simplify(f+g*[u1;u2;u3;u4]);
+% g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
+% f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
+% simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
 % 
 % % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
 % syms xo yo zo ro real
@@ -314,258 +260,296 @@ disp("Done: CBF関数の生成が完了しました！");
 % p_mid = pl - 0.5 * L_cable * pT;
 % 
 % % 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
-% h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
-% cbf1 = h_cbf_xy;
-% 
-% 
+% h_cbf_z = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+% cbf1 = h_cbf_z;
 % % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
-% syms gamma1 gamma2 gamma3 gamma4 real
+% syms gamma1 gamma2 real
+% g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
 % 
-% % 3. 6階の高次CBFをリー微分(LieD)を用いて順次計算
-% % f1, g1 は 2nd layer で求めた [u2; u3; u4] に対するシステム方程式
-% % 今回は u4 (yaw) の項は既知（理想値）として扱うため、g1の3列目を取り出して処理します
-% g1_xy = g1(:, 1:2); % u2, u3 に掛かる列だけを抽出
-% g1_yaw = g1(:, 3);  % u4 に掛かる列
+% % 3. 2階の高次CBFの導出（相対次数2）
+% % cbf1 (h)   >= 0 
+% % cbf2 (dot_h + gamma1 * h) >= 0
+% cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
 % 
-% % 階層的なCBFの導出
-% % ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
-% cbf2 = LieD(cbf1, f1, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
-% cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma2 * cbf2; %h3
-% cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma3 * cbf3; %h4
 % 
-% % 最上階（6階）の計算：ここに u2, u3 が現れる
-% % cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
-% L_f_cbf4  = LieD(cbf4, f1, x) + diff(cbf4, t);
-% L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] のベクトル（u2, u3 の係数 β）
-% L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % (u4 の係数)
+% % 4. 最適化問題（QP）へのマッピング
+% % cbf2_dot + gamma2 * cbf2 >= 0  を導出
+% % ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
+% L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+% L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
 % 
-% % これを QP用の形式 「 A_qp * [u2; u3] <= b_qp 」に整理します。
-% % 不等号を反転させるため、符号をマイナスにします。
+% % A_qp * u1 <= b_qp の形に変形（符号反転）
+% A_cbf_sym = -L_g_cbf2; 
+% b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
 % 
-% A_cbf_sym = -L_g_cbf4; % [1 x 2] のシンボリック行ベクトル
-% b_cbf_sym = L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4; % シンボリックスカラー
+% % 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
 % 
-% % 4. 実際の数値シミュレーション側で代入しやすいよう、変数を置き換え (xdRef -> XDf, vInput1f -> V1vf)
-% % 2nd layerの入力 u4（yaw用）には、コントローラが後で計算する実入力の4番目の要素を指定できるように V4 を代入
-% syms V4 real
-% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-% 
-% % 5. 高速計算用に関数ファイル (Mファイル) としてエクスポート
-% % クラスK関数のゲインも外部から与えられるように引数に含めます
-% gamma_params = [gamma1; gamma2; gamma3; gamma4];
+% % 6. Mファイルとして関数エクスポート
+% gamma_params = [gamma1; gamma2];
 % obs_params = [xo; yo; zo; ro];
 % sys_params = rl;
-% 
 % XD_sym = cell2sym(XD);
-% XD_sym = XD_sym(:); % 強制的に縦ベクトル化
+% XD_sym = XD_sym(:); % 縦ベクトル化
 % 
-% disp("Exporting: CBF_Constraints_xylink.m を書き出しています...");
-% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xylink.m', ...
-%                'vars', {obj, x, XD_sym, cell2sym(V1v), V4, obs_params, gamma_params, sys_params, physicalParam}, ...
-%                'outputs', {'A_qp', 'b_qp'});
-% 
+% disp("Exporting: CBF_Constraints_zlink.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink.m', ...
+%     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp'});
 % disp("Done: CBF関数の生成が完了しました！");
 % %% =========================================================================
-% %% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
-% %% =========================================================================
-% disp("Start: 実入力 u1 を含むダイナミクス f_xy による HOCBF の導出を開始します。");
-% 
-% % 1. 全ダイナミクス FG_xy の定義
-% FG_xy = simplify(f + g * [u1; u2; u3; u4]);
-% 
-% % 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
-% %    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
-% f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
-% 
-% % 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
-% g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
-% g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch) に掛かる列
-% g1_yaw = g_xy(:, 3);   % u4 (yaw) に掛かる列
-% 
-% % 3. 障害物安全関数の定義 (ロープ中心 p_mid)
-% syms xo yo zo ro real
-% syms rl real
-% L_cable = physicalParam(7);
-% p_mid = pl - 0.5 * L_cable * pT;
-% 
-% h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
-% cbf1 = h_cbf_xy;
-% 
-% % 4. クラスK関数のゲイン
-% syms gamma1 gamma2 gamma3 gamma4 real
-% 
-% % 5. f_xy を用いた Lie 微分の計算（相対次数 4）
-% % ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
-% cbf2 = LieD(cbf1, f_xy, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
-% cbf3 = LieD(cbf2, f_xy, x) + diff(cbf2, t) + gamma2 * cbf2; % h3
-% cbf4 = LieD(cbf3, f_xy, x) + diff(cbf3, t) + gamma3 * cbf3; % h4
-% 
-% % 最上階での展開（u2, u3 が現れる階層）
-% L_f_cbf4  = LieD(cbf4, f_xy, x) + diff(cbf4, t);
-% L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] 行列
-% L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % スカラー
-% 
-% % A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
-% A_cbf_sym = -L_g_cbf4;
-% b_cbf_sym =  L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4;
-% 
-% % 6. 実数値シミュレーション用の変数置換
-% %    u1 を外部入力記号 U1_val に、u4 を V4 に、目標軌道微分を XDf に置換
-% syms U1_val V4 real
-% A_cbf_subs = subs(A_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
-% b_cbf_subs = subs(b_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
-% 
-% % 7. Mファイルとしてエクスポート
-% gamma_params = [gamma1; gamma2; gamma3; gamma4];
-% obs_params   = [xo; yo; zo; ro];
-% sys_params   = rl;
-% XD_sym       = cell2sym(XD);
-% XD_sym       = XD_sym(:); 
-% 
-% disp("Exporting: CBF_Constraints_xyotamesi.m を書き出しています...");
-% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xyotamesi.m', ...
-%                'vars', {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}, ...
-%                'outputs', {'A_qp', 'b_qp'});
-% disp("Done: CBF関数の生成が完了しました！");
-% %% =========================================================================
-% %% 【追加】 ケーブル傾き制約 (<= 10 deg) の HOCBF 自動導出
-% %% =========================================================================
-% disp("Start: ケーブル傾き角制約 (<= 10 deg) の HOCBF 導出を開始します...");
-% 
-% % 1. ケーブル傾き安全関数: p_z <= -cos(10 deg)  <=>  h_cable = -p_z - cos(10 deg) >= 0
-% theta_max = 10 * (pi / 180); % 10度をラジアン変換
-% h_cable = -pT(3) - cos(theta_max);
-% 
-% % 2. Lie 微分の展開 (f_xy を使用, 相対次数 2 で展開)
-% syms gamma_c1 gamma_c2 real
-% cbf_c1 = h_cable;
-% cbf_c2 = LieD(cbf_c1, f_xy, x) + diff(cbf_c1, t) + gamma_c1 * cbf_c1;
-% 
-% L_f_c2  = LieD(cbf_c2, f_xy, x) + diff(cbf_c2, t);
-% L_g_c2  = LieD(cbf_c2, g1_xy, x);  % [1 x 2] 行列
-% L_gy_c2 = LieD(cbf_c2, g1_yaw, x); % スカラー
-% 
-% % A_qp_cable * [u2; u3] <= b_qp_cable
-% A_cable_sym = -L_g_c2;
-% b_cable_sym =  L_f_c2 + L_gy_c2 * u4 + gamma_c2 * cbf_c2;
-% 
-% % 3. 実数値シミュレーション用の置換
-% A_cable_subs = subs(A_cable_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
-% b_cable_subs = subs(b_cable_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
-% 
-% % 4. 関数ファイルとして書き出し
-% gamma_cable_params = [gamma_c1; gamma_c2];
-% disp("Exporting: CBF_Constraints_cable_angle.m を書き出しています...");
-% matlabFunction(A_cable_subs, b_cable_subs, 'file', 'CBF_Constraints_cable_angle.m', ...
-%     'vars', {obj, x, XD_sym, U1_val, V4, gamma_cable_params, physicalParam}, ...
-%     'outputs', {'A_qp_cable', 'b_qp_cable'});
-% disp("Done: ケーブル傾き制約 CBF 関数の生成が完了しました！");
-% %% =========================================================================
-% %% 【追加】高次制御バリア関数 (HOCBF) の自動導出と関数エクスポート
+% %% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート z方向のみの制約での回避
 % %% =========================================================================
 % disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+% FG_z = simplify(f+g*[u1;u2;u3;u4]);
+% g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
+% f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
+% simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
 % 
 % % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
 % syms xo yo zo ro real
 % syms rl real
-% % 荷物の位置 pl = [pl1; pl2; pl3] と障害物の距離の2乗から安全を定義
-% h_cbf = (pl(1) - xo)^2 + (pl(2) - yo)^2 + (pl(3) - zo)^2 - (ro + rl)^2;
 % 
+% % physicalParam からケーブル長 L を参照
+% L_cable = physicalParam(7);
+% 
+% % 🌟 【核心部】 安全関数の基準位置を「ロープ（リンク）の中心点 p_mid」に設定
+% p_mid = pl - 0.5 * L_cable * pT;
+% 
+% R_safe = ro + rl; % 表面までの安全距離（合計半径）
+% 
+% % 🌟 【核心部】 xy 水平距離の評価
+% dist_xy_sq = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2;
+% 
+% % 後から xy を動かして離れた時に「フライングで高度を落として球の斜めに激突する」のを防ぐため、
+% % xy の有効領域を少し広め (k_xy = 1.5〜2.0) に見なした重み付け多項式にする
+% k_xy = 0.2; % xy離脱速度と高度復帰のバランス係数
+% 
+% % HOCBF 安全関数 (中心距離ベースの拡張形)
+% % (pz - zo)^2 + k_xy * d_xy^2 >= R_safe^2
+% % これにより、現在地が zo より上なら「上へ」、下なら「下へ」自律退避します
+% h_cbf_z = (p_mid(3) - zo)^2 + k_xy * dist_xy_sq - R_safe^2;
+% cbf1 = h_cbf_z;
 % % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
-% syms gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 real
+% syms gamma1 gamma2 real
+% g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
 % 
-% % 3. 6階の高次CBFをリー微分(LieD)を用いて順次計算
-% % f1, g1 は 2nd layer で求めた [u2; u3; u4] に対するシステム方程式
-% % 今回は u4 (yaw) の項は既知（理想値）として扱うため、g1の3列目を取り出して処理します
-% g1_xy = g1(:, 1:2); % u2, u3 に掛かる列だけを抽出
-% g1_yaw = g1(:, 3);  % u4 に掛かる列
+% % 3. 2階の高次CBFの導出（相対次数2）
+% % cbf1 (h)   >= 0 
+% % cbf2 (dot_h + gamma1 * h) >= 0
+% cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
 % 
-% % 階層的なCBFの導出
-% % ※ diff(..., t) は目標軌道 xd(t) などの時間微分をカバーするために維持します
-% cbf1 = LieD(h_cbf, f1, x) + diff(h_cbf, t) + gamma1 * h_cbf; %h2
-% cbf2 = LieD(cbf1,  f1, x) + diff(cbf1,  t) + gamma2 * cbf1; %h3
-% cbf3 = LieD(cbf2,  f1, x) + diff(cbf2,  t) + gamma3 * cbf2; %h4
-% cbf4 = LieD(cbf3,  f1, x) + diff(cbf3,  t) + gamma4 * cbf3; %h5
-% cbf5 = LieD(cbf4,  f1, x) + diff(cbf4,  t) + gamma5 * cbf4; %h6
 % 
-% % 最上階（6階）の計算：ここに u2, u3 が現れる
-% % cbf6_dot = L_f1(cbf5) + L_g1_xy(cbf5)*[u2; u3] + L_g1_yaw(cbf5)*u4 + diff(cbf5, t)
-% L_f_cbf5  = LieD(cbf5, f1, x) + diff(cbf5, t);
-% L_g_cbf5  = LieD(cbf5, g1_xy, x);  % [1 x 2] のベクトル（u2, u3 の係数 β）
-% L_gy_cbf5 = LieD(cbf5, g1_yaw, x); % (u4 の係数)
+% % 4. 最適化問題（QP）へのマッピング
+% % cbf2_dot + gamma2 * cbf2 >= 0  を導出
+% % ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
+% L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+% L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
 % 
-% % 最終的な安全条件式: cbf6_dot + gamma6 * cbf5 >= 0
-% % つまり、 L_g_cbf5 * [u2; u3] + L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5 >= 0
-% % これを QP用の形式 「 A_qp * [u2; u3] <= b_qp 」に整理します。
-% % 不等号を反転させるため、符号をマイナスにします。
+% % A_qp * u1 <= b_qp の形に変形（符号反転）
+% A_cbf_sym = -L_g_cbf2; 
+% b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
 % 
-% A_cbf_sym = -L_g_cbf5; % [1 x 2] のシンボリック行ベクトル
-% b_cbf_sym = L_f_cbf5 + L_gy_cbf5 * u4 + gamma6 * cbf5; % シンボリックスカラー
+% % 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
 % 
-% % 4. 実際の数値シミュレーション側で代入しやすいよう、変数を置き換え (xdRef -> XDf, vInput1f -> V1vf)
-% % 2nd layerの入力 u4（yaw用）には、コントローラが後で計算する実入力の4番目の要素を指定できるように V4 を代入
-% syms V4 real
-% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f, u4], [XDf, V1vf, V4]);
-% 
-% % 5. 高速計算用に関数ファイル (Mファイル) としてエクスポート
-% % クラスK関数のゲインも外部から与えられるように引数に含めます
-% gamma_params = [gamma1; gamma2; gamma3; gamma4; gamma5; gamma6];
+% % 6. Mファイルとして関数エクスポート
+% gamma_params = [gamma1; gamma2];
 % obs_params = [xo; yo; zo; ro];
 % sys_params = rl;
-% 
 % XD_sym = cell2sym(XD);
-% XD_sym = XD_sym(:); % 強制的に縦ベクトル化
+% XD_sym = XD_sym(:); % 縦ベクトル化
 % 
-% disp("Exporting: CBF_Constraints_xy.m を書き出しています...");
-% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_xy.m', ...
-%                'vars', {obj, x, XD_sym, cell2sym(V1v), V4, obs_params, gamma_params, sys_params, physicalParam}, ...
-%                'outputs', {'A_qp', 'b_qp'});
+% disp("Exporting: CBF_Constraints_zlink2.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink2.m', ...
+%     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp'});
+% disp("Done: CBF関数の生成が完了しました！");
+% %% =========================================================================
+% %% 【追加】高次制御バリア関数z方向 (HOCBF) の自動導出と関数エクスポート　楕円 回避は仕様とするが、もっと、制約に工夫が必要
+% %% =========================================================================
+% disp("Start: 高次CBF(HOCBF)の導出と関数化を開始します。");
+% FG_z = simplify(f+g*[u1;u2;u3;u4]);
+% g_z = simplify(MyCoeff(FG_z,[u1;u2;u3;u4]));
+% f_z = subs(FG_z,[u1,u2,u3,u4],[0,0,0,0]);
+% simplify(FG_z-(f_z+g_z*[u1;u2;u3;u4]))
 % 
+% % 1. 障害物安全関数の定義 (真球障害物 [xo, yo, zo] と半径 ro)
+% syms xo yo zo ro real
+% syms a_sys b_sys real       % 機体側の楕円長軸・短軸半径 (a, b=c)
+% 
+% % physicalParam からケーブル長 L を参照
+% L_cable = physicalParam(7);
+% 
+% % 🌟 【核心部】 安全関数の基準位置を「ロープ（リンク）の中心点 p_mid」に設定
+% p_mid = pl - 0.5 * L_cable * pT;
+% 
+% p_obs = [xo; yo; zo];            % 障害物中心 (3x1)
+% 
+% % 🌟 3. 機体（またはシステム）の姿勢クオータニオン q_sys = [q0, q1, q2, q3]
+% %  x の中のクオータニオン変数（例: q0=x(1), q1=x(2)... など）をそのまま使用
+% %  ※ お使いのモデルのクオータニオン変数に合わせて設定してください
+% q0 = x(1); q1 = x(2); q2 = x(3); q3 = x(4);
+% 
+% % クオータニオンから機体の回転行列 R_sys(q) を作成
+% R_sys = [1 - 2*(q2^2 + q3^2),  2*(q1*q2 - q0*q3),  2*(q1*q3 + q0*q2);
+%          2*(q1*q2 + q0*q3),  1 - 2*(q1^2 + q3^2),  2*(q2*q3 - q0*q1);
+%          2*(q1*q3 - q0*q2),  2*(q2*q3 + q0*q1),  1 - 2*(q1^2 + q2^2)];
+% 
+% % 4. 障害物半径 ro を足し込んだ拡張対角行列 D
+% a_eff = a_sys + ro;
+% b_eff = b_sys + ro;
+% 
+% D = [1/(a_eff^2),          0,          0;
+%                0, 1/(b_eff^2),          0;
+%                0,          0, 1/(b_eff^2)];
+% 
+% % 5. ワールド座標系における機体楕円形状行列 M
+% M = R_sys * D * R_sys.';
+% 
+% % 6. 🌟 楕円体機体用 安全関数 h_cbf_z の定義
+% % (p_mid - p_obs)^T * M * (p_mid - p_obs) >= 1
+% diff_p = p_mid - p_obs;
+% h_cbf_z = diff_p.' * M * diff_p - 1.0;
+% cbf1 = h_cbf_z;
+% % 2. クラスK関数のゲイン（チューニングパラメータ：実際のシミュレーション側で変更可能にシンボリック化）
+% syms gamma1 gamma2 real
+% g1_z = g_z(:, 1);% ★ $u_1$（推力）に掛かる列を抽出
+% 
+% % 3. 2階の高次CBFの導出（相対次数2）
+% % cbf1 (h)   >= 0 
+% % cbf2 (dot_h + gamma1 * h) >= 0
+% cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; %h2
+% 
+% 
+% % 4. 最適化問題（QP）へのマッピング
+% % cbf2_dot + gamma2 * cbf2 >= 0  を導出
+% % ここで L_g_cbf2 * u1 + L_f_cbf2 + gamma2 * cbf2 >= 0
+% L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+% L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 1] のシンボリックスカラー（u1 の係数）
+% 
+% % A_qp * u1 <= b_qp の形に変形（符号反転）
+% A_cbf_sym = -L_g_cbf2; 
+% b_cbf_sym = L_f_cbf2 + gamma2 * cbf2;
+% 
+% % 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% % 6. Mファイルとして関数エクスポート
+% gamma_params = [gamma1; gamma2];
+% obs_params = [xo; yo; zo; ro];
+% sys_params   = [a_sys; b_sys];
+% XD_sym = cell2sym(XD);
+% XD_sym = XD_sym(:); % 縦ベクトル化
+% 
+% disp("Exporting: CBF_Constraints_zlink3.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink3.m', ...
+%     'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp'});
 % disp("Done: CBF関数の生成が完了しました！");
 %% =========================================================================
-%% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
-% % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
-% % Usage: u = Uf(...) + Us(...)
-    % matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','Uf_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
-    % matlabFunction(subs(H(:,2:4), [xdRef vInput1], [XD V1v]),'file','H234_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'H234'});
-    
-    %以下二つはとても重い
-    % matlabFunction(subs(inv(beta2), [xdRef vInput1], [XD V1v]),'file','inv_beta2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'inv_beta2'});
-    
-    % matlabFunction(subs((-alpha2+[v2(t);v3(t);v4(t)]), [flip(xdRef) flip(vInput1) v2(t) v3(t) v4(t)], [flip(XD) flip(V1v) V2 V3 V4]),'file','vs_alpha2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'vs_alpha2'});
-    % matlabFunction(subs(alpha2(1), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha21_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha21'});
-    % matlabFunction(subs(alpha2(2), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha22_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha22'});
-    % matlabFunction(subs(alpha2(3), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha23_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha23'});
+%% 【改修版】マルチセグメント球体モデルによる HOCBF (z方向) 自動導出
+%% =========================================================================
+disp("Start: マルチセグメント球体 HOCBF(z方向) の導出を開始します。");
 
-    % a2_v2 = subs((-alpha2+[v2(t);v3(t);v4(t)]), [flip(xdRef) flip(vInput1) v2(t) v3(t) v4(t)], [flip(XD) flip(V1v) V2 V3 V4]);
-    % matlabFunction(a2_v2,'file','vs_alpha2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'vs_alpha2'});
-    
-    % xyDst
-    matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [xdReff vInput1f], [XDf V1vf]),'file','Uf_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
-    matlabFunction(subs(H(:,2:4), [xdReff vInput1f], [XDf V1vf]),'file','H234_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'H234'});
-    matlabFunction(subs(beta2, [xdReff vInput1f], [XDf V1vf]),'file','Beta2_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'beta2'});
-    %以下はとても重い
-    v2_a2 = subs([V2;V3;V4] - alpha2, [xdReff vInput1f], [XDf V1vf]);
-    matlabFunction(v2_a2,'file','V2_alpha2_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'v2_alpha2'});
+% 1. 物理モデル・運動方程式の分解
+FG_z = simplify(f + g * [u1; u2; u3; u4]);
+g_z  = simplify(MyCoeff(FG_z, [u1; u2; u3; u4]));
+f_z  = subs(FG_z, [u1, u2, u3, u4], [0, 0, 0, 0]);
+g1_z = g_z(:, 1); % u1 (推力) に関する入力行列
 
-%理想のfunctionだけどUsが重すぎるので分割している．
-    % matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [xdRef vInput1], [XD V1v]),'file','Uf_SuspededLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
-    % matlabFunction(subs(H(:,2:4)*U2, [xdRef vInput1 v2(t) v3(t) v4(t)], [XD V1v [V2 V3 V4]]),'file','Us_SuspededLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'U2'});
+% 2. シンボリック変数の定義
+syms xo yo zo ro real            % 障害物 (中心 [xo, yo, zo], 半径 ro)
+syms gamma1 gamma2 real          % CBF ゲイン
+syms lambda_j rl_j real          % システム側球体パラメータ (比率 lambda_j, 半径 rl_j)
 
-% % For check
-%     Uf(0,x0,Xd(0),Vf(0,x0,Xd(0)))
-%     Us(0,x0,Xd(0),Vf(0,x0,Xd(0)),Vs(0,x0,Xd(0),Vf(0,x0,Xd(0))))
-% %%
-% matlabFunction(subs(alpha1, [xdRef], [XD]),'file','alpha1.m','vars',{obj cell2sym(XD) physicalParam},'outputs',{'al1'});
-% matlabFunction(subs(alpha2, [xdRef vInput1], [XD V1v]),'file','alpha2.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'al2'});
-% %%
-% matlabFunction(subs(beta2, [xdRef vInput1], [XD V1v]),'file','beta2.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'be2'});
-% %%
-% matlabFunction(subs(He, [xdRef vInput1], [XD V1v]),'file','He.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) e1 physicalParam},'outputs',{'mat'});
-% %%
-% matlabFunction(beta1,'file','beta1.m','vars',{obj t x physicalParam},'outputs',{'beta1'});
+% physicalParam からケーブル長 L を参照
+L_cable = physicalParam(7);
+
+% 3. 数式定義（第 j 球体の中心位置 x_c^j と CBF h^{ij}）
+% pl: 荷物位置 (3x1), pT: ケーブル姿勢単位ベクトル (3x1)
+p_obs = [xo; yo; zo];
+x_c_j = pl - lambda_j * L_cable * pT; % x_c^j = x_L - lambda^j * L * p
+
+% 🌟 【ご指定の定式化】 障害物回避制約
+% h_cbf_z = (x_c(1) - xo)^2 + (x_c(2) - yo)^2 + (x_c(3) - zo)^2 - (ro + rl)^2
+cbf1_single = (x_c_j(1) - xo)^2 + (x_c_j(2) - yo)^2 + (x_c_j(3) - zo)^2 - (ro + rl_j)^2;
+
+% 4. 単一球体に対する 2階 HOCBF の導出（相対次数2）
+% cbf2 = dot_cbf1 + gamma1 * cbf1
+dot_cbf1 = LieD(cbf1_single, f_z, x) + diff(cbf1_single, t);
+cbf2_single = dot_cbf1 + gamma1 * cbf1_single;
+
+% L_f_cbf2 + L_g_cbf2 * u1 + gamma2 * cbf2 >= 0
+L_f_cbf2_single = LieD(cbf2_single, f_z, x) + diff(cbf2_single, t);
+L_g_cbf2_single = LieD(cbf2_single, g1_z, x); % [1 x 1] のシンボリックスカラー
+
+% A_qp * u1 <= b_qp の形に変形（符号反転）
+A_cbf_sym = -L_g_cbf2_single;
+b_cbf_sym = L_f_cbf2_single + gamma2 * cbf2_single;
+
+% 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+
+% 6. Mファイルとして関数エクスポート
+gamma_params  = [gamma1; gamma2];
+obs_params    = [xo; yo; zo; ro];
+sphere_params = [lambda_j; rl_j]; % [球体位置比率; システム側球体半径]
+
+XD_sym = cell2sym(XD);
+XD_sym = XD_sym(:); % 縦ベクトル化
+
+disp("Exporting: CBF_Constraints_zlink4.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_zlink4.m', ...
+    'vars', {obj, x, XD_sym, cell2sym(V1v), obs_params, sphere_params, gamma_params, physicalParam}, ...
+    'outputs', {'A_qp', 'b_qp'});
+disp("Done: マルチセグメント球体 CBF関数の生成が完了しました！");
+% %% =========================================================================
+% %% Make functions of actual inputs taking t, x, xd, v1 and v2 as arguments
+% % % If either model, virtual output or parameters is changed, then evaluate this section. It'll take few minutes.
+% % % Usage: u = Uf(...) + Us(...)
+%     % matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','Uf_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
+%     % matlabFunction(subs(H(:,2:4), [xdRef vInput1], [XD V1v]),'file','H234_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'H234'});
+% 
+%     %以下二つはとても重い
+%     % matlabFunction(subs(inv(beta2), [xdRef vInput1], [XD V1v]),'file','inv_beta2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'inv_beta2'});
+% 
+%     % matlabFunction(subs((-alpha2+[v2(t);v3(t);v4(t)]), [flip(xdRef) flip(vInput1) v2(t) v3(t) v4(t)], [flip(XD) flip(V1v) V2 V3 V4]),'file','vs_alpha2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'vs_alpha2'});
+%     % matlabFunction(subs(alpha2(1), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha21_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha21'});
+%     % matlabFunction(subs(alpha2(2), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha22_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha22'});
+%     % matlabFunction(subs(alpha2(3), [flip(xdRef) flip(vInput1)], [flip(XD) flip(V1v)]),'file','alpha23_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'alpha23'});
+% 
+%     % a2_v2 = subs((-alpha2+[v2(t);v3(t);v4(t)]), [flip(xdRef) flip(vInput1) v2(t) v3(t) v4(t)], [flip(XD) flip(V1v) V2 V3 V4]);
+%     % matlabFunction(a2_v2,'file','vs_alpha2_SuspendedLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'vs_alpha2'});
+% 
+%     % xyDst
+%     matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [xdReff vInput1f], [XDf V1vf]),'file','Uf_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
+%     matlabFunction(subs(H(:,2:4), [xdReff vInput1f], [XDf V1vf]),'file','H234_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'H234'});
+%     matlabFunction(subs(beta2, [xdReff vInput1f], [XDf V1vf]),'file','Beta2_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'beta2'});
+%     %以下はとても重い
+%     v2_a2 = subs([V2;V3;V4] - alpha2, [xdReff vInput1f], [XDf V1vf]);
+%     matlabFunction(v2_a2,'file','V2_alpha2_SuspendedLoadxyDst.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'v2_alpha2'});
+% 
+% %理想のfunctionだけどUsが重すぎるので分割している．
+%     % matlabFunction(subs(H(:,1)*(-alpha1+v1(t)), [xdRef vInput1], [XD V1v]),'file','Uf_SuspededLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'U1'});
+%     % matlabFunction(subs(H(:,2:4)*U2, [xdRef vInput1 v2(t) v3(t) v4(t)], [XD V1v [V2 V3 V4]]),'file','Us_SuspededLoad.m','vars',{obj x cell2sym(XD) cell2sym(V1v) [V2;V3;V4] physicalParam},'outputs',{'U2'});
+% 
+% % % For check
+% %     Uf(0,x0,Xd(0),Vf(0,x0,Xd(0)))
+% %     Us(0,x0,Xd(0),Vf(0,x0,Xd(0)),Vs(0,x0,Xd(0),Vf(0,x0,Xd(0))))
+% % %%
+% % matlabFunction(subs(alpha1, [xdRef], [XD]),'file','alpha1.m','vars',{obj cell2sym(XD) physicalParam},'outputs',{'al1'});
+% % matlabFunction(subs(alpha2, [xdRef vInput1], [XD V1v]),'file','alpha2.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'al2'});
+% % %%
+% % matlabFunction(subs(beta2, [xdRef vInput1], [XD V1v]),'file','beta2.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) physicalParam},'outputs',{'be2'});
+% % %%
+% % matlabFunction(subs(He, [xdRef vInput1], [XD V1v]),'file','He.m','vars',{obj t x cell2sym(XD) cell2sym(V1v) e1 physicalParam},'outputs',{'mat'});
+% % %%
+% % matlabFunction(beta1,'file','beta1.m','vars',{obj t x physicalParam},'outputs',{'beta1'});
 
 
 %% Local functions
