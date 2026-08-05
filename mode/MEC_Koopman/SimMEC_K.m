@@ -67,7 +67,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_for_hovering", {"position", [0;0;1]}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_star", {"freq",10,"center",[0;0;1],"radius",1.0}}));
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",-pi}}));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));
 
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
