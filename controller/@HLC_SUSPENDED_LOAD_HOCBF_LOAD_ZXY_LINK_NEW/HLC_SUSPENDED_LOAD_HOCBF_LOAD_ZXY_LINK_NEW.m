@@ -1810,9 +1810,8 @@
 
 %%ここから報告会用のプログラム
 classdef HLC_SUSPENDED_LOAD_HOCBF_LOAD_ZXY_LINK_NEW < handle
-    % クアッドコプター用階層型線形化
-    % （z方向解析的CBF ＋ xy方向実入力u1保持型HOCBF 統合版）
-    % 条件：障害物＝球体(円)、ロープ中点 p_mid 基準（単一球体モデル）
+    % クアッドコプター用階層型線形化（実入力 u1 保持型 HOCBF 単一球体検証版）
+    % 条件：障害物＝球体(円)、ロープ中点 p_mid 基準（単一球体）
 properties
     self
     result
@@ -1823,7 +1822,6 @@ methods
     function obj = HLC_SUSPENDED_LOAD_HOCBF_LOAD_ZXY_LINK_NEW(self, param)
         obj.self = self;
         obj.param = param;
-        % 🌟 初期化時のログ参照エラー防止（安全ガード）
         obj.result.min_clearance = Inf;
     end
 
@@ -1859,100 +1857,54 @@ methods
         yawdUnit = [cos(yawd); sin(yawd); 0]; 
         deltaYaw = sign(cross(yawdUnit, yawUnit)) * acos(yawdUnit' * yawUnit); 
         xd(4)    = -deltaYaw(3) + yaw; 
-
         xd = [xd; zeros(28 - size(xd, 1), 1)];
+
         tic_start = tic;
 
-        % -------------------------------------------------------------------------
         % 仮想・ノミナル入力の算定
-        % -------------------------------------------------------------------------
         F1 = Param.F1; F2 = Param.F2; F3 = Param.F3; F4 = Param.F4; 
-        time_log = cell(1, 6);
-
-        tic;
-        time_log{1} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); 
-
-        time_log{2} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); 
-
-        time_log{3} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); 
-
-        time_log{4} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); 
-
-        time_log{5} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); 
-
-        time_log{6} = datetime('now', 'Format', 'HH:mm:ss.SSSSSS');
         us = beta2 \ vs_alpha2; 
-
-        total_time = toc;
-
-        if total_time * 1000 > 50 
-            fprintf('\n🚨======== 制御フリーズ検出 (処理時間: %.2f ms) ========🚨\n', total_time * 1000);
-            fprintf('1. vf 開始時     : %s\n', time_log{1});
-            fprintf('2. vs 開始時     : %s\n', time_log{2});
-            fprintf('3. uf 開始時     : %s\n', time_log{3});
-            fprintf('4. beta 開始時   : %s\n', time_log{4});
-            fprintf('5. alpha 開始時  : %s\n', time_log{5});
-            fprintf('6. 左除算 開始時 : %s\n', time_log{6});
-            fprintf('7. 全体終了時    : %s\n', datetime('now', 'Format', 'HH:mm:ss.SSSSSS'));
-            fprintf('====================================================\n');
-        end
 
         tmp = [uf(1); us]; % ノミナル入力 [u1_nom; u2_nom; u3_nom; u4_nom]
         obj.result.tmp = tmp; 
 
         %% =========================================================================
-        %% 【ステップ 1】 z 方向 HOCBF による解析的安全推力 u1_safe の算出
+        %% 【ステップ 1】 ロープ中点 p_mid (単一球体) クリアランス計算 ＆ フィールド初期化
         %% =========================================================================
         min_surf_dist = Inf;
-        obj.result.min_clearance = Inf; 
-
         obs_env = ENVIRONMENT_OBSTACLE_HOCBF_Z(); 
         num_obs = length(obs_env);
 
         pL = model.state.pL;  
         L_cable = P(7); 
-        rl_val = L_cable/2 + 0.2; % システム半径 (ロープ長さに応じた設定)
-        obj.result.rl = rl_val;
         p_mid = pL - 0.5 * L_cable * pT; % ロープ（リンク）の中点
+
+        % システム側単一球体の半径 (rl)
+        rl_sys = 1;
+        obj.result.rl = rl_sys;
+
+        % アニメーション描画用フィールドのセット
+        obj.result.p_mid = p_mid;
 
         log_p_obs     = cell(1, max(1, num_obs));
         log_r_obs     = cell(1, max(1, num_obs));
         log_r_minimal = cell(1, max(1, num_obs));
 
-        % z方向 CBF 解析解用の上下限境界
-        u1_lower_bound = 0.0;
-        u1_upper_bound = 20.0;
-        gamma_params_z = [1.0; 5.0]; 
-
         for i = 1:num_obs
             xo = obs_env(i).p_obs(1); yo = obs_env(i).p_obs(2); zo = obs_env(i).p_obs(3);
             ro = obs_env(i).r_obs;
             p_obs = [xo; yo; zo];
-            obs_params = [xo; yo; zo; ro];
 
-            % 🌟 障害物（球体）表面までの距離計算
-            dist_center = norm(p_mid - p_obs);   % 中心間距離
-            d_surf = dist_center - (ro + rl_val); % 表面間距離（クリアランス）
+            % 単一球体 (p_mid) から障害物表面までの距離
+            d_surf = norm(p_mid - p_obs) - (ro + rl_sys);
 
             if d_surf < min_surf_dist
                 min_surf_dist = d_surf;
-            end
-
-            % z方向 CBF 制約（A_z * u1 <= b_z）を取得
-            [A_z_single, b_z_single] = CBF_Constraints_zlink(obj, x, xd, vf, obs_params, gamma_params_z, rl_val, P);
-
-            % A_i * u1 >= B_i に変換 (符号反転)
-            A_i = -A_z_single;
-            B_i = -b_z_single;
-            if A_i > 1e-9
-                u1_lower_bound = max(u1_lower_bound, B_i / A_i);
-            elseif A_i < -1e-9
-                u1_upper_bound = min(u1_upper_bound, B_i / A_i);
             end
 
             log_p_obs{i}     = p_obs;
@@ -1960,31 +1912,28 @@ methods
             log_r_minimal{i} = d_surf;
         end
 
-        u1_nominal = tmp(1);
-        u1_safe = max(u1_lower_bound, min(u1_upper_bound, u1_nominal));
-        % ドローンの物理アクチュエータ限界(0N〜20N)に適合
-        u1_safe = max(0.0, min(20.0, u1_safe));
-
-        % 🌟 確定した z 方向安全推力 u1_safe をセット
-        tmp(1) = u1_safe;
+        obj.result.min_clearance = min_surf_dist;
+        obj.result.p_obs         = log_p_obs;
+        obj.result.r_obs         = log_r_obs;
+        obj.result.r_minimal     = log_r_minimal;
 
         %% =========================================================================
-        %% 【ステップ 2】 実入力 u1 保持型 CBF による xy 方向 (u2, u3) QP 安全補正
+        %% 【ステップ 2】 実入力 u1 保持型 CBF_Constraints_xyotamesi による xy 方向 QP 安全補正
         %% =========================================================================
         u23_nominal = [tmp(2); tmp(3)]; % [u2_nom; u3_nom]
-        u1_val      = tmp(1);           % U1_val (ステップ1で確定された推力 u1_safe)
+        u1_val      = tmp(1);           % U1_val (実入力推力 u1 の確定値)
         u4_val      = tmp(4);           % V4 (Yaw軸制御入力 u4)
 
-        % 🌟 4階 HOCBF ゲインパラメータ (各種検証用ログコメント保持)
+        % 🌟 4階 HOCBF ゲインパラメータ (gamma1 〜 gamma4)
         % gamma_params_xy = [8.0; 5.0; 5.0; 5.0]; 
         % gamma_params_xy = [0.5; 2; 4; 8]; 
-        % gamma_params_xy = [2; 8; 16; 32];
+        gamma_params_xy = [2; 8; 16; 32];
         % gamma_params_xy = [3; 8; 16; 32];
         % gamma_params_xy = [1.0; 4.0; 8.0; 16.0];
         % gamma_params_xy = [8.0; 8.0; 8.0; 8.0]; % フラット配置
         % 🌟 論文手法（1階化）用ゲイン設定
-        % 内部では先頭の gamma1 (0.05) のみが使われます（後ろの3つはコード互換性のためのダミーです）
-        gamma_params_xy = [0.05; 0; 0; 0];
+        % 内部では先頭の gamma1 (2.0) のみが使われます（後ろの3つはコード互換性のためのダミーです）
+        % gamma_params_xy = [0.05; 0; 0; 0];
 
         A_xy_qp_list = [];
         b_xy_qp_list = [];
@@ -1992,11 +1941,11 @@ methods
         % 全障害物に対する CBF 制約の積載 (単一球体モデル)
         for i = 1:num_obs
             obs_params = [obs_env(i).p_obs; obs_env(i).r_obs]; % [xo; yo; zo; ro]
-            sys_params = rl_val;                                % rl
+            sys_params = rl_sys;                                 % rl
 
-            % 🌟 CBF_Constraints_xylink.m 呼び出し
+            % 🌟 CBF_Constraints_xyotamesi.m の 9 引数に完全対応させて呼び出し
             % 引数順: {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}
-            [A_xy_single, b_xy_single] = CBF_Constraints_xylink(...
+            [A_xy_single, b_xy_single] = CBF_Constraints_HOCBF_xylink(...
                 obj, x, xd, u1_val, u4_val, obs_params, gamma_params_xy, sys_params, P);
 
             A_xy_qp_list = [A_xy_qp_list; A_xy_single]; %#ok<AGROW>
@@ -2006,8 +1955,8 @@ methods
         % 🌟 2次元 QP (quadprog) の実行
         H_qp  = diag([1.0, 1.0]);
         f_qp  = -H_qp * u23_nominal;
-        lb_qp = [-2.0; -2.0];
-        ub_qp = [ 2.0;  2.0];
+        lb_qp = [-1.0; -1.0];
+        ub_qp = [ 1.0;  1.0];
 
         options = optimoptions('quadprog', 'Display', 'off', 'ConstraintTolerance', 1e-4);
         [u23_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_xy_qp_list, b_xy_qp_list, [], [], lb_qp, ub_qp, [], options);
@@ -2031,9 +1980,12 @@ methods
                 u23_nominal(1), u23_nominal(2), tmp(2), tmp(3), exitflag);
         end
 
-        % -------------------------------------------------------------------------
-        % 🌟 結果の確実な格納 ＆ 制御入力の出力
-        % -------------------------------------------------------------------------
+        % 結果の格納
+        obj.result.A_xy_qp_list = A_xy_qp_list;
+        obj.result.b_xy_qp_list = b_xy_qp_list;
+        obj.result.slack_check = slack_check;
+        obj.result.num_violated = num_violated;
+        obj.result.tmp_fix = tmp; 
         obj.result.p_mid          = p_mid;
         obj.result.min_clearance  = min_surf_dist;
         obj.result.p_obs          = log_p_obs;
@@ -2041,8 +1993,8 @@ methods
         obj.result.r_minimal      = log_r_minimal;
         obj.result.controllertime = toc(tic_start);
 
-        % 最終制御入力 (アクチュエータ物理限界の範囲内に収めて出力)
-        obj.result.input = [max(0.0, min(20.0, tmp(1))); ... % u1 (解析的CBFで確定された推力)
+        % 最終制御入力 (物理範囲 [-1, 1] 内に収めて出力)
+        obj.result.input = [max(0.0, min(20.0, tmp(1))); ... % u1 (推力)
                             max(-1.0, min(1.0,  tmp(2))); ... % u2 (Roll)
                             max(-1.0, min(1.0,  tmp(3))); ... % u3 (Pitch)
                             max(-1.0, min(1.0,  tmp(4)))];   % u4 (Yaw)

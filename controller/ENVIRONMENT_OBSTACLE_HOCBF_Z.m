@@ -10,18 +10,22 @@ function obs = ENVIRONMENT_OBSTACLE_HOCBF_Z()
     %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
     %  =========================================================================
     % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
-    p_center1 = [0.3; 7.5; 1.5]; 
+    % p_center1 = [0.3; 7.5; 2]; 
+    % cyl_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
+    % p_center1 = [0.3; 7.5; 2]; 
+    % cyl_param = [1, 3.0]; % [底面半径 r, 高さ h]
+    p_center1 = [0.3; 6; 2]; 
     cyl_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
 
     % 💡 今回この実験で使いたい安全マージンをここで定義
-    d_margin(1) = 0.5;
+    d_margin(1) = 2;
     
     obs(1).type = 'cylinder';
     obs(1).raw_param = cyl_param;
     obs(1).p_center = p_center1;
     obs(1).d_margin = d_margin(1);
     [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param,d_margin(1)); 
-
+    fprintf('%d\n',obs(1).r_obs)
     % %% =========================================================================
     % %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
     % %  =========================================================================
