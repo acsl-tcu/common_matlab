@@ -25,7 +25,7 @@ SimBaseMode = ["SimSuspendedLoad",  "SimCooperativeSuspendedLoad",  "SimSplitCoo
 ExpBaseMode = ["ExpSuspendedLoad",          "ExpCooperativeSuspendedLoad",  "ExpSuspendedLoadCoop",...
                 "ExpTestMotiveConnection",  "ExpHL",                        "ExpFHL",...
                 "ExpFHL_Servo",             "ExpFT",                        "ExpEL",...
-                "ExpMPC_Koopman"];
+                "ExpMPC_Koopman",           "ExpNNMEC"];
 
 Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
@@ -38,6 +38,7 @@ Setting.mode = SimBaseMode(15); % SimNNMEC PR時は消す
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
 % Setting.mode = ExpBaseMode(5); % ExpHL
+% Setting.mode = ExpBaseMode(11);% ExpNNMEC
 if contains(Setting.mode, "Exp")
     Setting.fExp = 1;
 else
