@@ -9,8 +9,8 @@ function Setting= Controller_HL(dt)
 
 % For IFAC 2026
 Setting.F1=lqrd([0 1;0 0],[0;1],diag([100,10]),[1],dt);                                % z 
-Setting.F2=lqrd(diag([1,1,1],1),[0;0;0;1],diag([3000,3000,200,1]),[0.05],dt); % xdiag([100,10,10,1])
-Setting.F3=lqrd(diag([1,1,1],1),[0;0;0;1],diag([3000,3000,200,1]),[0.05],dt); % ydiag([100,10,10,1])
+Setting.F2=lqrd(diag([1,1,1],1),[0;0;0;1],diag([1500,1000,200,1]),[0.01],dt); % xdiag([100,10,10,1])
+Setting.F3=lqrd(diag([1,1,1],1),[0;0;0;1],diag([1500,1000,200,1]),[0.01],dt); % ydiag([100,10,10,1])
 Setting.F4=lqrd([0 1;0 0],[0;1],diag([200,1]),[0.1],dt);                       % ヨー角 
 
 
