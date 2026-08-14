@@ -86,7 +86,7 @@
 % 現在のフォルダからパスが通っているかを確認して移動
 mfile_path = fileparts(mfilename('fullpath'));
 cd(mfile_path);
-load('HOCBFXY_2_8_16_32_Log(05-Aug-2026_13_31_27).mat', '-mat');
+load('otamesi2_Log(12-Aug-2026_16_52_15).mat', '-mat');
 %% 生データから102（フライト）のデータのみを詰めて抽出する
 t_raw = log.Data.t(1:log.k);   % 元の時間軸
 phase = log.Data.phase;        % フライトフェーズ
@@ -156,33 +156,41 @@ for idx = 1:k
     
     % 4. 制御値 (controller)
     con_res = log.Data.agent(1).controller.result{1, idx};
-    tmp_thrust(sel_idx) = con_res.tmp(1);
+    tmp_thrust(sel_idx) = con_res.tmp(1); %修正前の公称入力
     tmp_roll(sel_idx)   = con_res.tmp(2);
     tmp_pitch(sel_idx)  = con_res.tmp(3);
     tmp_yaw(sel_idx)    = con_res.tmp(4);
-    rl(sel_idx)         = con_res.rl(1);
-    p_mid_x(sel_idx)         = con_res.p_mid(1);
+    rl(sel_idx)         = con_res.rl(1); % システム側の球体の半径
+    p_mid_x(sel_idx)         = con_res.p_mid(1); %牽引紐の中点位置
     p_mid_y(sel_idx)         = con_res.p_mid(2);
     p_mid_x(sel_idx)         = con_res.p_mid(3);
 
     
     obs_vector = con_res.p_obs{1};
-    p_obs_x(sel_idx) = obs_vector(1);
+    p_obs_x(sel_idx) = obs_vector(1); % 障害物位置
     p_obs_y(sel_idx) = obs_vector(2);
     p_obs_z(sel_idx) = obs_vector(3);
-    r_obs(sel_idx)     = con_res.r_obs{1};
-    r_minimal(sel_idx) = con_res.r_minimal{1};
-    A_xy_qp_list_x(sel_idx)         = con_res.A_xy_qp_list(1);
-    A_xy_qp_list_y(sel_idx)         = con_res.A_xy_qp_list(2);
-    b_xy_qp_list_x(sel_idx)         = con_res.b_xy_qp_list(1);
-    slack_check(sel_idx) = con_res.slack_check(1);
-    num_violated(sel_idx) = con_res.num_violated(1);
-    tmp_fix_thrust(sel_idx) = con_res.tmp_fix(1);
+    r_obs(sel_idx)     = con_res.r_obs{1}; % マージンのない障害物球の半径
+    r_minimal(sel_idx) = con_res.r_minimal{1}; % マージンのあるときのシステムと障害物の表面距離
+    r_minimal_no_margin(sel_idx) = con_res.r_minimal_no_margin{1}; % マージンのあるときのシステムと障害物の表面距離
+    A_xy_qp_list_roll(sel_idx)         = con_res.A_xy_qp_list(1); % ロールに対する制約係数
+    A_xy_qp_list_pitch(sel_idx)         = con_res.A_xy_qp_list(2); % ピッチに対する制約係数
+    b_xy_qp_list(sel_idx)         = con_res.b_xy_qp_list(1); % 入力u_23に許容される上限制約
+    slack_check(sel_idx) = con_res.slack_check(1); % 公称入力をそのまま入れた場合どの程安全制約を違反しているのか　プラスだと制約違反
+    num_violated(sel_idx) = con_res.num_violated(1); % 公称入力をそのまま使用したら安全制約を違反する障害物の数
+    tmp_fix_thrust(sel_idx) = con_res.tmp_fix(1); % 修正した後の入力
     tmp_fix_roll(sel_idx)   = con_res.tmp_fix(2);
     tmp_fix_pitch(sel_idx)  = con_res.tmp_fix(3);
     tmp_fix_yaw(sel_idx)    = con_res.tmp_fix(4);
-    controllertime(sel_idx) = con_res.controllertime(1);
-    controllertime_total(sel_idx) = con_res.controllertime_total(1);
+    controllertime(sel_idx) = con_res.controllertime(1); % コントローラ単体の時間
+    controllertime_total(sel_idx) = con_res.controllertime_total(1); % 全体の制御周期
+    r_obs_margin(sel_idx)     = con_res.r_obs_margin{1}; % マージンのある障害物球の半径
+    d_margin(sel_idx)     = con_res.d_margin{1}; % マージンの大きさ
+    log_h1(sel_idx)     = con_res.log_h1(1); % 位置の安全余裕度
+    log_h2(sel_idx)     = con_res.log_h2(1); % 速度の安全余裕度
+    log_h3(sel_idx)     = con_res.log_h3(1); % 加速度の安全余裕度
+    log_h4(sel_idx)     = con_res.log_h4(1); % か加速度の安全余裕度
+    slack_safe(sel_idx) = con_res.slack_safe(1); % 入力適用後の安全度　マイナスなら異常
     
     % 5. 入力値 (input)
     input_res = log.Data.agent(1).input{1, idx};
@@ -199,16 +207,14 @@ t_flight_raw = t_raw(phase == 102);
 t = t_flight_raw; 
 
 
-
-
-%% 3Dグラフの作成 (障害物 ＆ 目標軌道)
+%% 3Dグラフの作成 (障害物 ＆ 目標軌道) マージン有の障害物
 figure;
 
 % 1. 障害物の描画 (1番目のデータを使用)
 obs_center_x = p_obs_x(1);
 obs_center_y = p_obs_y(1);
 obs_center_z = p_obs_z(1);
-obs_radius   = r_obs(1);
+obs_radius   = r_obs_margin(1);
 
 % 球体のメッシュデータを生成
 [X_sphere, Y_sphere, Z_sphere] = sphere(50); 

@@ -126,8 +126,8 @@ mov = DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY(app.logger, ...
     "target", 1, ...
     "self", app.agent(1), ...
     "rl", actual_rl);
-mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl); % 表示開始
-% mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl,"mp4", true, "pause", 0);%mp4保存用
+% mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl); % 表示開始
+mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl,"mp4", true, "pause", 0);%mp4保存用
 end
 
 function in_prog(app)

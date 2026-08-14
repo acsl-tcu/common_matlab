@@ -106,18 +106,18 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                 obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
                 [sx, sy, sz] = sphere(24); % マージン球用の高密度メッシュ
                 hold(obj.ax, "on");
-
                 for i = 1:length(obs_list)
                     xo = obs_list(i).p_obs;
-                    ro = obs_list(i).r_obs;
-
+                    ro_raw    = obs_list(i).r_obs;        % 🌟 マージンなし（最小外接球）
+                    ro_margin = obs_list(i).r_obs_margin; % 🌟 マージン込み（制御用球）
+                    
+                    % --- 1. 障害物本体（赤色）の描画 ---
                     switch lower(obs_list(i).type)
                         case 'sphere'
                             r_sp = obs_list(i).raw_param;
                             pc = obs_list(i).p_center;
                             obj.obs_handles(end+1) = surf(obj.ax, sx*r_sp + pc(1), sy*r_sp + pc(2), sz*r_sp + pc(3), ...
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
-
                         case 'cylinder'
                             r_cyl = obs_list(i).raw_param(1);
                             h_cyl = obs_list(i).raw_param(2);
@@ -128,7 +128,6 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
                             patch(obj.ax, cx(1,:)+pc(1), cy(1,:)+pc(2), cz(1,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
                             patch(obj.ax, cx(2,:)+pc(1), cy(2,:)+pc(2), cz(2,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
-
                         case 'box'
                             dx = obs_list(i).raw_param(1); dy = obs_list(i).raw_param(2); dz = obs_list(i).raw_param(3);
                             pc = obs_list(i).p_center;
@@ -136,7 +135,6 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                             f_box = [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8];
                             obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_box, 'Vertices', v_box, ...
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
-
                         case 'prism'
                             a_tri = obs_list(i).raw_param(1); h_pri = obs_list(i).raw_param(2);
                             pc = obs_list(i).p_center;
@@ -147,7 +145,6 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                             f_pri = [1 2 3 NaN; 4 5 6 NaN; 1 2 5 4; 2 3 6 5; 3 1 4 6];
                             obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_pri, 'Vertices', v_pri, ...
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
-
                         case 'cone'
                             r_co = obs_list(i).raw_param(1); h_co = obs_list(i).raw_param(2);
                             pc = obs_list(i).p_center;
@@ -157,7 +154,6 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
                             patch(obj.ax, cx(1,:)+pc(1), cy(1,:)+pc(2), cz(1,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
                             patch(obj.ax, cx(2,:)+pc(1), cy(2,:)+pc(2), cz(2,:), [0.8 0.1 0.1], 'EdgeColor', 'none');
-
                         case 'pyramid'
                             a_py = obs_list(i).raw_param(1); h_py = obs_list(i).raw_param(2);
                             pc = obs_list(i).p_center;
@@ -166,22 +162,24 @@ classdef DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY
                             f_py = [1 2 3 4; 1 2 5 NaN; 2 3 5 NaN; 3 4 5 NaN; 4 1 5 NaN];
                             obj.obs_handles(end+1) = patch(obj.ax, 'Faces', f_py, 'Vertices', v_py, ...
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
-
                         case 'custom'
                             v_cust = obs_list(i).raw_param;
                             pc = obs_list(i).p_center;
                             [f_cust, v_cust_mod] = convhull(v_cust(1,:), v_cust(2,:), v_cust(3,:));
                             obj.obs_handles(end+1) = trisurf(f_cust, v_cust_mod(:,1), v_cust_mod(:,2), v_cust_mod(:,3), ...
                                 'Parent', obj.ax, 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
-
                         otherwise
-                            obj.obs_handles(end+1) = surf(obj.ax, sx*ro + xo(1), sy*ro + xo(2), sz*ro + xo(3), ...
+                            obj.obs_handles(end+1) = surf(obj.ax, sx*ro_raw + xo(1), sy*ro_raw + xo(2), sz*ro_raw + xo(3), ...
                                 'FaceColor', [0.8 0.1 0.1], 'EdgeColor', 'none', 'FaceAlpha', 1.0);
                     end
+                    
+                    % --- 2. 最小包摂球（マージンなし：半透明オレンジ） ---
+                    obj.obs_handles(end+1) = surf(obj.ax, sx*ro_raw + xo(1), sy*ro_raw + xo(2), sz*ro_raw + xo(3), ...
+                        'FaceColor', [1.0 0.5 0.0], 'EdgeColor', 'none', 'FaceAlpha', 0.5);
 
-                    % 近似真球バリア（半透明オレンジ）
-                    obj.obs_handles(end+1) = surf(obj.ax, sx*ro + xo(1), sy*ro + xo(2), sz*ro + xo(3), ...
-                        'FaceColor', [1.0 0.5 0.0], 'EdgeColor', 'none', 'FaceAlpha', 0.25);
+                    % --- 3. 安全マージン領域（マージン込み：半透明黄色） ---
+                    obj.obs_handles(end+1) = surf(obj.ax, sx*ro_margin + xo(1), sy*ro_margin + xo(2), sz*ro_margin + xo(3), ...
+                        'FaceColor', [1.0 0.9 0.0], 'EdgeColor', 'none', 'FaceAlpha', 0.25);
                 end
             catch
                 disp('⚠️ [Visualizer ERROR] 論文準拠の幾何学障害物グラフィックスの生成に失敗しました。');

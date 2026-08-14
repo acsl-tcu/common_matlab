@@ -190,6 +190,68 @@ clc
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
 
+% %% =========================================================================
+% %% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
+% %% =========================================================================
+% disp("Start: 実入力 u1 を含むダイナミクス f_xy による HOCBF の導出を開始します。");
+% 
+% % 1. 全ダイナミクス FG_xy の定義
+% FG_xy = simplify(f + g * [u1; u2; u3; u4]);
+% 
+% % 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
+% %    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
+% f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
+% 
+% % 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
+% g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
+% g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch) に掛かる列
+% g1_yaw = g_xy(:, 3);   % u4 (yaw) に掛かる列
+% 
+% % 3. 障害物安全関数の定義 (ロープ中心 p_mid)
+% syms xo yo zo ro real
+% syms rl real
+% L_cable = physicalParam(7);
+% p_mid = pl - 0.5 * L_cable * pT;
+% 
+% h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+% cbf1 = h_cbf_xy;
+% 
+% % 4. クラスK関数のゲイン
+% syms gamma1 gamma2 gamma3 gamma4 real
+% 
+% % 5. f_xy を用いた Lie 微分の計算（相対次数 4）
+% % ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
+% cbf2 = LieD(cbf1, f_xy, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
+% cbf3 = LieD(cbf2, f_xy, x) + diff(cbf2, t) + gamma2 * cbf2; % h3
+% cbf4 = LieD(cbf3, f_xy, x) + diff(cbf3, t) + gamma3 * cbf3; % h4
+% 
+% % 最上階での展開（u2, u3 が現れる階層）
+% L_f_cbf4  = LieD(cbf4, f_xy, x) + diff(cbf4, t);
+% L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] 行列
+% L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % スカラー
+% 
+% % A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
+% A_cbf_sym = -L_g_cbf4;
+% b_cbf_sym =  L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4;
+% 
+% % 6. 実数値シミュレーション用の変数置換
+% %    u1 を外部入力記号 U1_val に、u4 を V4 に、目標軌道微分を XDf に置換
+% syms U1_val V4 real
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% 
+% % 7. Mファイルとしてエクスポート
+% gamma_params = [gamma1; gamma2; gamma3; gamma4];
+% obs_params   = [xo; yo; zo; ro];
+% sys_params   = rl;
+% XD_sym       = cell2sym(XD);
+% XD_sym       = XD_sym(:); 
+% 
+% disp("Exporting: CBF_Constraints_xyotamesi.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_HOCBF_xylink.m', ...
+%     'vars', {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp'});
+% disp("Done: CBF関数の生成が完了しました！");
 %% =========================================================================
 %% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
 %% =========================================================================
@@ -240,6 +302,12 @@ syms U1_val V4 real
 A_cbf_subs = subs(A_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
 b_cbf_subs = subs(b_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
 
+% 🌟 各階層の関数（h1, h2, h3, h4）を代入用に置換処理
+h1_subs = subs(cbf1, [xdReff, u1, u4], [XDf, U1_val, V4]);
+h2_subs = subs(cbf2, [xdReff, u1, u4], [XDf, U1_val, V4]);
+h3_subs = subs(cbf3, [xdReff, u1, u4], [XDf, U1_val, V4]);
+h4_subs = subs(cbf4, [xdReff, u1, u4], [XDf, U1_val, V4]);
+
 % 7. Mファイルとしてエクスポート
 gamma_params = [gamma1; gamma2; gamma3; gamma4];
 obs_params   = [xo; yo; zo; ro];
@@ -247,10 +315,11 @@ sys_params   = rl;
 XD_sym       = cell2sym(XD);
 XD_sym       = XD_sym(:); 
 
-disp("Exporting: CBF_Constraints_xyotamesi.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, 'file', 'CBF_Constraints_HOCBF_xylink.m', ...
+disp("Exporting: CBF_Constraints_HOCBF_xylink.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, h3_subs, h4_subs, ...
+    'file', 'CBF_Constraints_HOCBF_xylink.m', ...
     'vars', {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}, ...
-    'outputs', {'A_qp', 'b_qp'});
+    'outputs', {'A_qp', 'b_qp', 'h1', 'h2', 'h3', 'h4'});
 disp("Done: CBF関数の生成が完了しました！");
 % %% =========================================================================
 % %% 【決定版】相対次数4のシステムに対する 論文(Zheng et al., 2025)手法の直接拡張

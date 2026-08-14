@@ -18,14 +18,25 @@ function obs = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY()
     % cyl_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
 
     % 💡 今回この実験で使いたい安全マージンをここで定義
-    d_margin(1) = 2;
+    d_margin(1) = 0.5;
     
     obs(1).type = 'cylinder';
     obs(1).raw_param = cyl_param;
     obs(1).p_center = p_center1;
     obs(1).d_margin = d_margin(1);
-    [obs(1).p_obs, obs(1).r_obs] = get_bounding_sphere('cylinder', p_center1, cyl_param,d_margin(1)); 
-    fprintf('%d\n',obs(1).r_obs)
+
+    obj.result.obs(1).type = obs(1).type;
+    obj.result.obs(1).raw_param = obs(1).raw_param;
+    obj.result.obs(1).p_center = obs(1).p_center;
+    obj.result.obs(1).d_margin = obs(1).d_margin;
+
+    [obs(1).p_obs, obs(1).r_obs_margin] = get_bounding_sphere('cylinder', p_center1, cyl_param,d_margin(1));
+    obs(1).r_obs = obs(1).r_obs_margin - d_margin(1);
+    
+    obj.result.obs(1).p_obs = obs(1).p_obs;
+    obj.result.obs(1).r_obs = obs(1).r_obs;
+    obj.result.obs(1).r_obs_margin = obs(1).r_obs_margin;
+    fprintf('%d\n',obs(1).r_obs_margin)
     % %% =========================================================================
     % %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
     % %  =========================================================================
