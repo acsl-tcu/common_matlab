@@ -65,6 +65,15 @@ function data = extract_flight_data(mat_filepath, target_phase)
     data.cbf.log_h               = zeros(2, N); % 安全余裕度 (1:位置, 2:速度)
     data.cbf.slack_safe          = zeros(1, N); % 入力適用後の安全度 マイナスなら異常
 
+    % ▼▼▼ 新規追加: 姿勢角＆振れ角 CBFデータ ▼▼▼
+    data.cbf.A_xy_qp         = zeros(3, 2, N); % Roll, Pitch, Cableに対する QP制約係数行列 (3行2列)
+    data.cbf.b_xy_qp         = zeros(3, N);    % Roll, Pitch, Cableに対する 上限制約 (3行)
+    data.cbf.h_layers_att_cb = zeros(8, N);    % 各階層安全余裕度 (Roll:1-2, Pitch:3-4, Cable:5-8)
+    data.cbf.slack_nom_xy    = zeros(3, N);    % 姿勢・振れ角の公称入力時の制約違反量
+    data.cbf.slack_safe_xy   = zeros(3, N);    % 姿勢・振れ角の入力適用後の安全度
+    data.cbf.num_violated_xy = zeros(1, N);    % 姿勢・振れ角の制約を違反した数
+    % ▲▲▲ 新規追加ここまで ▲▲▲
+
     % 5. 入力値 (input)
     data.input = zeros(4, N); % 最終実制御入力 [thrust; roll; pitch; yaw]
 
@@ -131,6 +140,18 @@ function data = extract_flight_data(mat_filepath, target_phase)
                                                con_res.log_h2(1) ...         % 速度の安全余裕度
                                                ];
         data.cbf.slack_safe(i)              = con_res.slack_safe(1);          % 入力適用後の安全度 マイナスなら異常
+
+        % =========================================================================
+        % ▼▼▼ 新規追加: 姿勢角＆振れ角 CBFデータ (旧バージョンのログ互換のため isfield で判定) ▼▼▼
+        if isfield(con_res, 'A_xy_qp')
+            data.cbf.A_xy_qp(:, :, i)       = con_res.A_xy_qp(1:3, 1:2);    % 3x2 行列
+            data.cbf.b_xy_qp(:, i)          = con_res.b_xy_qp(1:3);         % 3x1 ベクトル
+            data.cbf.h_layers_att_cb(:, i)  = con_res.h_layers_att_cb(1:8); % 8x1 ベクトル
+            data.cbf.slack_nom_xy(:, i)     = con_res.slack_nom_xy(1:3);    % 3x1 ベクトル
+            data.cbf.slack_safe_xy(:, i)    = con_res.slack_safe_xy(1:3);   % 3x1 ベクトル
+            data.cbf.num_violated_xy(i)     = con_res.num_violated_xy(1);   % スカラー
+        end
+        % ▲▲▲ 新規追加ここまで ▲▲▲
 
         % 5. 入力値 (input)
         input_res = log.Data.agent(1).input{1, idx};

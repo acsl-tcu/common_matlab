@@ -253,6 +253,108 @@ matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, ...
     'outputs', {'A_qp', 'b_qp', 'h1', 'h2'});
 disp("Done: CBF関数の生成が完了しました！");
 
+
+%% =========================================================================
+%% 【決定版】姿勢角＆紐振れ角 HOCBF 自動導出（各階層出力・制約値完備）
+%% =========================================================================
+disp("Start: 姿勢角＆紐振れ角 HOCBF（各階層監視付き）の導出を開始します。");
+
+% 1. 全ダイナミクス FG_xy の定義
+FG_xy = simplify(f + g * [u1; u2; u3; u4]);
+
+% 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy（u1 はシンボリックのまま保持）
+f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
+
+% 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
+g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
+g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch)
+g1_yaw = g_xy(:, 3);   % u4 (yaw)
+
+%% -------------------------------------------------------------------------
+%% (A) 機体姿勢角制約 (Roll / Pitch): 相対次数 2
+%% -------------------------------------------------------------------------
+[~, phi_sym, th_sym] = Quat2Eul(q);
+
+syms phi_max th_max real
+syms gamma_roll1 gamma_roll2 gamma_pitch1 gamma_pitch2 real
+
+% 1. Roll 角制約
+h_roll_1  = phi_max^2 - phi_sym^2;
+h_roll_2  = LieD(h_roll_1, f_xy, x) + diff(h_roll_1, t) + gamma_roll1 * h_roll_1;
+
+L_f_roll2  = LieD(h_roll_2, f_xy, x) + diff(h_roll_2, t);
+L_g_roll2  = LieD(h_roll_2, g1_xy, x);  % [1 x 2]
+L_gy_roll2 = LieD(h_roll_2, g1_yaw, x);
+
+A_roll = -L_g_roll2;
+b_roll =  L_f_roll2 + L_gy_roll2 * u4 + gamma_roll2 * h_roll_2;
+
+% 2. Pitch 角制約
+h_pitch_1 = th_max^2 - th_sym^2;
+h_pitch_2 = LieD(h_pitch_1, f_xy, x) + diff(h_pitch_1, t) + gamma_pitch1 * h_pitch_1;
+
+L_f_pitch2  = LieD(h_pitch_2, f_xy, x) + diff(h_pitch_2, t);
+L_g_pitch2  = LieD(h_pitch_2, g1_xy, x); % [1 x 2]
+L_gy_pitch2 = LieD(h_pitch_2, g1_yaw, x);
+
+A_pitch = -L_g_pitch2;
+b_pitch =  L_f_pitch2 + L_gy_pitch2 * u4 + gamma_pitch2 * h_pitch_2;
+
+%% -------------------------------------------------------------------------
+%% (B) 牽引紐振れ角制約 (鉛直傾斜角): 相対次数 4
+%% -------------------------------------------------------------------------
+syms cos_cb_max real
+syms gamma_cb1 gamma_cb2 gamma_cb3 gamma_cb4 real
+
+h_cb_1 = -pT(3) - cos_cb_max; % 真下(pT3=-1)で最大値
+h_cb_2 = LieD(h_cb_1, f_xy, x) + diff(h_cb_1, t) + gamma_cb1 * h_cb_1;
+h_cb_3 = LieD(h_cb_2, f_xy, x) + diff(h_cb_2, t) + gamma_cb2 * h_cb_2;
+h_cb_4 = LieD(h_cb_3, f_xy, x) + diff(h_cb_3, t) + gamma_cb3 * h_cb_3;
+
+L_f_cb4  = LieD(h_cb_4, f_xy, x) + diff(h_cb_4, t);
+L_g_cb4  = LieD(h_cb_4, g1_xy, x);  % [1 x 2]
+L_gy_cb4 = LieD(h_cb_4, g1_yaw, x);
+
+A_cable = -L_g_cb4;
+b_cable =  L_f_cb4 + L_gy_cb4 * u4 + gamma_cb4 * h_cb_4;
+
+%% -------------------------------------------------------------------------
+%% 統合制約および各階層値の構築
+%% -------------------------------------------------------------------------
+A_cbf_all = [A_roll; A_pitch; A_cable]; % [3 x 2] 行列
+b_cbf_all = [b_roll; b_pitch; b_cable]; % [3 x 1] ベクトル
+
+% 各階層の関数値まとめ
+h_layers_sym = [ ...
+    h_roll_1;  h_roll_2;  ... % Roll: 1階層, 2階層
+    h_pitch_1; h_pitch_2; ... % Pitch: 1階層, 2階層
+    h_cb_1;    h_cb_2;    h_cb_3;    h_cb_4 ... % Cable: 1階層〜4階層
+];
+
+% 実数値代入用の置換
+syms U1_val V4 real
+A_cbf_subs    = subs(A_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
+b_cbf_subs    = subs(b_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
+h_layers_subs = subs(h_layers_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+
+%% -------------------------------------------------------------------------
+%% Mファイルとしてエクスポート
+%% -------------------------------------------------------------------------
+gamma_roll_p  = [gamma_roll1; gamma_roll2];
+gamma_pitch_p = [gamma_pitch1; gamma_pitch2];
+gamma_cb_p    = [gamma_cb1; gamma_cb2; gamma_cb3; gamma_cb4];
+gamma_all     = [gamma_roll_p; gamma_pitch_p; gamma_cb_p];
+
+limit_params  = [phi_max; th_max; cos_cb_max];
+XD_sym        = cell2sym(XD);
+XD_sym        = XD_sym(:);
+
+disp("Exporting: CBF_Constraints_Attitude_Cable_Layers.m を書き出しています...");
+matlabFunction(A_cbf_subs, b_cbf_subs, h_layers_subs, ...
+    'file', 'CBF_Constraints_Attitude_Cable_Layers.m', ...
+    'vars', {obj, x, XD_sym, U1_val, V4, limit_params, gamma_all, physicalParam}, ...
+    'outputs', {'A_qp', 'b_qp', 'h_layers'});
+disp("Done: 生成が完了しました！");
 %% =========================================================================
 %% u1の微分の導出
 %% =========================================================================
