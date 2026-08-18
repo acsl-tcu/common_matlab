@@ -55,7 +55,9 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p",  "input", "estimator.result.state.pL",{{"p", "r"},{"estimator.result.state.pL", "e"}}, "p1-p2"];
-settings.target = {"p", "input", {"p", "estimator.result.state.pL"}, "p1-p2"};
+% settings.target = {"p", "input", {"p", "estimator.result.state.pL"}, "p1-p2"};
+settings.target = {"p","q","p1-p2", "input"};
+settings.target = { "p", "estimator.result.state.pL"};
 % settings.target = ["p","q", "input"];
 % settings.target = ["p", "input", "inner_input", "p1-p2","estimator.result.state.pL","estimator.result.state.mL"]; %質量推定用 exp
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
@@ -72,10 +74,10 @@ settings.target = {"p", "input", {"p", "estimator.result.state.pL"}, "p1-p2"};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "tf";
-% settings.fontsize = 16;    % default=11 オススメ=18　
+settings.phase = "f";
+settings.fontsize = 11;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
-settings.fontsize = 24;    % スライド向け
+% settings.fontsize = 24;    % スライド向け
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
@@ -383,8 +385,11 @@ for i=1:length(settings.target)
     end
 end
 disp_rmse(logger,settings.phase)
-disp_bode(logger, "f", 5) 
-
+% disp_bode(logger, "f", 1) 
+% disp_fft(logger, "estimator.result.state.pL", "e", settings.phase)
+% disp_fft(logger, "input", "", settings.phase)
+disp_fft_time(logger, "estimator.result.state.pL", "e", [20 30])   % 10秒から20秒までのデータでFFT
+disp_fft_time(logger, "input", "", [20 30])                          % 0秒から30秒までのデータでFFT
 %% Local functions
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
@@ -608,7 +613,7 @@ for i = 1:4
         case 5
             % ssest（状態空間モデルとして同定）
             data_id = iddata(y_n, u_n_minus_1, dt);
-            sys = ssest(data_id, 2);
+            sys = ssest(data_id, 4);
             [mag, ph, w] = bode(sys);
             h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
             omega = squeeze(w);
@@ -702,3 +707,71 @@ end
 % fprintf(' RMSE_z = %.6f [m]\n', rmse_z);
 % fprintf('=========================\n\n');
 % end
+
+function disp_fft(logger, target, att, phase)
+%   disp_fft(logger, "estimator.result.state.pL", "e", settings.phase)
+%   disp_fft(logger, "input", "", settings.phase)
+
+data = logger.data(1, target, att, "phase", phase);
+
+figure('Color','w', 'Position', [100 100 800 400]);
+plot(abs(fft(data)), 'LineWidth', 1.5)
+
+grid on; box on
+xlabel('Sample index', 'FontSize', 13)
+ylabel('$|FFT|$', 'Interpreter','latex', 'FontSize', 13)
+if att == ""
+    ttl = sprintf('FFT: %s, phase=%s', target, phase);
+else
+    ttl = sprintf('FFT: %s (%s), phase=%s', target, att, phase);
+end
+title(ttl, 'Interpreter','none')
+
+nCols = size(data,2);
+if nCols == 3
+    labels = ["x","y","z"];
+elseif nCols == 4 && contains(target, "input")
+    labels = ["thrust","roll","pitch","yaw"];
+elseif nCols == 3 && contains(target, "input")
+    labels = ["roll","pitch","yaw"];
+else
+    labels = "ch" + string(1:nCols);
+end
+legend(labels)
+set(gca, 'FontSize', 12)
+end
+
+function disp_fft_time(logger, target, att, t_range)
+%   disp_fft(logger, "estimator.result.state.pL", "e", [10 20])
+%   disp_fft(logger, "input", "", [0 30])
+%   t_range: [開始時刻, 終了時刻] の2要素ベクトル[s]
+
+data = logger.data(1, target, att, "ranget", t_range);
+
+figure('Color','w', 'Position', [100 100 800 400]);
+plot(abs(fft(data)), 'LineWidth', 1.5)
+grid on; box on
+xlabel('Sample index', 'FontSize', 13)
+ylabel('$|FFT|$', 'Interpreter','latex', 'FontSize', 13)
+
+ttl_time = sprintf('t=[%.2f, %.2f]s', t_range(1), t_range(2));
+if att == ""
+    ttl = sprintf('FFT: %s, %s', target, ttl_time);
+else
+    ttl = sprintf('FFT: %s (%s), %s', target, att, ttl_time);
+end
+title(ttl, 'Interpreter','none')
+
+nCols = size(data,2);
+if nCols == 3
+    labels = ["x","y","z"];
+elseif nCols == 4 && contains(target, "input")
+    labels = ["thrust","roll","pitch","yaw"];
+elseif nCols == 3 && contains(target, "input")
+    labels = ["roll","pitch","yaw"];
+else
+    labels = "ch" + string(1:nCols);
+end
+legend(labels)
+set(gca, 'FontSize', 12)
+end
