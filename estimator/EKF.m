@@ -73,6 +73,11 @@ classdef EKF < handle
                     y = y.y;
                 end
                 x = obj.result.state.get(); % estimated state at previous step
+
+
+                % obj.result.state.pL=obj.result.state.pL+add_chirp_disturbance(obj.result.state.pL,varargin{1}.t);
+
+                
                 obj.model.do(varargin{:}); % update state
                 xh_pre = obj.model.state.get(); % Pre-estimation
                 yh = obj.output_func(xh_pre,obj.output_param); % output estimation
@@ -85,7 +90,7 @@ classdef EKF < handle
                 % if abs(det(C*P_pre*C'+obj.R)) > 1e-10
                 G = (P_pre*C')/(C*P_pre*C'+obj.R); % Kalman gain
                 % end
-                P = (eye(obj.n)-G*C)*P_pre;	% Update covariance
+                P  = (eye(obj.n)-G*C)*P_pre;	% Update covariance
                 z = y-yh;
                 if obj.fEulerAngle
                     z(obj.qIndex) = wrapToPi(z(obj.qIndex));
@@ -103,3 +108,39 @@ classdef EKF < handle
     end
 end
 
+
+% function d = add_chirp_disturbance(pL, t)
+% 
+%     f0 = 0.1;
+%     f1 = 20;
+%     Tchirp = 10;
+% 
+%     d_chirp = 0.01 * chirp(t, f0, Tchirp, f1);
+% 
+%     d = zeros(size(pL));
+%     d(1) = d_chirp;
+%     d(2) = d_chirp;
+% 
+% end
+
+% function d = add_chirp_disturbance(pL,t)
+% g = 9.81;
+% L = 2.0;
+%     % ノッチ中心周波数
+%     fn = sqrt(g/L)/(2*pi);
+% 
+%     % ノッチ周波数付近の外乱
+%     f0 = 0.5*fn;
+%     f1 = 1.5*fn;
+% 
+%     A = 1;       % 外乱振幅 [m]
+%     Tchirp = 20;    % チャープ時間 [s]
+% 
+%     d_chirp = A * chirp(min(t,Tchirp), f0, Tchirp, f1);
+% 
+%     d = zeros(size(pL));
+% 
+%     % X,Y位置に外乱を加える
+%     d(1) = d_chirp;
+%     d(2) = d_chirp;
+% end
