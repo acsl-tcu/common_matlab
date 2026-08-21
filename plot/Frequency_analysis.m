@@ -1,3 +1,7 @@
+%%　説明
+% Exp / Simデータをプロットすることができるファイル
+% 最初は全てのセクションを実行する．
+%settingを変更するだけでmatファイルはそのままで図のみを変更することができる
 %% 初期化&パスの設定
 % ※このセクションは最初に1回だけ実行してください（loggerが消えます）
 clear all
@@ -31,16 +35,17 @@ close all
 settings.phase       = "f";          % 抽出するフライトフェーズ
 settings.fontsize    = 16;           % フォントサイズ
 settings.linewidth   = 1.5;          % 線の太さ
-settings.methods     = ["tfestimate", "spa", "ssest"];   % 比較したい手法
+settings.methods     = ["tfestimate", "spa", "etfe","ssest"];   % 比較したい手法
 settings.position    = ["x","y"];        % 求めたい入出力の組（複数指定可）
 % settings.position    = ["x","y"];
 % settings.position    = ["x","Pitch"];
 % settings.position    = ["Pitch","Roll"];
 % settings.position    = ["z","x","y","yaw","Pitch","Roll"];
-settings.ssest_order = 6;            % ssest使用時のモデル次数
+settings.ssest.order = 6;            % ssest使用時のモデル次数
+settings.fig.methodsPerFig = 3;      % 1つの図に表示する手法の最大数
 
-DT = 0.025;   % サンプリング周期 [s]
-Fs = 1/DT;
+sampling.dt = 0.025;   % サンプリング周期 [s]
+sampling.Fs = 1/sampling.dt;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -51,105 +56,128 @@ Fs = 1/DT;
 % "yaw"   : yaw      -> q(yaw)
 % "Pitch" : pitch    -> q(pitch)   （トルク -> 角度）
 % "Roll"  : roll     -> q(roll)    （トルク -> 角度）
-% --- position 名 -> (入力ch, 出力データ種別, 出力ch) の対応表 ---
 posMap = containers.Map( ...
     {'z', 'x', 'y', 'yaw', 'Pitch', 'Roll'}, ...
     { {1, "pL", 3}, {3, "pL", 1}, {2, "pL", 2}, {4, "q", 3}, {3, "q", 2}, {2, "q", 1} } );
 
 % --- 入出力データの取得（phase指定） ---
-u      = logger.data(1, "controller.result.tmp", "", "phase", settings.phase);
-pL_all = logger.data(1, "estimator.result.state.pL", "e", "phase", settings.phase);
-q_all  = logger.data(1, "estimator.result.state.q",  "e", "phase", settings.phase);
+data.u    = logger.data(1, "controller.result.tmp", "", "phase", settings.phase);
+data.pL   = logger.data(1, "estimator.result.state.pL", "e", "phase", settings.phase);
+data.q    = logger.data(1, "estimator.result.state.q",  "e", "phase", settings.phase);
 
 % --- position ごとに、複数手法を重ねたBode線図を作成 ---
-for p = settings.position
-    p_char = char(p);
+fig.nMethods    = length(settings.methods);
+fig.nGroups     = ceil(fig.nMethods / settings.fig.methodsPerFig);
 
-    if ~isKey(posMap, p_char)
-        warning('未対応の position: %s（スキップします）', p_char);
+for p = settings.position
+    axis.name = char(p);
+
+    if ~isKey(posMap, axis.name)
+        warning('未対応の position: %s（スキップします）', axis.name);
         continue
     end
-    entry = posMap(p_char);
-    ci = entry{1};
-    out_var = entry{2};
-    co = entry{3};
+    entry = posMap(axis.name);
+    axis.ci = entry{1};
+    axis.outVar = entry{2};
+    axis.co = entry{3};
 
-    if out_var == "pL"
-        y_all = pL_all;
+    if axis.outVar == "pL"
+        yAll = data.pL;
     else
-        y_all = q_all;
+        yAll = data.q;
     end
 
-    N = min(size(u,1), size(y_all,1));
-    u_shift = u(1:N-1, ci);
-    y_shift = y_all(2:N, co);
+    shift.N = min(size(data.u,1), size(yAll,1));
+    shift.u = data.u(1:shift.N-1, axis.ci);
+    shift.y = yAll(2:shift.N, axis.co);
 
-    figure('Color','w', 'Position', [100 100 900 600]);
-    t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
-    title(t, sprintf('%s (in ch=%d \\rightarrow %s ch=%d), u(n) \\rightarrow y(n+1), phase=%s', ...
-        p_char, ci, out_var, co, settings.phase), 'FontSize', settings.fontsize+2);
+    % --- methodsをグループごとに分割して、グループごとに別figureにする ---
+    for g = 1:fig.nGroups
+        fig.idxStart = (g-1)*settings.fig.methodsPerFig + 1;
+        fig.idxEnd   = min(g*settings.fig.methodsPerFig, fig.nMethods);
+        fig.methodsGroup = settings.methods(fig.idxStart:fig.idxEnd);
 
-    ...
+        figure('Color','w', 'Position', [100 100 900 600]);
+        t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
+        title(t, sprintf('%s (in ch=%d \\rightarrow %s ch=%d), u(n) \\rightarrow y(n+1), phase=%s [%d/%d]', ...
+            axis.name, axis.ci, axis.outVar, axis.co, settings.phase, g, fig.nGroups), 'FontSize', settings.fontsize+2);
 
-    ax_gain  = nexttile; hold(ax_gain, 'on'); grid(ax_gain, 'on'); box(ax_gain, 'on');
-    ax_phase = nexttile; hold(ax_phase, 'on'); grid(ax_phase, 'on'); box(ax_phase, 'on');
+        ax.gain  = nexttile; hold(ax.gain, 'on'); grid(ax.gain, 'on'); box(ax.gain, 'on');
+        ax.phase = nexttile; hold(ax.phase, 'on'); grid(ax.phase, 'on'); box(ax.phase, 'on');
 
-    for m = settings.methods
-        switch m
-            case "tfestimate"
-                [h, f] = tfestimate(u_shift, y_shift, [], [], [], Fs);
-                omega = 2*pi*f;
-                mag_db = 20*log10(abs(h));
-                ph_deg = angle(h)*180/pi;
-
-            case "etfe"
-                data_id = iddata(y_shift, u_shift, DT);
-                g = etfe(data_id);
-                [mag, ph, w] = bode(g);
-                omega = squeeze(w);
-                mag_db = 20*log10(squeeze(mag));
-                ph_deg = squeeze(ph);
-
-            case "spa"
-                data_id = iddata(y_shift, u_shift, DT);
-                g = spa(data_id);
-                [mag, ph, w] = bode(g);
-                omega = squeeze(w);
-                mag_db = 20*log10(squeeze(mag));
-                ph_deg = squeeze(ph);
-
-            case "ssest"
-                data_id = iddata(y_shift, u_shift, DT);
-                opt = ssestOptions('EnforceStability', true);
-                sys = ssest(data_id, settings.ssest_order, opt);
-                [mag, ph, w] = bode(sys, {0.1, 200});
-                omega = squeeze(w);
-                mag_db = 20*log10(squeeze(mag));
-                ph_deg = squeeze(ph);
-
-            case "tfest"
-                data_id = iddata(y_shift, u_shift, DT);
-                sys = tfest(data_id, 2, 2);
-                [mag, ph, w] = bode(sys, {0.1, 200});
-                omega = squeeze(w);
-                mag_db = 20*log10(squeeze(mag));
-                ph_deg = squeeze(ph);
-
-            otherwise
+        for m = fig.methodsGroup
+            result = estimate_frequency_response(m, shift.u, shift.y, sampling.dt, sampling.Fs, settings.ssest.order);
+            if ~result.ok
                 warning('未対応の手法: %s（スキップします）', m);
                 continue
+            end
+
+            semilogx(ax.gain, result.omega, result.mag_db, 'LineWidth', settings.linewidth, 'DisplayName', m);
+            semilogx(ax.phase, result.omega, result.ph_deg, 'LineWidth', settings.linewidth, 'DisplayName', m);
         end
 
-        % 各線に DisplayName を直接付与し、legend('show') で自動収集する
-        semilogx(ax_gain, omega, mag_db, 'LineWidth', settings.linewidth, 'DisplayName', m);
-        semilogx(ax_phase, omega, ph_deg, 'LineWidth', settings.linewidth, 'DisplayName', m);
+        ylabel(ax.gain, 'Gain [dB]', 'FontSize', settings.fontsize);
+        set(ax.gain, 'FontSize', settings.fontsize);
+        legend(ax.gain, 'show', 'FontSize', settings.fontsize-4, 'Location', 'best');
+
+        ylabel(ax.phase, 'Phase [deg]', 'FontSize', settings.fontsize);
+        xlabel(ax.phase, '\omega [rad/s]', 'FontSize', settings.fontsize);
+        set(ax.phase, 'FontSize', settings.fontsize);
     end
+end
 
-    ylabel(ax_gain, 'Gain [dB]', 'FontSize', settings.fontsize);
-    set(ax_gain, 'FontSize', settings.fontsize);
-    legend(ax_gain, 'show', 'FontSize', settings.fontsize-4, 'Location', 'best');
+%% ===== Local function：手法ごとの周波数応答推定 =====
+function result = estimate_frequency_response(method, uShift, yShift, dt, Fs, ssestOrder)
+% method に応じて周波数応答（ゲイン・位相）を計算する
+% result.ok = false のとき、未対応の手法として呼び出し側でスキップされる
 
-    ylabel(ax_phase, 'Phase [deg]', 'FontSize', settings.fontsize);
-    xlabel(ax_phase, '\omega [rad/s]', 'FontSize', settings.fontsize);
-    set(ax_phase, 'FontSize', settings.fontsize);
+result.ok = true;
+result.omega = [];
+result.mag_db = [];
+result.ph_deg = [];
+
+switch method
+    case "tfestimate"
+        [h, f] = tfestimate(uShift, yShift, [], [], [], Fs);
+        result.omega = 2*pi*f;
+        result.mag_db = 20*log10(abs(h));
+        result.ph_deg = angle(h)*180/pi;
+
+    case "etfe"
+        dataId = iddata(yShift, uShift, dt);
+        gSys = etfe(dataId);
+        [mag, ph, w] = bode(gSys);
+        result.omega = squeeze(w);
+        result.mag_db = 20*log10(squeeze(mag));
+        result.ph_deg = squeeze(ph);
+
+    case "spa"
+        dataId = iddata(yShift, uShift, dt);
+        gSys = spa(dataId);
+        [mag, ph, w] = bode(gSys);
+        result.omega = squeeze(w);
+        result.mag_db = 20*log10(squeeze(mag));
+        result.ph_deg = squeeze(ph);
+
+    case "ssest"
+        dataId = iddata(yShift, uShift, dt);
+        opt = ssestOptions('EnforceStability', true);
+        sys = ssest(dataId, ssestOrder, opt);
+        [mag, ph, w] = bode(sys, {0.1, 200});
+        result.omega = squeeze(w);
+        result.mag_db = 20*log10(squeeze(mag));
+        result.ph_deg = squeeze(ph);
+
+    case "tfest"
+        dataId = iddata(yShift, uShift, dt);
+        sys = tfest(dataId, 2, 2);
+        [mag, ph, w] = bode(sys, {0.1, 200});
+        result.omega = squeeze(w);
+        result.mag_db = 20*log10(squeeze(mag));
+        result.ph_deg = squeeze(ph);
+
+    otherwise
+        result.ok = false;
+end
+
 end
