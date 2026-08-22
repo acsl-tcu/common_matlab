@@ -44,6 +44,14 @@ settings.position    = ["x"];        % 求めたい入出力の組（複数指�
 settings.ssest.order = 6;            % ssest使用時のモデル次数
 settings.fig.methodsPerFig = 3;      % 1つの図に表示する手法の最大数
 
+%使用可能なsettig.method 一覧
+% ノンパラメトリック（周波数領域）	tfestimate, etfe, spa, spafdr
+% 相関・インパルス応答系	cra, impulseest
+% プロセスモデル	procest
+% 入出力多項式モデル	arx, armax, bj, iv4, ivx, oe, polyest, pem
+% 状態空間モデル	ssest, ssregest, n4sid
+% 伝達関数モデル	tfest
+
 sampling.dt = 0.025;   % サンプリング周期 [s]
 sampling.Fs = 1/sampling.dt;
 
