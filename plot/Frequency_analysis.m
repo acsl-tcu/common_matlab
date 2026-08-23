@@ -35,23 +35,33 @@ close all
 settings.phase       = "f";          % 抽出するフライトフェーズ
 settings.fontsize    = 16;           % フォントサイズ
 settings.linewidth   = 1.5;          % 線の太さ
-settings.methods     = ["tfestimate", "spa", "etfe","ssest"];   % 比較したい手法
+settings.methods     = ["tfest"];   % 比較したい手法
 settings.position    = ["x"];        % 求めたい入出力の組（複数指定可）
 % settings.position    = ["x","y"];
 % settings.position    = ["x","Pitch"];
 % settings.position    = ["Pitch","Roll"];
 % settings.position    = ["z","x","y","yaw","Pitch","Roll"];
 settings.ssest.order = 6;            % ssest使用時のモデル次数
-settings.fig.methodsPerFig = 3;      % 1つの図に表示する手法の最大数
+settings.fig.methodsPerFig = 4;      % 1つの図に表示する手法の最大数
 
 %使用可能なsettig.method 一覧
-% ノンパラメトリック（周波数領域）	tfestimate, etfe, spa, spafdr
-% 相関・インパルス応答系	cra, impulseest
-% プロセスモデル	procest
-% 入出力多項式モデル	arx, armax, bj, iv4, ivx, oe, polyest, pem
-% 状態空間モデル	ssest, ssregest, n4sid
-% 伝達関数モデル	tfest
+%tfestimate
+% ノンパラメトリック（周波数領域）	 "etfe", "spa", "spafdr"
+% 相関・インパルス応答系	"cra", "impulseest"
+% プロセスモデル	"procest"
+% 入出力多項式モデル	"arx", "armax", "bj", "iv4", "ivx", "oe", "polyest", "pem"
+% 状態空間モデル	"ssest", "ssregest", "n4sid"
+% 伝達関数モデル	"tfest"
 
+% 使用不可（未実装／構造的に不可）settings.method 一覧
+% ノンパラメトリック（周波数領域）	"idfrd" :伝達関数の構造を使用者が知っていて使う型（同定関数ではない）
+% 相関・インパルス応答系	"era" :	インパルス応答データが必要で、iddataから直接求められない
+% 入出力多項式モデル	"ivx",
+% 状態空間モデル	"idss" :A,B,C,D行列を数値で指定するコンストラクタが必要
+% 伝達関数モデル	"idtf" :伝達関数の項数（構造）が必要でy/uだけからは求まらない
+% スペクトル推定	"spectrumest" : 	出力y単体のパワースペクトル推定（u→yの関係を求めない）
+% グレーボックスモデル	"greyest", "nlgreyest" :物理構造（idgreyオブジェクト）を事前定義する必要あり,非線形状態方程式を事前定義する必要あり
+ 
 sampling.dt = 0.025;   % サンプリング周期 [s]
 sampling.Fs = 1/sampling.dt;
 
@@ -165,7 +175,12 @@ for p = settings.position
     end
 end
 
-%% ===== Local function：手法ごとの周波数応答推定 =====
+%% ===== Local function：手法ごとの周波数応答推定 ===== https://jp.mathworks.com/help/ident/gs/system-identification-workflow.html
+function result = estimate_frequency_response(method, uShift, yShift, dt, Fs, ssestOrder, count)
+result.ok = true;       
+result.omega = [];
+result.mag.db = [];
+result.ph.deg = [];
 switch method
     case "tfestimate" %
         [h, f] = tfestimate(uShift, yShift, [], [], [], Fs); % uShiftとyShiftから伝達関数推定値hと周波数ベクトルfを計算
@@ -185,7 +200,7 @@ switch method
 
     case "spa" %
         dataId = iddata(yShift, uShift, dt); % u,yとdtからiddataオブジェクトを作成
-        gSys = spa(dataId,1451);% spaで周波数応答モデルgSysを推定
+        gSys = spa(dataId);% spaで周波数応答モデルgSysを推定
         [mag, ph, w] = bode(gSys); % gSysからゲイン・位相・周波数を計算
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -290,13 +305,14 @@ switch method
         result.mag.db = 20*log10(squeeze(mag));
         result.ph.deg = squeeze(ph);
 
-    case "ivx" % https://jp.mathworks.com/help/ident/ref/ivx.html
-        dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
-        gSys = ivx(dataId);% ivxで（次数指定なしで）モデルgSysを推定
-        [mag, ph, w] = bode(gSys);
-        result.omega = squeeze(w);
-        result.mag.db = 20*log10(squeeze(mag));
-        result.ph.deg = squeeze(ph);
+        case "ivx" % https://jp.mathworks.com/help/ident/ref/ivx.html
+            %引数が足りないので使用不可
+        % dataId = iddata(yShift, uShift, dt);
+        % gSys = ivx(dataId, [2 2 1]); % ivxに次数[na nb nk]=[2 2 1]を指定してモデルgSysを推定
+        % [mag, ph, w] = bode(gSys, {0.1, 200});
+        % result.omega = squeeze(w);
+        % result.mag.db = 20*log10(squeeze(mag));
+        % result.ph.deg = squeeze(ph);
 
     case "oe" % https://jp.mathworks.com/help/ident/ref/oe.html
         dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
@@ -387,4 +403,5 @@ switch method
         % どのcaseにも一致しない場合、result.okをfalseにして
         % 呼び出し元で「未対応の手法」として警告・スキップさせる
         result.ok = false;
+end
 end
