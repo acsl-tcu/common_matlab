@@ -22,6 +22,9 @@ classdef EKF < handle
         timer= [];
         fEulerAngle = false;
         qIndex = [] %fEulerAngle=true の時だけ使用
+        % cha='s';
+        % noize=0;
+        % t=[];
     end
 
     methods
@@ -73,10 +76,37 @@ classdef EKF < handle
                     y = y.y;
                 end
                 x = obj.result.state.get(); % estimated state at previous step
-
-
-                % obj.result.state.pL=obj.result.state.pL+add_chirp_disturbance(obj.result.state.pL,varargin{1}.t);
-
+                % obj.cha = varargin{2};
+                % 
+                % if obj.cha=="f"
+                %     % chirp ノイズ
+                %     %基本設定
+                %     noize=1;
+                %     disp(noize)
+                % 
+                %     if isempty(obj.t)    %flightからreferenceの時間を開始
+                %         obj.t=varargin{1}.t; % 目標重心位置（絶対座標）
+                %     end
+                %     t_now = varargin{1}.t-obj.t;       %flight開始時の時刻から開始
+                %     obj.result.ftime=t_now;
+                %     t_end=varargin{1}.te;
+                % 
+                %     %pitch,roll 統一
+                %     u=1e-1*chirp(t_now, 0, t_end, 1, [], -90 );
+                %     % u=1e-1 * sin(2*pi*0.2*t_now);
+                %     % u=5e-3 * (sin(2*pi*0.25*t_now)+t_now)+-5e-2;
+                %     obj.result.chirp=u;
+                %     obj.result.state.pL(1)=obj.result.state.pL(1)+u;
+                % 
+                % 
+                %     %pitch,roll 別々
+                %     % u_pitch=1e-1*chirp(t_now, 0, t_end*2, 5, [], -90 );
+                %     % u_roll=1e-1*chirp(t_now, 0, t_end*2, 5);
+                %     % obj.result.chirp_pitch=u_pitch;
+                %     % obj.result.chirp_roll=u_roll;
+                %     % us(1) = us(1)+u_pitch;
+                %     % us(2) = us(2)+u_roll;
+                % end
                 
                 obj.model.do(varargin{:}); % update state
                 xh_pre = obj.model.state.get(); % Pre-estimation
@@ -107,40 +137,3 @@ classdef EKF < handle
         end
     end
 end
-
-
-% function d = add_chirp_disturbance(pL, t)
-% 
-%     f0 = 0.1;
-%     f1 = 20;
-%     Tchirp = 10;
-% 
-%     d_chirp = 0.01 * chirp(t, f0, Tchirp, f1);
-% 
-%     d = zeros(size(pL));
-%     d(1) = d_chirp;
-%     d(2) = d_chirp;
-% 
-% end
-
-% function d = add_chirp_disturbance(pL,t)
-% g = 9.81;
-% L = 2.0;
-%     % ノッチ中心周波数
-%     fn = sqrt(g/L)/(2*pi);
-% 
-%     % ノッチ周波数付近の外乱
-%     f0 = 0.5*fn;
-%     f1 = 1.5*fn;
-% 
-%     A = 1;       % 外乱振幅 [m]
-%     Tchirp = 20;    % チャープ時間 [s]
-% 
-%     d_chirp = A * chirp(min(t,Tchirp), f0, Tchirp, f1);
-% 
-%     d = zeros(size(pL));
-% 
-%     % X,Y位置に外乱を加える
-%     d(1) = d_chirp;
-%     d(2) = d_chirp;
-% end
