@@ -36,32 +36,35 @@ settings.phase       = "f";          % 抽出するフライトフェーズ
 settings.fontsize    = 16;           % フォントサイズ
 settings.linewidth   = 1.5;          % 線の太さ
 settings.methods     = ["tfest"];   % 比較したい手法
-settings.position    = ["x"];        % 求めたい入出力の組（複数指定可）
+settings.position    = ["theta"];        % 求めたい入出力の組（複数指定可）
 % settings.position    = ["x","y"];
 % settings.position    = ["x","Pitch"];
 % settings.position    = ["Pitch","Roll"];
 % settings.position    = ["z","x","y","yaw","Pitch","Roll"];
+% settings.position    = ["pTx","pTy","pTz"];
+% settings.position    = ["theta"];
 settings.ssest.order = 6;            % ssest使用時のモデル次数
 settings.fig.methodsPerFig = 4;      % 1つの図に表示する手法の最大数
 
-%使用可能なsettig.method 一覧
-%tfestimate
-% ノンパラメトリック（周波数領域）	 "etfe", "spa", "spafdr"
+% 使用可能な settings.method 一覧
+% "tfestimate"
+% ノンパラメトリック（周波数領域）	"etfe", "spa", "spafdr"
 % 相関・インパルス応答系	"cra", "impulseest"
 % プロセスモデル	"procest"
-% 入出力多項式モデル	"arx", "armax", "bj", "iv4", "ivx", "oe", "polyest", "pem"
+% 入出力多項式モデル	"arx", "armax", "bj", "iv4", "oe", "polyest", "pem"
 % 状態空間モデル	"ssest", "ssregest", "n4sid"
 % 伝達関数モデル	"tfest"
 
 % 使用不可（未実装／構造的に不可）settings.method 一覧
 % ノンパラメトリック（周波数領域）	"idfrd" :伝達関数の構造を使用者が知っていて使う型（同定関数ではない）
 % 相関・インパルス応答系	"era" :	インパルス応答データが必要で、iddataから直接求められない
-% 入出力多項式モデル	"ivx",
+% 入出力多項式モデル	"ivx":引数が足りないので使用不可
 % 状態空間モデル	"idss" :A,B,C,D行列を数値で指定するコンストラクタが必要
 % 伝達関数モデル	"idtf" :伝達関数の項数（構造）が必要でy/uだけからは求まらない
 % スペクトル推定	"spectrumest" : 	出力y単体のパワースペクトル推定（u→yの関係を求めない）
 % グレーボックスモデル	"greyest", "nlgreyest" :物理構造（idgreyオブジェクト）を事前定義する必要あり,非線形状態方程式を事前定義する必要あり
- 
+
+
 sampling.dt = 0.025;   % サンプリング周期 [s]
 sampling.Fs = 1/sampling.dt;
 
@@ -98,21 +101,35 @@ fprintf('=========================\n\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% --- position 名 -> (入力ch, 出力データ種別, 出力ch) の対応表 ---
+% --- position 名 -> (入力ch, 出力データ種別, 出力ch, 入力ラベル, 出力ラベル) の対応表 ---
 % "z"     : throttle -> pL(z)
 % "x"     : pitch    -> pL(x)
 % "y"     : roll     -> pL(y)
 % "yaw"   : yaw      -> q(yaw)
 % "Pitch" : pitch    -> q(pitch)   （トルク -> 角度）
 % "Roll"  : roll     -> q(roll)    （トルク -> 角度）
+% "pTx"   : pitch    -> pT(Θx)     （牽引物角度）
+% "pTy"   : roll     -> pT(Θy)     （牽引物角度）
+% "pTz"   : throttle -> pT(Θz)     （牽引物角度）
+% "theta" : pitch    -> atan2(pTx, -pTz)  （牽引物の振れ角、計算値）
 posMap = containers.Map( ...
-    {'z', 'x', 'y', 'yaw', 'Pitch', 'Roll'}, ...
-    { {1, "pL", 3}, {3, "pL", 1}, {2, "pL", 2}, {4, "q", 3}, {3, "q", 2}, {2, "q", 1} } );
+    {'z', 'x', 'y', 'yaw', 'Pitch', 'Roll', 'pTx', 'pTy', 'pTz', 'theta'}, ...
+    { {1, "pL", 3, "throttle", "z"}, ...
+    {3, "pL", 1, "pitch",    "x"}, ...
+    {2, "pL", 2, "roll",     "y"}, ...
+    {4, "q",  3, "yaw",      "yaw"}, ...
+    {3, "q",  2, "pitch",    "Pitch"}, ...
+    {2, "q",  1, "roll",     "Roll"}, ...
+    {3, "pT", 1, "pitch",    "pTx"}, ...
+    {2, "pT", 2, "roll",     "pTy"}, ...
+    {1, "pT", 3, "throttle", "pTz"}, ...
+    {3, "pT", "theta", "pitch", "theta"} } );
 
 % --- 入出力データの取得（phase指定） ---
 data.u    = logger.data(1, "controller.result.tmp", "", "phase", settings.phase);
 data.pL   = logger.data(1, "estimator.result.state.pL", "e", "phase", settings.phase);
 data.q    = logger.data(1, "estimator.result.state.q",  "e", "phase", settings.phase);
+data.pT   = logger.data(1, "estimator.result.state.pT", "e", "phase", settings.phase);  % 牽引物角度(Θx,Θy,Θz)
 
 % --- position ごとに、複数手法を重ねたBode線図を作成 ---
 fig.nMethods    = length(settings.methods);
@@ -129,16 +146,62 @@ for p = settings.position
     axis.ci = entry{1};
     axis.outVar = entry{2};
     axis.co = entry{3};
+    axis.inLabel  = entry{4};   % 入力の名前
+    axis.outLabel = entry{5};   % 出力の名前
 
     if axis.outVar == "pL"
         yAll = data.pL;
-    else
+    elseif axis.outVar == "q"
         yAll = data.q;
+    else % "pT"
+        yAll = data.pT;
     end
 
     shift.N = min(size(data.u-1,1), size(yAll,1));
     shift.u = data.u(2:shift.N-1, axis.ci); %startのから回しのfを除外
-    shift.y = yAll(3:shift.N, axis.co); %startのから回しのfを除外しf phse の入力の次時刻から使用
+
+    if isequal(axis.co, "theta")
+        % --- 計算値：θ = atan2(pT_x, -pT_z) ---
+        pTx_all = yAll(:, 2);   % pT の Θx 列
+        pTz_all = yAll(:, 3);   % pT の Θz 列
+        thetaAll = atan2(pTx_all, -pTz_all);
+        shift.y = thetaAll(3:shift.N); %startのから回しのfを除外しf phse の入力の次時刻から使用
+    else
+        shift.y = yAll(3:shift.N, axis.co); %startのから回しのfを除外しf phse の入力の次時刻から使用
+    end
+
+    % ===== FFTプロット：このpositionで使うu, yチャンネルのみ =====
+    fftTargets = struct( ...
+        'name',   {axis.inLabel, axis.outLabel}, ...
+        'data',   {shift.u,      shift.y} );
+
+    figure('Color','w', 'Position', [100 100 900 600]);
+    t = tiledlayout(2, 1, 'TileSpacing','compact', 'Padding','compact');
+    title(t, sprintf('FFT: %s \\rightarrow %s (phase=%s)', ...
+        axis.inLabel, axis.outLabel, settings.phase), 'FontSize', settings.fontsize+2);
+
+    for k = 1:numel(fftTargets)
+        x = fftTargets(k).data;
+        x = x - mean(x);
+        N = length(x);
+
+        X = fft(x);
+        f = (0:N-1) * (sampling.Fs / N);
+
+        halfN = floor(N/2) + 1;
+        ampSpectrum = abs(X(1:halfN)) / N;
+        ampSpectrum(2:end-1) = 2 * ampSpectrum(2:end-1);
+
+        axFFT = nexttile;
+        plot(axFFT, f(1:halfN), ampSpectrum, 'LineWidth', settings.linewidth);
+        grid(axFFT, 'on'); box(axFFT, 'on');
+        ylabel(axFFT, fftTargets(k).name, 'FontSize', settings.fontsize);
+        set(axFFT, 'FontSize', settings.fontsize);
+
+        if k == numel(fftTargets)
+            xlabel(axFFT, 'Frequency [Hz]', 'FontSize', settings.fontsize);
+        end
+    end
 
     % --- methodsをグループごとに分割して、グループごとに別figureにする ---
     for g = 1:fig.nGroups
@@ -148,14 +211,14 @@ for p = settings.position
 
         figure('Color','w', 'Position', [100 100 900 600]);
         t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
-        title(t, sprintf('%s (in ch=%d \\rightarrow %s ch=%d), u(n) \\rightarrow y(n+1), phase=%s [%d/%d]', ...
-            axis.name, axis.ci, axis.outVar, axis.co, settings.phase, g, fig.nGroups), 'FontSize', settings.fontsize+2);
+        title(t, sprintf('%s \\rightarrow %s, u(n) \\rightarrow y(n+1), phase=%s [%d/%d]', ...
+            axis.inLabel, axis.outLabel, settings.phase, g, fig.nGroups), 'FontSize', settings.fontsize+2);
 
         ax.gain  = nexttile; hold(ax.gain, 'on'); grid(ax.gain, 'on'); box(ax.gain, 'on');
         ax.phase = nexttile; hold(ax.phase, 'on'); grid(ax.phase, 'on'); box(ax.phase, 'on');
 
         for m = fig.methodsGroup
-            result = estimate_frequency_response(m, shift.u, shift.y, sampling.dt, sampling.Fs, settings.ssest.order,count);
+            result = estimate_frequency_response(m, shift.u, shift.y, sampling.dt, sampling.Fs, settings.ssest.order, count);
             if ~result.ok
                 warning('未対応の手法: %s（スキップします）', m);
                 continue
@@ -175,15 +238,38 @@ for p = settings.position
     end
 end
 
-%% ===== Local function：手法ごとの周波数応答推定 ===== https://jp.mathworks.com/help/ident/gs/system-identification-workflow.html
+%% ===== θ (振れ角) のプロット =====
+% theta = atan2(pT_x, -pT_z) を計算し、時間軸に対してプロットする
+
+pTx_all = data.pT(:, 2);   % pT の Θx 列
+pTz_all = data.pT(:, 3);   % pT の Θz 列
+thetaAll = atan2(pTx_all, -pTz_all);   % [rad]
+thetaAll_deg = thetaAll * 180/pi;      % [deg]（見やすさのため度に変換）
+
+timeAxis = (0:length(thetaAll)-1) * sampling.dt;   % 時間軸 [s]
+
+figure('Color','w', 'Position', [100 100 900 400]);
+plot(timeAxis, thetaAll_deg, 'LineWidth', settings.linewidth);
+grid on; box on;
+xlabel('Time [s]', 'FontSize', settings.fontsize);
+ylabel('\theta = atan2(pT_x, -pT_z) [deg]', 'FontSize', settings.fontsize);
+title('牽引物の振れ角 \theta', 'FontSize', settings.fontsize+2);
+set(gca, 'FontSize', settings.fontsize);
+
+%% ===== Local function：手法ごとの周波数応答推定 =====
 function result = estimate_frequency_response(method, uShift, yShift, dt, Fs, ssestOrder, count)
-result.ok = true;       
+% method に応じて周波数応答（ゲイン・位相）を計算する
+% result.ok = false のとき、未対応の手法として呼び出し側でスキップされる
+
+result.ok = true;
 result.omega = [];
 result.mag.db = [];
 result.ph.deg = [];
+
 switch method
     case "tfestimate" %
-        [h, f] = tfestimate(uShift, yShift, [], [], [], Fs); % uShiftとyShiftから伝達関数推定値hと周波数ベクトルfを計算
+        segmentLength = round(length(uShift)/8);  % 8分割程度
+        [h, f] = tfestimate(uShift, yShift, segmentLength, [], [], Fs);% uShiftとyShiftから伝達関数推定値hと周波数ベクトルfを計算
         result.omega = 2*pi*f; % 周波数を[rad/s]に変換してresultに格納
         result.mag.db = 20*log10(abs(h)); % 振幅hの絶対値を[dB]に変換して格納
         result.ph.deg = angle(h)*180/pi; % hの位相角を[deg]に変換して格納
@@ -200,29 +286,11 @@ switch method
 
     case "spa" %
         dataId = iddata(yShift, uShift, dt); % u,yとdtからiddataオブジェクトを作成
-        gSys = spa(dataId);% spaで周波数応答モデルgSysを推定
+        gSys = spa(dataId,5);% spaで周波数応答モデルgSysを推定
         [mag, ph, w] = bode(gSys); % gSysからゲイン・位相・周波数を計算
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
         result.ph.deg = squeeze(ph);
-        % 手動
-        % % FFT によるクロススペクトル推定
-        % % 以下、上のspa()とは別に、u,yをFFTして
-        % % クロススペクトル/自己スペクトルの比から周波数応答を計算する処理
-        % % （countが未定義のためこのままでは実行時エラーになる／未使用のデッドコード）
-        % U = fft(uShift, count);
-        % Y = fft(yShift, count);
-        % Gxy = Y .* conj(U) / length(uShift);  % クロススペクトル
-        % Gxx = U .* conj(U) / length(uShift);  % 入力自己スペクトル
-        % % 周波数応答（複素数）
-        % H = Gxy ./ Gxx;
-        % % 周波数軸（0〜Fs/2）
-        % f = (0:(count/2)) * (Fs / count);
-        % % 出力構造体に格納
-        % % ※直前のspa()の結果を上書きしてしまう
-        % result.omega   = 2*pi*f;                       % rad/s
-        % result.mag.db  = 20*log10(abs(H(1:length(f)))); % dB
-        % result.ph.deg  = rad2deg(angle(H(1:length(f))));% degrees
 
     case "spafdr" %
         %y(t)=G(q)u(t)+v(t)
@@ -241,12 +309,11 @@ switch method
     case "cra" %  https://jp.mathworks.com/help/ident/ref/cra.html
         dataId = iddata(yShift, uShift, dt);% u,yとdtからiddataオブジェクトを作成
         ir = cra(dataId, [], [], 'none'); %craで相互相関からインパルス応答係数irを推定 第4引数'none'でプロット表示を抑制（irのみ取得）
-        % irは時間領域の波形データ（数式モデルではない）なので、 FFTで周波数領域に変換してゲイン・位相を求める     
         N = length(ir);
         H = fft(ir);
-        f = (0:floor(N/2)) * (Fs / N);       
+        f = (0:floor(N/2)) * (Fs / N);
         result.omega = 2*pi*f;
-        result.mag.db = 20*log10(abs(H(1:length(f))));      
+        result.mag.db = 20*log10(abs(H(1:length(f))));
         result.ph.deg = angle(H(1:length(f)))*180/pi;
 
     case"impulseest" % https://jp.mathworks.com/help/ident/ref/impulseest.html
@@ -273,9 +340,8 @@ switch method
 
         % 入出力多項式モデル https://jp.mathworks.com/help/ident/input-output-polynomial-models.html
     case "arx" % https://jp.mathworks.com/help/ident/ref/arx.html
-
         dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
-        sys = arx(dataId, [2 2 1]);% arxに次数[na nb nk]=[2 2 1]を指定してsysを推定
+        sys = arx(dataId, [6 6 1]);% arxに次数[na nb nk]=[6 6 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});      % ゲイン・位相・周波数を計算
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -283,7 +349,7 @@ switch method
 
     case "armax" % https://jp.mathworks.com/help/ident/ref/armax.html
         dataId = iddata(yShift, uShift, dt); % iddataオブジェクトを作成
-        sys = armax(dataId, [2 2 2 1]); % armaxに次数[na nb nc nk]=[2 2 2 1]を指定してsysを推定
+        sys = armax(dataId,[6 6 2 1]); % armaxに次数[na nb nc nk]=[6 6 2 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -291,7 +357,7 @@ switch method
 
     case "bj" % https://jp.mathworks.com/help/ident/ref/bj.html
         dataId = iddata(yShift, uShift, dt); % iddataオブジェクトを作成
-        sys = bj(dataId, [2 2 2 2 1]);% bjに次数[nb nc nd nf nk]=[2 2 2 2 1]を指定してsysを推定
+        sys = bj(dataId, [6 2 2 6 1]);% bjに次数[nb nc nd nf nk]=[6 2 2 6 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -299,24 +365,19 @@ switch method
 
     case "iv4" % https://jp.mathworks.com/help/ident/ref/iv4.html
         dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
-        sys = iv4(dataId, [2 2 1]);% iv4に次数[na nb nk]=[2 2 1]を指定してsysを推定
+        sys = iv4(dataId, [6 6 1]);% iv4に次数[na nb nk]=[6 6 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
         result.ph.deg = squeeze(ph);
 
-        case "ivx" % https://jp.mathworks.com/help/ident/ref/ivx.html
-            %引数が足りないので使用不可
-        % dataId = iddata(yShift, uShift, dt);
-        % gSys = ivx(dataId, [2 2 1]); % ivxに次数[na nb nk]=[2 2 1]を指定してモデルgSysを推定
-        % [mag, ph, w] = bode(gSys, {0.1, 200});
-        % result.omega = squeeze(w);
-        % result.mag.db = 20*log10(squeeze(mag));
-        % result.ph.deg = squeeze(ph);
+    case "ivx" % https://jp.mathworks.com/help/ident/ref/ivx.html
+        % 引数仕様要確認のため一時的に無効化（"入力引数が不足しています"エラーが解消するまで）
+        % doc ivx で正しい呼び出し形式を確認してから実装してください
 
     case "oe" % https://jp.mathworks.com/help/ident/ref/oe.html
         dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
-        sys = oe(dataId, [2 2 1]);% oeに次数[nb nf nk]=[2 2 1]を指定してsysを推定
+        sys = oe(dataId, [6 6 1]);% oeに次数[nb nf nk]=[6 6 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -324,7 +385,7 @@ switch method
 
     case "polyest" % https://jp.mathworks.com/help/ident/ref/polyest.html
         dataId = iddata(yShift, uShift, dt);% iddataオブジェクトを作成
-        sys = polyest(dataId, [2 2 2 2 2 1]);% polyestに次数[na nb nc nd nf nk]=[2 2 2 2 2 1]を指定してsysを推定
+        sys = polyest(dataId, [6 6 2 0 0 1]);% polyestに次数[na nb nc nd nf nk]=[6 6 2 0 0 1]を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -376,7 +437,9 @@ switch method
 
     case "tfest" % https://jp.mathworks.com/help/ident/ref/tfest.html
         dataId = iddata(yShift, uShift, dt);  % iddataオブジェクトを作成
-        sys = tfest(dataId, 2, 2);  % tfestに分子2次・分母2次を指定してsysを推定
+        dataId = detrend(dataId, 0);
+        sys = tfest(dataId, 4, 1);  % tfestに極4個・零点1個を指定してsysを推定
+        % sys = tfest(dataId, 6, 1);  % tfestに極4個・零点1個を指定してsysを推定
         [mag, ph, w] = bode(sys, {0.1, 200});
         result.omega = squeeze(w);
         result.mag.db = 20*log10(squeeze(mag));
@@ -404,4 +467,5 @@ switch method
         % 呼び出し元で「未対応の手法」として警告・スキップさせる
         result.ok = false;
 end
+
 end
