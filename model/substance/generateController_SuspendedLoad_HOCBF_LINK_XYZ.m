@@ -190,21 +190,17 @@ clc
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
 %% =========================================================================
-%% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
+%% 【Non-cascaded ECBF】推力 u1 と トルク [u2, u3, u4] を同時決定する HOCBF 導出
 %% =========================================================================
-disp("Start: f_z による HOCBF の導出を開始します。");
+disp("Start: 4入力同時最適化 (Non-cascaded ECBF) の導出を開始します。");
 
-% 1. 全ダイナミクス FG_xy の定義
-FG_z = simplify(f + g * [u1; u2; u3; u4]);
+% 1. ダイナミクスの定義 (状態 x, 入力 u = [u1; u2; u3; u4])
+syms u1 u2 u3 u4 real
+u = [u1; u2; u3; u4];
 
-% 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
-%    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
-f_z = subs(FG_z, [u1, u2, u3, u4], [0, 0, 0, 0]);
-
-% 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
-g_z  = simplify(MyCoeff(FG_z, [u1; u2; u3; u4]));
-g1_z  = g_z(:, 1);
-g1_yaw  = g_z(:, 4);
+% モデル入力行列 g (FLxyDst, GLxyDst) の列分割
+g1     = g(:, 1);     % 推力 u1 に対する列 (19x1)
+g_tau  = g(:, 2:4);   % トルク [u2; u3; u4] に対する列 (19x3)
 
 % 3. 障害物安全関数の定義 (ロープ中心 p_mid)
 syms xo yo zo ro real
@@ -212,217 +208,466 @@ syms rl real
 L_cable = physicalParam(7);
 p_mid = pl - 0.5 * L_cable * pT;
 
-h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
-cbf1 = h_cbf_xy;
-
-% 4. クラスK関数のゲイン
-syms gamma1 gamma2 real
-
-% 5. f_xy を用いた Lie 微分の計算（相対次数 4）
-% ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
-cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
-
-% 最上階での展開（u2, u3 が現れる階層）
-L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
-L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 2] 行列
-L_gy_cbf2 = LieD(cbf2, g1_yaw, x); % スカラー
-
-% A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
-A_cbf_sym = -L_g_cbf2;
-b_cbf_sym =  L_f_cbf2 + L_gy_cbf2 * u4 + gamma2 * cbf2;
-
-% 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
-A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
-b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
-
-% 🌟 各階層の関数（h1, h2, h3, h4）を代入用に置換処理
-h1_subs = subs(cbf1, [xdReff, vInput1f], [XDf, V1vf]);
-h2_subs = subs(cbf2, [xdReff, vInput1f], [XDf, V1vf]);
-
-% 7. Mファイルとしてエクスポート
-gamma_params = [gamma1; gamma2];
-obs_params   = [xo; yo; zo; ro];
-sys_params   = rl;
-XD_sym       = cell2sym(XD);
-XD_sym       = XD_sym(:); 
-
-disp("Exporting: CBF_Constraints_HOCBF_zlink_xyz.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, ...
-    'file', 'CBF_Constraints_HOCBF_zlink_xyz.m', ...
-    'vars', {obj, x, XD_sym, obs_params, gamma_params, sys_params, physicalParam}, ...
-    'outputs', {'A_qp', 'b_qp', 'h1', 'h2'});
-disp("Done: CBF関数の生成が完了しました！");
-
-%% =========================================================================
-%% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
-%% =========================================================================
-disp("Start: 実入力 u1 を含むダイナミクス f_xy による HOCBF の導出を開始します。");
-
-% 1. 全ダイナミクス FG_xy の定義
-FG_xy = simplify(f + g * [u1; u2; u3; u4]);
-
-% 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
-%    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
-f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
-
-% 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
-g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
-g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch) に掛かる列
-g1_yaw = g_xy(:, 3);   % u4 (yaw) に掛かる列
-
-% 3. 障害物安全関数の定義 (ロープ中心 p_mid)
-syms xo yo zo ro real
-syms rl real
-L_cable = physicalParam(7);
-p_mid = pl - 0.5 * L_cable * pT;
-
-h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
-cbf1 = h_cbf_xy;
+h_cbf = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+% h_cbf = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro)^2;
+cbf1 = h_cbf;
 
 % 4. クラスK関数のゲイン
 syms gamma1 gamma2 gamma3 gamma4 real
 
-% 5. f_xy を用いた Lie 微分の計算（相対次数 4）
-% ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
-cbf2 = LieD(cbf1, f_xy, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
-cbf3 = LieD(cbf2, f_xy, x) + diff(cbf2, t) + gamma2 * cbf2; % h3
-cbf4 = LieD(cbf3, f_xy, x) + diff(cbf3, t) + gamma3 * cbf3; % h4
+% 4. 各階層の Lie 微分計算 (論文の仮定: dot{u1} = 0)
+% --- 1階微分 (相対次数 1: 入力は現れない) ---
+cbf1_dot = LieD(cbf1, f, x);
+cbf2     = cbf1_dot + gamma1 * cbf1;
 
-% 最上階での展開（u2, u3 が現れる階層）
-L_f_cbf4  = LieD(cbf4, f_xy, x) + diff(cbf4, t);
-L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] 行列
-L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % スカラー
+% --- 2階微分 (相対次数 2: ここで u1 が現れる) ---
+% dot{h1} = LieD(h1, f) + LieD(h1, g1)*u1 (※トルク g_tau は 0)
+L_f_cbf2  = LieD(cbf2, f, x);
+L_g1_cbf2 = LieD(cbf2, g1, x);
+cbf3      = (L_f_cbf2 + L_g1_cbf2 * u1) + gamma2 * cbf2;
 
-% A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
-A_cbf_sym = -L_g_cbf4;
-b_cbf_sym =  L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4;
+% --- 3階微分 (相対次数 3: dot{u1} = 0 として x のみで偏微分) ---
+L_f_cbf3  = LieD(cbf3, f, x);
+L_g1_cbf3 = LieD(cbf3, g1, x);
+cbf4      = (L_f_cbf3 + L_g1_cbf3 * u1) + gamma3 * cbf3;
 
-% 6. 実数値シミュレーション用の変数置換
-%    u1 を外部入力記号 U1_val に、u4 を V4 に、目標軌道微分を XDf に置換
-syms U1_val V4 real
-A_cbf_subs = subs(A_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
-b_cbf_subs = subs(b_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% --- 4階微分 (相対次数 4: ここで トルク [u2, u3, u4] が現れる) ---
+L_f_cbf4   = LieD(cbf4, f, x);
+L_g1_cbf4  = LieD(cbf4, g1, x);
+L_gtau_cbf4 = LieD(cbf4, g_tau, x); % [1 x 3] 行列
 
-% 🌟 各階層の関数（h1, h2, h3, h4）を代入用に置換処理
-h1_subs = subs(cbf1, [xdReff, u1, u4], [XDf, U1_val, V4]);
-h2_subs = subs(cbf2, [xdReff, u1, u4], [XDf, U1_val, V4]);
-h3_subs = subs(cbf3, [xdReff, u1, u4], [XDf, U1_val, V4]);
-h4_subs = subs(cbf4, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% 全体微分式: dot{cbf3} + gamma4 * cbf3 >= 0
+dot_cbf4_total = (L_f_cbf4 + L_g1_cbf4 * u1 + L_gtau_cbf4 * [u2; u3; u4]) + gamma4 * cbf4;
 
-% 7. Mファイルとしてエクスポート
+%% =========================================================================
+%% 5. 動作点 U1_val 周りでの厳密なアフィン分離 (A_qp * u <= b_qp)
+%% =========================================================================
+syms U1_val real
+
+% 基準動作点 u_ref = [U1_val; 0; 0; 0]
+u_ref = [U1_val; 0; 0; 0];
+
+% 4入力に対するヤコビアン（勾配ベクトル 1x4）
+% L_g_all = [dL/du1, dL/du2, dL/du3, dL/du4]
+L_g_all = jacobian(dot_cbf4_total, [u1; u2; u3; u4]);
+
+% 基準点 u_ref における勾配および関数値の評価
+A_cbf_eval = subs(L_g_all, [u1; u2; u3; u4], u_ref);
+h4_ref_eval = subs(dot_cbf4_total, [u1; u2; u3; u4], u_ref);
+
+% 不等号反転: dot_cbf4_total >= 0  ==>  A_qp * u <= b_qp
+% 1次近似: h4_ref + A_eval * (u - u_ref) >= 0
+%       -A_eval * u <= h4_ref - A_eval * u_ref
+A_cbf_sym = -A_cbf_eval;                               % [1 x 4] 行列
+b_cbf_sym = simplify(h4_ref_eval + A_cbf_sym * u_ref); % スカラー
+
+%% =========================================================================
+%% 6. 各階層モニタリング関数の整形
+%% =========================================================================
+% 中間階層の u1 にも動作点 U1_val を代入
+h1_subs = cbf1;
+h2_subs = cbf2;
+h3_subs = subs(cbf3, u1, U1_val);
+h4_subs = subs(cbf4, u1, U1_val);
+
+A_cbf_subs = A_cbf_sym;
+b_cbf_subs = b_cbf_sym;
+
+%% =========================================================================
+%% 7. Mファイルとしてエクスポート
+%% =========================================================================
 gamma_params = [gamma1; gamma2; gamma3; gamma4];
 obs_params   = [xo; yo; zo; ro];
 sys_params   = rl;
-XD_sym       = cell2sym(XD);
-XD_sym       = XD_sym(:); 
 
-disp("Exporting: CBF_Constraints_HOCBF_xylink_xyz.m を書き出しています...");
+XD_sym = cell2sym(XD);
+XD_sym = XD_sym(:);
+
+disp("Exporting: CBF_Constraints_NonCascaded_Obstacle.m を書き出しています...");
 matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, h3_subs, h4_subs, ...
-    'file', 'CBF_Constraints_HOCBF_xylink_xyz.m', ...
-    'vars', {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}, ...
+    'file', 'CBF_Constraints_NonCascaded_Obstacle.m', ...
+    'vars', {obj, x, XD_sym, U1_val, obs_params, gamma_params, sys_params, physicalParam}, ...
     'outputs', {'A_qp', 'b_qp', 'h1', 'h2', 'h3', 'h4'});
-disp("Done: CBF関数の生成が完了しました！");
+
+disp("Done: トルク効果を保持した CBF 関数の生成が完了しました！");
+
 %% =========================================================================
-%% 【決定版】姿勢角＆紐振れ角 HOCBF 自動導出（各階層出力・制約値完備）
+%% 診断・整合性チェックセクション
 %% =========================================================================
-disp("Start: 姿勢角＆紐振れ角 HOCBF（各階層監視付き）の導出を開始します。");
+disp("------------------------------------------------------------");
+disp("【検証 1】各入力 u1〜u4 の出現階層（相対次数の確認）");
+disp("------------------------------------------------------------");
 
-% 1. 全ダイナミクス FG_xy の定義
-FG_xy = simplify(f + g * [u1; u2; u3; u4]);
+% 各階層における入力 u1, [u2, u3, u4] の感度（偏微分）を確認
+check_u1 = [ ...
+    ~isequal(jacobian(cbf1, u1), sym(0));
+    ~isequal(jacobian(cbf2, u1), sym(0));
+    ~isequal(jacobian(cbf3, u1), sym(0));
+    ~isequal(jacobian(cbf4, u1), sym(0));
+    ~isequal(jacobian(dot_cbf4_total, u1), sym(0)) ...
+    ];
 
-% 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy（u1 はシンボリックのまま保持）
-f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
+check_tau = [ ...
+    ~isequal(jacobian(cbf1, [u2; u3; u4]), sym([0, 0, 0]));
+    ~isequal(jacobian(cbf2, [u2; u3; u4]), sym([0, 0, 0]));
+    ~isequal(jacobian(cbf3, [u2; u3; u4]), sym([0, 0, 0]));
+    ~isequal(jacobian(cbf4, [u2; u3; u4]), sym([0, 0, 0]));
+    ~isequal(jacobian(dot_cbf4_total, [u2; u3; u4]), sym([0, 0, 0])) ...
+    ];
 
-% 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
-g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
-g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch)
-g1_yaw = g_xy(:, 3);   % u4 (yaw)
+fprintf('cbf1 (0階):  u1 出現 = %d,  トルク 出現 = %d\n', check_u1(1), check_tau(1));
+fprintf('cbf2 (1階):  u1 出現 = %d,  トルク 出現 = %d\n', check_u1(2), check_tau(2));
+fprintf('cbf3 (2階):  u1 出現 = %d,  トルク 出現 = %d\n', check_u1(3), check_tau(3));
+fprintf('cbf4 (3階):  u1 出現 = %d,  トルク 出現 = %d\n', check_u1(4), check_tau(4));
+fprintf('dot_cbf4 (4階): u1 出現 = %d,  トルク 出現 = %d\n', check_u1(5), check_tau(5));
 
-%% -------------------------------------------------------------------------
-%% (A) 機体姿勢角制約 (Roll / Pitch): 相対次数 2
-%% -------------------------------------------------------------------------
-[~, phi_sym, th_sym] = Quat2Eul(q);
+disp("------------------------------------------------------------");
+disp("【検証 1.5】入力に対するアフィン性の確認");
+disp("------------------------------------------------------------");
 
-syms phi_max th_max real
-syms gamma_roll1 gamma_roll2 gamma_pitch1 gamma_pitch2 real
+H_uu = simplify(hessian(dot_cbf4_total, [u1; u2; u3; u4]));
 
-% 1. Roll 角制約
-h_roll_1  = phi_max^2 - phi_sym^2;
-h_roll_2  = LieD(h_roll_1, f_xy, x) + diff(h_roll_1, t) + gamma_roll1 * h_roll_1;
+if isequal(H_uu, sym(zeros(4,4)))
+    disp("✓ dot_cbf4_total は [u1,u2,u3,u4] に対して厳密にアフィンです。");
+else
+    disp("⚠ dot_cbf4_total は入力に対して非線形項を含みます。");
+    disp("入力 Hessian:");
+    disp(H_uu);
+end
 
-L_f_roll2  = LieD(h_roll_2, f_xy, x) + diff(h_roll_2, t);
-L_g_roll2  = LieD(h_roll_2, g1_xy, x);  % [1 x 2]
-L_gy_roll2 = LieD(h_roll_2, g1_yaw, x);
+% 特に u1 の2次項
+u1_second = simplify(diff(dot_cbf4_total, u1, 2));
 
-A_roll = -L_g_roll2;
-b_roll =  L_f_roll2 + L_gy_roll2 * u4 + gamma_roll2 * h_roll_2;
+if isequal(u1_second, sym(0))
+    disp("✓ u1 に関する2次以上の項はありません。");
+else
+    disp("⚠ u1 に非線形項があります:");
+    disp(u1_second);
+end
 
-% 2. Pitch 角制約
-h_pitch_1 = th_max^2 - th_sym^2;
-h_pitch_2 = LieD(h_pitch_1, f_xy, x) + diff(h_pitch_1, t) + gamma_pitch1 * h_pitch_1;
+% 入力間の積 u1*u2 等がないか
+cross_u = sym(zeros(4,4));
 
-L_f_pitch2  = LieD(h_pitch_2, f_xy, x) + diff(h_pitch_2, t);
-L_g_pitch2  = LieD(h_pitch_2, g1_xy, x); % [1 x 2]
-L_gy_pitch2 = LieD(h_pitch_2, g1_yaw, x);
+for i = 1:4
+    for j = i+1:4
+        cross_u(i,j) = simplify(diff( ...
+            dot_cbf4_total, ...
+            u(i), ...
+            u(j)));
+    end
+end
 
-A_pitch = -L_g_pitch2;
-b_pitch =  L_f_pitch2 + L_gy_pitch2 * u4 + gamma_pitch2 * h_pitch_2;
+disp("入力間クロス項の診断:");
+disp(cross_u);
 
-%% -------------------------------------------------------------------------
-%% (B) 牽引紐振れ角制約 (鉛直傾斜角): 相対次数 4
-%% -------------------------------------------------------------------------
-syms cos_cb_max real
-syms gamma_cb1 gamma_cb2 gamma_cb3 gamma_cb4 real
+disp("------------------------------------------------------------");
+disp("【検証 2】制約式 A_qp * u <= b_qp の線形展開整合性");
+disp("------------------------------------------------------------");
 
-h_cb_1 = -pT(3) - cos_cb_max; % 真下(pT3=-1)で最大値
-h_cb_2 = LieD(h_cb_1, f_xy, x) + diff(h_cb_1, t) + gamma_cb1 * h_cb_1;
-h_cb_3 = LieD(h_cb_2, f_xy, x) + diff(h_cb_2, t) + gamma_cb2 * h_cb_2;
-h_cb_4 = LieD(h_cb_3, f_xy, x) + diff(h_cb_3, t) + gamma_cb3 * h_cb_3;
+% 基準点 u_ref において、再構成した式 (b_qp - A_qp*u_ref) と h4_ref が一致するか確認
+reconstructed_val_at_ref = simplify(b_cbf_sym - A_cbf_sym * u_ref);
+diff_check = simplify(h4_ref_eval - reconstructed_val_at_ref);
 
-L_f_cb4  = LieD(h_cb_4, f_xy, x) + diff(h_cb_4, t);
-L_g_cb4  = LieD(h_cb_4, g1_xy, x);  % [1 x 2]
-L_gy_cb4 = LieD(h_cb_4, g1_yaw, x);
+if isequal(diff_check, sym(0))
+    disp("✓ 符号・展開整合性 OK: 動作点 U1_val において完全一致しています。");
+else
+    disp("⚠ 符号警告: 式の展開に不一致があります。残差式:");
+    disp(diff_check);
+end
 
-A_cable = -L_g_cb4;
-b_cable =  L_f_cb4 + L_gy_cb4 * u4 + gamma_cb4 * h_cb_4;
+disp("------------------------------------------------------------");
+disp("【検証 3】数値代入による QP 制約の動作テスト (横オフセットあり)");
+disp("------------------------------------------------------------");
 
-%% -------------------------------------------------------------------------
-%% 統合制約および各階層値の構築
-%% -------------------------------------------------------------------------
-A_cbf_all = [A_roll; A_pitch; A_cable]; % [3 x 2] 行列
-b_cbf_all = [b_roll; b_pitch; b_cable]; % [3 x 1] ベクトル
+% テスト用パラメータ
+m_Q_num = 1.5; m_L_num = 0.5; L_num = 1.0; g_num = 9.81;
+J_num = [0.039, 0.051, 0.102];
+p_obs_num = [0; 0; 2]; r_obs_num = 0.5; r_L_num = 0.1;
 
-% 各階層の関数値まとめ
-h_layers_sym = [ ...
-    h_roll_1;  h_roll_2;  ... % Roll: 1階層, 2階層
-    h_pitch_1; h_pitch_2; ... % Pitch: 1階層, 2階層
-    h_cb_1;    h_cb_2;    h_cb_3;    h_cb_4 ... % Cable: 1階層〜4階層
-];
+% 障害物の斜め上から接近（横オフセット pl_test = [0.3; 0.2; 2.8]）
+q_test = [1; 0; 0; 0];
+ob_test = [0; 0; 0];
+pl_test = [0.3; 0.2; 2.8];
+dpl_test = [-0.5; -0.3; -0.8];
+pT_test = [0; 0; -1];
+ol_test = [0; 0; 0];
+x_test_val = [q_test; ob_test; pl_test; dpl_test; pT_test; ol_test];
 
-% 実数値代入用の置換
-syms U1_val V4 real
-A_cbf_subs    = subs(A_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
-b_cbf_subs    = subs(b_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
-h_layers_subs = subs(h_layers_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+phys_vars = [m, Lx, Ly, lx, ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL, dstx, dsty];
+phys_vals = [m_Q_num, 0.2, 0.2, 0.2, 0.2, J_num(1), J_num(2), J_num(3), g_num, 1, 1, 1, 1, 1, 1, 1, 1, 0.1, m_L_num, L_num, 0, 0];
 
-%% -------------------------------------------------------------------------
-%% Mファイルとしてエクスポート
-%% -------------------------------------------------------------------------
-gamma_roll_p  = [gamma_roll1; gamma_roll2];
-gamma_pitch_p = [gamma_pitch1; gamma_pitch2];
-gamma_cb_p    = [gamma_cb1; gamma_cb2; gamma_cb3; gamma_cb4];
-gamma_all     = [gamma_roll_p; gamma_pitch_p; gamma_cb_p];
+u1_hover = (m_Q_num + m_L_num) * g_num;
 
-limit_params  = [phi_max; th_max; cos_cb_max];
-XD_sym        = cell2sym(XD);
-XD_sym        = XD_sym(:);
+A_num = double(subs(A_cbf_sym, ...
+    [x; U1_val; xo; yo; zo; ro; rl; gamma1; gamma2; gamma3; gamma4; phys_vars.'], ...
+    [x_test_val; u1_hover; p_obs_num; r_obs_num; r_L_num; 2; 2; 2; 2; phys_vals.']));
 
-disp("Exporting: CBF_Constraints_Attitude_Cable_Layers_xyz.m を書き出しています...");
-matlabFunction(A_cbf_subs, b_cbf_subs, h_layers_subs, ...
-    'file', 'CBF_Constraints_Attitude_Cable_Layers_xyz.m', ...
-    'vars', {obj, x, XD_sym, U1_val, V4, limit_params, gamma_all, physicalParam}, ...
-    'outputs', {'A_qp', 'b_qp', 'h_layers'});
-disp("Done: 生成が完了しました！");
+b_num = double(subs(b_cbf_sym, ...
+    [x; U1_val; xo; yo; zo; ro; rl; gamma1; gamma2; gamma3; gamma4; phys_vars.'], ...
+    [x_test_val; u1_hover; p_obs_num; r_obs_num; r_L_num; 2; 2; 2; 2; phys_vals.']));
+
+disp("数値計算結果:");
+disp("  A_qp (1x4) = "); disp(A_num);
+disp("  b_qp (1x1) = "); disp(b_num);
+
+val_hov = A_num * [u1_hover; 0; 0; 0] - b_num;
+fprintf('  ホバリング入力での評価値 (A*u - b <= 0 であるべき): %f\n', val_hov);
+disp("------------------------------------------------------------");
+
+disp("------------------------------------------------------------");
+disp("【検証 2.5】元のCBF制約とQP再構成式の厳密一致確認");
+disp("------------------------------------------------------------");
+
+u_all = [u1; u2; u3; u4];
+
+% QP制約 A*u <= b を元の >=0形式に戻す
+cbf_reconstructed = simplify(b_cbf_sym - A_cbf_sym*u_all);
+
+exact_diff = simplify(dot_cbf4_total - cbf_reconstructed);
+
+if isequal(exact_diff, sym(0))
+    disp("✓ 元の dot_cbf4_total と QP再構成式は全入力領域で完全一致。");
+    disp("  → 厳密なアフィンQP制約です。");
+else
+    disp("⚠ 動作点以外では一致しません。");
+    disp("  → 現在のQP制約は局所線形化です。");
+    disp("残差:");
+    disp(factor(exact_diff));
+end
+% %% =========================================================================
+% %% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
+% %% =========================================================================
+% disp("Start: f_z による HOCBF の導出を開始します。");
+% 
+% % 1. 全ダイナミクス FG_xy の定義
+% FG_z = simplify(f + g * [u1; u2; u3; u4]);
+% 
+% % 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
+% %    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
+% f_z = subs(FG_z, [u1, u2, u3, u4], [0, 0, 0, 0]);
+% 
+% % 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
+% g_z  = simplify(MyCoeff(FG_z, [u1; u2; u3; u4]));
+% g1_z  = g_z(:, 1);
+% g1_yaw  = g_z(:, 4);
+% 
+% % 3. 障害物安全関数の定義 (ロープ中心 p_mid)
+% syms xo yo zo ro real
+% syms rl real
+% L_cable = physicalParam(7);
+% p_mid = pl - 0.5 * L_cable * pT;
+% 
+% h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+% cbf1 = h_cbf_xy;
+% 
+% % 4. クラスK関数のゲイン
+% syms gamma1 gamma2 real
+% 
+% % 5. f_xy を用いた Lie 微分の計算（相対次数 4）
+% % ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
+% cbf2 = LieD(cbf1, f_z, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
+% 
+% % 最上階での展開（u2, u3 が現れる階層）
+% L_f_cbf2  = LieD(cbf2, f_z, x) + diff(cbf2, t);
+% L_g_cbf2  = LieD(cbf2, g1_z, x);  % [1 x 2] 行列
+% L_gy_cbf2 = LieD(cbf2, g1_yaw, x); % スカラー
+% 
+% % A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
+% A_cbf_sym = -L_g_cbf2;
+% b_cbf_sym =  L_f_cbf2 + L_gy_cbf2 * u4 + gamma2 * cbf2;
+% 
+% % 5. 実数値シミュレーション用の置換 (xdRef -> XDf, vInput1f -> V1vf)
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% % 🌟 各階層の関数（h1, h2, h3, h4）を代入用に置換処理
+% h1_subs = subs(cbf1, [xdReff, vInput1f], [XDf, V1vf]);
+% h2_subs = subs(cbf2, [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% % 7. Mファイルとしてエクスポート
+% gamma_params = [gamma1; gamma2];
+% obs_params   = [xo; yo; zo; ro];
+% sys_params   = rl;
+% XD_sym       = cell2sym(XD);
+% XD_sym       = XD_sym(:); 
+% 
+% disp("Exporting: CBF_Constraints_HOCBF_zlink_xyz.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, ...
+%     'file', 'CBF_Constraints_HOCBF_zlink_xyz.m', ...
+%     'vars', {obj, x, XD_sym, obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp', 'h1', 'h2'});
+% disp("Done: CBF関数の生成が完了しました！");
+% 
+% %% =========================================================================
+% %% 【決定版】外部確定入力 u1 をそのままドリフト項に保持する HOCBF 自動導出
+% %% =========================================================================
+% disp("Start: 実入力 u1 を含むダイナミクス f_xy による HOCBF の導出を開始します。");
+% 
+% % 1. 全ダイナミクス FG_xy の定義
+% FG_xy = simplify(f + g * [u1; u2; u3; u4]);
+% 
+% % 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy
+% %    🌟 u1（推力）は 0 にせず、シンボリック変数 u1 のまま f_xy に残ります！
+% f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
+% 
+% % 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
+% g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
+% g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch) に掛かる列
+% g1_yaw = g_xy(:, 3);   % u4 (yaw) に掛かる列
+% 
+% % 3. 障害物安全関数の定義 (ロープ中心 p_mid)
+% syms xo yo zo ro real
+% syms rl real
+% L_cable = physicalParam(7);
+% p_mid = pl - 0.5 * L_cable * pT;
+% 
+% h_cbf_xy = (p_mid(1) - xo)^2 + (p_mid(2) - yo)^2 + (p_mid(3) - zo)^2 - (ro + rl)^2;
+% cbf1 = h_cbf_xy;
+% 
+% % 4. クラスK関数のゲイン
+% syms gamma1 gamma2 gamma3 gamma4 real
+% 
+% % 5. f_xy を用いた Lie 微分の計算（相対次数 4）
+% % ※ f_xy の中に u1 が入っているため、Lie 微分の中に u1 が自然な形で組み込まれます
+% cbf2 = LieD(cbf1, f_xy, x) + diff(cbf1, t) + gamma1 * cbf1; % h2
+% cbf3 = LieD(cbf2, f_xy, x) + diff(cbf2, t) + gamma2 * cbf2; % h3
+% cbf4 = LieD(cbf3, f_xy, x) + diff(cbf3, t) + gamma3 * cbf3; % h4
+% 
+% % 最上階での展開（u2, u3 が現れる階層）
+% L_f_cbf4  = LieD(cbf4, f_xy, x) + diff(cbf4, t);
+% L_g_cbf4  = LieD(cbf4, g1_xy, x);  % [1 x 2] 行列
+% L_gy_cbf4 = LieD(cbf4, g1_yaw, x); % スカラー
+% 
+% % A_qp * [u2; u3] <= b_qp の形に整理（符号反転）
+% A_cbf_sym = -L_g_cbf4;
+% b_cbf_sym =  L_f_cbf4 + L_gy_cbf4 * u4 + gamma4 * cbf4;
+% 
+% % 6. 実数値シミュレーション用の変数置換
+% %    u1 を外部入力記号 U1_val に、u4 を V4 に、目標軌道微分を XDf に置換
+% syms U1_val V4 real
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% 
+% % 🌟 各階層の関数（h1, h2, h3, h4）を代入用に置換処理
+% h1_subs = subs(cbf1, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% h2_subs = subs(cbf2, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% h3_subs = subs(cbf3, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% h4_subs = subs(cbf4, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% 
+% % 7. Mファイルとしてエクスポート
+% gamma_params = [gamma1; gamma2; gamma3; gamma4];
+% obs_params   = [xo; yo; zo; ro];
+% sys_params   = rl;
+% XD_sym       = cell2sym(XD);
+% XD_sym       = XD_sym(:); 
+% 
+% disp("Exporting: CBF_Constraints_HOCBF_xylink_xyz.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, h1_subs, h2_subs, h3_subs, h4_subs, ...
+%     'file', 'CBF_Constraints_HOCBF_xylink_xyz.m', ...
+%     'vars', {obj, x, XD_sym, U1_val, V4, obs_params, gamma_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp', 'h1', 'h2', 'h3', 'h4'});
+% disp("Done: CBF関数の生成が完了しました！");
+% %% =========================================================================
+% %% 【決定版】姿勢角＆紐振れ角 HOCBF 自動導出（各階層出力・制約値完備）
+% %% =========================================================================
+% disp("Start: 姿勢角＆紐振れ角 HOCBF（各階層監視付き）の導出を開始します。");
+% 
+% % 1. 全ダイナミクス FG_xy の定義
+% FG_xy = simplify(f + g * [u1; u2; u3; u4]);
+% 
+% % 2. u2, u3, u4 を 0 とした実効ドリフト項 f_xy（u1 はシンボリックのまま保持）
+% f_xy = subs(FG_xy, [u2, u3, u4], [0, 0, 0]);
+% 
+% % 2nd layer の操作入力 [u2; u3; u4] に対する入力行列 g_xy
+% g_xy   = simplify(MyCoeff(FG_xy, [u2; u3; u4]));
+% g1_xy  = g_xy(:, 1:2); % u2 (roll), u3 (pitch)
+% g1_yaw = g_xy(:, 3);   % u4 (yaw)
+% 
+% %% -------------------------------------------------------------------------
+% %% (A) 機体姿勢角制約 (Roll / Pitch): 相対次数 2
+% %% -------------------------------------------------------------------------
+% [~, phi_sym, th_sym] = Quat2Eul(q);
+% 
+% syms phi_max th_max real
+% syms gamma_roll1 gamma_roll2 gamma_pitch1 gamma_pitch2 real
+% 
+% % 1. Roll 角制約
+% h_roll_1  = phi_max^2 - phi_sym^2;
+% h_roll_2  = LieD(h_roll_1, f_xy, x) + diff(h_roll_1, t) + gamma_roll1 * h_roll_1;
+% 
+% L_f_roll2  = LieD(h_roll_2, f_xy, x) + diff(h_roll_2, t);
+% L_g_roll2  = LieD(h_roll_2, g1_xy, x);  % [1 x 2]
+% L_gy_roll2 = LieD(h_roll_2, g1_yaw, x);
+% 
+% A_roll = -L_g_roll2;
+% b_roll =  L_f_roll2 + L_gy_roll2 * u4 + gamma_roll2 * h_roll_2;
+% 
+% % 2. Pitch 角制約
+% h_pitch_1 = th_max^2 - th_sym^2;
+% h_pitch_2 = LieD(h_pitch_1, f_xy, x) + diff(h_pitch_1, t) + gamma_pitch1 * h_pitch_1;
+% 
+% L_f_pitch2  = LieD(h_pitch_2, f_xy, x) + diff(h_pitch_2, t);
+% L_g_pitch2  = LieD(h_pitch_2, g1_xy, x); % [1 x 2]
+% L_gy_pitch2 = LieD(h_pitch_2, g1_yaw, x);
+% 
+% A_pitch = -L_g_pitch2;
+% b_pitch =  L_f_pitch2 + L_gy_pitch2 * u4 + gamma_pitch2 * h_pitch_2;
+% 
+% %% -------------------------------------------------------------------------
+% %% (B) 牽引紐振れ角制約 (鉛直傾斜角): 相対次数 4
+% %% -------------------------------------------------------------------------
+% syms cos_cb_max real
+% syms gamma_cb1 gamma_cb2 gamma_cb3 gamma_cb4 real
+% 
+% h_cb_1 = -pT(3) - cos_cb_max; % 真下(pT3=-1)で最大値
+% h_cb_2 = LieD(h_cb_1, f_xy, x) + diff(h_cb_1, t) + gamma_cb1 * h_cb_1;
+% h_cb_3 = LieD(h_cb_2, f_xy, x) + diff(h_cb_2, t) + gamma_cb2 * h_cb_2;
+% h_cb_4 = LieD(h_cb_3, f_xy, x) + diff(h_cb_3, t) + gamma_cb3 * h_cb_3;
+% 
+% L_f_cb4  = LieD(h_cb_4, f_xy, x) + diff(h_cb_4, t);
+% L_g_cb4  = LieD(h_cb_4, g1_xy, x);  % [1 x 2]
+% L_gy_cb4 = LieD(h_cb_4, g1_yaw, x);
+% 
+% A_cable = -L_g_cb4;
+% b_cable =  L_f_cb4 + L_gy_cb4 * u4 + gamma_cb4 * h_cb_4;
+% 
+% %% -------------------------------------------------------------------------
+% %% 統合制約および各階層値の構築
+% %% -------------------------------------------------------------------------
+% A_cbf_all = [A_roll; A_pitch; A_cable]; % [3 x 2] 行列
+% b_cbf_all = [b_roll; b_pitch; b_cable]; % [3 x 1] ベクトル
+% 
+% % 各階層の関数値まとめ
+% h_layers_sym = [ ...
+%     h_roll_1;  h_roll_2;  ... % Roll: 1階層, 2階層
+%     h_pitch_1; h_pitch_2; ... % Pitch: 1階層, 2階層
+%     h_cb_1;    h_cb_2;    h_cb_3;    h_cb_4 ... % Cable: 1階層〜4階層
+% ];
+% 
+% % 実数値代入用の置換
+% syms U1_val V4 real
+% A_cbf_subs    = subs(A_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
+% b_cbf_subs    = subs(b_cbf_all,    [xdReff, u1, u4], [XDf, U1_val, V4]);
+% h_layers_subs = subs(h_layers_sym, [xdReff, u1, u4], [XDf, U1_val, V4]);
+% 
+% %% -------------------------------------------------------------------------
+% %% Mファイルとしてエクスポート
+% %% -------------------------------------------------------------------------
+% gamma_roll_p  = [gamma_roll1; gamma_roll2];
+% gamma_pitch_p = [gamma_pitch1; gamma_pitch2];
+% gamma_cb_p    = [gamma_cb1; gamma_cb2; gamma_cb3; gamma_cb4];
+% gamma_all     = [gamma_roll_p; gamma_pitch_p; gamma_cb_p];
+% 
+% limit_params  = [phi_max; th_max; cos_cb_max];
+% XD_sym        = cell2sym(XD);
+% XD_sym        = XD_sym(:);
+% 
+% disp("Exporting: CBF_Constraints_Attitude_Cable_Layers_xyz.m を書き出しています...");
+% matlabFunction(A_cbf_subs, b_cbf_subs, h_layers_subs, ...
+%     'file', 'CBF_Constraints_Attitude_Cable_Layers_xyz.m', ...
+%     'vars', {obj, x, XD_sym, U1_val, V4, limit_params, gamma_all, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp', 'h_layers'});
+% disp("Done: 生成が完了しました！");
 %% =========================================================================
 %% u1の微分の導出
 %% =========================================================================
