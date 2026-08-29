@@ -370,6 +370,203 @@
 % 
 
 
+% classdef HLC_CBF < handle
+%   % Hierarchical linearization based controller for a quadcopter
+%   properties
+%     self
+%     result
+%     param
+%     parameter_order = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+%   end
+% 
+%   methods
+%     function obj = HLC_CBF(self,param)
+%       obj.self = self;
+%       obj.param = param;
+%       obj.param.P = self.parameter.get(obj.parameter_order);
+%       obj.result.input = zeros(4,1);
+%     end
+% 
+%     function result = do(obj,varargin)
+%       model = obj.self.estimator.result;
+%       ref = obj.self.reference.result;
+%       xd = ref.state.xd;
+%       P = obj.param.P;
+%       F1 = obj.param.F1;
+%       F2 = obj.param.F2;
+%       F3 = obj.param.F3;
+%       F4 = obj.param.F4;
+%       xd=[xd;zeros(20-size(xd,1),1)];% 足りない分は０で埋める．
+% 
+%       % yaw 角についてボディ座標に合わせることで目標姿勢と現在姿勢の間の2pi問題を緩和
+%       % TODO : 本質的にはx-xdを受け付ける関数にして，x-xdの状態で2pi問題を解決すれば良い．
+%       Rb0 = RodriguesQuaternion(Eul2Quat([0;0;xd(4)]));
+%       x = [R2q(Rb0'*model.state.getq("rotmat"));Rb0'*model.state.p;Rb0'*model.state.v;model.state.w]; % [q, p, v, w]に並べ替え
+%       xd(1:3)=Rb0'*xd(1:3);
+%       xd(4) = 0;
+%       xd(5:7)=Rb0'*xd(5:7);
+%       xd(9:11)=Rb0'*xd(9:11);
+%       xd(13:15)=Rb0'*xd(13:15);
+%       xd(17:19)=Rb0'*xd(17:19);
+%       %if isfield(obj.param,'dt')
+%       if isfield(varargin{1},'dt') && varargin{1}.dt <= obj.param.dt
+%         dt = varargin{1}.dt;
+%          vf = Vfd(dt,x,xd',P,F1);
+%         vs = Vsd(dt,x,xd',vf,P,F2,F3,F4);
+%       else
+%         vf = Vf(x,xd',P,F1);
+%         vs = Vs(x,xd',vf,P,F2,F3,F4);
+%       end
+%       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
+%       % max,min are applied for the safty
+%       % ---------------------CBF--------------------%
+%       % --- 1. ノミナル入力の事前クリッピング (0~20N, 各トルク -1~1 Nm) ---
+%       u_nom = [max(0.0, min(20.0, tmp(1))); ...
+%                max(-1.0, min(1.0, tmp(2))); ...
+%                max(-1.0, min(1.0, tmp(3))); ...
+%                max(-1.0, min(1.0, tmp(4)))];
+% 
+%       f_hover = P(1) * P(9);
+%       if isempty(obj.result.input) || obj.result.input(1) <= 0
+%         f_T_curr = f_hover;
+%       else
+%         f_T_curr = obj.result.input(1);
+%       end
+% 
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       if ~isempty(obs_list)
+%         p_drone = x(5:7);
+%         v_drone = x(8:10);
+% 
+%         lambda_cbf = 2.0; 
+%         A_obs_all = [];
+%         b_obs_all = [];
+% 
+%         for i = 1:length(obs_list)
+%           p_obs_world = obs_list(i).p_obs;
+%           r_obs_val   = obs_list(i).r_obs_margin;
+%           if isfield(obs_list(i), 'v_obs') && ~isempty(obs_list(i).v_obs)
+%             v_obs_world = obs_list(i).v_obs;
+%           else
+%             v_obs_world = zeros(3, 1);
+%           end
+% 
+%           p_obs_rel = Rb0' * p_obs_world;
+%           v_obs_rel = Rb0' * v_obs_world;
+% 
+%           p_rel_vec = p_obs_rel - p_drone;
+%           v_rel_vec = v_obs_rel - v_drone;
+%           dist_p    = norm(p_rel_vec);
+% 
+%           if dist_p > (r_obs_val + 3.0)
+%             continue;
+%           end
+% 
+%           % 衝突円錐 ECBF
+%           if dot(p_rel_vec, v_rel_vec) < 0
+%             r_cbf_eval = r_obs_val;
+%             if dist_p <= r_obs_val
+%               r_cbf_eval = dist_p - 1e-4;
+%             end
+% 
+%             obsParam = [p_obs_rel', v_obs_rel', r_cbf_eval];
+%             A_cone = real(ECBF_Acbf(x, obsParam, P, f_T_curr));
+%             b_cone = real(ECBF_bcbf(x, obsParam, P, f_T_curr, lambda_cbf));
+% 
+%             if ~any(isnan(A_cone)) && ~any(isnan(b_cone)) && ~any(isinf(A_cone)) && ~any(isinf(b_cone))
+%               % --- スケーリング正規化 (トルク項のオーダー 10^5 を推力と同等スケールに調整) ---
+%               scale_tau = norm(A_cone(2:4)) + 1e-6;
+%               A_cone_scaled = [A_cone(1), A_cone(2:4) * (5.0 / scale_tau)];
+% 
+%               A_obs_all = [A_obs_all; A_cone_scaled];
+%               b_obs_all = [b_obs_all; b_cone];
+%             end
+%           end
+%         end
+% 
+%         % --- 2. 姿勢角制限 CBF (ロール・ピッチ ±25 deg) ---
+%         max_tilt  = deg2rad(25); 
+%         gamma_att = 3.0;
+%         A_att = real(Attitude_CBF_Acbf(x, P));
+%         b_att = real(Attitude_CBF_bcbf(x, P, max_tilt, gamma_att));
+% 
+%         % --- 3. 階層型 QP 最適化 (推力下限は 0.0) ---
+%         n_obs = size(A_obs_all, 1);
+% 
+%         if n_obs > 0
+%           A_qp = [A_att,     zeros(size(A_att, 1), n_obs); ...
+%                   A_obs_all, -eye(n_obs)];
+%           b_qp = [b_att; b_obs_all];
+% 
+%           % H_u  = eye(4); 
+%           H_u  = diag([50.0, 0.01, 0.01, 1.0]);
+%           w_xi = 500.0;
+%           H_qp = blkdiag(H_u, w_xi * eye(n_obs));
+%           f_qp = [-H_u * u_nom; zeros(n_obs, 1)];
+% 
+%           % 推力下限は 0.0
+%           lb = [0.0;  -1.0; -1.0; -1.0; zeros(n_obs, 1)];
+%           ub = [20.0;  1.0;  1.0;  1.0; inf(n_obs, 1)];
+% 
+%           options = optimoptions('quadprog', 'Display', 'off', 'Algorithm', 'interior-point-convex');
+%           [z_safe, ~, exitflag] = quadprog(real(H_qp), real(f_qp), real(A_qp), real(b_qp), [], [], lb, ub, [], options);
+% 
+%           if exitflag == 1
+%             u_safe = z_safe(1:4);
+%             tmp = u_safe;
+%           else
+%             [u_att_safe, ~, ef_att] = quadprog(H_u, -H_u*u_nom, A_att, b_att, [], [], lb(1:4), ub(1:4), [], options);
+%             if ef_att == 1
+%               tmp = u_att_safe;
+%             else
+%               tmp = u_nom;
+%             end
+%           end
+%         else
+%           [u_safe, ~, exitflag] = quadprog(eye(4), -u_nom, A_att, b_att, [], [], [0.0; -1; -1; -1], [20; 1; 1; 1], [], optimoptions('quadprog','Display','off'));
+%           if exitflag == 1
+%             tmp = u_safe;
+%           else
+%             tmp = u_nom;
+%           end
+%         end
+% 
+%         % --- 診断用 printf ---
+%         if n_obs > 0
+%           h_diag = real(ECBF_h(x, obsParam, P));
+%           fprintf('[CBF 診断] 距離: %0.2fm | h_cone: %+0.3f | QP Status: %d\n', dist_p, h_diag, exitflag);
+%           fprintf('  ノミナル入力 : [T=%0.2f, tx=%+0.2f, ty=%+0.2f, tz=%+0.2f]\n', u_nom(1), u_nom(2), u_nom(3), u_nom(4));
+%           fprintf('  安全入力 u*  : [T=%0.2f, tx=%+0.2f, ty=%+0.2f, tz=%+0.2f]\n', tmp(1), tmp(2), tmp(3), tmp(4));
+%         end
+%       else
+%         tmp = u_nom;
+%       end
+% 
+%       % --- 最小クリアランス（余裕距離）のログ保存 ---
+%       min_dist_to_surface = Inf;
+%       if ~isempty(obs_list)
+%         p_drone_curr = x(5:7);
+%         for i = 1:length(obs_list)
+%           p_obs_w = obs_list(i).p_obs;
+%           r_m_val = obs_list(i).r_obs_margin;
+%           dist_surf = norm(p_obs_w - p_drone_curr) - r_m_val;
+%           if dist_surf < min_dist_to_surface
+%             min_dist_to_surface = dist_surf;
+%           end
+%         end
+%       end
+%       obj.result.min_clearance = min_dist_to_surface;
+% 
+%       % 最終入力
+%       obj.result.input = [max(0.0, min(20.0, tmp(1))); ...
+%                           max(-1.0, min(1.0,  tmp(2))); ...
+%                           max(-1.0, min(1.0,  tmp(3))); ...
+%                           max(-1.0, min(1.0,  tmp(4)))];
+%       result = obj.result;
+%     end
+%   end
+% end
+
 classdef HLC_CBF < handle
   % Hierarchical linearization based controller for a quadcopter
   properties
@@ -420,28 +617,40 @@ classdef HLC_CBF < handle
       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
       % max,min are applied for the safty
       % ---------------------CBF--------------------%
-      % --- 1. ノミナル入力の事前クリッピング (0~20N, 各トルク -1~1 Nm) ---
+      % max,min are applied for the safty
+      % ここに入れるCBFを
+      
+      % --- 1. ノミナル入力の事前クリッピング ---
       u_nom = [max(0.0, min(20.0, tmp(1))); ...
                max(-1.0, min(1.0, tmp(2))); ...
                max(-1.0, min(1.0, tmp(3))); ...
                max(-1.0, min(1.0, tmp(4)))];
-
       f_hover = P(1) * P(9);
       if isempty(obj.result.input) || obj.result.input(1) <= 0
         f_T_curr = f_hover;
       else
         f_T_curr = obj.result.input(1);
       end
-
       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
       if ~isempty(obs_list)
         p_drone = x(5:7);
         v_drone = x(8:10);
-
-        lambda_cbf = 2.0; 
+        w_drone = x(11:13);
+        q_curr   = x(1:4);
+        phi_deg   = rad2deg(atan2(2*(q_curr(1)*q_curr(2) + q_curr(3)*q_curr(4)), q_curr(1)^2 - q_curr(2)^2 - q_curr(3)^2 + q_curr(4)^2));
+        theta_deg = rad2deg(asin(max(-1.0, min(1.0, 2*(q_curr(1)*q_curr(3) - q_curr(2)*q_curr(4))))));
+        % =========================================================================
+        % 【3次元回避チューニングパラメータ】ここを調整してバランスを取る
+        % =========================================================================
+        lambda_cbf = 3.0;      % 接近時の制約立ち上がり強度 (標準: 2.0 ~ 3.5)
+        gain_T     = 0.30;     % 推力(Z)の制約寄与度 (0.05=ほぼZ無効 ~ 0.50=Zも強めに使う)
+        gain_tau   = 40.0;     % トルク(XY)の制約寄与度 (25.0=穏やか ~ 60.0=深く傾く)
+        
+        w_T        = 25.0;      % コスト関数での推力変更ペナルティ (小さいほどZが動きやすい)
+        w_tau      = 0.05;     % コスト関数でのトルク変更ペナルティ (小さいほどXYに傾きやすい)
+        % =========================================================================
         A_obs_all = [];
         b_obs_all = [];
-
         for i = 1:length(obs_list)
           p_obs_world = obs_list(i).p_obs;
           r_obs_val   = obs_list(i).r_obs_margin;
@@ -450,97 +659,102 @@ classdef HLC_CBF < handle
           else
             v_obs_world = zeros(3, 1);
           end
-
           p_obs_rel = Rb0' * p_obs_world;
           v_obs_rel = Rb0' * v_obs_world;
           
           p_rel_vec = p_obs_rel - p_drone;
           v_rel_vec = v_obs_rel - v_drone;
           dist_p    = norm(p_rel_vec);
-
           if dist_p > (r_obs_val + 3.0)
             continue;
           end
-
           % 衝突円錐 ECBF
           if dot(p_rel_vec, v_rel_vec) < 0
             r_cbf_eval = r_obs_val;
             if dist_p <= r_obs_val
               r_cbf_eval = dist_p - 1e-4;
             end
-
             obsParam = [p_obs_rel', v_obs_rel', r_cbf_eval];
             A_cone = real(ECBF_Acbf(x, obsParam, P, f_T_curr));
             b_cone = real(ECBF_bcbf(x, obsParam, P, f_T_curr, lambda_cbf));
-
             if ~any(isnan(A_cone)) && ~any(isnan(b_cone)) && ~any(isinf(A_cone)) && ~any(isinf(b_cone))
-              % --- スケーリング正規化 (トルク項のオーダー 10^5 を推力と同等スケールに調整) ---
               scale_tau = norm(A_cone(2:4)) + 1e-6;
-              A_cone_scaled = [A_cone(1), A_cone(2:4) * (5.0 / scale_tau)];
+              
+              % パラメータ連動スケーリング
+              A_cone_scaled = [gain_T * A_cone(1), A_cone(2:4) * (gain_tau / scale_tau)];
               
               A_obs_all = [A_obs_all; A_cone_scaled];
               b_obs_all = [b_obs_all; b_cone];
             end
           end
         end
-
-        % --- 2. 姿勢角制限 CBF (ロール・ピッチ ±25 deg) ---
-        max_tilt  = deg2rad(25); 
+        % --- 2. 姿勢角制限 CBF (ロール・ピッチ ±40 deg) ---
+        max_tilt  = deg2rad(40); 
         gamma_att = 3.0;
         A_att = real(Attitude_CBF_Acbf(x, P));
         b_att = real(Attitude_CBF_bcbf(x, P, max_tilt, gamma_att));
-
-        % --- 3. 階層型 QP 最適化 (推力下限は 0.0) ---
+        
+        % --- 3. 階層型 完全スラック付き QP 最適化 ---
         n_obs = size(A_obs_all, 1);
-
+        n_att = size(A_att, 1);
+        
         if n_obs > 0
-          A_qp = [A_att,     zeros(size(A_att, 1), n_obs); ...
-                  A_obs_all, -eye(n_obs)];
-          b_qp = [b_att; b_obs_all];
-
-          H_u  = eye(4); 
-          w_xi = 500.0;
-          H_qp = blkdiag(H_u, w_xi * eye(n_obs));
-          f_qp = [-H_u * u_nom; zeros(n_obs, 1)];
-
-          % 推力下限は 0.0
-          lb = [0.0;  -1.0; -1.0; -1.0; zeros(n_obs, 1)];
-          ub = [20.0;  1.0;  1.0;  1.0; inf(n_obs, 1)];
-
+          % 最適化変数 z = [u (4x1); xi_obs (n_obs x 1); xi_att (n_att x 1)]
+          num_slacks = n_obs + n_att;
+          A_qp = [A_obs_all, -eye(n_obs), zeros(n_obs, n_att); ...
+                  A_att,     zeros(n_att, n_obs), -eye(n_att)];
+          b_qp = [b_obs_all; b_att];
+          
+          H_u      = diag([w_T, w_tau, w_tau, 1.0]); 
+          w_xi_obs = 500.0;
+          w_xi_att = 50000.0; % 姿勢スラックは超高ペナルティ
+          H_qp     = blkdiag(H_u, w_xi_obs * eye(n_obs), w_xi_att * eye(n_att));
+          f_qp     = [-H_u * u_nom; zeros(num_slacks, 1)];
+          
+          lb = [0.0;  -1.0; -1.0; -1.0; zeros(num_slacks, 1)];
+          ub = [20.0;  1.0;  1.0;  1.0; inf(num_slacks, 1)];
+          
           options = optimoptions('quadprog', 'Display', 'off', 'Algorithm', 'interior-point-convex');
           [z_safe, ~, exitflag] = quadprog(real(H_qp), real(f_qp), real(A_qp), real(b_qp), [], [], lb, ub, [], options);
-
           if exitflag == 1
             u_safe = z_safe(1:4);
             tmp = u_safe;
           else
-            [u_att_safe, ~, ef_att] = quadprog(H_u, -H_u*u_nom, A_att, b_att, [], [], lb(1:4), ub(1:4), [], options);
-            if ef_att == 1
-              tmp = u_att_safe;
-            else
-              tmp = u_nom;
-            end
+            tmp = u_nom;
           end
         else
-          [u_safe, ~, exitflag] = quadprog(eye(4), -u_nom, A_att, b_att, [], [], [0.0; -1; -1; -1], [20; 1; 1; 1], [], optimoptions('quadprog','Display','off'));
+          % 警戒範囲外: 姿勢制約にもスラックを付与して最適化
+          A_qp_att = [A_att, -eye(n_att)];
+          b_qp_att = b_att;
+          H_qp_att = blkdiag(eye(4), 50000.0 * eye(n_att));
+          f_qp_att = [-u_nom; zeros(n_att, 1)];
+          lb_att   = [0.0; -1.0; -1.0; -1.0; zeros(n_att, 1)];
+          ub_att   = [20.0; 1.0;  1.0;  1.0; inf(n_att, 1)];
+          
+          [z_safe, ~, exitflag] = quadprog(real(H_qp_att), real(f_qp_att), real(A_qp_att), real(b_qp_att), [], [], lb_att, ub_att, [], optimoptions('quadprog','Display','off'));
           if exitflag == 1
-            tmp = u_safe;
+            tmp = z_safe(1:4);
           else
             tmp = u_nom;
           end
         end
-
-        % --- 診断用 printf ---
+        % --- 診断 printf ---
         if n_obs > 0
           h_diag = real(ECBF_h(x, obsParam, P));
-          fprintf('[CBF 診断] 距離: %0.2fm | h_cone: %+0.3f | QP Status: %d\n', dist_p, h_diag, exitflag);
-          fprintf('  ノミナル入力 : [T=%0.2f, tx=%+0.2f, ty=%+0.2f, tz=%+0.2f]\n', u_nom(1), u_nom(2), u_nom(3), u_nom(4));
-          fprintf('  安全入力 u*  : [T=%0.2f, tx=%+0.2f, ty=%+0.2f, tz=%+0.2f]\n', tmp(1), tmp(2), tmp(3), tmp(4));
+          
+          c_T  = A_obs_all(1, 1) * tmp(1);
+          c_tx = A_obs_all(1, 2) * tmp(2);
+          c_ty = A_obs_all(1, 3) * tmp(3);
+          total_lhs = c_T + c_tx + c_ty;
+          fprintf('[CBF 診断] 距離: %0.2fm | h_cone: %+0.3f | QP: %d\n', dist_p, h_diag, exitflag);
+          fprintf('  姿勢実測 : ロール=%+0.1f deg, ピッチ=%+0.1f deg | 角速度=[%+0.2f, %+0.2f]\n', phi_deg, theta_deg, w_drone(1), w_drone(2));
+          fprintf('  制御入力 : T=%0.2f, tx=%+0.2f, ty=%+0.2f\n', tmp(1), tmp(2), tmp(3));
+          fprintf('  制約寄与 : [推力T: %+0.2f, ロールtx: %+0.2f, ピッチty: %+0.2f] => 合計=%+0.2f <= b=%+0.2f\n\n', ...
+                  c_T, c_tx, c_ty, total_lhs, b_obs_all(1));
         end
       else
         tmp = u_nom;
       end
-
       % --- 最小クリアランス（余裕距離）のログ保存 ---
       min_dist_to_surface = Inf;
       if ~isempty(obs_list)
@@ -555,7 +769,6 @@ classdef HLC_CBF < handle
         end
       end
       obj.result.min_clearance = min_dist_to_surface;
-
       % 最終入力
       obj.result.input = [max(0.0, min(20.0, tmp(1))); ...
                           max(-1.0, min(1.0,  tmp(2))); ...
