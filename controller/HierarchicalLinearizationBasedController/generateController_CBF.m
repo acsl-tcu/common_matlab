@@ -121,197 +121,171 @@ beta2 = [LieD(dddh2,g1,x); LieD(dddh3,g1,x); LieD(dh4,g1,x)];
     xdRef = fliplr([xd dxd ddxd dddxd ddddxd]);
     vInput1 = fliplr([v1(t) diff(v1(t),t) diff(v1(t),t,2) diff(v1(t),t,3)]);
 
-%%
-% CBF作成 (FastBridge Non-cascaded ECBF: Optimized Chain-Rule)
-%%
-%% ================= C3BF Symbolic Derivation ================= %%
-fprintf('--- 高次 C3BF (ECBF) シンボリック導出開始 (メモリ最適化版) ---\n');
+%% ========================================================================= %%
+%% FastBridge 完全準拠: 衝突円錐 ECBF (動的拡大状態 z in R^14, 相対次数3)
+%% ========================================================================= %%
+fprintf('FastBridge Collision Cone ECBF 制約の導出を開始します...\n');
 
-syms px_obs py_obs pz_obs vx_obs vy_obs vz_obs robs lambda_cbf real
-syms f_T_curr real 
+%% 1. 拡大状態量とパラメータの定義
+syms aT daT d2aT real             % 正規化推力 aT=T/m, 1階微分, 2階微分 (決定変数)
+syms taux tauy tauz real          % トルク入力 (決定変数)
+syms mu1 mu2 mu3 real             % 障害物中心座標
+syms A11 A12 A13 A22 A23 A33 real % 楕円共分散逆行列
+syms c_scale real                 % 信頼区間スケール
+syms lambda_cbf positive real     % ECBF 極配置パラメータ
 
-p_obs = [px_obs; py_obs; pz_obs];
-v_obs = [vx_obs; vy_obs; vz_obs];
+e3 = [0; 0; 1];
+J  = diag([jx, jy, jz]);
 
-p_rel = p_obs - p;
-v_rel = v_obs - dp;
+%% 2. 衝突円錐バリア関数 h(r, v) の定義 (論文 Eq. 4, 8, 10)
+mu_vec = [mu1; mu2; mu3];
+A_mat  = [A11, A12, A13; A12, A22, A23; A13, A23, A33];
 
-norm_p = sqrt(p_rel.' * p_rel);
-norm_v = sqrt(v_rel.' * v_rel + 1e-6);
+r_vec     = mu_vec - p;
+gamma_val = r_vec.' * A_mat * r_vec - c_scale^2;
+beta_val  = dp.' * A_mat * dp;
+delta_val = r_vec.' * A_mat * dp;
 
-% シンボリック上は滑らかな代数式として展開 (diff を正常に通すため max は使用しない)
-cos_phi = sqrt(norm_p^2 - robs^2) / norm_p;
-h0 = (p_rel.' * v_rel) + norm_p * norm_v * cos_phi;
+h_cc = simplify(beta_val * gamma_val - delta_val^2);
 
-% クアッドコプター姿勢・幾何
-R_mat = [q0^2+q1^2-q2^2-q3^2, 2*(q1*q2-q0*q3), 2*(q1*q3+q0*q2);
-         2*(q1*q2+q0*q3), q0^2-q1^2+q2^2-q3^2, 2*(q2*q3-q0*q1);
-         2*(q1*q3-q0*q2), 2*(q2*q3+q0*q1), q0^2-q1^2-q2^2-q3^2];
+%% 3. 拡大状態系 z in R^14 における ドリフト f_ext(z) と 入力行列 G_ext(z)
+% 拡大状態ベクトル: z = [q(4); p(3); dp(3); ob(3); aT; daT]
+z_ext = [q; p; dp; ob; aT; daT];
 
-z_B = R_mat(:, 3); % 推力方向ベクトル
-w_I = R_mat * ob;  % 慣性系角速度
+% クォータニオン回転行列 R
+R_mat = [q0^2+q1^2-q2^2-q3^2,   2*(q1*q2-q0*q3),       2*(q1*q3+q0*q2);
+         2*(q1*q2+q0*q3),       q0^2-q1^2+q2^2-q3^2,   2*(q2*q3-q0*q1);
+         2*(q1*q3-q0*q2),       2*(q2*q3+q0*q1),       q0^2-q1^2-q2^2+q3^2];
+b3 = R_mat * e3;
 
-% 1. 各階層の物理運動
-% 加速度 (u1: 総推力)
-ddp_sym = [0; 0; -gravity] + (1/m) * z_B * u1;
+% クォータニオン運動学
+Omega_w = [  0, -o1, -o2, -o3;
+            o1,   0,  o3, -o2;
+            o2, -o3,   0,  o1;
+            o3,  o2, -o1,   0];
+q_dot = 0.5 * Omega_w * q;
 
-% Jerk (角速度連成)
-jerk_sym = (1/m) * f_T_curr * cross(w_I, z_B);
+% ダイナミクス展開
+p_dot  = dp;
+dp_dot = -gravity * e3 + aT * b3;
 
-% Snap のトルク寄与行列 G_tau (3x3)
-J_mat = diag([jx, jy, jz]);
-S_zB = [   0,    -z_B(3),  z_B(2);
-         z_B(3),    0,    -z_B(1);
-        -z_B(2),  z_B(1),    0   ];
+gyro_drift  = -J \ cross(ob, J * ob);
+G_w_tau     = J \ eye(3);
+aT_dot      = daT;
+daT_drift   = sym(0);
 
-% トルク tau = [u2; u3; u4] に対する Snap の伝達行列 (3x3)
-G_tau_snap = -(1/m) * f_T_curr * S_zB * R_mat * inv(J_mat);
+f_ext = [q_dot;
+         p_dot;
+         dp_dot;
+         gyro_drift;
+         aT_dot;
+         daT_drift];
 
-% 2. 衝突円錐の勾配ベクトル (Chain Rule)
-dh0_dp = pdiff(h0, p);
-dh0_dv = pdiff(h0, dp); % 制御方向ベクトル w^T
+% 入力 eta = [d2aT; taux; tauy; tauz] に対する入力行列
+g_d2aT = [zeros(4,1); zeros(3,1); zeros(3,1); zeros(3,1); 0; 1];
+g_tx   = [zeros(4,1); zeros(3,1); zeros(3,1); G_w_tau(:,1); 0; 0];
+g_ty   = [zeros(4,1); zeros(3,1); zeros(3,1); G_w_tau(:,2); 0; 0];
+g_tz   = [zeros(4,1); zeros(3,1); zeros(3,1); G_w_tau(:,3); 0; 0];
+G_ext  = [g_d2aT, g_tx, g_ty, g_tz];
 
-% リー微分 (時間微分の近似展開: ドリフト成分)
-Lfh0  = dh0_dp * dp + dh0_dv * [0; 0; -gravity];
-Lf2h0 = pdiff(Lfh0, p) * dp + pdiff(Lfh0, dp) * jerk_sym;
+%% 4. Lie微分と相対次数3のECBF制約構築 (論文 Eq. 15)
+Lfh  = simplify(jacobian(h_cc, z_ext) * f_ext);
+Lf2h = simplify(jacobian(Lfh,  z_ext) * f_ext);
+Lf3h = simplify(jacobian(Lf2h, z_ext) * f_ext);
 
-% 3. 入力ゲインベクトル A_cbf (-Lg) の構築
-% u1 (推力) に対する制約
-A_u1 = -dh0_dv * ( (1/m) * z_B );
+LgLf2h = simplify(jacobian(Lf2h, z_ext) * G_ext);
 
-% u2, u3, u4 (トルク) に対する制約 (Snap 経由)
-A_tau = -dh0_dv * G_tau_snap; % 1x3 行列
+% 不等式制約: A_cbf * eta <= b_cbf
+A_qp = simplify(-LgLf2h);
+b_qp = simplify(Lf3h + 3*lambda_cbf*Lf2h + 3*(lambda_cbf^2)*Lfh + (lambda_cbf^3)*h_cc);
 
-A_cbf_sym = [A_u1, A_tau];
+%% 5. MATLAB 関数の生成・エクスポート
+fprintf('MATLAB 関数を生成中...\n');
+splat_params = [mu1; mu2; mu3; A11; A12; A13; A22; A23; A33; c_scale];
 
-% 4. 境界値ベクトル b_cbf
-% ECBF 極配置: b_cbf = 3*lambda*Lf2h0 + 3*lambda^2*Lfh0 + lambda^3*h0
-b_cbf_sym = 3*lambda_cbf*Lf2h0 + 3*(lambda_cbf^2)*Lfh0 + (lambda_cbf^3)*h0;
+% 1. バリア関数値の計算
+matlabFunction(h_cc, 'file', 'FastBridge_CBF_h.m', ...
+    'vars', {z_ext, splat_params}, 'outputs', {'h_val'});
 
-% 5. .m ファイル出力
-fprintf('Step 4: 関数ファイルを出力中...\n');
-obsParam = [px_obs, py_obs, pz_obs, vx_obs, vy_obs, vz_obs, robs];
+% 2. Lie微分の診断関数
+matlabFunction(Lfh, Lf2h, Lf3h, 'file', 'FastBridge_CBF_Lie.m', ...
+    'vars', {z_ext, splat_params, physicalParam}, 'outputs', {'Lfh', 'Lf2h', 'Lf3h'});
 
-matlabFunction(h0,        'file', 'ECBF_h.m',    'vars', {x, obsParam, physicalParam}, 'outputs', {'h'});
-matlabFunction(A_cbf_sym, 'file', 'ECBF_Acbf.m', 'vars', {x, obsParam, physicalParam, f_T_curr}, 'outputs', {'A_cbf'});
-matlabFunction(b_cbf_sym, 'file', 'ECBF_bcbf.m', 'vars', {x, obsParam, physicalParam, f_T_curr, lambda_cbf}, 'outputs', {'b_cbf'});
+% 3. QP不等式制約行列 (A_cbf * eta <= b_cbf)
+matlabFunction(A_qp, b_qp, 'file', 'FastBridge_CBF_QP.m', ...
+    'vars', {z_ext, splat_params, physicalParam, lambda_cbf}, 'outputs', {'A_cbf', 'b_cbf'});
 
-clear ECBF_h ECBF_Acbf ECBF_bcbf;
+fprintf('====================================================\n');
+fprintf('  [OK] FastBridge 完全準拠 ECBF 関数群 生成完了\n');
+fprintf('====================================================\n\n');
 
-%% ================= 生成後ファイル動作・影響度チェック ================= %%
-fprintf('\n========================================\n');
-fprintf('  生成済み ECBF 関数の実動作テスト\n');
+%% ========================================================================= %%
+%% 生成後 動作確認テスト & QPシミュレーション
+%% ========================================================================= %%
+fprintf('========================================\n');
+fprintf('  生成済み FastBridge ECBF 関数の動作テスト\n');
 fprintf('========================================\n');
 
-P_test = [0.027, 0.046, 0.046, 0.046, 0.046, 1.657e-5, 1.657e-5, 2.926e-5, 9.81, 1, 1, 1, 1, 1, 1, 1, 1];
-f_T_test = 0.027 * 9.81; % ホバリング推力 (約 0.265 N)
-lambda_test = 2.0;
+% 1. 物理パラメータ設定 (m=0.461kg, 慣性モーメント)
+m_val   = 0.461;
+g_val   = 9.81;
+jx_val  = 2.5e-3; jy_val = 2.5e-3; jz_val = 4.0e-3;
+phys_test = [m_val, 0.1, 0.1, 0.05, 0.05, jx_val, jy_val, jz_val, g_val, ...
+             1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 
-% テスト状態: 姿勢傾斜（ロール・ピッチ15度）で接近中
-q_tilt = Eul2Quat([deg2rad(15); deg2rad(10); 0]);
-x_test = [q_tilt;   0; 0; 1;   1.0; 0.2; 0;   0.1; 0.1; 0];
-obs_test = [1.5, 0.0, 1.0,   0.0, 0.0, 0.0,   0.3];
+% 2. クアッドローター拡大状態 z_test (14次元): 前方(+x)へ 3.0 m/s で直進
+q_test   = [1; 0; 0; 0];
+p_test   = [0.0; 0.0; 1.0];
+dp_test  = [3.0; 0.0; 0.0];
+ob_test  = [0.0; 0.0; 0.0];
+aT_test  = g_val;                 % ホバリング推力 (T/m = g)
+daT_test = 0.0;
+z_test   = [q_test; p_test; dp_test; ob_test; aT_test; daT_test];
 
-h_val = ECBF_h(x_test, obs_test, P_test);
-A_val = ECBF_Acbf(x_test, obs_test, P_test, f_T_test);
-b_val = ECBF_bcbf(x_test, obs_test, P_test, f_T_test, lambda_test);
+% 3. 3DGS 障害物 (3.0m 前方に配置)
+mu_test = [3.0; 0.0; 1.0];
+Sigma_inv = diag([1/(0.5^2), 1/(0.3^2), 1/(0.8^2)]);
+A_test = [Sigma_inv(1,1); Sigma_inv(1,2); Sigma_inv(1,3); ...
+          Sigma_inv(2,2); Sigma_inv(2,3); Sigma_inv(3,3)];
+c_scale_test = 1.0;
+splat_test = [mu_test; A_test; c_scale_test];
 
-fprintf('  h_val = % .4f\n', real(h_val));
-fprintf('  b_cbf = % .4f\n', real(b_val));
-fprintf('  A_cbf = [% .4e,  % .4e,  % .4e,  % .4e]\n\n', real(A_val(1)), real(A_val(2)), real(A_val(3)), real(A_val(4)));
+% 4. 制御ゲイン
+lambda_test = 3.0;
 
-input_labels = {'u1 (総推力)', 'u2 (ロールトルク)', 'u3 (ピッチトルク)', 'u4 (ヨートルク)'};
-for i = 1:4
-    if abs(real(A_val(i))) > 1e-6
-        fprintf('  [OK] %s : 有効 (A_cbf(%d) = % .4e)\n', input_labels{i}, i, real(A_val(i)));
-    else
-        fprintf('  [確認] %s : 0\n', input_labels{i}, i);
-    end
+% 5. 関数の評価
+h_val = FastBridge_CBF_h(z_test, splat_test);
+[Lfh_val, Lf2h_val, Lf3h_val] = FastBridge_CBF_Lie(z_test, splat_test, phys_test);
+[A_cbf_val, b_cbf_val] = FastBridge_CBF_QP(z_test, splat_test, phys_test, lambda_test);
+
+fprintf('  バリア関数値 h_cc        : % .4f\n', double(h_val));
+fprintf('  Lf h, Lf^2 h, Lf^3 h      : [% .2e, % .2e, % .2e]\n', double(Lfh_val), double(Lf2h_val), double(Lf3h_val));
+fprintf('  A_cbf 行列サイズ         : [%d x %d] (期待値: [1 x 4])\n', size(A_cbf_val, 1), size(A_cbf_val, 2));
+fprintf('  A_cbf (d2aT, tx, ty, tz)  : [% .3e, % .3e, % .3e, % .3e]\n', double(A_cbf_val));
+fprintf('  b_cbf の値               : % .3e\n', double(b_cbf_val));
+
+% 6. QP 検証 (quadprog): ノミナル入力 eta_nom に対するフィルタリング
+eta_nom = [0.0; 0.0; 0.0; 0.0];
+H_qp = eye(4);
+f_qp = -eta_nom;
+
+lb = [-50.0; -0.5; -0.5; -0.1];
+ub = [ 50.0;  0.5;  0.5;  0.1];
+
+opts = optimoptions('quadprog', 'Display', 'off');
+[eta_opt, ~, exitflag] = quadprog(H_qp, f_qp, double(A_cbf_val), double(b_cbf_val), [], [], lb, ub, [], opts);
+
+if exitflag == 1
+    fprintf('\n  [OK] QP Safety Filter 最適化成功\n');
+    fprintf('  最適修正入力 eta*:\n');
+    fprintf('    d2aT  (推力加加速度) : % .4f m/s^4\n', eta_opt(1));
+    fprintf('    tau_x (ロールトルク) : % .4f Nm\n', eta_opt(2));
+    fprintf('    tau_y (ピッチトルク) : % .4f Nm\n', eta_opt(3));
+    fprintf('    tau_z (ヨートルク)   : % .4f Nm\n', eta_opt(4));
+    fprintf('========================================\n\n');
+else
+    warning('QPが正常に終了しませんでした (exitflag = %d)', exitflag);
 end
-fprintf('========================================\n\n');
-
-%%
-% 姿勢制限 CBF 作成 (Attitude Limit ECBF: Roll & Pitch <= max_tilt)
-%%
-%% ================= Attitude CBF Symbolic Derivation ================= %%
-fprintf('--- 姿勢角制限 ECBF (ロール・ピッチ制限) シンボリック導出開始 ---\n');
-
-syms max_tilt gamma_att real
-% max_tilt : 許容最大姿勢角 [rad] (例: deg2rad(15))
-% gamma_att: 姿勢CBF極配置ゲイン (例: 3.0)
-
-% 1. オイラー角 (ロール phi, ピッチ th) の導出 (スクリプト内定義と同一)
-phi_sym = atan2((2*(q0*q1 + q2*q3)), (q0^2 - q1^2 - q2^2 + q3^2));
-th_sym  = asin(max(-1.0, min(1.0, 2*(q0*q2 - q1*q3))));
-
-% 2. バリア関数定義 h = [max_tilt - phi; phi + max_tilt; max_tilt - th; th + max_tilt]
-h_att = [
-    max_tilt - phi_sym;
-    phi_sym + max_tilt;
-    max_tilt - th_sym;
-    th_sym + max_tilt
-    ];
-
-% 3. オイラー角速度のキネマティクス (角速度 ob = [o1; o2; o3] との関係)
-dot_phi_sym = o1 + o2*sin(phi_sym)*tan(th_sym) + o3*cos(phi_sym)*tan(th_sym);
-dot_th_sym  = o2*cos(phi_sym) - o3*sin(phi_sym);
-
-dot_h_att = [
-    -dot_phi_sym;
-    dot_phi_sym;
-    -dot_th_sym;
-    dot_th_sym
-    ];
-
-% 4. 角加速度 (クアッドコプターのオイラー方程式)
-% J * dot_ob = tau - ob x (J * ob)
-% dot_ob1 (ロール軸)  = (u2 - (jz - jy)*o2*o3) / jx
-% dot_ob2 (ピッチ軸)  = (u3 - (jx - jz)*o1*o3) / jy
-% トルク入力 u = [u1; u2; u3; u4] に対するアフィン項 A_att (-Lg) の構築
-% d2_phi/dt2 に対する u2 の係数: 1 / jx
-% d2_th/dt2  に対する u3 の係数: cos(phi) / jy
-A_att_sym = [
-    % u1,      u2,                           u3,                     u4
-    0,    1/jx,                            0,                      0; % phi <= max_tilt
-    0,   -1/jx,                            0,                      0; % phi >= -max_tilt
-    0,       0,          cos(phi_sym)/jy,                      0; % th  <= max_tilt
-    0,       0,         -cos(phi_sym)/jy,                      0  % th  >= -max_tilt
-    ];
-
-% 境界値ベクトル b_att の構築 (ECBF 極配置: ddot_h + 2*gamma*dot_h + gamma^2*h >= 0)
-% A_att * u <= b_att
-b_att_sym = 2*gamma_att*dot_h_att + (gamma_att^2)*h_att;
-
-% 5. .m ファイル出力
-fprintf('姿勢制約関数ファイルを出力中...\n');
-matlabFunction(h_att,     'file', 'Attitude_CBF_h.m',    'vars', {x, max_tilt}, 'outputs', {'h_att'});
-matlabFunction(A_att_sym, 'file', 'Attitude_CBF_Acbf.m', 'vars', {x, physicalParam}, 'outputs', {'A_att'});
-matlabFunction(b_att_sym, 'file', 'Attitude_CBF_bcbf.m', 'vars', {x, physicalParam, max_tilt, gamma_att}, 'outputs', {'b_att'});
-
-clear Attitude_CBF_h Attitude_CBF_Acbf Attitude_CBF_bcbf;
-
-%% ================= 生成後ファイル動作チェック ================= %%
-fprintf('\n========================================\n');
-fprintf('  生成済み 姿勢制限 CBF 関数の実動作テスト\n');
-fprintf('========================================\n');
-
-max_tilt_test = deg2rad(15); % 15度
-gamma_att_test = 3.0;
-
-% テスト状態: ロール12度、ピッチ10度で傾斜中
-q_test = Eul2Quat([deg2rad(12); deg2rad(10); 0]);
-x_test_att = [q_test;  0;0;1;  0;0;0;  0.1;0.1;0];
-
-h_att_val = Attitude_CBF_h(x_test_att, max_tilt_test);
-A_att_val = Attitude_CBF_Acbf(x_test_att, P_test);
-b_att_val = Attitude_CBF_bcbf(x_test_att, P_test, max_tilt_test, gamma_att_test);
-
-fprintf('  h_att (ロール上限余力) : % .4f rad (約 %0.2f deg)\n', h_att_val(1), rad2deg(h_att_val(1)));
-fprintf('  h_att (ピッチ上限余力) : % .4f rad (約 %0.2f deg)\n', h_att_val(3), rad2deg(h_att_val(3)));
-fprintf('  A_att サイズ           : [%d x %d]\n', size(A_att_val, 1), size(A_att_val, 2));
-fprintf('  [OK] 姿勢制限関数 正常生成完了\n');
-fprintf('========================================\n\n');
-
 % %% Make functions of z
 % % % If either model, virtual output or parameters is changed, then evaluate this section.
 %     disp("Start: make functions of virtual states.");
