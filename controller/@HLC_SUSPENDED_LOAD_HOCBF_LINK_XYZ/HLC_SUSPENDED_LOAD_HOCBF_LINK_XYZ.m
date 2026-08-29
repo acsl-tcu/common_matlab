@@ -469,10 +469,397 @@
 % end
 
 
+% classdef HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ < handle
+%     % スリング負荷付きクアッドコプター用 Non-cascaded ECBF 単一 QP コントローラ
+%     % 最適化対象: u = [u1; u2; u3; u4] (推力 + 3軸トルク)
+%     % 制約: 障害物回避 CBF + 入力上下限 (lb <= u <= ub)
+% properties
+%     self
+%     result
+%     param
+% end
+% methods
+%     function obj = HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ(self, param)
+%         obj.self = self;
+%         obj.param = param;
+%         obj.result.min_clearance = Inf;
+%     end
+% 
+%     function result = do(obj, varargin)
+%         Param = obj.param; 
+%         model = obj.self.estimator.result; 
+%         ref   = obj.self.reference.result; 
+%         if isprop(ref.state, 'xd')
+%             xd = ref.state.xd; 
+%         else
+%             xd = ref.state.get();
+%         end
+%         pL = model.state.pL;
+%         if isprop(model.state, "pT")
+%             pT = model.state.pT;
+%         else
+%             delta = pL - model.state.p;
+%             if norm(delta) > 1e-9
+%                 pT = delta / norm(delta);
+%             else
+%                 pT = [0; 0; -1];
+%             end
+%         end
+%         P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
+%         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL];
+%         yaw      = wrapToPi(model.state.q(3)); 
+%         yawd     = xd(4); 
+%         yawUnit  = [cos(yaw); sin(yaw); 0]; 
+%         yawdUnit = [cos(yawd); sin(yawd); 0]; 
+%         deltaYaw = sign(cross(yawdUnit, yawUnit)) * acos(yawdUnit' * yawUnit); 
+%         xd(4)    = -deltaYaw(3) + yaw; 
+%         xd = [xd; zeros(28 - size(xd, 1), 1)];
+%         tic_start = tic;
+% 
+%         %% =========================================================================
+%         %% 1. ノミナル制御入力の算定 (階層型線形化)
+%         %% =========================================================================
+%         F1 = Param.F1; F2 = Param.F2; F3 = Param.F3; F4 = Param.F4; 
+%         vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); 
+%         vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); 
+%         uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); 
+%         beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); 
+%         vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); 
+%         us = beta2 \ vs_alpha2; 
+%         u_nominal = [uf(1); us]; % ノミナル入力 [u1_nom; u2_nom; u3_nom; u4_nom]
+%         obj.result.tmp = u_nominal; 
+% 
+%         %% =========================================================================
+%         %% 2. 幾何情報・クリアランス計算
+%         %% =========================================================================
+%         min_surf_dist = Inf;
+%         obs_env = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%         num_obs = length(obs_env);
+%         L_cable = P(7); 
+%         p_mid = pL - 0.5 * L_cable * pT;
+%         rl_sys = 1.2;
+%         obj.result.rl    = rl_sys;
+%         obj.result.p_mid = p_mid;
+% 
+%         log_p_obs        = cell(1, max(1, num_obs));
+%         log_r_obs_margin = cell(1, max(1, num_obs));
+%         log_r_minimal    = cell(1, max(1, num_obs));
+% 
+%         for i = 1:num_obs
+%             p_obs = obs_env(i).p_obs(:);
+%             ro = obs_env(i).r_obs_margin;
+%             d_surf = norm(p_mid - p_obs) - (ro + rl_sys);
+%             if d_surf < min_surf_dist
+%                 min_surf_dist = d_surf;
+%             end
+%             log_p_obs{i}        = p_obs;
+%             log_r_obs_margin{i} = ro;
+%             log_r_minimal{i}    = d_surf;
+%         end
+%         obj.result.min_clearance = min_surf_dist;
+%         obj.result.p_obs         = log_p_obs;
+%         obj.result.r_minimal     = log_r_minimal;
+% 
+%         %% =========================================================================
+%         %% 3. 障害物回避 Non-cascaded CBF 制約行列の構築
+%         %% =========================================================================
+%         % トルク効果を保持するための動作点推力 U1_ref
+%         U1_ref = max(0.1, u_nominal(1)); 
+% 
+%         % 各階層ゲイン (必要に応じて調整)
+%         gamma_obs = [2; 4; 8; 16]; % [gamma1; gamma2; gamma3; gamma4]
+%         A_qp_all = [];
+%         b_qp_all = [];
+%         log_h_obs = zeros(num_obs, 4);
+% 
+%         for i = 1:num_obs
+%             obs_params = [obs_env(i).p_obs(:); obs_env(i).r_obs_margin];
+%             sys_params = rl_sys;
+%             [A_single, b_single, h1_v, h2_v, h3_v, h4_v] = CBF_Constraints_NonCascaded_Obstacle(...
+%                 obj, x, xd, U1_ref, obs_params, gamma_obs, sys_params, P);
+% 
+%             A_qp_all = [A_qp_all; A_single]; %#ok<AGROW> % (num_obs x 4)
+%             b_qp_all = [b_qp_all; b_single]; %#ok<AGROW>
+%             log_h_obs(i, :) = [h1_v, h2_v, h3_v, h4_v];
+%         end
+% 
+%         %% =========================================================================
+%         %% 4. 単一 4次元 QP の求解 (min ||u - u_nominal||_W^2)
+%         %% =========================================================================
+%         % 入力重み行列 (推力とトルクのスケール差を調整)
+%         W_u = diag([1.0, 0.1, 0.1, 1.0]); 
+%         H_qp = W_u;
+%         f_qp = -W_u * u_nominal;
+% 
+%         % 入力上下限 [u1 (Thrust); u2 (Roll); u3 (Pitch); u4 (Yaw)]
+%         lb_qp = [ 0.0; -1.0; -1.0; -0.5];
+%         ub_qp = [20.0;  1.0;  1.0;  0.5];
+% 
+%         options_qp = optimoptions('quadprog', 'Display', 'off', 'ConstraintTolerance', 1e-4);
+%         [u_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_qp_all, b_qp_all, [], [], lb_qp, ub_qp, [], options_qp);
+% 
+%         if exitflag == 1 && ~isempty(u_safe)
+%             u_final = u_safe;
+%         else
+%             % ソルバー失敗時のクリップ処理
+%             u_final = max(lb_qp, min(ub_qp, u_nominal));
+%         end
+% 
+%         slack_nom  = A_qp_all * u_nominal - b_qp_all;
+%         slack_safe = b_qp_all - A_qp_all * u_final;
+%         num_violated = sum(slack_nom > 0);
+% 
+%         %% =========================================================================
+%         %% 5. デバッグ表示 ＆ ロギング
+%         %% =========================================================================
+%         if num_violated > 0
+%             fprintf('[Non-cascaded CBF] 介入発生 (違反障害物数: %d)\n', num_violated);
+%             fprintf('  Nominal: [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
+%                 u_nominal(1), u_nominal(2), u_nominal(3), u_nominal(4));
+%             fprintf('  Safe   : [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
+%                 u_final(1), u_final(2), u_final(3), u_final(4));
+%             [max_viol, idx_v] = max(slack_nom);
+%             fprintf('  Max Viol (Obs #%d): %.3f | A*u_nom=%.2f, A*u_safe=%.2f (b=%.2f)\n', ...
+%                 idx_v, max_viol, A_qp_all(idx_v,:)*u_nominal, A_qp_all(idx_v,:)*u_final, b_qp_all(idx_v));
+%         end
+% 
+%         obj.result.A_qp_all        = A_qp_all;
+%         obj.result.b_qp_all        = b_qp_all;
+%         obj.result.slack_nom       = slack_nom;
+%         obj.result.slack_safe      = slack_safe;
+%         obj.result.num_violated    = num_violated;
+%         obj.result.log_h_obs       = log_h_obs;
+%         obj.result.u_nominal       = u_nominal;
+%         obj.result.tmp_fix         = u_final;
+%         obj.result.controllertime  = toc(tic_start);
+% 
+%         % 最終制御出力
+%         obj.result.input = u_final;
+%         obj.result.xd    = xd;
+%         obj.result.x     = x;
+%         result           = obj.result;
+%     end
+% 
+%     function show(obj)
+%         obj.result
+%     end
+% end
+% end
+
+% classdef HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ < handle
+%     % スリング負荷付きクアッドコプター用 衝突円錐 C3BF 単一 QP コントローラ
+%     % 最適化対象: u = [u1; u2; u3; u4] (推力 + 3軸トルク)
+%     % 制約: 衝突円錐制御バリア関数 (C3BF: 接近判定ゲート付き) + 入力上下限
+% properties
+%     self
+%     result
+%     param
+% end
+% methods
+%     function obj = HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ(self, param)
+%         obj.self = self;
+%         obj.param = param;
+%         obj.result.min_clearance = Inf;
+%     end
+% 
+%     function result = do(obj, varargin)
+%         Param = obj.param; 
+%         model = obj.self.estimator.result; 
+%         ref   = obj.self.reference.result; 
+%         if isprop(ref.state, 'xd')
+%             xd = ref.state.xd; 
+%         else
+%             xd = ref.state.get();
+%         end
+%         pL = model.state.pL;
+%         if isprop(model.state, "pT")
+%             pT = model.state.pT;
+%         else
+%             delta = pL - model.state.p;
+%             if norm(delta) > 1e-9
+%                 pT = delta / norm(delta);
+%             else
+%                 pT = [0; 0; -1];
+%             end
+%         end
+%         P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
+%         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL];
+%         yaw      = wrapToPi(model.state.q(3)); 
+%         yawd     = xd(4); 
+%         yawUnit  = [cos(yaw); sin(yaw); 0]; 
+%         yawdUnit = [cos(yawd); sin(yawd); 0]; 
+%         deltaYaw = sign(cross(yawdUnit, yawUnit)) * acos(yawdUnit' * yawUnit); 
+%         xd(4)    = -deltaYaw(3) + yaw; 
+%         xd = [xd; zeros(28 - size(xd, 1), 1)];
+%         tic_start = tic;
+% 
+%         %% =========================================================================
+%         %% 1. ノミナル制御入力の算定 (階層型線形化)
+%         %% =========================================================================
+%         F1 = Param.F1; F2 = Param.F2; F3 = Param.F3; F4 = Param.F4; 
+%         vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); 
+%         vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); 
+%         uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); 
+%         beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); 
+%         vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); 
+%         us = beta2 \ vs_alpha2; 
+%         u_nominal = [uf(1); us]; % ノミナル入力 [u1_nom; u2_nom; u3_nom; u4_nom]
+%         obj.result.tmp = u_nominal; 
+% 
+%         %% =========================================================================
+%         %% 2. 幾何情報・クリアランス計算
+%         %% =========================================================================
+%         min_surf_dist = Inf;
+%         obs_env = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%         num_obs = length(obs_env);
+%         L_cable = P(7); 
+%         p_mid = pL - 0.5 * L_cable * pT;
+%         rl_sys = 1.2;
+%         obj.result.rl    = rl_sys;
+%         obj.result.p_mid = p_mid;
+% 
+%         log_p_obs        = cell(1, max(1, num_obs));
+%         log_r_obs_margin = cell(1, max(1, num_obs));
+%         log_r_minimal    = cell(1, max(1, num_obs));
+%         for i = 1:num_obs
+%             p_obs = obs_env(i).p_obs(:);
+%             ro = obs_env(i).r_obs_margin;
+%             d_surf = norm(p_mid - p_obs) - (ro + rl_sys);
+%             if d_surf < min_surf_dist
+%                 min_surf_dist = d_surf;
+%             end
+%             log_p_obs{i}        = p_obs;
+%             log_r_obs_margin{i} = ro;
+%             log_r_minimal{i}    = d_surf;
+%         end
+%         obj.result.min_clearance = min_surf_dist;
+%         obj.result.p_obs         = log_p_obs;
+%         obj.result.r_minimal     = log_r_minimal;
+% 
+%         %% =========================================================================
+%         %% 3. 衝突円錐 C3BF 制約行列の構築 (接近判定ゲート付き)
+%         %% =========================================================================
+%         d_safe = 0.5;       % 追加安全マージン [m]
+%         alpha_c3bf = 8.0;   % クラスKゲイン
+%         d_activate = 3.0;   % C3BF 発火判定距離 [m]
+% 
+%         A_qp_all = [];
+%         b_qp_all = [];
+%         log_h_c3bf = zeros(num_obs, 1);
+% 
+%         for i = 1:num_obs
+%             % 障害物速度の取得
+%             if isfield(obs_env(i), 'v_obs') || isprop(obs_env(i), 'v_obs')
+%                 v_obs_i = obs_env(i).v_obs(:);
+%             else
+%                 v_obs_i = [0; 0; 0];
+%             end
+% 
+%             p_obs_i = obs_env(i).p_obs(:);
+%             r_obs_i = obs_env(i).r_obs_margin;
+% 
+%             % 接近判定
+%             p_rel_i = p_obs_i - p_mid;
+%             v_rel_i = v_obs_i - model.state.vL;
+%             dist_to_obs = norm(p_rel_i);
+%             is_approaching = dot(p_rel_i, v_rel_i) < 0;
+% 
+%             % 警戒距離内かつ接近している場合のみ C3BF 制約を生成
+%             if (dist_to_obs < d_activate) && is_approaching
+%                 obs_params = [p_obs_i; v_obs_i; r_obs_i];
+%                 sys_params = [rl_sys; d_safe; alpha_c3bf];
+% 
+%                 [A_single, b_single, h_val] = CBF_Constraints_C3BF_SuspendedLoad(...
+%                     obj, x, xd, obs_params, sys_params, P);
+% 
+%                 A_qp_all = [A_qp_all; A_single]; %#ok<AGROW>
+%                 b_qp_all = [b_qp_all; b_single]; %#ok<AGROW>
+%                 log_h_c3bf(i) = h_val;
+%             else
+%                 log_h_c3bf(i) = Inf;
+%             end
+%         end
+% 
+%         %% =========================================================================
+%         %% 4. 単一 4次元 QP の求解 (min ||u - u_nominal||_W^2)
+%         %% =========================================================================
+%         % 入力重み行列 (推力とトルクのスケール差を調整)
+%         % W_u = diag([1.0, 0.1, 0.1, 1.0]); 
+%         % u = [u1; u2; u3; u4]
+%         % 推力変化のペナルティを重くし、姿勢角を積極的に使わせる
+%         W_u = diag([5.0, 0.05, 0.05, 1.0]);
+%         H_qp = W_u;
+%         f_qp = -W_u * u_nominal;
+% 
+%         A_qp_all = real(A_qp_all);
+%         b_qp_all = real(b_qp_all);
+%         f_qp     = real(f_qp);
+% 
+%         % 入力上下限 [u1 (Thrust); u2 (Roll); u3 (Pitch); u4 (Yaw)]
+%         lb_qp = [ 0.0; -1.0; -1.0; -0.5];
+%         ub_qp = [20.0;  1.0;  1.0;  0.5];
+% 
+%         options_qp = optimoptions('quadprog', 'Display', 'off', 'ConstraintTolerance', 1e-4);
+%         [u_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_qp_all, b_qp_all, [], [], lb_qp, ub_qp, [], options_qp);
+% 
+%         if exitflag == 1 && ~isempty(u_safe)
+%             u_final = u_safe;
+%         else
+%             % ソルバー失敗時のクリップ処理
+%             u_final = max(lb_qp, min(ub_qp, u_nominal));
+%         end
+% 
+%         if ~isempty(A_qp_all)
+%             slack_nom  = A_qp_all * u_nominal - b_qp_all;
+%             slack_safe = b_qp_all - A_qp_all * u_final;
+%             num_violated = sum(slack_nom > 0);
+%         else
+%             slack_nom  = [];
+%             slack_safe = [];
+%             num_violated = 0;
+%         end
+% 
+%         %% =========================================================================
+%         %% 5. デバッグ表示 ＆ ロギング
+%         %% =========================================================================
+%         if num_violated > 0
+%             fprintf('[C3BF] 介入発生 (違反障害物数: %d)\n', num_violated);
+%             fprintf('  Nominal: [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
+%                 u_nominal(1), u_nominal(2), u_nominal(3), u_nominal(4));
+%             fprintf('  Safe   : [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
+%                 u_final(1), u_final(2), u_final(3), u_final(4));
+%             [max_viol, idx_v] = max(slack_nom);
+%             fprintf('  Max Viol (Obs #%d): %.3f | A*u_nom=%.2f, A*u_safe=%.2f (b=%.2f, h=%.3f)\n', ...
+%                 idx_v, max_viol, A_qp_all(idx_v,:)*u_nominal, A_qp_all(idx_v,:)*u_final, b_qp_all(idx_v), log_h_c3bf(idx_v));
+%         end
+% 
+%         obj.result.A_qp_all        = A_qp_all;
+%         obj.result.b_qp_all        = b_qp_all;
+%         obj.result.slack_nom       = slack_nom;
+%         obj.result.slack_safe      = slack_safe;
+%         obj.result.num_violated    = num_violated;
+%         obj.result.log_h_obs       = log_h_c3bf;
+%         obj.result.u_nominal       = u_nominal;
+%         obj.result.tmp_fix         = u_final;
+%         obj.result.controllertime  = toc(tic_start);
+% 
+%         % 最終制御出力
+%         obj.result.input = u_final;
+%         obj.result.xd    = xd;
+%         obj.result.x     = x;
+%         result           = obj.result;
+%     end
+% 
+%     function show(obj)
+%         obj.result
+%     end
+% end
+% end
+
 classdef HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ < handle
-    % スリング負荷付きクアッドコプター用 Non-cascaded ECBF 単一 QP コントローラ
+    % スリング負荷付きクアッドコプター用 衝突円錐 C3BF 単一 QP コントローラ
     % 最適化対象: u = [u1; u2; u3; u4] (推力 + 3軸トルク)
-    % 制約: 障害物回避 CBF + 入力上下限 (lb <= u <= ub)
+    % 制約: 衝突円錐制御バリア関数 (C3BF: 接近判定ゲート付き) + 入力上下限
 properties
     self
     result
@@ -544,7 +931,6 @@ methods
         log_p_obs        = cell(1, max(1, num_obs));
         log_r_obs_margin = cell(1, max(1, num_obs));
         log_r_minimal    = cell(1, max(1, num_obs));
-
         for i = 1:num_obs
             p_obs = obs_env(i).p_obs(:);
             ro = obs_env(i).r_obs_margin;
@@ -561,39 +947,67 @@ methods
         obj.result.r_minimal     = log_r_minimal;
 
         %% =========================================================================
-        %% 3. 障害物回避 Non-cascaded CBF 制約行列の構築
+        %% 3. マルチポイント C3BF 制約行列の構築 (機体+中点)
         %% =========================================================================
-        % トルク効果を保持するための動作点推力 U1_ref
-        U1_ref = max(0.1, u_nominal(1)); 
-
-        % 各階層ゲイン (必要に応じて調整)
-        gamma_obs = [2; 4; 8; 16]; % [gamma1; gamma2; gamma3; gamma4]
+        d_safe    = 0.3;     % 安全マージン [m]
+        alpha_Q   = 10.0;     % 機体姿勢応答用クラスKゲイン
+        alpha_mid = 4.0;     % 中点推力応答用クラスKゲイン
+        l_off     = 0.25;    % ドローン重心からのオフセット長 [m]
+        d_activate = 4.0;    % 警戒距離 [m]
+        
         A_qp_all = [];
         b_qp_all = [];
-        log_h_obs = zeros(num_obs, 4);
+        log_h_c3bf = [];
 
         for i = 1:num_obs
-            obs_params = [obs_env(i).p_obs(:); obs_env(i).r_obs_margin];
-            sys_params = rl_sys;
-            [A_single, b_single, h1_v, h2_v, h3_v, h4_v] = CBF_Constraints_NonCascaded_Obstacle(...
-                obj, x, xd, U1_ref, obs_params, gamma_obs, sys_params, P);
+            if isfield(obs_env(i), 'v_obs') || isprop(obs_env(i), 'v_obs')
+                v_obs_i = obs_env(i).v_obs(:);
+            else
+                v_obs_i = [0; 0; 0];
+            end
             
-            A_qp_all = [A_qp_all; A_single]; %#ok<AGROW> % (num_obs x 4)
-            b_qp_all = [b_qp_all; b_single]; %#ok<AGROW>
-            log_h_obs(i, :) = [h1_v, h2_v, h3_v, h4_v];
+            p_obs_i = obs_env(i).p_obs(:);
+            r_obs_i = obs_env(i).r_obs_margin;
+            
+            % 接近判定 (中点位置で判定)
+            p_rel_i = p_obs_i - p_mid;
+            v_rel_i = v_obs_i - model.state.vL;
+            dist_to_obs = norm(p_rel_i);
+            is_approaching = dot(p_rel_i, v_rel_i) < 0;
+            
+            if (dist_to_obs < d_activate) && is_approaching
+                obs_params = [p_obs_i; v_obs_i; r_obs_i];
+                sys_params = [rl_sys; d_safe; alpha_Q; alpha_mid; l_off];
+                
+                [A_dual, b_dual, h_vals] = CBF_Constraints_C3BF_MultiPoint(...
+                    obj, x, xd, obs_params, sys_params, P);
+                
+                % 実数化ガード
+                A_qp_all = [A_qp_all; real(A_dual)]; %#ok<AGROW>
+                b_qp_all = [b_qp_all; real(b_dual)]; %#ok<AGROW>
+                log_h_c3bf = [log_h_c3bf; h_vals(:)]; %#ok<AGROW>
+            end
         end
 
         %% =========================================================================
         %% 4. 単一 4次元 QP の求解 (min ||u - u_nominal||_W^2)
         %% =========================================================================
         % 入力重み行列 (推力とトルクのスケール差を調整)
-        W_u = diag([1.0, 0.1, 0.1, 1.0]); 
+        % W_u = diag([1.0, 0.1, 0.1, 1.0]); 
+        % u = [u1; u2; u3; u4]
+        % 推力変化のペナルティを重くし、姿勢角を積極的に使わせる
+        % W_u = diag([5.0, 0.05, 0.05, 1.0]);
+        W_u = diag([1.0, 0.001, 0.001, 1.0]);
         H_qp = W_u;
         f_qp = -W_u * u_nominal;
 
+        A_qp_all = real(A_qp_all);
+        b_qp_all = real(b_qp_all);
+        f_qp     = real(f_qp);
+
         % 入力上下限 [u1 (Thrust); u2 (Roll); u3 (Pitch); u4 (Yaw)]
-        lb_qp = [ 0.0; -1.0; -1.0; -0.5];
-        ub_qp = [20.0;  1.0;  1.0;  0.5];
+        lb_qp = [ 0.0; -5.0; -5.0; -0.5];
+        ub_qp = [25.0;  5.0;  5.0;  0.5];
 
         options_qp = optimoptions('quadprog', 'Display', 'off', 'ConstraintTolerance', 1e-4);
         [u_safe, ~, exitflag] = quadprog(H_qp, f_qp, A_qp_all, b_qp_all, [], [], lb_qp, ub_qp, [], options_qp);
@@ -605,22 +1019,28 @@ methods
             u_final = max(lb_qp, min(ub_qp, u_nominal));
         end
 
-        slack_nom  = A_qp_all * u_nominal - b_qp_all;
-        slack_safe = b_qp_all - A_qp_all * u_final;
-        num_violated = sum(slack_nom > 0);
+        if ~isempty(A_qp_all)
+            slack_nom  = A_qp_all * u_nominal - b_qp_all;
+            slack_safe = b_qp_all - A_qp_all * u_final;
+            num_violated = sum(slack_nom > 0);
+        else
+            slack_nom  = [];
+            slack_safe = [];
+            num_violated = 0;
+        end
 
         %% =========================================================================
         %% 5. デバッグ表示 ＆ ロギング
         %% =========================================================================
         if num_violated > 0
-            fprintf('[Non-cascaded CBF] 介入発生 (違反障害物数: %d)\n', num_violated);
+            fprintf('[C3BF] 介入発生 (違反障害物数: %d)\n', num_violated);
             fprintf('  Nominal: [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
                 u_nominal(1), u_nominal(2), u_nominal(3), u_nominal(4));
             fprintf('  Safe   : [u1=%.2f, u2=%.3f, u3=%.3f, u4=%.3f]\n', ...
                 u_final(1), u_final(2), u_final(3), u_final(4));
             [max_viol, idx_v] = max(slack_nom);
-            fprintf('  Max Viol (Obs #%d): %.3f | A*u_nom=%.2f, A*u_safe=%.2f (b=%.2f)\n', ...
-                idx_v, max_viol, A_qp_all(idx_v,:)*u_nominal, A_qp_all(idx_v,:)*u_final, b_qp_all(idx_v));
+            fprintf('  Max Viol (Obs #%d): %.3f | A*u_nom=%.2f, A*u_safe=%.2f (b=%.2f, h=%.3f)\n', ...
+                idx_v, max_viol, A_qp_all(idx_v,:)*u_nominal, A_qp_all(idx_v,:)*u_final, b_qp_all(idx_v), log_h_c3bf(idx_v));
         end
 
         obj.result.A_qp_all        = A_qp_all;
@@ -628,7 +1048,7 @@ methods
         obj.result.slack_nom       = slack_nom;
         obj.result.slack_safe      = slack_safe;
         obj.result.num_violated    = num_violated;
-        obj.result.log_h_obs       = log_h_obs;
+        obj.result.log_h_obs       = log_h_c3bf;
         obj.result.u_nominal       = u_nominal;
         obj.result.tmp_fix         = u_final;
         obj.result.controllertime  = toc(tic_start);
