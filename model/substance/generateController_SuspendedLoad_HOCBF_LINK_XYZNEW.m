@@ -672,6 +672,194 @@ end
 disp("  -------------------------------------------------------------------");
 disp("  [PASS] 各入力の微小変化に対して線形制約が連続かつ滑らかにスケールしています。");
 disp("==============================================================");
+
+%% =========================================================================
+%% 【自動導出】機体姿勢角 ＆ 紐傾斜角 に対する HOCBF 制約
+%%  - h_att(x)   = cos(theta_max) - z_B^T e_3 >= 0  (機体ロール・ピッチ制限)
+%%  - h_cable(x) = (-p_T^T e_3) - cos(theta_cable_max) >= 0 (紐傾斜角制限)
+%% =========================================================================
+disp("==============================================================");
+disp(" Start: 機体姿勢角 & 紐傾斜角 HOCBF 制約の自動導出");
+disp("==============================================================");
+
+% 1. シンボリック変数・パラメータの定義
+syms u1 u2 u3 u4 real          % [f_T; Mx; My; Mz]
+u_vec = [u1; u2; u3; u4];
+
+syms u1_0 u2_0 u3_0 u4_0 real  % 展開中心 u0
+u0_vec = [u1_0; u2_0; u3_0; u4_0];
+
+syms theta_att_max theta_cable_max real % 最大許容角 (rad)
+syms gamma_att1 gamma_att2 real         % 姿勢用ゲイン (2階)
+syms gamma_cb1 gamma_cb2 real           % 紐用ゲイン (2階)
+
+% 2. 入力ベクトル場
+g1_F   = g(:, 1);              % 推力
+g_tau  = g(:, 2:4);            % トルク [Mx, My, Mz]
+g_all  = g(:, 1:4);
+
+% 3. バリア関数の定義
+% -------------------------------------------------------------------------
+% [A] 機体姿勢角バリア関数 h_att (z_B(3) = R_{33} >= cos(theta_att_max))
+% クォータニオン q = [q0; q1; q2; q3] より機体 Z 軸の慣性系 Z 成分:
+zB_z = q0^2 - q1^2 - q2^2 + q3^2;
+h_att_0 = zB_z - cos(theta_att_max);
+
+% [B] 紐傾斜角バリア関数 h_cable (紐ベクトル p_T の鉛直下向き成分: -p_T(3) >= cos(theta_cable_max))
+h_cable_0 = (- pT(3)) - cos(theta_cable_max);
+
+% 4. 微分展開
+% -------------------------------------------------------------------------
+% --- [A] 機体姿勢 (相対次数 2) ---
+% 1階微分 (角速度レベル)
+L_f_h_att0 = LieD(h_att_0, f, x);
+psi_att_1  = simplify(L_f_h_att0 + gamma_att1 * h_att_0);
+
+% 2階微分 (角加速度・トルクレベル)
+L_f_psi_att1 = LieD(psi_att_1, f, x);
+L_g_psi_att1 = LieD(psi_att_1, g_all, x); % 1x4 (u2, u3 が支配的)
+
+Total_att = simplify(L_f_psi_att1 + L_g_psi_att1 * u_vec + gamma_att2 * psi_att_1);
+
+% --- [B] 紐傾斜角 (相対次数 2) ---
+% 1階微分 (紐角速度レベル)
+L_f_h_cb0 = LieD(h_cable_0, f, x);
+psi_cb_1  = simplify(L_f_h_cb0 + gamma_cb1 * h_cable_0);
+
+% 2階微分 (紐加速度・推力結合レベル)
+L_f_psi_cb1 = LieD(psi_cb_1, f, x);
+L_g_psi_cb1 = LieD(psi_cb_1, g_all, x); % 1x4 (u1 が出現)
+
+Total_cable = simplify(L_f_psi_cb1 + L_g_psi_cb1 * u_vec + gamma_cb2 * psi_cb_1);
+
+% 5. 動作点 u0 周りでの線形アフィン化
+% -------------------------------------------------------------------------
+% 姿勢角制約: A_att * u <= b_att
+grad_att = jacobian(Total_att, u_vec);
+J_att_u0 = simplify(subs(grad_att, u_vec, u0_vec));
+F_att_u0 = simplify(subs(Total_att, u_vec, u0_vec));
+A_att_sym = - J_att_u0;
+b_att_sym = simplify(F_att_u0 - J_att_u0 * u0_vec);
+
+% 紐傾斜角制約: A_cable * u <= b_cable
+grad_cb = jacobian(Total_cable, u_vec);
+J_cb_u0 = simplify(subs(grad_cb, u_vec, u0_vec));
+F_cb_u0 = simplify(subs(Total_cable, u_vec, u0_vec));
+A_cb_sym = - J_cb_u0;
+b_cb_sym = simplify(F_cb_u0 - J_cb_u0 * u0_vec);
+
+% 6. 目標軌道・中間変数の置換
+A_att_subs = subs(A_att_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_att_subs = subs(b_att_sym, [xdReff, vInput1f], [XDf, V1vf]);
+h_att_subs = subs(h_att_0, [xdReff, vInput1f], [XDf, V1vf]);
+
+A_cb_subs  = subs(A_cb_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_cb_subs  = subs(b_cb_sym, [xdReff, vInput1f], [XDf, V1vf]);
+h_cb_subs  = subs(h_cable_0, [xdReff, vInput1f], [XDf, V1vf]);
+
+% 7. Mファイル関数としてエクスポート
+angle_limits = [theta_att_max; theta_cable_max];
+gamma_angles = [gamma_att1; gamma_att2; gamma_cb1; gamma_cb2];
+sys_params   = rl;
+XD_sym       = cell2sym(XD);
+XD_sym       = XD_sym(:);
+
+export_fname = 'CBF_Constraints_Attitude_Cable_Taylor';
+disp(['Exporting: ', export_fname, '.m を書き出しています...']);
+
+matlabFunction( ...
+    A_att_subs, ...
+    b_att_subs, ...
+    h_att_subs, ...
+    A_cb_subs, ...
+    b_cb_subs, ...
+    h_cb_subs, ...
+    'file', strcat(export_fname, '.m'), ...
+    'vars', { ...
+        obj, ...
+        x, ...
+        XD_sym, ...
+        u0_vec, ...
+        angle_limits, ...
+        gamma_angles, ...
+        sys_params, ...
+        physicalParam ...
+    }, ...
+    'outputs', { ...
+        'A_att', ...
+        'b_att', ...
+        'h_att', ...
+        'A_cable', ...
+        'b_cable', ...
+        'h_cable' ...
+    } ...
+);
+
+DeleteCommentLine(export_fname);
+disp(" Done: 姿勢角 & 紐傾斜角 HOCBF 関数の生成が完了しました！");
+disp("==============================================================");
+%% =========================================================================
+%% 【検証用】姿勢角 & 紐傾斜角 HOCBF の構造・符号・感度解析
+%% =========================================================================
+disp("==============================================================");
+disp(" [Verification] 姿勢角 & 紐傾斜角 HOCBF の厳密性チェック");
+disp("==============================================================");
+
+% 1. 各入力に対する感度構造のチェック
+disp("--- 1. 感度勾配の構造解析 ---");
+fprintf('  [姿勢角] dF/du1(推力): %s, dF/du2(Mx): %s, dF/du3(My): %s, dF/du4(Mz): %s\n', ...
+    mat2str(~isequal(simplify(grad_att(1)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_att(2)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_att(3)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_att(4)), sym(0))));
+
+fprintf('  [紐角度] dF/du1(推力): %s, dF/du2(Mx): %s, dF/du3(My): %s, dF/du4(Mz): %s\n', ...
+    mat2str(~isequal(simplify(grad_cb(1)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_cb(2)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_cb(3)), sym(0))), ...
+    mat2str(~isequal(simplify(grad_cb(4)), sym(0))));
+
+% 2. 符号代数チェック
+disp(" ");
+disp("--- 2. A_qp, b_qp の符号整合性チェック ---");
+pass_att = isequal(simplify(expand((b_att_sym - A_att_sym * u_vec) - (F_att_u0 + J_att_u0 * (u_vec - u0_vec)))), sym(0));
+pass_cb  = isequal(simplify(expand((b_cb_sym - A_cb_sym * u_vec) - (F_cb_u0 + J_cb_u0 * (u_vec - u0_vec)))), sym(0));
+
+if pass_att && pass_cb
+    disp("  [PASS] 姿勢角・紐角度ともに符号の一致を確認しました (A*u <= b <==> F_lin >= 0)");
+else
+    disp("  [FAIL] 代数式に不一致があります！");
+end
+
+% 3. 数値テスト実行
+disp(" ");
+disp("--- 3. 数値環境での感度値テスト ---");
+x_test = zeros(19, 1);
+x_test(1:3)   = [0.0; 0.0; 1.5];   % 荷物位置
+x_test(7:9)   = [0.0; 0.0; -1.0];  % 紐真下
+x_test(10:12) = [0.0; 0.0; 0.0];   % 姿勢水平 (q = [1;0;0;0])
+xd_test = zeros(60, 1);
+
+if exist('param', 'var') && isfield(param, 'physical')
+    P_test = param.physical;
+else
+    P_test = [1.5, 0.039, 0.051, 0.102, 9.81, 0.5, 0.8, 0.0, 0.0, 0.0];
+end
+
+f_hov = (P_test(1) + P_test(6)) * P_test(5);
+u0_test = [f_hov; 0.0; 0.0; 0.0];
+
+ang_limits_test = [deg2rad(30); deg2rad(20)]; % 機体30度, 紐20度
+gamma_ang_test  = [5.0; 10.0; 5.0; 10.0];
+
+[A_at_v, b_at_v, h_at_v, A_cb_v, b_cb_v, h_cb_v] = CBF_Constraints_Attitude_Cable_Taylor(...
+    obj, x_test, xd_test, u0_test, ang_limits_test, gamma_ang_test, 0.05, P_test);
+
+fprintf('  [姿勢角] h_att0: %+6.3f | A_att (1x4): [%+7.2f, %+7.2f, %+7.2f, %+7.2f] | b_att: %+7.2f\n', ...
+    h_at_v, A_at_v(1), A_at_v(2), A_at_v(3), A_at_v(4), b_at_v);
+fprintf('  [紐角度] h_cb0 : %+6.3f | A_cb  (1x4): [%+7.2f, %+7.2f, %+7.2f, %+7.2f] | b_cb : %+7.2f\n', ...
+    h_cb_v, A_cb_v(1), A_cb_v(2), A_cb_v(3), A_cb_v(4), b_cb_v);
+disp("==============================================================");
 %% u1の微分の導出
 %% =========================================================================
 
