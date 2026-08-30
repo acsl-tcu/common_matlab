@@ -189,122 +189,762 @@ clc
 %     Vf(0,x0,Xd(0))
 %     Vs(0,x0,Xd(0),Vf(0,x0,Xd(0)))
 
+% %% =========================================================================
+% %% 【C3-ECBF】単機牽引モデル（ドローン機体本体）3次 Exponential 衝突円錐 CBF 自動導出
+% %% =========================================================================
+% disp("Start: 単機牽引モデルにおける機体本体 C3-ECBF の導出を開始します。");
+% 
+% % 1. シンボリック変数の定義
+% syms u1 u2 u3 u4 real          % u1: 推力 f, [u2, u3, u4]: トルク M
+% syms xo yo zo vxo vyo vzo real % 障害物の位置・速度
+% syms ro rq d_safe real         % 半径パラメータ (ro: 障害物, rq: クアッドロータ, d_safe: 安全マージン)
+% syms lambda real               % 3重極ゲイン (論文 λ)
+% syms U1_ref real               % 動作点推力 (トルク感度保持用)
+% 
+% % 2. 物理パラメータの抽出 (状態方程式との対応付け)
+% % physicalParam = [m, jx, jy, jz, gravity, mL, cableL, dstx, dsty];
+% m_Q     = physicalParam(1);
+% J_Q_vec = physicalParam(2:4);
+% g_acc   = physicalParam(5);
+% m_L     = physicalParam(6);
+% L_cable = physicalParam(7);
+% 
+% % 3. 入力列の厳密な分離 (19x1, 19x2, 19x1)
+% g1  = g(:, 1);    % 推力 f に対する入力列 (19x1)
+% g23 = g(:, 2:3);  % Roll/Pitch トルク [Mx, My] に対する入力列 (19x2)
+% g4  = g(:, 4);    % Yaw トルク Mz に対する入力列 (19x1)
+% 
+% % 4. 機体本体の位置 p_drone (pQ) および 速度 v_drone (vQ) の幾何関係
+% % 状態配置: pl = x(8:10), dpl = x(11:13), pT = x(14:16), ol = x(17:19)
+% p_drone = pl(:) - L_cable * pT(:);
+% v_drone = dpl(:) - L_cable * Skew(ol(:)) * pT(:);
+% 
+% p_obs   = [xo; yo; zo];
+% v_obs   = [vxo; vyo; vzo];
+% r_safe  = ro + rq + d_safe;
+% 
+% % 5. 衝突円錐バリア関数 h(x) の定義 (ψ0 = h)
+% p_rel = p_obs - p_drone;
+% v_rel = v_obs - v_drone;
+% 
+% norm_p_sq = p_rel.' * p_rel;
+% norm_v_sq = v_rel.' * v_rel;
+% inner_pv  = p_rel.' * v_rel;
+% norm_v    = sqrt(norm_v_sq);
+% 
+% rad_expr = sqrt(max(1e-4, norm_p_sq - r_safe^2));
+% h_0      = inner_pv + norm_v * rad_expr; % ψ0
+% 
+% % 6. 1階微分 h_dot (ψ1) の自律項 L_f_h
+% eta   = p_rel + v_rel * (rad_expr / max(1e-4, norm_v));
+% sigma = norm_v_sq + (norm_v * inner_pv) / rad_expr;
+% 
+% L_f_vdrone = LieD(v_drone, f, x);
+% h_1        = simplify(- eta.' * L_f_vdrone + sigma); % L_f h (ψ1)
+% 
+% % 7. 2階微分 h_ddot (ψ2) の自律項 L_f^2_h
+% h_2 = simplify(LieD(h_1, f, x)); % L_f^2 h (ψ2)
+% 
+% % 8. 3階微分 h_dddot (ψ3) の自律項および入力感度 (Snap レベル)
+% L_f3_h = simplify(LieD(h_2, f, x));
+% 
+% % 4入力に対する各 Lie 微分
+% L_g1_raw  = simplify(LieD(h_2, g1, x));   % 推力 u1 係数 (1x1)
+% L_g23_raw = simplify(LieD(h_2, g23, x));  % Roll/Pitch [u2, u3] 係数 (1x2)
+% L_g4_raw  = simplify(LieD(h_2, g4, x));   % Yaw u4 係数 (1x1)
+% 
+% % 動作点推力 U1_ref の代入によるトルク感度の確定
+% L_g1_eval  = simplify(subs(L_g1_raw, u1, U1_ref));
+% L_g23_eval = simplify(subs(L_g23_raw, u1, U1_ref));
+% L_g4_eval  = simplify(subs(L_g4_raw, u1, U1_ref));
+% 
+% % 4入力結合感度行ベクトル (1x4)
+% L_g_all = [L_g1_eval, L_g23_eval, L_g4_eval];
+% 
+% %% =========================================================================
+% %% 9. 3次 ECBF-QP 制約の構築 (A_qp * u <= b_qp)
+% %% =========================================================================
+% % 制約: L_f^3 h + L_g L_f^2 h * u + 3*lambda*h_2 + 3*lambda^2*h_1 + lambda^3*h_0 >= 0[cite: 6]
+% A_c3ecbf_sym = - L_g_all; % (1x4)
+% b_c3ecbf_sym = simplify(L_f3_h + 3*lambda*h_2 + 3*(lambda^2)*h_1 + (lambda^3)*h_0);
+% 
+% %% =========================================================================
+% %% 10. 構造診断
+% %% =========================================================================
+% disp("------------------------------------------------------------");
+% disp("【単機牽引・機体本体 C3-ECBF 構造診断】");
+% fprintf("size(A_qp) = [%d, %d] (期待値: [1, 4])\n", size(A_c3ecbf_sym, 1), size(A_c3ecbf_sym, 2));
+% disp("A_qp (推力 u1 係数)          = "); disp(A_c3ecbf_sym(1));
+% disp("A_qp (Roll/Pitch u2,u3 係数) = "); disp(A_c3ecbf_sym(2:3));
+% disp("A_qp (Yaw u4 係数)           = "); disp(A_c3ecbf_sym(4));
+% disp("------------------------------------------------------------");
+% 
+% %% =========================================================================
+% %% 11. Mファイルとしてエクスポート
+% %% =========================================================================
+% obs_params = [xo; yo; zo; vxo; vyo; vzo; ro];
+% sys_params = [rq; d_safe; lambda];
+% 
+% if exist('XD', 'var')
+%     XD_sym = cell2sym(XD);
+%     XD_sym = XD_sym(:);
+% else
+%     XD_sym = sym('dummy_xd', [1 1]);
+% end
+% 
+% export_fname = 'CBF_Constraints_C3ECBF_SuspendedLoadDroneBody';
+% disp(['Exporting: ', export_fname, '.m を書き出しています...']);
+% matlabFunction(A_c3ecbf_sym, b_c3ecbf_sym, h_0, h_1, h_2, ...
+%     'file', strcat(export_fname, '.m'), ...
+%     'vars', {obj, x, XD_sym, U1_ref, obs_params, sys_params, physicalParam}, ...
+%     'outputs', {'A_qp', 'b_qp', 'h0_val', 'h1_val', 'h2_val'});
+% 
+% % 不要コメント行・空行のクリーンアップ
+% DeleteCommentLine(export_fname);
+% 
+% disp("Done: 単機牽引モデル（機体本体）C3-ECBF 関数の生成が完了しました！");
+% %% =========================================================================
+% %% FastBridge 統合版【完全修正・構文エラー解消版】
+% %% 19状態モデル対応 機体本体 Collision-Cone FD-ECBF 自動導出
+% %%
+% %% Target:
+% %%     A_qp * [T_curr; tau_x; tau_y; tau_z] <= b_qp  (1x4 行列)
+% %% =========================================================================
+% disp("==============================================================");
+% disp(" Start: FastBridge 19-state Collision-Cone FD-ECBF");
+% disp(" Target: A_qp * [T; tau_x; tau_y; tau_z] <= b_qp");
+% disp("==============================================================");
+% 
+% %% =========================================================================
+% %% 1. QP決定変数
+% %% =========================================================================
+% syms T_curr taux tauy tauz real
+% u_qp = [T_curr; taux; tauy; tauz];
+% tau_curr = [taux; tauy; tauz];
+% 
+% %% =========================================================================
+% %% 2. 推力履歴とサンプリング時間
+% %% =========================================================================
+% syms T_prev1 T_prev2 positive real
+% syms dt positive real
+% 
+% %% =========================================================================
+% %% 3. 障害物・安全パラメータ
+% %% =========================================================================
+% syms xo yo zo real
+% syms ro rq d_safe positive real
+% syms lambda_cbf positive real
+% 
+% %% =========================================================================
+% %% 4. 19状態モデルの物理パラメータ
+% %% =========================================================================
+% m_drone = physicalParam(1);
+% jx_val  = physicalParam(2);
+% jy_val  = physicalParam(3);
+% jz_val  = physicalParam(4);
+% g_val   = physicalParam(5);
+% L_cable = physicalParam(7);
+% 
+% J_mat = diag([jx_val; jy_val; jz_val]);
+% invJ  = diag([1/jx_val; 1/jy_val; 1/jz_val]);
+% e3    = [0; 0; 1];
+% 
+% %% =========================================================================
+% %% 5. 19状態モデルの分離
+% %%    x = [q(1:4); w(1:3); pl(1:3); dpl(1:3); pT(1:3); ol(1:3)]
+% %% =========================================================================
+% q_sym   = x(1:4);
+% w_sym   = x(5:7);
+% pl_sym  = x(8:10);
+% dpl_sym = x(11:13);
+% pT_sym  = x(14:16);
+% ol_sym  = x(17:19);
+% 
+% %% =========================================================================
+% %% 6. 機体本体位置・速度 (x の合成関数として厳密に評価)
+% %% =========================================================================
+% p_body = simplify(pl_sym - L_cable * pT_sym);
+% v_body = simplify(dpl_sym - L_cable * Skew(ol_sym) * pT_sym);
+% 
+% %% =========================================================================
+% %% 7. 姿勢幾何
+% %% =========================================================================
+% R_mat = RodriguesQuaternion(q_sym);
+% b3    = simplify(R_mat * e3);
+% 
+% %% =========================================================================
+% %% 8. 障害物・安全半径
+% %% =========================================================================
+% p_obs = [xo; yo; zo];
+% r_eff = ro + rq + d_safe;
+% 
+% %% =========================================================================
+% %% 9. Collision-Cone Barrier Function (球形等方性)
+% %% =========================================================================
+% A_ellip  = eye(3) / (r_eff^2);
+% r_rel    = simplify(p_obs - p_body);
+% gamma_cc = simplify(r_rel.' * A_ellip * r_rel - 1);
+% beta_cc  = simplify(v_body.' * A_ellip * v_body);
+% delta_cc = simplify(r_rel.' * A_ellip * v_body);
+% h_cc     = simplify(beta_cc * gamma_cc - delta_cc^2);
+% 
+% %% =========================================================================
+% %% 10. 19状態モデルのドリフト f と入力場 g
+% %% =========================================================================
+% f_drift = f;
+% g_T     = g(:, 1);
+% g_tau   = g(:, 2:4);
+% 
+% %% =========================================================================
+% %% 11. Base Flow (FD線形化の動作点: T = T_prev1, tau = 0)
+% %% =========================================================================
+% x_dot_base = simplify(f_drift + g_T * T_prev1);
+% 
+% %% =========================================================================
+% %% 12. 19状態 x に対する厳密な時間微分展開 (Chain Rule)
+% %% =========================================================================
+% dh_dt     = simplify(jacobian(h_cc, x) * x_dot_base);
+% ddh_dt    = simplify(jacobian(dh_dt, x) * x_dot_base);
+% dddh_base = simplify(jacobian(ddh_dt, x) * x_dot_base);
+% 
+% %% =========================================================================
+% %% 13. Collision-Cone Snap Sensitivity
+% %% =========================================================================
+% w_snap = simplify(2 * A_ellip * (gamma_cc * v_body - delta_cc * r_rel));
+% 
+% %% =========================================================================
+% %% 14. FDによる推力微分展開
+% %% =========================================================================
+% daT_coeff_T  = simplify(1 / (m_drone * dt));
+% daT_const    = simplify(-T_prev1 / (m_drone * dt));
+% d2aT_coeff_T = simplify(1 / (m_drone * dt^2));
+% d2aT_const   = simplify((-2 * T_prev1 + T_prev2) / (m_drone * dt^2));
+% 
+% %% =========================================================================
+% %% 15. 姿勢軸 b3 の時間微分
+% %% =========================================================================
+% hat_e3 = [ 0, -1,  0;
+%            1,  0,  0;
+%            0,  0,  0];
+% 
+% hat_w = [        0, -w_sym(3),  w_sym(2);
+%           w_sym(3),         0, -w_sym(1);
+%          -w_sym(2),  w_sym(1),         0];
+% 
+% dw_drift   = simplify(-invJ * cross(w_sym, J_mat * w_sym));
+% db3        = simplify(-R_mat * hat_e3 * w_sym);
+% ddb3_drift = simplify(-R_mat * hat_e3 * dw_drift + R_mat * (hat_w * hat_w) * e3);
+% 
+% %% =========================================================================
+% %% 16. Snap の入力アフィン分解
+% %% =========================================================================
+% % 推力 T_curr 係数
+% % G_T_snap = simplify(b3 * d2aT_coeff_T + 2 * db3 * daT_coeff_T + (1 / m_drone) * ddb3_drift);
+% G_T_snap = simplify( ...
+%     b3 * d2aT_coeff_T ...
+%     + 2 * db3 * daT_coeff_T ...
+%     );
+% 
+% % トルク感度 (T*tau ≈ T_prev1*tau で局所アフィン化)
+% G_tau_snap = simplify(-(T_prev1 / m_drone) * R_mat * hat_e3 * invJ);
+% 
+% % 推力履歴による既知ドリフト
+% F_snap_drift = simplify(b3 * d2aT_const + 2 * db3 * daT_const);
+% 
+% %% =========================================================================
+% %% 17. h^(3) の入力アフィン分解
+% %% =========================================================================
+% Lg_T     = simplify(w_snap.' * G_T_snap);
+% Lg_tau   = simplify(w_snap.' * G_tau_snap);
+% drift_h3 = simplify(dddh_base + w_snap.' * F_snap_drift);
+% 
+% %% =========================================================================
+% %% 18. Triple-Pole ECBF 不等式制約
+% %% =========================================================================
+% ecbf_drift = simplify( ...
+%     drift_h3 ...
+%   + 3 * lambda_cbf * ddh_dt ...
+%   + 3 * (lambda_cbf^2) * dh_dt ...
+%   + (lambda_cbf^3) * h_cc ...
+% );
+% 
+% % A_cbf * u <= b_cbf に変換
+% A_cbf_sym = simplify([-Lg_T, -Lg_tau]);
+% b_cbf_sym = simplify(ecbf_drift);
+% 
+% %% =========================================================================
+% %% 19. サイズ検証
+% %% =========================================================================
+% assert(isequal(size(A_cbf_sym), [1 4]), "ERROR: A_cbf must be 1x4.");
+% assert(isequal(size(b_cbf_sym), [1 1]), "ERROR: b_cbf must be scalar.");
+% 
+% disp("--------------------------------------------------------------");
+% disp(" Symbolic size check passed: A_qp (1x4), b_qp (1x1)");
+% disp("--------------------------------------------------------------");
+% 
+% %% =========================================================================
+% %% 20. 目標軌道関連シンボルの置換
+% %% =========================================================================
+% A_cbf_subs = subs(A_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_cbf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% h_subs     = subs(h_cc,      [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% %% =========================================================================
+% %% 21. パラメータとエクスポート
+% %% =========================================================================
+% obs_params = [xo; yo; zo; ro];
+% sys_params = [rq; d_safe; lambda_cbf];
+% XD_sym     = cell2sym(XD);
+% XD_sym     = XD_sym(:);
+% 
+% export_fname = 'CBF_Constraints_FastBridge_FD_SuspendedLoad';
+% disp("==============================================================");
+% disp(['Exporting: ', export_fname, '.m']);
+% disp("==============================================================");
+% 
+% matlabFunction( ...
+%     A_cbf_subs, ...
+%     b_cbf_subs, ...
+%     h_subs, ...
+%     'file', strcat(export_fname, '.m'), ...
+%     'vars', { ...
+%         obj, ...
+%         x, ...
+%         XD_sym, ...
+%         cell2sym(V1v), ...
+%         T_prev1, ...
+%         T_prev2, ...
+%         dt, ...
+%         obs_params, ...
+%         sys_params, ...
+%         physicalParam ...
+%     }, ...
+%     'outputs', { ...
+%         'A_qp', ...
+%         'b_qp', ...
+%         'h_val' ...
+%     } ...
+% );
+% 
+% DeleteCommentLine(export_fname);
+% disp("==============================================================");
+% disp(" Done: FastBridge 19-state FD-ECBF function generated.");
+% disp("==============================================================");
+% %% =========================================================================
+% %% 【C3BF】牽引紐中点 (p_mid) 衝突円錐バリア関数 (全4入力結合型 CBF-QP) 自動導出
+% %% =========================================================================
+% disp("==============================================================");
+% disp(" Start: 牽引紐中点 p_mid に対する C3BF-QP 制約の自動導出");
+% disp(" Target: A_qp * [f; Mx; My; Mz] <= b_qp (1x4 行列)");
+% disp("==============================================================");
+% 
+% % 1. QP決定変数
+% syms u1 u2 u3 u4 real          % u1: 推力 f, [u2, u3, u4]: トルク [Mx, My, Mz]
+% u_qp = [u1; u2; u3; u4];
+% 
+% % 2. 障害物・安全幾何パラメータ
+% syms xo yo zo vxo vyo vzo real % 障害物の位置・速度
+% syms ro rl d_safe real         % 半径パラメータ (ro: 障害物, rl: 吊り荷・紐, d_safe: マージン)
+% syms alpha_cbf real            % クラスKゲイン
+% syms d_offset real             % 機体重心から紐取付点への幾何オフセット長 [m]
+% 
+% % 3. 入力ベクトル場の分離 (19x1, 19x3)
+% g_T   = g(:, 1);               % 推力 f
+% g_tau = g(:, 2:4);             % 3軸トルク [Mx; My; Mz]
+% 
+% % 4. 幾何位置・速度の定義
+% % 状態配置: pl = x(8:10), dpl = x(11:13), pT = x(14:16), ol = x(17:19)
+% L_cable = physicalParam(7);
+% p_mid   = pl(:) - 0.5 * L_cable * pT(:);
+% 
+% % 紐中点の速度 v_mid
+% v_mid_raw = LieD(p_mid, f, x);
+% v_mid     = v_mid_raw(:);      % 3x1
+% 
+% % 障害物および相対位置・相対速度
+% p_obs   = [xo; yo; zo];
+% v_obs   = [vxo; vyo; vzo];
+% p_rel   = p_obs - p_mid;
+% v_rel   = v_obs - v_mid;
+% r_safe  = ro + rl + d_safe;
+% 
+% % 5. C3BF バリア関数 h(x) の定義 (ψ0 = h)
+% norm_p_sq = p_rel.' * p_rel;
+% norm_v_sq = v_rel.' * v_rel;
+% inner_pv  = p_rel.' * v_rel;
+% norm_v    = sqrt(norm_v_sq);
+% 
+% rad_expr  = sqrt(max(1e-4, norm_p_sq - r_safe^2));
+% h_c3bf    = inner_pv + norm_v * rad_expr;
+% 
+% % 幾何重みベクトル eta (3x1) と スカラー sigma
+% eta   = p_rel + v_rel * (rad_expr / max(1e-4, norm_v));
+% sigma = norm_v_sq + (norm_v * inner_pv) / rad_expr;
+% 
+% % 6. ヤコビアンを用いた加速度展開と入力結合
+% J_vmid = jacobian(v_mid, x);
+% 
+% % 状態ドリフト加速度
+% L_f_vmid   = J_vmid * f;
+% 
+% % 推力 f に対する直接加速度感度
+% L_g1_vmid  = J_vmid * g_T;
+% 
+% % トルク M に対する加速度感度（機体取付オフセット d_offset を介した幾何結合）
+% R_mat = RodriguesQuaternion(x(1:4));
+% hat_d = Skew(R_mat * [0; 0; -d_offset]);
+% invJ  = diag([1/physicalParam(2); 1/physicalParam(3); 1/physicalParam(4)]);
+% % トルク M から角加速度を経由した並進加速度誘導項
+% L_gtau_vmid = - (1 / physicalParam(7)) * Skew(pT(:)) * (hat_d * R_mat * invJ);
+% 
+% % 7. バリア関数時間微分の入力アフィン分解: dot{h} = L_f h + L_g h * u
+% L_f_h   = simplify(- eta.' * L_f_vmid + sigma);
+% L_g1_h  = simplify(- eta.' * L_g1_vmid);
+% L_gtau_h = simplify(- eta.' * L_gtau_vmid);
+% 
+% L_g_all = [L_g1_h, L_gtau_h]; % 1x4 行列
+% 
+% % 8. CBF-QP 制約不等式の構成 (dot{h} + alpha * h >= 0  ==>  A_qp * u <= b_qp)
+% A_c3bf_sym = simplify(- L_g_all);
+% b_c3bf_sym = simplify(L_f_h + alpha_cbf * h_c3bf);
+% 
+% % 9. 目標軌道シンボル・中間変数の置換
+% A_cbf_subs = subs(A_c3bf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% b_cbf_subs = subs(b_c3bf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+% h_subs     = subs(h_c3bf,     [xdReff, vInput1f], [XDf, V1vf]);
+% 
+% % 10. Mファイル関数としてエクスポート
+% obs_params = [xo; yo; zo; vxo; vyo; vzo; ro];
+% sys_params = [rl; d_safe; alpha_cbf; d_offset];
+% XD_sym     = cell2sym(XD);
+% XD_sym     = XD_sym(:);
+% 
+% export_fname = 'CBF_Constraints_C3BF_TetherMidPoint';
+% disp(['Exporting: ', export_fname, '.m を書き出しています...']);
+% 
+% matlabFunction( ...
+%     A_cbf_subs, ...
+%     b_cbf_subs, ...
+%     h_subs, ...
+%     'file', strcat(export_fname, '.m'), ...
+%     'vars', { ...
+%         obj, ...
+%         x, ...
+%         XD_sym, ...
+%         obs_params, ...
+%         sys_params, ...
+%         physicalParam ...
+%     }, ...
+%     'outputs', { ...
+%         'A_qp', ...
+%         'b_qp', ...
+%         'h_val' ...
+%     } ...
+% );
+% 
+% DeleteCommentLine(export_fname);
+% disp("==============================================================");
+% disp(" Done: 牽引紐中点 C3BF-QP 制約関数の生成が完了しました！");
+% disp("==============================================================");
 %% =========================================================================
-%% 【C3-ECBF】単機牽引モデル（ドローン機体本体）3次 Exponential 衝突円錐 CBF 自動導出
+%% 【C3BF】牽引紐中点 (p_mid) 衝突円錐バリア関数 (Yaw除外・3入力結合型 CBF-QP) 自動導出
 %% =========================================================================
-disp("Start: 単機牽引モデルにおける機体本体 C3-ECBF の導出を開始します。");
+disp("==============================================================");
+disp(" Start: 牽引紐中点 p_mid に対する C3BF-QP 制約の自動導出 (Yaw除外版)");
+disp(" Target: A_qp * [f; Mx; My] <= b_qp (1x3 行列)");
+disp("==============================================================");
 
-% 1. シンボリック変数の定義
-syms u1 u2 u3 u4 real          % u1: 推力 f, [u2, u3, u4]: トルク M
+% 1. QP決定変数 (Yaw Mz を除外した 3入力)
+syms u1 u2 u3 real             % u1: 推力 f, [u2, u3]: トルク [Mx, My]
+u_qp = [u1; u2; u3];
+
+% 2. 障害物・安全幾何パラメータ
 syms xo yo zo vxo vyo vzo real % 障害物の位置・速度
-syms ro rq d_safe real         % 半径パラメータ (ro: 障害物, rq: クアッドロータ, d_safe: 安全マージン)
-syms lambda real               % 3重極ゲイン (論文 λ)
-syms U1_ref real               % 動作点推力 (トルク感度保持用)
+syms ro rl d_safe real         % 半径パラメータ (ro: 障害物, rl: 吊り荷・紐, d_safe: マージン)
+syms alpha_cbf real            % クラスKゲイン
+syms d_offset real             % 機体重心から紐取付点への幾何オフセット長 [m]
 
-% 2. 物理パラメータの抽出 (状態方程式との対応付け)
-% physicalParam = [m, jx, jy, jz, gravity, mL, cableL, dstx, dsty];
-m_Q     = physicalParam(1);
-J_Q_vec = physicalParam(2:4);
-g_acc   = physicalParam(5);
-m_L     = physicalParam(6);
-L_cable = physicalParam(7);
+% 3. 入力ベクトル場の分離 (19x1, 19x3)
+g_T   = g(:, 1);               % 推力 f
+g_tau = g(:, 2:4);             % 3軸トルク [Mx; My; Mz]
 
-% 3. 入力列の厳密な分離 (19x1, 19x2, 19x1)
-g1  = g(:, 1);    % 推力 f に対する入力列 (19x1)
-g23 = g(:, 2:3);  % Roll/Pitch トルク [Mx, My] に対する入力列 (19x2)
-g4  = g(:, 4);    % Yaw トルク Mz に対する入力列 (19x1)
-
-% 4. 機体本体の位置 p_drone (pQ) および 速度 v_drone (vQ) の幾何関係
+% 4. 幾何位置・速度の定義
 % 状態配置: pl = x(8:10), dpl = x(11:13), pT = x(14:16), ol = x(17:19)
-p_drone = pl(:) - L_cable * pT(:);
-v_drone = dpl(:) - L_cable * Skew(ol(:)) * pT(:);
+L_cable = physicalParam(7);
+p_mid   = pl(:) - 0.5 * L_cable * pT(:);
 
+% 紐中点の速度 v_mid
+v_mid_raw = LieD(p_mid, f, x);
+v_mid     = v_mid_raw(:);      % 3x1
+
+% 障害物および相対位置・相対速度
 p_obs   = [xo; yo; zo];
 v_obs   = [vxo; vyo; vzo];
-r_safe  = ro + rq + d_safe;
+p_rel   = p_obs - p_mid;
+v_rel   = v_obs - v_mid;
+r_safe  = ro + rl + d_safe;
 
-% 5. 衝突円錐バリア関数 h(x) の定義 (ψ0 = h)
-p_rel = p_obs - p_drone;
-v_rel = v_obs - v_drone;
-
+% 5. C3BF バリア関数 h(x) の定義 (ψ0 = h)
 norm_p_sq = p_rel.' * p_rel;
 norm_v_sq = v_rel.' * v_rel;
 inner_pv  = p_rel.' * v_rel;
 norm_v    = sqrt(norm_v_sq);
 
-rad_expr = sqrt(max(1e-4, norm_p_sq - r_safe^2));
-h_0      = inner_pv + norm_v * rad_expr; % ψ0
+rad_expr  = sqrt(max(1e-4, norm_p_sq - r_safe^2));
+h_c3bf    = inner_pv + norm_v * rad_expr;
 
-% 6. 1階微分 h_dot (ψ1) の自律項 L_f_h
+% 幾何重みベクトル eta (3x1) と スカラー sigma
 eta   = p_rel + v_rel * (rad_expr / max(1e-4, norm_v));
 sigma = norm_v_sq + (norm_v * inner_pv) / rad_expr;
 
-L_f_vdrone = LieD(v_drone, f, x);
-h_1        = simplify(- eta.' * L_f_vdrone + sigma); % L_f h (ψ1)
+% 6. ヤコビアンを用いた加速度展開と入力結合
+J_vmid = jacobian(v_mid, x);
 
-% 7. 2階微分 h_ddot (ψ2) の自律項 L_f^2_h
-h_2 = simplify(LieD(h_1, f, x)); % L_f^2 h (ψ2)
+% 状態ドリフト加速度
+L_f_vmid   = J_vmid * f;
 
-% 8. 3階微分 h_dddot (ψ3) の自律項および入力感度 (Snap レベル)
-L_f3_h = simplify(LieD(h_2, f, x));
+% 推力 f に対する直接加速度感度
+L_g1_vmid  = J_vmid * g_T;
 
-% 4入力に対する各 Lie 微分
-L_g1_raw  = simplify(LieD(h_2, g1, x));   % 推力 u1 係数 (1x1)
-L_g23_raw = simplify(LieD(h_2, g23, x));  % Roll/Pitch [u2, u3] 係数 (1x2)
-L_g4_raw  = simplify(LieD(h_2, g4, x));   % Yaw u4 係数 (1x1)
+% トルク M に対する加速度感度（機体取付オフセット d_offset を介した幾何結合）
+R_mat = RodriguesQuaternion(x(1:4));
+hat_d = Skew(R_mat * [0; 0; -d_offset]);
+invJ  = diag([1/physicalParam(2); 1/physicalParam(3); 1/physicalParam(4)]);
+% トルク M から角加速度を経由した並進加速度誘導項 (3x3)
+L_gtau_vmid = - (1 / physicalParam(7)) * Skew(pT(:)) * (hat_d * R_mat * invJ);
 
-% 動作点推力 U1_ref の代入によるトルク感度の確定
-L_g1_eval  = simplify(subs(L_g1_raw, u1, U1_ref));
-L_g23_eval = simplify(subs(L_g23_raw, u1, U1_ref));
-L_g4_eval  = simplify(subs(L_g4_raw, u1, U1_ref));
+% 7. バリア関数時間微分の入力アフィン分解: dot{h} = L_f h + L_g h * u
+L_f_h     = simplify(- eta.' * L_f_vmid + sigma);
+L_g1_h    = simplify(- eta.' * L_g1_vmid);
+L_gtau_h  = simplify(- eta.' * L_gtau_vmid); % 1x3 [Mx, My, Mz]
 
-% 4入力結合感度行ベクトル (1x4)
-L_g_all = [L_g1_eval, L_g23_eval, L_g4_eval];
+% Yaw トルク Mz (第3列) を除外し、[f, Mx, My] の 3入力ベクトル (1x3) を構成
+L_g_all = [L_g1_h, L_gtau_h(1), L_gtau_h(2)]; % 1x3 行列
 
-%% =========================================================================
-%% 9. 3次 ECBF-QP 制約の構築 (A_qp * u <= b_qp)
-%% =========================================================================
-% 制約: L_f^3 h + L_g L_f^2 h * u + 3*lambda*h_2 + 3*lambda^2*h_1 + lambda^3*h_0 >= 0[cite: 6]
-A_c3ecbf_sym = - L_g_all; % (1x4)
-b_c3ecbf_sym = simplify(L_f3_h + 3*lambda*h_2 + 3*(lambda^2)*h_1 + (lambda^3)*h_0);
+% 8. CBF-QP 制約不等式の構成 (dot{h} + alpha * h >= 0  ==>  A_qp * u <= b_qp)
+A_c3bf_sym = simplify(- L_g_all);                % 1x3
+b_c3bf_sym = simplify(L_f_h + alpha_cbf * h_c3bf); % 1x1
 
-%% =========================================================================
-%% 10. 構造診断
-%% =========================================================================
-disp("------------------------------------------------------------");
-disp("【単機牽引・機体本体 C3-ECBF 構造診断】");
-fprintf("size(A_qp) = [%d, %d] (期待値: [1, 4])\n", size(A_c3ecbf_sym, 1), size(A_c3ecbf_sym, 2));
-disp("A_qp (推力 u1 係数)          = "); disp(A_c3ecbf_sym(1));
-disp("A_qp (Roll/Pitch u2,u3 係数) = "); disp(A_c3ecbf_sym(2:3));
-disp("A_qp (Yaw u4 係数)           = "); disp(A_c3ecbf_sym(4));
-disp("------------------------------------------------------------");
+% 9. 目標軌道シンボル・中間変数の置換
+A_cbf_subs = subs(A_c3bf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_cbf_subs = subs(b_c3bf_sym, [xdReff, vInput1f], [XDf, V1vf]);
+h_subs     = subs(h_c3bf,     [xdReff, vInput1f], [XDf, V1vf]);
 
-%% =========================================================================
-%% 11. Mファイルとしてエクスポート
-%% =========================================================================
+% 10. Mファイル関数としてエクスポート
 obs_params = [xo; yo; zo; vxo; vyo; vzo; ro];
-sys_params = [rq; d_safe; lambda];
+sys_params = [rl; d_safe; alpha_cbf; d_offset];
+XD_sym     = cell2sym(XD);
+XD_sym     = XD_sym(:);
 
-if exist('XD', 'var')
-    XD_sym = cell2sym(XD);
-    XD_sym = XD_sym(:);
+export_fname = 'CBF_Constraints_C3BF_TetherMidPoint';
+disp(['Exporting: ', export_fname, '.m を書き出しています...']);
+
+matlabFunction( ...
+    A_cbf_subs, ...
+    b_cbf_subs, ...
+    h_subs, ...
+    'file', strcat(export_fname, '.m'), ...
+    'vars', { ...
+        obj, ...
+        x, ...
+        XD_sym, ...
+        obs_params, ...
+        sys_params, ...
+        physicalParam ...
+    }, ...
+    'outputs', { ...
+        'A_qp', ...
+        'b_qp', ...
+        'h_val' ...
+    } ...
+);
+
+DeleteCommentLine(export_fname);
+disp("==============================================================");
+disp(" Done: 牽引紐中点 (Yaw除外・1x3形式) C3BF-QP 制約関数の生成が完了しました！");
+disp("==============================================================");
+%% =========================================================================
+%% 11. 【自動自己診断】C3BF 制約 (A_qp, b_qp) の構造・符号・数値整合性検証
+%% =========================================================================
+disp("------------------------------------------------------------");
+disp("【C3BF 自己診断 1】制約行列・ベクトルのシンボリックサイズ検証");
+disp("------------------------------------------------------------");
+
+% サイズの一致確認
+sz_A = size(A_c3bf_sym);
+sz_b = size(b_c3bf_sym);
+fprintf("size(A_qp) = [%d, %d] (期待値: [1, 3])\n", sz_A(1), sz_A(2));
+fprintf("size(b_qp) = [%d, %d] (期待値: [1, 1])\n", sz_b(1), sz_b(2));
+
+assert(isequal(sz_A, [1, 3]), "ERROR: A_qp は 1x3 である必要があります。");
+assert(isequal(sz_b, [1, 1]), "ERROR: b_qp は 1x1 (スカラー) である必要があります。");
+
+disp("------------------------------------------------------------");
+disp("【C3BF 自己診断 2】各入力要素の感度（非ゼロ性）チェック");
+disp("------------------------------------------------------------");
+
+% 各入力列がゼロになっていないか（Lie微分が抜けていないか）の確認
+isZero_T    = isAlways(A_c3bf_sym(1) == 0);
+isZero_Roll = isAlways(A_c3bf_sym(2) == 0);
+isZero_Pitch= isAlways(A_c3bf_sym(3) == 0);
+
+fprintf("A_qp(1) [推力 f]      == 0 : %d (期待値: 0)\n", isZero_T);
+fprintf("A_qp(2) [ロール Mx]   == 0 : %d (期待値: 0)\n", isZero_Roll);
+fprintf("A_qp(3) [ピッチ My]   == 0 : %d (期待値: 0)\n", isZero_Pitch);
+
+if isZero_T || isZero_Roll || isZero_Pitch
+    warning("⚠ 一部の制御入力に対する感度が 0 になっています。オフセットや幾何結合を確認してください。");
 else
-    XD_sym = sym('dummy_xd', [1 1]);
+    disp("✓ 全入力 [f, Mx, My] に対する感度要素が正しく抽出されています。");
 end
 
-export_fname = 'CBF_Constraints_C3ECBF_SuspendedLoadDroneBody';
-disp(['Exporting: ', export_fname, '.m を書き出しています...']);
-matlabFunction(A_c3ecbf_sym, b_c3ecbf_sym, h_0, h_1, h_2, ...
-    'file', strcat(export_fname, '.m'), ...
-    'vars', {obj, x, XD_sym, U1_ref, obs_params, sys_params, physicalParam}, ...
-    'outputs', {'A_qp', 'b_qp', 'h0_val', 'h1_val', 'h2_val'});
+disp("------------------------------------------------------------");
+disp("【C3BF 自己診断 3】符号の数学的整合性確認 (dot{h} + alpha*h >= 0)");
+disp("------------------------------------------------------------");
 
-% 不要コメント行・空行のクリーンアップ
-DeleteCommentLine(export_fname);
+% 元の不等式: L_f_h + L_g_all * u + alpha_cbf * h_c3bf >= 0
+% QP形式   : A_qp * u <= b_qp  ==>  b_qp - A_qp * u >= 0
+% 差分が厳密にゼロになるか確認
+orig_cbf_expr = L_f_h + L_g_all * u_qp + alpha_cbf * h_c3bf;
+qp_cbf_expr   = b_c3bf_sym - A_c3bf_sym * u_qp;
 
-disp("Done: 単機牽引モデル（機体本体）C3-ECBF 関数の生成が完了しました！");
+diff_cbf = simplify(orig_cbf_expr - qp_cbf_expr);
+if isequal(diff_cbf, sym(0))
+    disp("✓ 符号整合性完全一致: b_qp - A_qp*u == L_f_h + L_g_h*u + alpha*h (差分 0)");
+else
+    error("ERROR: A_qp, b_qp の符号関係が元の不等式と一致していません。");
+end
 
+disp("------------------------------------------------------------");
+disp("【C3BF 自己診断 4】数値代入テスト (生成関数 Mファイルの動作確認)");
+disp("------------------------------------------------------------");
 
+% 代表的なテストパラメータの作成
+m_Q_val = 1.5; m_L_val = 0.5; L_cable_val = 1.0; g_val = 9.81;
+J_val   = [0.039; 0.051; 0.102];
+P_test  = [m_Q_val, J_val(1), J_val(2), J_val(3), g_val, m_L_val, L_cable_val, 0, 0];
+
+% 状態ベクトル x_test: 機体上向き、吊り荷真下、障害物斜め前方
+q_test   = [1; 0; 0; 0];
+w_test   = [0; 0; 0];
+pL_test  = [0.0; 0.0; 1.0];
+vL_test  = [0.0; 0.5; 0.0];      % Y方向に前進中
+pT_test  = [0.0; 0.0; -1.0];     % 紐は真下
+wL_test  = [0.0; 0.0; 0.0];
+x_test   = [q_test; w_test; pL_test; vL_test; pT_test; wL_test];
+
+% 目標軌道ダミー (28x1)
+xd_test  = zeros(28, 1);
+
+% 障害物: 前方 Y=1.5m, Z=1.5m に静止障害物
+obs_test = [0.0; 1.5; 1.5; 0.0; 0.0; 0.0; 0.3];
+sys_test = [1.2; 0.3; 1.5; 0.15]; % [rl; d_safe; alpha; d_offset]
+
+% 生成された関数を直接実行テスト
+cbf_func = str2func(export_fname);
+[A_val, b_val, h_val] = cbf_func(obj, x_test, xd_test, obs_test, sys_test, P_test);
+
+fprintf("  計算された h(x)   = % .4f\n", double(h_val));
+fprintf("  計算された A_qp   = [% .4f, % .4f, % .4f]\n", double(A_val(1)), double(A_val(2)), double(A_val(3)));
+fprintf("  計算された b_qp   = % .4f\n", double(b_val));
+
+% ホバリング入力での評価 (f_hov = (m_Q + m_L)*g, トルク 0)
+u_hov = [(m_Q_val + m_L_val) * g_val; 0.0; 0.0];
+slack_hov = double(A_val * u_hov - b_val);
+fprintf("  ホバリング時の制約余力 (A*u - b <= 0): % .4f\n", slack_hov);
+
+% NaN / Inf チェック
+assert(~any(isnan(A_val)) && ~isnan(b_val) && ~isnan(h_val), "ERROR: 数値代入結果に NaN が含まれています。");
+assert(~any(isinf(A_val)) && ~isinf(b_val) && ~isinf(h_val), "ERROR: 数値代入結果に Inf が含まれています。");
+
+disp("✓ 生成関数の数値代入テストが正常に完了しました。");
+disp("==============================================================");
+%% =========================================================================
+%% 【Attitude CBF】機体姿勢角 (Roll/Pitch) 制約 (相対次数2・3入力 [f, Mx, My] 形式)
+%% =========================================================================
+disp("==============================================================");
+disp(" Start: 機体姿勢角 (Roll/Pitch) CBF-QP 制約の自動導出");
+disp(" Target: A_att * [f; Mx; My] <= b_att (2x3 行列)");
+disp("==============================================================");
+
+% 1. ロール・ピッチ角の抽出
+[~, phi_sym, th_sym] = Quat2Eul(x(1:4));
+
+% 2. 姿勢制限・ゲインパラメータ
+syms phi_max th_max real
+syms g_att1 g_att2 real
+
+% 3. 入力ベクトル場（Yaw列を除外）
+g_T_att   = g(:, 1);
+g_tau_att = g(:, 2:3); % [Mx, My] のみ
+
+% 4. バリア関数の定義 (上限・下限を二次形式で定義)
+h_roll  = phi_max^2 - phi_sym^2;
+h_pitch = th_max^2 - th_sym^2;
+
+% 5. 1階微分 (相対次数1: 入力非依存)
+dh_roll  = LieD(h_roll,  f, x);
+dh_pitch = LieD(h_pitch, f, x);
+
+psi1_roll  = dh_roll  + g_att1 * h_roll;
+psi1_pitch = dh_pitch + g_att1 * h_pitch;
+
+% 6. 2階微分 (相対次数2: トルク Mx, My が現れる)
+L_f_psi1_roll   = LieD(psi1_roll,  f, x);
+L_gT_psi1_roll  = LieD(psi1_roll,  g_T_att, x);
+L_gM_psi1_roll  = LieD(psi1_roll,  g_tau_att, x); % 1x2
+
+L_f_psi1_pitch  = LieD(psi1_pitch, f, x);
+L_gT_psi1_pitch = LieD(psi1_pitch, g_T_att, x);
+L_gM_psi1_pitch = LieD(psi1_pitch, g_tau_att, x); % 1x2
+
+% 7. QP制約行列の構成 (A * u <= b)
+A_roll_sym = - [L_gT_psi1_roll, L_gM_psi1_roll];
+b_roll_sym = simplify(L_f_psi1_roll + g_att2 * psi1_roll);
+
+A_pitch_sym = - [L_gT_psi1_pitch, L_gM_psi1_pitch];
+b_pitch_sym = simplify(L_f_psi1_pitch + g_att2 * psi1_pitch);
+
+% 2制約のスタック (2x3)
+A_att_sym = [A_roll_sym; A_pitch_sym];
+b_att_sym = [b_roll_sym; b_pitch_sym];
+h_att_sym = [h_roll; h_pitch];
+
+% 8. 変数置換・エクスポート
+A_att_subs = subs(A_att_sym, [xdReff, vInput1f], [XDf, V1vf]);
+b_att_subs = subs(b_att_sym, [xdReff, vInput1f], [XDf, V1vf]);
+h_att_subs = subs(h_att_sym, [xdReff, vInput1f], [XDf, V1vf]);
+
+att_params = [phi_max; th_max; g_att1; g_att2];
+XD_sym     = cell2sym(XD);
+XD_sym     = XD_sym(:);
+
+export_att_fname = 'CBF_Constraints_Attitude_RollPitch';
+disp(['Exporting: ', export_att_fname, '.m を書き出しています...']);
+
+matlabFunction( ...
+    A_att_subs, ...
+    b_att_subs, ...
+    h_att_subs, ...
+    'file', strcat(export_att_fname, '.m'), ...
+    'vars', { ...
+        obj, ...
+        x, ...
+        XD_sym, ...
+        att_params, ...
+        physicalParam ...
+    }, ...
+    'outputs', { ...
+        'A_qp', ...
+        'b_qp', ...
+        'h_val' ...
+    } ...
+);
+
+DeleteCommentLine(export_att_fname);
+disp("==============================================================");
+disp(" Done: 姿勢角 (Roll/Pitch) CBF-QP 関数の生成が完了しました！");
+disp("==============================================================");
 % %% =========================================================================
 % %% 【Non-cascaded ECBF】完全展開・構造診断・アフィン化 HOCBF 自動導出
 % %% =========================================================================
