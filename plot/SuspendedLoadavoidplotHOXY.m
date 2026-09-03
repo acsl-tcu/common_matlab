@@ -86,7 +86,7 @@
 % 現在のフォルダからパスが通っているかを確認して移動
 mfile_path = fileparts(mfilename('fullpath'));
 cd(mfile_path);
-load('HOCBFXY_2_8_16_32_Log(05-Aug-2026_13_31_27).mat', '-mat');
+load('aws_Log(03-Sep-2026_12_04_08).mat', '-mat');
 %% 生データから102（フライト）のデータのみを詰めて抽出する
 t_raw = log.Data.t(1:log.k);   % 元の時間軸
 phase = log.Data.phase;        % フライトフェーズ
@@ -436,7 +436,7 @@ min_dist = min(r_minimal); % 最小距離とその時のインデックスを取
 fprintf('\n========================================\n');
 fprintf('🔥 【高次CBF検証結果】障害物への最接近データ（t > 0）\n');
 fprintf('----------------------------------------\n');
-fprintf('一番近づいた時の実際の距離 (最小距離) : %.4f [m]\n', min_dist);
+fprintf('一番近づいた時の実際の距離 (最小距離) : %.8e [m]\n', min_dist);
 if min_dist >= 0
     fprintf('⇒ 判定: 🔴【安全確認】限界の壁を超えずに回避完了しています。\n');
 else
@@ -872,3 +872,27 @@ legend('Roll rate (\omega_x)', 'Pitch rate (\omega_y)', 'Yaw rate (\omega_z)', .
 
 title('Drone Body Angular Velocity (\omega)', 'FontSize', 13);
 hold off;
+
+%% =========================================================================
+%% ⭐【追加】CBFによる補正量（Δu = u_safe - u_nom）の重畳プロット
+%% =========================================================================
+% 1. 時間 t > 0 の有効データを抽出
+t_pos_idx = (t > 0);
+t_plot    = t(t_pos_idx);
+
+% 2. 補正量（介入量 Δu）の計算
+delta_u_roll  = tmp_fix_roll(t_pos_idx)  - tmp_roll(t_pos_idx);   % Δu2
+delta_u_pitch = tmp_fix_pitch(t_pos_idx) - tmp_pitch(t_pos_idx);  % Δu3
+
+% 3. 1つのグラフに重畳プロット
+figure('Name', 'CBF Intervention Amount (\Delta u)', 'NumberTitle', 'off');
+
+plot(t_plot, delta_u_roll,  'b-', 'LineWidth', 1.5); hold on;
+plot(t_plot, delta_u_pitch, 'r-', 'LineWidth', 1.5);
+yline(0, 'k--', 'LineWidth', 1.0); % 基準線 (介入なし)
+
+grid on;
+xlabel('Time [s]', 'FontSize', 12);
+ylabel('Intervention Amount \Delta u', 'FontSize', 12);
+legend('\Delta u_2 (Roll)', '\Delta u_3 (Pitch)', 'Location', 'best');
+xlim([t_plot(1), t_plot(end)]);

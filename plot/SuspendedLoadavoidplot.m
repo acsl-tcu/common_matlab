@@ -86,7 +86,7 @@
 % 現在のフォルダからパスが通っているかを確認して移動
 mfile_path = fileparts(mfilename('fullpath'));
 cd(mfile_path);
-load('susupendedLoadavoid4_Log(29-Jun-2026_11_51_02).mat', '-mat');
+load('XYLINKdt35_Log(03-Sep-2026_01_37_18).mat', '-mat');
 %% 生データから102（フライト）のデータのみを詰めて抽出する
 t_raw = log.Data.t(1:log.k);   % 元の時間軸
 phase = log.Data.phase;        % フライトフェーズ
@@ -476,7 +476,66 @@ legend('Current Distance', 'Safety Limit', ...
        'Location', 'best');
 hold off;
 
+%% =========================================================================
+%% ⭐【追加】CBFによる制御入力の補正量（介入度）のプロット
+%% =========================================================================
+% 1. 時間 t > 0 の有効データを抽出
+t_pos_idx = (t > 0);
+t_plot = t(t_pos_idx);
 
+% 2. 既存の抽出済み変数 (tmp: 公称入力, tmp_fix: 安全補正後) から入力データを取得
+% tmp(1:4) = [u1_nom; u2_nom; u3_nom; u4_nom]
+% tmp_fix(1:4) = [u1_nom; u2_safe; u3_safe; u4_nom]
+u_nom_plot = [tmp_thrust(t_pos_idx); tmp_roll(t_pos_idx); tmp_pitch(t_pos_idx); tmp_yaw(t_pos_idx)];
+u_cmd_plot = [input_thrust(t_pos_idx); input_roll(t_pos_idx); input_pitch(t_pos_idx); input_yaw(t_pos_idx)];
+
+% CBFによる補正量 (Δu = u_cmd - u_nom) の計算
+u_diff_plot = u_cmd_plot - u_nom_plot;
+
+% 3. 公称入力 vs CBF修正入力 (u2: Roll, u3: Pitch) の比較プロット
+figure('Name', 'Control Inputs: Nominal vs CBF Modified', 'NumberTitle', 'off');
+
+subplot(2, 1, 1);
+plot(t_plot, u_nom_plot(2, :), 'r--', 'LineWidth', 1.2); hold on;
+plot(t_plot, u_cmd_plot(2, :), 'b-', 'LineWidth', 1.5);
+grid on; ylabel('u_2 (Roll)');
+% title('Nominal Input vs CBF Modified Input');
+legend('Nominal (u_{nom})', 'Modified (u_{cmd})', 'Location', 'best');
+xlim([t_plot(1), t_plot(end)]);
+
+subplot(2, 1, 2);
+plot(t_plot, u_nom_plot(3, :), 'r--', 'LineWidth', 1.2); hold on;
+plot(t_plot, u_cmd_plot(3, :), 'b-', 'LineWidth', 1.5);
+grid on; ylabel('u_3 (Pitch)'); xlabel('Time [s]');
+legend('Nominal (u_{nom})', 'Modified (u_{cmd})', 'Location', 'best');
+xlim([t_plot(1), t_plot(end)]);
+
+% 4. CBFによる補正量 (\Delta u_2, \Delta u_3) の時系列プロット
+figure('Name', 'CBF Correction Amount (u_diff)', 'NumberTitle', 'off');
+
+subplot(2, 1, 1);
+plot(t_plot, u_diff_plot(2, :), 'm-', 'LineWidth', 1.5); hold on;
+yline(0, 'k:', 'LineWidth', 1.0); % 補正なしライン
+grid on; ylabel('\Delta u_2 (Roll)');
+title('CBF Intervention Amount (\Delta u = u_{cmd} - u_{nom})');
+xlim([t_plot(1), t_plot(end)]);
+
+subplot(2, 1, 2);
+plot(t_plot, u_diff_plot(3, :), 'm-', 'LineWidth', 1.5); hold on;
+yline(0, 'k:', 'LineWidth', 1.0);
+grid on; ylabel('\Delta u_3 (Pitch)'); xlabel('Time [s]');
+xlim([t_plot(1), t_plot(end)]);
+
+% 5. CBF介入量ベクトルのノルム ||[\Delta u_2; \Delta u_3]|| のプロット
+u_diff_xy_norm = sqrt(u_diff_plot(2, :).^2 + u_diff_plot(3, :).^2);
+
+figure('Name', 'Total CBF Intervention Magnitude', 'NumberTitle', 'off');
+plot(t_plot, u_diff_xy_norm, 'k-', 'LineWidth', 1.5); hold on;
+grid on;
+xlabel('Time [s]', 'FontSize', 12);
+ylabel('||\Delta u_{2,3}||', 'FontSize', 12);
+title('Total CBF Intervention Norm in XY Plane');
+xlim([t_plot(1), t_plot(end)]);
 %% ここから下に以前の plot などのコードを自由に貼り付けてください
 
 % % --- 入力 (controller) ---
