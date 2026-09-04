@@ -17,10 +17,15 @@ classdef MECKC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(4,1);
+      %%%%%%入力を振動させたいとき%%%%%%%%
+      obj.param.A = 0.7;
+      obj.param.f = 1;           % Hz
+      obj.param.ome = 2*pi*obj.param.f;
       end
 
     function result = do(obj,varargin)
       model = obj.self.estimator.result;
+      t = varargin{1,1}.t;
       x = [model.state.p(1);
              model.state.p(2);
              model.state.p(3);
@@ -48,7 +53,8 @@ classdef MECKC < handle
         % K_full=[zeros(4,24)];
         % load('koopman_common_z__gain_KD.mat','K_full');
         load('0708_second_new_KL_gain_KD.mat','K_full');
-        
+        % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
+
         % % data = load('first_KL_gain_KD.mat');
         % % K = data.K;
         e = z_n-z_p;
@@ -63,7 +69,8 @@ classdef MECKC < handle
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
-      obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu      
+      % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu  
+      obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u + obj.param.A * sin(obj.param.ome * t);%un+Δu+外乱d
       result = obj.result;
     end
   end

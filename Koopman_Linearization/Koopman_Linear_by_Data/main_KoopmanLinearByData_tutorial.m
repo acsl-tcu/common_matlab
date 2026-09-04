@@ -45,7 +45,7 @@ FileName = input('保存するファイル名を入力してください(※ ～
 % [~, baseName, ~] = fileparts(FileName);
 [~, baseName, ext] = fileparts(FileName);
 
-folderPath = 'datasetsd'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
+folderPath = 'datasets'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
 files = dir(folderPath);
 % folderPath = 'KMPCSimデータセット'
 fileList = dir(fullfile(folderPath,'*.mat')); %対象のファイルを取得
