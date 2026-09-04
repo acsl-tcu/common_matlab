@@ -69,7 +69,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 % end
 % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LOAD_ZXY_LINK_NEW(agent, Controller_HL_Suspended_Load(dt, agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ(agent, Controller_HL_Suspended_Load(dt, agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ(agent, Controller_HL_Suspended_Load(dt, agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_DYNAMIC_EXTENSION(agent, Controller_HL_Suspended_Load(dt, agent)));
 % % =================================================================
 % % 🔍 [SimScript Debug] コントローラの登録状態を完全可視化
 % % =================================================================
