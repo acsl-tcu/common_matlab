@@ -1,4 +1,4 @@
-﻿function obs = ENVIRONMENT_OBSTACLE_ELLIPSOID()
+function obs = ENVIRONMENT_OBSTACLE_ELLIPSOID()
 % ENVIRONMENT_OBSTACLE_ELLIPSOID 障害物の配置情報（楕円体対応）
 % 
 % コントローラや描画用クラスから呼び出され、
@@ -19,6 +19,6 @@
     obs(2).type = 'ellipsoid';
     obs(2).p_obs = [0.3; 0.3; 10.0]; % 上空10m
     obs(2).R_obs = eye(3);
-    obs(2).Q_obs = diag([2.0, 2.0, 0.5]); % X,Yに広くZに薄いパンケーキ型（天井）
+    obs(2).Q_obs = diag([2.0, 1.0, 0.5]); % X,Yに広くZに薄いパンケーキ型（天井）
     obs(2).d_margin = 0.5;
 end

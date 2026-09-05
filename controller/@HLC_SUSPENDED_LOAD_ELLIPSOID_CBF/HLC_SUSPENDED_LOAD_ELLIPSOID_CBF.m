@@ -1,4 +1,4 @@
-﻿classdef HLC_SUSPENDED_LOAD_ELLIPSOID_CBF < HLC_SUSPENDED_LOAD
+classdef HLC_SUSPENDED_LOAD_ELLIPSOID_CBF < HLC_SUSPENDED_LOAD
   properties
     T_val
     dT_val
@@ -56,7 +56,7 @@
         ddT_nom = -Kp_T * (obj.T_val - T_nom) - Kd_T * obj.dT_val;
         mu_nom = [ddT_nom; tau_nom];
 
-        H_qp = diag([0.1, 5, 5, 5]); 
+        H_qp = diag([5, 5, 5, 5]); 
         f_qp = -H_qp * mu_nom;
 
         A_obs = [];
@@ -122,10 +122,24 @@
         obj.result.h_val = min_h_this_step; 
         obj.result.d_surf = min_d_surf_this_step; 
         
+        % ★ 姿勢ハード制約 (Attitude Limit CBF)
+        % ロール角・ピッチ角が35度(約0.61rad)以上傾かないようにする
+        cos_gamma_max = cos(35 * pi / 180);
+        cbf_gains_att = [25; 10]; % (s+5)^2 の極配置
+        [A_att, b_att, h_att] = Attitude_Limit_CBF([q_quat(:); w_vec(:)], [P_vec(2); P_vec(3); P_vec(4)], cos_gamma_max, cbf_gains_att);
+        
+        if ~any(isnan(A_att)) && ~any(isnan(b_att))
+            A_obs = [A_obs; A_att];
+            b_obs = [b_obs; b_att];
+        end
+        
+        % 5. Solve QP
         mu_safe = mu_nom;
         if ~isempty(A_obs)
-            lb = [-1000; -1.0; -1.0; -1.0];
-            ub = [ 1000;  1.0;  1.0;  1.0];
+            % lb = [-1000; -1.0; -1.0; -1.0];
+            % ub = [ 1000;  1.0;  1.0;  1.0];
+            lb = [-1000; -0.5; -0.5; -0.5];
+            ub = [ 1000;  0.5;  0.5;  0.5];
             options = optimoptions('quadprog', 'Display', 'off');
             [mu_opt, ~, exitflag] = quadprog(H_qp, f_qp, A_obs, b_obs, [], [], lb, ub, [], options);
             if exitflag == 1
