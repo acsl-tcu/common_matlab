@@ -1,4 +1,4 @@
-ts = 0; % initial time
+﻿ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
 time = TIME(ts,dt,te);
@@ -60,7 +60,7 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 
 % 紐中点を対象とした Actuator CBF コントローラに置き換え
 % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_CBF(agent,Controller_HL_Suspended_Load(dt,agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_ELLIPSOID_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_CBF_ATT_PRIORITY(agent, Controller_HL_Suspended_Load(dt, agent)));
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -162,3 +162,5 @@ end
 u = agent(idx).controller.result.input;
 v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end
+
+

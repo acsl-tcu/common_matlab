@@ -1,4 +1,4 @@
-ts = 0; % initial time
+﻿ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
 time = TIME(ts,dt,te);
@@ -52,15 +52,15 @@ L = agent.parameter.cableL;
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0;30], "t_go", 60.0}, 6}));
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_MPC(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE_MPC(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0;30], "t_go", 30.0}, 6}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 % 紐中点を対象とした Actuator CBF コントローラに置き換え
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_CBF(agent,Controller_HL_Suspended_Load(dt,agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_ELLIPSOID_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent, Controller_HL_Suspended_Load(dt, agent)));
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -73,17 +73,17 @@ agent.cha_allocation.l.reference =["landing","sload"];
 
 function post(app)
 % シミュレーション終了後の結果表示とアニメーション作成。
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
-% app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
-app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
+% app.logger.plot({1, "p", "er"},"fig_num",1); % app.logger.plot({1, "q", "e"},"fig_num",2);
+% % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+%% app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
+% % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+% % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+% app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
 
 % ★ 表面からの距離（d_surf）の推移をプロット
 % 値が 0 以上であれば、設定したシステムマージン（r_system=1.0m）が保たれていることを示します。
-app.logger.plot({1, "controller.result.d_surf", ""}, "phase", "tf", "fig_num", 10);
+% app.logger.plot({1, "reference.result.d_surf", ""}, "phase", "tf", "fig_num", 10);
 
 show_suspended_load_animation(app); % アニメーション描画
 end
@@ -140,25 +140,24 @@ end
 
 
 function v = build_display_vector(agent, time)
-% コンソール表示用の文字列を作る。
-% 参照位置、推定位置、入力、推定質量を並べる。
 idx = 1;
 if ~isprop(agent(idx).reference.result.state, "xd")
-    v = [];
-    return
+    v = []; return;
 end
 xd = agent(idx).reference.result.state.xd;
-if isfield(agent(idx).estimator.result, "state")
-    p = agent(idx).estimator.result.state.p;
-    if isprop(agent(idx).estimator.result.state, "mL")
-        mL = agent(idx).estimator.result.state.mL;
-    else
-        mL = NaN;
-    end
-else
-    p = [NaN; NaN; NaN];
-    mL = NaN;
-end
+p = agent(idx).estimator.result.state.p;
 u = agent(idx).controller.result.input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
+
+if isfield(agent(idx).reference.result, "exitflag")
+    eflag = agent(idx).reference.result.exitflag;
+    dsurf = agent(idx).reference.result.d_surf;
+else
+    eflag = 0; dsurf = 99.9;
 end
+
+v = sprintf("%c %5.3f : R [%5.2f,%5.2f,%5.2f] : P [%5.2f,%5.2f,%5.2f] : U [%5.2f,%5.2f,%5.2f,%5.2f] : QP %2d : dSurf %5.2f", ...
+    agent(idx).cha, time.t, xd(1:3)', p', u', eflag, dsurf);
+end
+
+
+
