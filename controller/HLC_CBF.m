@@ -48,7 +48,7 @@
 %       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
 %       % max,min are applied for the safty
 %       % ---------------------CBF--------------------%
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         if isempty(obj.result.input) || obj.result.input(1) <= 0
 %           f_T_curr = P(1) * P(9); % mass * gravity
@@ -222,7 +222,7 @@
 %       tmp = Uf(x,xd',vf,P) + Us(x,xd',vf,vs',P);
 %       % max,min are applied for the safty
 %       % ---------------------CBF--------------------%
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         f_hover = P(1) * P(9);
 % 
@@ -433,7 +433,7 @@
 %         f_T_curr = obj.result.input(1);
 %       end
 % 
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         p_drone = x(5:7);
 %         v_drone = x(8:10);
@@ -631,7 +631,7 @@
 %       else
 %         f_T_curr = obj.result.input(1);
 %       end
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         p_drone = x(5:7);
 %         v_drone = x(8:10);
@@ -862,7 +862,7 @@
 %       else
 %         f_T_curr = obj.result.input(1);
 %       end
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         p_drone = x(5:7);
 %         v_drone = x(8:10);
@@ -1090,7 +1090,7 @@
 %         f_T_curr = obj.result.input(1);
 %       end
 % 
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         p_drone = x(5:7);
 %         v_drone = x(8:10);
@@ -1330,7 +1330,7 @@
 %         f_T_curr = obj.result.input(1);
 %       end
 % 
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       if ~isempty(obs_list)
 %         p_drone = x(5:7);
 %         v_drone = x(8:10);
@@ -1597,7 +1597,7 @@
 %       eta_nom  = [d2aT_nom; u_nom_clamped(2:4)];
 % 
 %       % ------------------- 障害物リストと制約構築 ------------------- %
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 %       A_cbf_all = [];
 %       b_cbf_all = [];
 % 
@@ -1912,7 +1912,7 @@
 %       %% ================================================================
 %       % 10. Collision Cone ECBF constraints
 %       %% ================================================================
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 % 
 %       A_cbf_all = [];
 %       b_cbf_all = [];
@@ -2321,7 +2321,7 @@
 %       % =====================================================================
 %       % 7. FastBridge Collision Cone ECBF Constraints (FD Formulation)
 %       % =====================================================================
-%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+%       obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
 % 
 %       A_cbf_all = [];
 %       b_cbf_all = [];
@@ -2524,28 +2524,6 @@
 %         p_drone_curr = x(5:7);
 %         for i = 1:length(obs_list)
 %           p_obs_rel = Rb0' * obs_list(i).p_obs;
-%           r_obs     = obs_list(i).r_obs_margin;
-% 
-%           dist_center = norm(p_obs_rel - p_drone_curr);
-%           clearance   = dist_center - (r_obs + r_drone);
-% 
-%           if clearance < min_clearance
-%             min_clearance = clearance;
-%           end
-%         end
-%       end
-% 
-%       obj.result.min_clearance       = min_clearance;
-%       obj.result.qp_exitflag         = exitflag;
-%       obj.result.num_cbf_constraints = n_cbf;
-%       obj.result.thrust_history      = [obj.T_prev1; obj.T_prev2];
-% 
-%       result = obj.result;
-%     end
-% 
-%   end
-% end
-
 classdef HLC_CBF < handle
   % =========================================================================
   % FastBridge Collision Cone ECBF Controller (Independent Gain Formulation)
@@ -2695,13 +2673,14 @@ classdef HLC_CBF < handle
       % =====================================================================
       % 7. FastBridge Collision Cone ECBF Constraints (独立ゲイン版)
       % =====================================================================
-      obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+      obs_list = ENVIRONMENT_OBSTACLE_HOCBF_ELLIPSOID();
       A_cbf_all = [];
       b_cbf_all = [];
       
       % テスト検証済みの独立ゲインベクトル [k0; k1; k2]
       % cbf_gains = [80.0; 10.0; 2.0];
-      cbf_gains = [40; 10; 2];
+      % cbf_gains = [8; 12; 6];
+      cbf_gains = [1; 3; 3];
       
       % ECBF関数用物理パラメータ [m; jx; jy; jz; g] (5要素)
       phys_ecbf = [m_drone; jx_val; jy_val; jz_val; g_drone];
@@ -2731,7 +2710,7 @@ classdef HLC_CBF < handle
             A_mat(1,1); A_mat(1,2); A_mat(1,3); ...
             A_mat(2,2); A_mat(2,3); A_mat(3,3) ...
           ];
-          c_scale_val  = 1.0;
+          c_scale_val  = 0.5;
           splat_params = [p_obs_rel; A_vec; c_scale_val];
 
           % 3. Approach gate (r = mu - p に対し r'*A*v >= -eps で接近中)
@@ -2774,13 +2753,13 @@ classdef HLC_CBF < handle
       % 9. Primary QP Setup (ダンピング付きノミナル追従 + スラック緩和)
       % =====================================================================
       % ノミナル追従重み
-      w_T_nom   = 10.0;
-      w_tau_nom = 1.0;
+      w_T_nom   = 50.0;
+      w_tau_nom = 50.0;
       w_yaw_nom = 200.0;
       W_nom     = diag([w_T_nom, w_tau_nom, w_tau_nom, w_yaw_nom]);
 
       % トルクスルーレート急変抑制重み (直前入力 u_prev との差分ペナルティ)
-      W_rate    = diag([2.0, 0.10, 0.10, 0.10]);
+      W_rate    = diag([2.0, 1, 1, 0.10]);
 
       H_u = W_nom + W_rate;
       f_u = - (W_nom * u_nom + W_rate * obj.u_prev);

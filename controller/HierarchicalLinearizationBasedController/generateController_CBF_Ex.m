@@ -380,9 +380,12 @@ A  = [A11, A12, A13;
 % 自機から障害物へのベクトル
 r = mu - p; 
 
-tau_look = 0.5; % 速度予測タイムホライズン [s]
-% 接近中 (r'*A*v > 0) に急速に小さくなる安全マージン関数
-h_cc = simplify(r.' * A * r - c_scale^2 - 2 * tau_look * (r.' * A * v));
+% [FIX] FastBridge 論文 Eq(10) に準拠した真の Collision Cone CBF
+% h(r,v) = (v^T A v)(r^T A r - c^2) - (r^T A v)^2 >= 0
+beta_term  = v.' * A * v;
+gamma_term = r.' * A * r - c_scale^2;
+delta_term = r.' * A * v;
+h_cc = simplify(beta_term * gamma_term - delta_term^2);
 
 % 4. 基礎時間微分 (ベース推力 aT_base = T_prev1 / m)
 aT_base = T_prev1 / m;
@@ -396,8 +399,8 @@ dh_dt  = simplify(jacobian(h_cc, [p; v]) * [v; acc_base]);
 ddh_dt = simplify(jacobian(dh_dt, [p; v; w]) * [v; acc_base; dw_drift]);
 
 % 5. スナップ感度と有限差分モデル
-% dr/dt = -v より、w_snap は負の係数を持つ
-w_snap = simplify(- 2 * tau_look * (A * r));
+% w_snap は nabla_v(h_cc)
+w_snap = simplify(2 * gamma_term * (A * v) - 2 * delta_term * (A * r));
 
 G_T_FD = simplify((1 / (m * dt^2)) * b3 + (2 / (m * dt)) * db3);
 G_tau  = simplify(-(T_prev1 / m) * R * hat_e3 * invJ);
