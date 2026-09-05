@@ -73,14 +73,18 @@ classdef HLC_SUSPENDED_LOAD_CBF < HLC_SUSPENDED_LOAD
         A_obs = [];
         b_obs = [];
         min_h_this_step = Inf;
+        min_d_surf_this_step = Inf;
 
         % 4. 障害物CBF
         % params = [m; mL; cableL; jx; jy; jz; g];
         drone_params = [P_vec(1); P_vec(6); P_vec(7); P_vec(2); P_vec(3); P_vec(4); P_vec(5)]; 
         
         % ★ システム全体（ドローン・紐・負荷）を覆う安全マージン半径
-        r_system = 1.0;
-        % r_system = 0.35;
+        % r_system = 1.0;
+        r_system = 0.35;
+        
+        % CBF制約をアクティブにする表面距離の閾値 (2.0m以上離れていたら制約を外す)
+        d_active = 10.0; 
         
         obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
         for i = 1:length(obs_list)
@@ -91,22 +95,35 @@ classdef HLC_SUSPENDED_LOAD_CBF < HLC_SUSPENDED_LOAD
             % 単機と完全に同じ極配置 (s+2)^4
             % cbf_gains = [16; 32; 24; 8]; 
             cbf_gains = [1; 4; 6; 4];
+            % cbf_gains = [16; 40; 33; 10];
             
             [A_cbf, b_cbf, h_val] = Sphere_SuspendedLoad_TetherMid_CBF(z_state, T_state, drone_params, obs_params, cbf_gains);
             
+            % h_val からシステム表面と障害物表面の距離 (d_surf) を逆算
+            % h_val = d^2 - r_barrier^2
+            d_center = sqrt(max(0, h_val + r_barrier^2));
+            d_surf = d_center - r_barrier;
+            
             if h_val < min_h_this_step
                 min_h_this_step = h_val;
+            end
+            if d_surf < min_d_surf_this_step
+                min_d_surf_this_step = d_surf;
             end
             if h_val < obj.result.min_clearance
                 obj.result.min_clearance = h_val;
             end
             
-            if ~any(isnan(A_cbf)) && ~any(isnan(b_cbf))
-                A_obs = [A_obs; A_cbf];
-                b_obs = [b_obs; b_cbf];
+            % システムが一定範囲内に近づいた時のみ制約に追加する
+            if d_surf < d_active
+                if ~any(isnan(A_cbf)) && ~any(isnan(b_cbf))
+                    A_obs = [A_obs; A_cbf];
+                    b_obs = [b_obs; b_cbf];
+                end
             end
         end
-        obj.result.h_val = min_h_this_step; % ロガー用
+        obj.result.h_val = min_h_this_step; % ロガー用 (バリア関数の値)
+        obj.result.d_surf = min_d_surf_this_step; % ロガー用 (表面からの距離 [m])
         
         % 5. Solve QP (単機と完全に同一の定式化、スラック無し・推力バリア無し)
         mu_safe = mu_nom;

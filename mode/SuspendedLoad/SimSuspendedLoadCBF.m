@@ -53,12 +53,14 @@ L = agent.parameter.cableL;
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
 agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0;30], "t_go", 30.0}, 6}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
 % 紐中点を対象とした Actuator CBF コントローラに置き換え
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_CBF(agent,Controller_HL_Suspended_Load(dt,agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_CBF(agent,Controller_HL_Suspended_Load(dt,agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_ELLIPSOID_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -79,8 +81,9 @@ app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
 app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
 
-% ★ クリアランス（h_val）のグラフを追加
-app.logger.plot({1, "controller.result.h_val", ""}, "phase", "tf", "fig_num", 10);
+% ★ 表面からの距離（d_surf）の推移をプロット
+% 値が 0 以上であれば、設定したシステムマージン（r_system=1.0m）が保たれていることを示します。
+app.logger.plot({1, "controller.result.d_surf", ""}, "phase", "tf", "fig_num", 10);
 
 show_suspended_load_animation(app); % アニメーション描画
 end
@@ -95,16 +98,29 @@ mov = DRAW_SUSPENDED_LOAD(app.logger, ...
     "target", 1, ...
     "self", app.agent(1));
 
-% 障害物（純粋な球体）の描画を追加
-% ★ コントローラ側の r_system と同じ値を設定してください
-r_system_draw = 1.0; 
-obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
+% 障害物（楕円体）の描画を追加
+% ★ 環境ファイルから楕円体パラメータを読み込み、マージンを含めて描画します
+obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
 hold(mov.ax, 'on');
 for i = 1:length(obs_list)
-    [sx, sy, sz] = sphere(20);
+    [sx, sy, sz] = sphere(30); % 解像度を少し上げる
     p_obs = obs_list(i).p_obs;
-    r_barrier = obs_list(i).r_obs + r_system_draw;
-    surf(mov.ax, sx*r_barrier + p_obs(1), sy*r_barrier + p_obs(2), sz*r_barrier + p_obs(3), ...
+    R_obs = obs_list(i).R_obs;
+    Q_obs = obs_list(i).Q_obs;
+    d_margin = obs_list(i).d_margin;
+    
+    % 描画用の形状行列 (本来の楕円体 + 安全マージン)
+    Q_draw = Q_obs + d_margin * eye(3);
+    
+    % 単位球の各頂点を楕円体に変形・回転・平行移動
+    pts = [sx(:), sy(:), sz(:)]';
+    pts_trans = R_obs * Q_draw * pts + p_obs;
+    
+    sx_trans = reshape(pts_trans(1,:), size(sx));
+    sy_trans = reshape(pts_trans(2,:), size(sy));
+    sz_trans = reshape(pts_trans(3,:), size(sz));
+    
+    surf(mov.ax, sx_trans, sy_trans, sz_trans, ...
         'FaceColor', 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
 end
 
