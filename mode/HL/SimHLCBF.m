@@ -44,9 +44,23 @@ agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
-% agent.controller.set_function_class("hlc", HLC_CBF(agent,Controller_HL(dt)));
-% agent.controller.set_function_class("hlc", HLC_CBF_DynamicExtension(agent,Controller_HL(dt)));
-agent.controller.set_function_class("hlc", HLC_CBF_RealDynExt(agent,Controller_HL(dt)));
+% 以下のコントローラのうち1つをコメントアウト解除して使用してください。
+% agent.controller.set_function_class("hlc", HLC_CBF(agent,Controller_HL(dt))); % 元のコントローラ
+% agent.controller.set_function_class("hlc", HLC_CBF_DynamicExtension(agent,Controller_HL(dt))); % 仮想入力動的拡張
+
+% --- 今回作成した3つの実入力コントローラ ---
+% [基本] 推力加速度をQPの変数にする（推力の上下限は最後にクリッピング）
+% agent.controller.set_function_class("hlc", HLC_CBF_RealDynExt(agent,Controller_HL(dt)));
+
+% [案1] Actuator CBF: 綺麗な軌道を保ったまま推力上限・下限をバリア関数で保証
+% agent.controller.set_function_class("hlc", HLC_CBF_ActuatorCBF(agent,Controller_HL(dt)));
+
+% [案2] 簡易MPC: 1ステップ先の推力も変数に含めてハード制約で保証
+% agent.controller.set_function_class("hlc", HLC_CBF_SimpleMPC(agent,Controller_HL(dt)));
+
+% [案3] 有限差分法: 決定変数を実入力に戻し、有限差分で微分の階数を吸収して保証
+% これはうまくいかなかった　推力が突き抜けた
+% agent.controller.set_function_class("hlc", HLC_CBF_FiniteDifference(agent,Controller_HL(dt)));
 
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.a.reference="takeoff";
