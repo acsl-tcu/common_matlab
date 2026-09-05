@@ -50,11 +50,10 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",30,"center",[0;0;3.0],"radius",[5,5,1]},4})); %円系軌道
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",30,"center",[0;0;2.5],"radius",[15,15,0]},4})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},4})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},4})); % triangle
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0.0;18.0], "t_go", 18.0}, 6}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 20.0}, 6}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
@@ -68,9 +67,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 %     % 初期化時の startupFcn での空アクセスは完全に無害化してスルー
 % end
 % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LOAD_ZXY_LINK_NEW(agent, Controller_HL_Suspended_Load(dt, agent)));
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_HOCBF_LINK_XYZ(agent, Controller_HL_Suspended_Load(dt, agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_DYNAMIC_EXTENSION(agent, Controller_HL_Suspended_Load(dt, agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_MRD_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
+agent.controller.set_function_class("hlc_suspended", CONTROLLER_QCSP_ZHENG_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
 % % =================================================================
 % % 🔍 [SimScript Debug] コントローラの登録状態を完全可視化
 % % =================================================================
@@ -96,7 +94,7 @@ function post(app)
 % シミュレーション終了後の結果表示とアニメーション作成。
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
 app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-app.logger.plot({1, "controller.result.controllertime", ""}, "phase", "f", "fig_num", 2);
+% app.logger.plot({1, "controller.result.controllertime", ""}, "phase", "f", "fig_num", 2);
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
 % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
@@ -106,16 +104,26 @@ app.logger.plot({1, "controller.result.controllertime", ""}, "phase", "f", "fig_
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
 % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
-try
-    app.logger.plot({1, "controller.result.min_clearance", ""}, ...
-        "phase", "f", ...
-        "fig_num", 3);
-catch
-    disp('⚠️ 距離データ controller.result.min_clearance が見つかりませんでした。');
-end
+
 show_suspended_load_animation(app); % アニメーション描画
 end
 
+% function show_suspended_load_animation(app)
+% % 単機の吊り下げモデルをアニメーション表示する。
+% if app.logger.k <= 1
+%     return
+% end
+% 
+% mov = DRAW_SUSPENDED_LOAD(app.logger, ...
+%     "target", 1, ...
+%     "self", app.agent(1));
+% mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
+% 
+% % mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
+% 
+% % mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
+% %     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+% end
 function show_suspended_load_animation(app)
 % 単機の吊り下げモデルを障害物回避マージン付きでアニメーション表示する。
 if app.logger.k <= 1
@@ -124,12 +132,12 @@ end
 
 actual_rl = app.agent(1).controller.result.rl;
 % 新しい回避対応版クラスをインスタンス化
-mov = DRAW_SUSPENDED_LOAD_HOCBF_LINK_XY(app.logger, ...
+mov = DRAW_SUSPENDED_LOAD_AVOIDANCE(app.logger, ...
     "target", 1, ...
     "self", app.agent(1), ...
     "rl", actual_rl);
 mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl); % 表示開始
-% mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl,"mp4", true, "pause", 0);%mp4保存用
+% mov.animation(app.logger,"target", 1,"self", app.agent(1), "rl", actual_rl,"mp4", true, "pause", 0); % 表示開始
 end
 
 function in_prog(app)
