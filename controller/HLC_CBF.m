@@ -2678,9 +2678,9 @@ classdef HLC_CBF < handle
       b_cbf_all = [];
       
       % テスト検証済みの独立ゲインベクトル [k0; k1; k2]
-      % cbf_gains = [80.0; 10.0; 2.0];
-      % cbf_gains = [8; 12; 6];
-      cbf_gains = [1; 3; 3];
+      cbf_gains = [80.0; 10.0; 2.0];
+      % cbf_gains = [40; 10; 2];
+      % cbf_gains = [40; 10; 2];
       
       % ECBF関数用物理パラメータ [m; jx; jy; jz; g] (5要素)
       phys_ecbf = [m_drone; jx_val; jy_val; jz_val; g_drone];
@@ -2753,13 +2753,13 @@ classdef HLC_CBF < handle
       % 9. Primary QP Setup (ダンピング付きノミナル追従 + スラック緩和)
       % =====================================================================
       % ノミナル追従重み
-      w_T_nom   = 50.0;
-      w_tau_nom = 50.0;
-      w_yaw_nom = 200.0;
+      w_T_nom = 10.0;
+      w_tau_nom = 10.0;
+      w_yaw_nom = 10000.0;
       W_nom     = diag([w_T_nom, w_tau_nom, w_tau_nom, w_yaw_nom]);
 
       % トルクスルーレート急変抑制重み (直前入力 u_prev との差分ペナルティ)
-      W_rate    = diag([2.0, 1, 1, 0.10]);
+      W_rate    = diag([1.0, 1, 1, 10]);
 
       H_u = W_nom + W_rate;
       f_u = - (W_nom * u_nom + W_rate * obj.u_prev);

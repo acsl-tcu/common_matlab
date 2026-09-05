@@ -43,7 +43,9 @@ agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
-agent.controller.set_function_class("hlc", HLC_CBF(agent,Controller_HL(dt)));
+% agent.controller.set_function_class("hlc", HLC_CBF(agent,Controller_HL(dt)));
+% agent.controller.set_function_class("hlc", HLC_CBF_DynamicExtension(agent,Controller_HL(dt)));
+agent.controller.set_function_class("hlc", HLC_CBF_RealDynExt(agent,Controller_HL(dt)));
 
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.a.reference="takeoff";
@@ -80,8 +82,10 @@ function show_animation(app)
 if app.logger.k <= 1
     return
 end
+  % mov = DRAW_DRONE_MOTION_CBF(app.logger, "self", app.agent, "target", 1,...
+  %         "lims", [ -5 5;  -5 15;  -3 5 ]);
   mov = DRAW_DRONE_MOTION_CBF(app.logger, "self", app.agent, "target", 1,...
-          "lims", [ -5 5;  -5 15;  -3 5 ]);
+      "lims", [ -5 5;  -5 15;  -3 5 ]);
   mov.animation(app.logger, "self", app.agent, "target", 1, "Motive_ref", 1);
 end
 function v = build_display_vector(agent, time)
