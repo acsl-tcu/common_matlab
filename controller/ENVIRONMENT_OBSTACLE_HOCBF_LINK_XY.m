@@ -37,37 +37,37 @@ function obs = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY()
     obj.result.obs(1).r_obs = obs(1).r_obs;
     obj.result.obs(1).r_obs_margin = obs(1).r_obs_margin;
     fprintf('%d\n',obs(1).r_obs_margin)
-    % %% =========================================================================
-    % %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
-    % %  =========================================================================
-    % % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
-    % p_center2 = [0.3; 0.3; 10]; 
-    % cy2_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
-    % % p_center1 = [0.3; 7.5; 2]; 
-    % % cyl_param = [1, 3.0]; % [底面半径 r, 高さ h]
-    % % p_center1 = [0.3; 6; 2]; 
-    % % cyl_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
-    % 
-    % % 💡 今回この実験で使いたい安全マージンをここで定義
-    % d_margin(2) = 0.5;
-    % 
-    % obs(2).type = 'cylinder';
-    % obs(2).raw_param = cy2_param;
-    % obs(2).p_center = p_center2;
-    % obs(2).d_margin = d_margin(2);
-    % 
-    % obj.result.obs(2).type = obs(2).type;
-    % obj.result.obs(2).raw_param = obs(2).raw_param;
-    % obj.result.obs(2).p_center = obs(2).p_center;
-    % obj.result.obs(2).d_margin = obs(2).d_margin;
-    % 
-    % [obs(2).p_obs, obs(2).r_obs_margin] = get_bounding_sphere('cylinder', p_center2, cy2_param,d_margin(2));
-    % obs(2).r_obs = obs(2).r_obs_margin - d_margin(2);
-    % 
-    % obj.result.obs(2).p_obs = obs(2).p_obs;
-    % obj.result.obs(2).r_obs = obs(2).r_obs;
-    % obj.result.obs(2).r_obs_margin = obs(2).r_obs_margin;
-    % fprintf('%d\n',obs(2).r_obs_margin)
+    %% =========================================================================
+    %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
+    %  =========================================================================
+    % 前進軌道（Y=0からY=15）の途中でしっかりすれ違うよう、中心座標を調整しています
+    p_center2 = [0.3; 0.3; 10]; 
+    cy2_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
+    % p_center1 = [0.3; 7.5; 2]; 
+    % cyl_param = [1, 3.0]; % [底面半径 r, 高さ h]
+    % p_center1 = [0.3; 6; 2]; 
+    % cyl_param = [0.5, 1.0]; % [底面半径 r, 高さ h]
+
+    % 💡 今回この実験で使いたい安全マージンをここで定義
+    d_margin(2) = 0.5;
+
+    obs(2).type = 'cylinder';
+    obs(2).raw_param = cy2_param;
+    obs(2).p_center = p_center2;
+    obs(2).d_margin = d_margin(2);
+
+    obj.result.obs(2).type = obs(2).type;
+    obj.result.obs(2).raw_param = obs(2).raw_param;
+    obj.result.obs(2).p_center = obs(2).p_center;
+    obj.result.obs(2).d_margin = obs(2).d_margin;
+
+    [obs(2).p_obs, obs(2).r_obs_margin] = get_bounding_sphere('cylinder', p_center2, cy2_param,d_margin(2));
+    obs(2).r_obs = obs(2).r_obs_margin - d_margin(2);
+
+    obj.result.obs(2).p_obs = obs(2).p_obs;
+    obj.result.obs(2).r_obs = obs(2).r_obs;
+    obj.result.obs(2).r_obs_margin = obs(2).r_obs_margin;
+    fprintf('%d\n',obs(2).r_obs_margin)
     % %% =========================================================================
     % %  1. 円柱 (Cylinder) -> ポールや電柱など (現在アクティブ)
     % %  =========================================================================

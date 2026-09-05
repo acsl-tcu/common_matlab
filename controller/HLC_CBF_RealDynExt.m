@@ -121,8 +121,8 @@ classdef HLC_CBF_RealDynExt < handle
       mu_safe = mu_nom;
       if ~isempty(A_cbf_all)
         % トルクと推力加速度の物理限界（必要に応じて設定）
-        lb = [-1000; -2; -2; -2];
-        ub = [ 1000;  2;  2;  2];
+        lb = [-1000; -1; -1; -1];
+        ub = [ 1000;  1;  1;  1];
         options = optimoptions('quadprog', 'Display', 'off');
         [mu_opt, ~, exitflag] = quadprog(H_qp, f_qp, A_cbf_all, b_cbf_all, [], [], lb, ub, [], options);
         if exitflag == 1
