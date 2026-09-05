@@ -14,20 +14,22 @@
             v_curr = agent_obj(idx).estimator.result.state.v;
             obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
             
-            dec_max = 3.0; 
+            dec_max = 2.0; % マージンを広く取ったので緩やかな減速(2.0m/s^2)で安全に止まれる
             t_brake = norm(v_curr) / dec_max;
             if t_brake < 0.5; t_brake = 0.5; end
             p_stop = p_curr + v_curr * t_brake;
             
             danger = false;
             d_surf_min = 99.9;
+            r_safe = 2.0;
+            
             for k = 1:length(obs_list)
                 obs = obs_list(k);
-                dist = norm(p_curr - obs.p_obs) - obs.d_margin;
-                if dist < d_surf_min; d_surf_min = dist; end
+                dist_raw = norm(p_curr - obs.p_obs) - obs.d_margin;
+                if dist_raw < d_surf_min; d_surf_min = dist_raw; end
                 
-                dist_stop = norm(p_stop - obs.p_obs);
-                if dist_stop < obs.d_margin + 1.5 
+                dist_stop = norm(p_stop - obs.p_obs) - obs.d_margin;
+                if dist_stop < r_safe % 停止位置が実質的な安全マージン内に入ったら危険
                     danger = true;
                 end
             end
