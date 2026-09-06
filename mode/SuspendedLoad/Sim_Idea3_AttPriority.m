@@ -107,22 +107,30 @@ for i = 1:length(obs_list)
     p_obs = obs_list(i).p_obs;
     R_obs = obs_list(i).R_obs;
     Q_obs = obs_list(i).Q_obs;
-    d_margin = obs_list(i).d_margin;
+        d_margin = obs_list(i).d_margin;
     
-    % 描画用の形状行列 (本来の楕円体 + 安全マージン)
-    Q_draw = Q_obs + d_margin * eye(3);
-    
-    % 単位球の各頂点を楕円体に変形・回転・平行移動
     pts = [sx(:), sy(:), sz(:)]';
-    pts_trans = R_obs * Q_draw * pts + p_obs;
+    % 1. 障害物コア (赤色)
+    Q_draw_core = Q_obs;
+    pts_core = R_obs * Q_draw_core * pts + p_obs;
+    surf(mov.ax, reshape(pts_core(1,:), size(sx)), reshape(pts_core(2,:), size(sy)), reshape(pts_core(3,:), size(sz)), ...
+        'FaceColor', 'red', 'FaceAlpha', 0.6, 'EdgeColor', 'none');
+
+    % 2. 安全マージン (オレンジ色)
+    Q_draw_margin = Q_obs + d_margin * eye(3);
+    pts_margin = R_obs * Q_draw_margin * pts + p_obs;
+    surf(mov.ax, reshape(pts_margin(1,:), size(sx)), reshape(pts_margin(2,:), size(sy)), reshape(pts_margin(3,:), size(sz)), ...
+        'FaceColor', [1.0, 0.5, 0.0], 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+
     
-    sx_trans = reshape(pts_trans(1,:), size(sx));
-    sy_trans = reshape(pts_trans(2,:), size(sy));
-    sz_trans = reshape(pts_trans(3,:), size(sz));
-    
-    surf(mov.ax, sx_trans, sy_trans, sz_trans, ...
-        'FaceColor', 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
 end
+
+% 3. システム側CBF回避バリア (水色) を「ドローン自身」の周囲に描画
+r_safe = 2.5;
+[dx, dy, dz] = sphere(20);
+surf(mov.ax, dx * r_safe, dy * r_safe, dz * r_safe, ...
+    'FaceColor', 'cyan', 'FaceAlpha', 0.15, 'EdgeColor', 'none', ...
+    'Parent', mov.frame(1));
 
 mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
 
@@ -162,5 +170,11 @@ end
 u = agent(idx).controller.result.input;
 v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end
+
+
+
+
+
+
 
 

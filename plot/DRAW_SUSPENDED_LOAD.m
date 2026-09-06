@@ -1,4 +1,4 @@
-classdef DRAW_SUSPENDED_LOAD
+﻿classdef DRAW_SUSPENDED_LOAD
     % Animation class for single suspended-load (1 drone + 1 load)
 
     properties
@@ -14,7 +14,11 @@ classdef DRAW_SUSPENDED_LOAD
         load
         line
         load_shape = "sphere";
-        load_size = [];
+                load_size = [];
+        % CBF Safety Visualizations
+        cbf_type = 0; % 0:None, 1:3-Spheres, 2:Ellipsoid
+        cbf_handles = [];
+        cbf_r_safe = 0.6;
     end
 
     methods
@@ -487,3 +491,4 @@ classdef DRAW_SUSPENDED_LOAD
         end
     end
 end
+
