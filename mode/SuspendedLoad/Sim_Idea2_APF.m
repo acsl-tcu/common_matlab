@@ -1,4 +1,4 @@
-﻿ts = 0; % initial time
+ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
 time = TIME(ts,dt,te);
@@ -52,8 +52,8 @@ L = agent.parameter.cableL;
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0;30], "t_go", 60.0}, 6}));
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 30.0}, 6}));
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;0;30], "t_go", 60.0}, 6}));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
@@ -89,55 +89,41 @@ show_suspended_load_animation(app); % アニメーション描画
 end
 
 function show_suspended_load_animation(app)
-% 単機の吊り下げモデルをアニメーション表示する。
-if app.logger.k <= 1
-    return
-end
+    if app.logger.k <= 1
+        return
+    end
 
-mov = DRAW_SUSPENDED_LOAD(app.logger, ...
-    "target", 1, ...
-    "self", app.agent(1));
+    % コントローラから自動同期されるため手動設定は不要
+    mov = DRAW_SUSPENDED_LOAD(app.logger, ...
+        "target", 1, ...
+        "self", app.agent(1));
 
-% 障害物（楕円体）の描画を追加
-% ★ 環境ファイルから楕円体パラメータを読み込み、マージンを含めて描画します
-obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
-hold(mov.ax, 'on');
-for i = 1:length(obs_list)
-    [sx, sy, sz] = sphere(30); 
-    p_obs = obs_list(i).p_obs;
-    R_obs = obs_list(i).R_obs;
-    Q_obs = obs_list(i).Q_obs;
-    d_margin = obs_list(i).d_margin;
-    
-    pts = [sx(:), sy(:), sz(:)]';
-    
-    % 1. 障害物コア (赤色)
-    Q_draw_core = Q_obs;
-    pts_core = R_obs * Q_draw_core * pts + p_obs;
-    surf(mov.ax, reshape(pts_core(1,:), size(sx)), reshape(pts_core(2,:), size(sy)), reshape(pts_core(3,:), size(sz)), ...
-        'FaceColor', 'red', 'FaceAlpha', 0.6, 'EdgeColor', 'none');
+    % 障害物（楕円体）の描画
+    obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
+    hold(mov.ax, 'on');
+    for i = 1:length(obs_list)
+        [sx, sy, sz] = sphere(30); 
+        p_obs = obs_list(i).p_obs;
+        R_obs = obs_list(i).R_obs;
+        Q_obs = obs_list(i).Q_obs;
+        d_margin = obs_list(i).d_margin;
+        
+        pts = [sx(:), sy(:), sz(:)]';
+        
+        % 1. 障害物物理コア (赤色)
+        pts_core = R_obs * Q_obs * pts + p_obs;
+        surf(mov.ax, reshape(pts_core(1,:), size(sx)), reshape(pts_core(2,:), size(sy)), reshape(pts_core(3,:), size(sz)), ...
+            'FaceColor', 'red', 'FaceAlpha', 0.6, 'EdgeColor', 'none');
+            
+        % 2. 安全マージン面 (オレンジ色)
+        Q_draw_margin = Q_obs + d_margin * eye(3);
+        pts_margin = R_obs * Q_draw_margin * pts + p_obs;
+        surf(mov.ax, reshape(pts_margin(1,:), size(sx)), reshape(pts_margin(2,:), size(sy)), reshape(pts_margin(3,:), size(sz)), ...
+            'FaceColor', [1.0, 0.5, 0.0], 'FaceAlpha', 0.25, 'EdgeColor', 'none');
+    end
 
-    % 2. 物理的な安全マージン (オレンジ色)
-    Q_draw_margin = Q_obs + d_margin * eye(3);
-    pts_margin = R_obs * Q_draw_margin * pts + p_obs;
-    surf(mov.ax, reshape(pts_margin(1,:), size(sx)), reshape(pts_margin(2,:), size(sy)), reshape(pts_margin(3,:), size(sz)), ...
-        'FaceColor', [1.0, 0.5, 0.0], 'FaceAlpha', 0.3, 'EdgeColor', 'none');
-end
-
-% ==========================================================
-% 3. ドローンの安全バリア描画 (アニメーション本体へ委譲)
-% ==========================================================
-% 描画オブジェクトの設定を変更するだけで、飛行に合わせて動的にバリアが追従します
-% APPROX_TYPE に合わせて切り替えてください。
-mov.cbf_type = 2; % 1: 3球近似 (機体・紐・荷物), 2: 楕円体近似 (紐中心)
-mov.cbf_r_safe = 0.6;
-
-mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
-
-% mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
-
-% mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
-%     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+    % アニメーション実行
+    mov.animation(app.logger, "target", 1, "self", app.agent(1));
 end
 
 function in_prog(app)
