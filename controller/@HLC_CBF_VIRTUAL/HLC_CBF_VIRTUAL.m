@@ -116,7 +116,7 @@ classdef HLC_CBF_VIRTUAL < HLC_SUSPENDED_LOAD
             
             % --- QPによる仮想入力 vs (X,Y) の最適化 (ワインドアップ防止) ---
             % H = diag([1, 1, 10, 1000]);
-            H = diag([1, 1, 1, 10000]);
+            H = diag([1, 10, 10, 1000]);
             f_qp = [-vs_nom(1); -vs_nom(2); -vs_nom(3); 0];
             
             A_ineq = []; b_ineq = [];
