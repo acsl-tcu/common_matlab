@@ -56,6 +56,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             xd(4) = -deltaYaw(3) + yaw; % yaw打ち消しと誤差をyawの目標角に入れる．
             %目標値の格納
             xd = [xd; zeros(28 - size(xd, 1), 1)]; % 足りない分は0で埋める．
+            obj.result.xdresult=xd;
 
             % 階層型線形化による入力計算
             % 仮想入力のゲイン
@@ -73,39 +74,40 @@ classdef HLC_SUSPENDED_LOAD < handle
             vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
             us = beta2 \ vs_alpha2; % 第二層の実入力（roll,pitch,yawのトルク）への変換：bate^(-1)*(vs - alpha) %h234*invbeta2*a2;
             %obj.result.aa=toc;
-            obj.cha = varargin{2};
-
-            if obj.cha=="f"
-                % chirp ノイズ
-                %基本設定
-                noize=1;
-                disp(noize)
-
-                if isempty(obj.t)    %flightからreferenceの時間を開始
-                    obj.t=varargin{1}.t; % 目標重心位置（絶対座標）
-                end
-                t_now = varargin{1}.t-obj.t;       %flight開始時の時刻から開始
-                obj.result.ftime=t_now;
-                t_end=varargin{1}.te;
-
-                %pitch,roll 統一
-                u=1e-1*chirp(t_now, 0, t_end, 0.25, [], -90 );
-                % u=1e-1 * sin(2*pi*0.2*t_now);
-                % u=5e-3 * (sin(2*pi*0.25*t_now)+t_now)+-5e-2;
-                obj.result.chirp=u;
-                us(1)=us(1)+u;
-
-
-                %pitch,roll 別々
-                % u_pitch=1e-1*chirp(t_now, 0, t_end*2, 5, [], -90 );
-                % u_roll=1e-1*chirp(t_now, 0, t_end*2, 5);
-                % obj.result.chirp_pitch=u_pitch;
-                % obj.result.chirp_roll=u_roll;
-                % us(1) = us(1)+u_pitch;
-                % us(2) = us(2)+u_roll;
-            end
+            % obj.cha = varargin{2};
+            % 
+            % if obj.cha=="f"
+            %     % chirp ノイズ
+            %     %基本設定
+            %     noize=1;
+            %     disp(noize)
+            % 
+            %     if isempty(obj.t)    %flightからreferenceの時間を開始
+            %         obj.t=varargin{1}.t; % 目標重心位置（絶対座標）
+            %     end
+            %     t_now = varargin{1}.t-obj.t;       %flight開始時の時刻から開始
+            %     obj.result.ftime=t_now;
+            %     t_end=varargin{1}.te;
+            % 
+            %     %pitch,roll 統一
+            %     u=1e-1*chirp(t_now, 0, t_end, 0.25, [], -90 );
+            %     % u=1e-1 * sin(2*pi*0.2*t_now);
+            %     % u=5e-3 * (sin(2*pi*0.25*t_now)+t_now)+-5e-2;
+            %     obj.result.chirp=u;
+            %     us(1)=us(1)+u;
+            % 
+            % 
+            %     %pitch,roll 別々
+            %     % u_pitch=1e-1*chirp(t_now, 0, t_end*2, 5, [], -90 );
+            %     % u_roll=1e-1*chirp(t_now, 0, t_end*2, 5);
+            %     % obj.result.chirp_pitch=u_pitch;
+            %     % obj.result.chirp_roll=u_roll;
+            %     % us(1) = us(1)+u_pitch;
+            %     % us(2) = us(2)+u_roll;
+            % end
 
             tmp = [uf(1); us]; % 実入力へ変換
+
             % tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
 
             obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
