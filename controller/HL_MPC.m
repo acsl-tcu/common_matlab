@@ -21,7 +21,9 @@ classdef HL_MPC < handle
             obj.result.prev_vHL = zeros(4,1);
             obj.Vf = obj.param.Vf; % 階層１の入力を生成する関数ハンドル
             obj.Vs = obj.param.Vs; % 階層２の入力を生成する関数ハンドル
-            L = load('mec_model_HLMPC.mat'); obj.mec = L.model;
+            if obj.use_mec
+                L = load('mec_model_HLMPC.mat'); obj.mec = L.model;
+            end
         end
 
         function result = do(obj,varargin)
