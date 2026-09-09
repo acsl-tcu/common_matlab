@@ -17,10 +17,10 @@ classdef MECKC < handle
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(4,1);
-      %%%%%%入力を振動させたいとき%%%%%%%%
-      obj.param.A = 0.7;
-      obj.param.f = 1;           % Hz
-      obj.param.ome = 2*pi*obj.param.f;
+      % % %%%%%%入力を振動させたいとき%%%%%%%%
+      % % obj.param.A = 0.7;
+      % % obj.param.f = 1;           % Hz
+      % % obj.param.ome = 2*pi*obj.param.f;
       end
 
     function result = do(obj,varargin)
@@ -61,6 +61,7 @@ classdef MECKC < handle
         obj.result.delta_u = -K_full*e;
         %%%%%-----lqr法終わり-----%%%%%
         %拡張状態取得
+
         % ※一気にz_pなどと取得するとplot時に警告が出る(50まで)
         obj.result.z_p_forward = z_p(1:13);%プラント拡張状態の前半
         obj.result.z_n_forward = z_n(1:13);
@@ -69,8 +70,41 @@ classdef MECKC < handle
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
+        function T_ex = excitation_sweep_cos(t)
+        
+            % ===== 設定値 =====
+            A = 2;
+            f_start = 0.1;
+            f_end   = 1.0;
+            T_sweep = 30.0;
+            t_start = 7.0;
+        
+            % ===== 励起時間外 =====
+            if t < t_start || t >= t_start + T_sweep
+                T_ex = 0;
+                return
+            end
+        
+            % 励起開始を t=0 とした相対時間
+            tau = t - t_start;
+        
+            % 線形周波数スイープ
+            k = (f_end - f_start) / T_sweep;
+        
+            % 位相
+            phase = 2*pi*(f_start*tau ...
+                        + 0.5*k*tau^2);
+        
+            % 励起入力
+            T_ex = A*cos(phase);
+        
+        end
+       obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];
+
       % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu  
-      obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u + obj.param.A * sin(obj.param.ome * t);%un+Δu+外乱d
+      obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力
+
+      % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u + obj.param.A * sin(obj.param.ome * t);%un+Δu+外乱d
       result = obj.result;
     end
   end

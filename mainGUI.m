@@ -1,6 +1,7 @@
 %% Initialize settings
 % set path
 clear all
+clc
 cf = pwd;
 
 if contains(mfilename('fullpath'), "mainGUI")
