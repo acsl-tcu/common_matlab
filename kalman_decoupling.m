@@ -1,10 +1,21 @@
 clear;
 clc;
+% load("without_w1.mat");
+% load("koopman_model_first.mat",'est');
+load("4kidou_KL.mat");
+% load("second_model.mat");
+% load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
+% load("third_model.mat",'est');
+% load("z.mat",'est');
+% load("without1.mat");
+% load("integral_p.mat");
+% load("all_qua.mat");
 
-%%
-loadFileName = input('読み込むファイル名(.mat不要)：','s');
-load([loadFileName '.mat']);
-
+%速度から位置を積分して求める
+% est.A = [zeros(3,3),eye(3,3),zeros(3,20);
+%      zeros(23,3),est.A];
+% est.B = [zeros(3,4);est.B];
+% est.C = [est.C,zeros(12,3)];
 
 % 可制御性行列
 n = size(est.A, 1);
@@ -187,10 +198,5 @@ Kc = dlqr(Ac, Bc, Qc, Rc);
 K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
 % K_full = dlqr(est.A,est.B,Q,Rc);
-
-%%
-saveFolder = fullfile(pwd, 'kalman_gainたち');
-saveFileName = fullfile(saveFolder, [loadFileName '_gain_KD.mat']);
-
-save(saveFileName, 'K_full');
-fprintf('"%s" として保存しました。\n', saveFileName);
+save('kalman_gain_nakami_check_4kidou_KL.mat','K_full');
+fprintf("ゲインをkalman_gain.matとして保存しました");

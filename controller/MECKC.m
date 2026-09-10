@@ -52,7 +52,10 @@ classdef MECKC < handle
         %---可制御部分をデカップリング---%
         % K_full=[zeros(4,24)];
         % load('koopman_common_z__gain_KD.mat','K_full');
-        load('0708_second_new_KL_gain_KD.mat','K_full');
+        % load('0708_second_new_KL_gain_KD.mat','K_full');
+        % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
+        load('4kidou_KL_gain_KCD_LQR.mat','K_full');
+
         % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
 
         % % data = load('first_KL_gain_KD.mat');
@@ -70,36 +73,6 @@ classdef MECKC < handle
 
         % obj.result.delta_u = 0;%unだけ確認したいとき
         
-        function T_ex = excitation_sweep_cos(t)
-        
-            % ===== 設定値 =====
-            A = 2;
-            f_start = 0.1;
-            f_end   = 1.0;
-            T_sweep = 30.0;
-            t_start = 7.0;
-        
-            % ===== 励起時間外 =====
-            if t < t_start || t >= t_start + T_sweep
-                T_ex = 0;
-                return
-            end
-        
-            % 励起開始を t=0 とした相対時間
-            tau = t - t_start;
-        
-            % 線形周波数スイープ
-            k = (f_end - f_start) / T_sweep;
-        
-            % 位相
-            phase = 2*pi*(f_start*tau ...
-                        + 0.5*k*tau^2);
-        
-            % 励起入力
-            T_ex = A*cos(phase);
-        
-        end
-       obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];
 
       % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu  
       obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力

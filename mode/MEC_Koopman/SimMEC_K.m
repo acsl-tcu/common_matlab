@@ -40,13 +40,10 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model.param.param(1) = 0.8;
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
 
-%simモデル誤差
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
+%モデル誤差
+plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.185; % 
 
-% データセット集めモデル誤差
-plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.2; % 
 
 % agent.parameter = DRONE_PARAM("DIATONE", "jx", 0.185);
 % agent.parameter = DRONE_PARAM("DIATONE", "jy", 0.185);
@@ -67,15 +64,15 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
-
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_for_hovering", {"position", [0;0;1]}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_star", {"freq",10,"center",[0;0;1],"radius",1.0}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p", {"p0",[0;0;1],"pf",[1;1;1],"T",10}}));
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline", {"point",17,"order",3,"filename",4,"ManualSetting",1,"point_dt",5,}}));
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",-pi}}));
+
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));%これ位相ずらす必要あるんかな…
 
 
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
@@ -109,8 +106,91 @@ app.logger.plot({1, "q", "e"},"xrange",[app.time.ts,app.time.te],"fig_num",2);
 app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
 % app.logger.plot({1, "input1", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",4);%スラスト
 % app.logger.plot({1, "input2:4", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",5);
-app.logger.plot({1, "controller.result.input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
-app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
+% app.logger.plot({1, "controller.result.input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
+% app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
+% まず普通に描画
+app.logger.plot({1, "controller.result.input", ""}, ...
+    "xrange",[app.time.ts,app.time.te], ...
+    "fig_num",6);
+
+app.logger.plot({1, "controller.result.delta_u", ""}, ...
+    "xrange",[app.time.ts,app.time.te], ...
+    "fig_num",7);
+%======================================================================================================
+% ===== Figure 6 : Total input =====
+ax6 = findobj(figure(6), 'Type', 'axes');
+h6  = findobj(ax6(1), 'Type', 'line');
+
+% 各信号について「絶対値の最大値」を調べる
+maxVal6 = arrayfun(@(h) max(abs(h.YData)), h6);
+
+% 一番大きい信号を選択
+[~, idx6] = max(maxVal6);
+
+t_total = h6(idx6).XData;
+T_total = h6(idx6).YData;
+
+% Figure 7 : excitation input
+ax7 = findobj(figure(7), 'Type', 'axes');
+h7  = findobj(ax7(1), 'Type', 'line');
+
+% 振幅が最大のlineをTexとして選択
+amp = arrayfun(@(h) max(abs(h.YData)), h7);
+[~, idx] = max(amp);
+
+t_ex = h7(idx).XData;
+T_ex = h7(idx).YData;
+
+% サンプリング周期確認
+dt_total = median(diff(t_total));
+dt_ex    = median(diff(t_ex));
+
+fprintf('dt_total = %.6f s\n', dt_total);
+fprintf('dt_ex    = %.6f s\n', dt_ex);
+
+% 時刻が同じならそのまま引く
+T_ctrl = T_total - T_ex;
+
+% 3つを分けて表示
+figure(8);
+clf;
+
+subplot(3,1,1)
+plot(t_total, T_ctrl)
+grid on
+ylabel('T_{ctrl}')
+title('Controller input')
+
+subplot(3,1,2)
+plot(t_ex, T_ex)
+grid on
+ylabel('T_{ex}')
+title('Excitation input')
+
+subplot(3,1,3)
+plot(t_total, T_total)
+grid on
+ylabel('T_{total}')
+xlabel('Time [s]')
+title('Total input')
+
+%================================================================================================
+figure(10);
+clf;
+hold on;
+
+plot(t_total, T_ctrl, '-',  'LineWidth', 1.5);
+plot(t_ex,    T_ex+7.271,   '--', 'LineWidth', 1.5);
+
+grid on;
+xlabel('Time [s]');
+ylabel('Input');
+legend('T_{ctrl}', 'T_{ex}');
+title('Controller input and excitation input');
+
+hold off;
+%==================================================================================================-
+
 app.logger.plot({{1, "controller.result.z_p_forward", ""},{1, "controller.result.z_n_forward", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 13);
 app.logger.plot({{1, "controller.result.z_p_back", ""},{1, "controller.result.z_n_back", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 14);
 
@@ -135,6 +215,7 @@ app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",9);
 % % set(ax.YAxis, fontsize=FS-2)
 % % set(ax.Legend, 'FontSize',FS-4);
 end
+
 
 
 function v = build_display_vector(agent, time)

@@ -224,7 +224,7 @@ for i=1:length(settings.target)
             ylim([min(data(:,2)) max(data(:,2))])
             zlim([min(data(:,3)) max(data(:,3))])
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % view(2) %平面で見たいとき用
+            view(2) %平面で見たいとき用
         case "inner_input1:4"
             set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
             plegend = set_legend(settings.target(i), chars);

@@ -1,0 +1,19 @@
+========== 実験メモ ==========
+作成日時 : 2026/09/10 13:11:22
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+A02_ciecle_errore018_Log(10-Sep-2026_12_57_27).mat
+A02_circle_errore02_2_Log(10-Sep-2026_11_27_21).mat
+A02_circle_errore02_Log(10-Sep-2026_10_45_30).mat
+A02_lemni_errore018_Log(10-Sep-2026_13_03_09).mat
+A02_lemni_errore02_2_Log(10-Sep-2026_11_25_58).mat
+A02_lemni_errore02_Log(10-Sep-2026_10_51_08).mat
+A02_saddle_errore018_Log(10-Sep-2026_12_55_58).mat
+A02_saddle_errore02_2_Log(10-Sep-2026_12_53_22).mat
+A02_saddle_errore02_Log(10-Sep-2026_11_00_28).mat
+A02_square_errore018_Log(10-Sep-2026_13_04_37).mat
+A02_square_errore02_2_Log(10-Sep-2026_12_45_01).mat
+A02_square_errore02_Log(10-Sep-2026_10_53_38).mat
+KLでした

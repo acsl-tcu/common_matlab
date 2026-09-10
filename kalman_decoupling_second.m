@@ -24,8 +24,26 @@ tol = 1e-6;
 %   *解析的に保証された事実* をそのまま使い、
 %   数値的に頑健な動的25次元部分だけをctrb/obsvにかける。
 
-const_idx = est.const_idx;
-dyn_idx   = est.dyn_idx;
+%% 2. 設定
+% 定数特徴1の添字を、A,Bの行構造から自動検出する。
+% 定数特徴の行は、理想的には A(i,:)=e_i' かつ B(i,:)=0 である。
+% 推定誤差を考慮し、以下は相対残差の許容値とする。
+constantStructureTol = 1e-6;
+[const_idx, constDetect] = local_find_constant_idx(A, B, constantStructureTol);
+fprintf('自動検出した定数特徴の状態添字 const_idx = %d\n', const_idx);
+if isfield(est, 'const_idx') && est.const_idx ~= const_idx
+    warning('est.const_idx=%d と自動検出結果=%d が一致しません。', ...
+            est.const_idx, const_idx);
+end
+
+if numel(const_idx) ~= 1 || const_idx < 1 || const_idx > n || const_idx ~= round(const_idx)
+    error('const_idxは1個の有効な整数添字で指定してください。');
+end
+const_idx = double(const_idx);
+dyn_idx = setdiff(1:n, const_idx, 'stable');
+
+% const_idx = est.const_idx;
+% dyn_idx   = est.dyn_idx;
 n_dyn     = numel(dyn_idx);
 
 A_dyn = A(dyn_idx, dyn_idx);
@@ -56,7 +74,7 @@ Xb = embed(Xb_dyn);
 Xc = embed(Xc_dyn);
 Xd = embed(Xd_dyn);
 
-%% ★訂正5：定数方向(λ=1モード)を正しい固有ベクトルで追加
+%% 訂正5：定数方向(λ=1モード)を正しい固有ベクトルで追加
 %   e_const_idx をそのまま使うのではなく、A*v=v を満たす
 %   正確な固有ベクトルが必要。
 %   理由：rensyuuKLLY_fixedで固定したのは A(const_idx,:) という
@@ -190,6 +208,56 @@ fprintf('"%s" として保存しました。\n', saveFileName);
 
 
 %% ===== ローカル関数 =====
+
+function [idx, info] = local_find_constant_idx(A, B, tol)
+% A(i,:)が単位行列のi行、かつB(i,:)が零に近い状態を探す。
+% rank(ctrb(A,B))は使用しない。推定誤差で定数モードが可制御に
+% 見える場合でも、定数特徴の座標行そのものを検出できる。
+
+    n = size(A,1);
+    scaleA = max(1, norm(A,'fro'));
+    scaleB = max(1, norm(B,'fro'));
+    rowResidualA = zeros(n,1);
+    rowResidualB = zeros(n,1);
+
+    for i = 1:n
+        ei = zeros(1,n);
+        ei(i) = 1;
+        rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
+        rowResidualB(i) = norm(B(i,:)) / scaleB;
+    end
+
+    score = max(rowResidualA, rowResidualB);
+    [bestScore, idx] = min(score);
+    candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+
+    fprintf('\n===== 定数特徴の自動検出 =====\n');
+    fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
+        idx, rowResidualA(idx), rowResidualB(idx), bestScore);
+
+    if isempty(candidates) || bestScore > tol
+        [~, order] = sort(score, 'ascend');
+        top = order(1:min(5,n));
+        fprintf('候補上位のscore:\n');
+        for j = 1:numel(top)
+            q = top(j);
+            fprintf('  i=%d: %.3e\n', q, score(q));
+        end
+        error(['定数特徴を自動検出できませんでした。' ...
+               'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
+    end
+
+    if numel(candidates) > 1
+        warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
+            mat2str(candidates(:)'));
+    end
+
+    info = struct('candidates',candidates, ...
+                  'rowResidualA',rowResidualA, ...
+                  'rowResidualB',rowResidualB, ...
+                  'score',score, ...
+                  'bestScore',bestScore);
+end
 
 function [Xa, Xb, Xc, Xd, k] = local_kalman_decompose(A, B, C, tol)
 % 元コードのXa/Xb/Xc/Xd抽出アルゴリズムを関数化したもの。
