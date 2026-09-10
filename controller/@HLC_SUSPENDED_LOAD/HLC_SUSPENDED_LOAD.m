@@ -56,13 +56,10 @@ classdef HLC_SUSPENDED_LOAD < handle
             xd(4) = -deltaYaw(3) + yaw; % yaw打ち消しと誤差をyawの目標角に入れる．
             %目標値の格納
             xd = [xd; zeros(28 - size(xd, 1), 1)]; % 足りない分は0で埋める．
-<<<<<<< Updated upstream
             obj.result.xdresult=xd;
-=======
             % tt=obj.notchFilter([0;xd(1:3)], Param.dt);
             % xd(1)=tt(2);
->>>>>>> Stashed changes
-
+            
             % 階層型線形化による入力計算
             % 仮想入力のゲイン
             F1 = Param.F1; % z方向サブシステムのゲイン
@@ -81,41 +78,41 @@ classdef HLC_SUSPENDED_LOAD < handle
             vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
             us = beta2 \ vs_alpha2; % 第二層の実入力（roll,pitch,yawのトルク）への変換：bate^(-1)*(vs - alpha) %h234*invbeta2*a2;
             %obj.result.aa=toc;
-<<<<<<< Updated upstream
+            
             % obj.cha = varargin{2};
-            % 
-=======
+            %
+           
             obj.cha = varargin{2};
 
->>>>>>> Stashed changes
+            
             % if obj.cha=="f"
             %     % chirp ノイズ
             %     %基本設定
             %     noize=1;
             %     disp(noize)
-            % 
+            %
             %     if isempty(obj.t)    %flightからreferenceの時間を開始
             %         obj.t=varargin{1}.t; % 目標重心位置（絶対座標）
             %     end
             %     t_now = varargin{1}.t-obj.t;       %flight開始時の時刻から開始
             %     obj.result.ftime=t_now;
             %     t_end=varargin{1}.te;
-            % 
+            %
             %     %pitch,roll 統一
-<<<<<<< Updated upstream
+            
             %     u=1e-1*chirp(t_now, 0, t_end, 0.25, [], -90 );
-=======
+            
             %     u=0.02*chirp(t_now, 0.05, t_end, 3.0 , "logarithmic" );
             %     %%f_lo = 0.05;  f_hi = 3.0;             % [Hz]
             %     %%tau_amp = 0.02;                       % 励振トルク振幅 [N*m]（小さめ・線形域）
             %     %%probe = tau_amp * chirp(tvec, f_lo, te, f_hi, "logarithmic");
->>>>>>> Stashed changes
+            
             %     % u=1e-1 * sin(2*pi*0.2*t_now);
             %     % u=5e-3 * (sin(2*pi*0.25*t_now)+t_now)+-5e-2;
             %     obj.result.chirp=u;
             %     us(1)=us(1)+u;
-            % 
-            % 
+            %
+            %
             %     %pitch,roll 別々
             %     % u_pitch=1e-1*chirp(t_now, 0, t_end*2, 5, [], -90 );
             %     % u_roll=1e-1*chirp(t_now, 0, t_end*2, 5);
@@ -124,19 +121,18 @@ classdef HLC_SUSPENDED_LOAD < handle
             %     % us(1) = us(1)+u_pitch;
             %     % us(2) = us(2)+u_roll;
             % end
-<<<<<<< Updated upstream
-
+           
             tmp = [uf(1); us]; % 実入力へ変換
 
             % tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
 
-=======
-            % 
+          
+            %
             tmp = [uf(1); us]; % 実入力へ変換
             % tmp(3)
             tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
             % tmp(3)
->>>>>>> Stashed changes
+          
             obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
 
             % 安全のため入力値に制限を付ける．推定した牽引物質量や紐の長さ，外乱などを表示．
