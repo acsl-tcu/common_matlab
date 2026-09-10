@@ -129,6 +129,7 @@ classdef EKF < handle
                 tmpvalue = obj.model.projection(tmpvalue);
                 obj.result.state.set_state(tmpvalue);
                 obj.model.state.set_state(tmpvalue);
+                obj.result.theat=atan2(obj.result.state.pT(1), -obj.result.state.pT(3));
                 obj.result.G = G;
                 obj.result.P = P;
             end
