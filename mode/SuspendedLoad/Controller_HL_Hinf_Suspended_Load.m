@@ -19,18 +19,18 @@ P2_z.OutputName = {'pz'; 'vz'};
 
 P6_x = ss(A6, B6, C6, 0);
 P6_x.InputName  = {'u_x'};
-P6_x.OutputName = {'px';'vx';'px_d';'vx_d';'ax_d';'jx_d'};
+P6_x.OutputName = {'pLx';'vLx';'px';'vx';'axd';'jx'};
 
 P6_y = ss(A6, B6, C6, 0);
 P6_y.InputName  = {'u_y'};
-P6_y.OutputName = {'py';'vy';'py_d';'vy_d';'ay_d';'jy_d'};
+P6_y.OutputName = {'pLy';'vLy';'py';'vy';'ay';'jy'};
 
 P2_yaw = ss(A2, B2, C2, 0);
 P2_yaw.InputName  = {'u_yaw'};
 P2_yaw.OutputName = {'pyaw'; 'vyaw'};
 
 if class(agent.plant) ~= "DRONE_EXP_MODEL"
-    %% sim用重み
+    % sim用重み
     % 目標周波数応答（帯域幅で特性を指定）
     PosTarget_z   = tf(1, [1/2.0 1]);
     VelTarget_z   = tf(1, [1/2.0 1]);
@@ -70,7 +70,7 @@ if class(agent.plant) ~= "DRONE_EXP_MODEL"
     Wnoise_yaw = ss(0.01); Wnoise_yaw.u = 'n_yaw'; Wnoise_yaw.y = 'Wn_yaw';
 
 else
-    %% exp用重み（保守的）
+    % exp用重み（保守的）
     PosTarget_z   = tf(1, [1/1.0 1]);
     VelTarget_z   = tf(1, [1/1.0 1]);
     PosTarget_x   = tf(1, [1/0.3 1]);

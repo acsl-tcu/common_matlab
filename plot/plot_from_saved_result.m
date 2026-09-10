@@ -55,9 +55,9 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p",  "input", "estimator.result.state.pL",{{"p", "r"},{"estimator.result.state.pL", "e"}}, "p1-p2"];
-% settings.target = {"p", "input", {"p", "estimator.result.state.pL"}, "p1-p2"};
-settings.target = {"p","q","p1-p2", "input"};
-settings.target = { "p", "estimator.result.state.pL"};
+settings.target = {"p", "input", {"p", "estimator.result.state.pL","p"}, "p1-p2"};
+% settings.target = {"p","q","p1-p2", "input"};
+% settings.target = { "p", "estimator.result.state.pL"};
 % settings.target = ["p","q", "input"];
 % settings.target = ["p", "input", "inner_input", "p1-p2","estimator.result.state.pL","estimator.result.state.mL"]; %質量推定用 exp
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal_input", "controller.result.delta_input", "p1-p2", "p1-p2-p3"];
@@ -74,7 +74,7 @@ settings.target = { "p", "estimator.result.state.pL"};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
+settings.phase = "tf";
 settings.fontsize = 11;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
