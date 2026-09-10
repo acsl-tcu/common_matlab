@@ -116,39 +116,41 @@ end
 % ==================== pL に対しても同じ処理 ====================
 
 % --- pL: 最良モデルを採用（連続時間 tf に変換） ---
-if fit_tf_pl >= fit_ss_pl
-  Pidpl = tf(sys_tf_pl);  bestpl = "tfest";
-else
-  Pidpl = tf(ss(sys_ss_pl)); bestpl = "ssest";
-end
-fprintf("採用モデル (pL): %s\n", bestpl);
-Pidpl
+% if fit_tf_pl >= fit_ss_pl
+%   Pidpl = tf(sys_tf_pl);  bestpl = "tfest";
+% else
+%   Pidpl = tf(ss(sys_ss_pl)); bestpl = "ssest";
+% end
+% fprintf("採用モデル (pL): %s\n", bestpl);
+% Pidpl
 
 % --- pL: 検証データでの実測 vs モデル比較 ---
-figure("Name","validation (pL): measured vs models");
-compare(plv, sys_tf_pl, sys_ss_pl); grid on;
+% figure("Name","validation (pL): measured vs models");
+% compare(plv, sys_tf_pl, sys_ss_pl); grid on;
 
 % --- pL: Bode（tfest vs ssest。解析モデルは theta 用のため重ねていない） ---
-figure("Name","Bode (pL): tfest vs ssest");
-bode(sys_tf_pl, "b", sys_ss_pl, "r", w); grid on;
-legend("tfest", "ssest", "Location","southwest");
-title("トルク \tau_y \rightarrow pL");
+% figure("Name","Bode (pL): tfest vs ssest");
+% bode(sys_tf_pl, "b", sys_ss_pl, "r", w); grid on;
+% legend("tfest", "ssest", "Location","southwest");
+% title("トルク \tau_y \rightarrow pL");
+
 
 % --- pL: 同定モデルから共振の抽出 ---
-pc_pl = pole(Pidpl);  pc_pl = pc_pl(imag(pc_pl) > 1e-6);      % 振動極（上側）
-if ~isempty(pc_pl)
-  wn_c_pl   = abs(pc_pl);
-  zeta_c_pl = -real(pc_pl)./abs(pc_pl);
-  cand_pl   = zeta_c_pl > 0 & zeta_c_pl < 0.9;                % 軽減衰モード
-  if ~any(cand_pl), cand_pl = true(size(zeta_c_pl)); end
-  [~, idx_pl] = min(zeta_c_pl(cand_pl));
-  ic_pl = find(cand_pl); ic_pl = ic_pl(idx_pl);
-  fprintf("同定された共振 (pL):  wn = %.3f rad/s (%.3f Hz),  zeta = %.3f\n", ...
-          wn_c_pl(ic_pl), wn_c_pl(ic_pl)/2/pi, zeta_c_pl(ic_pl));
-end
-
-save("identified_model.mat", "Pid", "sys_tf", "sys_ss", "fit", ...
-     "Pidpl", "sys_tf_pl", "sys_ss_pl", "fitpl", "datapl");
+% p
+% c_pl = pole(Pidpl);  pc_pl = pc_pl(imag(pc_pl) > 1e-6);      % 振動極（上側）
+% if ~isempty(pc_pl)
+%   wn_c_pl   = abs(pc_pl);
+%   zeta_c_pl = -real(pc_pl)./abs(pc_pl);
+%   cand_pl   = zeta_c_pl > 0 & zeta_c_pl < 0.9;                % 軽減衰モード
+%   if ~any(cand_pl), cand_pl = true(size(zeta_c_pl)); end
+%   [~, idx_pl] = min(zeta_c_pl(cand_pl));
+%   ic_pl = find(cand_pl); ic_pl = ic_pl(idx_pl);
+%   fprintf("同定された共振 (pL):  wn = %.3f rad/s (%.3f Hz),  zeta = %.3f\n", ...
+%           wn_c_pl(ic_pl), wn_c_pl(ic_pl)/2/pi, zeta_c_pl(ic_pl));
+% end
+% 
+% save("identified_model.mat", "Pid", "sys_tf", "sys_ss", "fit", ...
+%      "Pidpl", "sys_tf_pl", "sys_ss_pl", "fitpl", "datapl");
 end
 
 % ---- 補助: compare の当てはまり率をスカラーで取り出す ----
