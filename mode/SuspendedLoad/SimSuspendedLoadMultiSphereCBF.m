@@ -60,7 +60,7 @@
 % 
 % % 紐中点を対象とした Actuator CBF コントローラに置き換え
 % % agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_CBF(agent,Controller_HL_Suspended_Load(dt,agent)));
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_ELLIPSOID_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_MULTISPHERE_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
 % 
 % agent.set_cha_allocation_for_all("sensor","motive");
 % agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -100,7 +100,7 @@
 % 
 % % 障害物（楕円体）の描画を追加
 % % ★ 環境ファイルから楕円体パラメータを読み込み、マージンを含めて描画します
-% obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
+% obs_list = ENVIRONMENT_OBSTACLE();
 % hold(mov.ax, 'on');
 % for i = 1:length(obs_list)
 %     [sx, sy, sz] = sphere(30); % 解像度を少し上げる
@@ -221,7 +221,7 @@ agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 3.0
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "zd", -L, "te", 3));
 
 % 2層幾何CBFコントローラの割り当て
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_ELLIPSOID_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD_MULTISPHERE_CBF(agent, Controller_HL_Suspended_Load(dt, agent)));
 
 agent.set_cha_allocation_for_all("sensor", "motive");
 agent.set_cha_allocation_for_all("estimator", ["ekf", "loadstate"]);
@@ -393,35 +393,39 @@ function show_suspended_load_animation(app)
         "target", 1, ...
         "self", app.agent(1));
     
-    obs_list = ENVIRONMENT_OBSTACLE_ELLIPSOID();
+    obs_list = ENVIRONMENT_OBSTACLE();
     hold(mov.ax, 'on');
+    [sx0, sy0, sz0] = sphere(30);  % 単位球の頂点を一度だけ生成
     for i = 1:length(obs_list)
-        [sx, sy, sz] = sphere(30);
-        p_obs = obs_list(i).p_obs;
-        R_obs = obs_list(i).R_obs;
-        Q_obs = obs_list(i).Q_obs;
+        p_obs    = obs_list(i).p_obs;
+        r_obs    = obs_list(i).r_obs;     % 球体障害物の半径
         d_margin = obs_list(i).d_margin;
         
-        pts = [sx(:), sy(:), sz(:)]';
-        
-        % ① 障害物実体コア (完全ハード制約) → 赤色 (FaceAlpha: 0.8)
-        pts_core = R_obs * Q_obs * pts + p_obs;
-        sx_c = reshape(pts_core(1,:), size(sx));
-        sy_c = reshape(pts_core(2,:), size(sy));
-        sz_c = reshape(pts_core(3,:), size(sz));
-        surf(mov.ax, sx_c, sy_c, sz_c, ...
+        % ① 障害物実体コア → 赤色 (ハード制約)
+        surf(mov.ax, ...
+            r_obs * sx0 + p_obs(1), ...
+            r_obs * sy0 + p_obs(2), ...
+            r_obs * sz0 + p_obs(3), ...
             'FaceColor', [0.85, 0.1, 0.1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
         
-        % ② 安全マージン外殻 (セミハード制約) → オレンジ色・半透明 (FaceAlpha: 0.25)
-        Q_mrg = Q_obs + d_margin * eye(3);
-        pts_mrg = R_obs * Q_mrg * pts + p_obs;
-        sx_m = reshape(pts_mrg(1,:), size(sx));
-        sy_m = reshape(pts_mrg(2,:), size(sy));
-        sz_m = reshape(pts_mrg(3,:), size(sz));
-        surf(mov.ax, sx_m, sy_m, sz_m, ...
-            'FaceColor', [1.0, 0.55, 0.0], 'FaceAlpha', 0.25, 'EdgeColor', 'none');
+        % ② コア安全境界 (r_obs + r_sys=0.4m) → 赤い薄いシェル
+        r_core = r_obs + 0.4;
+        surf(mov.ax, ...
+            r_core * sx0 + p_obs(1), ...
+            r_core * sy0 + p_obs(2), ...
+            r_core * sz0 + p_obs(3), ...
+            'FaceColor', [0.85, 0.1, 0.1], 'FaceAlpha', 0.08, 'EdgeColor', 'none');
+        
+        % ③ マージン外殻 → オレンジ色・半透明 (ソフト制約)
+        r_mrg = r_obs + 0.4 + d_margin;
+        surf(mov.ax, ...
+            r_mrg * sx0 + p_obs(1), ...
+            r_mrg * sy0 + p_obs(2), ...
+            r_mrg * sz0 + p_obs(3), ...
+            'FaceColor', [1.0, 0.55, 0.0], 'FaceAlpha', 0.20, 'EdgeColor', 'none');
     end
     mov.animation(app.logger, "target", 1, "self", app.agent(1));
+    % mp4保存する場合は以下のコメントを外す:
     % mov.animation(app.logger, "target", 1, "self", app.agent(1), "mp4", true, "pause", 0);
 end
 
@@ -450,3 +454,4 @@ function v = build_display_vector(agent, time)
     u = agent(idx).controller.result.input;
     v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end
+
