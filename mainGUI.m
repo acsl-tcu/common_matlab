@@ -27,7 +27,7 @@ clc
 %     "SimVehicle", "SimSuspendedLoad", "SimFHL",...
 %     "SimFHL_Servo", "SimLiDAR", "SimFT",...
 %     "SimEL", "SimMPC_Koopman","SimSuspendedLoadHOCBFlinkxy","SimSuspendedLoadHOCBFlinkz","SimSuspendedLoadHOCBFlinkxyz","SimHLCBF","SimSuspendedLoadCBF","SimSuspendedLoadMPC_v2","Sim_Idea2_APF","Sim_Idea3_AttPriority","Sim_Idea1_Backup","Sim_Idea3_RealCBF","Sim_Idea4_VirtualCBF","Sim_SmoothInputCBF"];
-SimBaseMode = ["Sim_SmoothInputCBF","Sim_Avoid_Sliding","Sim_Avoid_Fluid","Sim_Avoid_EgoBand","Sim_Avoid_MPC_Traj","Sim_SmoothInputCBF","SimSuspendedLoadCBF","Sim_Idea2_APF","SimSuspendedLoadMultiSphereCBF"];
+SimBaseMode = ["SimSuspendedLoad_RotorLevel","Sim_SmoothInputCBF","Sim_Avoid_Sliding","Sim_Avoid_Fluid","Sim_Avoid_EgoBand","Sim_Avoid_MPC_Traj","Sim_SmoothInputCBF","SimSuspendedLoadCBF","Sim_Idea2_APF","SimSuspendedLoadMultiSphereCBF"];
 ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedLoadCoop",...
                 "ExpTestMotiveConnection", "ExpHL","ExpFHL", "ExpFHL_Servo",...
                 "ExpFT", "ExpEL", "ExpMPC_Koopman"];
@@ -38,7 +38,7 @@ Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 % Setting.mode = SimBaseMode(19); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(21); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(25); % SimSuspendedLoad
-Setting.mode = SimBaseMode(7); % CBF
+Setting.mode = SimBaseMode(1); % CBF
 % Setting.mode = SimBaseMode(19); % CBF
 % Setting.mode = SimBaseMode(2); % SimCoop
 % Setting.mode = SimBaseMode(5); % SimHL
