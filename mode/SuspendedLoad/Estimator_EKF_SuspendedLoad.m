@@ -1,4 +1,4 @@
-function Estimator = Estimator_EKF_SuspendedLoad(agent,dt,model,output,opts)
+﻿function Estimator = Estimator_EKF_SuspendedLoad(agent,dt,model,output,opts)
 % output ：出力のリスト　例 ["p","q"]
 % var : 各出力に対するセンサーの観測ノイズ
 %% estimator class demo
@@ -71,7 +71,7 @@ switch modelName
         % % Estimator.Q = blkdiag(eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-4,eye(3)*1E-5); % システムノイズ（Modelクラス由来）
         % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[zeros(3,3);dt*eye(3)]);
         disp(modelName)
-    case "Load_mL_HL"
+    case {"Load_mL_HL", "load_rotor_level"}
         Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1e-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
         % Estimator.B = blkdiag([0.5*dt^2*eye(6);dt*eye(6)],[0.5*dt^2*eye(3);dt*eye(3)],[0.5*dt^2*eye(3);dt*eye(3)],1E-1);% 単位の次元を状態に合わせる(x=at^2/2, v = atの関係)例：加速度入力の時に一時刻先の速度の状態を計算する
         % 観測の分散=0.001
