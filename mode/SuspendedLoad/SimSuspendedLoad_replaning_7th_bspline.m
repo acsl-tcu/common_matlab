@@ -65,13 +65,13 @@ L = agent.parameter.cableL;
 % 公称直線軌道 (z方向に0.3 m/s で上昇)
 nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     {"gen_ref_line", { ...
-        "p0", [0, 0, 1.5], ...        % 開始位置
+        "p0", [0, 0, 3], ...        % 開始位置
         "velocity", 0.3, ...          % 巡航速度 0.3 m/s
         "direction", [0, 0, 1] ...    % z方向 (真上)
     }, 6});
 
 % リプランナ設定 (トリガーは距離ベースに変更されたため trigger_y は不要)
-replan_opts.obs_center   = [0; 0; 4.0];   % 上方 (z=4.0) にある障害物
+replan_opts.obs_center   = [0.2; 0.2; 10.0];   % 上方 (z=4.0) にある障害物
 replan_opts.obs_radius   = 0.3;           % 半径
 replan_opts.safe_margin  = 0.3;           % 安全マージン
 replan_opts.trigger_dist = 2.5;           % 障害物から 2.5m 以内に近づいたら自動検知して動的計算開始
