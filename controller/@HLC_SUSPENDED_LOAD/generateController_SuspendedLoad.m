@@ -27,12 +27,18 @@ x=[q;ob;pl;dpl;pT;ol];
 % g = GL(x,physicalParam);
 % physicalParam = [m, jx, jy, jz, gravity,mL,cableL];
 
-syms dstx dsty real
-physicalParam = [m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL, dstx, dsty];
+% ★協調搬送 (道B): 外乱を「荷物の加速度」ではなく「牽引点に働く力 F [N]」と
+% して入れた版。剛体ケーブルなので F は ddpl だけでなく dol (pT まわりの
+% モーメント) にも効く。生成元は generateModel_SupendedLoad.m の
+% 「牽引点に働く力込みのモデル」ブロック。
+% 旧 xyDst 版に戻すときは下 4 行を dstx,dsty / FLxyDst / GLxyDst に差し替える。
+syms Fx Fy Fz real
+physicalParam = [m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL, Fx, Fy, Fz];
 
-f = FLxyDst(x,physicalParam);
-g = GLxyDst(x,physicalParam);
-physicalParam = [m, jx, jy, jz, gravity,mL,cableL,dstx, dsty];
+f = FLxyzForce(x,physicalParam);
+g = GLxyzForce(x,physicalParam);
+% ★制御器が受け取る P の並び。drone2 の to_sl_hlc_param と一致させること
+physicalParam = [m, jx, jy, jz, gravity,mL,cableL,Fx, Fy, Fz];
 %% 1st layer
 clc
 % % Define virtual output: h1
