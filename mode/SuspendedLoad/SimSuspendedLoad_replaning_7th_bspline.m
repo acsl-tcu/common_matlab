@@ -1,3 +1,4 @@
+%　通常テーマ1がもとになってる
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
@@ -49,18 +50,35 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
+% 直線軌道（静止ホバリングから2秒後に滑らかに前進開始）
+% % 直線リファレンスの設定 (y軸方向に0.3 m/s で等速直進)
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, ...
-%     {"gen_ref_p2p_line", { ...
-%     "p0", [0; 0; 3.0], ...        % 開始位置
-%     "direction", [0; 1; 0], ...   % 進行方向 (y方向)
-%     "velocity", 0.5, ...          % 巡航速度 0.5 m/s
-%     "t_acc", 3.0, ...             % 3秒かけて滑らかに加速
-%     "t_start", 2.0 ...            % 開始2秒後から移動開始
+%     {"gen_ref_line", { ...
+%         "p0", [0, 0, 1.5], ...        % 開始位置 [x, y, z] (gen_ref_saddle と同じく 1.5)
+%         "velocity", 0.3, ...          % 巡航速度 [m/s]
+%         "direction", [0, 1, 0] ...    % 進行方向 (y軸正方向)
 %     }, 6}));
+% 公称直線軌道 (z方向に0.3 m/s で上昇)
+nominal_ref = TIME_VARYING_REFERENCE(agent, ...
+    {"gen_ref_line", { ...
+        "p0", [0, 0, 1.5], ...        % 開始位置
+        "velocity", 0.3, ...          % 巡航速度 0.3 m/s
+        "direction", [0, 0, 1] ...    % z方向 (真上)
+    }, 6});
+
+% リプランナ設定 (トリガーは距離ベースに変更されたため trigger_y は不要)
+replan_opts.obs_center   = [0; 0; 4.0];   % 上方 (z=4.0) にある障害物
+replan_opts.obs_radius   = 0.3;           % 半径
+replan_opts.safe_margin  = 0.3;           % 安全マージン
+replan_opts.trigger_dist = 2.5;           % 障害物から 2.5m 以内に近づいたら自動検知して動的計算開始
+
+agent.reference.set_function_class("timevarying", ...
+    REPLANNING_7TH_BSPLINE_REFERENCE(agent, nominal_ref, replan_opts));
+
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
