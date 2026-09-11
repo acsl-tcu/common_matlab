@@ -213,13 +213,6 @@ dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;dstx;dsty];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0;0];
 % matlabFunction(f,'file','with_load_model_mL_dstxy_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
-% ★このブロックは壊れていて一度も実行されたことがない (2026-09-11 確認)。 physicalParam を [] (sym 配列) で作ってから cell2sym に渡しており 「値は cell 型であるか、cell に変換可能でなければなりません」で必ず落ちる。 しかも書き出し先が上の FLxyDst/GLxyDst と同名なのに、中身は euler 版・状態も [.. mL dstx dsty]・physicalParam に dstx,dsty が無い別物なので、動くように直すと 72 行目で作った正しい FLxyDst.m を壊す。 全体を通して実行できるようコメントアウトする (コピペの残骸と判断)。
-% physicalParam = [m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL];
-% Fl = subs(f,U,[0;0;0;0]);
-% Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
-% simplify(f - (Fl+Gl*U))
-% matlabFunction_with_input_order(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-% matlabFunction_with_input_order(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %% plant,estimator用With load model (Extend & Euler)
 % 紐の取り付け位置考慮．今は使われていない
 syms ex ey ez real
