@@ -71,6 +71,37 @@ Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0])
 simplify(f - (Fl+Gl*U))
 matlabFunction_with_input_order(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
 matlabFunction_with_input_order(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+%% 牽引点に働く「力」込みのモデル(コントローラ設計用, 協調搬送)
+% ★上の xyDst 版との違い:
+%   xyDst は [dstx;dsty;0] を荷物の *加速度* にそのまま足す。荷物基準の定式化
+%   なので機体も同じだけ動き (ddp = ddpl - cableL*ddpT)、ケーブルは振れない
+%   = 「系全体を一様に加速する外乱」(風のようなもの)。協調搬送で他機が箱越しに
+%   引くのは「荷物にだけ働く力」なので、それでは表せない。
+%   力 F [N] を剛体ケーブルのニュートン・オイラーに従って入れる:
+%     ケーブル  dol  += cross(pT,F)/(mL*cableL)   ← pT まわりのモーメント
+%     荷物並進  ddpl += Fperp/mL + (F.pT)*pT/(m+mL)
+%              (直交成分は荷物だけを、軸方向成分は系全体を加速)
+%   F=0 で xyDst 版の dst=0 と一致する。機体への反力は ddp が拘束から自動的に
+%   拾うので、明示的な項は要らない。
+syms Fx Fy Fz real
+Fvec  = [Fx;Fy;Fz];
+Fp    = dot(Fvec,pT);          % 軸方向成分
+Fperp = Fvec - Fp*pT;          % 直交成分
+physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL,Fx,Fy,Fz};
+dol  = cross(-pT,u1*Rb0*e3)/(m*cableL) + cross(pT,Fvec)/(mL*cableL);
+dpT  = cross(ol,pT);
+ddpT = cross(dol,pT)+cross(ol,dpT);
+ddpl = [0;0;-gravity]+(dot(pT,u1*Rb0*e3)-m*cableL*dot(dpT,dpT))*pT/(m+mL) + Fperp/mL + Fp*pT/(m+mL);
+ddp  = ddpl-cableL*ddpT;
+dob  = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
+
+x=[q;ob;pl;dpl;pT;ol];
+f=[dq;dob;dpl;ddpl;dpT;dol];
+Fl = subs(f,U,[0;0;0;0]);
+Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];
+simplify(f - (Fl+Gl*U))
+matlabFunction_with_input_order(Fl,'file','FLxyzForce','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(Gl,'file','GLxyzForce','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %% plant,estimator用角度がクオータニオン．ドローンの位置と速度も計測できるようになっている
 % euler出ないと上手く推定できないので今は使われていない．
 physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4,rotor_r,mL, cableL};
@@ -147,6 +178,27 @@ dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;dstx;dsty;dstz];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0;0;0];
 matlabFunction_with_input_order(f,'file','with_load_model_mL_dstxyz_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+%% estimator用 牽引点に働く「力」の推定 (協調搬送, mL は固定)
+% ★コントローラ側 (FLxyzForce) と同じ式。F=0 で dst=0 の版と一致する。
+% ★mL は推定しない (状態に入れない)。軸方向の力は張力への効き方が実効荷重と
+%   同じなので、mL と同時推定すると縮退する。上の
+%   「z方向の外乱推定を入れた場合は墜落する．loadmassも推定している為干渉する
+%     のかもしれない」は正しい見立てで、drone2 の実測でも mL が真値 0.27kg に
+%   対し 1.17kg へ張り付き伸び続けた。mL を固定すれば一意に決まる。
+syms Fx Fy Fz real
+Fvec  = [Fx;Fy;Fz];
+Fp    = dot(Fvec,pT);
+Fperp = Fvec - Fp*pT;
+physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4,rotor_r,mL, cableL};
+dOL  = cross(-pT,u1*ERb0*e3)/(m*cableL) + cross(pT,Fvec)/(mL*cableL);
+dpT  = cross(ol,pT);
+ddPT = cross(dOL,pT)+cross(ol,dpT);
+ddPL = [0;0;-gravity]+(dot(pT,u1*ERb0*e3)-m*cableL*dot(dpT,dpT))*pT/(m+mL) + Fperp/mL + Fp*pT/(m+mL);
+ddP  = ddPL-cableL*ddPT;
+dob  = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
+x=[p;er;dp;ob;pl;dpl;pT;ol;Fx;Fy;Fz];
+f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0;0];
+matlabFunction_with_input_order(f,'file','with_load_model_force_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量推定+x,y外乱推定も可能
 %外乱推定可能
 syms mLDummy real
@@ -161,12 +213,6 @@ dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;dstx;dsty];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0;0];
 % matlabFunction(f,'file','with_load_model_mL_dstxy_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
-physicalParam = [m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL];
-Fl = subs(f,U,[0;0;0;0]);
-Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
-simplify(f - (Fl+Gl*U))
-matlabFunction_with_input_order(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction_with_input_order(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %% plant,estimator用With load model (Extend & Euler)
 % 紐の取り付け位置考慮．今は使われていない
 syms ex ey ez real
