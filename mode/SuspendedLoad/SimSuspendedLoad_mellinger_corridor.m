@@ -1,4 +1,5 @@
 %　通常テーマ1がもとになってる
+% Minimum_snap_trajectory_generation_and_control_for_quadrotors.pdfがかんがえのもと
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
