@@ -1,5 +1,5 @@
-﻿classdef DRAW_SUSPENDED_LOAD_CORRIDOR < DRAW_SUSPENDED_LOAD
-    % DRAW_SUSPENDED_LOAD_CORRIDOR 障害物と安全回廊(Corridor)の壁を描画するクラス
+classdef DRAW_SUSPENDED_LOAD_CORRIDOR < DRAW_SUSPENDED_LOAD
+    % DRAW_SUSPENDED_LOAD_Cw(obj, t, k)ORRIDOR 障害物と安全回廊(Corridor)の壁を描画するクラス
     
     properties
         replanner_ref % リプランナの参照を保持
@@ -41,9 +41,9 @@
             end
         end
         
-        function draw(obj, t, k)
+        function draw(obj, varargin)
             % 親クラスの描画（機体、荷物、紐など）を呼び出す
-            draw@DRAW_SUSPENDED_LOAD(obj, t, k);
+            draw@DRAW_SUSPENDED_LOAD(obj, varargin{:});
             
             % リプランナが保持している障害物情報を毎フレーム描画
             if ~isempty(obj.replanner_ref)
@@ -96,3 +96,4 @@
         end
     end
 end
+
