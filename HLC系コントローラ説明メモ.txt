@@ -264,3 +264,13 @@ EDMDで学習した残差モデルから，HLC入力に対する補償入力を�
 
 train_edmd_residual_from_logs.m:
 HLC_EDMD_MEC.m 用の A_nom, B_nom, A_err, B_err を学習する。
+
+
+
+PS:
+1 agent.sensorの問題出たら  agent.sensor = MOTIVE(agent, motive, dt);%小関システムに代わって
+2 model file の場所変えた。もしファイル見つからない場合は　同じ名前のファイルを探して、場所がわかる　例：C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\edmd_residual_model_kyo.mat　が見つからない　ファイルを他の場所で探して
+3　exp エラー　マーカー問題はrefresh繰り返して、エラーが無くすまで
+4　墜落問題　まずから回して、成功　　もしフライト時墜落　計算時間が遅すぎかも　
+5  暴走ぷらぷら問題　　コントローラを２重やる　画像から計算入力を比較してながら重み調整（計算時間注意）
+6　controller mode sample data function この五つのファイル中に探して　ほとんどこの中に
