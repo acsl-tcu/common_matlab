@@ -1,9 +1,6 @@
 classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
     % REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING
-    % 任意姿勢楕円体・動的速度・動的距離適応 Mellinger Corridor QP リプランナ
-    % - 障害物までの射影距離と速度から通過時刻・計画時間 T を完全自動適応
-    % - 障害物サイズに応じて制約サンプリング区間を自動スケーリング
-    % - 荷物 (Load) と ドローン実位置 (Drone) の双方に安全壁を連立
+    % 任意姿勢楕円体 (Ellipsoid) 障害物対応 Mellinger Corridor QP リプランナ
     
     properties
         base_ref
@@ -12,7 +9,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
         replan_done   = false
         
         t_start
-        t_duration = 8.0           % 自動決定される所要時間 [s]
+        t_duration = 8.0
         
         safe_margin  = 0.5
         trigger_dist = 5.0
@@ -34,6 +31,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
         obs_radii  = [1; 1; 1]
         obs_margin = 0
         
+        debug_cnt  = 0 % 診断ログ用カウンタ
         result
     end
     
@@ -79,15 +77,16 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 pQ_cur = pL_cur + [0; 0; obj.L_cable];
             end
             
-            % 1. 動的障害物検知
+            % -------------------------------------------------------------
+            % 1. 動的障害物検知 (デバッグ診断機能付き)
+            % -------------------------------------------------------------
             if cha == 'f' && ~obj.replan_done && ~obj.replan_active
+                obs_list = [];
                 try
                     obs_list = ENVIRONMENT_OBSTACLE_ELLIPSE();
-                catch
-                    try
-                        obs_list = ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY();
-                    catch
-                        obs_list = [];
+                catch ME
+                    if obj.debug_cnt == 0
+                        fprintf("[DEBUG ERROR] ENVIRONMENT_OBSTACLE_ELLIPSEの呼び出しに失敗: %s\n", ME.message);
                     end
                 end
                 
@@ -95,21 +94,25 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 target_obs_idx = -1;
                 
                 for i = 1:length(obs_list)
-                    if isfield(obs_list(i), 'p_center')
+                    % p_center と p_obs の両方を許容
+                    if isfield(obs_list(i), 'p_center') && ~isempty(obs_list(i).p_center)
                         c = obs_list(i).p_center;
-                    elseif isfield(obs_list(i), 'p_obs')
+                    elseif isfield(obs_list(i), 'p_obs') && ~isempty(obs_list(i).p_obs)
                         c = obs_list(i).p_obs;
                     else
                         continue;
                     end
                     
-                    if isfield(obs_list(i), 'ellipsoid_radii')
-                        radii = obs_list(i).ellipsoid_radii;
-                        r_equiv = max(radii);
-                    elseif isfield(obs_list(i), 'r_obs')
-                        r_equiv = obs_list(i).r_obs;
+                    % 楕円半径 or スカラー半径
+                    if isfield(obs_list(i), 'ellipsoid_radii') && ~isempty(obs_list(i).ellipsoid_radii)
+                        r_max = max(obs_list(i).ellipsoid_radii);
+                    elseif isfield(obs_list(i), 'r_obs') && ~isempty(obs_list(i).r_obs)
+                        r_max = obs_list(i).r_obs;
+                    elseif isfield(obs_list(i), 'Q_obs') && ~isempty(obs_list(i).Q_obs)
+                        % Q = diag(1/a^2, 1/b^2, 1/c^2) から復元
+                        r_max = max(1 ./ sqrt(diag(obs_list(i).Q_obs)));
                     else
-                        r_equiv = 0.5;
+                        r_max = 0.5;
                     end
                     
                     if isfield(obs_list(i), 'd_margin')
@@ -118,8 +121,8 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                         d_marg = obj.safe_margin;
                     end
                     
-                    dist_load  = norm(pL_cur - c) - (r_equiv + obj.r_load + d_marg);
-                    dist_drone = norm(pQ_cur - c) - (r_equiv + obj.r_drone + d_marg);
+                    dist_load  = norm(pL_cur - c) - (r_max + obj.r_load + d_marg);
+                    dist_drone = norm(pQ_cur - c) - (r_max + obj.r_drone + d_marg);
                     d_surf = min(dist_load, dist_drone);
                     
                     if d_surf < min_dist_overall
@@ -128,64 +131,67 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                     end
                 end
                 
+                % 1秒に1回、現在の検知状態をコンソールへ表示（診断ログ）
+                obj.debug_cnt = obj.debug_cnt + 1;
+                if mod(obj.debug_cnt, 40) == 1
+                    if isempty(obs_list)
+                        fprintf("[DIAGNOSTIC] t=%.2f: 障害物リストが空です (ENVIRONMENT_OBSTACLE_ELLIPSE未読込)\n", time.t);
+                    else
+                        fprintf("[DIAGNOSTIC] t=%.2f: 最接近障害物 ID=%d, d_surf=%.2fm (トリガー閾値: %.2fm)\n", ...
+                            time.t, target_obs_idx, min_dist_overall, obj.trigger_dist);
+                    end
+                end
+                
+                % トリガー判定
                 if target_obs_idx > 0 && min_dist_overall <= obj.trigger_dist
-                    if isfield(obs_list(target_obs_idx), 'p_center')
-                        obj.obs_center = obs_list(target_obs_idx).p_center;
+                    tgt = obs_list(target_obs_idx);
+                    
+                    % 中心座標
+                    if isfield(tgt, 'p_center'), obj.obs_center = tgt.p_center;
+                    else, obj.obs_center = tgt.p_obs; end
+                    
+                    % 姿勢
+                    if isfield(tgt, 'R_obs'), obj.obs_R = tgt.R_obs;
+                    else, obj.obs_R = eye(3); end
+                    
+                    % 楕円主軸長
+                    if isfield(tgt, 'ellipsoid_radii')
+                        obj.obs_radii = tgt.ellipsoid_radii;
+                    elseif isfield(tgt, 'Q_obs')
+                        obj.obs_radii = 1 ./ sqrt(diag(tgt.Q_obs));
+                    elseif isfield(tgt, 'r_obs')
+                        obj.obs_radii = [tgt.r_obs; tgt.r_obs; tgt.r_obs];
                     else
-                        obj.obs_center = obs_list(target_obs_idx).p_obs;
+                        obj.obs_radii = [0.71; 0.71; 0.71];
                     end
                     
-                    if isfield(obs_list(target_obs_idx), 'R_obs')
-                        obj.obs_R = obs_list(target_obs_idx).R_obs;
-                    else
-                        obj.obs_R = eye(3);
-                    end
-                    
-                    if isfield(obs_list(target_obs_idx), 'ellipsoid_radii')
-                        obj.obs_radii = obs_list(target_obs_idx).ellipsoid_radii;
-                    else
-                        r = obs_list(target_obs_idx).r_obs;
-                        obj.obs_radii = [r; r; r];
-                    end
-                    
-                    if isfield(obs_list(target_obs_idx), 'd_margin')
-                        obj.obs_margin = obs_list(target_obs_idx).d_margin;
-                    else
-                        obj.obs_margin = obj.safe_margin;
-                    end
+                    if isfield(tgt, 'd_margin'), obj.obs_margin = tgt.d_margin;
+                    else, obj.obs_margin = obj.safe_margin; end
                     
                     obj.t_start = time.t;
                     
-                    % 速度と方向ベクトルの同定
                     v_vec = xd_nominal(5:7);
                     spd = norm(v_vec);
                     if spd < 0.05, spd = norm(vL_cur); end
                     if spd < 0.05, spd = 0.5; v_vec = [0; 0; 0.5]; end
                     dir_nom = v_vec / spd;
                     
-                    % -------------------------------------------------------------
-                    % 【完全自動連動】射影距離と速度から T と通過タイミングを厳密決定
-                    % -------------------------------------------------------------
                     vec_to_obs = obj.obs_center - pL_cur;
                     d_proj = dot(vec_to_obs, dir_nom);
-                    if d_proj < 0.5, d_proj = 0.5; end % 最低助走マージン
+                    if d_proj < 0.5, d_proj = 0.5; end
                     
-                    % 障害物中心までの到達時間
                     t_cross = d_proj / spd;
-                    % 助走と復帰を対称にするため T = 2 * t_cross (常に u=0.5 で最接近)
                     obj.t_duration = max(5.0, 2.0 * t_cross);
-                    
-                    % 終端合流距離
                     total_dist = spd * obj.t_duration;
                     
                     fprintf("\n=======================================================\n");
-                    fprintf("[ADAPTIVE QP] 障害物検知! (ID: %d, d_surf=%.2fm, t=%.3f s)\n", target_obs_idx, min_dist_overall, time.t);
-                    fprintf("  - 進行速度: %.2f m/s, 障害物射影距離: %.2f m\n", spd, d_proj);
-                    fprintf("  - 通過予定時間: %.2f s後 (u=0.50に自動ロック), 計画時間 T = %.2f s\n", t_cross, obj.t_duration);
+                    fprintf("[ELLIPSE FLATNESS QP] 検知成功・リプラン開始! (ID: %d, d_surf=%.2fm, t=%.3f s)\n", target_obs_idx, min_dist_overall, time.t);
+                    fprintf("  - 進行速度: %.2f m/s, 射影距離: %.2f m, 計画時間 T = %.2f s\n", spd, d_proj, obj.t_duration);
+                    fprintf("  - 楕円中心: [%.2f, %.2f, %.2f]\n", obj.obs_center(1), obj.obs_center(2), obj.obs_center(3));
                     fprintf("  - 楕円主軸半径: [a=%.2f, b=%.2f, c=%.2f] m\n", obj.obs_radii(1), obj.obs_radii(2), obj.obs_radii(3));
                     fprintf("  - 荷物半径: %.2f m / ドローン保護半径: %.2f m / マージン帯: %.2f m\n", obj.r_load, obj.r_drone, obj.obs_margin);
                     
-                    obj.plan_mellinger_adaptive_qp(xd_nominal, dir_nom, spd, total_dist, d_proj);
+                    obj.plan_mellinger_mahalanobis_qp(xd_nominal, dir_nom, spd, total_dist);
                     obj.replan_active = true;
                     fprintf("=======================================================\n\n");
                 end
@@ -198,7 +204,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                     xd = obj.evaluate_smooth_trajectory(tau, xd_nominal);
                 else
                     if ~obj.replan_done
-                        fprintf("[ADAPTIVE QP] 障害物通過完了・C^6シームレス合流 (t=%.3f s)\n\n", time.t);
+                        fprintf("[ELLIPSE FLATNESS QP] 障害物通過完了・C^6シームレス合流 (t=%.3f s)\n\n", time.t);
                         obj.t_merge_end = obj.t_start + obj.t_duration;
                         xd_end = obj.evaluate_smooth_trajectory(obj.t_duration, xd_nominal);
                         obj.p_merge_end = xd_end(1:3);
@@ -233,49 +239,40 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
     end
     
     methods (Access = private)
-        function plan_mellinger_adaptive_qp(obj, xd0, dir_nom, spd, total_dist, d_proj)
+        function plan_mellinger_mahalanobis_qp(obj, xd0, dir_nom, spd, total_dist)
             T = obj.t_duration;
             p0 = xd0(1:3);
             order = 13;
             n_coeffs = order + 1;
             
-            % 1. 法線ベクトル（障害物から自機を外側へ押し出す向き）
-            vec_from_obs = p0 - obj.obs_center;
-            proj_on_line = dot(vec_from_obs, dir_nom) * dir_nom;
-            normal_vec   = vec_from_obs - proj_on_line;
+            % 1. マハラノビス空間での最適接平面
+            D_inv = diag(1 ./ obj.obs_radii);
+            z0 = D_inv * obj.obs_R' * (p0 - obj.obs_center);
+            vz = D_inv * obj.obs_R' * dir_nom;
             
-            if norm(normal_vec) < 1e-3
-                if abs(dir_nom(3)) < 0.9
-                    normal_vec = cross(dir_nom, [0; 0; 1]);
-                else
-                    normal_vec = cross(dir_nom, [1; 0; 0]);
-                end
+            tau_star = -dot(z0, vz) / max(1e-6, dot(vz, vz));
+            z_closest = z0 + tau_star * vz;
+            
+            if norm(z_closest) < 1e-4
+                if abs(vz(3)) < 0.9, z_perp = cross(vz, [0; 0; 1]);
+                else, z_perp = cross(vz, [1; 0; 0]); end
+                z_hat = z_perp / norm(z_perp);
+            else
+                z_hat = z_closest / norm(z_closest);
             end
-            dir_normal = normal_vec / norm(normal_vec);
             
-            % 2. 楕円体の実効横半径
-            n_local = obj.obs_R' * dir_normal;
-            r_eff_obs = sqrt((obj.obs_radii(1) * n_local(1))^2 + ...
-                             (obj.obs_radii(2) * n_local(2))^2 + ...
-                             (obj.obs_radii(3) * n_local(3))^2);
+            n_opt = obj.obs_R * D_inv * z_hat;
+            norm_n_opt = norm(n_opt);
+            dir_normal = n_opt / norm_n_opt;
+            r_eff_obs  = 1.0 / norm_n_opt;
             
             R_hard_load  = r_eff_obs + obj.r_load;
             R_hard_drone = r_eff_obs + obj.r_drone;
             
-            % 進行方向における障害物の実効長さ r_longitudinal
-            dir_local = obj.obs_R' * dir_nom;
-            r_eff_long = sqrt((obj.obs_radii(1) * dir_local(1))^2 + ...
-                              (obj.obs_radii(2) * dir_local(2))^2 + ...
-                              (obj.obs_radii(3) * dir_local(3))^2);
-            
-            % -------------------------------------------------------------
-            % 【自動連動】障害物サイズと速度に応じた無次元制約幅 delta_u の計算
-            % -------------------------------------------------------------
-            % 障害物の前後 (r_long + margin) を通過する時間幅
+            r_eff_long = sqrt(dot(dir_nom, obj.obs_R * diag(obj.obs_radii.^2) * obj.obs_R' * dir_nom));
             t_span = (r_eff_long + obj.obs_margin) / spd;
             delta_u = max(0.12, min(0.35, t_span / T));
             
-            % ハード制約およびソフト制約の区間を [0.5 - delta_u, 0.5 + delta_u] に完全同期
             u_start = max(0.15, 0.50 - delta_u * 1.3);
             u_end   = min(0.85, 0.50 + delta_u * 1.3);
             
@@ -284,7 +281,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             num_C = 3 * n_coeffs;
             num_vars = num_C + N_samples;
             
-            % 3. 目的関数 H
+            % 2. 目的関数
             H_1d = zeros(n_coeffs, n_coeffs);
             w2 = 0.05; w4 = 1.0; w5 = 0.1;
             for i = 2:order
@@ -308,7 +305,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             H = zeros(num_vars, num_vars);
             H(1:num_C, 1:num_C) = blkdiag(H_1d_scaled, H_1d_scaled, H_1d_scaled) + 1e-6 * eye(num_C);
             
-            w_slack_quad = 1000000.0; % マージン侵入ペナルティを大幅強化
+            w_slack_quad = 1000000.0;
             w_slack_lin  = 100000.0;
             for s_idx = 1:N_samples
                 H(num_C + s_idx, num_C + s_idx) = w_slack_quad;
@@ -316,7 +313,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             f = zeros(num_vars, 1);
             f(num_C + 1 : end) = w_slack_lin;
             
-            % 4. 等式制約
+            % 3. 等式制約
             p_end = p0 + dir_nom * total_dist;
             xd1 = zeros(28, 1);
             xd1(1:3) = p_end;
@@ -343,11 +340,10 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 beq((ax-1)*n_eq + 1 : ax*n_eq) = beq_ax;
             end
             
-            % 5. 不等式制約（適応型サンプリング）
+            % 4. 不等式制約
             alpha_dyn = obj.L_cable / (obj.gravity * (T^2));
             p_base_proj = dot(dir_normal, obj.obs_center);
             
-            % 障害物の実体が存在するコア区間 [0.5 - delta_u, 0.5 + delta_u]
             hard_mask = (u_samples >= (0.50 - delta_u)) & (u_samples <= (0.50 + delta_u));
             n_hard = sum(hard_mask);
             
@@ -356,7 +352,6 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             b_ineq = zeros(num_ineq, 1);
             
             row = 1;
-            % a) 荷物ハード
             for m = find(hard_mask)
                 u_m = u_samples(m);
                 T0 = zeros(1, n_coeffs);
@@ -369,7 +364,6 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 row = row + 1;
             end
             
-            % b) ドローン実位置ハード
             for m = find(hard_mask)
                 u_m = u_samples(m);
                 T0 = zeros(1, n_coeffs);
@@ -388,13 +382,11 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 row = row + 1;
             end
             
-            % c) 荷物ソフト制約（u=0.5 をピークとする山なりエンベロープ）
             for m = 1:N_samples
                 u_m = u_samples(m);
                 T0 = zeros(1, n_coeffs);
                 for n = 0:order, T0(n+1) = u_m^n; end
                 
-                % u_start から u_end にかけて u=0.5 で最大となるエンベロープ
                 phase = (u_m - u_start) / (u_end - u_start);
                 envelope = sin(pi * max(0, min(1.0, phase)));
                 R_soft_local = R_hard_load + obj.obs_margin * envelope;
@@ -407,14 +399,13 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 row = row + 1;
             end
             
-            % d) スラック非負
             for m = 1:N_samples
                 A_ineq(row, num_C + m) = -1;
                 b_ineq(row) = 0;
                 row = row + 1;
             end
             
-            % 6. 最適化実行
+            % 5. 最適化実行
             opts = optimoptions('quadprog', ...
                 'Display', 'off', ...
                 'Algorithm', 'interior-point-convex', ...
@@ -426,7 +417,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             [X_opt, ~, exitflag, output] = quadprog(H, f, A_ineq, b_ineq, Aeq, beq, [], [], [], opts);
             
             if exitflag < 1
-                fprintf("[ADAPTIVE QP DEBUG] quadprog未収束 (exitflag=%d: %s)\n", exitflag, output.message);
+                fprintf("[RIGID ELLIPSOID QP DEBUG] quadprog未収束 (exitflag=%d: %s)\n", exitflag, output.message);
                 C_1 = Aeq_1d \ beq(1:n_eq);
                 C_2 = Aeq_1d \ beq(n_eq+1:2*n_eq);
                 C_3 = Aeq_1d \ beq(2*n_eq+1:3*n_eq);
@@ -436,7 +427,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                 center_mask = (u_samples >= (0.50 - delta_u/2)) & (u_samples <= (0.50 + delta_u/2));
                 max_slack_center = max(slack_vals(center_mask));
                 
-                fprintf("[ADAPTIVE QP] 最適化成功! (反復=%d, 最接近時マージン侵入=%.3fm)\n", ...
+                fprintf("[RIGID ELLIPSOID QP] 最適化成功! (反復=%d, 最接近時マージン侵入=%.3fm)\n", ...
                     output.iterations, max_slack_center);
                 
                 C_opt = X_opt(1:num_C);
