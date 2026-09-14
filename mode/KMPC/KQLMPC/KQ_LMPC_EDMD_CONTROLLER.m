@@ -646,7 +646,7 @@ classdef KQ_LMPC_EDMD_CONTROLLER< handle
                     residual.K_norm = 0;
                 end
             catch ME
-                warning('Residual model load failed: %s', ME.message);
+                warning('Residual model load failed:','%s', ME.message);
                 residual.mode = 0;
             end
         end

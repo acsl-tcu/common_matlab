@@ -61,7 +61,7 @@ agent.controller.kmpc = LPV_EDMD_CONTROLLER(agent,Controller_LPV_EDMD(dt,model_f
 run("SimBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
-agent.cha_allocation.f.controller = ["hlc"];
+agent.cha_allocation.f.controller = ["kmpc","hlc"];
 function post(app)
 % app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"linewidth", 2.5, ...
 %     "fontsize", 14);

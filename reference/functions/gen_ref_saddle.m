@@ -29,9 +29,12 @@ w = 2*pi/T; % T秒で一周
 % ddx = diff(ref,t,2);
 % fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));
 
-ref=@(t) [lx*cos(w*t + phase)+lx_offset; % x
-ly*sin(w*t + phase)+ly_offset; % y
-lz*sin(2*w*t + phase/2)+lz_offset; % z
+tau = T / 2;
+warmup = 1 - exp(-(t/tau)^2);
+
+ref=@(t) [(lx * warmup)*cos(w*t + phase)+lx_offset; % x
+(ly * warmup)*sin(w*t + phase)+ly_offset; % y
+(lz * warmup)*sin(2*w*t + phase/2)+lz_offset; % z
 0];%
 ddx = diff(ref,t,2);
 fprintf("max ref acceleration = %f\n",subs(ddx(3),t,T/4));

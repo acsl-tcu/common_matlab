@@ -1,0 +1,266 @@
+HLC系コントローラと学習ファイルの説明メモ
+
+1. HLC.m
+
+役割:
+通常のHLC制御器である。
+基本的な高階線形化制御入力を計算し，必要に応じて同定用の励振入力またはMEC補償を加える。
+
+対応する学習ファイル:
+C:\Users\student\Documents\GitHub\common_matlab\mode\hlhlmpc\edmdmec.m
+
+学習ファイルの役割:
+loggerデータから状態と入力を読み込み，build_phi によりリフトアップ状態を作成する。
+その後，EDMDにより Ar, Br を同定し，補償用行列 M を計算する。
+最終的に mec_model_*.mat を保存する。
+
+HLC.mで使用する主な行列:
+obj.mec.Ar
+obj.mec.Br
+obj.mec.M
+obj.mec.beta
+obj.mec.dumax
+
+使用方法:
+まず HLC.m で use_mec を false にする。
+この状態ではMEC補償を使わず，通常のHLC入力を計算する。
+
+次に deltau を有効にする。
+generate_identification_excitation により，推力，roll，pitch，yaw の各入力に同定用励振を加える。
+
+励振入力を加えた飛行データを logger で保存する。
+保存したデータを edmdmec.m に指定し，EDMD-MEC用の Ar, Br, M を学習する。
+
+学習後，得られた mec_model_*.mat を読み込ませる。
+その後，deltau を無効にし，use_mec を true にする。
+この状態では同定用励振を加えず，HLC入力にMEC補償を加えて制御を行う。
+
+入力構造:
+学習データ取得時:
+u = HLC入力 + deltau
+
+学習済みMEC使用時:
+u = HLC入力 + MEC補償
+
+注意:
+deltau は同定用の外部励振入力であり，通常制御時には0にする。
+use_mec は学習済みMEC行列を使用するためのスイッチである。
+
+
+2. HLC_EDMD_ERROR.m
+
+役割:
+通常のHLC入力に対して，EDMDで学習した閉ループ誤差補償を加える制御器である。
+
+対応する学習関数:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\train_hl_edmd_error_from_logs.m
+
+対応する実行用スクリプト:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_error_plant.m
+
+学習ファイルの役割:
+loggerデータから現在状態，参照状態，HLC入力，実際の入力を読み込む。
+現在状態と参照状態の差から12次元誤差を計算する。
+その誤差を垂直方向と姿勢方向に分けてリフトアップし，閉ループ誤差モデルを学習する。
+
+学習されるモデル:
+zv_{k+1} = Az * zv_k + Bz * du1_k
+za_{k+1} = Aa * za_k + Ba * dutau_k
+
+出力:
+results_hl_edmd_error
+
+保存される主な行列:
+Az
+Bz
+Aa
+Ba
+Kz
+Ka
+
+HLC_EDMD_ERROR.mで使用する主な行列:
+comp.Az
+comp.Bz
+comp.Aa
+comp.Ba
+comp.Kz
+comp.Ka
+
+使用方法:
+まず HLC.m などを用いて飛行データを取得する。
+このとき，HLC入力と実際に印加された入力の差が分かるように logger に保存する。
+
+次に edmdforhldata_error_plant.m を実行する。
+このスクリプトの中で data_dir, file_pattern, save_path を設定する。
+
+例:
+opts.data_dir = 'C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data';
+opts.file_pattern = 'HL_*.mat';
+opts.save_path = 'C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\KQLMPC\hl_edmd_error_model_plant.mat';
+opts.state_source = 'plant';
+
+train_hl_edmd_error_from_logs(opts);
+
+学習後，HLC_EDMD_ERROR.m の param.comp.model_file に保存したMATファイルを指定する。
+モデルが正常に読み込まれると，compute_error_compensation により補償入力 delta_u が計算される。
+
+入力構造:
+u = HLC入力 + EDMD誤差補償
+
+補償の考え方:
+垂直方向の誤差から推力補償 du1 を計算する。
+姿勢方向の誤差から roll, pitch, yaw の補償 dutau を計算する。
+
+注意:
+このファイルの deltau は同定用励振ではなく，EDMD誤差補償入力を表す。
+モデルが読み込まれていない場合，補償入力は0となる。
+
+
+3. HLC_EDMD_MEC.m
+
+役割:
+通常のHLC入力に対して，EDMDで学習した残差モデルに基づくMEC補償を加える制御器である。
+
+対応する学習関数:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\train_edmd_residual_from_logs.m
+
+対応する実行用スクリプト:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_plant.m
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_estimator.m
+
+成対データ用の学習関数:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\train_edmd_residual_paired_from_logs.m
+
+学習ファイルの役割:
+loggerデータから状態，参照，HLC入力，実際の入力を読み込む。
+リフトアップ状態 z を作成し，公称モデルと残差モデルを学習する。
+
+学習されるモデル:
+z_{k+1} = A_nom * z_k + B_nom * u_nom
+residual = A_err * z_k + B_err * delta_u
+
+出力:
+results_edmd
+
+保存される主な行列:
+A_nom
+B_nom
+A_err
+B_err
+
+HLC_EDMD_MEC.mで使用する主な行列:
+residual.A_nom
+residual.B_nom
+residual.A_err
+residual.B_err
+residual.K
+
+使用方法:
+まず HLC.m で同定用励振を有効にし，飛行データを取得する。
+または，nominalデータとdegradedデータを別々に取得する。
+
+通常の単一データセットから学習する場合:
+edmdforhldata_plant.m または edmdforhldata_estimator.m を実行する。
+
+例:
+opts.data_dir = 'C:\Users\student\Documents\GitHub\common_matlab\Data\Sim_data';
+opts.file_pattern = 'HL_degraded_*.mat';
+opts.save_path = 'C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\KQLMPC\edmd_residual_model_hl_plant.mat';
+opts.state_source = 'plant';
+
+results_edmd = train_edmd_residual_from_logs(opts);
+
+nominalデータとdegradedデータを分けて学習する場合:
+train_edmd_residual_paired_from_logs.m を使用する。
+この場合，nominal_file_pattern と degraded_file_pattern を別々に指定する。
+
+学習後，HLC_EDMD_MEC.m の param.residual.model_file に保存したMATファイルを指定する。
+residual.mode を0以外に設定すると，EDMD残差補償が有効になる。
+
+入力構造:
+通常使用時:
+u = HLC入力 + EDMD残差補償
+
+検証用励振を加える場合:
+u = HLC入力 + EDMD残差補償 + 同定用励振
+
+residual.mode の意味:
+mode = 0:
+EDMD残差補償を使用しない。
+
+mode = 1:
+lifted state の誤差 z_cur - z_ref に対して，LQRゲインKで補償入力を計算する。
+
+mode = 2:
+公称モデルの予測と目標状態との差から，B_errを用いて補償入力を反算する。
+
+mode = 3:
+残差成分 A_err*z を保守的に打ち消す補償を行う。
+
+注意:
+HLC_EDMD_ERROR.m は追従誤差に基づく補償である。
+HLC_EDMD_MEC.m はEDMD残差モデルに基づく補償である。
+そのため，同じEDMD系でも補償の意味と結果は異なる。
+
+
+4. 学習から使用までの全体手順
+
+手順1: 学習データ取得
+HLC.m を使用する。
+use_mec を false にする。
+deltau を有効にして，同定用励振を加える。
+飛行データ，状態，参照，HLC入力，実際の入力を logger に保存する。
+
+手順2: モデル学習
+目的に応じて学習ファイルを選択する。
+
+HLC.m のMEC補償を使う場合:
+C:\Users\student\Documents\GitHub\common_matlab\mode\hlhlmpc\edmdmec.m
+を実行し，mec_model_*.mat を作成する。
+
+HLC_EDMD_ERROR.m を使う場合:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_error_plant.m
+を実行し，results_hl_edmd_error を含むMATファイルを作成する。
+
+HLC_EDMD_MEC.m を使う場合:
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_plant.m
+または
+C:\Users\student\Documents\GitHub\common_matlab\controller\KMPC\edmdforhldata_estimator.m
+を実行し，results_edmd を含むMATファイルを作成する。
+
+手順3: 学習済み補償の使用
+
+HLC.mで使用する場合:
+deltau を0にする。
+use_mec を true にする。
+edmdmec.m で作成した mec_model_*.mat の Ar, Br, M を読み込ませる。
+
+HLC_EDMD_ERROR.mで使用する場合:
+param.comp.model_file に hl_edmd_error_model_plant.mat などを指定する。
+閉ループ追従誤差に基づくEDMD補償として使用する。
+
+HLC_EDMD_MEC.mで使用する場合:
+param.residual.model_file に edmd_residual_model_hl_plant.mat などを指定する。
+residual.mode を1, 2, 3のいずれかに設定する。
+EDMD残差モデルに基づくMEC補償として使用する。
+
+
+5. 簡単なまとめ
+
+HLC.m:
+同定用励振による学習データ取得，または学習済みMEC補償の使用に使う。
+
+edmdmec.m:
+HLC.m の use_mec で使う Ar, Br, M を学習する。
+
+HLC_EDMD_ERROR.m:
+現在状態と参照状態の追従誤差からEDMD誤差補償を計算する。
+
+train_hl_edmd_error_from_logs.m:
+HLC_EDMD_ERROR.m 用の Az, Bz, Aa, Ba, Kz, Ka を学習する。
+
+HLC_EDMD_MEC.m:
+EDMDで学習した残差モデルから，HLC入力に対する補償入力を計算する。
+
+train_edmd_residual_from_logs.m:
+HLC_EDMD_MEC.m 用の A_nom, B_nom, A_err, B_err を学習する。

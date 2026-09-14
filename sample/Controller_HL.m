@@ -27,5 +27,24 @@ Controller.F4=lqrd([0 1;0 0],[0;1],diag([100,10]),[0.1],dt);                    
 
 % 設定確認
 Controller.dt = dt;
+Controller.enable_show = 0;
+Controller.explore.enable = 1;
+Controller.explore.flight_only = 1;
+Controller.explore.mode = 'structured_multisine';
+Controller.explore.start_time = 0.0;
+Controller.explore.ramp_time = 1.0;
+Controller.explore.u1_amp = [0.35; 0.15];
+Controller.explore.u1_freq = [0.35; 0.90];
+Controller.explore.u1_phase = [0.20; 1.10];
+Controller.explore.u2_amp = [0.010; 0.005];
+Controller.explore.u2_freq = [0.55; 1.25];
+Controller.explore.u2_phase = [0.40; 1.30];
+Controller.explore.u3_amp = [0.010; 0.005];
+Controller.explore.u3_freq = [0.70; 1.55];
+Controller.explore.u3_phase = [0.90; 0.30];
+Controller.explore.u4_amp = [0.0010; 0.0005];
+Controller.explore.u4_freq = [0.45; 1.05];
+Controller.explore.u4_phase = [0.50; 1.40];
+Controller.explore.du_cap = [0.55; 0.018; 0.018; 0.003];
 eig(diag([1,1,1],1)-[0;0;0;1]*Controller.F2)
 end

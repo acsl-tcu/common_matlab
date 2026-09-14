@@ -130,20 +130,19 @@ for fi = 1:numel(files)
         x12_t = traj(k, :)';
         x12_tp1 = traj(k + 1, :)';
         u_raw_t = u_raw_seq(k, :)';
-        u_raw_tp1 = u_raw_seq(k + 1, :)';
+    if has_nom_seq(k)
+        u_nom_t = u_nom_seq(k, :)';
+    else
+        u_nom_t = u_raw_t;
+        stats.n_missing_nominal = stats.n_missing_nominal + 1;
+    end
+    delta_u = u_raw_t - u_nom_t;
 
-        if has_nom_seq(k)
-            u_nom_t = u_nom_seq(k, :)';
-        else
-            u_nom_t = u_raw_t;
-            stats.n_missing_nominal = stats.n_missing_nominal + 1;
-        end
-        delta_u = u_raw_t - u_nom_t;
-
-        x16_t = [x12_t; u_raw_t];
-        x16_tp1 = [x12_tp1; u_raw_tp1];
-        z_t = build_kyo_observable(x16_t, cos_guard);
-        z_tp1 = build_kyo_observable(x16_tp1, cos_guard);
+    % Use the control action at k for both z_k and the k->k+1 target context.
+    x16_t = [x12_t; u_nom_t];
+    x16_tp1 = [x12_tp1; u_nom_t];
+    z_t = build_kyo_observable(x16_t, cos_guard);
+    z_tp1 = build_kyo_observable(x16_tp1, cos_guard);
 
         if norm(x12_t(1:3) - ref_seq(k, 1:3)') > pos_err_thresh
             continue;

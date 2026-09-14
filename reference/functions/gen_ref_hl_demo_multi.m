@@ -15,6 +15,7 @@ arguments
     param.hover (1,3) double = [0 0 0.6]
     param.loops (1,1) double = 3
     param.square_size (1,1) double = 1.0
+<<<<<<< Updated upstream
     param.figure8_size (1,3) double = [0.85 0.85 0.0]
     param.saddle_size (1,3) double = [0.55 0.55 0.30]
     param.circle_radius (1,1) double = 1.0
@@ -27,6 +28,20 @@ arguments
     param.hold_end (1,1) double = 5
     param.ramp_fraction (1,1) double = 0.12
     param.transition_time (1,1) double = 2.0
+=======
+    param.figure8_size (1,3) double = [0.85 1.70 0.0]
+    param.saddle_size (1,3) double = [0.55 0.55 0.30]
+    param.circle_radius (1,1) double = 1.0
+    param.square_period (1,1) double = 18
+    param.figure8_period (1,1) double = 18
+    param.saddle_period (1,1) double = 18
+    param.circle_period (1,1) double = 18
+    param.hold_start (1,1) double = 4
+    param.hold_between (1,1) double = 3
+    param.hold_end (1,1) double = 60
+    param.ramp_fraction (1,1) double = 0.12
+    param.transition_time (1,1) double = 5.0
+>>>>>>> Stashed changes
 end
 
 cfg = struct();
@@ -58,6 +73,10 @@ fprintf('  hover=[%.2f %.2f %.2f], square side=%.2f m, fig8=[%.2f %.2f %.2f], sa
     cfg.figure8_size(1), cfg.figure8_size(2), cfg.figure8_size(3), ...
     cfg.saddle_size(1), cfg.saddle_size(2), cfg.saddle_size(3), cfg.circle_radius);
 fprintf('  each periodic section uses %.1f s transitions; loops count only full-size cycles\n', cfg.transition_time);
+<<<<<<< Updated upstream
+=======
+print_schedule(cfg);
+>>>>>>> Stashed changes
 end
 
 function segments = build_schedule(cfg)
@@ -78,6 +97,17 @@ function duration = periodic_duration(cfg, kind)
 duration = periodic_period(cfg, kind) * cfg.loops + 2 * cfg.transition_time;
 end
 
+<<<<<<< Updated upstream
+=======
+function print_schedule(cfg)
+fprintf('  schedule:\n');
+for i = 1:numel(cfg.segments)
+    fprintf('    %-12s %7.1f -> %7.1f s\n', ...
+        cfg.segments(i).name, cfg.segments(i).t0, cfg.segments(i).t1);
+end
+end
+
+>>>>>>> Stashed changes
 function [segments, t] = add_segment(segments, t, name, duration)
 duration = max(0, duration);
 segments(end + 1).name = name;
