@@ -53,8 +53,8 @@ classdef MECKC < handle
         % K_full=[zeros(4,24)];
         % load('koopman_common_z__gain_KD.mat','K_full');
         % load('0708_second_new_KL_gain_KD.mat','K_full');
-        % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
-        load('4kidou_KL_gain_KCD_LQR.mat','K_full');
+        load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
+        % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
 
         % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
 
@@ -71,7 +71,7 @@ classdef MECKC < handle
         obj.result.z_p_back = z_p(14:26);
         obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
-        % obj.result.delta_u = 0;%unだけ確認したいとき
+        obj.result.delta_u = 0;%unだけ確認したいとき
         
 
       % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu  

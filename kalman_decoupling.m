@@ -2,7 +2,9 @@ clear;
 clc;
 % load("without_w1.mat");
 % load("koopman_model_first.mat",'est');
-load("4kidou_KL.mat");
+% load("4kidou_KL.mat");
+load("4kidou_LYKL.mat");
+
 % load("second_model.mat");
 % load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est');
 % load("third_model.mat",'est');
@@ -199,4 +201,4 @@ K_all = [Kc,zeros(size(est.B,2),(size(est.A,1)-k))];
 K_full = K_all/T_inv;
 % K_full = dlqr(est.A,est.B,Q,Rc);
 save('kalman_gain_nakami_check_4kidou_KL.mat','K_full');
-fprintf("ゲインをkalman_gain.matとして保存しました");
+fprintf("ゲインをkalman_gain_nakami_check_4kidou_KL.matとして保存しました");

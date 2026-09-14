@@ -1,4 +1,14 @@
-function [ref, traj] = gen_ref_spline(param)
+function [ref, traj] = gen_ref_random(param)
+%GEN_REF_RANDOM パラメータを指定してランダム軌道の関数ref(t)を生成。
+%   ref = gen_ref_random;
+%   ref = gen_ref_random(T=40, seed=42, plot=false);
+%   [ref, traj] = gen_ref_random(T=32);
+%   ref(1.5) は [x; y; z; 0] の4行1列。末尾の0はyaw [rad]。
+%   ref([0 1 2]) は4行3列。時刻を列ベクトルで渡しても同じ形式。
+%   軌道はこの関数の呼び出し時に一度生成し、ref(t)で繰り返し評価。
+%   評価範囲は0 <= t <= T。T秒後の周期的な繰り返しは行わない。
+%   roll/pitch等の詳細は2番目の出力trajに格納（従来と同じ形式）。
+%   generate_random_trajectory.m を同じフォルダーに置いて使用する。
 
 arguments
     % ----- 主に調整するパラメータ -----
