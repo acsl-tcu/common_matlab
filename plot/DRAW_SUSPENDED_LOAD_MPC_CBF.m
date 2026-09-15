@@ -1,8 +1,8 @@
 classdef DRAW_SUSPENDED_LOAD_MPC_CBF < DRAW_SUSPENDED_LOAD
-    % DRAW_SUSPENDED_LOAD_SMOOTHCBF
+    % DRAW_SUSPENDED_LOAD_MPC_CBF
     % - 楕円体障害物（原形コア＋外接楕円＋安全マージン）の可視化
     % - Zheng et al. (2025): 荷物〜ケーブル〜ドローンの 5連保護球描画
-    % - 【機能追加】MPC-CBF の将来 N ステップ最適予測軌道のリアルタイムオーバーレイ表示
+    % - MPC-CBF の将来 N ステップ最適予測軌道の最前面リアルタイムオーバーレイ表示
     
     properties
         replanner_ref
@@ -110,53 +110,53 @@ classdef DRAW_SUSPENDED_LOAD_MPC_CBF < DRAW_SUSPENDED_LOAD
             
             num_spheres = 5;
             lambdas = linspace(0, 1, num_spheres);
-            [sp_x, sp_y, sp_z] = sphere(14);
+            [sp_x, sp_y, sp_z] = sphere(12);
             
             for j = 1:num_spheres
                 lam = lambdas(j);
                 p_sphere = (1 - lam) * pL + lam * pQ;
                 r_sphere = (1 - lam) * r_load + lam * r_drone;
                 
-                if j == 1 || j == num_spheres
-                    alpha_val = 0.28;
-                else
-                    alpha_val = 0.15;
-                end
-                
                 surf(obj.ax, ...
                     sp_x * r_sphere + p_sphere(1), ...
                     sp_y * r_sphere + p_sphere(2), ...
                     sp_z * r_sphere + p_sphere(3), ...
-                    'FaceColor', [0.0 0.8 1.0], 'FaceAlpha', alpha_val, ...
+                    'FaceColor', [0.0 0.7 0.9], 'FaceAlpha', 0.12, ...
                     'EdgeColor', 'none', 'Tag', 'TAG_CBF_DYNAMIC_SPHERES');
             end
             
             % =============================================================
-            % 【機能追加】MPC-CBF 将来予測軌道（Horizon N ステップ）の可視化
+            % 【最前面強調表示】MPC-CBF 将来予測軌道（Horizon N ステップ）
             % =============================================================
             delete(findobj(obj.ax, 'Tag', 'TAG_MPC_PREDICTED_TRAJ'));
             
+            P_pred = [];
             if ~isempty(obj.replanner_ref) && isprop(obj.replanner_ref, 'p_pred_cache')
-                P_pred = obj.replanner_ref.p_pred_cache; % [3 x (N+1)]
-                if ~isempty(P_pred) && size(P_pred, 2) >= 2
-                    % 1. 吊り荷の将来予測軌道 (太線シアン ＋ 丸マーカー)
-                    plot3(obj.ax, P_pred(1, :), P_pred(2, :), P_pred(3, :), ...
-                        '-o', 'Color', [0.0 0.9 0.9], 'LineWidth', 2.2, ...
-                        'MarkerSize', 4.5, 'MarkerFaceColor', [0.1 0.4 1.0], ...
-                        'Tag', 'TAG_MPC_PREDICTED_TRAJ');
-                    
-                    % 2. ドローン本体の将来予測軌道 (破線マゼンタ)
-                    P_pred_Q = P_pred + [0; 0; L_cable];
-                    plot3(obj.ax, P_pred_Q(1, :), P_pred_Q(2, :), P_pred_Q(3, :), ...
-                        '--', 'Color', [1.0 0.2 0.8], 'LineWidth', 1.4, ...
-                        'Tag', 'TAG_MPC_PREDICTED_TRAJ');
-                    
-                    % 3. 予測ホライズン末端（ゴール方向）の強調マーカー
-                    plot3(obj.ax, P_pred(1, end), P_pred(2, end), P_pred(3, end), ...
-                        'p', 'Color', [1.0 0.8 0.0], 'MarkerSize', 10, ...
-                        'MarkerFaceColor', [1.0 0.5 0.0], ...
-                        'Tag', 'TAG_MPC_PREDICTED_TRAJ');
-                end
+                P_pred = obj.replanner_ref.p_pred_cache;
+            end
+            
+            if ~isempty(P_pred) && size(P_pred, 2) >= 2
+                % 1. 吊り荷の将来予測軌道（高コントラスト・蛍光グリーン実線）
+                plot3(obj.ax, P_pred(1, :), P_pred(2, :), P_pred(3, :), ...
+                    '-', 'Color', [0.0 1.0 0.3], 'LineWidth', 3.2, ...
+                    'Tag', 'TAG_MPC_PREDICTED_TRAJ');
+                
+                % 2. 予測ウェイポイント点列（オレンジ丸マーカー）
+                plot3(obj.ax, P_pred(1, :), P_pred(2, :), P_pred(3, :), ...
+                    'o', 'MarkerEdgeColor', [1.0 0.3 0.0], 'MarkerFaceColor', [1.0 0.9 0.0], ...
+                    'MarkerSize', 5.5, 'Tag', 'TAG_MPC_PREDICTED_TRAJ');
+                
+                % 3. ドローン本体の将来予測軌道（マゼンタ破線）
+                P_pred_Q = P_pred + [0; 0; L_cable];
+                plot3(obj.ax, P_pred_Q(1, :), P_pred_Q(2, :), P_pred_Q(3, :), ...
+                    '--', 'Color', [1.0 0.1 0.8], 'LineWidth', 1.8, ...
+                    'Tag', 'TAG_MPC_PREDICTED_TRAJ');
+                
+                % 4. 予測ホライズン末端（到達目標点）の星形マーカー
+                plot3(obj.ax, P_pred(1, end), P_pred(2, end), P_pred(3, end), ...
+                    'p', 'Color', [1.0 0.2 0.0], 'MarkerSize', 11, ...
+                    'MarkerFaceColor', [1.0 0.8 0.0], ...
+                    'Tag', 'TAG_MPC_PREDICTED_TRAJ');
             end
         end
     end
