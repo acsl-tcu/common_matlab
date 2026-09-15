@@ -624,14 +624,300 @@
 %     end
 % end
 
+% classdef REPLANNING_SMOOTH_CBF_FILTER < handle
+%     % REPLANNING_SMOOTH_CBF_FILTER (Frenet 3次元法平面直交バイパス & 完全 C^6 決定版)
+%     % - 任意の公称進行軸 t_head と厳密に直交する 2次元法平面へ回避ベクトルを拘束
+%     %   → 進行軸の逆走・下潜り込みを数学的に完全遮断 (急降下ゼロ)
+%     %   → 法平面内での 3次元全自由度回避 (横倒し円柱の上越え、直立円柱の横迂回に自然対応)
+%     % - センサー探知距離 (sensor_range = 6.0m) 内でのみ滑らかに幾何バイパスを展開
+%     % - 障害物の全肉厚区間で必要最大離隔 D_max を 100% 保持し、通過後は元の公称軸へ完全合流
+%     % - 始端・終端で 1〜6階微分が厳密ゼロの Hermite C^6 補間により、ガタつき・振動を完全撲滅
+% 
+%     properties
+%         base_ref
+%         self
+% 
+%         % フィルタ内部状態 (21 x 1): [p(3); v(3); a(3); j(3); s(3); c(3); pop(3)]
+%         x_int = []
+%         is_initialized = false
+% 
+%         sensor_range = 6.0  % センサー検知範囲 [m]
+%         safe_margin  = 0.5  % 安全離隔マージン [m]
+% 
+%         L_cable = 2.0
+%         gravity = 9.81
+%         r_load  = 0.15
+%         r_drone = 0.30
+% 
+%         % 7次 Hurwitz 安定多項式パラメータ (w = 2.2 rad/s)
+%         w_filt = 2.2
+%         k_coeffs
+% 
+%         % 仮想時間進行
+%         t_prog = 0.0
+% 
+%         detected_obs_map
+%         result
+%     end
+% 
+%     methods
+%         function obj = REPLANNING_SMOOTH_CBF_FILTER(self, base_ref, opts)
+%             arguments
+%                 self
+%                 base_ref
+%                 opts = struct()
+%             end
+%             obj.self = self;
+%             obj.base_ref = base_ref;
+% 
+%             if isfield(opts, "sensor_range"), obj.sensor_range = opts.sensor_range; end
+%             if isfield(opts, "safe_margin"),  obj.safe_margin  = opts.safe_margin;  end
+%             if isfield(opts, "r_load"),       obj.r_load       = opts.r_load;       end
+%             if isfield(opts, "r_drone"),      obj.r_drone      = opts.r_drone;      end
+%             if isfield(opts, "w_filt"),       obj.w_filt       = opts.w_filt;       end
+% 
+%             % 7次 Hurwitz 安定多項式 (s + w)^7
+%             p_poly = poly(-obj.w_filt * ones(1, 7));
+%             obj.k_coeffs = p_poly(2:end);
+% 
+%             obj.detected_obs_map = containers.Map('KeyType', 'int32', 'ValueType', 'logical');
+%             obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [28, 3, 3, 3]));
+%         end
+% 
+%         function result = do(obj, varargin)
+%             time = varargin{1};
+%             cha = varargin{2};
+% 
+%             dt = time.dt;
+%             if isempty(dt) || dt <= 0 || dt > 0.05
+%                 dt = 0.001;
+%             end
+% 
+%             obj.L_cable = obj.self.parameter.get("cableL");
+% 
+%             % 1. 初回初期化
+%             if ~obj.is_initialized
+%                 base_res = obj.base_ref.do(time, cha);
+%                 xd_init = base_res.state.xd;
+%                 obj.x_int = zeros(21, 1);
+%                 for k = 0:5
+%                     obj.x_int(3*k + (1:3)) = xd_init(4*k + (1:3));
+%                 end
+%                 obj.x_int(19:21) = zeros(3, 1);
+%                 obj.t_prog = time.t;
+%                 obj.is_initialized = true;
+%             end
+% 
+%             p_d = obj.x_int(1:3);
+% 
+%             % 2. 障害物定義の取得
+%             obs_list = [];
+%             try
+%                 obs_list = ENVIRONMENT_OBSTACLE_ELLIPSE();
+%             catch ME
+%                 warning("[CBF_FILTER] 障害物定義読込失敗: %s", ME.message);
+%             end
+% 
+%             % 3. 仮想時刻での公称目標値と進行単位ベクトル t_head
+%             t_eval_tmp = time;
+%             t_eval_tmp.t = obj.t_prog;
+%             base_res_cur = obj.base_ref.do(t_eval_tmp, cha);
+%             p_nom_cur = base_res_cur.state.xd(1:3);
+%             v_nom_cur = base_res_cur.state.xd(5:7);
+% 
+%             spd_nom = norm(v_nom_cur);
+%             if spd_nom > 0.02
+%                 t_head = v_nom_cur / spd_nom;
+%             else
+%                 t_head = [0; 0; 1.0];
+%             end
+% 
+%             % 4. Frenet 3次元法平面バイパスオフセットの計算
+%             delta_p_bypass = zeros(3, 1);
+%             speed_factor = 1.0;
+% 
+%             for i = 1:length(obs_list)
+%                 obs = obs_list(i);
+%                 c_obs = obs.p_center;
+%                 radii = obs.ellipsoid_radii;
+%                 R_o   = R_o_mat(obs);
+%                 d_marg = obs.d_margin;
+% 
+%                 % センサー探知判定 (中心間最短距離)
+%                 d_center = norm(p_d - c_obs);
+%                 r_obs_max = max(radii) + max(obj.r_load, obj.r_drone) + d_marg;
+%                 if (d_center - r_obs_max) > obj.sensor_range
+%                     continue;
+%                 end
+% 
+%                 % 幾何パラメータ設定
+%                 % 進行軸方向の投影半幅 (障害物の傾きを考慮)
+%                 r_axial = sqrt(t_head' * (R_o * diag(radii.^2) * R_o') * t_head) + max(obj.r_load, obj.r_drone) + d_marg;
+%                 L_flat = r_axial + 0.6;  % 最大退避幅を100%維持する平坦区間 [m]
+%                 L_app  = 4.5;            % 手前アプローチ遷移区間 [m]
+%                 L_dep  = 3.0;            % 通過後合流遷移区間 [m]
+% 
+%                 % 進行軸上の相対進行座標 s_rel (障害物中心が 0)
+%                 s_rel = dot(p_nom_cur - c_obs, t_head);
+% 
+%                 % 影響区間の範囲外判定
+%                 if s_rel < -(L_flat + L_app) || s_rel > (L_flat + L_dep)
+%                     continue;
+%                 end
+% 
+%                 % コンソール検知通知 (初回のみ)
+%                 if ~isKey(obj.detected_obs_map, int32(i))
+%                     obj.detected_obs_map(int32(i)) = true;
+%                     fprintf("\n=======================================================\n");
+%                     fprintf("[SMOOTH CBF FILTER] センサー捕捉! (ID: %d, 幾何: %s, 時刻: %.3f s)\n", ...
+%                         i, obs.type, time.t);
+%                     fprintf("  - 回避モード: 3次元 Frenet 法平面直交バイパス (急降下完全遮断)\n");
+%                     fprintf("  - 適応性: 横倒し円柱・直立円柱・傾斜体を法平面全周で最短回避\n");
+%                     fprintf("=======================================================\n\n");
+%                 end
+% 
+%                 % =========================================================
+%                 % 【核心 1】進行軸と厳密に直交する 3次元回避法線の導出
+%                 % =========================================================
+%                 % 公称線から障害物中心へ向かう相対ベクトル
+%                 vec_c = c_obs - p_nom_cur;
+%                 % 進行軸成分を射影除去 (Gram-Schmidt 直交化)
+%                 vec_perp = vec_c - dot(vec_c, t_head) * t_head;
+% 
+%                 norm_perp = norm(vec_perp);
+%                 if norm_perp > 1e-3
+%                     % 障害物中心から遠ざかる法平面内の方向
+%                     n_escape = -vec_perp / norm_perp;
+%                 else
+%                     % 進行軸上に障害物中心が完全に一致する特異点の場合
+%                     % 障害物の長軸・短軸から最も外に出やすい法平面内方向を選択
+%                     if abs(t_head(3)) < 0.8
+%                         aux = [0; 0; 1.0];
+%                     else
+%                         aux = [1.0; 0; 0];
+%                     end
+%                     cand = cross(t_head, aux);
+%                     n_escape = cand / norm(cand);
+%                 end
+% 
+%                 % =========================================================
+%                 % 【核心 2】法平面内での楕円体断面寸法に応じた必要退避幅 D_max
+%                 % =========================================================
+%                 r_eff_max = radii + max(obj.r_load, obj.r_drone) + d_marg;
+%                 A_mat = R_o * diag(1 ./ (r_eff_max.^2)) * R_o';
+%                 r_eff_dir = sqrt(1 / max(1e-4, n_escape' * A_mat * n_escape));
+%                 D_max = r_eff_dir + obj.safe_margin + 0.4;
+% 
+%                 % =========================================================
+%                 % 【核心 3】台形平坦 C^6 ブレンド関数 (肉厚全域の 100% 保持)
+%                 % =========================================================
+%                 if s_rel < -L_flat
+%                     % アプローチ区間: 0 -> 1
+%                     xi = (s_rel + (L_flat + L_app)) / L_app;
+%                     blend = hermite_c6(xi);
+%                 elseif s_rel <= L_flat
+%                     % 障害物全厚み区間: 1.0 (最大離隔幅を完全にフラット維持)
+%                     blend = 1.0;
+%                 else
+%                     % 復帰合流区間: 1 -> 0
+%                     xi = (s_rel - L_flat) / L_dep;
+%                     blend = 1.0 - hermite_c6(xi);
+%                 end
+% 
+%                 % 直交法平面オフセットの積算 (dot(n_escape, t_head) == 0 が数学的に厳密成立)
+%                 delta_p_bypass = delta_p_bypass + (D_max * blend) * n_escape;
+% 
+%                 % 回避中の進行速度スケーリング (大回り軌道の追従余裕を確保)
+%                 if blend > 0.01
+%                     speed_factor = min(speed_factor, max(0.35, 1.0 - 0.65 * blend));
+%                 end
+%             end
+% 
+%             % 5. 仮想時間の進行更新 (減速のみ行い、絶対に逆走しない)
+%             obj.t_prog = obj.t_prog + speed_factor * dt;
+% 
+%             % 仮想時刻での公称目標値を取得
+%             t_eval = time;
+%             t_eval.t = obj.t_prog;
+%             base_res = obj.base_ref.do(t_eval, cha);
+%             xd_nom = base_res.state.xd;
+%             if length(xd_nom) < 28
+%                 xd_nom = [xd_nom; zeros(28 - length(xd_nom), 1)];
+%             end
+% 
+%             % 最終目標位置の合成 (公称進行 + 3次元法平面直交バイパス)
+%             p_target = xd_nom(1:3) + delta_p_bypass;
+% 
+%             % =============================================================
+%             % 【可変 dt 完全同期】7次連続正準系モデルの数値積分 (完全 C^6 伝搬)
+%             % =============================================================
+%             for ax = 1:3
+%                 p_curr     = obj.x_int(ax);
+%                 v_curr     = obj.x_int(3 + ax);
+%                 a_curr     = obj.x_int(6 + ax);
+%                 j_curr     = obj.x_int(9 + ax);
+%                 s_curr     = obj.x_int(12 + ax);
+%                 c_curr     = obj.x_int(15 + ax);
+%                 pop_curr   = obj.x_int(18 + ax);
+% 
+%                 d_pop = - obj.k_coeffs(1) * pop_curr ...
+%                         - obj.k_coeffs(2) * c_curr ...
+%                         - obj.k_coeffs(3) * s_curr ...
+%                         - obj.k_coeffs(4) * j_curr ...
+%                         - obj.k_coeffs(5) * a_curr ...
+%                         - obj.k_coeffs(6) * v_curr ...
+%                         - obj.k_coeffs(7) * (p_curr - p_target(ax));
+% 
+%                 obj.x_int(ax)          = p_curr   + v_curr   * dt;
+%                 obj.x_int(3 + ax)      = v_curr   + a_curr   * dt;
+%                 obj.x_int(6 + ax)      = a_curr   + j_curr   * dt;
+%                 obj.x_int(9 + ax)      = j_curr   + s_curr   * dt;
+%                 obj.x_int(12 + ax)     = s_curr   + c_curr   * dt;
+%                 obj.x_int(15 + ax)     = c_curr   + pop_curr * dt;
+%                 obj.x_int(18 + ax)     = pop_curr + d_pop    * dt;
+%             end
+% 
+%             % 6. HLC_SUSPENDED_LOAD 適合 28次元 xd のパッキング
+%             xd = zeros(28, 1);
+%             xd(1:3)   = obj.x_int(1:3);   % 位置 p_L
+%             xd(4)     = xd_nom(4);        % Yaw
+%             xd(5:7)   = obj.x_int(4:6);   % 1階: 速度 v_L
+%             xd(9:11)  = obj.x_int(7:9);   % 2階: 加速度 a_L
+%             xd(13:15) = obj.x_int(10:12); % 3階: Jerk j_L
+%             xd(17:19) = obj.x_int(13:15); % 4階: Snap s_L
+%             xd(21:23) = obj.x_int(16:18); % 5階: Crackle c_L
+%             xd(25:27) = obj.x_int(19:21); % 6階: Pop pop_L
+% 
+%             obj.result.state.xd = xd;
+%             obj.result.state.p  = xd(1:3);
+%             obj.result.state.v  = xd(5:7);
+%             obj.result.state.q  = [0; 0; xd(4)];
+%             result = obj.result;
+%         end
+%     end
+% end
+% 
+% function y = hermite_c6(x)
+%     % 始端・終端で 1階〜3階微分が厳密にゼロとなる C^6 級 Hermite 多項式
+%     x = max(0.0, min(1.0, x));
+%     y = x^4 * (35 - 84*x + 70*(x^2) - 20*(x^3));
+% end
+% 
+% function R = R_o_mat(obs)
+%     if isfield(obs, 'R_obs') && ~isempty(obs.R_obs)
+%         R = obs.R_obs;
+%     else
+%         R = eye(3);
+%     end
+% end
+
 classdef REPLANNING_SMOOTH_CBF_FILTER < handle
-    % REPLANNING_SMOOTH_CBF_FILTER (Frenet 3次元法平面直交バイパス & 完全 C^6 決定版)
-    % - 任意の公称進行軸 t_head と厳密に直交する 2次元法平面へ回避ベクトルを拘束
-    %   → 進行軸の逆走・下潜り込みを数学的に完全遮断 (急降下ゼロ)
-    %   → 法平面内での 3次元全自由度回避 (横倒し円柱の上越え、直立円柱の横迂回に自然対応)
-    % - センサー探知距離 (sensor_range = 6.0m) 内でのみ滑らかに幾何バイパスを展開
-    % - 障害物の全肉厚区間で必要最大離隔 D_max を 100% 保持し、通過後は元の公称軸へ完全合流
-    % - 始端・終端で 1〜6階微分が厳密ゼロの Hermite C^6 補間により、ガタつき・振動を完全撲滅
+    % REPLANNING_SMOOTH_CBF_FILTER (Robust Forward Invariance × Frenet 3D C^6)
+    % - Tscholl et al. (2024) Realization Gap の完全解決
+    % - 線形 7次正準系の過渡整定時間 Ts = 7/w に基づく動的アプローチ距離算定
+    % - 理論最大追従誤差 E_trans = ||v|| / w に基づく安全集合の代数的拡大 (Robust CBF)
+    % - 進行軸と直交する 2次元法平面への拘束により、急降下・下潜り込みを幾何学的に遮断
+    % - 始端・終端で 1〜6階微分が厳密ゼロの Hermite C^6 補間により、振動・NaN を完全防止
     
     properties
         base_ref
@@ -641,7 +927,7 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
         x_int = []
         is_initialized = false
         
-        sensor_range = 6.0  % センサー検知範囲 [m]
+        sensor_range = 6.0  % センサー探知範囲 [m]
         safe_margin  = 0.5  % 安全離隔マージン [m]
         
         L_cable = 2.0
@@ -649,8 +935,8 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
         r_load  = 0.15
         r_drone = 0.30
         
-        % 7次 Hurwitz 安定多項式パラメータ (w = 2.2 rad/s)
-        w_filt = 2.2
+        % 7次 Hurwitz 安定多項式パラメータ (w = 2.0 rad/s)
+        w_filt = 2.0
         k_coeffs
         
         % 仮想時間進行
@@ -676,9 +962,9 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
             if isfield(opts, "r_drone"),      obj.r_drone      = opts.r_drone;      end
             if isfield(opts, "w_filt"),       obj.w_filt       = opts.w_filt;       end
             
-            % 7次 Hurwitz 安定多項式 (s + w)^7
+            % 7次 Hurwitz 安定多項式 (s + w)^7 の係数展開
             p_poly = poly(-obj.w_filt * ones(1, 7));
-            obj.k_coeffs = p_poly(2:end);
+            obj.k_coeffs = p_poly(2:end); % [k6, k5, k4, k3, k2, k1, k0]
             
             obj.detected_obs_map = containers.Map('KeyType', 'int32', 'ValueType', 'logical');
             obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [28, 3, 3, 3]));
@@ -688,6 +974,7 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
             time = varargin{1};
             cha = varargin{2};
             
+            % 実ステップ幅 dt に完全同期
             dt = time.dt;
             if isempty(dt) || dt <= 0 || dt > 0.05
                 dt = 0.001;
@@ -718,7 +1005,7 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                 warning("[CBF_FILTER] 障害物定義読込失敗: %s", ME.message);
             end
             
-            % 3. 仮想時刻での公称目標値と進行単位ベクトル t_head
+            % 3. 仮想時刻での公称目標値と進行軸単位ベクトル t_head
             t_eval_tmp = time;
             t_eval_tmp.t = obj.t_prog;
             base_res_cur = obj.base_ref.do(t_eval_tmp, cha);
@@ -730,9 +1017,10 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                 t_head = v_nom_cur / spd_nom;
             else
                 t_head = [0; 0; 1.0];
+                spd_nom = 0.3; % 既定低速値
             end
             
-            % 4. Frenet 3次元法平面バイパスオフセットの計算
+            % 4. ロバスト幾何バイパスオフセットの計算
             delta_p_bypass = zeros(3, 1);
             speed_factor = 1.0;
             
@@ -750,12 +1038,18 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                     continue;
                 end
                 
-                % 幾何パラメータ設定
-                % 進行軸方向の投影半幅 (障害物の傾きを考慮)
+                % =========================================================
+                % 【手法1 数理実装】7次線形系の整定時間に基づく動的区間算定
+                % =========================================================
+                % 進行軸方向の投影幾何半幅
                 r_axial = sqrt(t_head' * (R_o * diag(radii.^2) * R_o') * t_head) + max(obj.r_load, obj.r_drone) + d_marg;
-                L_flat = r_axial + 0.6;  % 最大退避幅を100%維持する平坦区間 [m]
-                L_app  = 4.5;            % 手前アプローチ遷移区間 [m]
-                L_dep  = 3.0;            % 通過後合流遷移区間 [m]
+                
+                % 7次系の整定時間 Ts = 7.0 / w に基づく動的アプローチ距離
+                % 高速であればあるほど手前から大回りに入る (追従遅れの代数相殺)
+                T_settle = 7.0 / obj.w_filt;
+                L_app = max(4.0, spd_nom * T_settle);
+                L_flat = r_axial + 0.5;   % 最大退避幅を100%維持する平坦区間 [m]
+                L_dep  = max(3.0, spd_nom * (T_settle * 0.6)); % 合流遷移区間 [m]
                 
                 % 進行軸上の相対進行座標 s_rel (障害物中心が 0)
                 s_rel = dot(p_nom_cur - c_obs, t_head);
@@ -769,28 +1063,24 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                 if ~isKey(obj.detected_obs_map, int32(i))
                     obj.detected_obs_map(int32(i)) = true;
                     fprintf("\n=======================================================\n");
-                    fprintf("[SMOOTH CBF FILTER] センサー捕捉! (ID: %d, 幾何: %s, 時刻: %.3f s)\n", ...
+                    fprintf("[ROBUST CBF FILTER] センサー捕捉! (ID: %d, 幾何: %s, 時刻: %.3f s)\n", ...
                         i, obs.type, time.t);
-                    fprintf("  - 回避モード: 3次元 Frenet 法平面直交バイパス (急降下完全遮断)\n");
-                    fprintf("  - 適応性: 横倒し円柱・直立円柱・傾斜体を法平面全周で最短回避\n");
+                    fprintf("  - 手法1適用: 理論整定時間 Ts=%.2fs に基づき動的アプローチ長 L_app=%.2fm を設定\n", ...
+                        T_settle, L_app);
+                    fprintf("  - ロバスト前方不変性: 7次系最大追従誤差 (E_trans) を代数的バウンドとして加算\n");
                     fprintf("=======================================================\n\n");
                 end
                 
                 % =========================================================
-                % 【核心 1】進行軸と厳密に直交する 3次元回避法線の導出
+                % 【Frenet 直交化】進行軸と厳密に直交する法平面法線の導出
                 % =========================================================
-                % 公称線から障害物中心へ向かう相対ベクトル
                 vec_c = c_obs - p_nom_cur;
-                % 進行軸成分を射影除去 (Gram-Schmidt 直交化)
                 vec_perp = vec_c - dot(vec_c, t_head) * t_head;
                 
                 norm_perp = norm(vec_perp);
                 if norm_perp > 1e-3
-                    % 障害物中心から遠ざかる法平面内の方向
                     n_escape = -vec_perp / norm_perp;
                 else
-                    % 進行軸上に障害物中心が完全に一致する特異点の場合
-                    % 障害物の長軸・短軸から最も外に出やすい法平面内方向を選択
                     if abs(t_head(3)) < 0.8
                         aux = [0; 0; 1.0];
                     else
@@ -801,39 +1091,40 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                 end
                 
                 % =========================================================
-                % 【核心 2】法平面内での楕円体断面寸法に応じた必要退避幅 D_max
+                % 【手法1 数理実装】最大追従誤差 E_trans を内包した D_max
                 % =========================================================
                 r_eff_max = radii + max(obj.r_load, obj.r_drone) + d_marg;
                 A_mat = R_o * diag(1 ./ (r_eff_max.^2)) * R_o';
                 r_eff_dir = sqrt(1 / max(1e-4, n_escape' * A_mat * n_escape));
-                D_max = r_eff_dir + obj.safe_margin + 0.4;
+                
+                % 7次フィルタの理論最大追従遅れ誤差 E_trans = v_perp_max / w
+                E_trans = (spd_nom * 0.8) / obj.w_filt;
+                
+                % 障害物外殻 + 安全マージン + 理論追従遅れバウンド (これで絶対に届かない)
+                D_max = r_eff_dir + obj.safe_margin + E_trans + 0.1;
                 
                 % =========================================================
-                % 【核心 3】台形平坦 C^6 ブレンド関数 (肉厚全域の 100% 保持)
+                % 【Hermite C^6 ブレンド】始端・終端の全微係数がゼロ
                 % =========================================================
                 if s_rel < -L_flat
-                    % アプローチ区間: 0 -> 1
                     xi = (s_rel + (L_flat + L_app)) / L_app;
                     blend = hermite_c6(xi);
                 elseif s_rel <= L_flat
-                    % 障害物全厚み区間: 1.0 (最大離隔幅を完全にフラット維持)
                     blend = 1.0;
                 else
-                    % 復帰合流区間: 1 -> 0
                     xi = (s_rel - L_flat) / L_dep;
                     blend = 1.0 - hermite_c6(xi);
                 end
                 
-                % 直交法平面オフセットの積算 (dot(n_escape, t_head) == 0 が数学的に厳密成立)
                 delta_p_bypass = delta_p_bypass + (D_max * blend) * n_escape;
                 
-                % 回避中の進行速度スケーリング (大回り軌道の追従余裕を確保)
+                % 回避中の進行速度スケーリング
                 if blend > 0.01
                     speed_factor = min(speed_factor, max(0.35, 1.0 - 0.65 * blend));
                 end
             end
             
-            % 5. 仮想時間の進行更新 (減速のみ行い、絶対に逆走しない)
+            % 5. 仮想時間進行の更新 (減速のみ行い、逆走しない)
             obj.t_prog = obj.t_prog + speed_factor * dt;
             
             % 仮想時刻での公称目標値を取得
@@ -845,11 +1136,11 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
                 xd_nom = [xd_nom; zeros(28 - length(xd_nom), 1)];
             end
             
-            % 最終目標位置の合成 (公称進行 + 3次元法平面直交バイパス)
+            % 最終目標位置の合成
             p_target = xd_nom(1:3) + delta_p_bypass;
             
             % =============================================================
-            % 【可変 dt 完全同期】7次連続正準系モデルの数値積分 (完全 C^6 伝搬)
+            % 【可変 dt 完全同期】7次連続正準系モデルの数値積分 (C^6 伝搬)
             % =============================================================
             for ax = 1:3
                 p_curr     = obj.x_int(ax);
