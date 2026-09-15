@@ -1,161 +1,152 @@
-%　通常テーマ1がもとになってる MPC3
-ts = 0; % initial time
-dt = 0.025; % sampling period
-te = 50; % termina time
-time = TIME(ts,dt,te);
+% =========================================================================
+% 通常テーマ1（懸垂負荷系クアッドロータ）
+% 案3: 離散時間 MPC-CBF (Li et al. CCDC 2024 + Greeff et al. IROS 2018)
+% =========================================================================
+ts = 0;             % 初期時刻 [s]
+dt = 0.025;         % サンプリング周期 [s] (40 Hz シミュレーションステップ)
+te = 50;            % 終了時刻 [s]
+time = TIME(ts, dt, te);
+
 in_prog_func = @(app) in_prog(app);
-post_func = @(app) post(app);
-logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
+post_func    = @(app) post(app);
+
+logger = LOGGER(1, size(ts:dt:te, 2), 0, [], []); 
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
-fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
+fprintf("表示項目\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
-% drone plant setting
+% -------------------------------------------------------------------------
+% 1. ドローン本体および懸垂負荷パラメータ設定
+% -------------------------------------------------------------------------
 agent = DRONE;
 agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
-agent.parameter.set("loadmass",0.14);%0.0968);%0.968
-agent.parameter.set("cableL",2.0);%0.0968);%0.968
+agent.parameter.set("loadmass", 0.14);   % 真の荷物質量 [kg]
+agent.parameter.set("cableL",   2.0);    % ケーブル長 L [m]
+
 initial_state.q  = [0; 0; 0];
 initial_state.w  = [0; 0; 0];
 initial_state.vL = [0; 0; 0];
-initial_state.p = [0; 0; 0];
-initial_state.pT = [0; 0; -1];
+initial_state.p  = [0; 0; 0];
+initial_state.pT = [0; 0; -1];           % ケーブル単位方向ベクトル (初期真下)
 initial_state.wL = [0; 0; 0];
-initial_state.pL = initial_state.p + initial_state.pT*agent.parameter.cableL;
-initial_state.v = [0; 0; 0];
-% Note: set the model error after setting "plant"
-agent.plant = MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state,1,agent));%dt,initial,id,agent,modelName
-agent.parameter.set("loadmass",0.01);%0.0968);%0.968
+initial_state.pL = initial_state.p + initial_state.pT * agent.parameter.cableL;
+initial_state.v  = [0; 0; 0];
 
-% Sim only: getData works after setting "plant"
-motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)
+% プラントモデル生成
+agent.plant = MODEL_CLASS(agent, Model_Suspended_Load(dt, initial_state, 1, agent));
+
+% 推定器側の初期推定質量 (モデル化誤差の設定)
+agent.parameter.set("loadmass", 0.01);
+
+% モーションキャプチャ模擬
+motive = Connector_Natnet_sim(dt, {{1, "p", "q"}, {1, "pL", "pT"}});
 motive.getData(agent);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% drone setting  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
-function y = motive_output(obj,data)
-% Motiveの生データから、機体姿勢と吊り荷位置・ケーブル方向を整理する。
-% 出力は推定器の入力として [p; euler; pL; pT] の形に整形する。
-p = data.rigid(obj.rigid_id(1)).p;
-pT = data.rigid(obj.rigid_id(2)).p - p;
-pT = pT/norm(pT);
-y = [p;Quat2Eul(data.rigid(obj.rigid_id(1)).q);data.rigid(obj.rigid_id(2)).p;pT];
+% センサ割当
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive, ...
+    "output_func", @motive_output, "rigid_id", [1, 2], "state_list", {["p", "q"], "p"}));
+
+function y = motive_output(obj, data)
+    % Motive 生データから姿勢および荷物位置・ケーブル方向を整形
+    p  = data.rigid(obj.rigid_id(1)).p;
+    pT = data.rigid(obj.rigid_id(2)).p - p;
+    pT = pT / norm(pT);
+    y  = [p; Quat2Eul(data.rigid(obj.rigid_id(1)).q); data.rigid(obj.rigid_id(2)).p; pT];
 end
 
-agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent,dt,...
-    MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")),...%"Load_mL_HL"
-    ["p", "q","pL","pT"])));%expの流用 質量推定有
-
+% 推定器割当 (EKF質量推定 + 懸垂状態管理)
+agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent, dt, ...
+    MODEL_CLASS(agent, Model_Suspended_Load(dt, initial_state, 1, agent, "Load_mL_HL")), ...
+    ["p", "q", "pL", "pT"])));
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
+
 L = agent.parameter.cableL;
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
-% 直線軌道（静止ホバリングから2秒後に滑らかに前進開始）
-% % 直線リファレンスの設定 (y軸方向に0.3 m/s で等速直進)
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, ...
-%     {"gen_ref_line", { ...
-%         "p0", [0, 0, 1.5], ...        % 開始位置 [x, y, z] (gen_ref_saddle と同じく 1.5)
-%         "velocity", 0.3, ...          % 巡航速度 [m/s]
-%         "direction", [0, 1, 0] ...    % 進行方向 (y軸正方向)
-%     }, 6}));
-% 公称直線軌道 (z方向に0.3 m/s で上昇)
+
+% -------------------------------------------------------------------------
+% 2. 参照軌道 (Reference) 生成層の設定
+% -------------------------------------------------------------------------
+% 公称直線軌道 (z方向に 1.5 m/s で高速上昇)
 nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     {"gen_ref_line", { ...
-        "p0", [0, 0, 3], ...        % 開始位置
-        "velocity", 0.3, ...          % 巡航速度 0.3 m/s
-        "direction", [0, 0, 1] ...    % z方向 (真上)
+        "p0",        [0, 0, 3.0], ...     % 開始位置 (離陸完了高度と完全一致)
+        "velocity",  1.5, ...             % 巡航速度 1.5 m/s
+        "direction", [0, 0, 1] ...        % 進行方向 (鉛直上向き)
     }, 6});
 
-% リプランナ設定 (トリガーは距離ベースに変更されたため trigger_y は不要)
-replan_opts.obs_center   = [0.2; 0.2; 10.0];   % 上方 (z=4.0) にある障害物
-replan_opts.obs_radius   = 0.3;           % 半径
-replan_opts.safe_margin  = 0.3;           % 安全マージン
-replan_opts.trigger_dist = 2.5;           % 障害物から 2.5m 以内に近づいたら自動検知して動的計算開始
+% 【最新版】離散時間 MPC-CBF リプランナ設定 (Li et al. 2024 + Greeff 2018)
+replan_opts = struct();
+replan_opts.sensor_range = 6.0;   % 実機LiDAR模擬 探知距離 (面対面最短 6.0m)
+replan_opts.safe_margin  = 0.4;   % 安全離隔マージン [m]
+replan_opts.N_horiz      = 10;    % 予測ホライズンステップ数
+replan_opts.dt_mpc       = 0.10;  % MPC 最適化周期 (10 Hz)
+replan_opts.gamma_cbf    = 0.65;  % 離散CBF減衰パラメータ (0 < gamma <= 1)
+replan_opts.r_load       = 0.15;  % 荷物半径 [m]
+replan_opts.r_drone      = 0.30;  % 機体半径 [m]
 
 agent.reference.set_function_class("timevarying", ...
     REPLANNING_LINEAR_MPC_CBF(agent, nominal_ref, replan_opts));
 
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
-agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 3.0, "te", 5));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "zd", -L, "te", 3));
 
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+% -------------------------------------------------------------------------
+% 3. 下位ハイレベルコントローラ (HLC)
+% -------------------------------------------------------------------------
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent, Controller_HL_Suspended_Load(dt, agent)));
 
-agent.set_cha_allocation_for_all("sensor","motive");
-agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
-agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
-agent.cha_allocation.t.reference =["takeoff","sload"];
-agent.cha_allocation.f.reference =["timevarying","sload"];
-agent.cha_allocation.l.reference =["landing","sload"];
+% チャンネル割当
+agent.set_cha_allocation_for_all("sensor", "motive");
+agent.set_cha_allocation_for_all("estimator", ["ekf", "loadstate"]);
+agent.cha_allocation.a.reference = ["takeoff", "sload"];
+agent.cha_allocation.t.reference = ["takeoff", "sload"];
+agent.cha_allocation.f.reference = ["timevarying", "sload"];
+agent.cha_allocation.l.reference = ["landing", "sload"];
 
-%%
-
+%% ========================================================================
+%  事後解析・可視化コールバック関数群
+% ========================================================================
 function post(app)
-% シミュレーション終了後の結果表示とアニメーション作成。
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
-% app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
-app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
-% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-% app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
-% app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
-
-show_suspended_load_animation(app); % アニメーション描画
+    % シミュレーション終了後の結果プロット
+    app.logger.plot({{1, "p", "er"}, {1, "estimator.result.state.pL", "e"}}, "ax", app.UIAxes, "phase", "tfl");
+    app.logger.plot({{1, "p", "er"}, {1, "estimator.result.state.pL", "e"}}, "phase", "f", "fig_num", 2);
+    app.logger.plot({{1, "v1:2", "er"}, {1, "estimator.result.state.vL1:2", ""}}, "fig_num", 3);
+    
+    % アニメーション描画
+    show_suspended_load_animation(app);
 end
 
 function show_suspended_load_animation(app)
-% 単機の吊り下げモデルをアニメーション表示する。
-if app.logger.k <= 1
-    return
-end
-
-mov = DRAW_SUSPENDED_LOAD(app.logger, ...
-    "target", 1, ...
-    "self", app.agent(1));
-mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
-
-% mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
-
-% mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
-%     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+    if app.logger.k <= 1
+        return
+    end
+    mov = DRAW_SUSPENDED_LOAD_MPC_CBF(app.logger, "target", 1, "self", app.agent(1));
+    mov.animation(app.logger, "target", 1, "self", app.agent(1));
 end
 
 function in_prog(app)
-% 実行中に推定状態をUIに表示する。
-app.TextArea.Text = "estimator : " + app.agent.estimator.result.state.get();
+    app.TextArea.Text = "estimator : " + app.agent.estimator.result.state.get();
 end
-
-
 
 function v = build_display_vector(agent, time)
-% コンソール表示用の文字列を作る。
-% 参照位置、推定位置、入力、推定質量を並べる。
-idx = 1;
-if ~isprop(agent(idx).reference.result.state, "xd")
-    v = [];
-    return
-end
-xd = agent(idx).reference.result.state.xd;
-if isfield(agent(idx).estimator.result, "state")
-    p = agent(idx).estimator.result.state.p;
-    if isprop(agent(idx).estimator.result.state, "mL")
-        mL = agent(idx).estimator.result.state.mL;
+    idx = 1;
+    if ~isprop(agent(idx).reference.result.state, "xd")
+        v = [];
+        return
+    end
+    xd = agent(idx).reference.result.state.xd;
+    if isfield(agent(idx).estimator.result, "state")
+        p = agent(idx).estimator.result.state.p;
+        if isprop(agent(idx).estimator.result.state, "mL")
+            mL = agent(idx).estimator.result.state.mL;
+        else
+            mL = NaN;
+        end
     else
+        p = [NaN; NaN; NaN];
         mL = NaN;
     end
-else
-    p = [NaN; NaN; NaN];
-    mL = NaN;
+    u = agent(idx).controller.result.input;
+    v = sprintf("%c %6.3f : R [%6.3f,%6.3f,%6.3f] : P [%6.3f,%6.3f,%6.3f] : U [%6.3f,%6.3f,%6.3f,%6.3f] : mL %6.3f", ...
+        agent(idx).cha, time.t, xd(1:3)', p', u', mL);
 end
-u = agent(idx).controller.result.input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f",agent(idx).cha, time.t, xd(1:3)', p', u', mL);
-end
-
