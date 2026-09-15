@@ -1,5 +1,8 @@
 %　通常テーマ1がもとになってる
-% Minimum_snap_trajectory_generation_and_control_for_quadrotors.pdfがかんがえのもと
+% Minimum_snap_trajectory_generation_and_control_for_quadrotors.pdfがかんがえのもと]
+%Planning Dynamically Feasible Trajectories for Quadrotors using Safe Flight Corridors in 3-D Complex Environments
+% Geometric Control and Differential Flatness of a Quadrotor UAV with a Cable-Suspended Load" (K. Sreenath et al., CDC 2013)
+% Teach-Repeat-Replan: A Complete and Robust System for Aggressive Flight in Complex Environments"（Boyu Zhou, Fei Gao, Shaojie Shen ら, T-RO 2020）
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
