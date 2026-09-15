@@ -43,7 +43,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                 end
             end
             P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
-            P(7)=1.2 ;
+            % P(7)=1.2 ;
             x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
             % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
             % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
@@ -80,11 +80,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             %obj.result.aa=toc;
             
             % obj.cha = varargin{2};
-            %
-           
-            obj.cha = varargin{2};
-
-            
+            %           
             % if obj.cha=="f"
             %     % chirp ノイズ
             %     %基本設定
@@ -130,7 +126,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             %
             tmp = [uf(1); us]; % 実入力へ変換
             % tmp(3)
-            tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
+            % tmp = obj.notchFilter(tmp, Param.dt);   % ノッチフィルタ適用
             % tmp(3)
           
             obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
@@ -151,37 +147,37 @@ classdef HLC_SUSPENDED_LOAD < handle
             obj.result
         end
 
-        function tmp_f = notchFilter(obj, tmp, dt)
-            if isempty(obj.notchx)
-                g = obj.self.parameter.get("gravity");
-                L = obj.self.parameter.get("cableL");   % ケーブル長を直接取得
-                % wn = 1.57; %中心周波数を設計
-                % wn = sqrt(g/3.0); %中心周波数を設計
-                wn=-1;
-                % fprintf('L = %.4f, wn = %.4f rad/s\n', L, wn);
-                zz = [0.001, 0.01]; %ノッチの深さを設定 [roll, pitch]
-                zp = [0.5, 1]; %ノッチの幅を設定 [roll, pitch]
-
-                % roll用フィルタ設計
-                dx = c2d(tf([1 2*zz(1)*wn wn^2], [1 2*zp(1)*wn wn^2]), dt, 'tustin');%tfを使って伝達関数を作成
-                %c2d(..., dt, 'tustin')連続系の伝達関数をdtをもとに離散系に変換
-                [bx, ax] = tfdata(dx, 'v'); %伝達関数の係数を数値ベクトルで保管保管
-                zx0 = zeros(max(length(ax), length(bx)) - 1, 1); %メモリの初期化
-                obj.notchx = struct('b', bx, 'a', ax, 'z', zx0); %名前づけで楽に
-
-                % pitch用フィルタ設計
-                dy = c2d(tf([1 2*zz(2)*wn wn^2], [1 2*zp(2)*wn wn^2]), dt, 'tustin');
-                [by, ay] = tfdata(dy, 'v');
-                zy0 = zeros(max(length(ay), length(by)) - 1, 1);
-                obj.notchy = struct('b', by, 'a', ay, 'z', zy0);
-            end
-
-            tmp_f = tmp;
-            % [tmp_f(2), obj.notchx.z] = filter(obj.notchx.b, obj.notchx.a, tmp(2), obj.notchx.z);   % roll　 入力信号 x をフィルタ処理した結果が得られる
-            %入力：フィルタの分子係数、フィルタの分母係数、フィルタにかける入力信号、前回のフィルタ処理後に保存しておいた遅延要素の値
-            [tmp_f(3), obj.notchy.z] = filter(obj.notchy.b, obj.notchy.a, tmp(3), obj.notchy.z); % pitch
-            % obj.notchy.z
-        end
+        % function tmp_f = notchFilter(obj, tmp, dt)
+        %     if isempty(obj.notchx)
+        %         g = obj.self.parameter.get("gravity");
+        %         L = obj.self.parameter.get("cableL");   % ケーブル長を直接取得
+        %         % wn = 1.57; %中心周波数を設計
+        %         % wn = sqrt(g/3.0); %中心周波数を設計
+        %         wn=-1;
+        %         % fprintf('L = %.4f, wn = %.4f rad/s\n', L, wn);
+        %         zz = [0.001, 0.01]; %ノッチの深さを設定 [roll, pitch]
+        %         zp = [0.5, 1]; %ノッチの幅を設定 [roll, pitch]
+        % 
+        %         % roll用フィルタ設計
+        %         dx = c2d(tf([1 2*zz(1)*wn wn^2], [1 2*zp(1)*wn wn^2]), dt, 'tustin');%tfを使って伝達関数を作成
+        %         %c2d(..., dt, 'tustin')連続系の伝達関数をdtをもとに離散系に変換
+        %         [bx, ax] = tfdata(dx, 'v'); %伝達関数の係数を数値ベクトルで保管保管
+        %         zx0 = zeros(max(length(ax), length(bx)) - 1, 1); %メモリの初期化
+        %         obj.notchx = struct('b', bx, 'a', ax, 'z', zx0); %名前づけで楽に
+        % 
+        %         % pitch用フィルタ設計
+        %         dy = c2d(tf([1 2*zz(2)*wn wn^2], [1 2*zp(2)*wn wn^2]), dt, 'tustin');
+        %         [by, ay] = tfdata(dy, 'v');
+        %         zy0 = zeros(max(length(ay), length(by)) - 1, 1);
+        %         obj.notchy = struct('b', by, 'a', ay, 'z', zy0);
+        %     end
+        % 
+        %     tmp_f = tmp;
+        %     % [tmp_f(2), obj.notchx.z] = filter(obj.notchx.b, obj.notchx.a, tmp(2), obj.notchx.z);   % roll　 入力信号 x をフィルタ処理した結果が得られる
+        %     %入力：フィルタの分子係数、フィルタの分母係数、フィルタにかける入力信号、前回のフィルタ処理後に保存しておいた遅延要素の値
+        %     [tmp_f(3), obj.notchy.z] = filter(obj.notchy.b, obj.notchy.a, tmp(3), obj.notchy.z); % pitch
+        %     % obj.notchy.z
+        % end
     end
 end
 
