@@ -32,7 +32,7 @@ ManualSetting = param.ManualSetting;
         wp_xy = max(-1.0, min(1.0, [round(1*randn(pointN-2,1),3), round(1*randn(pointN-2,1),3)]));
         wp_z  = max(0.5, min(1.5, round(0.5*randn(pointN-2,1)+1,3)));
         
-        wp = [0, 0, 0.6;wp_xy, wp_z; 0, 0, 0.6];
+        wp = [0, 0, 1;wp_xy, wp_z; 0, 0, 1];
         waypoints = [time, wp];
         order = param.order;%多項式の次数
         check = param.check;
