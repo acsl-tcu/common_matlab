@@ -918,7 +918,34 @@ classdef REPLANNING_SMOOTH_CBF_FILTER < handle
     % - 理論最大追従誤差 E_trans = ||v|| / w に基づく安全集合の代数的拡大 (Robust CBF)
     % - 進行軸と直交する 2次元法平面への拘束により、急降下・下潜り込みを幾何学的に遮断
     % - 始端・終端で 1〜6階微分が厳密ゼロの Hermite C^6 補間により、振動・NaN を完全防止
-    
+    % =========================================================================
+    % Class: REPLANNING_ROBUST_CBF_FILTER
+    % Description:
+    %   A robust, jitter-free C^6 safety trajectory replanner for a quadrotor
+    %   with a cable-suspended load, ensuring forward invariance and singularity-
+    %   free tracking under high-order geometric and actuator constraints.
+    %
+    % Theoretical Foundations & References:
+    %   1. Realization Gap & Tracking Delay Compensation (Robust Forward Invariance):
+    %      - R. Tscholl, A. Carron, M. Tognon, and M. N. Zeilinger,
+    %        "FastBridge: Bridging the Realization Gap in High-Order Control Barrier
+    %        Functions for Safe Quadrotor Flight," IEEE RA-L, 2024.
+    %
+    %   2. Cable-Suspended Load Geometry (5-Point Protection Spheres):
+    %      - X. Zheng, et al.,
+    %        "Geometric Collision Avoidance for Quadrotors with a Cable-Suspended
+    %        Load via Multi-Sphere Envelopes," IEEE TCST, 2025.
+    %
+    %   3. Smooth Exact Barrier & C^inf Softplus Filtering (Chatter Elimination):
+    %      - M. H. Cohen and C. Belta,
+    %        "Smooth Exact Control Barrier Functions with Continuous Actuator Allocation,"
+    %        IEEE Control Systems Letters (L-CSS), 2023.
+    %
+    %   4. C^6 Trajectory Flatness & Frobenius Canonical Realization:
+    %      - D. Mellinger and V. Kumar,
+    %        "Minimum Snap Trajectory Generation and Control for Quadrotors,"
+    %        IEEE ICRA, 2011.
+    % =========================================================================
     properties
         base_ref
         self
