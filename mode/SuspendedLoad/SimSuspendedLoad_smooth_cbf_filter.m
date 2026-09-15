@@ -1,4 +1,7 @@
-%　通常テーマ1がもとになってるCohen et al. (2023) の「Smooth Safety Filters（Softplus / Sontag）」と、Mellinger & Kumar (2011) の「Minimum Snap Trajectory (多項式フィッティング)」の概念を融合
+%　CBF1がもとになってるCohen et al. (2023) の「Smooth Safety Filters（Softplus / Sontag）」と、Mellinger & Kumar (2011) の「Minimum Snap Trajectory (多項式フィッティング)」の概念を融合
+% 2309.12614v1.pdf
+% Minimum_snap_trajectory_generation_and_control_for_quadrotors.pdf
+
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
@@ -66,7 +69,7 @@ L = agent.parameter.cableL;
 nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     {"gen_ref_line", { ...
         "p0", [0, 0, 3], ...        % 開始位置
-        "velocity", 0.3, ...          % 巡航速度 0.3 m/s
+        "velocity", 1.5, ...          % 巡航速度 0.3 m/s
         "direction", [0, 0, 1] ...    % z方向 (真上)
     }, 6});
 
@@ -112,20 +115,14 @@ show_suspended_load_animation(app); % アニメーション描画
 end
 
 function show_suspended_load_animation(app)
-% 単機の吊り下げモデルをアニメーション表示する。
-if app.logger.k <= 1
-    return
-end
-
-mov = DRAW_SUSPENDED_LOAD(app.logger, ...
-    "target", 1, ...
-    "self", app.agent(1));
-mov.animation(app.logger,"target", 1,"self", app.agent(1));%表示だけ用
-
-% mov.animation(app.logger,"target", 1,"self", app.agent(1),"mp4", true, "pause", 0);%mp4保存用
-
-% mov.animation(app.logger, "target", 1,"self", app.agent(1), "gif", "Data/suspended_load.gif", ...
-%     "fps", 20,"gif_delay", 0.05,"skip", 2, "pause", 0);%gif保存用
+    if app.logger.k <= 1
+        return
+    end
+    % 今回作成した DRAW_SUSPENDED_LOAD_CBF_SPHERES を指定
+    mov = DRAW_SUSPENDED_LOAD_SMOOTHCBF(app.logger, ...
+        "target", 1, ...
+        "self", app.agent(1));
+    mov.animation(app.logger, "target", 1, "self", app.agent(1));
 end
 
 function in_prog(app)
