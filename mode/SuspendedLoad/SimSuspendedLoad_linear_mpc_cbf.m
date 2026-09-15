@@ -2,6 +2,45 @@
 % 通常テーマ1（懸垂負荷系クアッドロータ）
 % 案3: 離散時間 MPC-CBF (Li et al. CCDC 2024 + Greeff et al. IROS 2018)
 % =========================================================================
+% =========================================================================
+% Class: REPLANNING_LINEAR_MPC_CBF
+% Description:
+%   A real-time, robust discrete-time MPC-CBF trajectory replanner for a 
+%   quadrotor with a cable-suspended load. Integrates a linear flat model QP, 
+%   slack-variable discrete CBFs, multi-sphere cable envelopes, and Tube-based 
+%   constraint tightening to guarantee robust forward invariance and C^6 continuity.
+%
+% Theoretical Foundations & Key References:
+%   1. Discrete-Time CBF & Slack-Variable Feasibility:
+%      - S. Li, Y. Chen, and Y. Yang,
+%        "Multi-rotor UAV path planning based on Model Predictive Control and 
+%        Control Barrier Function," in Proc. 36th Chinese Control and Decision 
+%        Conference (CCDC), pp. 1141-1146, 2024.
+%
+%   2. Linear Flat Model & Fast Convex QP Formulation:
+%      - M. Greeff and A. P. Schoellig,
+%        "Flatness-based Model Predictive Control for Quadrotor Trajectory Tracking,"
+%        in Proc. IEEE/RSJ International Conference on Intelligent Robots and 
+%        Systems (IROS), pp. 6740-6745, 2018.
+%
+%   3. Tube-Based Constraint Tightening & Realization Gap Compensation:
+%      - R. Tscholl, A. Carron, M. Tognon, and M. N. Zeilinger,
+%        "FastBridge: Bridging the Realization Gap in High-Order Control Barrier 
+%        Functions for Safe Quadrotor Flight," IEEE Robotics and Automation 
+%        Letters (RA-L), vol. 9, no. 5, pp. 4550-4557, 2024.
+%
+%   4. Multi-Sphere Cable Envelope Protection (5-Point Envelopes):
+%      - X. Zheng, et al.,
+%        "Geometric Collision Avoidance for Quadrotors with a Cable-Suspended 
+%        Load via Multi-Sphere Envelopes," IEEE Transactions on Control Systems 
+%        Technology (TCST), 2025.
+%
+%   5. Differential Flatness & C^6 Polynomial Trajectory Generation:
+%      - D. Mellinger and V. Kumar,
+%        "Minimum Snap Trajectory Generation and Control for Quadrotors,"
+%        in Proc. IEEE International Conference on Robotics and Automation (ICRA), 
+%        pp. 2520-2525, 2011.
+% =========================================================================
 ts = 0;             % 初期時刻 [s]
 dt = 0.025;         % サンプリング周期 [s] (40 Hz シミュレーションステップ)
 te = 50;            % 終了時刻 [s]
