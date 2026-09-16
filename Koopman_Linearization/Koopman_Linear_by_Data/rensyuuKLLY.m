@@ -110,7 +110,7 @@ function [U_val, A_val, B_val, P_val, result] = ...
 
 
     % 固有値を記録するiteration
-    eig_save_iters = [1, 10, 20, 30];
+    eig_save_iters = [1, 30];
     
     % 各iterationの固有値
     eigenvalue_history = complex(nan(p_theta, length(eig_save_iters)));
@@ -292,31 +292,18 @@ function [U_val, A_val, B_val, P_val, result] = ...
     
         eig_traj(:, j) = matched_eig;
     end
-    %% 固有値軌跡のプロット
-
-    figure;
-    hold on;
-    grid on;
-    axis equal;
-    
-    % 単位円
-    theta = linspace(0, 2*pi, 500);
-    plot(cos(theta), sin(theta), 'k--', ...
-        'LineWidth', 1.2, ...
-        'DisplayName', 'Unit circle');
-    
-    % 各固有値の軌跡
+    %%固有値の変化プロット
     for k = 1:p_theta
-    
-        % 軌道の線
+        
+        % iter = 1 → iter = 30 の軌道
         plot(real(eig_traj(k,:)), ...
              imag(eig_traj(k,:)), ...
              '-', 'LineWidth', 1.5, ...
              'HandleVisibility', 'off');
     
-        % iter = 10, 20, 30 → ○
-        plot(real(eig_traj(k,2:4)), ...
-             imag(eig_traj(k,2:4)), ...
+        % iter = 30 → ○
+        plot(real(eig_traj(k,2)), ...
+             imag(eig_traj(k,2)), ...
              'o', 'MarkerSize', 6, ...
              'HandleVisibility', 'off');
     

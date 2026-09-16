@@ -300,7 +300,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%実験メモ追加%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 保存先
-targetPath = fullfile(nowFolder,'線形化して得たmatファイル', saveFileName);
+targetPath = fullfile(nowFolder,'refult_of_KL_Miya', saveFileName);
 
 %% メモファイル名
 [saveFolder, name, ~] = fileparts(targetPath);
