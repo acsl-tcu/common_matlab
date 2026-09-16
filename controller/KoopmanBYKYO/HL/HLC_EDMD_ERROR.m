@@ -135,7 +135,7 @@ classdef HLC_EDMD_ERROR < handle
             % 学習済みモデルファイルが指定されていない場合は読み込まない
 
             try
-                mdl = load(param.comp.model_file, 'results_hl_edmd_error');
+                mdl = load(param.comp.model_file, 'hl_edmd_error_model');
                 res = mdl.results_hl_edmd_error;
                 comp.Az = res.Az;
                 comp.Bz = res.Bz;
@@ -272,24 +272,22 @@ classdef HLC_EDMD_ERROR < handle
             z = [eq; ew; sin(eq); eq .* ew];
         end
 
-        function show(obj)
-            % 現在状態，参照状態，制御入力を表示する
+       function show(obj)
+            % clc;
+            % est_print = obj.self.estimator.result.state;
             est_print = obj.self.estimator.result.state;
-            ref_print = obj.self.reference.result.state;
+            ref_print =obj.self.reference.result.state;
             fprintf("==================================================================\n")
             fprintf("==================================================================\n")
             fprintf("ps: %f %f %f \t vs: %f %f %f \t qs: %f %f %f \n",...
                 est_print.p(1), est_print.p(2), est_print.p(3),...
                 est_print.v(1), est_print.v(2), est_print.v(3),...
-                est_print.q(1), est_print.q(2), est_print.q(3));
+                est_print.q(1), est_print.q(2), est_print.q(3)); % s:state 現在状態
             fprintf("pr: %f %f %f \t vr: %f %f %f \t qr: %f %f %f \n", ...
-                ref_print.p(1), ref_print.p(2), ref_print.p(3),...
+             ref_print.p(1), ref_print.p(2), ref_print.p(3),...
                 ref_print.v(1), ref_print.v(2), ref_print.v(3),...
-                ref_print.q(1), ref_print.q(2), ref_print.q(3));
-            fprintf("u_nom: %f %f %f %f | du: %f %f %f %f | u: %f %f %f %f\n", ...
-                obj.result.u_nom(1), obj.result.u_nom(2), obj.result.u_nom(3), obj.result.u_nom(4), ...
-                obj.result.deltau(1), obj.result.deltau(2), obj.result.deltau(3), obj.result.deltau(4), ...
-                obj.result.input(1), obj.result.input(2), obj.result.input(3), obj.result.input(4));
-        end
+                ref_print.xd(4), ref_print.xd(5), ref_print.xd(6)); % r:reference 目標状態
+            
+        end  
     end
 end

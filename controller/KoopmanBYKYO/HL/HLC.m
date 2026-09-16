@@ -7,7 +7,7 @@ classdef HLC < handle
     H=12;
     mec          % EDMD-MEC 
     du_prev = zeros(4,1);
-    use_mec = 0;   %  0=使わない　１＝使う
+    use_mec = 1;   %  0=使わない　１＝使う
     parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     excite_counter = 0;
   end
@@ -19,7 +19,7 @@ classdef HLC < handle
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(self.estimator.model.dim(2),1);
       if obj.use_mec
-         L = load('mec_model_HL.mat'); obj.mec = L.model;%EDMD-MEC model
+         L = load('mec_model_HL20260916.mat'); obj.mec = L.model;%EDMD-MEC model
       end
     end
 
@@ -110,7 +110,7 @@ end
       
       
       obj.result.u_nom = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
-      % obj.result.deltau = obj.generate_identification_excitation(obj.result.u_nom, phase, varargin{1});
+      obj.result.deltau = obj.generate_identification_excitation(obj.result.u_nom, phase, varargin{1});
       obj.result.deltau = 0;
       obj.result.input=obj.result.u_nom+ obj.result.deltau;
       obj.result.input = [max(0,min(10,obj.result.input(1))); ...
