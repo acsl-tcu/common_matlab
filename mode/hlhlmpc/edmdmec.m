@@ -10,22 +10,58 @@
 clear; clc; close all;
 
 %% ====================== 【CONFIG：只改这一段】 ======================
-CONTROLLER = 'HLMPC2';                 % 'HL' / 以后 'QPHLMPC'
+CONTROLLER = '20260916_HL_only_and_reiki_and_PayloadData';                 % 'HL' / 以后 'QPHLMPC'
 
-DATA_FILES = { ...                 % 你那几条 lemniscate(错惯量、关补偿)的 .mat
-    'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_31_20).mat', ...
-    'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_32_56).mat', ...
-    'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_34_30).mat', ...
-    'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_35_27).mat', ...
-    'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_37_05).mat' };
+DATA_FILES = { ...                 %
+    'HL_circle_1_nopayload_Log(15-Sep-2026_15_49_22).mat',...
+    'HL_circle_2_nopayload_Log(15-Sep-2026_15_50_50).mat',...
+    'HL_circle_3_nopayload_Log(15-Sep-2026_15_52_17).mat',...
+    'HL_fig8_1_nopayload_Log(15-Sep-2026_15_42_35).mat',...
+    'HL_fig8_2_nopayload_Log(15-Sep-2026_15_44_26).mat',...
+    'HL_fig8_3_nopayload_Log(15-Sep-2026_15_47_37).mat',...
+    'HL_Reiki_circle_Nopayload_1_Log(16-Sep-2026_14_17_36).mat',...
+    'HL_Reiki_circle_Nopayload_2_Log(16-Sep-2026_14_24_43).mat',...
+    'HL_Reiki_circle_Nopayload_3_Log(16-Sep-2026_14_26_56).mat',...
+    'HL_Reiki_fig8_Nopayload_1_Log(16-Sep-2026_14_29_19).mat',...
+    'HL_Reiki_fig8_Nopayload_2_Log(16-Sep-2026_14_31_26).mat',...
+    'HL_Reiki_fig8_Nopayload_3_Log(16-Sep-2026_14_38_41).mat',...
+    'HL_Reiki_saddle_Nopayload_1_Log(16-Sep-2026_14_56_03).mat',...
+    'HL_Reiki_saddle_Nopayload_2_Log(16-Sep-2026_14_58_23).mat',...
+    'HL_Reiki_saddle_Nopayload_3_Log(16-Sep-2026_15_02_01).mat',...
+    'HL_Reiki_spline_Nopayload_1_Log(16-Sep-2026_14_47_40).mat',...
+    'HL_Reiki_spline_Nopayload_2_Log(16-Sep-2026_14_51_15).mat',...
+    'HL_Reiki_spline_Nopayload_3_Log(16-Sep-2026_14_53_17).mat',...
+    'HL_saddle_1_nopayload_Log(15-Sep-2026_16_08_22).mat',...
+    'HL_saddle_2_nopayload_Log(15-Sep-2026_16_10_01).mat',...
+    'HL_saddle_3_nopayload_Log(15-Sep-2026_16_11_49).mat',...
+    'HL_spline_1_nopayload_Log(15-Sep-2026_15_55_12).mat',...
+    'HL_spline_2_nopayload_Log(15-Sep-2026_16_01_01).mat',...
+    'HL_spline_3_nopayload_Log(15-Sep-2026_16_03_52).mat',...
+    'HL_circle_1_payload143g_Log(15-Sep-2026_16_49_58).mat',...
+    'HL_circle_1_payload155g_Log(15-Sep-2026_16_55_45).mat',...
+    'HL_circle_1_payload167g_Log(15-Sep-2026_17_02_05).mat',...
+    'HL_fig8_1_payload143g_Log(15-Sep-2026_17_17_10).mat',...
+    'HL_saddle_1_payload143g_Log(15-Sep-2026_17_20_04).mat',...
+    
+
+    % 
+    % 
+    % 
+    % 
+    % 'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_31_20).mat', ...
+    % 'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_32_56).mat', ...
+    % 'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_34_30).mat', ...
+    % 'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_35_27).mat', ...
+    % 'exphlmpcfigure8jx0.6jyo.6jz0.6_Log(18-Jun-2026_13_37_05).mat' 
+    };
 
 PHASE_VAL = 102;                   % 你的 lemniscate 段用 102 标记
 
 UNOM_IS_MOTOR = false;             % agent.input 若是电机[T1..T4]→true(用Bu反算回[T,τ])
 Bu = [ 1  1  1  1;                 % 仅 UNOM_IS_MOTOR=true 用；换成你真实分配矩阵(eq2.7)
-       1 -1  1 -1;
-      -1  1  1 -1;
-       1 -1 -1  1 ];
+    1 -1  1 -1;
+    -1  1  1 -1;
+    1 -1 -1  1 ];
 
 Q_IS_YPR = false;                  % state.q 若是[yaw,pitch,roll]设true(默认[roll,pitch,yaw])
 SMOOTH_OMEGA = false;              % estimator 的 w 很抖才设 true
@@ -60,8 +96,8 @@ W  = Z1 * pinv([Z0; U]);
 Ar = W(:,1:26); Br = W(:,27:30);
 M  = (Br.'*Br + LAMBDA*eye(4)) \ Br.';
 model = struct('Ar',Ar,'Br',Br,'M',M,'dt',DT,'lambda',LAMBDA,'beta',BETA, ...
-               'dumax',DUMAX(:),'controller',CONTROLLER, ...
-               'J_wrong',J_WRONG,'J_correct',J_CORRECT,'q_is_ypr',Q_IS_YPR);
+    'dumax',DUMAX(:),'controller',CONTROLLER, ...
+    'J_wrong',J_WRONG,'J_correct',J_CORRECT,'q_is_ypr',Q_IS_YPR);
 
 % ---- 体检 ----
 s = svd(Br); fitres = Z1-(Ar*Z0+Br*U); relfit = norm(fitres,'fro')/max(norm(Z1,'fro'),eps);
@@ -77,9 +113,9 @@ if rank(Br)<4, warning('Br秩<4:力矩通道激励不足,换更转弯多的轨�
 % ---- 离线回放(第1条):看 Δu 量级/饱和 ----
 r=runsStd{1}; du=zeros(numel(r.t)-1,4); dup=zeros(4,1);
 for k=1:numel(r.t)-1
-    zk =build_phi(r.p(k,:).',  r.eul(k,:).',  r.v(k,:).',  r.om(k,:).',  r.Re3(k,:).');
-    zr =build_phi(r.p(k+1,:).',r.eul(k+1,:).',r.v(k+1,:).',r.om(k+1,:).',r.Re3(k+1,:).');
-    rk =zr - Ar*zk - Br*r.unom(k,:).';
+    zk =build_phi(r.p(k,:).',  r.eul(k,:).',  r.v(k,:).',  r.om(k,:).',  r.Re3(k,:).');%今の時間の入力
+    zr =build_phi(r.p(k+1,:).',r.eul(k+1,:).',r.v(k+1,:).',r.om(k+1,:).',r.Re3(k+1,:).');%次の時間の入力
+    rk =zr - Ar*zk - Br*r.unom(k,:).';%リフトした状態の差
     dup=(1-BETA)*dup + BETA*max(min(M*rk,DUMAX),-DUMAX);
     du(k,:)=dup.';
 end
@@ -100,72 +136,72 @@ fprintf('\n已保存 -> %s\n==== 完成 ====\n', outname);
 %% ======================  局部函数(不用改)  ==========================
 %% =====================================================================
 function r = load_and_crop(fname, phaseVal, unomIsMotor, Bu, qYPR, smoothW)
-    log = LOGGER(fname);                       % 你的 logger 打开方式
-    D   = log.Data;
+log = LOGGER(fname);                       % 你的 logger 打开方式
+D   = log.Data;
 
-    % --- 裁切 phase==102 段: a=前数第2个, b=后数第1个(=最后一个) ---
-    ph  = D.phase(:);
-    idx = find(ph==phaseVal);
-    if numel(idx)<2, error('%s: phase==%g 少于2个样本', fname, phaseVal); end
-    a = idx(2); b = idx(end);
-    sel = a:b;
-    t = D.t(:); t = t(sel);
-    fprintf('  %s : 102共%d个, 起a=%d 终b=%d, t=[%.3f..%.3f]s\n', ...
-            fname, numel(idx), a, b, t(1), t(end));
+% --- 裁切 phase==102 段: a=前数第2个, b=后数第1个(=最后一个) ---
+ph  = D.phase(:);
+idx = find(ph==phaseVal);
+if numel(idx)<2, error('%s: phase==%g 少于2个样本', fname, phaseVal); end
+a = idx(2); b = idx(end);
+sel = a:b;
+t = D.t(:); t = t(sel);
+fprintf('  %s : 102共%d个, 起a=%d 终b=%d, t=[%.3f..%.3f]s\n', ...
+    fname, numel(idx), a, b, t(1), t(end));
 
-    % --- 逐时刻从 estimator cell 取 state ---
-    res = D.agent.estimator.result;            % cell {1,K}
-    n=numel(sel); p=zeros(n,3); eul=zeros(n,3); v=zeros(n,3); om=zeros(n,3);
-    for ii=1:n
-        st = res{1, sel(ii)}.state;
-        p(ii,:)   = st.p(:).';
-        qv        = st.q(:).';
-        if qYPR, qv = qv([3 2 1]); end          % [yaw,pitch,roll]->[roll,pitch,yaw]
-        eul(ii,:) = qv;
-        v(ii,:)   = st.v(:).';
-        om(ii,:)  = st.w(:).';
-    end
-    if smoothW, for j=1:3, om(:,j)=smoothdata(om(:,j),'sgolay',9); end, end
+% --- 逐时刻从 estimator cell 取 state ---
+res = D.agent.estimator.result;            % cell {1,K}
+n=numel(sel); p=zeros(n,3); eul=zeros(n,3); v=zeros(n,3); om=zeros(n,3);
+for ii=1:n
+    st = res{1, sel(ii)}.state;
+    p(ii,:)   = st.p(:).';
+    qv        = st.q(:).';
+    if qYPR, qv = qv([3 2 1]); end          % [yaw,pitch,roll]->[roll,pitch,yaw]
+    eul(ii,:) = qv;
+    v(ii,:)   = st.v(:).';
+    om(ii,:)  = st.w(:).';
+end
+if smoothW, for j=1:3, om(:,j)=smoothdata(om(:,j),'sgolay',9); end, end
 
-    % --- u_nom = controller 实际输出 agent.input ---
-    U = norm_input(D.agent.input, numel(ph));  % -> K×4
-    unom = U(sel,:);
-    if unomIsMotor, unom = (Bu*unom.').'; end
-    if size(unom,2)~=4, error('%s: u_nom 应为4列[T,τx,τy,τz],现%d列', fname, size(unom,2)); end
+% --- u_nom = controller 实际输出 agent.input ---
+U = norm_input(D.agent.input, numel(ph));  % -> K×4
+unom = U(sel,:);
+if unomIsMotor, unom = (Bu*unom.').'; end
+if size(unom,2)~=4, error('%s: u_nom 应为4列[T,τx,τy,τz],现%d列', fname, size(unom,2)); end
 
-    R = eul2R_seq(eul); Re3 = squeeze(R(:,3,:)).';
-    r.t=t; r.p=p; r.eul=eul; r.v=v; r.om=om; r.Re3=Re3; r.unom=unom;
+R = eul2R_seq(eul); Re3 = squeeze(R(:,3,:)).';
+r.t=t; r.p=p; r.eul=eul; r.v=v; r.om=om; r.Re3=Re3; r.unom=unom;
 end
 
 function U = norm_input(inp, K)
 % 把 agent.input 规整成 K×4 (兼容 K×4 / 4×K / cell{1,k})
-    if iscell(inp)
-        U=zeros(numel(inp),4); for k=1:numel(inp), U(k,:)=inp{k}(:).'; end
-    elseif isnumeric(inp)
-        if size(inp,2)==4,      U=inp;
-        elseif size(inp,1)==4,  U=inp.';
-        else, error('agent.input 形状不是4路,实为 %dx%d', size(inp,1),size(inp,2)); end
-    else, error('agent.input 类型无法识别'); end
-    if size(U,1)>K, U=U(1:K,:); end
+if iscell(inp)
+    U=zeros(numel(inp),4); for k=1:numel(inp), U(k,:)=inp{k}(:).'; end
+elseif isnumeric(inp)
+    if size(inp,2)==4,      U=inp;
+    elseif size(inp,1)==4,  U=inp.';
+    else, error('agent.input 形状不是4路,实为 %dx%d', size(inp,1),size(inp,2)); end
+else, error('agent.input 类型无法识别'); end
+if size(U,1)>K, U=U(1:K,:); end
 end
 
 function z = build_phi(p, eul, v, om, Re3)
 % 26维字典(论文eq3.17)。和在线 build_phi.m 必须一致。
-    phi=eul(1); th=eul(2); o1=om(1); o2=om(2); o3=om(3);
-    x=[p(:);eul(:);v(:);om(:)];
-    cphi=cos(phi); sphi=sin(phi); cth=cos(th); sth=sin(th);
-    sg=@(x)(x>=0)*2-1; cphi=sg(cphi)*max(abs(cphi),1e-3); cth=sg(cth)*max(abs(cth),1e-3);
-    z=[ x; Re3(:); 1; o1*o2; o2*o3; o3*o1; o2*cphi; o3*sphi; ...
-        o1*cth/cphi; o2*sphi/cphi; o3*cphi/cth; o2*sphi*sth/cphi; o3*cphi*sth/cth ];
+phi=eul(1); th=eul(2); o1=om(1); o2=om(2); o3=om(3);
+x=[p(:);eul(:);v(:);om(:)];
+cphi=cos(phi); sphi=sin(phi); cth=cos(th); sth=sin(th);
+sg=@(x)(x>=0)*2-1; cphi=sg(cphi)*max(abs(cphi),1e-3); cth=sg(cth)*max(abs(cth),1e-3);
+z=[ x; Re3(:); 1; o1*o2; o2*o3; o3*o1; o2*cphi; o3*sphi; ...
+    o1*cth/cphi; o2*sphi/cphi; o3*cphi/cth; o2*sphi*sth/cphi; o3*cphi*sth/cth ];
 end
 
 function R=eul2R_seq(eul)            % ZYX: R=Rz(psi)Ry(theta)Rx(phi)
-    T=size(eul,1); R=zeros(3,3,T);
-    for k=1:T
-        cp=cos(eul(k,1));sp=sin(eul(k,1));ct=cos(eul(k,2));st=sin(eul(k,2));
-        cy=cos(eul(k,3));sy=sin(eul(k,3));
-        R(:,:,k)=[cy -sy 0;sy cy 0;0 0 1]*[ct 0 st;0 1 0;-st 0 ct]*[1 0 0;0 cp -sp;0 sp cp];
-    end
+T=size(eul,1); R=zeros(3,3,T);
+for k=1:T
+    cp=cos(eul(k,1));sp=sin(eul(k,1));ct=cos(eul(k,2));st=sin(eul(k,2));
+    cy=cos(eul(k,3));sy=sin(eul(k,3));
+    R(:,:,k)=[cy -sy 0;sy cy 0;0 0 1]*[ct 0 st;0 1 0;-st 0 ct]*[1 0 0;0 cp -sp;0 sp cp];
+end
 end
 
 %% =====================================================================
