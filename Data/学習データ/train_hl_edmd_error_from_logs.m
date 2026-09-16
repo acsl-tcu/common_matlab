@@ -12,7 +12,7 @@ function results_hl_edmd_error = train_hl_edmd_error_from_logs(opts)
 
     % 学習パラメータのデフォルト値を設定する
     opts = set_default(opts, 'agent_idx', 1);
-    opts = set_default(opts, 'state_source', 'plant');
+    opts = set_default(opts, 'state_source', 'estimator');
     opts = set_default(opts, 'lambda_z', 1e-5);
     opts = set_default(opts, 'lambda_att', 1e-5);
     opts = set_default(opts, 'max_abs_ez', 1.5);
