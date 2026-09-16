@@ -94,8 +94,9 @@ end
 
 %データ保存用,現在のファイルパスを取得,保存先を指定
 activeFile = matlab.desktop.editor.getActive;
+% nowFolder = fileparts(activeFile.Filename);
 nowFolder = fileparts(activeFile.Filename);
-targetpath=append(nowFolder,'\',FileName);
+% targetPath=append(nowFolder,'\',FileName);
 
 %% Defining Koopman Operator
 %<使用している観測量>
@@ -299,7 +300,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%実験メモ追加%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 保存先
-targetPath = fullfile(nowFolder, saveFileName);
+targetPath = fullfile(nowFolder,'線形化して得たmatファイル', saveFileName);
 
 %% メモファイル名
 [saveFolder, name, ~] = fileparts(targetPath);
@@ -350,8 +351,7 @@ fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
 
 
 % 保存先のフルパス
-targetPath = fullfile(nowFolder, saveFileName);
-
+% targetPath = fullfile(nowFolder, saveFileName);
 % 保存
 save(targetPath, 'est', 'Data', 'simResult', 'F');
 

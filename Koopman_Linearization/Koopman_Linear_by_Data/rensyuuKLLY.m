@@ -107,6 +107,14 @@ function [U_val, A_val, B_val, P_val, result] = ...
 
     converged = false;
 
+
+
+    % 固有値を記録するiteration
+    eig_save_iters = [1, 10, 20, 30];
+    
+    % 各iterationの固有値
+    eigenvalue_history = complex(nan(p_theta, length(eig_save_iters)));
+
     %% 交互最適化
     for iter = 1:max_iter
 
@@ -220,8 +228,19 @@ function [U_val, A_val, B_val, P_val, result] = ...
 
         P_change = norm(P_new - P_val, 'fro') / max(1, norm(P_val, 'fro'));
 
+        % eigenvalues  = eig(A_val);
+        % max_abs_eig  = max(abs(eigenvalues));
+
+        
         eigenvalues  = eig(A_val);
         max_abs_eig  = max(abs(eigenvalues));
+
+        % 指定したiterationだけ固有値を保存
+        save_idx = find(eig_save_iters == iter, 1);
+        
+        if ~isempty(save_idx)
+            eigenvalue_history(:, save_idx) = eigenvalues;
+        end
 
         objective_history(iter) = objective_val;
         U_change_history(iter)  = U_change;
@@ -247,6 +266,99 @@ function [U_val, A_val, B_val, P_val, result] = ...
             break;
         end
     end
+
+    %% 固有値の対応付け
+    eig_traj = eigenvalue_history;
+    
+    for j = 2:length(eig_save_iters)
+    
+        prev_eig = eig_traj(:, j-1);
+        curr_eig = eigenvalue_history(:, j);
+    
+        matched_eig = nan(size(curr_eig));
+        remaining = 1:length(curr_eig);
+    
+        for k = 1:length(prev_eig)
+    
+            % 前回の固有値との距離
+            [~, idx] = min(abs(curr_eig(remaining) - prev_eig(k)));
+    
+            % 最も近い固有値を対応させる
+            matched_eig(k) = curr_eig(remaining(idx));
+    
+            % 使用済み固有値を除外
+            remaining(idx) = [];
+        end
+    
+        eig_traj(:, j) = matched_eig;
+    end
+    %% 固有値軌跡のプロット
+
+    figure;
+    hold on;
+    grid on;
+    axis equal;
+    
+    % 単位円
+    theta = linspace(0, 2*pi, 500);
+    plot(cos(theta), sin(theta), 'k--', ...
+        'LineWidth', 1.2, ...
+        'DisplayName', 'Unit circle');
+    
+    % 各固有値の軌跡
+    for k = 1:p_theta
+    
+        % 軌道の線
+        plot(real(eig_traj(k,:)), ...
+             imag(eig_traj(k,:)), ...
+             '-', 'LineWidth', 1.5, ...
+             'HandleVisibility', 'off');
+    
+        % iter = 10, 20, 30 → ○
+        plot(real(eig_traj(k,2:4)), ...
+             imag(eig_traj(k,2:4)), ...
+             'o', 'MarkerSize', 6, ...
+             'HandleVisibility', 'off');
+    
+        % iter = 1 → ×
+        plot(real(eig_traj(k,1)), ...
+             imag(eig_traj(k,1)), ...
+             'x', 'MarkerSize', 9, ...
+             'LineWidth', 2, ...
+             'HandleVisibility', 'off');
+    
+    end
+    
+    xlabel('Real');
+    ylabel('Imaginary');
+    title('Eigenvalue trajectories of A');
+    
+    xline(0, 'k:');
+    yline(0, 'k:');
+    % 
+    % % 実際に実行されたiteration数だけ取り出す
+    % eig_hist = eigenvalue_history(:, 1:iter);
+    % 
+    % figure;
+    % hold on;
+    % grid on;
+    % axis equal;
+    % 
+    % % 単位円
+    % theta = linspace(0, 2*pi, 500);
+    % plot(cos(theta), sin(theta), 'k--', 'LineWidth', 1.2);
+    % 
+    % % 各固有値のiterationごとの軌跡
+    % for k = 1:p_theta
+    %     plot(real(eig_hist(k,:)), ...
+    %          imag(eig_hist(k,:)), ...
+    %          '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
+    % end
+    % 
+    % xlabel('Real');
+    % ylabel('Imaginary');
+    % title('Eigenvalue trajectories of A');
+
 
     if ~converged
         fprintf(['最大反復回数までに指定した収束条件を' ...
