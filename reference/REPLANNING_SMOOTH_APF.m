@@ -209,7 +209,68 @@ classdef REPLANNING_SMOOTH_APF < handle
     % 4. D. Tscholl et al. (FastBridge 2026): Realization Gap 回避のための目標シフト
     % 5. D. Mellinger and V. Kumar (2011): 7次正準系フィルタによる C^6 (位置〜Pop) 連続性
     % 6. X. Zheng et al. (2025): 荷物〜ケーブル〜ドローン 5連保護球の完全包絡
-    
+    % =========================================================================
+    % Class: REPLANNING_SMOOTH_APF
+    % Description:
+    %   A high-order, C^6 continuous Artificial Potential Field (APF) trajectory 
+    %   replanner for a quadrotor with a cable-suspended load.
+    %   This architecture extends the classical potential field method into a 
+    %   chatter-free, non-singular, and dynamically feasible baseline by integrating 
+    %   ellipsoidal differential geometry, smooth softplus saturation, multi-sphere 
+    %   envelope protection, and 7th-order canonical linear filtering.
+    %
+    % Theoretical Foundations & Key References:
+    %
+    %   1. Classical Artificial Potential Field (APF) Formulation:
+    %      - O. Khatib,
+    %        "Real-Time Obstacle Avoidance for Manipulators and Mobile Robots,"
+    %        in Proc. IEEE International Conference on Robotics and Automation (ICRA), 
+    %        vol. 2, pp. 500-505, 1985; The International Journal of Robotics 
+    %        Research (IJRR), vol. 5, no. 1, pp. 90-98, 1986.
+    %      * Role: Superposition of attractive potential to the nominal reference 
+    %        and repulsive potential (FIRAS function) from obstacles without solving QPs.
+    %
+    %   2. Ellipsoidal Metric & Exact Surface Normal Gradients:
+    %      - R. Funada, K. Nishimoto, T. Ibuki, and M. Sampei,
+    %        "Collision Avoidance for Ellipsoidal Rigid Bodies With Control Barrier 
+    %        Functions Designed From Rotating Supporting Hyperplanes,"
+    %        IEEE Transactions on Control Systems Technology (TCST), 
+    %        vol. 33, no. 1, pp. 148-164, Jan. 2025.
+    %      * Role: Computation of directional obstacle radii r_obs_dir and rigorous 
+    %        geometric surface normal gradients via ellipsoid metric matrices A_mat = R*Q^(-2)*R'.
+    %
+    %   3. C^inf Smooth Softplus Force Saturation & Singularity Elimination:
+    %      - M. H. Cohen, P. Ong, G. Bahati, and A. D. Ames,
+    %        "Characterizing Smooth Safety Filters via the Implicit Function Theorem,"
+    %        in Proc. 62nd IEEE Conference on Decision and Control (CDC), 
+    %        pp. 3762-3767, 2023. (arXiv:2309.12614v1 [eess.SY])
+    %      * Role: Exponential/softplus-type smooth saturation avoiding infinite force 
+    %        divergence at boundary contact while preserving infinite differentiability (C^inf).
+    %
+    %   4. Hierarchical Target Shifting & Realization Gap Mitigation:
+    %      - D. Tscholl, Y. Nakka, and B. Gunter,
+    %        "FastBridge: Closing the Model-Based Realization Gap in Safety Filters 
+    %        on 3D Gaussian Splatting for Fast Quadrotor Flight,"
+    %        arXiv:2607.01200v1 [cs.RO], Jul. 2026.
+    %      * Role: Bypassing controller-level direct force injection by applying APF 
+    %        displacements as an upper-layer virtual setpoint shift (p_target = p_nom + Delta_p).
+    %
+    %   5. Multi-Sphere Cable Envelope (Zheng 5-Point Envelope Protection):
+    %      - X. Zheng, et al.,
+    %        "Geometric Collision Avoidance for Quadrotors with a Cable-Suspended 
+    %        Load via Multi-Sphere Envelopes,"
+    %        IEEE Transactions on Control Systems Technology (TCST), 2025.
+    %      * Role: Comprehensive safety envelope covering the payload, cable interior 
+    %        points, and quadrotor body using worst-case "Critical Sphere" dominance.
+    %
+    %   6. Differential Flatness & C^6 Polynomial Trajectory Regularization:
+    %      - D. Mellinger and V. Kumar,
+    %        "Minimum Snap Trajectory Generation and Control for Quadrotors,"
+    %        in Proc. IEEE International Conference on Robotics and Automation (ICRA), 
+    %        pp. 2520-2525, May 2011.
+    %      * Role: 7th-order Hurwitz canonical filter ((s + w)^7) transforming APF 
+    %        geometric shifts into continuously differentiable outputs up to Pop (6th derivative).
+    % =========================================================================
     properties
         base_ref
         self
