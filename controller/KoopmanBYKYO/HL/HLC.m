@@ -19,7 +19,7 @@ classdef HLC < handle
       obj.param.P = self.parameter.get(obj.parameter_name);
       obj.result.input = zeros(self.estimator.model.dim(2),1);
       if obj.use_mec
-         L = load('mec_model_HL20260916.mat'); obj.mec = L.model;%EDMD-MEC model
+         L = load('mec_model_20260916_HL_only_and_reiki.mat'); obj.mec = L.model;%EDMD-MEC model
       end
     end
 

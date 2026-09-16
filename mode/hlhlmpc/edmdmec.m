@@ -10,7 +10,7 @@
 clear; clc; close all;
 
 %% ====================== 【CONFIG：只改这一段】 ======================
-CONTROLLER = 'HL20260916_usepayload';                 % 'HL' / 以后 'QPHLMPC'
+CONTROLLER = '20260916_HL_only_and_reiki_and_PayloadData';                 % 'HL' / 以后 'QPHLMPC'
 
 DATA_FILES = { ...                 %
     'HL_circle_1_nopayload_Log(15-Sep-2026_15_49_22).mat',...

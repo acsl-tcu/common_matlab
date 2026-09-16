@@ -31,8 +31,8 @@ agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq"
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
 
-% agent.controller.hlc = HLC(agent,Controller_HL(dt));
-agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
+agent.controller.hlc = HLC(agent,Controller_HL(dt));
+% agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
 run("ExpBase");
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.controller = "hlc";
