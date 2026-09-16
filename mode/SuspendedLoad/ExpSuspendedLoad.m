@@ -80,16 +80,16 @@ tmp = app.logger.data(1,"sensor.result.output","");
 custom = tmp(:,7:9);
 phase = "f";
 % app.logger.plot({{1,"p","re"},{1,"p","s",custom},{1, "estimator.result.state.pL", "e"}},"phase","f" ,"ax", app.UIAxes);
-app.logger.plot({{1,"p","re"},{1, "estimator.result.state.pL", "e"}},"phase","f" ,"ax", app.UIAxes);
+app.logger.plot({{1,"p","r"},{1, "estimator.result.state.pL", "e"}},"phase","f" ,"ax", app.UIAxes);
 % app.logger.plot({1, "state.mL", "e"},"phase",phase);
 app.logger.plot({1,"p","er"},"phase","f","fig_num",1)
 % app.logger.plot({1, "p", "er"}, "phase", phase, "fig_num", 1); % 位置: p_x,p_y,p_z
 app.logger.plot({1, "q", "e"}, "phase",phase, "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "v", "er"},{1,"estimator.result.state.vL",""}}, "phase", phase, "fig_num", 3); % 速度: v_x, v_y, v_z
+app.logger.plot({{1, "v", "er"}}, "phase", phase, "fig_num", 3); % 速度: v_x, v_y, v_z
 app.logger.plot({1, "w", "e"}, "phase",phase, "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
 app.logger.plot({1, "input", ""}, "phase", phase, "fig_num", 5); % 制御入力: Thrust, roll, pitch, yaw
 app.logger.plot({1, "inner_input1:4", ""}, "phase", phase, "fig_num", 6); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({1, "p1-p2", "er"}, "phase", phase, "fig_num", 7); % x-y軌跡
+app.logger.plot({1, "p1-p2", "er"}, "phase", phase, "fig_num", 7); % x-y軌跡
 % app.logger.plot({1, "p1-p2-p3", "er"}, "phase",phase,  "fig_num",8, "color",0); % x-y-z軌跡
 % app.logger.plot({1, "p", "ers"},"phase",phase,"fig_num",9);
 % app.logger.plot({1, "sensor.result.", "er"},"phase",phase, "fig_num",10);
