@@ -6,6 +6,15 @@ if Setting.fExp
     for i = 1:length(app.agent); delete(app.agent(i).plant.connector.serial); end
 end
 run(Setting.mode);
+mode_file = which(Setting.mode);
+if ~isempty(mode_file)
+    mode_dir = fileparts(mode_file);
+    local_template = fullfile(mode_dir, "template");
+    if exist(local_template, "dir")
+        addpath(local_template, "-begin");
+    end
+    addpath(mode_dir, "-begin");
+end
 Setting.agent = agent;
 Setting.logger = logger;
 Setting.time = time;

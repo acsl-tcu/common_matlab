@@ -1,5 +1,4 @@
-%% Initialize
-% do initialize first in main.m
+%% Initialize% do initialize first in main.m
 %clc
 %tmp = matlab.desktop.editor.getActive;
 %cd(fileparts(tmp.Filename));
@@ -26,7 +25,7 @@ Rb0 = [cos(q1),-sin(q1),0;sin(q1),cos(q1),0;0,0,1];
 x = [p;q];
 %f = [sign([cos(q(3)),sin(q(3))]*[u(1);u(2)])*sqrt(u(1)^2+u(2)^2)*cos(q(3));sign([cos(q(3)),sin(q(3))]*[u(1);u(2)])*sqrt(u(1)^2+u(2)^2)*sin(q(3));0;0;0;u(6)];
 f = [cos(q(3))*u(1);sin(q(3))*u(1);0;0;0;u(6)];
-matlabFunction(f,'file','three_state_vehicle_model','vars',{x u P},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','three_state_vehicle_model','vars',{x u P},'outputs',{'dx'});
 
 
 %% TSCF-based controller

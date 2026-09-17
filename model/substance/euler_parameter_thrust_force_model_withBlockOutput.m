@@ -1,4 +1,8 @@
 function [ dq,dp,ddp,dob ] = euler_parameter_thrust_force_model_withBlockOutput(x,u)
+% Input order:
+% x (state) = [];
+% u (input) = [];
+
 	Outs = coreQuadrotor(x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8),x(9),x(10),x(11),x(12),x(13),u(1),u(2),u(3),u(4));
 	dq = [ Outs(1),Outs(2),Outs(3),Outs(4) ]';
 	dp = [ Outs(5),Outs(6),Outs(7) ]';

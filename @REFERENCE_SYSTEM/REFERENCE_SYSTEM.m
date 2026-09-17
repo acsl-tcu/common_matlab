@@ -11,7 +11,7 @@ classdef REFERENCE_SYSTEM < matlab.System
   % Pre-computed constants or internal states
   properties (Access = private)
     param
-    parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+    parameter_order = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     t0 
     %func
     type

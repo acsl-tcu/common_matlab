@@ -16,7 +16,7 @@ classdef CONTROLLER_SYSTEM < matlab.System
   properties (Access = private)
     param
     dt
-    parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
+    parameter_order = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     result
   end
 methods

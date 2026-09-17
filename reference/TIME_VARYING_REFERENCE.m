@@ -4,6 +4,7 @@ classdef TIME_VARYING_REFERENCE < handle
     properties
         param
         func % 時間関数のハンドル
+        ref % 参照構造体（pYaw/q/rotms など）
         self
         t=[];
         cha='s';
@@ -13,10 +14,10 @@ classdef TIME_VARYING_REFERENCE < handle
 
     methods
         function obj = TIME_VARYING_REFERENCE(self, args)
-            % 【Input】ref_gen, param, "HL"
+            % 【Input】ref_gen, param, order
             % ref_gen : reference function generator
             % param : parameter to generate the reference function
-            % "HL" : flag to decide the reference for HL
+            % order : derivative order for rigid-body reference
             arguments
                 self
                 args
@@ -26,7 +27,12 @@ classdef TIME_VARYING_REFERENCE < handle
             param_for_gen_func = args{2};
             obj.func = gen_func_name(param_for_gen_func{:});
             if length(args) > 2
-                obj.func = gen_ref_for_HL(obj.func);
+                order = args{3};
+                obj.func = gen_ref_for_rigid_body(obj.func, order);
+            end
+            if isstruct(obj.func) && isfield(obj.func, "pYaw")
+                obj.ref = obj.func;
+                obj.func = obj.ref.pYaw;
             end
             obj.result.state = STATE_CLASS(struct('state_list', ["xd", "p", "q", "v"], 'num_list', [length(obj.func(0)), 3, 3, 3]));                    
             obj.result.state.set_state("xd",obj.func(0));
@@ -53,7 +59,12 @@ classdef TIME_VARYING_REFERENCE < handle
            else
             obj.result.state.v = [0;0;0];
            end
-           obj.result.state.q(3,1) = atan2(obj.result.state.v(2),obj.result.state.v(1));
+           if ~isempty(obj.ref) && isfield(obj.ref, "q")
+               qd = obj.ref.q(t);
+               obj.result.state.q(:, 1) = qd(1:3);
+           else
+               obj.result.state.q(3,1) = atan2(obj.result.state.v(2),obj.result.state.v(1));
+           end
            result = obj.result;
         end
         function show(obj, logger)

@@ -1,5 +1,11 @@
 function [t,y] = euler_approximation(dxdt,tspan,init,option)
 % 状態更新用method : オイラー近似
+% Input order:
+% dxdt (state) = [];
+% tspan (input) = ["ts", "te"];
+% init (parameter) = [];
+% option (arg) = [];
+
     if isfield(option,'dt')
         dt = option.dt
         ts=tspan(1)

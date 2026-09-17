@@ -1,5 +1,4 @@
-%% Initialize
-% do initialize first in main.m
+%% Initialize% do initialize first in main.m
 clear 
 %clc
 %tmp = matlab.desktop.editor.getActive;
@@ -52,9 +51,9 @@ f=[dq;dob;dpl;ddpl;dpT;dol];
 Fl= subs(f,U,[0;0;0;0]);
 Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
 simplify(f - (Fl+Gl*U))
-matlabFunction(Fl,'file','FL','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction(Gl,'file','GL','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
-matlabFunction(f,'file','with_load_model','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(Fl,'file','FL','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(Gl,'file','GL','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+matlabFunction_with_input_order(f,'file','with_load_model','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% 質量推定+x,y外乱込みのモデル(コントローラ設計用)
 syms dstx dsty real
 physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4, rotor_r, mL, cableL,dstx,dsty};
@@ -70,8 +69,8 @@ f=[dq;dob;dpl;ddpl;dpT;dol];
 Fl = subs(f,U,[0;0;0;0]);
 Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
 simplify(f - (Fl+Gl*U))
-matlabFunction(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+matlabFunction_with_input_order(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %% plant,estimator用角度がクオータニオン．ドローンの位置と速度も計測できるようになっている
 % euler出ないと上手く推定できないので今は使われていない．
 physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4,rotor_r,mL, cableL};
@@ -84,7 +83,7 @@ dob  = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 dq   = L'*ob/2;
 x=[p;q;dp;ob;pl;dpl;pT;ol];
 f=[dp;dq;ddp;dob;dpl;ddpl;dpT;dol];
-matlabFunction(f,'file','with_load_model_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% plant,estimator用ドローンの位置と速度も計測できるようになっている
 physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4,rotor_r,mL, cableL};
 ddPL = [0;0;-gravity]+(dot(pT,u1*ERb0*e3)-m*cableL*dot(dpT,dpT))*pT/(m+mL);
@@ -93,7 +92,7 @@ ddPT = cross(dOL,pT)+cross(ol,dpT);
 ddP  = ddPL-cableL*ddPT;
 x=[p;er;dp;ob;pl;dpl;pT;ol];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL];
-matlabFunction(f,'file','with_load_model_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量推定も可能
 syms mLDummy real
 physicalParam = {m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k2, k3, k4,rotor_r,mLDummy, cableL};
@@ -105,7 +104,7 @@ ddP  = ddPL-cableL*ddPT;
 dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0];
-matlabFunction(f,'file','with_load_model_mL_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_mL_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量推定+推力外乱推定も可能
 %墜落する．loadmassも推定している為干渉するのかもしれない
 syms mLDummy real
@@ -119,7 +118,7 @@ ddP  = ddPL-cableL*ddPT;
 dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;fdst];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0];
-matlabFunction(f,'file','with_load_model_mL_fdst_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_mL_fdst_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量+紐の長さの推定可能
 %推定して飛行が可能．初期位置が離れすぎると墜落．精度は質量推定と同等，実機でどうなるかは分からない
 syms mLDummy real
@@ -133,7 +132,7 @@ ddP  = ddPL-cableL*ddPT;
 dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;cableL];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0];
-matlabFunction(f,'file','with_load_model_mL_cableL_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_mL_cableL_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量推定+x,y,z外乱推定も可能
 %z方向の外乱推定を入れた場合は墜落する．loadmassも推定している為干渉するのかもしれない
 syms mLDummy real
@@ -147,7 +146,7 @@ ddP  = ddPL-cableL*ddPT;
 dob = inv(Ib)*cross(-ob,Ib*ob)+inv(Ib)*[u2;u3;u4];
 x=[p;er;dp;ob;pl;dpl;pT;ol;mL;dstx;dsty;dstz];
 f=[dp;der;ddP;dob;dpl;ddPL;dpT;dOL;0;0;0;0];
-matlabFunction(f,'file','with_load_model_mL_dstxyz_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','with_load_model_mL_dstxyz_euler_for_HL','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% estimator用質量推定+x,y外乱推定も可能
 %外乱推定可能
 syms mLDummy real
@@ -166,8 +165,8 @@ physicalParam = [m, Lx, Ly lx ly, jx, jy, jz, gravity, km1, km2, km3, km4, k1, k
 Fl = subs(f,U,[0;0;0;0]);
 Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
 simplify(f - (Fl+Gl*U))
-matlabFunction(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+matlabFunction_with_input_order(Fl,'file','FLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(Gl,'file','GLxyDst','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 %% plant,estimator用With load model (Extend & Euler)
 % 紐の取り付け位置考慮．今は使われていない
 syms ex ey ez real
@@ -186,7 +185,7 @@ U = [u1;u2;u3;u4];
 Fl= subs(f,U,[0;0;0;0]);
 Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
 simplify(f - (Fl+Gl*U))
-matlabFunction(f,'file','euler_with_load_model','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','euler_with_load_model','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% plant,estimator用With load model (Extend & Euler & Parameter Estimation)
 % 紐の取り付け位置を考慮．今は使われていない
 syms ex ey ez real
@@ -206,7 +205,7 @@ U = [u1;u2;u3;u4];
 Fl= subs(f,U,[0;0;0;0]);
 Gl =  [subs(subs(f,[u2;u3;u4],[0;0;0]),u1,1)-Fl, subs(subs(f,[u1;u3;u4],[0;0;0]),u2,1)-Fl, subs(subs(f,[u2;u1;u4],[0;0;0]),u3,1)-Fl, subs(subs(f,[u2;u3;u1],[0;0;0]),u4,1)-Fl];    
 simplify(f - (Fl+Gl*U))
-matlabFunction(f,'file','euler_with_load_model_parameter_estimation','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(f,'file','euler_with_load_model_parameter_estimation','vars',{x U cell2sym(physicalParam)},'outputs',{'dx'});
 %% plant,estimator用With load model (Extend & Euler & Parameter Estimation ex-ey)
 % 紐の取り付け位置を推定．今は使われていない
 syms cableL real

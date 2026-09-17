@@ -1,5 +1,10 @@
 function X = discrete_linear_model(x,u,P)
 % u : force to x,y,z axis and 0
+% Input order:
+% x (state) = [];
+% u (input) = [];
+% P (parameter) = [];
+
     if isfield(P,'A')
         A=P.A;
     else

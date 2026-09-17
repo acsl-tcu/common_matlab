@@ -1,5 +1,4 @@
-%% Initialize
-tmp = matlab.desktop.editor.getActive;
+%% Initializetmp = matlab.desktop.editor.getActive;
 cd(fileparts(tmp.Filename));
 %% Define variables
 syms p1 p2 p3 dp1 dp2 dp3 ddp1 ddp2 ddp3 q0 q1 q2 q3 o1 o2 o3 real
@@ -54,11 +53,11 @@ g = [zeros(9,4);zeros(3,4);ddpG;dobg];
 % rank([Bc,Ac*Bc,Ac*Ac*Bc])
 %% Make function of the quadrotor model : if model is modified, then evaluate this section.
 clc
-matlabFunction(f,'file','RF.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
-matlabFunction(g,'file','RG.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
+matlabFunction_with_input_order(f,'file','RF.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxf'});
+matlabFunction_with_input_order(g,'file','RG.m','vars',{x cell2sym(physicalParam)},'outputs',{'dxg'});
 nonlinearModel = subs(f+g*[u1;u2;u3;u4], physicalParam, physicalParamV);
-matlabFunction(nonlinearModel,'file','rotation_matrix_thrust_force_model.m','vars',{x u},'outputs',{'dx'});
-matlabFunction(f+g*[u1;u2;u3;u4],'file','rotation_matrix_thrust_force_physical_parameter_model.m','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
+matlabFunction_with_input_order(nonlinearModel,'file','rotation_matrix_thrust_force_model.m','vars',{x u},'outputs',{'dx'});
+matlabFunction_with_input_order(f+g*[u1;u2;u3;u4],'file','rotation_matrix_thrust_force_physical_parameter_model.m','vars',{x u cell2sym(physicalParam)},'outputs',{'dx'});
 %% Calculate Jacobian matrix
 
 % jacobianA = jacobian(nonlinearModel,x);
