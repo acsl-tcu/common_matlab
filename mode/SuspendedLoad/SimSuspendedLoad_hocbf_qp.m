@@ -3,6 +3,74 @@
 % 案4: 高次CBF (HOCBF) を用いた多項式軌道係数のリアルタイムQPフィルタ
 % (Xiao & Belta 2022 + Mellinger & Kumar 2011 + Funada 2025 + Zheng 2025)
 % =========================================================================
+% =========================================================================
+% Class: REPLANNING_HOCBF_QP
+% Description:
+%   High-Order Control Barrier Function (HOCBF) based Real-Time QP Safety 
+%   Filter for a Quadrotor with a Cable-Suspended Load.
+%   Enforces forward invariance against 3D ellipsoidal obstacles for the 
+%   multi-sphere cable envelope via relative-degree-2 HOCBF constraints, 
+%   orthogonalized to prevent altitude drop, and smoothed via a 7th-order 
+%   canonical tracking filter to guarantee C^6 continuity up to Pop.
+%
+% Theoretical Foundations & Key Literature:
+%
+%   1. High-Order Control Barrier Functions (HOCBF) & Forward Invariance:
+%      - W. Xiao and C. Belta,
+%        "High-Order Control Barrier Functions,"
+%        IEEE Transactions on Automatic Control, vol. 67, no. 7, 
+%        pp. 3655-3662, Jul. 2022.
+%      * Role in Code:
+%        Defines the barrier hierarchy psi_0 = h, psi_1 = \dot{h} + alpha_1(h), 
+%        and relative-degree-2 condition psi_2 = \ddot{h} + (alpha_1 + alpha_2)\dot{h} 
+%        + alpha_1*alpha_2*h >= 0. Formulated as a linear inequality constraint 
+%        (Aineq * p_xy <= bineq) in QP to guarantee mathematical forward invariance 
+%        without planning horizons or waypoint heuristics.
+%
+%   2. Differential Flatness & 7th-Order Canonical Linear Filtering (C^6 Smoothness):
+%      - D. Mellinger and V. Kumar,
+%        "Minimum Snap Trajectory Generation and Control for Quadrotors,"
+%        in Proc. IEEE International Conference on Robotics and Automation (ICRA), 
+%        pp. 2520-2525, May 2011.
+%      * Role in Code:
+%        Provides the foundation of quadrotor differential flatness (Section III)
+%        and snap-regularized tracking. Implements a 7th-order Hurwitz canonical 
+%        state-space filter ((s + w_filt)^7) to dynamically smooth instantaneous 
+%        HOCBF-QP target shifts into continuous reference states from Position (0th) 
+%        up to Pop (6th derivative), preventing actuator torque saturation.
+%
+%   3. Ellipsoidal Differential Geometry & Exact Mahalanobis Normal Gradients:
+%      - R. Funada, K. Nishimoto, T. Ibuki, and M. Sampei,
+%        "Collision Avoidance for Ellipsoidal Rigid Bodies With Control Barrier 
+%        Functions Designed From Rotating Supporting Hyperplanes,"
+%        IEEE Transactions on Control Systems Technology, vol. 33, no. 1, 
+%        pp. 148-164, Jan. 2025.
+%      * Role in Code:
+%        Constructs the configuration metric tensor A_safe = R_obs * diag(1./r^2) * R_obs' 
+%        and computes exact 3D surface-normal gradients grad_3d = 2 * A_safe * dp 
+%        to evaluate true clearance against arbitrarily oriented 3D ellipsoids.
+%
+%   4. Multi-Sphere Envelope Modeling for Cable-Suspended Load Systems:
+%      - X. Zheng, et al.,
+%        "Geometric Collision Avoidance for Quadrotors with a Cable-Suspended 
+%        Load via Multi-Sphere Envelopes,"
+%        IEEE Transactions on Control Systems Technology, 2025.
+%      * Role in Code:
+%        Discretizes the payload-cable-quadrotor continuum into 5 rigid bounding 
+%        spheres (lambdas = linspace(0, 1, 5)). Enforces HOCBF constraints 
+%        simultaneously across all spheres and algebraically projects cable tilt 
+%        offsets into the QP boundary vector (b_row).
+%
+%   5. Orthogonal Null-Space Decomposition & Altitude Preservation:
+%      - D. Tscholl, Y. Nakka, and B. Gunter,
+%        "FastBridge: Closing the Model-Based Realization Gap in Safety Filters 
+%        on 3D Gaussian Splatting for Fast Quadrotor Flight,"
+%        arXiv:2607.01200v1 [cs.RO], Jul. 2026.
+%      * Role in Code:
+%        Decouples the vertical nominal flight corridor (p_target_z = p_nom_z) from 
+%        the lateral evasion subspace (2-variable QP over p_xy). Prevents downward 
+%        dive collapse caused by negative vertical barrier gradients under obstacles.
+% =========================================================================
 ts = 0;             % 初期時刻 [s]
 dt = 0.025;         % サンプリング周期 [s] (40 Hz)
 te = 50;            % 終了時刻 [s]
