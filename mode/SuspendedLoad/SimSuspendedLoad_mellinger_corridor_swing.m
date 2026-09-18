@@ -55,7 +55,9 @@ nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     }, 6});
 % リプランナ設定 (障害物はリプランナ内部で ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY から取得)
 replan_opts.safe_margin  = 0.3;           % 安全マージン
-replan_opts.trigger_dist = 5;           % 障害物から 2.5m 以内に近づいたら自動検知して動的計算開始
+replan_opts.trigger_dist = 7.0;           % 検知範囲を 7.0m に更新
+replan_opts.r_load       = 0.15;          % 荷物保護半径
+replan_opts.r_drone      = 0.30;          % 機体保護半径
 % V2リプランナをインスタンス化
 replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING(agent, nominal_ref, replan_opts);
 agent.reference.set_function_class("timevarying", replanner_instance);
