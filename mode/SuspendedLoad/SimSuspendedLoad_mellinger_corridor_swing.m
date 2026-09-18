@@ -1,5 +1,8 @@
 %　通常テーマ1がもとになってる
 % Minimum_snap_trajectory_generation_and_control_for_quadrotors.pdfがかんがえのもと
+% Mixed_Integer_Quadratic_Program_trajectory_generation_for_a_quadrotor_with_a_cable-suspended_payload.pdf
+% Teach-Repeat-Replan_A_Complete_and_Robust_System_for_Aggressive_Flight_in_Complex_Environments
+% Real-time_Trajectory_Generation_for_Quadrotors_using_B-spline_based_Non-uniform_Kinodynamic_Search
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
