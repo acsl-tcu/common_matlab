@@ -79,6 +79,7 @@ function post(app, replanner_instance)
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
 app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
+app.logger.plot({1, "controller.result.controllertime", ""}, "phase", "f", "fig_num", 4);
 show_suspended_load_animation(app, replanner_instance); % アニメーション描画
 end
 function show_suspended_load_animation(app, replanner_instance)
