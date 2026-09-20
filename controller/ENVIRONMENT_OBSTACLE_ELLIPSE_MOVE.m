@@ -31,38 +31,38 @@ function obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t)
     %  =========================================================================
     p0_2  = [0.3; 0.3; 15.0]; 
     v_base_2 = [0.0; 0.0; 0.0]; 
-    amp_2 = 2.0; % 振幅
-    omega_2 = 1.0; % 角周波数
-    
+    amp_2 = 7.0; % 振幅
+    omega_2 = 0.075; % 角周波数
+
     p_center2 = p0_2 + v_base_2 * t + [0; amp_2 * sin(omega_2 * t); 0];
     v_inst_2  = v_base_2 + [0; amp_2 * omega_2 * cos(omega_2 * t); 0]; % 瞬時速度
-    
+
     cyl_param2 = [3.0, 1.0];
     R_obs2     = eye(3);
     d_margin2  = 0.5;
-    
+
     item2 = build_obstacle_data('cylinder', p_center2, cyl_param2, R_obs2, d_margin2);
     item2.v_center = v_inst_2;
     obs = [obs, item2];
 
-    %% =========================================================================
-    %  障害物 3: 円運動 (Circular Motion)
-    %  特定の領域をぐるぐると回る障害物
-    %  =========================================================================
-    p_center_orbit = [-4.5; -4.5; 15.0]; 
-    radius_3 = 2.5;
-    omega_3 = 0.8;
-    
-    p_center3 = p_center_orbit + [radius_3 * cos(omega_3 * t); radius_3 * sin(omega_3 * t); 0];
-    v_inst_3  = [-radius_3 * omega_3 * sin(omega_3 * t); radius_3 * omega_3 * cos(omega_3 * t); 0];
-    
-    cyl_param3 = [1.0, 1.0];
-    R_obs3     = eye(3);
-    d_margin3  = 0.5;
-    
-    item3 = build_obstacle_data('cylinder', p_center3, cyl_param3, R_obs3, d_margin3);
-    item3.v_center = v_inst_3;
-    obs = [obs, item3];
+    % %% =========================================================================
+    % %  障害物 3: 円運動 (Circular Motion)
+    % %  特定の領域をぐるぐると回る障害物
+    % %  =========================================================================
+    % p_center_orbit = [-4.5; -4.5; 15.0]; 
+    % radius_3 = 2.5;
+    % omega_3 = 0.8;
+    % 
+    % p_center3 = p_center_orbit + [radius_3 * cos(omega_3 * t); radius_3 * sin(omega_3 * t); 0];
+    % v_inst_3  = [-radius_3 * omega_3 * sin(omega_3 * t); radius_3 * omega_3 * cos(omega_3 * t); 0];
+    % 
+    % cyl_param3 = [1.0, 1.0];
+    % R_obs3     = eye(3);
+    % d_margin3  = 0.5;
+    % 
+    % item3 = build_obstacle_data('cylinder', p_center3, cyl_param3, R_obs3, d_margin3);
+    % item3.v_center = v_inst_3;
+    % obs = [obs, item3];
 
 end
 

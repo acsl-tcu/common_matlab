@@ -50,7 +50,7 @@ L = agent.parameter.cableL;
 nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     {"gen_ref_line", { ...
         "p0", [0, 0, 3], ...        % 開始位置
-        "velocity", 1.5, ...          % 巡航速度 0.3 m/s
+        "velocity", 1.0, ...          % 巡航速度 0.3 m/s
         "direction", [0, 0, 1] ...    % z方向 (真上)
     }, 6});
 % リプランナ設定 (障害物はリプランナ内部で ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY から取得)
