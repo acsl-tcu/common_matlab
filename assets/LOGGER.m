@@ -80,6 +80,17 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                         obj.(i{1}) = log.(i{1});
                     end
 
+                    % %%%エラーが出たときは下のfor分をコメントアウト%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % for i = fn'
+                    %     name = i{1};
+                    % 
+                    %     if isprop(obj, name)
+                    %         obj.(name) = log.(name);
+                    %     else
+                    %         fprintf('スキップ: %s\n', name);
+                    %     end
+                    % end
+
                 end
 
                 if ~isempty(number)
