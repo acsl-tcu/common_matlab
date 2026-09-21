@@ -68,19 +68,22 @@ L = agent.parameter.cableL;
 % 公称直線軌道 (z方向に0.3 m/s で上昇)
 nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     {"gen_ref_line", { ...
-        "p0", [0, 0, 3], ...        % 開始位置
-        "velocity", 1.5, ...          % 巡航速度 0.3 m/s
-        "direction", [0, 0, 1] ...    % z方向 (真上)
+        "p0", [0, 0, 3], ...          % 開始位置
+        "velocity", 1.0, ...          % 巡航速度 1.0 m/s
+        "direction", [0, 0, 1], ...   % z方向 (真上)
+        "t_start", 5.0 ...            % テイクオフ完了時刻(5s)と同期！
     }, 6});
 
 % リプランナ設定 (トリガーは距離ベースに変更されたため trigger_y は不要)
-replan_opts.obs_center   = [0.2; 0.2; 10.0];   % 上方 (z=4.0) にある障害物
-replan_opts.obs_radius   = 0.3;           % 半径
-replan_opts.safe_margin  = 0.3;           % 安全マージン
-replan_opts.trigger_dist = 2.5;           % 障害物から 2.5m 以内に近づいたら自動検知して動的計算開始
+replan_opts.safe_margin  = 0.5;           % 安全マージン
+replan_opts.trigger_dist = 7.0;           % 検知範囲を 7.0m に更新
+replan_opts.r_load       = 0.15;          % 荷物保護半径
+replan_opts.r_drone      = 0.30;          % 機体保護半径
 
+% agent.reference.set_function_class("timevarying", ...
+%     REPLANNING_SMOOTH_CBF_FILTER(agent, nominal_ref, replan_opts));
 agent.reference.set_function_class("timevarying", ...
-    REPLANNING_SMOOTH_CBF_FILTER(agent, nominal_ref, replan_opts));
+    REPLANNING_HOCBF_QP(agent, nominal_ref, replan_opts));
 
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
@@ -119,10 +122,12 @@ function show_suspended_load_animation(app)
         return
     end
     % 今回作成した DRAW_SUSPENDED_LOAD_CBF_SPHERES を指定
-    mov = DRAW_SUSPENDED_LOAD_SMOOTHCBF(app.logger, ...
+    mov = DRAW_SUSPENDED_LOAD_MPC_CBF(app.logger, ...
         "target", 1, ...
         "self", app.agent(1));
-    mov.animation(app.logger, "target", 1, "self", app.agent(1));
+
+    % アニメーションの再生実行
+    mov.animation(app.logger, "target", 1, "self", app.agent(1));%表示だけ用
 end
 
 function in_prog(app)

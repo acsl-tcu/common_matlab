@@ -5424,29 +5424,29 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             % -------------------------------------------------------------
             % 【3次元分離超平面 不等式制約 ＆ 幾何学的早期インカット防止バリア】
             % -------------------------------------------------------------
-            B_mid = obj.eval_bernstein_vector(N, 1.0);
             A_ineq = [];
             b_ineq = [];
             
-            % 1. セグメント境界点（ピーク）での退避保証
-            row_push_mid = zeros(1, n_vars_tot);
+            % 1. セグメント1頂点 (最接近部): 終端制御点 c_{N}^{(1)} (index n_c)
+            row_cp_peak = zeros(1, n_vars_tot);
             for dim = 1:3
                 idx_d = (dim - 1) * n_vars_1d;
-                row_push_mid(idx_d + (1:n_c)) = -n_escape_3d(dim) * B_mid;
+                row_cp_peak(idx_d + n_c) = -n_escape_3d(dim);
             end
-            A_ineq = [A_ineq; row_push_mid];
+            A_ineq = [A_ineq; row_cp_peak];
             b_ineq = [b_ineq; -req_clearance];
             
-            % 2. 【新規性・4mmかすり防止】セグメント2序盤 (u2 = 0.25) の退避維持バリア
-            %    ピーク通過直後に公称線へ急激にインカットして障害物上面角部をかすめるのを防ぐ
-            B_seg2_shoulder = obj.eval_bernstein_vector(N, 0.25);
-            row_push_shoulder = zeros(1, n_vars_tot);
-            for dim = 1:3
-                idx_d = (dim - 1) * n_vars_1d;
-                row_push_shoulder(idx_d + (n_c+1:2*n_c)) = -n_escape_3d(dim) * B_seg2_shoulder;
+            % 2. セグメント2復帰序盤: 制御点 c_{1}^{(2)}, c_{2}^{(2)} (インデックス n_c+2, n_c+3)
+            %    凸包性により、特定時間を縛らずとも自然な流線形で4mm早期インカットを完全阻止
+            for cp_idx = [n_c + 2, n_c + 3]
+                row_cp_shoulder = zeros(1, n_vars_tot);
+                for dim = 1:3
+                    idx_d = (dim - 1) * n_vars_1d;
+                    row_cp_shoulder(idx_d + cp_idx) = -n_escape_3d(dim);
+                end
+                A_ineq = [A_ineq; row_cp_shoulder];
+                b_ineq = [b_ineq; -0.85 * req_clearance];
             end
-            A_ineq = [A_ineq; row_push_shoulder];
-            b_ineq = [b_ineq; -0.82 * req_clearance];
             
             % 物理限界制約 (加速度 & Jerk 有界: 紐角度25度対応)
             theta_max = deg2rad(obj.max_swing_angle_deg);
@@ -5490,7 +5490,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             
             if exitflag < 1
                 b_ineq_relax = b_ineq;
-                b_ineq_relax(3:end) = b_ineq_relax(3:end) * 1.35; % 退避バリア(1,2行目)を死守し物理制約のみ緩和
+                b_ineq_relax(4:end) = b_ineq_relax(4:end) * 1.35; % 退避バリア(1,2行目)を死守し物理制約のみ緩和
                 [X_opt, ~, exitflag_r, ~] = quadprog(H, f, A_ineq, b_ineq_relax, Aeq, beq, lb, ub, [], opts);
                 
                 if exitflag_r < 1
@@ -5499,7 +5499,8 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
                     row_mid = zeros(1, n_vars_tot);
                     for dim = 1:3
                         idx_d = (dim - 1) * n_vars_1d;
-                        row_mid(idx_d + (1:n_c)) = n_escape_3d(dim) * B_mid;
+                        % セグメント1の終端制御点 c_{N}^{(1)} (index: n_c) を直接指定
+                        row_mid(idx_d + n_c) = n_escape_3d(dim);
                     end
                     Aeq_fb = [Aeq_fb; row_mid];
                     beq_fb = [beq_fb; req_clearance * 0.85];
@@ -5517,7 +5518,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             obj.log.H_qp                   = H;
             obj.log.f_qp                   = f;
             obj.log.X_opt                  = X_opt;
-            obj.log.row_push_shoulder      = row_push_shoulder; % 幾何退避維持バリア行
+            obj.log.row_push_shoulder      = A_ineq(2:3, :); % 凸包制御点制約行
             obj.log.req_clearance_shoulder = 0.82 * req_clearance;
             
             C1 = zeros(n_c, 3);
@@ -5531,7 +5532,7 @@ classdef REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING < handle
             obj.coeffs_delta_seg1 = C1;
             obj.coeffs_delta_seg2 = C2;
             
-            obj.actual_peak_displacement = norm(B_mid * C1);
+            obj.actual_peak_displacement = norm(C1(end, :));
             obj.compute_c6_gaps();
         end
         

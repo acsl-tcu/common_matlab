@@ -59,7 +59,8 @@ replan_opts.trigger_dist = 7.0;           % 検知範囲を 7.0m に更新
 replan_opts.r_load       = 0.15;          % 荷物保護半径
 replan_opts.r_drone      = 0.30;          % 機体保護半径
 % V2リプランナをインスタンス化
-replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING(agent, nominal_ref, replan_opts);
+% replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING(agent, nominal_ref, replan_opts);
+replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING_7B(agent, nominal_ref, replan_opts);
 agent.reference.set_function_class("timevarying", replanner_instance);
 % ★ここで定義する！★
 post_func = @(app) post(app, replanner_instance);

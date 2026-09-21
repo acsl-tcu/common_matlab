@@ -136,13 +136,14 @@ nominal_ref = TIME_VARYING_REFERENCE(agent, ...
     }, 6});
 
 % 【案4】HOCBF-QP 多項式軌道リプランナ設定
+replan_opts = struct();
 replan_opts.safe_margin  = 0.5;           % 楕円体外殻からの追加安全離隔 [m]
 replan_opts.trigger_dist = 7;           % 探知開始距離 [m]
 replan_opts.r_load       = 0.15;
 replan_opts.r_drone      = 0.30;
 
 agent.reference.set_function_class("timevarying", ...
-    REPLANNING_HOCBF_QP(agent, nominal_ref, replan_opts));
+    REPLANNING_SOFTPLUS_CBF(agent, nominal_ref, replan_opts));
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 3.0, "te", 5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "zd", -L, "te", 3));
