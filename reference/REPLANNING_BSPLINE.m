@@ -1082,12 +1082,12 @@ classdef REPLANNING_BSPLINE < handle
         self % ドローンエージェント自身 (推定器 estimator やパラメータ parameter を保持) 
         base_ref % 公称参照軌道生成オブジェクト
         result                % 出力結果構造体 (目標状態 xd, pRef, vRef, yawRef, 検知情報)
-        
+
         trigger_dist = 7.0;   % 接近検知の閾値 [m] (表面間距離がこれ以下になるとアラート)
         % r_load       = 0.15;  % 荷物保護半径 [m] (必要に応じて将来のマージン計算等に使用)
         % r_drone      = 0.30;  % 機体保護半径 [m] (必要に応じて将来のマージン計算等に使用)
     end
-    
+
     methods (Access = public)
         % =====================================================================
         % コンストラクタ: クラスの初期化と外部設定 (opts) の反映
@@ -1098,15 +1098,33 @@ classdef REPLANNING_BSPLINE < handle
                 base_ref              % 必須: 通常飛行用の公称軌道インスタンス
                 opts = struct()       % 任意: 外部からパラメータを変更するための構造体
             end
-            
+
             obj.self = self;
             obj.base_ref = base_ref;
-            
+
             if isfield(opts, 'trigger_dist'), obj.trigger_dist = opts.trigger_dist; end % 外で定義されていたらデフォルト値を上書き　センサー代わりの検知範囲
             % if isfield(opts, 'r_load'),       obj.r_load       = opts.r_load;       end % 外で定義されていたらデフォルト値を上書き　牽引物を近似した球体
             % if isfield(opts, 'r_drone'),      obj.r_drone      = opts.r_drone;      end % 外で定義されていたらデフォルト値を上書き　機体を近似した球体
+
+            % base_ref の result 構造体をそのまま継承 (直下は state のみ)
+            obj.result = base_ref.result;
+            % --- 【重要】STATE_CLASS に検知用プロパティを動的追加 (dynamicprops) ---
+            % これにより、state 内に正式な記録領域が作成され、ロガーで抽出可能になる
+            sensor_props = ["time", "pQ", "pL", "detected_point", ...
+                "drone_inside_obstacle_point", "load_inside_obstacle_point", ...
+                "drone_min_dist_point", "load_min_dist_point", "min_dist_point", ...
+                "drone_obstacle_id_point", "load_obstacle_id_point", "min_obstacle_id_point", ...
+                "min_source_point", "detected_obstacle_count_point"];
+            for p_name = sensor_props
+                if ~isprop(obj.result.state, p_name)
+                    addprop(obj.result.state, p_name);
+                end
+            end
+
+            % 初期ダミー値のセット
+            obj.clear_state_sensor_values(0.0);
         end
-        
+
         % =====================================================================
         % do: 制御周期ごと (例: 25ms周期) にメインループから呼び出される実行メソッド
         % 入力: 
@@ -1120,22 +1138,35 @@ classdef REPLANNING_BSPLINE < handle
             time = varargin{1}; % varargin{1}: time (現在の時刻 struct: time.t, time.dt など)
             cha = varargin{2}; % varargin{2}: cha  (フェーズ文字列: 'f' = 飛行中, 't' = 離陸など)
 
-            % % 環境情報（障害物リスト）の抽出
-            % if length(varargin) >= 4
-            %     env = varargin{4};
-            % else
-            %     env = [];
-            % end
-            
             % --- 公称目標軌道 (Nominal Reference) の算出 ---
             % 本クラスが障害物を回避する新軌道を生成しない間は、公称軌道生成器の出力をそのまま踏襲する
             % 公称参照軌道の取得
             base_res = obj.base_ref.do(varargin{:}); % 公称軌道の抜き出し
             xd_nom = base_res.state.xd; % 牽引物の目標３次元位置・yaw角からその６階微分まで [pL(3); yaw(1); vL(3); yaw_dot(1); aL(3)...]
-            obj.result = base_res; % 公称軌道保存
+            
+            % 毎ステップ、検知プロパティの初期値をリセット
+            obj.clear_state_sensor_values(time.t);
+            
+            % obj.result.state に公称軌道を反映 (base_res 全体の上書きは行わない)
             obj.result.state.xd = xd_nom; % 公称軌道保存
-            
-            
+
+            % --- 2. 空の検知構造体を用意 (非飛行フェーズ用) ---
+            detection = struct();
+            detection.time                          = time.t;             % [s] 現在のシミュレーション時刻
+            detection.pQ                            = [NaN; NaN; NaN];    % [m] ドローン機体重心の3次元位置ベクトル [x; y; z]
+            detection.pL                            = [NaN; NaN; NaN];    % [m] 牽引荷物の3次元位置ベクトル [x; y; z]
+            detection.detected_point                = false;              % [bool] 7m近接検知フラグ (true: 検知, false: 未検知)
+            detection.drone_inside_obstacle_point   = false;              % [bool] 機体の障害物楕円体内部侵入フラグ (true: 侵入, false: 外部)
+            detection.load_inside_obstacle_point    = false;              % [bool] 荷物の障害物楕円体内部侵入フラグ (true: 侵入, false: 外部)
+            detection.drone_min_dist_point          = inf;                % [m] 機体から全障害物表面までの最短幾何学距離
+            detection.load_min_dist_point           = inf;                % [m] 荷物から全障害物表面までの最短幾何学距離
+            detection.min_dist_point                = inf;                % [m] システム全体(機体・荷物)で最も近い表面距離 min(dQ, dL)
+            detection.drone_obstacle_id_point       = NaN;                % [ID] 機体にとって最短距離を与えている障害物インデックス番号
+            detection.load_obstacle_id_point        = NaN;                % [ID] 荷物にとって最短距離を与えている障害物インデックス番号
+            detection.min_obstacle_id_point         = NaN;                % [ID] システム全体で最短距離を与えている障害物インデックス番号
+            detection.min_source_point              = "none";             % [string] 最短距離をもたらしたセンサ種別 ("drone", "load", "none")
+            detection.detected_obstacle_count_point = 0;                  % [個] 7m以内に検知された障害物の総数
+
             % --- 飛行フェーズ ('f') 時の近接障害物スキャン ---
             if cha == 'f'
                 % --- 機体・荷物の現在位置の取得 ---
@@ -1146,14 +1177,11 @@ classdef REPLANNING_BSPLINE < handle
 
                 % (B) 現在時刻 t における動的障害物配置を取得
                 obs_list = obj.get_obstacles_at_time(time.t);
-           
-                
+
+
                 % (C) 機体の重心および荷物の取り付け位置から障害物表面までの最短ユークリッド距離を幾何計算
                 detection = obj.check_detection_simulated_sensor(pQ_cur, pL_cur, obs_list, time.t);
-                
-                % (D) コントローラやロガーが参照できるよう、結果構造体に検知情報を格納
-                obj.result.obstacle_detection = detection;
-                
+
                 % 7m以内に侵入した場合のコンソール警告
                 if detection.detected_point
                     fprintf("[PROXIMITY ALERT] t=%.3f s | 7m近接検知! (機体表面間: %.2f m, 荷物表面間: %.2f m, 最短: %.2f m, 最寄センサ: %s, ID: %d)\n", ...
@@ -1161,16 +1189,54 @@ classdef REPLANNING_BSPLINE < handle
                 end
             end
             
-            % --- 3. 下流コントローラ向け参照指令値の保存 ---
-            obj.result.state.pRef = obj.result.state.xd(1:3); % 目標位置[m]
-            obj.result.state.vRef = obj.result.state.xd(5:7); % 目標速度[m/s]
-            obj.result.state.yawRef = obj.result.state.xd(4); % 目標yaw角[rad]
+            % --- 4. 【最重要】state 内の各プロパティに代入して app.logger に完全保存 ---
+            st = obj.result.state;
+            st.xd                            = xd_nom;                                  % [28x1 double] 目標軌道全状態
+            st.p                             = xd_nom(1:3);                             % [m] 目標位置 [x; y; z]
+            st.v                             = xd_nom(5:7);                             % [m/s] 目標速度 [vx; vy; vz]
+            st.q                             = [0; 0; xd_nom(4)];                       % [rad] 目標姿勢 (yaw角)
+            
+            st.time                          = detection.time;                          % [s] 計測時刻 (double)
+            st.pQ                            = detection.pQ;                            % [m] ドローン機体重心位置 (3x1 double)
+            st.pL                            = detection.pL;                            % [m] 荷物位置 (3x1 double)
+            st.detected_point                = detection.detected_point;                % [bool] 7m近接検知判定フラグ (true / false)
+            st.drone_inside_obstacle_point   = detection.drone_inside_obstacle_point;   % [bool] 機体侵入フラグ (true: 侵入, false: 外部)
+            st.load_inside_obstacle_point    = detection.load_inside_obstacle_point;    % [bool] 荷物侵入フラグ (true: 侵入, false: 外部)
+            st.drone_min_dist_point          = detection.drone_min_dist_point;          % [m] 機体の最短表面距離 (正: 外部, 負: 侵入深さ)
+            st.load_min_dist_point           = detection.load_min_dist_point;           % [m] 荷物の最短表面距離 (正: 外部, 負: 侵入深さ)
+            st.min_dist_point                = detection.min_dist_point;                % [m] システム全体の最短幾何表面距離 min(dQ, dL)
+            st.drone_obstacle_id_point       = detection.drone_obstacle_id_point;       % [ID] 機体にとって最短の障害物インデックス番号
+            st.load_obstacle_id_point        = detection.load_obstacle_id_point;        % [ID] 荷物にとって最短の障害物インデックス番号
+            st.min_obstacle_id_point         = detection.min_obstacle_id_point;         % [ID] 全体で最短の障害物インデックス番号
+            st.min_source_point              = detection.min_source_point;              % [string] 最短距離センサ種別 ("drone" または "load")
+            st.detected_obstacle_count_point = detection.detected_obstacle_count_point; % [個] 7m以内に検知された障害物の総数
             
             result_out = obj.result;
         end
     end
-    
+
     methods (Access = private)
+        % =====================================================================
+        % clear_state_sensor_values: state 内の検知プロパティを初期化
+        % =====================================================================
+        function clear_state_sensor_values(obj, t_now)
+            st = obj.result.state;
+            st.time                          = t_now;              % [s] 現在時刻
+            st.pQ                            = [NaN; NaN; NaN];    % [m] ドローン位置初期値
+            st.pL                            = [NaN; NaN; NaN];    % [m] 荷物位置初期値
+            st.detected_point                = false;              % 検知なし
+            st.drone_inside_obstacle_point   = false;              % 機体侵入なし
+            st.load_inside_obstacle_point    = false;              % 荷物侵入なし
+            st.drone_min_dist_point          = inf;                % 最短距離初期値 (無限大)
+            st.load_min_dist_point           = inf;                % 最短距離初期値 (無限大)
+            st.min_dist_point                = inf;                % 最短距離初期値 (無限大)
+            st.drone_obstacle_id_point       = NaN;                % 最短障害物ID初期値
+            st.load_obstacle_id_point        = NaN;                % 最短障害物ID初期値
+            st.min_obstacle_id_point         = NaN;                % 最短障害物ID初期値
+            st.min_source_point              = "none";             % 最短センサ初期値
+            st.detected_obstacle_count_point = 0;                  % 検知個数初期値
+        end
+
         % =====================================================================
         % get_obstacles_at_time: 環境関数を叩き、時刻 t_now での障害物リストを取得
         % =====================================================================
@@ -1186,36 +1252,37 @@ classdef REPLANNING_BSPLINE < handle
         % =====================================================================
         function det = check_detection_simulated_sensor(obj, pQ, pL, obs_list, t_now)
             det = struct();
-            
+
             % --- センサ状態・時刻 ---
-            det.time = t_now;
-            det.pQ   = pQ;
-            det.pL   = pL;
-            det.trigger_dist = obj.trigger_dist;  % 検知閾値 [m] を記録
-            
+            det.time                          = t_now;              % [s] 現在のシミュレーション時刻 (double)
+            det.pQ                            = pQ;                 % [m] ドローン機体重心の3次元位置ベクトル [x; y; z] (3x1 double)
+            det.pL                            = pL;                 % [m] 牽引荷物の3次元位置ベクトル [x; y; z] (3x1 double)
+            det.trigger_dist                  = obj.trigger_dist;   % [m] 近接検知判定の閾値距離 (例: 7.0 m) (double)
+
             % --- 全体判定フラグ ---
-            det.detected_point        = false;  % 7m以内に検知されたかのフラグ
-            det.drone_inside_obstacle_point = false;  % 機体が楕円体内部に侵入しているかのフラグ (dQ < 0)
-            det.load_inside_obstacle_point  = false;  % 荷物が楕円体内部に侵入しているかのフラグ (dL < 0)
-            
+            det.detected_point                = false;              % [bool] 機体または荷物が障害物から7m以内に接近したか (true: 検知, false: 未検知)
+            det.drone_inside_obstacle_point   = false;              % [bool] 機体が障害物楕円体の内部へ侵入/衝突したか (true: 侵入, false: 外部)
+            det.load_inside_obstacle_point    = false;              % [bool] 荷物が障害物楕円体の内部へ侵入/衝突したか (true: 侵入, false: 外部)
+
             % --- 最短距離 ---
-            det.drone_min_dist_point = inf;    % 機体から最も近い障害物表面までの距離 [m]
-            det.load_min_dist_point  = inf;    % 荷物から最も近い障害物表面までの距離 [m]
-            det.min_dist_point       = inf;    % min(drone_min_dist_point, load_min_dist_point) [m]
-            
-            % --- 識別情報 ---
-            det.drone_obstacle_id_point        = [];  % 機体にとって最短の障害物ID
-            det.load_obstacle_id_point         = [];  % 荷物にとって最短の障害物ID
-            det.min_obstacle_id_point          = [];  % 全体で最短距離を与える障害物ID
-            det.min_source_point               = "";  % "drone" または "load"
-            det.detected_obstacles_point = [];  % 7m以内に入った全脅威の詳細リスト
-            
+            det.drone_min_dist_point          = inf;                % [m] 環境内の全障害物の中で、機体から表面までの最短幾何学距離 (double, 内部時は負値)
+            det.load_min_dist_point           = inf;                % [m] 環境内の全障害物の中で、荷物から表面までの最短幾何学距離 (double, 内部時は負値)
+            det.min_dist_point                = inf;                % [m] システム全体(機体・荷物の双方)で最も近い表面距離 min(dQ, dL) (double)
+
+            % --- 識別情報・統計 ---
+            det.drone_obstacle_id_point       = [];                 % [ID] 機体にとって最短距離を与えている障害物のインデックス番号 (integer)
+            det.load_obstacle_id_point        = [];                 % [ID] 荷物にとって最短距離を与えている障害物のインデックス番号 (integer)
+            det.min_obstacle_id_point         = [];                 % [ID] システム全体で最短距離を与えている障害物のインデックス番号 (integer)
+            det.min_source_point              = "none";                 % [string] 最短距離をもたらしたセンサ種別 ("drone": 機体, "load": 荷物)
+            det.detected_obstacles_point      = [];                 % [struct配列] 7m以内に検知された全障害物の詳細情報リスト (各要素は下記2を参照)
+            det.detected_obstacle_count_point = 0;                  % [個] 7m以内に検知された障害物の総数 (integer, 未検知時は0)
+
             if isempty(obs_list)
                 return;
             end
-            
+
             detected_obs_point = [];
-            
+
             for i = 1:length(obs_list)
                 o = obs_list(i);
 
@@ -1223,7 +1290,7 @@ classdef REPLANNING_BSPLINE < handle
                 if ~isfield(o, 'R_obs') || ~isfield(o, 'ellipsoid_radii') || ~isfield(o, 'p_center')
                     error('インデックス %d の障害物に必須フィールド (R_obs, ellipsoid_radii, p_center) が不足しています.', i);
                 end
-                
+
                 % --- 障害物の姿勢回転行列 R_obs の抽出 ---
                 R_obs = o.R_obs;
                 % --- 外接楕円体の主軸半径 [a; b; c] の抽出 ---
@@ -1232,16 +1299,16 @@ classdef REPLANNING_BSPLINE < handle
                 % get_obstacles_at_time(t_now) で既に t_now 時点の中心位置が得られているため、
                 % timestamp フィールドが明示的に別時刻として存在する場合のみ差分時間で補正
                 p_obs = o.p_center(:);
-                
+
                 obs_parsed = struct('center', p_obs, 'radii', radii_obs, 'R', R_obs);
-                
+
                 % --- E. 機体 pQ および荷物 pL から楕円体表面への符号付き最短幾何距離 ---
                 % d > 0: 表面の外側にある (表面までの最短距離 [m])
                 % d < 0: 内部に侵入している (侵入深さ [m])
                 % ここでは機体は重心点・牽引物は取り付け点の点と考えて，その表面からの障害物を近似した楕円表面への最短距離が検知範囲内かどうかの判定に使用
                 [d_drone_point, inside_drone_point, cpQ_local_point, ~] = obj.point_ellipsoid_signed_distance(pQ, obs_parsed);
                 [d_load_point,  inside_load_point,  cpL_local_point, ~] = obj.point_ellipsoid_signed_distance(pL, obs_parsed);
-                
+
                 % ワールド座標系における表面最近接点: x_world = center + R * x_local
                 cpQ_world_point = p_obs + R_obs * cpQ_local_point;
                 cpL_world_point = p_obs + R_obs * cpL_local_point;
@@ -1278,31 +1345,31 @@ classdef REPLANNING_BSPLINE < handle
                 end
 
                 obs_min_point = min(d_drone_point, d_load_point);
-                
+
                 % 該当障害物の詳細データ構造体
                 obs_info_point = struct( ...
-                    'id',                  i, ...
-                    'dist_drone_point',    d_drone_point, ...
-                    'dist_load_point',     d_load_point, ...
-                    'min_dist_point',      obs_min_point, ...
-                    'drone_inside_point',        inside_drone_point, ...
-                    'load_inside_point',         inside_load_point, ...
-                    'p_obs',              p_obs, ...
-                    'radii_obs',               radii_obs, ...
-                    'R_obs',                   R_obs, ...
-                    'closest_drone_world_point', cpQ_world_point, ...
-                    'closest_load_world_point',  cpL_world_point, ...
-                    'normal_drone_point',        normal_drone_point, ...
-                    'normal_load_point',         normal_load_point ...
+                    'id',                        i, ...                  % [ID] 障害物のインデックス番号 (integer)
+                    'dist_drone_point',          d_drone_point, ...      % [m] 機体重心からこの障害物表面までの符号付き最短距離 (正: 外部, 負: 侵入深さ)
+                    'dist_load_point',           d_load_point, ...       % [m] 荷物位置からこの障害物表面までの符号付き最短距離 (正: 外部, 負: 侵入深さ)
+                    'min_dist_point',            obs_min_point, ...      % [m] この障害物に対する機体・荷物双方の最小表面間距離 min(dQ, dL)
+                    'drone_inside_point',        inside_drone_point, ... % [bool] 機体がこの障害物の内部に侵入しているか (true: 侵入, false: 外部)
+                    'load_inside_point',         inside_load_point, ...  % [bool] 荷物がこの障害物の内部に侵入しているか (true: 侵入, false: 外部)
+                    'p_obs',                     p_obs, ...              % [m] 時刻 t における障害物の中心位置ベクトル [x; y; z] (3x1 double)
+                    'radii_obs',                 radii_obs, ...          % [m] 障害物の3軸半径 [rx; ry; rz] (3x1 double)
+                    'R_obs',                     R_obs, ...              % [-] 障害物の主軸姿勢を表す3x3回転行列 SO(3) (3x3 double)
+                    'closest_drone_world_point', cpQ_world_point, ...    % [m] 機体に対する障害物表面上の最短最近接点 (ワールド座標系 [x; y; z])
+                    'closest_load_world_point',  cpL_world_point, ...    % [m] 荷物に対する障害物表面上の最短最近接点 (ワールド座標系 [x; y; z])
+                    'normal_drone_point',        normal_drone_point, ... % [-] 機体側最近接点における障害物表面の真の外向き単位法線ベクトル (ワールド系, 単位ノルム)
+                    'normal_load_point',         normal_load_point ...   % [-] 荷物側最近接点における障害物表面の真の外向き単位法線ベクトル (ワールド系, 単位ノルム)
                 );
-                
+
                 % --- 接近検知判定 (7m以内) ---
                 if obs_min_point <= obj.trigger_dist
                     det.detected_point = true;
                     detected_obs_point = [detected_obs_point; obs_info_point];
                 end
             end
-            
+
             % システム全体での最短距離および検知元の確定
             if det.drone_min_dist_point <= det.load_min_dist_point
                 det.min_dist_point  = det.drone_min_dist_point;
@@ -1313,11 +1380,11 @@ classdef REPLANNING_BSPLINE < handle
                 det.min_obstacle_id_point = det.load_obstacle_id_point;
                 det.min_source_point      = "load";
             end
-            
+
             det.detected_obstacles_point = detected_obs_point;
             det.detected_obstacle_count_point = numel(detected_obs_point);  % 検知された障害物の個数を記録
         end
-        
+
         % =====================================================================
         % point_ellipsoid_signed_distance
         % 任意の3次元点 p と回転楕円体 (中心 c, 半径 r=[a;b;c], 回転行列 R) の
@@ -1335,7 +1402,7 @@ classdef REPLANNING_BSPLINE < handle
             c = o.center(:);
             r = o.radii(:);
             R = o.R;
-            
+
             % --- 入力チェック: 不正ならフォールバックせず即座に停止 ---
             if numel(p) ~= 3 || numel(c) ~= 3 || numel(r) ~= 3
                 error('点 p、中心 c、および半径 r はすべて3x1ベクトルである必要があります。');
@@ -1352,18 +1419,18 @@ classdef REPLANNING_BSPLINE < handle
             if norm(R'*R - eye(3), 'fro') > 1e-6 || abs(det(R) - 1.0) > 1e-6
                 error('行列 R は有効な直交回転行列 SO(3) ではありません。');
             end
-            
+
             % 1. ワールド座標系の点 p を障害物の局所主軸座標系 (Local Frame) に変換
             y  = R' * (p - c);
             r2 = r.^2;
-            
+
             % 2. 楕円代数判定値 q:
             %    q < 1.0 -> 点は楕円体の内部にある (衝突・侵入状態)
             %    q = 1.0 -> 点は楕円体の表面上にある
             %    q > 1.0 -> 点は楕円体の外部にある
             q      = sum((y ./ r).^2);
             inside = (q < 1.0);
-            
+
             % 特異点処理: 点が障害物の中心そのものにある場合 (最も近い表面は最短半径の主軸上)
             if norm(y) < 1e-14
                 [min_r, min_idx] = min(r);
@@ -1373,16 +1440,16 @@ classdef REPLANNING_BSPLINE < handle
                 lambda = -min(r2);
                 return;
             end
-            
+
             % ラグランジュ未定乗数の非線形方程式 f(lambda) = 0
             f = @(lam) sum(r2 .* (y.^2) ./ ((lam + r2).^2)) - 1.0;
-            
+
             % 3. ラグランジュ乗数 lambda の探索範囲 (Bracketing) の設定と根の存在検証
             if q > 1.0
                 % 外部点の場合: lambda >= 0
                 lo = 0.0;
                 hi = max(r) * norm(y);
-                
+
                 if f(lo) < 0 || f(hi) > 0
                     error('外部点に対する楕円体距離の求根ブラケット設定に失敗しました (解を挟み込めていません)。');
                 end
@@ -1390,12 +1457,12 @@ classdef REPLANNING_BSPLINE < handle
                 % 内部点の場合: -min(r_i^2) < lambda < 0
                 lo = -min(r2) * (1.0 - 1e-12);
                 hi = 0.0;
-                
+
                 if f(lo) < 0 || f(hi) > 0
                     error('内部点に対する楕円体距離の求根ブラケット設定に失敗しました (解を挟み込めていません)。');
                 end
             end
-            
+
             % 4. 二分探索により lambda を数値的に収束させる
             %    80回反復して根を高精度に求める
             for kk = 1:80
@@ -1407,11 +1474,11 @@ classdef REPLANNING_BSPLINE < handle
                 end
             end
             lambda = 0.5 * (lo + hi);
-            
+
             % 5. 局所座標系における楕円体表面上の最近接点 closest_local
             closest_local = r2 .* y ./ (lambda + r2);
             d_abs         = norm(closest_local - y);
-            
+
             % 6. 表面までの最短ユークリッド距離
             %    外部なら正値 (+), 内部なら侵入深さとして負値 (-) を返す
             if inside
@@ -1422,3 +1489,4 @@ classdef REPLANNING_BSPLINE < handle
         end
     end
 end
+
