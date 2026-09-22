@@ -53,14 +53,25 @@ nominal_ref = TIME_VARYING_REFERENCE(agent, ...
         "velocity", 1.0, ...          % 巡航速度 0.3 m/s
         "direction", [0, 0, 1] ...    % z方向 (真上)
     }, 6});
-% リプランナ設定 (障害物はリプランナ内部で ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY から取得)
-replan_opts.safe_margin  = 0.3;           % 安全マージン
+% % リプランナ設定 (障害物はリプランナ内部で ENVIRONMENT_OBSTACLE_HOCBF_LINK_XY から取得)
+% replan_opts.safe_margin  = 0.3;           % 安全マージン
+% replan_opts.trigger_dist = 7.0;           % 検知範囲を 7.0m に更新
+% replan_opts.r_load       = 0.15;          % 荷物保護半径
+% replan_opts.r_drone      = 0.30;          % 機体保護半径
+% % V2リプランナをインスタンス化
+% % replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING(agent, nominal_ref, replan_opts);
+% % replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING_7B(agent, nominal_ref, replan_opts);
+% replanner_instance = REPLANNING_BSPLINE_HL(agent, nominal_ref, replan_opts);
+% agent.reference.set_function_class("timevarying", replanner_instance);
+% リプランナ設定 (障害物はリプランナ内部で自動的にenvから取得されます)
+% replan_opts.safe_margin  = 0.3;           % 安全マージン（Tracking Tubeの最小保証値として適用）
 replan_opts.trigger_dist = 7.0;           % 検知範囲を 7.0m に更新
 replan_opts.r_load       = 0.15;          % 荷物保護半径
 replan_opts.r_drone      = 0.30;          % 機体保護半径
-% V2リプランナをインスタンス化
-% replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING(agent, nominal_ref, replan_opts);
-replanner_instance = REPLANNING_MELLINGER_CORRIDOR_FLATNESS_SWING_7B(agent, nominal_ref, replan_opts);
+% B-Spline HLCリプランナをインスタンス化
+% ※タイポ修正: REPLANNING_BSPLINE_HL -> REPLANNING_BSPLINE_HLC
+replanner_instance = REPLANNING_BSPLINE(agent, nominal_ref, replan_opts);
+% エージェントのReferenceとして設定
 agent.reference.set_function_class("timevarying", replanner_instance);
 % ★ここで定義する！★
 post_func = @(app) post(app, replanner_instance);

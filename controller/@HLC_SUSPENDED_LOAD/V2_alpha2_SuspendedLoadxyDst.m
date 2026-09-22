@@ -39,10 +39,6 @@ ol3 = in2(19,:);
 pT1 = in2(14,:);
 pT2 = in2(15,:);
 pT3 = in2(16,:);
-if abs(pT3) < eps_safe
-    pT3 = sign(pT3) * eps_safe;
-    if pT3 == 0, pT3 = eps_safe; end % 完全ゼロ時のフォールバック
-end
 q0 = in2(1,:);
 q1 = in2(2,:);
 q2 = in2(3,:);
