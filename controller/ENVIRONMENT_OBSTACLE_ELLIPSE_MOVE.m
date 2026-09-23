@@ -9,41 +9,41 @@ function obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t)
 
     obs = [];
 
-    %% =========================================================================
-    %  障害物 1: 等速直線運動 (Linear Motion)
-    %  ゆっくりと横切る障害物
-    %  =========================================================================
-    p0_1  = [0.3; 0.3; 30.0]; 
-    v_1   = [-0.0; -0.0; -0.5]; % 速度ベクトル [m/s]
-    
-    p_center1 = p0_1 + v_1 * t;
-    cyl_param1 = [2.0, 1.0];        % [底面半径 r, 高さ h]
-    R_obs1     = eye(3);
-    d_margin1  = 0.5;
-    
-    item1 = build_obstacle_data('cylinder', p_center1, cyl_param1, R_obs1, d_margin1);
-    item1.v_center = v_1; % 速度ベクトルを格納 (extract_obstacle_velocity用)
-    obs = [obs, item1];
-
-    %% =========================================================================
-    %  障害物 2: サイン波運動 (Sinusoidal Motion)
-    %  左右にフェイントをかけるように蛇行する障害物
-    %  =========================================================================
-    p0_2  = [0.3; 0.3; 15.0]; 
-    v_base_2 = [0.0; 0.0; 0.0]; 
-    amp_2 = 7.0; % 振幅
-    omega_2 = 0.075; % 角周波数
-
-    p_center2 = p0_2 + v_base_2 * t + [0; amp_2 * sin(omega_2 * t); 0];
-    v_inst_2  = v_base_2 + [0; amp_2 * omega_2 * cos(omega_2 * t); 0]; % 瞬時速度
-
-    cyl_param2 = [3.0, 1.0];
-    R_obs2     = eye(3);
-    d_margin2  = 0.5;
-
-    item2 = build_obstacle_data('cylinder', p_center2, cyl_param2, R_obs2, d_margin2);
-    item2.v_center = v_inst_2;
-    obs = [obs, item2];
+    % %% =========================================================================
+    % %  障害物 1: 等速直線運動 (Linear Motion)
+    % %  ゆっくりと横切る障害物
+    % %  =========================================================================
+    % p0_1  = [0.3; 0.3; 30.0]; 
+    % v_1   = [-0.0; -0.0; -0.5]; % 速度ベクトル [m/s]
+    % 
+    % p_center1 = p0_1 + v_1 * t;
+    % cyl_param1 = [2.0, 1.0];        % [底面半径 r, 高さ h]
+    % R_obs1     = eye(3);
+    % d_margin1  = 0.5;
+    % 
+    % item1 = build_obstacle_data('cylinder', p_center1, cyl_param1, R_obs1, d_margin1);
+    % item1.v_center = v_1; % 速度ベクトルを格納 (extract_obstacle_velocity用)
+    % obs = [obs, item1];
+    % 
+    % %% =========================================================================
+    % %  障害物 2: サイン波運動 (Sinusoidal Motion)
+    % %  左右にフェイントをかけるように蛇行する障害物
+    % %  =========================================================================
+    % p0_2  = [0.3; 0.3; 15.0]; 
+    % v_base_2 = [0.0; 0.0; 0.0]; 
+    % amp_2 = 7.0; % 振幅
+    % omega_2 = 0.075; % 角周波数
+    % 
+    % p_center2 = p0_2 + v_base_2 * t + [0; amp_2 * sin(omega_2 * t); 0];
+    % v_inst_2  = v_base_2 + [0; amp_2 * omega_2 * cos(omega_2 * t); 0]; % 瞬時速度
+    % 
+    % cyl_param2 = [3.0, 1.0];
+    % R_obs2     = eye(3);
+    % d_margin2  = 0.5;
+    % 
+    % item2 = build_obstacle_data('cylinder', p_center2, cyl_param2, R_obs2, d_margin2);
+    % item2.v_center = v_inst_2;
+    % obs = [obs, item2];
 
     % %% =========================================================================
     % %  障害物 3: 円運動 (Circular Motion)
@@ -63,6 +63,52 @@ function obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t)
     % item3 = build_obstacle_data('cylinder', p_center3, cyl_param3, R_obs3, d_margin3);
     % item3.v_center = v_inst_3;
     % obs = [obs, item3];
+
+    %% =========================================================================
+    %  障害物 1: 等速直線運動 (Linear Motion)
+    %  ゆっくりと横切る障害物
+    %  =========================================================================
+    p0_1  = [0.3; 0.3; 20.0]; 
+    v_1   = [0.0; 0.0; 0]; % 速度ベクトル [m/s]
+
+    p_center1 = p0_1 + v_1 * t;
+    cyl_param1 = [2.5, 1.0];        % [底面半径 r, 高さ h]
+    R_obs1     = eye(3);
+    d_margin1  = 0.5;
+
+    item1 = build_obstacle_data('cylinder', p_center1, cyl_param1, R_obs1, d_margin1);
+    item1.v_center = v_1; % 速度ベクトルを格納 (extract_obstacle_velocity用)
+    obs = [obs, item1];
+
+    %% =========================================================================
+    %  障害物 2: サイン波運動 (Sinusoidal Motion)
+    %  左右にフェイントをかけるように蛇行する障害物
+    %  =========================================================================
+    p_center2 = [0; 18; 2];
+    v0_2  = [0; 0; 0]; % 瞬時速度
+
+    cyl_param2 = [3.0, 1.0];
+    R_obs2     = eye(3);
+    d_margin2  = 0.5;
+
+    item2 = build_obstacle_data('cylinder', p_center2, cyl_param2, R_obs2, d_margin2);
+    item2.v_center = v0_2;
+    obs = [obs, item2];
+
+    %% =========================================================================
+    %  障害物 3: 円運動 (Circular Motion)
+    %  特定の領域をぐるぐると回る障害物
+    %  =========================================================================
+    p_center3 = [0; 28; 0];
+    v_3  = [0; 0; 0];
+
+    cyl_param3 = [1.0, 1.0];
+    R_obs3     = eye(3);
+    d_margin3  = 0.5;
+
+    item3 = build_obstacle_data('cylinder', p_center3, cyl_param3, R_obs3, d_margin3);
+    item3.v_center = v_3;
+    obs = [obs, item3];
 
 end
 
