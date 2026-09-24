@@ -2665,6 +2665,10 @@ classdef REPLANNING_BSPLINE < handle
         % --- 連続性常時監視用バッファ ---
         prev_xd                    % 前回ステップの xd (28x1)
         prev_t = -1.0;             % 前回ステップの時刻 [s]
+
+        % --- アクティブ障害物管理 (Active Obstacle Manager) ---
+        active_obstacles = [];         % 現在管理中の障害物リスト
+        post_recovery_hold_time = 3.0; % 回避・安全復帰完了後の猶予保持時間 [s]
     end
 
     methods (Access = public)
@@ -2754,24 +2758,21 @@ classdef REPLANNING_BSPLINE < handle
                 % 楕円体に対する UAV / 荷物 / 索球列の厳密ユークリッド距離診断
                 detection = obj.check_detection_simulated_sensor(pQ_cur, pL_cur, obs_list, time.t, xd_nom(5:7));
 
-                % 3. 軌道再計画の判定 (複数障害物・回避中再計画・マージン侵入リスク)
+                % ★ ここで確実に更新代入される
+                planning_obstacles = obj.update_active_obstacles(detection.detected_obstacles_point, time.t);
+                % 3. 軌道再計画の判定
                 if detection.detected_point && (time.t - obj.last_replan_time >= obj.min_replan_interval)
                     need_replan = false;
-
                     if ~obj.replan_active
                         need_replan = true;
                     else
-                        % 回避中の再計画判定: 
-                        % (A) 別の障害物がより危険になった場合
-                        % (B) 現在の回避軌道が対象楕円体のマージン帯を割り込む恐れがある場合
                         if detection.min_obstacle_id_point ~= obj.active_threat_id
                             need_replan = true;
                         elseif detection.drone_margin_violated || detection.cable_margin_violated || detection.load_margin_violated
                             need_replan = true;
                         end
                     end
-
-                    if need_replan
+                    if need_replan && ~isempty(planning_obstacles)
                         obj.execute_replanning(pQ_cur, xd_nom, detection, obs_list, time.t);
                     end
                 end
@@ -3228,6 +3229,7 @@ classdef REPLANNING_BSPLINE < handle
 
             for i = 1:length(obs_list)
                 o = obs_list(i);
+                obs_id = o.id;
                 R_obs = o.R_obs;
                 radii_obs = o.ellipsoid_radii(:);
                 p_obs = o.p_center(:);
@@ -3265,11 +3267,11 @@ classdef REPLANNING_BSPLINE < handle
 
                 if d_drone_physical < det.drone_min_dist_point
                     det.drone_min_dist_point = d_drone_physical;
-                    det.drone_obstacle_id_point = i;
+                    det.drone_obstacle_id_point = obs_id;
                 end
                 if d_load_physical < det.load_min_dist_point
                     det.load_min_dist_point = d_load_physical;
-                    det.load_obstacle_id_point = i;
+                    det.load_obstacle_id_point = obs_id;
                 end
                 if d_cable_physical < det.cable_min_dist_point
                     det.cable_min_dist_point = d_cable_physical;
@@ -3284,7 +3286,7 @@ classdef REPLANNING_BSPLINE < handle
                 normal_load = R_obs * (nL_loc / norm(nL_loc));
 
                 obs_info = struct( ...
-                    'id',                        i, ...
+                    'id',                        obs_id, ...
                     'dist_drone_point',          d_drone_physical, ...
                     'dist_drone_safety',         d_drone_safety, ...
                     'dist_load_point',           d_load_physical, ...
@@ -3493,6 +3495,66 @@ classdef REPLANNING_BSPLINE < handle
                 end
                 r_scale = r_scale * (p - k);
             end
+        end
+
+        % =====================================================================
+        % update_active_obstacles: センサー検知・回避状態に応じた障害物ライフサイクル管理
+        % =====================================================================
+        function planning_obstacles = update_active_obstacles(obj, detected_candidates, t_now)
+            detected_ids = [];
+            for k = 1:length(detected_candidates)
+                cand = detected_candidates(k);
+                detected_ids = [detected_ids, cand.id];
+                idx = [];
+                if ~isempty(obj.active_obstacles)
+                    idx = find([obj.active_obstacles.id] == cand.id, 1);
+                end
+                if isempty(idx)
+                    new_item = struct();
+                    new_item.id                 = cand.id;
+                    new_item.p_obs              = cand.p_obs;
+                    new_item.radii_obs          = cand.radii_obs;
+                    new_item.R_obs              = cand.R_obs;
+                    new_item.closest_drone_world_point = cand.closest_drone_world_point;
+                    new_item.normal_drone_point = cand.normal_drone_point;
+                    new_item.dist_drone_point   = cand.dist_drone_point;
+                    new_item.last_seen_time     = t_now;
+                    new_item.state              = "DETECTED";
+                    new_item.release_time       = NaN;
+                    obj.active_obstacles = [obj.active_obstacles; new_item];
+                else
+                    obj.active_obstacles(idx).p_obs              = cand.p_obs;
+                    obj.active_obstacles(idx).radii_obs          = cand.radii_obs;
+                    obj.active_obstacles(idx).R_obs              = cand.R_obs;
+                    obj.active_obstacles(idx).closest_drone_world_point = cand.closest_drone_world_point;
+                    obj.active_obstacles(idx).normal_drone_point = cand.normal_drone_point;
+                    obj.active_obstacles(idx).dist_drone_point   = cand.dist_drone_point;
+                    obj.active_obstacles(idx).last_seen_time     = t_now;
+                    obj.active_obstacles(idx).state              = "DETECTED";
+                    obj.active_obstacles(idx).release_time       = NaN;
+                end
+            end
+
+            keep_flags = true(length(obj.active_obstacles), 1);
+            for i = 1:length(obj.active_obstacles)
+                obs_id = obj.active_obstacles(i).id;
+                if ~ismember(obs_id, detected_ids)
+                    if obj.replan_active
+                        obj.active_obstacles(i).state = "LATCHED";
+                        obj.active_obstacles(i).release_time = NaN;
+                    else
+                        if obj.active_obstacles(i).state ~= "POST_RECOVERY"
+                            obj.active_obstacles(i).state = "POST_RECOVERY";
+                            obj.active_obstacles(i).release_time = t_now + obj.post_recovery_hold_time;
+                        end
+                        if t_now >= obj.active_obstacles(i).release_time
+                            keep_flags(i) = false;
+                        end
+                    end
+                end
+            end
+            obj.active_obstacles = obj.active_obstacles(keep_flags);
+            planning_obstacles = obj.active_obstacles;
         end
 
         function clear_state_sensor_values(obj, t_now)
