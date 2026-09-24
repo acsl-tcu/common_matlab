@@ -1,4 +1,3 @@
-% % %
 % classdef REPLANNING_BSPLINE < handle
 %     % =========================================================================
 %     % REPLANNING_BSPLINE
@@ -270,18 +269,22 @@
 % 
 %     methods (Access = private)
 %         % =====================================================================
-%         % execute_replanning: 楕円体幾何学に基づく回避 QP & 予測軌道事前検査
+%         % execute_replanning: 迂回弧長タイムスケーリング ＆ 適正幾何回避計画
 %         % =====================================================================
 %         function execute_replanning(obj, pQ_cur, xd_nom, detection, planning_obstacles, t_now)
 %             target_obs = detection.detected_obstacles_point(1);
 %             obj.active_threat_id = target_obs.id;
 % 
+%             % 1. 公称進行方向の単位ベクトル確定
 %             v_nom = xd_nom(5:7);
 %             spd = norm(v_nom);
-%             if spd < 0.1, spd = 1.0; v_nom = [1; 0; 0]; end
+%             if spd < 0.1
+%                 spd = 1.0;
+%                 v_nom = [0; 0; 1]; % デフォルト進行方向
+%             end
 %             dir_nom = v_nom / spd;
 % 
-%             % 旧軌道（または公称軌道）の現時刻における実 0〜6階微分状態の抽出
+%             % 2. 旧軌道（または公称軌道）の現時刻における実 0〜6階微分状態の抽出 (厳密 C^6)
 %             init_load_state = zeros(7, 3);
 %             if obj.replan_active
 %                 tau_now = t_now - obj.t_start;
@@ -295,66 +298,97 @@
 %             obj.t_start          = t_now;
 %             obj.last_replan_time = t_now;
 % 
-%             % --- 厳密な楕円体幾何に基づく要求クリアランスの算定 ---
-%             % 球体で丸め込まず、最接近点における法線方向深さ + 機体・索保護半径 + マージン
-%             req_clearance = target_obs.dist_drone_point + obj.r_drone + obj.clearance_margin;
-%             req_clearance = max(req_clearance, 1.5); % 最低退避量
+%             % --- 3. 要求クリアランスの適正確定 ---
+%             % 索長(約1m) + 機体半径(0.3m) + 荷物半径(0.1m) + 安全マージン(0.6m) = 約 2.0m
+%             % 過大な固定マージンで機体を遠方に吹き飛ばさないよう適正化
+%             req_clearance = obj.L_cable + obj.r_drone + obj.r_load + 0.6;
+%             req_clearance = max(req_clearance, 1.8);
 % 
-%             % 回避退避方向 (最寄りの真の楕円体表面外向き法線ベクトルから進行軸成分を除去)
-%             n_escape = -target_obs.normal_drone_point;
-%             n_escape = n_escape - dot(n_escape, dir_nom) * dir_nom;
-%             if norm(n_escape) < 0.1
-%                 n_cand = cross(dir_nom, [0; 0; 1]);
-%                 if norm(n_cand) < 0.1, n_cand = cross(dir_nom, [0; 1; 0]); end
-%                 n_escape = n_cand / norm(n_cand);
+%             % --- 4. 全方位進入対応の退避方向 (n_escape) 確定ロジック ---
+%             % 機体現在位置から障害物中心へのベクトル
+%             vec_to_center = target_obs.p_obs - pQ_cur;
+% 
+%             % 進行軸に直交する相対位置ベクトル (中心線からの横ズレ)
+%             offset_perp = pQ_cur - (target_obs.p_obs + dot(pQ_cur - target_obs.p_obs, dir_nom) * dir_nom);
+% 
+%             if norm(offset_perp) > 0.05
+%                 % すでに横オフセットがある場合: そのまま外側へ離隔
+%                 n_escape = offset_perp / norm(offset_perp);
 %             else
-%                 n_escape = n_escape / norm(n_escape);
+%                 % ほぼ真正面衝突 (ヘッドオン) の場合: 法線から進行成分を除去して退避
+%                 n_raw = -target_obs.normal_drone_point;
+%                 n_escape = n_raw - dot(n_raw, dir_nom) * dir_nom;
+% 
+%                 if norm(n_escape) < 0.1
+%                     % 進行軸と完全に一直線の場合: 鉛直軸との外積(水平退避)を自動選択
+%                     n_cand = cross(dir_nom, [0; 0; 1]);
+%                     if norm(n_cand) < 0.1
+%                         n_cand = cross(dir_nom, [1; 0; 0]);
+%                     end
+%                     n_escape = n_cand / norm(n_cand);
+%                 else
+%                     n_escape = n_escape / norm(n_escape);
+%                 end
 %             end
 % 
-%             % 動的時間スケーリング: 加速度上限 max_acc_load を満たす最小回避時間 T_tot
-%             T_kinematic = sqrt((8.0 * req_clearance) / obj.max_acc_load);
+%             % --- 5. 楕円体の進行軸投影長と【迂回弧長ベースの回避時間延伸】 ---
+%             R_mat = target_obs.R_obs;
+%             r_vec = target_obs.radii_obs;
+%             % 楕円体の支持関数による進行軸方向の半長
+%             obs_radius_along = sqrt(dot(dir_nom, R_mat * diag(r_vec.^2) * R_mat' * dir_nom));
+%             dist_along = dot(vec_to_center, dir_nom);
 % 
-%             % 最接近時刻の幾何推定
-%             vec_to_obs = target_obs.p_obs - pQ_cur;
-%             dist_along = dot(vec_to_obs, dir_nom);
-%             t_impact = max(1.5, dist_along / spd);
-%             obj.t_duration = max([5.0, 2.0 * t_impact, T_kinematic * 1.5]);
+%             % 最接近予想時間
+%             t_impact = max(1.0, dist_along / spd);
 % 
-%             % 7次 B-Spline QP 求解
+%             % 【重要】横に迂回する弧長を考慮した時間延伸 (Time Scaling)
+%             % 迂回ルートの幾何学的移動距離の近似 (直進区間 + 横退避往復)
+%             dist_straight = max(dist_along + obs_radius_along + 3.0, 6.0);
+%             arc_length = sqrt(dist_straight^2 + 4.0 * (req_clearance^2));
+% 
+%             % ドローンの許容並進速度 (約 0.8〜1.0 m/s) で無理なく移動できる時間を確保
+%             v_safe = max(0.6, min(1.0, spd));
+%             t_traverse = arc_length / v_safe;
+% 
+%             % 合流・姿勢安定マージン時間 (約 3.5秒)
+%             t_merge_margin = max(3.5, sqrt((8.0 * req_clearance) / obj.max_acc_load));
+%             obj.t_duration = max([8.0, t_traverse + t_merge_margin]);
+% 
+%             % --- 6. 7次 B-Spline QP 求解 ---
 %             t_solve = tic;
-%             obj.plan_uniform_bspline_c6_qp(req_clearance, n_escape, init_load_state, t_impact,t_now);
+%             obj.plan_uniform_bspline_c6_qp(req_clearance, n_escape, init_load_state, t_now, target_obs, dir_nom);
 %             obj.last_solve_time_ms = toc(t_solve) * 1000;
 % 
-%             % --- 採用前の未来予測軌道サンプリング検査 (Look-ahead Safety Verification) ---
+%             % --- 7. 未来予測軌道の事前サンプリング検査 ---
 %             traj_verified = obj.verify_future_trajectory_safety(t_now, planning_obstacles);
 %             if traj_verified
 %                 obj.replan_active = true;
-%                 obj.verify_boundary_c6_matching(init_load_state, t_now); % ← init_load_state に修正
+%                 obj.verify_boundary_c6_matching(init_load_state, t_now);
 %                 obj.display_detection_report(t_now, detection, req_clearance, t_impact, n_escape, "PASS");
 %             else
-%                 % 侵入リスクを検出した場合はクリアランスを増して再計算
-%                 req_clearance_boost = req_clearance * 1.3;
-%                 obj.plan_uniform_bspline_c6_qp(req_clearance_boost, n_escape, init_load_state, t_impact, t_now);
+%                 % 侵入リスクがある場合は適応的にクリアランスをわずかに増大 (1.3倍 -> 1.15倍に抑制)
+%                 req_clearance_boost = req_clearance * 1.15;
+%                 obj.plan_uniform_bspline_c6_qp(req_clearance_boost, n_escape, init_load_state, t_now, target_obs, dir_nom);
 %                 obj.replan_active = true;
-%                 obj.verify_boundary_c6_matching(init_load_state, t_now); % ← init_load_state に修正
+%                 obj.verify_boundary_c6_matching(init_load_state, t_now);
 %                 obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "BOOSTED_PASS");
 %             end
 %         end
 % 
+% 
 %         % =====================================================================
-%         % plan_uniform_bspline_c6_qp: 公称射影・実座標 C^6 境界確定 QP
+%         % plan_uniform_bspline_c6_qp: 先行研究型 曲面適応支持超平面 全区間安全 QP
 %         % =====================================================================
-%         function plan_uniform_bspline_c6_qp(obj, req_clearance, n_escape_3d, init_load_state, t_impact, t_now)
+%         function plan_uniform_bspline_c6_qp(obj, req_clearance, n_escape_3d, init_load_state, t_now, target_obs, dir_nom)
 %             p = 7;
 %             n_seg = 25;
 %             n_cp = n_seg + p;          % 32 制御点
 %             T_tot = obj.t_duration;
-%             dt_seg = T_tot / n_seg;
 %             obj.spline_degree = p;
 %             obj.num_segments = n_seg;
 %             obj.build_clamped_uniform_knots(n_seg, p, T_tot);
 % 
-%             % 1. 始端 0〜6階微分の境界確定: P_start (7x3)
+%             % 1. 始端 0〜6階微分の境界確定: P_start (7x3) 【厳密代数 C^6 接続】
 %             M_start = zeros(7, 7);
 %             for k = 0:6
 %                 d_row = obj.eval_basis_derivatives(p + 1, 0.0, k);
@@ -362,7 +396,8 @@
 %             end
 %             P_start = M_start \ init_load_state(1:7, :);
 % 
-%             % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【Hard Constraint 厳守】
+%             % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【厳密代数 C^6 境界】
+%             % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【厳密代数 C^6 境界】
 %             end_nom_state = obj.get_nominal_derivatives_at_time(t_now + T_tot);
 %             M_end = zeros(7, 7);
 %             for k = 0:6
@@ -371,7 +406,40 @@
 %             end
 %             P_end = M_end \ end_nom_state(1:7, :);
 % 
-%             % 3. 自由変数 (P_8 〜 P_25: 18点 -> 54変数) の定式化
+%             % =================================================================
+%             % 【重要】P_end (CP26〜32) の全点安全保障チェック ＆ T_tot 動的延伸
+%             % 終端7制御点がすべて障害物から十分離れていることを保証する
+%             % =================================================================
+%             obs_safe_r = max(target_obs.radii_obs) + req_clearance;
+%             max_extend_iter = 10; % 無限ループ防止リミット
+%             iter_ext = 0;
+% 
+%             while iter_ext < max_extend_iter
+%                 % CP26〜32 の各制御点と障害物中心との距離を判定
+%                 dists_to_obs = vecnorm(P_end - target_obs.p_obs', 2, 2);
+% 
+%                 if all(dists_to_obs >= obs_safe_r)
+%                     break; % 全7点が安全圏にあるため合格
+%                 end
+% 
+%                 % 終端がまだ障害物に近い場合は、合流時刻 T_tot を 1.0 秒延伸して再構築
+%                 T_tot = T_tot + 1.0;
+%                 obj.t_duration = T_tot;
+%                 obj.build_clamped_uniform_knots(n_seg, p, T_tot);
+% 
+%                 % 延伸された新時刻で公称状態と P_end を再計算
+%                 end_nom_state = obj.get_nominal_derivatives_at_time(t_now + T_tot);
+%                 M_end = zeros(7, 7);
+%                 for k = 0:6
+%                     d_row_end = obj.eval_basis_derivatives(n_cp, T_tot, k);
+%                     M_end(k + 1, :) = d_row_end(k + 1, (end - 6):end);
+%                 end
+%                 P_end = M_end \ end_nom_state(1:7, :);
+% 
+%                 iter_ext = iter_ext + 1;
+%             end
+% 
+%             % 3. 自由変数 (P_8 〜 P_25: 18点) の定式化
 %             D4 = diff(eye(n_cp), 4);
 %             Q = D4' * D4;
 %             idx_free = 8:(n_cp - 7);
@@ -381,76 +449,90 @@
 %             Q_ms = Q(idx_free, 1:7);
 %             Q_me = Q(idx_free, (n_cp-6):n_cp);
 % 
-%             % --- 公称軌道制御点の最小二乗射影 ---
+%             % 公称軌道制御点の最小二乗射影
 %             P_nom_all = obj.project_nominal_trajectory_to_bspline(t_now, T_tot, n_cp);
 %             P_nom_free = P_nom_all(idx_free, :);
 % 
-%             % 目的関数 Hessian: H = Q_mm + w_dev * I
-%             w_dev = 0.05;
-%             H_1d = (Q_mm + Q_mm') / 2 + w_dev * eye(n_free);
+%             % 目的関数: スプライン平滑性(Snap)優先 ＆ 適度な公称引き戻し
+%             w_snap = 1.0;
+%             w_dev  = 0.5;
+% 
+%             H_1d = w_snap * ((Q_mm + Q_mm') / 2) + w_dev * eye(n_free);
 %             H = blkdiag(H_1d, H_1d, H_1d);
 % 
-%             % 線形項: 平滑化結合項 - 公称引き戻し項
-%             f_x = (P_start(:, 1)' * Q_ms' + P_end(:, 1)' * Q_me')' - w_dev * P_nom_free(:, 1);
-%             f_y = (P_start(:, 2)' * Q_ms' + P_end(:, 2)' * Q_me')' - w_dev * P_nom_free(:, 2);
-%             f_z = (P_start(:, 3)' * Q_ms' + P_end(:, 3)' * Q_me')' - w_dev * P_nom_free(:, 3);
+%             f_x = w_snap * (P_start(:, 1)' * Q_ms' + P_end(:, 1)' * Q_me')' - w_dev * P_nom_free(:, 1);
+%             f_y = w_snap * (P_start(:, 2)' * Q_ms' + P_end(:, 2)' * Q_me')' - w_dev * P_nom_free(:, 2);
+%             f_z = w_snap * (P_start(:, 3)' * Q_ms' + P_end(:, 3)' * Q_me')' - w_dev * P_nom_free(:, 3);
 %             f = [f_x; f_y; f_z];
-%             % 4. 凸包バリア不等式制約（最接近区間の退避押し出し）
-%             cp_at_impact = round(t_impact / dt_seg) - 7;
-%             cp_at_impact = max(2, min(n_free - 4, cp_at_impact));
-%             sideway_indices = (cp_at_impact - 1) : (cp_at_impact + 2);
-%             sideway_indices = sideway_indices(sideway_indices >= 1 & sideway_indices <= n_free);
+% 
+%             % =================================================================
+%             % 4. 先行研究型: 楕円体断面追従支持超平面 (非台形・完全マージン厳守)
+%             % =================================================================
+%             p_obs = target_obs.p_obs;
+%             R_obs = target_obs.R_obs;
+%             r_obs = target_obs.radii_obs;
+% 
+%             % 楕円体の退避方向最大外郭半径 R_escape
+%             R_escape = sqrt(dot(n_escape_3d, R_obs * diag(r_obs.^2) * R_obs' * n_escape_3d));
+%             % 進行軸方向の楕円体半長 L_along
+%             L_along  = sqrt(dot(dir_nom, R_obs * diag(r_obs.^2) * R_obs' * dir_nom));
+% 
+%             % 進入マージンおよび索抜け（戻り区間）マージン
+%             s_enter = -(L_along + 1.2);
+%             s_exit  =  (L_along + obj.L_cable + 1.2);
 % 
 %             A_ineq = [];
 %             b_ineq = [];
-%             for j = sideway_indices
-%                 P_ref_j = P_nom_free(j, :)';
-%                 row_cp = zeros(1, n_free * 3);
-%                 for dim = 1:3
-%                     idx_d = (dim - 1) * n_free;
-%                     row_cp(idx_d + j) = -n_escape_3d(dim);
+% 
+%             for j = 1:n_free
+%                 P_ref = P_nom_free(j, :)';
+%                 s = dot(P_ref - p_obs, dir_nom); % 進行軸方向の相対位置
+% 
+%                 if (s >= s_enter) && (s <= s_exit)
+%                     % 楕円体の進行位置 s における真の幾何断面半径 R_local
+%                     % 楕円体方程式 (s/L)^2 + (r/R)^2 <= 1 より解析的に算出
+%                     if abs(s) <= L_along
+%                         ratio = s / L_along;
+%                         R_local = R_escape * sqrt(max(0.0, 1.0 - ratio^2));
+%                     else
+%                         % 障害物本体を抜けた索抜け過渡域: 索長に応じて公称軌道へ滑らかに収束
+%                         if s > L_along
+%                             decay = max(0.0, 1.0 - (s - L_along) / (obj.L_cable + 1.2));
+%                             R_local = 0.3 * R_escape * decay;
+%                         else
+%                             decay = max(0.0, 1.0 - (abs(s) - L_along) / 1.2);
+%                             R_local = 0.3 * R_escape * decay;
+%                         end
+%                     end
+% 
+%                     % この断面位置での絶対安全離隔: 楕円体表面幅 + 必要クリアランス
+%                     local_safe_dist = R_local + req_clearance;
+% 
+%                     % 障害物中心軸から外向きに local_safe_dist 離隔する半空間壁
+%                     p_boundary = p_obs + s * dir_nom + local_safe_dist * n_escape_3d;
+% 
+%                     row_cp = zeros(1, n_free * 3);
+%                     for dim = 1:3
+%                         idx_d = (dim - 1) * n_free;
+%                         row_cp(idx_d + j) = -n_escape_3d(dim);
+%                     end
+% 
+%                     A_ineq = [A_ineq; row_cp];
+%                     b_ineq = [b_ineq; -dot(n_escape_3d, p_boundary)];
 %                 end
-%                 A_ineq = [A_ineq; row_cp];
-%                 % P_ref_j から n_escape 方向に req_clearance だけ押し出す
-%                 b_ineq = [b_ineq; -(dot(n_escape_3d, P_ref_j) + req_clearance)];
 %             end
 % 
-%             recovery_indices = (max(sideway_indices) + 1) : min(n_free, max(sideway_indices) + 3);
-%             for j = recovery_indices
-%                 P_ref_j = P_nom_free(j, :)';
-%                 row_cp = zeros(1, n_free * 3);
-%                 for dim = 1:3
-%                     idx_d = (dim - 1) * n_free;
-%                     row_cp(idx_d + j) = -n_escape_3d(dim);
-%                 end
-%                 A_ineq = [A_ineq; row_cp];
-%                 b_ineq = [b_ineq; -(dot(n_escape_3d, P_ref_j) + 0.85 * req_clearance)];
-%             end
 % 
-% 
-%             recovery_indices = (max(sideway_indices) + 1) : min(n_free, max(sideway_indices) + 3);
-%             for j = recovery_indices
-%                 P_nom_j = P_nom_free(j, :)';
-%                 row_cp = zeros(1, n_free * 3);
-%                 for dim = 1:3
-%                     idx_d = (dim - 1) * n_free;
-%                     row_cp(idx_d + j) = -n_escape_3d(dim);
-%                 end
-%                 A_ineq = [A_ineq; row_cp];
-%                 b_ineq = [b_ineq; -(dot(n_escape_3d, P_nom_j) + 0.85 * req_clearance)];
-%             end
-% 
-%             % 変数境界 (実座標空間での安全範囲)
-%             max_bound = 50.0;
-%             lb = -max_bound * ones(n_free * 3, 1);
-%             ub =  max_bound * ones(n_free * 3, 1);
-% 
+%             % 5. QP 求解 (内点法二次計画法)
 %             opts = optimoptions('quadprog', 'Display', 'off', 'Algorithm', 'interior-point-convex');
 %             [X_mid, ~, exitflag] = quadprog(H, f, A_ineq, b_ineq, [], [], [], [], [], opts);
 % 
 %             if exitflag < 1
-%                 % フォールバック: 公称制御点にオフセットを加算
-%                 P_mid = P_nom_free + repmat(n_escape_3d' * req_clearance * 0.85, n_free, 1);
+%                 % Infeasible フォールバック: 各点ごとに法線方向へ滑らかにオフセット
+%                 P_mid = P_nom_free;
+%                 for j = 1:n_free
+%                     P_mid(j, :) = P_mid(j, :) + n_escape_3d' * req_clearance;
+%                 end
 %             else
 %                 P_mid = zeros(n_free, 3);
 %                 P_mid(:, 1) = X_mid(1:n_free);
@@ -1079,7 +1161,6 @@
 % end
 
 
-% %
 classdef REPLANNING_BSPLINE < handle
     % =========================================================================
     % REPLANNING_BSPLINE
@@ -1350,87 +1431,6 @@ classdef REPLANNING_BSPLINE < handle
     end
 
     methods (Access = private)
-        % % =====================================================================
-        % % execute_replanning: 楕円体幾何学に基づく回避 QP & 予測軌道事前検査
-        % % =====================================================================
-        % function execute_replanning(obj, pQ_cur, xd_nom, detection, planning_obstacles, t_now)
-        %     target_obs = detection.detected_obstacles_point(1);
-        %     obj.active_threat_id = target_obs.id;
-        % 
-        %     v_nom = xd_nom(5:7);
-        %     spd = norm(v_nom);
-        %     if spd < 0.1, spd = 1.0; v_nom = [1; 0; 0]; end
-        %     dir_nom = v_nom / spd;
-        % 
-        %     % 旧軌道（または公称軌道）の現時刻における実 0〜6階微分状態の抽出
-        %     init_load_state = zeros(7, 3);
-        %     if obj.replan_active
-        %         tau_now = t_now - obj.t_start;
-        %         for k = 0:6
-        %             init_load_state(k + 1, :) = obj.eval_spline_kth(tau_now, k)';
-        %         end
-        %     else
-        %         init_load_state = obj.get_nominal_derivatives_at_time(t_now);
-        %     end
-        % 
-        %     obj.t_start          = t_now;
-        %     obj.last_replan_time = t_now;
-        % 
-        %     % --- 厳密な楕円体幾何に基づく要求クリアランスの算定 ---
-        %     % 球体で丸め込まず、最接近点における法線方向深さ + 機体・索保護半径 + マージン
-        %     req_clearance = target_obs.dist_drone_point + obj.r_drone + obj.clearance_margin;
-        %     req_clearance = max(req_clearance, 1.5); % 最低退避量
-        % 
-        %     % 回避退避方向 (最寄りの真の楕円体表面外向き法線ベクトルから進行軸成分を除去)
-        %     n_escape = -target_obs.normal_drone_point;
-        %     n_escape = n_escape - dot(n_escape, dir_nom) * dir_nom;
-        %     if norm(n_escape) < 0.1
-        %         n_cand = cross(dir_nom, [0; 0; 1]);
-        %         if norm(n_cand) < 0.1, n_cand = cross(dir_nom, [0; 1; 0]); end
-        %         n_escape = n_cand / norm(n_cand);
-        %     else
-        %         n_escape = n_escape / norm(n_escape);
-        %     end
-        % 
-        %     % 動的時間スケーリング: 加速度上限 max_acc_load を満たす最小回避時間 T_tot
-        %     T_kinematic = sqrt((8.0 * req_clearance) / obj.max_acc_load);
-        % 
-        %     % 障害物を完全に追い抜く時間の幾何算出
-        %     vec_to_obs = target_obs.p_obs - pQ_cur;
-        %     dist_along = dot(vec_to_obs, dir_nom);
-        %     obs_radius_along = norm(target_obs.radii_obs .* (target_obs.R_obs' * dir_nom));
-        % 
-        %     % 障害物の前端到達時刻と後端脱出時刻
-        %     t_enter = max(0.5, (dist_along - obs_radius_along - req_clearance) / spd);
-        %     t_exit  = max(2.0, (dist_along + obs_radius_along + req_clearance) / spd);
-        % 
-        %     % 障害物を抜けた後、公称軌道へ滑らかに復帰するためのマージン時間 (約 2.5〜3.0 秒)
-        %     t_merge_margin = max(3.0, sqrt((8.0 * req_clearance) / obj.max_acc_load));
-        %     obj.t_duration = max([6.0, t_exit + t_merge_margin]);
-        % 
-        %     % 最接近予測時間 (診断表示用)
-        %     t_impact = max(1.0, dist_along / spd);
-        % 
-        %     % 7次 B-Spline QP 求解
-        %     t_solve = tic;
-        %     obj.plan_uniform_bspline_c6_qp(req_clearance, n_escape, init_load_state, t_now, planning_obstacles);
-        %     obj.last_solve_time_ms = toc(t_solve) * 1000;
-        % 
-        %     % 事前検査
-        %     traj_verified = obj.verify_future_trajectory_safety(t_now, planning_obstacles);
-        %     if traj_verified
-        %         obj.replan_active = true;
-        %         obj.verify_boundary_c6_matching(init_load_state, t_now);
-        %         obj.display_detection_report(t_now, detection, req_clearance, t_impact, n_escape, "PASS");
-        %     else
-        %         % Boosted 時の呼び出し (同様に修正)
-        %         req_clearance_boost = req_clearance * 1.3;
-        %         obj.plan_uniform_bspline_c6_qp(req_clearance_boost, n_escape, init_load_state, t_now, planning_obstacles);
-        %         obj.replan_active = true;
-        %         obj.verify_boundary_c6_matching(init_load_state, t_now);
-        %         obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "BOOSTED_PASS");
-        %     end
-        % end
         % =====================================================================
         % execute_replanning: 迂回弧長タイムスケーリング ＆ 適正幾何回避計画
         % =====================================================================
@@ -1517,159 +1517,44 @@ classdef REPLANNING_BSPLINE < handle
             t_merge_margin = max(3.5, sqrt((8.0 * req_clearance) / obj.max_acc_load));
             obj.t_duration = max([8.0, t_traverse + t_merge_margin]);
             
-            % --- 6. 7次 B-Spline QP 求解 ---
+            % --- 6. 7次 B-Spline QP 求解 (1回目: 通常クリアランス) ---
             t_solve = tic;
             obj.plan_uniform_bspline_c6_qp(req_clearance, n_escape, init_load_state, t_now, target_obs, dir_nom);
             obj.last_solve_time_ms = toc(t_solve) * 1000;
             
-            % --- 7. 未来予測軌道の事前サンプリング検査 ---
+            % --- 7. フェイルセーフ安全検証 ＆ 採用ガード ---
+            % [第1段階検証]
             traj_verified = obj.verify_future_trajectory_safety(t_now, planning_obstacles);
+            
             if traj_verified
+                % 1回目で完全合格 -> 採用
                 obj.replan_active = true;
                 obj.verify_boundary_c6_matching(init_load_state, t_now);
                 obj.display_detection_report(t_now, detection, req_clearance, t_impact, n_escape, "PASS");
             else
-                % 侵入リスクがある場合は適応的にクリアランスをわずかに増大 (1.3倍 -> 1.15倍に抑制)
+                % 1回目で不合格 -> クリアランスを拡大して再計画 (2回目)
                 req_clearance_boost = req_clearance * 1.15;
                 obj.plan_uniform_bspline_c6_qp(req_clearance_boost, n_escape, init_load_state, t_now, target_obs, dir_nom);
-                obj.replan_active = true;
-                obj.verify_boundary_c6_matching(init_load_state, t_now);
-                obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "BOOSTED_PASS");
+                
+                % [第2段階検証] Boosted 軌道を再検証
+                boosted_verified = obj.verify_future_trajectory_safety(t_now, planning_obstacles);
+                
+                if boosted_verified
+                    % 2回目で合格 -> 採用
+                    obj.replan_active = true;
+                    obj.verify_boundary_c6_matching(init_load_state, t_now);
+                    obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "BOOSTED_PASS");
+                else
+                    % 2回とも厳格マージンをわずかに割った場合でも、
+                    % 直進公称軌道(衝突確定)の維持を阻止するため、最大退避している Boosted 軌道をフォールバック採用！
+                    obj.replan_active = true;
+                    obj.verify_boundary_c6_matching(init_load_state, t_now);
+                    obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "FORCED_BOOST_PASS");
+                end
             end
         end
 
-        % % =====================================================================
-        % % plan_uniform_bspline_c6_qp: 全制御点 安全半空間拘束 7次 B-Spline C^6 QP
-        % % =====================================================================
-        % function plan_uniform_bspline_c6_qp(obj, req_clearance, n_escape_3d, init_load_state, t_now, planning_obstacles)
-        %     p = 7;
-        %     n_seg = 25;
-        %     n_cp = n_seg + p;          % 32 制御点
-        %     T_tot = obj.t_duration;
-        %     obj.spline_degree = p;
-        %     obj.num_segments = n_seg;
-        %     obj.build_clamped_uniform_knots(n_seg, p, T_tot);
-        % 
-        %     % 1. 始端 0〜6階微分の境界確定: P_start (7x3)
-        %     M_start = zeros(7, 7);
-        %     for k = 0:6
-        %         d_row = obj.eval_basis_derivatives(p + 1, 0.0, k);
-        %         M_start(k + 1, :) = d_row(k + 1, 1:7);
-        %     end
-        %     P_start = M_start \ init_load_state(1:7, :);
-        % 
-        %     % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【Hard C^6 境界】
-        %     end_nom_state = obj.get_nominal_derivatives_at_time(t_now + T_tot);
-        %     M_end = zeros(7, 7);
-        %     for k = 0:6
-        %         d_row_end = obj.eval_basis_derivatives(n_cp, T_tot, k);
-        %         M_end(k + 1, :) = d_row_end(k + 1, (end - 6):end);
-        %     end
-        %     P_end = M_end \ end_nom_state(1:7, :);
-        % 
-        %     % 3. 自由変数 (P_8 〜 P_25: 18点) の定式化
-        %     D4 = diff(eye(n_cp), 4);
-        %     Q = D4' * D4;
-        %     idx_free = 8:(n_cp - 7);
-        %     n_free = length(idx_free);
-        % 
-        %     Q_mm = Q(idx_free, idx_free) + 1e-4 * eye(n_free);
-        %     Q_ms = Q(idx_free, 1:7);
-        %     Q_me = Q(idx_free, (n_cp-6):n_cp);
-        % 
-        %     % 公称軌道制御点の最小二乗射影
-        %     P_nom_all = obj.project_nominal_trajectory_to_bspline(t_now, T_tot, n_cp);
-        %     P_nom_free = P_nom_all(idx_free, :);
-        % 
-        %     % 平滑化(Snap最小化)と公称引き戻しの調和
-        %     w_dev = 0.01;
-        %     H_1d = (Q_mm + Q_mm') / 2 + w_dev * eye(n_free);
-        %     H = blkdiag(H_1d, H_1d, H_1d);
-        % 
-        %     % 線形項
-        %     f_x = (P_start(:, 1)' * Q_ms' + P_end(:, 1)' * Q_me')' - w_dev * P_nom_free(:, 1);
-        %     f_y = (P_start(:, 2)' * Q_ms' + P_end(:, 2)' * Q_me')' - w_dev * P_nom_free(:, 2);
-        %     f_z = (P_start(:, 3)' * Q_ms' + P_end(:, 3)' * Q_me')' - w_dev * P_nom_free(:, 3);
-        %     f = [f_x; f_y; f_z];
-        % 
-        %     % =================================================================
-        %     % 4. 凸包性に基づく全時間安全半空間制約 (先行研究準拠)
-        %     %    forall j in free_indices: n^T (P_j - p_surf) >= d_req
-        %     % =================================================================
-        %     A_ineq = [];
-        %     b_ineq = [];
-        % 
-        %     % アクティブ障害物リスト全体について制約を構築
-        %     if isempty(planning_obstacles)
-        %         % フォールバック（単一障害物情報）
-        %         n_list = n_escape_3d;
-        %         p_surf_list = P_nom_free(round(n_free/2), :)'; % 名目基準点
-        %         d_req_list = req_clearance;
-        %     else
-        %         n_obs_count = length(planning_obstacles);
-        %         n_list = zeros(3, n_obs_count);
-        %         p_surf_list = zeros(3, n_obs_count);
-        %         d_req_list = zeros(1, n_obs_count);
-        % 
-        %         for obs_i = 1:n_obs_count
-        %             o = planning_obstacles(obs_i);
-        %             n_e = -o.normal_drone_point;
-        %             n_e = n_e / norm(n_e);
-        %             n_list(:, obs_i) = n_e;
-        %             p_surf_list(:, obs_i) = o.closest_drone_world_point;
-        %             d_req_list(obs_i) = obj.L_cable + obj.r_drone + obj.r_load + obj.clearance_margin;
-        %         end
-        %     end
-        % 
-        %     % 全自由制御点 j = 1..n_free に対し、安全半空間外郭を満たす制約を課す
-        %     for obs_i = 1:size(n_list, 2)
-        %         n_vec = n_list(:, obs_i);
-        %         p_s   = p_surf_list(:, obs_i);
-        %         d_clr = d_req_list(obs_i);
-        % 
-        %         % 境界面の内積閾値: n^T P_j >= n^T p_s + d_clr  <==>  -n^T P_j <= -(n^T p_s + d_clr)
-        %         rhs_val = -(dot(n_vec, p_s) + d_clr);
-        % 
-        %         for j = 1:n_free
-        %             row_cp = zeros(1, n_free * 3);
-        %             for dim = 1:3
-        %                 idx_d = (dim - 1) * n_free;
-        %                 row_cp(idx_d + j) = -n_vec(dim);
-        %             end
-        %             A_ineq = [A_ineq; row_cp];
-        %             b_ineq = [b_ineq; rhs_val];
-        %         end
-        %     end
-        % 
-        %     % 5. QP 求解 (無制約空間で凸包全体を外側へ最適展開)
-        %     opts = optimoptions('quadprog', 'Display', 'off', 'Algorithm', 'interior-point-convex');
-        %     [X_mid, ~, exitflag] = quadprog(H, f, A_ineq, b_ineq, [], [], [], [], [], opts);
-        % 
-        %     if exitflag < 1
-        %         % 解なし (Infeasible) 回避の適応的フォールバック
-        %         % 安全半空間を満たす最小射影変位を加算
-        %         P_mid = P_nom_free;
-        %         for obs_i = 1:size(n_list, 2)
-        %             n_vec = n_list(:, obs_i);
-        %             p_s   = p_surf_list(:, obs_i);
-        %             d_clr = d_req_list(obs_i);
-        %             for j = 1:n_free
-        %                 cur_proj = dot(n_vec, P_mid(j, :)' - p_s);
-        %                 if cur_proj < d_clr
-        %                     P_mid(j, :) = P_mid(j, :) + (d_clr - cur_proj) * n_vec';
-        %                 end
-        %             end
-        %         end
-        %     else
-        %         P_mid = zeros(n_free, 3);
-        %         P_mid(:, 1) = X_mid(1:n_free);
-        %         P_mid(:, 2) = X_mid((n_free+1):(2*n_free));
-        %         P_mid(:, 3) = X_mid((2*n_free+1):(3*n_free));
-        %     end
-        % 
-        %     obj.control_points = [P_start; P_mid; P_end];
-        %     obj.actual_peak_displacement = max(vecnorm(P_mid - P_nom_free, 2, 2));
-        % end
+        
         % =====================================================================
         % plan_uniform_bspline_c6_qp: 先行研究型 曲面適応支持超平面 全区間安全 QP
         % =====================================================================
@@ -1691,6 +1576,7 @@ classdef REPLANNING_BSPLINE < handle
             P_start = M_start \ init_load_state(1:7, :);
             
             % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【厳密代数 C^6 境界】
+            % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3) 【厳密代数 C^6 境界】
             end_nom_state = obj.get_nominal_derivatives_at_time(t_now + T_tot);
             M_end = zeros(7, 7);
             for k = 0:6
@@ -1698,6 +1584,39 @@ classdef REPLANNING_BSPLINE < handle
                 M_end(k + 1, :) = d_row_end(k + 1, (end - 6):end);
             end
             P_end = M_end \ end_nom_state(1:7, :);
+            
+            % =================================================================
+            % 【重要】P_end (CP26〜32) の全点安全保障チェック ＆ T_tot 動的延伸
+            % 終端7制御点がすべて障害物から十分離れていることを保証する
+            % =================================================================
+            obs_safe_r = max(target_obs.radii_obs) + req_clearance;
+            max_extend_iter = 10; % 無限ループ防止リミット
+            iter_ext = 0;
+            
+            while iter_ext < max_extend_iter
+                % CP26〜32 の各制御点と障害物中心との距離を判定
+                dists_to_obs = vecnorm(P_end - target_obs.p_obs', 2, 2);
+                
+                if all(dists_to_obs >= obs_safe_r)
+                    break; % 全7点が安全圏にあるため合格
+                end
+                
+                % 終端がまだ障害物に近い場合は、合流時刻 T_tot を 1.0 秒延伸して再構築
+                T_tot = T_tot + 1.0;
+                obj.t_duration = T_tot;
+                obj.build_clamped_uniform_knots(n_seg, p, T_tot);
+                
+                % 延伸された新時刻で公称状態と P_end を再計算
+                end_nom_state = obj.get_nominal_derivatives_at_time(t_now + T_tot);
+                M_end = zeros(7, 7);
+                for k = 0:6
+                    d_row_end = obj.eval_basis_derivatives(n_cp, T_tot, k);
+                    M_end(k + 1, :) = d_row_end(k + 1, (end - 6):end);
+                end
+                P_end = M_end \ end_nom_state(1:7, :);
+                
+                iter_ext = iter_ext + 1;
+            end
             
             % 3. 自由変数 (P_8 〜 P_25: 18点) の定式化
             D4 = diff(eye(n_cp), 4);
@@ -1866,21 +1785,77 @@ classdef REPLANNING_BSPLINE < handle
             end
         end
 
+        % % =====================================================================
+        % % is_nominal_recovery_safe: 復帰先の公称軌道における干渉スキャン
+        % % =====================================================================
+        % function is_safe = is_nominal_recovery_safe(obj, t_now, obs_list)
+        %     is_safe = true;
+        %     N_lookahead = 15;
+        %     t_scan = linspace(t_now + obj.t_duration, t_now + obj.t_duration + 2.0, N_lookahead);
+        %     for i = 1:N_lookahead
+        %         t_eval = t_scan(i);
+        %         nom_res = obj.base_ref.do(struct('t', t_eval, 'dt', 0.025), 'f');
+        %         pL_nom = nom_res.state.xd(1:3);
+        %         pQ_nom = pL_nom + [0; 0; obj.L_cable];
+        %         for obs_idx = 1:length(obs_list)
+        %             o = obs_list(obs_idx);
+        % 
+        %             % active_obstacles と raw obstacle のフィールド名差異を吸収
+        %             if isfield(o, 'p_obs')
+        %                 p_c = o.p_obs(:);
+        %                 r_e = o.radii_obs(:);
+        %             else
+        %                 p_c = o.p_center(:);
+        %                 r_e = o.ellipsoid_radii(:);
+        %             end
+        % 
+        %             obs_parsed = struct('center', p_c, 'radii', r_e, 'R', o.R_obs);
+        %             [dQ, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pQ_nom, obs_parsed);
+        %             [dL, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pL_nom, obs_parsed);
+        %             % 復帰直後に接触・マージン侵入しないか
+        %             if (dQ - obj.r_drone - obj.clearance_margin <= 0) || ...
+        %                (dL - obj.r_load  - obj.clearance_margin <= 0)
+        %                 is_safe = false;
+        %                 return;
+        %             end
+        %         end
+        %     end
+        % end
         % =====================================================================
-        % is_nominal_recovery_safe: 復帰先の公称軌道における干渉スキャン
+        % is_nominal_recovery_safe: 復帰先の公称軌道における干渉スキャン (微分平坦性整合版)
         % =====================================================================
         function is_safe = is_nominal_recovery_safe(obj, t_now, obs_list)
             is_safe = true;
             N_lookahead = 15;
             t_scan = linspace(t_now + obj.t_duration, t_now + obj.t_duration + 2.0, N_lookahead);
+            g_vec = [0; 0; 9.81];
+
             for i = 1:N_lookahead
                 t_eval = t_scan(i);
                 nom_res = obj.base_ref.do(struct('t', t_eval, 'dt', 0.025), 'f');
+
+                % 1. 荷物の位置および加速度の取得
                 pL_nom = nom_res.state.xd(1:3);
-                pQ_nom = pL_nom + [0; 0; obj.L_cable];
+                if length(nom_res.state.xd) >= 10
+                    aL_nom = nom_res.state.xd(8:10); % 公称加速度
+                else
+                    aL_nom = zeros(3, 1);
+                end
+
+                % 2. 微分平坦性モデルに基づく真の推力方向と UAV 位置 pQ の計算
+                acc_tot = aL_nom + g_vec;
+                norm_a = norm(acc_tot);
+                if norm_a < 1e-3
+                    thrust_dir = [0; 0; 1];
+                else
+                    thrust_dir = acc_tot / norm_a;
+                end
+                pQ_nom = pL_nom + obj.L_cable * thrust_dir;
+
+                % 3. 障害物干渉判定 (UAV, Load, ケーブル球列)
                 for obs_idx = 1:length(obs_list)
                     o = obs_list(obs_idx);
-                    
+
                     % active_obstacles と raw obstacle のフィールド名差異を吸収
                     if isfield(o, 'p_obs')
                         p_c = o.p_obs(:);
@@ -1889,13 +1864,23 @@ classdef REPLANNING_BSPLINE < handle
                         p_c = o.p_center(:);
                         r_e = o.ellipsoid_radii(:);
                     end
-                    
+
                     obs_parsed = struct('center', p_c, 'radii', r_e, 'R', o.R_obs);
+
                     [dQ, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pQ_nom, obs_parsed);
                     [dL, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pL_nom, obs_parsed);
-                    % 復帰直後に接触・マージン侵入しないか
+
+                    % UAV および Load のマージン侵入判定
                     if (dQ - obj.r_drone - obj.clearance_margin <= 0) || ...
-                       (dL - obj.r_load  - obj.clearance_margin <= 0)
+                            (dL - obj.r_load  - obj.clearance_margin <= 0)
+                        is_safe = false;
+                        return;
+                    end
+
+                    % ケーブル（索）中点での簡易マージン判定
+                    p_cable_mid = (pQ_nom + pL_nom) / 2.0;
+                    [dC, ~, ~, ~] = obj.point_ellipsoid_signed_distance(p_cable_mid, obs_parsed);
+                    if (dC - 0.05 - obj.clearance_margin <= 0)
                         is_safe = false;
                         return;
                     end
