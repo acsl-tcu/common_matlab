@@ -50,10 +50,9 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                         target = erase(target, "/Data.mat");
                     end
 
+
                     tmp = load(target + "/Data.mat");
                     fn = fieldnames(obj);
-
-
 
                     for i = fn'
                         obj.(i{1}) = tmp.log.(i{1});
@@ -71,13 +70,48 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
                     obj.Data.agent.controller = tmp.controller;
                     tmp = load(target + "/plant.mat");
                     obj.Data.agent.plant = tmp.plant;
+
                 else % 一つのファイルとして保存した場合
+
                     tmp = load(target);
                     log = tmp.log;
-                    fn = fieldnames(log);
 
-                    for i = fn'
-                        obj.(i{1}) = log.(i{1});
+                    % ===== plotに必要なデータを読み込む =====
+                    obj.Data = log.Data;
+
+                    % k
+                    if isfield(log, 'k') && ~isempty(log.k)
+                        obj.k = log.k;
+                    else
+                        obj.k = length(obj.Data.t);
+                    end
+
+                    % fExp
+                    if isfield(log, 'fExp')
+                        obj.fExp = log.fExp;
+                    else
+                        obj.fExp = 1;
+                    end
+
+                    % その他、存在するものだけ読み込む
+                    if isfield(log, 'target')
+                        obj.target = log.target;
+                    end
+
+                    if isfield(log, 'items')
+                        obj.items = log.items;
+                    end
+
+                    if isfield(log, 'item_num')
+                        obj.item_num = log.item_num;
+                    end
+
+                    if isfield(log, 'agent_items')
+                        obj.agent_items = log.agent_items;
+                    end
+
+                    if isfield(log, 'overwrite_target')
+                        obj.overwrite_target = log.overwrite_target;
                     end
 
                 end
