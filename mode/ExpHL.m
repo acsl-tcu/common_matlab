@@ -22,14 +22,17 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, motive, dt);
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 1],"size",[1 1 0],"phase",0}});
-% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});
-% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
-agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
-% agent.reference.time_var=TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 1], "size", [1 1 0], "phase", pi/2}});
 
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
+agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});%円
+% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",10,"orig",[0 0 1],"size",[1 1 0],"phase",0}});
+% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});%サドル
+
+
+
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
+% agent.reference.time_var=TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 1], "size", [1 1 0], "phase", pi/2}});
+% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
 
 agent.controller.hlc = HLC(agent,Controller_HL(dt));
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
