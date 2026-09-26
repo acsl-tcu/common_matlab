@@ -1,0 +1,1404 @@
+% classdef REPLANNING_BSPLINE_NEW < handle
+%     % =========================================================================
+%     % REPLANNING_BSPLINE
+%     % 1. 模擬センサー：機体重心 pQ による 15m 楕円体接近検知（前方かつ真の危険度順ソート）。
+%     % 2. 衝突・マージン診断系：
+%     %    - UAV (pQ), 荷物 (pL), 索 (Cable: 間隔 <= 2*r_c の球列) の3者について、
+%     %      楕円体外郭までの最短ユークリッド距離をラグランジュ未定乗数法で厳密計算。
+%     %    - 物理接触 (physical_gap <= 0) とマージン侵入 (safety_gap <= 0) を分離記録。
+%     % 3. 7次 Uniform B-Spline C^6 境界確定アルゴリズム：
+%     %    - 始端・終端の 0〜6階微分 (位置〜Pop) を代数確定し、e_0〜e_6 の境界ギャップを完全診断。
+%     %    - 終端 T_tot で変位の 0〜6階微分が数学的にゼロ収束し、公称軌道へ完全滑らか合流。
+%     % 4. 予測軌道事前検査 (Look-ahead Safety Verification)：
+%     %    - 採用前に B-Spline 軌道全体をサンプリングし、3者の楕円体侵入を事前検証。
+%     %    - 復帰直前にも公称軌道の安全性をスキャンし、インカット衝突を防止。
+%     % =========================================================================
+%     properties
+%         self                       % ドローンエージェント自身
+%         base_ref                   % 公称参照軌道生成オブジェクト
+%         result                     % 出力結果構造体
+% 
+%         % --- センサ・検知パラメータ ---
+%         trigger_dist = 15.0;       % 機体搭載センサーによる接近検知閾値 [m]
+%         clearance_margin = 0.8;    % 安全マージン d_margin [m]
+% 
+%         % --- 機体・荷物・索物理パラメータ ---
+%         gravity = 9.81;            % 重力加速度 [m/s^2]
+%         L_cable = 1.0;             % 索長 [m]
+%         r_drone = 0.30;            % 機体球体半径 [m]
+%         r_load  = 0.15;            % 荷物球体半径 [m]
+%         r_cable_sphere = 0.25;     % 索保護球体半径 r_c [m] (直径 0.5m の球列)
+% 
+%         % --- 運動学・物理制約パラメータ ---
+%         max_acc_load = 2.0;        % 荷物許容水平加速度上限 [m/s^2] (姿勢角過大・推力飽和阻止)
+% 
+%         % --- リプランニング状態管理 ---
+%         replan_active = false;     % 回避軌道追従中フラグ
+%         t_start       = 0.0;       % 回避開始時刻 [s]
+%         t_duration    = 6.0;       % 回避全所要時間 [s]
+%         last_replan_time = -100.0; % 前回リプラン実行時刻 [s]
+%         min_replan_interval = 0.25;% 再計画更新周期 [s]
+%         active_threat_id = NaN;    % 現在回避中の最優先障害物ID
+% 
+%         % --- 7次 B-Spline パラメータ (p=7, n_seg=25 -> N_cp=32) ---
+%         spline_degree = 7;         % 7次 B-Spline (内部 C^6 連続)
+%         num_segments  = 25;        % 25セグメント
+%         knots                      % ノットベクトル
+%         control_points             % 制御点座標 (32 x 3) [X, Y, Z]
+%         actual_peak_displacement = 0.0; % 最大空間変位 [m]
+%         last_solve_time_ms = 0.0;  % QP求解時間 [ms]
+% 
+%         % --- C^6 境界接続ギャップ診断バッファ ---
+%         c6_boundary_gaps = zeros(7, 1); % e_k = ||p_new^(k) - p_old^(k)|| (k=0..6)
+% 
+%         % --- 連続性常時監視用バッファ ---
+%         prev_xd                    % 前回ステップの xd (28x1)
+%         prev_t = -1.0;             % 前回ステップの時刻 [s]
+% 
+%         % --- アクティブ障害物管理 (Active Obstacle Manager) ---
+%         active_obstacles = [];         % 現在管理中の障害物リスト
+%         post_recovery_hold_time = 3.0; % 回避・安全復帰完了後の猶予保持時間 [s]
+%     end
+% 
+%     methods (Access = public)
+%         % =====================================================================
+%         % コンストラクタ
+%         % =====================================================================
+%         function obj = REPLANNING_BSPLINE_NEW(self, base_ref, opts)
+%             arguments
+%                 self                  % 必須: エージェントインスタンス
+%                 base_ref              % 必須: 通常飛行用の公称軌道インスタンス
+%                 opts = struct()       % 任意: 外部設定構造体
+%             end
+%             obj.self = self;
+%             obj.base_ref = base_ref;
+%             if isfield(opts, 'trigger_dist'),     obj.trigger_dist     = opts.trigger_dist;     end
+%             if isfield(opts, 'clearance_margin'), obj.clearance_margin = opts.clearance_margin; end
+%             if isfield(opts, 'r_drone'),          obj.r_drone          = opts.r_drone;          end
+%             if isfield(opts, 'r_load'),           obj.r_load           = opts.r_load;           end
+%             if isfield(opts, 'L_cable'),          obj.L_cable          = opts.L_cable;          end
+%             if isfield(opts, 'gravity'),          obj.gravity          = opts.gravity;          end
+%             if isfield(opts, 'max_acc_load'),     obj.max_acc_load     = opts.max_acc_load;     end
+% 
+%             obj.result = base_ref.result;
+% 
+%             % STATE_CLASS に診断プロパティを動的追加
+%             sensor_props = ["time", "pQ", "pL", "detected_point", ...
+%                 "drone_inside_obstacle_point", "load_inside_obstacle_point", ...
+%                 "cable_inside_obstacle_point", "drone_margin_violated", ...
+%                 "load_margin_violated", "cable_margin_violated", ...
+%                 "drone_min_dist_point", "load_min_dist_point", "cable_min_dist_point", ...
+%                 "min_dist_point", "drone_obstacle_id_point", "load_obstacle_id_point", ...
+%                 "min_obstacle_id_point", "min_source_point", "detected_obstacle_count_point"];
+%             for p_name = sensor_props
+%                 if ~isprop(obj.result.state, p_name)
+%                     addprop(obj.result.state, p_name);
+%                 end
+%             end
+% 
+%             obj.clear_state_sensor_values(0.0);
+%         end
+% 
+%         % =====================================================================
+%         % do: 制御周期ごとのメイン実行メソッド
+%         % =====================================================================
+%         function result_out = do(obj, varargin)
+%             time = varargin{1};
+%             cha  = varargin{2};
+% 
+%             % 1. 公称目標軌道 (Nominal Reference) の算出
+%             base_res = obj.base_ref.do(varargin{:});
+%             xd_nom = base_res.state.xd;
+%             if length(xd_nom) < 28
+%                 xd_nom = [xd_nom; zeros(28 - length(xd_nom), 1)];
+%             end
+% 
+%             obj.clear_state_sensor_values(time.t);
+% 
+%             detection = struct();
+%             detection.time                          = time.t;
+%             detection.pQ                            = [NaN; NaN; NaN];
+%             detection.pL                            = [NaN; NaN; NaN];
+%             detection.detected_point                = false;
+%             detection.drone_inside_obstacle_point   = false;
+%             detection.load_inside_obstacle_point    = false;
+%             detection.cable_inside_obstacle_point   = false;
+%             detection.drone_margin_violated         = false;
+%             detection.load_margin_violated          = false;
+%             detection.cable_margin_violated         = false;
+%             detection.drone_min_dist_point          = inf;
+%             detection.load_min_dist_point           = inf;
+%             detection.cable_min_dist_point          = inf;
+%             detection.min_dist_point                = inf;
+%             detection.drone_obstacle_id_point       = NaN;
+%             detection.load_obstacle_id_point        = NaN;
+%             detection.min_obstacle_id_point         = NaN;
+%             detection.min_source_point              = "none";
+%             detection.detected_obstacle_count_point = 0;
+% 
+%             try obj.L_cable = obj.self.parameter.get("cableL"); catch; end
+% 
+%             % 2. 飛行フェーズ ('f') の機体センシング & 荷物・索 楕円体診断
+%             if cha == 'f'
+%                 pL_cur = obj.self.estimator.result.state.pL(:);
+%                 pQ_cur = obj.self.estimator.result.state.p(:);
+%                 obs_list = obj.get_obstacles_at_time(time.t);
+% 
+%                 % 楕円体に対する UAV / 荷物 / 索球列の厳密ユークリッド距離診断
+%                 detection = obj.check_detection_simulated_sensor(pQ_cur, pL_cur, obs_list, time.t, xd_nom(5:7));
+% 
+%                 % ★ ここで確実に更新代入される
+%                 planning_obstacles = obj.update_active_obstacles(detection.detected_obstacles_point, time.t);
+%                 % 3. 軌道再計画の判定
+%                 if detection.detected_point && (time.t - obj.last_replan_time >= obj.min_replan_interval)
+%                     need_replan = false;
+%                     if ~obj.replan_active
+%                         need_replan = true;
+%                     else
+%                         if detection.min_obstacle_id_point ~= obj.active_threat_id
+%                             need_replan = true;
+%                         elseif detection.drone_margin_violated || detection.cable_margin_violated || detection.load_margin_violated
+%                             need_replan = true;
+%                         end
+%                     end
+%                     if need_replan && ~isempty(planning_obstacles)
+%                         obj.execute_replanning(pQ_cur, xd_nom, detection, obs_list, time.t);
+%                     end
+%                 end
+%             end
+% 
+%             % 4. 出力目標軌道の確定 (差分変位加算方式)
+%             if obj.replan_active
+%                 tau = time.t - obj.t_start;
+% 
+%                 % 復帰安全性の事前検査: 終了 1.0 秒前に公称軌道への合流安全性をスキャン
+%                 if (tau >= obj.t_duration - 1.0) && (tau <= obj.t_duration)
+%                     obs_list_check = obj.get_obstacles_at_time(time.t);
+%                     if ~obj.is_nominal_recovery_safe(time.t, obs_list_check)
+%                         % 公称軌道上に障害物がある場合は回避期間を自動延長
+%                         obj.t_duration = obj.t_duration + 2.0;
+%                         fprintf("[RETURN HELD] 公称軌道への復帰経路上に楕円体干渉を検出 (t=%.3f s). 回避期間を延長します.\n", time.t);
+%                     end
+%                 end
+% 
+%                 if tau <= obj.t_duration
+%                     xd_out = obj.evaluate_smooth_trajectory(tau, xd_nom);
+%                 else
+%                     % 終端条件 P_end = 0 により公称軌道の 0〜6 階微分へショックなく合流
+%                     obj.replan_active = false;
+%                     obj.active_threat_id = NaN;
+%                     xd_out = xd_nom;
+%                     fprintf("[B-SPLINE C^6] 回避所要時間完了: 公称軌道へ完全滑らか復帰 (t=%.3f s)\n\n", time.t);
+%                 end
+%             else
+%                 xd_out = xd_nom;
+%             end
+% 
+%             % 5. 全時間ステップでの C^6 連続性監視 (0〜6階微分の跳躍検出)
+%             if cha == 'f'
+%                 obj.verify_continuous_c6_step(xd_out, time.t, time.dt);
+%             end
+% 
+%             % 6. ロガー・後続制御器への結果格納
+%             st = obj.result.state;
+%             st.xd                            = xd_out;
+%             st.p                             = xd_out(1:3);
+%             st.v                             = xd_out(5:7);
+%             st.q                             = [0; 0; xd_out(4)];
+% 
+%             st.time                          = detection.time;
+%             st.pQ                            = detection.pQ;
+%             st.pL                            = detection.pL;
+%             st.detected_point                = detection.detected_point;
+%             st.drone_inside_obstacle_point   = detection.drone_inside_obstacle_point;
+%             st.load_inside_obstacle_point    = detection.load_inside_obstacle_point;
+%             st.cable_inside_obstacle_point   = detection.cable_inside_obstacle_point;
+%             st.drone_margin_violated         = detection.drone_margin_violated;
+%             st.load_margin_violated          = detection.load_margin_violated;
+%             st.cable_margin_violated         = detection.cable_margin_violated;
+%             st.drone_min_dist_point          = detection.drone_min_dist_point;
+%             st.load_min_dist_point           = detection.load_min_dist_point;
+%             st.cable_min_dist_point          = detection.cable_min_dist_point;
+%             st.min_dist_point                = detection.min_dist_point;
+%             st.drone_obstacle_id_point       = detection.drone_obstacle_id_point;
+%             st.load_obstacle_id_point        = detection.load_obstacle_id_point;
+%             st.min_obstacle_id_point         = detection.min_obstacle_id_point;
+%             st.min_source_point              = detection.min_source_point;
+%             st.detected_obstacle_count_point = detection.detected_obstacle_count_point;
+% 
+%             result_out = obj.result;
+%         end
+% 
+%         % =====================================================================
+%         % evaluate_smooth_trajectory: 0〜6階微分の全状態修正 (Public)
+%         % =====================================================================
+%         function xd = evaluate_smooth_trajectory(obj, tau, xd_nom)
+%             xd = xd_nom;
+% 
+%             delta_pos   = obj.eval_spline_kth(tau, 0);
+%             delta_vel   = obj.eval_spline_kth(tau, 1);
+%             delta_acc   = obj.eval_spline_kth(tau, 2);
+%             delta_jerk  = obj.eval_spline_kth(tau, 3);
+%             delta_snap  = obj.eval_spline_kth(tau, 4);
+%             delta_crack = obj.eval_spline_kth(tau, 5);
+%             delta_pop   = obj.eval_spline_kth(tau, 6);
+% 
+%             xd(1:3)   = xd_nom(1:3)   + delta_pos;   % 荷物位置 (0階)
+%             xd(5:7)   = xd_nom(5:7)   + delta_vel;   % 荷物速度 (1階)
+%             xd(9:11)  = xd_nom(9:11)  + delta_acc;   % 荷物加速度 (2階)
+%             xd(13:15) = xd_nom(13:15) + delta_jerk;  % 荷物Jerk (3階)
+%             xd(17:19) = xd_nom(17:19) + delta_snap;  % 荷物Snap (4階)
+% 
+%             g_vec = [0; 0; obj.gravity];
+%             acc_tot = xd(9:11) + g_vec;
+%             norm_a = norm(acc_tot);
+%             if norm_a > 1e-3, thrust_dir = acc_tot / norm_a; else, thrust_dir = [0; 0; 1]; end
+%             pQ_d = xd(1:3) + obj.L_cable * thrust_dir;
+% 
+%             if length(xd) >= 23, xd(21:23) = pQ_d; end
+%             if length(xd) >= 27, xd(25:27) = xd_nom(25:27) + delta_pop; end
+%         end
+%     end
+% 
+%     methods (Access = private)
+%         % =====================================================================
+%         % execute_replanning: 楕円体幾何学に基づく回避 QP & 予測軌道事前検査
+%         % =====================================================================
+%         function execute_replanning(obj, pQ_cur, xd_nom, detection, obs_list, t_now)
+%             target_obs = detection.detected_obstacles_point(1);
+%             obj.active_threat_id = target_obs.id;
+% 
+%             v_nom = xd_nom(5:7);
+%             spd = norm(v_nom);
+%             if spd < 0.1, spd = 1.0; v_nom = [1; 0; 0]; end
+%             dir_nom = v_nom / spd;
+% 
+%             % 旧変位軌道の現時刻における 0〜6階微分状態の抽出
+%             init_diff_state = zeros(7, 3);
+%             if obj.replan_active
+%                 tau_now = t_now - obj.t_start;
+%                 for k = 0:6
+%                     init_diff_state(k + 1, :) = obj.eval_spline_kth(tau_now, k)';
+%                 end
+%             end
+% 
+%             obj.t_start          = t_now;
+%             obj.last_replan_time = t_now;
+% 
+%             % --- 厳密な楕円体幾何に基づく要求クリアランスの算定 ---
+%             % 球体で丸め込まず、最接近点における法線方向深さ + 機体・索保護半径 + マージン
+%             req_clearance = target_obs.dist_drone_point + obj.r_drone + obj.clearance_margin;
+%             req_clearance = max(req_clearance, 1.5); % 最低退避量
+% 
+%             % 回避退避方向 (最寄りの真の楕円体表面外向き法線ベクトルから進行軸成分を除去)
+%             n_escape = -target_obs.normal_drone_point;
+%             n_escape = n_escape - dot(n_escape, dir_nom) * dir_nom;
+%             if norm(n_escape) < 0.1
+%                 n_cand = cross(dir_nom, [0; 0; 1]);
+%                 if norm(n_cand) < 0.1, n_cand = cross(dir_nom, [0; 1; 0]); end
+%                 n_escape = n_cand / norm(n_cand);
+%             else
+%                 n_escape = n_escape / norm(n_escape);
+%             end
+% 
+%             % 動的時間スケーリング: 加速度上限 max_acc_load を満たす最小回避時間 T_tot
+%             T_kinematic = sqrt((8.0 * req_clearance) / obj.max_acc_load);
+% 
+%             % 最接近時刻の幾何推定
+%             vec_to_obs = target_obs.p_obs - pQ_cur;
+%             dist_along = dot(vec_to_obs, dir_nom);
+%             t_impact = max(1.5, dist_along / spd);
+%             obj.t_duration = max([5.0, 2.0 * t_impact, T_kinematic * 1.5]);
+% 
+%             % 7次 B-Spline QP 求解
+%             t_solve = tic;
+%             obj.plan_uniform_bspline_c6_qp(req_clearance, n_escape, init_diff_state, t_impact);
+%             obj.last_solve_time_ms = toc(t_solve) * 1000;
+% 
+%             % --- 採用前の未来予測軌道サンプリング検査 (Look-ahead Safety Verification) ---
+%             traj_verified = obj.verify_future_trajectory_safety(t_now, obs_list);
+% 
+%             if traj_verified
+%                 obj.replan_active = true;
+%                 obj.verify_boundary_c6_matching(init_diff_state, t_now);
+%                 obj.display_detection_report(t_now, detection, req_clearance, t_impact, n_escape, "PASS");
+%             else
+%                 % 侵入リスクを検出した場合はクリアランスを増して再計算
+%                 req_clearance_boost = req_clearance * 1.3;
+%                 obj.plan_uniform_bspline_c6_qp(req_clearance_boost, n_escape, init_diff_state, t_impact);
+%                 obj.replan_active = true;
+%                 obj.verify_boundary_c6_matching(init_diff_state, t_now);
+%                 obj.display_detection_report(t_now, detection, req_clearance_boost, t_impact, n_escape, "BOOSTED_PASS");
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % plan_uniform_bspline_c6_qp: 両端 C^6 クランプ・内点凸包バリア最適化
+%         % =====================================================================
+%         function plan_uniform_bspline_c6_qp(obj, req_clearance, n_escape_3d, init_diff_state, t_impact)
+%             p = 7;
+%             n_seg = 25;
+%             n_cp = n_seg + p;          % 32 制御点
+%             T_tot = obj.t_duration;
+%             dt_seg = T_tot / n_seg;
+% 
+%             obj.spline_degree = p;
+%             obj.num_segments = n_seg;
+%             obj.build_clamped_uniform_knots(n_seg, p, T_tot);
+% 
+%             % 1. 始端 0〜6階微分の境界確定: P_start (7x3)
+%             M_start = zeros(7, 7);
+%             for k = 0:6
+%                 d_row = obj.eval_basis_derivatives(p + 1, 0.0, k);
+%                 M_start(k + 1, :) = d_row(k + 1, 1:7);
+%             end
+%             P_start = M_start \ init_diff_state(1:7, :);
+% 
+%             % 2. 終端 0〜6階微分の公称合流確定: P_end (7x3)
+%             %    Delta p(T_tot) = 0 .. Delta p^(6)(T_tot) = 0
+%             M_end = zeros(7, 7);
+%             for k = 0:6
+%                 d_row_end = obj.eval_basis_derivatives(n_cp, T_tot, k);
+%                 M_end(k + 1, :) = d_row_end(k + 1, (end - 6):end);
+%             end
+%             P_end = M_end \ zeros(7, 3);
+% 
+%             % 3. 自由変数 (P_8 〜 P_25: 18点) に対する Snap(4階差分) 最小化
+%             D4 = diff(eye(n_cp), 4);
+%             Q = D4' * D4;
+% 
+%             idx_free = 8:(n_cp - 7);
+%             n_free = length(idx_free);
+% 
+%             Q_mm = Q(idx_free, idx_free) + 1e-4 * eye(n_free);
+%             Q_ms = Q(idx_free, 1:7);
+%             Q_me = Q(idx_free, (n_cp-6):n_cp);
+% 
+%             H_1d = (Q_mm + Q_mm') / 2;
+%             H = blkdiag(H_1d, H_1d, H_1d);
+% 
+%             f_x = (P_start(:, 1)' * Q_ms' + P_end(:, 1)' * Q_me')';
+%             f_y = (P_start(:, 2)' * Q_ms' + P_end(:, 2)' * Q_me')';
+%             f_z = (P_start(:, 3)' * Q_ms' + P_end(:, 3)' * Q_me')';
+%             f = [f_x; f_y; f_z];
+% 
+%             % 4. 凸包バリア不等式制約（最接近区間〜戻り区間の押し出し）
+%             cp_at_impact = round(t_impact / dt_seg) - 7;
+%             cp_at_impact = max(2, min(n_free - 4, cp_at_impact));
+% 
+%             sideway_indices = (cp_at_impact - 1) : (cp_at_impact + 2);
+%             sideway_indices = sideway_indices(sideway_indices >= 1 & sideway_indices <= n_free);
+% 
+%             A_ineq = [];
+%             b_ineq = [];
+%             for j = sideway_indices
+%                 row_cp = zeros(1, n_free * 3);
+%                 for dim = 1:3
+%                     idx_d = (dim - 1) * n_free;
+%                     row_cp(idx_d + j) = -n_escape_3d(dim);
+%                 end
+%                 A_ineq = [A_ineq; row_cp];
+%                 b_ineq = [b_ineq; -req_clearance];
+%             end
+% 
+%             recovery_indices = (max(sideway_indices) + 1) : min(n_free, max(sideway_indices) + 3);
+%             for j = recovery_indices
+%                 row_cp = zeros(1, n_free * 3);
+%                 for dim = 1:3
+%                     idx_d = (dim - 1) * n_free;
+%                     row_cp(idx_d + j) = -n_escape_3d(dim);
+%                 end
+%                 A_ineq = [A_ineq; row_cp];
+%                 b_ineq = [b_ineq; -0.85 * req_clearance];
+%             end
+% 
+%             max_disp = req_clearance * 1.5;
+%             lb = -max_disp * ones(n_free * 3, 1);
+%             ub =  max_disp * ones(n_free * 3, 1);
+% 
+%             opts = optimoptions('quadprog', 'Display', 'off', 'Algorithm', 'interior-point-convex');
+%             [X_mid, ~, exitflag] = quadprog(H, f, A_ineq, b_ineq, [], [], lb, ub, [], opts);
+% 
+%             if exitflag < 1
+%                 X_mid = repmat(n_escape_3d * req_clearance * 0.85, n_free, 1);
+%             end
+% 
+%             P_mid = zeros(n_free, 3);
+%             P_mid(:, 1) = X_mid(1:n_free);
+%             P_mid(:, 2) = X_mid((n_free+1):(2*n_free));
+%             P_mid(:, 3) = X_mid((2*n_free+1):(3*n_free));
+% 
+%             obj.control_points = [P_start; P_mid; P_end];
+%             obj.actual_peak_displacement = max(vecnorm(P_mid, 2, 2));
+%         end
+% 
+%         % =====================================================================
+%         % verify_future_trajectory_safety: 軌道全体のサンプリング事前安全性検査
+%         % =====================================================================
+%         function is_safe = verify_future_trajectory_safety(obj, t_now, obs_list)
+%             is_safe = true;
+%             N_samples = 40; % 回避区間を 40 点サンプリング
+%             taus = linspace(0.2, obj.t_duration, N_samples);
+% 
+%             r_c_sph = obj.r_cable_sphere;
+%             n_spheres = max(2, ceil(obj.L_cable / (2.0 * r_c_sph)) + 1);
+%             s_ratios = linspace(0.0, 1.0, n_spheres);
+% 
+%             for i = 1:N_samples
+%                 tau_i = taus(i);
+%                 t_fut = t_now + tau_i;
+%                 nom_res = obj.base_ref.do(struct('t', t_fut, 'dt', 0.025), 'f');
+%                 xd_nom_i = nom_res.state.xd;
+%                 if length(xd_nom_i) < 28, xd_nom_i = [xd_nom_i; zeros(28 - length(xd_nom_i), 1)]; end
+% 
+%                 xd_fut = obj.evaluate_smooth_trajectory(tau_i, xd_nom_i);
+%                 pL_fut = xd_fut(1:3);
+%                 pQ_fut = xd_fut(21:23);
+%                 cable_pts_fut = (1 - s_ratios) .* pL_fut + s_ratios .* pQ_fut;
+% 
+%                 for obs_idx = 1:length(obs_list)
+%                     o = obs_list(obs_idx);
+%                     obs_parsed = struct('center', o.p_center(:), 'radii', o.ellipsoid_radii(:), 'R', o.R_obs);
+% 
+%                     % 1. UAV
+%                     [dQ, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pQ_fut, obs_parsed);
+%                     if dQ - obj.r_drone <= 0, is_safe = false; return; end
+% 
+%                     % 2. 荷物
+%                     [dL, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pL_fut, obs_parsed);
+%                     if dL - obj.r_load <= 0, is_safe = false; return; end
+% 
+%                     % 3. 索球列
+%                     for sp = 1:n_spheres
+%                         [dC, ~, ~, ~] = obj.point_ellipsoid_signed_distance(cable_pts_fut(:, sp), obs_parsed);
+%                         if dC - r_c_sph <= 0, is_safe = false; return; end
+%                     end
+%                 end
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % is_nominal_recovery_safe: 復帰先の公称軌道における干渉スキャン
+%         % =====================================================================
+%         function is_safe = is_nominal_recovery_safe(obj, t_now, obs_list)
+%             is_safe = true;
+%             N_lookahead = 15;
+%             t_scan = linspace(t_now + obj.t_duration, t_now + obj.t_duration + 2.0, N_lookahead);
+% 
+%             for i = 1:N_lookahead
+%                 t_eval = t_scan(i);
+%                 nom_res = obj.base_ref.do(struct('t', t_eval, 'dt', 0.025), 'f');
+%                 pL_nom = nom_res.state.xd(1:3);
+%                 pQ_nom = pL_nom + [0; 0; obj.L_cable];
+% 
+%                 for obs_idx = 1:length(obs_list)
+%                     o = obs_list(obs_idx);
+%                     obs_parsed = struct('center', o.p_center(:), 'radii', o.ellipsoid_radii(:), 'R', o.R_obs);
+% 
+%                     [dQ, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pQ_nom, obs_parsed);
+%                     [dL, ~, ~, ~] = obj.point_ellipsoid_signed_distance(pL_nom, obs_parsed);
+% 
+%                     % 復帰直後に接触・マージン侵入しないか
+%                     if (dQ - obj.r_drone - obj.clearance_margin <= 0) || ...
+%                        (dL - obj.r_load  - obj.clearance_margin <= 0)
+%                         is_safe = false;
+%                         return;
+%                     end
+%                 end
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % verify_boundary_c6_matching: 始端 0〜6階微分ギャップ厳密検証
+%         % =====================================================================
+%         function verify_boundary_c6_matching(obj, init_diff_state, t_now)
+%             names = ["位置(0階)", "速度(1階)", "加速度(2階)", "Jerk(3階)", "Snap(4階)", "Crack(5階)", "Pop(6階)"];
+%             tolerances = [1e-10, 1e-9, 1e-8, 1e-6, 1e-4, 1e-2, 1.0];
+% 
+%             for k = 0:6
+%                 new_k = obj.eval_spline_kth(0.0, k)';
+%                 old_k = init_diff_state(k + 1, :);
+%                 gap = norm(new_k - old_k);
+%                 obj.c6_boundary_gaps(k + 1) = gap;
+% 
+%                 if gap > tolerances(k + 1)
+%                     fprintf(2, "[FATAL C^6 BREACH] t=%.3f s | %s の切り替え接続ギャップ超過: %.3e (許容: %.3e)\n", ...
+%                         t_now, names(k + 1), gap, tolerances(k + 1));
+%                     error('リプランニング始端での C^6 境界接続に失敗しました: %s', names(k + 1));
+%                 end
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % verify_continuous_c6_step: 全時間ステップ積分整合性監視
+%         % =====================================================================
+%         function verify_continuous_c6_step(obj, xd_now, t_now, dt)
+%             if obj.prev_t < 0
+%                 obj.prev_xd = xd_now;
+%                 obj.prev_t  = t_now;
+%                 return;
+%             end
+% 
+%             real_dt = t_now - obj.prev_t;
+%             if real_dt <= 1e-6, return; end
+%             if nargin < 4 || isempty(dt) || dt <= 0, dt = real_dt; end
+% 
+%             orders = { ...
+%                 '位置 (0階)',      1:3,   5:7;   ...
+%                 'yaw角 (0階)',     4,     8;     ...
+%                 '速度 (1階)',      5:7,   9:11;  ...
+%                 '加速度 (2階)',    9:11,  13:15; ...
+%                 'Jerk (3階)',      13:15, 17:19; ...
+%             };
+% 
+%             for idx = 1:size(orders, 1)
+%                 name   = orders{idx, 1};
+%                 curr_i = orders{idx, 2};
+%                 next_i = orders{idx, 3};
+% 
+%                 val_prev = obj.prev_xd(curr_i);
+%                 val_curr = xd_now(curr_i);
+%                 der_prev = obj.prev_xd(next_i);
+%                 der_curr = xd_now(next_i);
+% 
+%                 predicted = val_prev + 0.5 * (der_prev + der_curr) * real_dt;
+%                 disc_gap  = norm(val_curr - predicted);
+% 
+%                 tol = max(0.08, 6.0 * norm(der_curr) * real_dt);
+%                 if disc_gap > tol
+%                     fprintf(2, "[FATAL] 軌道連続性監視違反: %s at t=%.4f s (ギャップ: %.3e, 許容: %.3e)\n", ...
+%                         name, t_now, disc_gap, tol);
+%                     error('目標軌道の不連続キックが検出されました: %s', name);
+%                 end
+%             end
+% 
+%             obj.prev_xd = xd_now;
+%             obj.prev_t  = t_now;
+%         end
+% 
+%         % =====================================================================
+%         % check_detection_simulated_sensor: 3者(機体/荷物/索)の3層距離・マージン診断
+%         % =====================================================================
+%         function det = check_detection_simulated_sensor(obj, pQ, pL, obs_list, t_now, v_nom)
+%             det = struct();
+%             det.time                          = t_now;
+%             det.pQ                            = pQ;
+%             det.pL                            = pL;
+%             det.trigger_dist                  = obj.trigger_dist;
+%             det.detected_point                = false;
+%             det.drone_inside_obstacle_point   = false;
+%             det.load_inside_obstacle_point    = false;
+%             det.cable_inside_obstacle_point   = false;
+%             det.drone_margin_violated         = false;
+%             det.load_margin_violated          = false;
+%             det.cable_margin_violated         = false;
+%             det.drone_min_dist_point          = inf;
+%             det.load_min_dist_point           = inf;
+%             det.cable_min_dist_point          = inf;
+%             det.min_dist_point                = inf;
+%             det.drone_obstacle_id_point       = [];
+%             det.load_obstacle_id_point        = [];
+%             det.min_obstacle_id_point         = [];
+%             det.min_source_point              = "none";
+%             det.detected_obstacles_point      = [];
+%             det.detected_obstacle_count_point = 0;
+% 
+%             if isempty(obs_list), return; end
+% 
+%             % 索球列の配置: 隙間ゼロ保証 (Delta s <= 2*r_c)
+%             r_c_sph = obj.r_cable_sphere;
+%             n_spheres = max(2, ceil(obj.L_cable / (2.0 * r_c_sph)) + 1);
+%             s_ratios = linspace(0.0, 1.0, n_spheres);
+%             cable_pts = (1 - s_ratios) .* pL + s_ratios .* pQ;
+% 
+%             v_dir = v_nom(:);
+%             if norm(v_dir) > 0.1, v_dir = v_dir / norm(v_dir); else, v_dir = [0; 1; 0]; end
+% 
+%             detected_obs_candidates = [];
+% 
+%             for i = 1:length(obs_list)
+%                 o = obs_list(i);
+%                 obs_id = o.id;
+%                 R_obs = o.R_obs;
+%                 radii_obs = o.ellipsoid_radii(:);
+%                 p_obs = o.p_center(:);
+%                 obs_parsed = struct('center', p_obs, 'radii', radii_obs, 'R', R_obs);
+% 
+%                 % 1. 機体重心 pQ (センサー & 物理接触/マージン評価)
+%                 [d_drone_raw, inside_drone, cpQ_loc, ~] = obj.point_ellipsoid_signed_distance(pQ, obs_parsed);
+%                 d_drone_physical = d_drone_raw - obj.r_drone;
+%                 d_drone_safety   = d_drone_physical - obj.clearance_margin;
+% 
+%                 % 2. 荷物 pL
+%                 [d_load_raw, inside_load, cpL_loc, ~] = obj.point_ellipsoid_signed_distance(pL, obs_parsed);
+%                 d_load_physical = d_load_raw - obj.r_load;
+%                 d_load_safety   = d_load_physical - obj.clearance_margin;
+% 
+%                 % 3. 索球列 (Cable Spheres)
+%                 d_cable_raw_min = inf;
+%                 inside_cable_i = false;
+%                 for sp_idx = 1:n_spheres
+%                     [d_pt, in_pt, ~, ~] = obj.point_ellipsoid_signed_distance(cable_pts(:, sp_idx), obs_parsed);
+%                     if d_pt < d_cable_raw_min, d_cable_raw_min = d_pt; end
+%                     if in_pt, inside_cable_i = true; end
+%                 end
+%                 d_cable_physical = d_cable_raw_min - r_c_sph;
+%                 d_cable_safety   = d_cable_physical - obj.clearance_margin;
+% 
+%                 % 物理衝突 (Collision) & マージン侵入 (Margin Violation) 判定
+%                 if inside_drone || (d_drone_physical <= 0),   det.drone_inside_obstacle_point = true; end
+%                 if inside_load  || (d_load_physical <= 0),    det.load_inside_obstacle_point  = true; end
+%                 if inside_cable_i || (d_cable_physical <= 0), det.cable_inside_obstacle_point = true; end
+% 
+%                 if d_drone_safety <= 0, det.drone_margin_violated = true; end
+%                 if d_load_safety  <= 0, det.load_margin_violated  = true; end
+%                 if d_cable_safety <= 0, det.cable_margin_violated = true; end
+% 
+%                 if d_drone_physical < det.drone_min_dist_point
+%                     det.drone_min_dist_point = d_drone_physical;
+%                     det.drone_obstacle_id_point = obs_id;
+%                 end
+%                 if d_load_physical < det.load_min_dist_point
+%                     det.load_min_dist_point = d_load_physical;
+%                     det.load_obstacle_id_point = obs_id;
+%                 end
+%                 if d_cable_physical < det.cable_min_dist_point
+%                     det.cable_min_dist_point = d_cable_physical;
+%                 end
+% 
+%                 % 楕円体法線ベクトル
+%                 cpQ_world = p_obs + R_obs * cpQ_loc;
+%                 cpL_world = p_obs + R_obs * cpL_loc;
+%                 nQ_loc = cpQ_loc ./ (radii_obs.^2);
+%                 normal_drone = R_obs * (nQ_loc / norm(nQ_loc));
+%                 nL_loc = cpL_loc ./ (radii_obs.^2);
+%                 normal_load = R_obs * (nL_loc / norm(nL_loc));
+% 
+%                 obs_info = struct( ...
+%                     'id',                        obs_id, ...
+%                     'dist_drone_point',          d_drone_physical, ...
+%                     'dist_drone_safety',         d_drone_safety, ...
+%                     'dist_load_point',           d_load_physical, ...
+%                     'dist_load_safety',          d_load_safety, ...
+%                     'dist_cable_point',          d_cable_physical, ...
+%                     'dist_cable_safety',         d_cable_safety, ...
+%                     'min_dist_point',            d_drone_physical, ...
+%                     'p_obs',                     p_obs, ...
+%                     'radii_obs',                 radii_obs, ...
+%                     'R_obs',                     R_obs, ...
+%                     'closest_drone_world_point', cpQ_world, ...
+%                     'closest_load_world_point',  cpL_world, ...
+%                     'normal_drone_point',        normal_drone, ...
+%                     'normal_load_point',         normal_load ...
+%                 );
+% 
+%                 % 進行方向かつ 15m 検知判定
+%                 vec_to_center = p_obs - pQ;
+%                 is_in_front = dot(vec_to_center, v_dir) > -max(radii_obs);
+% 
+%                 if (d_drone_raw <= obj.trigger_dist) && is_in_front
+%                     detected_obs_candidates = [detected_obs_candidates; obs_info];
+%                 end
+%             end
+% 
+%             % 複数検知時: 最短距離（最も危険な障害物）順にソート
+%             if ~isempty(detected_obs_candidates)
+%                 [~, sort_idx] = sort([detected_obs_candidates.dist_drone_point], 'ascend');
+%                 det.detected_obstacles_point = detected_obs_candidates(sort_idx);
+%                 det.detected_point = true;
+%                 det.min_dist_point = det.detected_obstacles_point(1).dist_drone_point;
+%                 det.min_obstacle_id_point = det.detected_obstacles_point(1).id;
+%                 det.min_source_point = "drone";
+%                 det.detected_obstacle_count_point = length(detected_obs_candidates);
+%             else
+%                 det.min_dist_point = det.drone_min_dist_point;
+%                 det.min_obstacle_id_point = det.drone_obstacle_id_point;
+%                 det.min_source_point = "none";
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % display_detection_report: 診断レポート (3者ステータス & C^6 境界ログ)
+%         % =====================================================================
+%         function display_detection_report(obj, t_now, det, req_clearance, t_impact, n_escape, status_str)
+%             tgt = det.detected_obstacles_point(1);
+%             names = ["位置(0階)", "速度(1階)", "加速度(2階)", "Jerk(3階)", "Snap(4階)", "Crack(5階)", "Pop(6階)"];
+% 
+%             fprintf("\n=================================================================================\n");
+%             fprintf(" [B-SPLINE 15m センサー検知 ＆ C^6 回避診断レポート]  t = %.3f s [%s]\n", t_now, status_str);
+%             fprintf("=================================================================================\n");
+%             fprintf(" 1. センサ判定元      : 機体重心 pQ 搭載模擬センサー (機体表面間距離: %.3f m)\n", tgt.dist_drone_point);
+%             fprintf(" 2. 3層安全診断ステータス:\n");
+%             fprintf("     - UAV   : 表面間: %+6.3f m | マージン間: %+6.3f m | [%s]\n", ...
+%                 tgt.dist_drone_point, tgt.dist_drone_safety, obj.get_safety_status(tgt.dist_drone_point, tgt.dist_drone_safety));
+%             fprintf("     - Cable : 表面間: %+6.3f m | マージン間: %+6.3f m | [%s]\n", ...
+%                 tgt.dist_cable_point, tgt.dist_cable_safety, obj.get_safety_status(tgt.dist_cable_point, tgt.dist_cable_safety));
+%             fprintf("     - Load  : 表面間: %+6.3f m | マージン間: %+6.3f m | [%s]\n", ...
+%                 tgt.dist_load_point, tgt.dist_load_safety, obj.get_safety_status(tgt.dist_load_point, tgt.dist_load_safety));
+%             fprintf(" 3. 捕捉楕円体情報    : 危険順位 1位 / 候補 %d 個 (ID=%d, 半径=[%.2f, %.2f, %.2f] m)\n", ...
+%                 det.detected_obstacle_count_point, tgt.id, tgt.radii_obs(1), tgt.radii_obs(2), tgt.radii_obs(3));
+%             fprintf(" 4. 運動学制約考慮    : 許容 a_max = %.2f m/s^2 -> 回避時間 T_tot = %.2f s (過大傾斜を防止)\n", ...
+%                 obj.max_acc_load, obj.t_duration);
+%             fprintf(" 5. 楕円体幾何拘束    : 厳密法線退避クリアランス = %.2f m (退避ベクトル: [%.2f, %.2f, %.2f])\n", ...
+%                 req_clearance, n_escape(1), n_escape(2), n_escape(3));
+%             fprintf(" 6. C^6 始端境界ギャップ実測値 (M \\ B 厳密接続):\n");
+%             for k = 0:6
+%                 fprintf("     - %-12s e_%d = %.3e m/s^%d (数学的 C^6 保証)\n", names(k + 1), k, obj.c6_boundary_gaps(k + 1), k);
+%             end
+%             fprintf(" 7. QP最適化計算時間  : %6.2f ms (18自由度 Aeqフリー超高速二次計画)\n", obj.last_solve_time_ms);
+%             fprintf(" 8. 生成最大空間変位  : %.3f m\n", obj.actual_peak_displacement);
+%             fprintf("=================================================================================\n\n");
+%         end
+% 
+%         function str = get_safety_status(~, d_phys, d_safe)
+%             if d_phys <= 0
+%                 str = "COLLISION";
+%             elseif d_safe <= 0
+%                 str = "MARGIN VIOLATION";
+%             else
+%                 str = "SAFE";
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % point_ellipsoid_signed_distance: ラグランジュ未定乗数法による厳密幾何距離
+%         % =====================================================================
+%         function [d, inside, closest_local, lambda] = point_ellipsoid_signed_distance(~, p, o)
+%             p = p(:); c = o.center(:); r = o.radii(:); R = o.R;
+%             y  = R' * (p - c);
+%             r2 = r.^2;
+%             q  = sum((y ./ r).^2);
+%             inside = (q < 1.0);
+% 
+%             if norm(y) < 1e-14
+%                 [min_r, min_idx] = min(r);
+%                 closest_local = zeros(3, 1);
+%                 closest_local(min_idx) = min_r;
+%                 d      = -min_r;
+%                 lambda = -min(r2);
+%                 return;
+%             end
+% 
+%             f = @(lam) sum(r2 .* (y.^2) ./ ((lam + r2).^2)) - 1.0;
+%             if q > 1.0
+%                 lo = 0.0;
+%                 hi = max(r) * norm(y);
+%             else
+%                 lo = -min(r2) * (1.0 - 1e-12);
+%                 hi = 0.0;
+%             end
+% 
+%             for kk = 1:80
+%                 mid = 0.5 * (lo + hi);
+%                 if f(mid) > 0, lo = mid; else, hi = mid; end
+%             end
+%             lambda = 0.5 * (lo + hi);
+%             closest_local = r2 .* y ./ (lambda + r2);
+%             d_abs = norm(closest_local - y);
+%             if inside, d = -d_abs; else, d = d_abs; end
+%         end
+% 
+%         function val = eval_spline_kth(obj, tau, k)
+%             p = obj.spline_degree;
+%             T_tot = obj.t_duration;
+%             t_eval = max(0.0, min(T_tot - 1e-7, tau));
+% 
+%             idx_span = obj.find_knot_span(t_eval);
+%             ders = obj.eval_basis_derivatives(idx_span, t_eval, k);
+% 
+%             c_indices = (idx_span - p):idx_span;
+%             val = (ders(k + 1, :) * obj.control_points(c_indices, :))';
+%         end
+% 
+%         function build_clamped_uniform_knots(obj, n_seg, p, T_tot)
+%             dt_knot = T_tot / n_seg;
+%             interior_knots = dt_knot * (1:(n_seg - 1));
+%             obj.knots = [zeros(1, p + 1), interior_knots, T_tot * ones(1, p + 1)];
+%         end
+% 
+%         function idx = find_knot_span(obj, t_eval)
+%             p = obj.spline_degree;
+%             n_cp = length(obj.knots) - p - 1;
+%             if t_eval >= obj.knots(n_cp + 1), idx = n_cp; return; end
+%             if t_eval <= obj.knots(p + 1),    idx = p + 1; return; end
+%             low = p + 1; high = n_cp + 1; mid = floor((low + high) / 2);
+%             while (t_eval < obj.knots(mid)) || (t_eval >= obj.knots(mid + 1))
+%                 if t_eval < obj.knots(mid), high = mid; else, low = mid; end
+%                 mid = floor((low + high) / 2);
+%             end
+%             idx = mid;
+%         end
+% 
+%         function ders = eval_basis_derivatives(obj, idx_span, t_eval, n_der)
+%             p = obj.spline_degree;
+%             U = obj.knots;
+%             ders = zeros(n_der + 1, p + 1);
+%             ndu = zeros(p + 1, p + 1);
+%             left = zeros(p + 1, 1);
+%             right = zeros(p + 1, 1);
+% 
+%             ndu(1, 1) = 1.0;
+%             for j = 1:p
+%                 left(j + 1) = t_eval - U(idx_span + 1 - j);
+%                 right(j + 1) = U(idx_span + j) - t_eval;
+%                 saved = 0.0;
+%                 for r = 0:(j - 1)
+%                     ndu(j + 1, r + 1) = right(r + 2) + left(j - r + 1);
+%                     temp = ndu(r + 1, j) / ndu(j + 1, r + 1);
+%                     ndu(r + 1, j + 1) = saved + right(r + 2) * temp;
+%                     saved = left(j - r + 1) * temp;
+%                 end
+%                 ndu(j + 1, j + 1) = saved;
+%             end
+% 
+%             for j = 0:p, ders(1, j + 1) = ndu(j + 1, p + 1); end
+% 
+%             a = zeros(2, p + 1);
+%             for r = 0:p
+%                 s1 = 0; s2 = 1; a(1, 1) = 1.0;
+%                 for k = 1:n_der
+%                     d = 0.0; rk = r - k; pk = p - k;
+%                     if r >= k
+%                         a(s2 + 1, 1) = a(s1 + 1, 1) / ndu(pk + 2, rk + 1);
+%                         d = a(s2 + 1, 1) * ndu(rk + 1, pk + 1);
+%                     end
+%                     if rk >= -1, j1 = 1; else, j1 = -rk; end
+%                     if (r - 1) <= pk, j2 = k - 1; else, j2 = p - r; end
+%                     for j = j1:j2
+%                         a(s2 + 1, j + 1) = (a(s1 + 1, j + 1) - a(s1 + 1, j)) / ndu(pk + 2, rk + j + 1);
+%                         d = d + a(s2 + 1, j + 1) * ndu(rk + j + 1, pk + 1);
+%                     end
+%                     if r <= pk
+%                         a(s2 + 1, k + 1) = -a(s1 + 1, k) / ndu(pk + 2, r + 1);
+%                         d = d + a(s2 + 1, k + 1) * ndu(r + 1, pk + 1);
+%                     end
+%                     ders(k + 1, r + 1) = d;
+%                     j_tmp = s1; s1 = s2; s2 = j_tmp;
+%                 end
+%             end
+% 
+%             r_scale = p;
+%             for k = 1:n_der
+%                 for j = 0:p
+%                     ders(k + 1, j + 1) = ders(k + 1, j + 1) * r_scale;
+%                 end
+%                 r_scale = r_scale * (p - k);
+%             end
+%         end
+% 
+%         % =====================================================================
+%         % update_active_obstacles: センサー検知・回避状態に応じた障害物ライフサイクル管理
+%         % =====================================================================
+%         function planning_obstacles = update_active_obstacles(obj, detected_candidates, t_now)
+%             detected_ids = [];
+%             for k = 1:length(detected_candidates)
+%                 cand = detected_candidates(k);
+%                 detected_ids = [detected_ids, cand.id];
+%                 idx = [];
+%                 if ~isempty(obj.active_obstacles)
+%                     idx = find([obj.active_obstacles.id] == cand.id, 1);
+%                 end
+%                 if isempty(idx)
+%                     new_item = struct();
+%                     new_item.id                 = cand.id;
+%                     new_item.p_obs              = cand.p_obs;
+%                     new_item.radii_obs          = cand.radii_obs;
+%                     new_item.R_obs              = cand.R_obs;
+%                     new_item.closest_drone_world_point = cand.closest_drone_world_point;
+%                     new_item.normal_drone_point = cand.normal_drone_point;
+%                     new_item.dist_drone_point   = cand.dist_drone_point;
+%                     new_item.last_seen_time     = t_now;
+%                     new_item.state              = "DETECTED";
+%                     new_item.release_time       = NaN;
+%                     obj.active_obstacles = [obj.active_obstacles; new_item];
+%                 else
+%                     obj.active_obstacles(idx).p_obs              = cand.p_obs;
+%                     obj.active_obstacles(idx).radii_obs          = cand.radii_obs;
+%                     obj.active_obstacles(idx).R_obs              = cand.R_obs;
+%                     obj.active_obstacles(idx).closest_drone_world_point = cand.closest_drone_world_point;
+%                     obj.active_obstacles(idx).normal_drone_point = cand.normal_drone_point;
+%                     obj.active_obstacles(idx).dist_drone_point   = cand.dist_drone_point;
+%                     obj.active_obstacles(idx).last_seen_time     = t_now;
+%                     obj.active_obstacles(idx).state              = "DETECTED";
+%                     obj.active_obstacles(idx).release_time       = NaN;
+%                 end
+%             end
+% 
+%             keep_flags = true(length(obj.active_obstacles), 1);
+%             for i = 1:length(obj.active_obstacles)
+%                 obs_id = obj.active_obstacles(i).id;
+%                 if ~ismember(obs_id, detected_ids)
+%                     if obj.replan_active
+%                         obj.active_obstacles(i).state = "LATCHED";
+%                         obj.active_obstacles(i).release_time = NaN;
+%                     else
+%                         if obj.active_obstacles(i).state ~= "POST_RECOVERY"
+%                             obj.active_obstacles(i).state = "POST_RECOVERY";
+%                             obj.active_obstacles(i).release_time = t_now + obj.post_recovery_hold_time;
+%                         end
+%                         if t_now >= obj.active_obstacles(i).release_time
+%                             keep_flags(i) = false;
+%                         end
+%                     end
+%                 end
+%             end
+%             obj.active_obstacles = obj.active_obstacles(keep_flags);
+%             planning_obstacles = obj.active_obstacles;
+%         end
+% 
+%         function clear_state_sensor_values(obj, t_now)
+%             st = obj.result.state;
+%             st.time                          = t_now;
+%             st.pQ                            = [NaN; NaN; NaN];
+%             st.pL                            = [NaN; NaN; NaN];
+%             st.detected_point                = false;
+%             st.drone_inside_obstacle_point   = false;
+%             st.load_inside_obstacle_point    = false;
+%             st.cable_inside_obstacle_point   = false;
+%             st.drone_margin_violated         = false;
+%             st.load_margin_violated          = false;
+%             st.cable_margin_violated         = false;
+%             st.drone_min_dist_point          = inf;
+%             st.load_min_dist_point           = inf;
+%             st.cable_min_dist_point          = inf;
+%             st.min_dist_point                = inf;
+%             st.drone_obstacle_id_point       = NaN;
+%             st.load_obstacle_id_point        = NaN;
+%             st.min_obstacle_id_point         = NaN;
+%             st.min_source_point              = "none";
+%             st.detected_obstacle_count_point = 0;
+%         end
+% 
+%         function list = get_obstacles_at_time(~, t_now)
+%             % ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE を直接呼び出し (フォールバックなし)
+%             list = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t_now);
+%         end
+%     end
+% end
+
+classdef REPLANNING_BSPLINE_NEW < handle
+    % =========================================================================
+    % REPLANNING_BSPLINE_NEW (センサー・幾何診断抽出版)
+    % 1. 模擬センサー：機体重心 pQ による 15m 楕円体接近検知（前方かつ真の危険度順ソート）。
+    % 2. 衝突・マージン診断系：
+    %    - UAV (pQ), 荷物 (pL), 索 (Cable: 間隔 <= 2*r_c の球列) の3者について、
+    %      楕円体外郭までの最短ユークリッド距離をラグランジュ未定乗数法で厳密計算。
+    %    - 物理接触 (physical_gap <= 0) とマージン侵入 (safety_gap <= 0) を分離記録。
+    % 3. アクティブ障害物管理 (Active Obstacle Manager):
+    %    - センサー検知および通過後の保持時間ライフサイクル管理。
+    % =========================================================================
+    properties
+        self                       % ドローンエージェント自身
+        base_ref                   % 公称参照軌道生成オブジェクト
+        result                     % 出力結果構造体
+        % --- センサ・検知パラメータ ---
+        trigger_dist = 15.0;       % 機体搭載センサーによる接近検知閾値 [m]
+        clearance_margin = 0.8;    % 安全マージン d_margin [m]
+        % --- 機体・荷物・索物理パラメータ ---
+        L_cable = 1.0;             % 索長 [m]
+        r_drone = 0.30;            % 機体球体半径 [m]
+        r_load  = 0.15;            % 荷物球体半径 [m]
+        r_cable_sphere = 0.25;     % 索保護球体半径 r_c [m] (直径 0.5m の球列)
+        % --- アクティブ障害物管理 (Active Obstacle Manager) ---
+        active_obstacles = [];         % 現在管理中の障害物リスト
+        post_recovery_hold_time = 3.0; % 検知外れた後の猶予保持時間 [s]
+    end
+
+    methods (Access = public)
+        % =====================================================================
+        % コンストラクタ
+        % =====================================================================
+        function obj = REPLANNING_BSPLINE_NEW(self, base_ref, opts)
+            arguments
+                self                  % 必須: エージェントインスタンス
+                base_ref              % 必須: 通常飛行用の公称軌道インスタンス
+                opts = struct()       % 任意: 外部設定構造体
+            end
+            obj.self = self;
+            obj.base_ref = base_ref;
+            if isfield(opts, 'trigger_dist'),     obj.trigger_dist     = opts.trigger_dist;     end
+            if isfield(opts, 'clearance_margin'), obj.clearance_margin = opts.clearance_margin; end
+            if isfield(opts, 'r_drone'),          obj.r_drone          = opts.r_drone;          end
+            if isfield(opts, 'r_load'),           obj.r_load           = opts.r_load;           end
+            if isfield(opts, 'L_cable'),          obj.L_cable          = opts.L_cable;          end
+
+            obj.result = base_ref.result;
+
+            % STATE_CLASS に診断プロパティを動的追加
+            sensor_props = ["time", "pQ", "pL", "detected_point", ...
+                "drone_inside_obstacle_point", "load_inside_obstacle_point", ...
+                "cable_inside_obstacle_point", "drone_margin_violated", ...
+                "load_margin_violated", "cable_margin_violated", ...
+                "drone_min_dist_point", "load_min_dist_point", "cable_min_dist_point", ...
+                "min_dist_point", "drone_obstacle_id_point", "load_obstacle_id_point", ...
+                "min_obstacle_id_point", "min_source_point", "detected_obstacle_count_point"];
+            for p_name = sensor_props
+                if ~isprop(obj.result.state, p_name)
+                    addprop(obj.result.state, p_name);
+                end
+            end
+            obj.clear_state_sensor_values(0.0);
+        end
+
+        % =====================================================================
+        % do: 制御周期ごとのメイン実行メソッド (センシング・診断のみ)
+        % =====================================================================
+        function result_out = do(obj, varargin)
+            time = varargin{1};
+            cha  = varargin{2};
+
+            % 1. 公称目標軌道の取得
+            base_res = obj.base_ref.do(varargin{:});
+            xd_nom = base_res.state.xd;
+            if length(xd_nom) < 28
+                xd_nom = [xd_nom; zeros(28 - length(xd_nom), 1)];
+            end
+
+            obj.clear_state_sensor_values(time.t);
+
+            detection = struct();
+            detection.time                          = time.t;
+            detection.pQ                            = [NaN; NaN; NaN];
+            detection.pL                            = [NaN; NaN; NaN];
+            detection.detected_point                = false;
+            detection.drone_inside_obstacle_point   = false;
+            detection.load_inside_obstacle_point    = false;
+            detection.cable_inside_obstacle_point   = false;
+            detection.drone_margin_violated         = false;
+            detection.load_margin_violated          = false;
+            detection.cable_margin_violated         = false;
+            detection.drone_min_dist_point          = inf;
+            detection.load_min_dist_point           = inf;
+            detection.cable_min_dist_point          = inf;
+            detection.min_dist_point                = inf;
+            detection.drone_obstacle_id_point       = NaN;
+            detection.load_obstacle_id_point        = NaN;
+            detection.min_obstacle_id_point         = NaN;
+            detection.min_source_point              = "none";
+            detection.detected_obstacle_count_point = 0;
+
+            try obj.L_cable = obj.self.parameter.get("cableL"); catch; end
+
+            % 2. 飛行フェーズ ('f') の機体センシング & 荷物・索 楕円体診断
+            if cha == 'f'
+                pL_cur = obj.self.estimator.result.state.pL(:);
+                pQ_cur = obj.self.estimator.result.state.p(:);
+                obs_list = obj.get_obstacles_at_time(time.t);
+
+                % 楕円体に対する UAV / 荷物 / 索球列の厳密ユークリッド距離診断
+                detection = obj.check_detection_simulated_sensor(pQ_cur, pL_cur, obs_list, time.t, xd_nom(5:7));
+
+                % アクティブ障害物リストの更新
+                obj.update_active_obstacles(detection.detected_obstacles_point, time.t);
+                % =============================================================
+                % ★ 追加: 障害物検知中のリアルタイム情報表示 (printf)
+                % =============================================================
+                if detection.detected_point
+                    tgt = detection.detected_obstacles_point(1);
+                    fprintf("[SENSOR DETECT] t=%.3f s | 捕捉数: %d | 最優先ID: %d | UAV距離: %6.3f m | 荷物距離: %6.3f m | 索距離: %6.3f m\n", ...
+                        time.t, ...
+                        detection.detected_obstacle_count_point, ...
+                        tgt.id, ...
+                        tgt.dist_drone_point, ...
+                        tgt.dist_load_point, ...
+                        tgt.dist_cable_point);
+                end
+                % =============================================================
+            end
+
+            % 3. 軌道出力 (公称軌道を透過)
+            xd_out = xd_nom;
+
+            % 4. ロガー・後続制御器への結果格納
+            st = obj.result.state;
+            st.xd                            = xd_out;
+            st.p                             = xd_out(1:3);
+            st.v                             = xd_out(5:7);
+            st.q                             = [0; 0; xd_out(4)];
+            st.time                          = detection.time;
+            st.pQ                            = detection.pQ;
+            st.pL                            = detection.pL;
+            st.detected_point                = detection.detected_point;
+            st.drone_inside_obstacle_point   = detection.drone_inside_obstacle_point;
+            st.load_inside_obstacle_point    = detection.load_inside_obstacle_point;
+            st.cable_inside_obstacle_point   = detection.cable_inside_obstacle_point;
+            st.drone_margin_violated         = detection.drone_margin_violated;
+            st.load_margin_violated          = detection.load_margin_violated;
+            st.cable_margin_violated         = detection.cable_margin_violated;
+            st.drone_min_dist_point          = detection.drone_min_dist_point;
+            st.load_min_dist_point           = detection.load_min_dist_point;
+            st.cable_min_dist_point          = detection.cable_min_dist_point;
+            st.min_dist_point                = detection.min_dist_point;
+            st.drone_obstacle_id_point       = detection.drone_obstacle_id_point;
+            st.load_obstacle_id_point        = detection.load_obstacle_id_point;
+            st.min_obstacle_id_point         = detection.min_obstacle_id_point;
+            st.min_source_point              = detection.min_source_point;
+            st.detected_obstacle_count_point = detection.detected_obstacle_count_point;
+
+            result_out = obj.result;
+        end
+    end
+
+    methods (Access = public)
+        % =====================================================================
+        % check_detection_simulated_sensor: 3者(機体/荷物/索)の3層距離・マージン診断
+        % =====================================================================
+        function det = check_detection_simulated_sensor(obj, pQ, pL, obs_list, t_now, v_nom)
+            det = struct();
+            det.time                          = t_now;
+            det.pQ                            = pQ;
+            det.pL                            = pL;
+            det.trigger_dist                  = obj.trigger_dist;
+            det.detected_point                = false;
+            det.drone_inside_obstacle_point   = false;
+            det.load_inside_obstacle_point    = false;
+            det.cable_inside_obstacle_point   = false;
+            det.drone_margin_violated         = false;
+            det.load_margin_violated          = false;
+            det.cable_margin_violated         = false;
+            det.drone_min_dist_point          = inf;
+            det.load_min_dist_point           = inf;
+            det.cable_min_dist_point          = inf;
+            det.min_dist_point                = inf;
+            det.drone_obstacle_id_point       = [];
+            det.load_obstacle_id_point        = [];
+            det.min_obstacle_id_point         = [];
+            det.min_source_point              = "none";
+            det.detected_obstacles_point      = [];
+            det.detected_obstacle_count_point = 0;
+
+            if isempty(obs_list), return; end
+
+            % 索球列の配置: 隙間ゼロ保証 (Delta s <= 2*r_c)
+            r_c_sph = obj.r_cable_sphere;
+            n_spheres = max(2, ceil(obj.L_cable / (2.0 * r_c_sph)) + 1);
+            s_ratios = linspace(0.0, 1.0, n_spheres);
+            cable_pts = (1 - s_ratios) .* pL + s_ratios .* pQ;
+
+            v_dir = v_nom(:);
+            if norm(v_dir) > 0.1, v_dir = v_dir / norm(v_dir); else, v_dir = [0; 1; 0]; end
+
+            detected_obs_candidates = [];
+
+            for i = 1:length(obs_list)
+                o = obs_list(i);
+                obs_id = o.id;
+                R_obs = o.R_obs;
+                radii_obs = o.ellipsoid_radii(:);
+                p_obs = o.p_center(:);
+                obs_parsed = struct('center', p_obs, 'radii', radii_obs, 'R', R_obs);
+
+                % 1. 機体重心 pQ (センサー & 物理接触/マージン評価)
+                [d_drone_raw, inside_drone, cpQ_loc, ~] = obj.point_ellipsoid_signed_distance(pQ, obs_parsed);
+                d_drone_physical = d_drone_raw - obj.r_drone;
+                d_drone_safety   = d_drone_physical - obj.clearance_margin;
+
+                % 2. 荷物 pL
+                [d_load_raw, inside_load, cpL_loc, ~] = obj.point_ellipsoid_signed_distance(pL, obs_parsed);
+                d_load_physical = d_load_raw - obj.r_load;
+                d_load_safety   = d_load_physical - obj.clearance_margin;
+
+                % 3. 索球列 (Cable Spheres)
+                d_cable_raw_min = inf;
+                inside_cable_i = false;
+                for sp_idx = 1:n_spheres
+                    [d_pt, in_pt, ~, ~] = obj.point_ellipsoid_signed_distance(cable_pts(:, sp_idx), obs_parsed);
+                    if d_pt < d_cable_raw_min, d_cable_raw_min = d_pt; end
+                    if in_pt, inside_cable_i = true; end
+                end
+                d_cable_physical = d_cable_raw_min - r_c_sph;
+                d_cable_safety   = d_cable_physical - obj.clearance_margin;
+
+                % 物理衝突 (Collision) & マージン侵入 (Margin Violation) 判定
+                if inside_drone || (d_drone_physical <= 0),   det.drone_inside_obstacle_point = true; end
+                if inside_load  || (d_load_physical <= 0),    det.load_inside_obstacle_point  = true; end
+                if inside_cable_i || (d_cable_physical <= 0), det.cable_inside_obstacle_point = true; end
+
+                if d_drone_safety <= 0, det.drone_margin_violated = true; end
+                if d_load_safety  <= 0, det.load_margin_violated  = true; end
+                if d_cable_safety <= 0, det.cable_margin_violated = true; end
+
+                if d_drone_physical < det.drone_min_dist_point
+                    det.drone_min_dist_point = d_drone_physical;
+                    det.drone_obstacle_id_point = obs_id;
+                end
+                if d_load_physical < det.load_min_dist_point
+                    det.load_min_dist_point = d_load_physical;
+                    det.load_obstacle_id_point = obs_id;
+                end
+                if d_cable_physical < det.cable_min_dist_point
+                    det.cable_min_dist_point = d_cable_physical;
+                end
+
+                % 楕円体法線ベクトル
+                cpQ_world = p_obs + R_obs * cpQ_loc;
+                cpL_world = p_obs + R_obs * cpL_loc;
+                nQ_loc = cpQ_loc ./ (radii_obs.^2);
+                normal_drone = R_obs * (nQ_loc / norm(nQ_loc));
+                nL_loc = cpL_loc ./ (radii_obs.^2);
+                normal_load = R_obs * (nL_loc / norm(nL_loc));
+
+                obs_info = struct( ...
+                    'id',                        obs_id, ...
+                    'dist_drone_point',          d_drone_physical, ...
+                    'dist_drone_safety',         d_drone_safety, ...
+                    'dist_load_point',           d_load_physical, ...
+                    'dist_load_safety',          d_load_safety, ...
+                    'dist_cable_point',          d_cable_physical, ...
+                    'dist_cable_safety',         d_cable_safety, ...
+                    'min_dist_point',            d_drone_physical, ...
+                    'p_obs',                     p_obs, ...
+                    'radii_obs',                 radii_obs, ...
+                    'R_obs',                     R_obs, ...
+                    'closest_drone_world_point', cpQ_world, ...
+                    'closest_load_world_point',  cpL_world, ...
+                    'normal_drone_point',        normal_drone, ...
+                    'normal_load_point',         normal_load ...
+                );
+
+                % 進行方向かつ 15m 検知判定
+                vec_to_center = p_obs - pQ;
+                is_in_front = dot(vec_to_center, v_dir) > -max(radii_obs);
+                if (d_drone_raw <= obj.trigger_dist) && is_in_front
+                    detected_obs_candidates = [detected_obs_candidates; obs_info];
+                end
+            end
+
+            % 複数検知時: 最短距離（最も危険な障害物）順にソート
+            if ~isempty(detected_obs_candidates)
+                [~, sort_idx] = sort([detected_obs_candidates.dist_drone_point], 'ascend');
+                det.detected_obstacles_point = detected_obs_candidates(sort_idx);
+                det.detected_point = true;
+                det.min_dist_point = det.detected_obstacles_point(1).dist_drone_point;
+                det.min_obstacle_id_point = det.detected_obstacles_point(1).id;
+                det.min_source_point = "drone";
+                det.detected_obstacle_count_point = length(detected_obs_candidates);
+            else
+                det.min_dist_point = det.drone_min_dist_point;
+                det.min_obstacle_id_point = det.drone_obstacle_id_point;
+                det.min_source_point = "none";
+            end
+        end
+
+        % =====================================================================
+        % point_ellipsoid_signed_distance: ラグランジュ未定乗数法による厳密幾何距離
+        % =====================================================================
+        function [d, inside, closest_local, lambda] = point_ellipsoid_signed_distance(~, p, o)
+            p = p(:); c = o.center(:); r = o.radii(:); R = o.R;
+            y  = R' * (p - c);
+            r2 = r.^2;
+            q  = sum((y ./ r).^2);
+            inside = (q < 1.0);
+
+            if norm(y) < 1e-14
+                [min_r, min_idx] = min(r);
+                closest_local = zeros(3, 1);
+                closest_local(min_idx) = min_r;
+                d      = -min_r;
+                lambda = -min(r2);
+                return;
+            end
+
+            f = @(lam) sum(r2 .* (y.^2) ./ ((lam + r2).^2)) - 1.0;
+            if q > 1.0
+                lo = 0.0;
+                hi = max(r) * norm(y);
+            else
+                lo = -min(r2) * (1.0 - 1e-12);
+                hi = 0.0;
+            end
+
+            for kk = 1:80
+                mid = 0.5 * (lo + hi);
+                if f(mid) > 0, lo = mid; else, hi = mid; end
+            end
+
+            lambda = 0.5 * (lo + hi);
+            closest_local = r2 .* y ./ (lambda + r2);
+            d_abs = norm(closest_local - y);
+            if inside, d = -d_abs; else, d = d_abs; end
+        end
+
+        % =====================================================================
+        % update_active_obstacles: センサー検知に応じた障害物ライフサイクル管理
+        % =====================================================================
+        function planning_obstacles = update_active_obstacles(obj, detected_candidates, t_now)
+            detected_ids = [];
+            for k = 1:length(detected_candidates)
+                cand = detected_candidates(k);
+                detected_ids = [detected_ids, cand.id];
+                idx = [];
+                if ~isempty(obj.active_obstacles)
+                    idx = find([obj.active_obstacles.id] == cand.id, 1);
+                end
+                if isempty(idx)
+                    new_item = struct();
+                    new_item.id                 = cand.id;
+                    new_item.p_obs              = cand.p_obs;
+                    new_item.radii_obs          = cand.radii_obs;
+                    new_item.R_obs              = cand.R_obs;
+                    new_item.closest_drone_world_point = cand.closest_drone_world_point;
+                    new_item.normal_drone_point = cand.normal_drone_point;
+                    new_item.dist_drone_point   = cand.dist_drone_point;
+                    new_item.last_seen_time     = t_now;
+                    new_item.state              = "DETECTED";
+                    new_item.release_time       = NaN;
+                    obj.active_obstacles = [obj.active_obstacles; new_item];
+                else
+                    obj.active_obstacles(idx).p_obs              = cand.p_obs;
+                    obj.active_obstacles(idx).radii_obs          = cand.radii_obs;
+                    obj.active_obstacles(idx).R_obs              = cand.R_obs;
+                    obj.active_obstacles(idx).closest_drone_world_point = cand.closest_drone_world_point;
+                    obj.active_obstacles(idx).normal_drone_point = cand.normal_drone_point;
+                    obj.active_obstacles(idx).dist_drone_point   = cand.dist_drone_point;
+                    obj.active_obstacles(idx).last_seen_time     = t_now;
+                    obj.active_obstacles(idx).state              = "DETECTED";
+                    obj.active_obstacles(idx).release_time       = NaN;
+                end
+            end
+
+            keep_flags = true(length(obj.active_obstacles), 1);
+            for i = 1:length(obj.active_obstacles)
+                obs_id = obj.active_obstacles(i).id;
+                if ~ismember(obs_id, detected_ids)
+                    if obj.active_obstacles(i).state ~= "POST_RECOVERY"
+                        obj.active_obstacles(i).state = "POST_RECOVERY";
+                        obj.active_obstacles(i).release_time = t_now + obj.post_recovery_hold_time;
+                    end
+                    if t_now >= obj.active_obstacles(i).release_time
+                        keep_flags(i) = false;
+                    end
+                end
+            end
+            obj.active_obstacles = obj.active_obstacles(keep_flags);
+            planning_obstacles = obj.active_obstacles;
+        end
+
+        function clear_state_sensor_values(obj, t_now)
+            st = obj.result.state;
+            st.time                          = t_now;
+            st.pQ                            = [NaN; NaN; NaN];
+            st.pL                            = [NaN; NaN; NaN];
+            st.detected_point                = false;
+            st.drone_inside_obstacle_point   = false;
+            st.load_inside_obstacle_point    = false;
+            st.cable_inside_obstacle_point   = false;
+            st.drone_margin_violated         = false;
+            st.load_margin_violated          = false;
+            st.cable_margin_violated         = false;
+            st.drone_min_dist_point          = inf;
+            st.load_min_dist_point           = inf;
+            st.cable_min_dist_point          = inf;
+            st.min_dist_point                = inf;
+            st.drone_obstacle_id_point       = NaN;
+            st.load_obstacle_id_point        = NaN;
+            st.min_obstacle_id_point         = NaN;
+            st.min_source_point              = "none";
+            st.detected_obstacle_count_point = 0;
+        end
+
+        function list = get_obstacles_at_time(~, t_now)
+            list = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t_now);
+        end
+    end
+end

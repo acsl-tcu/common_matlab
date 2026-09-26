@@ -30,7 +30,7 @@ clc
 % SimBaseMode = ["SimSuspendedLoad_replanaing_7th_bspline","SimSuspendedLoad_RotorLevel","SimSuspendedLoad_smooth_cbf_filter","SimSuspendedLoad_latentcbf_bspline","SimSuspendedLoad_minvo_qp_corridor","SimSuspendedLoad_bnuk_search","SimSuspendedLoad_hierarchical_mpc","SimSuspendedLoad_rom_cbf","SimSuspendedLoad_mpc_cbf","SimSuspendedLoad_hocbf_qp","SimSuspendedLoad_tube_mpc_minvo","SimSuspendedLoad_polytope_mpc","SimSuspendedLoad_linear_mpc_cbf","SimSuspendedLoad_event_nmpc_astar","SimSuspendedLoad_mpc_smooth_cbf"];
 % SimBaseMode = ["SimSuspendedLoad_mellinger_corridor","SimSuspendedLoad_mellinger_corridor_swing","SimSuspendedLoad_smooth_cbf_filter","SimSuspendedLoad_linear_mpc_cbf","SimSuspendedLoad_smooth_apf","SimSuspendedLoad_hocbf_qp","SimSuspendedLoad_tube_mpc_minvo","SimSuspendedLoad_mpc_smooth_cbf","SimSuspendedLoad_RotorLevel_Dynamic_CBF","SimSuspendedLoad_RotorLevel_CBF"];
 % SimBaseMode = ["SimSuspendedLoad_mellinger_corridor_swing","SimSuspendedLoad_softplus_cbf","SimSuspendedLoad_smooth_cbf_filter","SimSuspendedLoad_hocbf_qp"];
-SimBaseMode = ["SimSuspendedLoad_dataacquisition","SimSuspendedLoad_mellinger_corridor_swing"];
+SimBaseMode = ["SimSuspendedLoad_dataacquisition","SimSuspendedLoad_mellinger_corridor_swing","SimSuspendedLoad"];
 ExpBaseMode = ["ExpSuspendedLoad", "ExpCooperativeSuspendedLoad", "ExpSuspendedLoadCoop",...
                 "ExpTestMotiveConnection", "ExpHL","ExpFHL", "ExpFHL_Servo",...
                 "ExpFT", "ExpEL", "ExpMPC_Koopman"];
