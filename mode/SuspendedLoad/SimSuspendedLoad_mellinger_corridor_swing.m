@@ -74,8 +74,9 @@ nominal_ref = TIME_VARYING_REFERENCE(agent, ...
 % リプランナ設定 (障害物はリプランナ内部で自動的にenvから取得されます)
 % replan_opts.safe_margin  = 0.3;           % 安全マージン（Tracking Tubeの最小保証値として適用）
 replan_opts.trigger_dist = 15.0;           % 検知範囲を 7.0m に更新
-replan_opts.r_load       = 0.15;          % 荷物保護半径
-replan_opts.r_drone      = 0.30;          % 機体保護半径
+replan_opts.r_load       = 0.5;          % 荷物保護半径
+replan_opts.r_drone      = 0.5;          % 機体保護半径
+replan_opts.cable      = 0.5;          % 牽引物保護半径
 % B-Spline HLCリプランナをインスタンス化
 % ※タイポ修正: REPLANNING_BSPLINE_HL -> REPLANNING_BSPLINE_HLC
 replanner_instance = REPLANNING_BSPLINE_NEW(agent, nominal_ref, replan_opts);

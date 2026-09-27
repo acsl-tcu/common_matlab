@@ -1,11 +1,11 @@
 classdef REPLANNING_BSPLINE_NEW < handle
     % =========================================================================
-    % detect_obstacles_fast (純粋センサ検知器：15m 全方位球面レンジモデル)
-    %
-    % 【責務定義】
-    %  - UAV機体重心 pQ を中心とする半径 15m 球面レンジ内に存在する障害物を検知。
-    %  - 静的障害物マップを初期化時に一度だけ生成・キャッシュ。
-    %  - 最上部のフラグ (1: 表示, 0: 非表示) でログ出力を一発切り替え。
+    % REPLANNING_BSPLINE_NEW
+    % 
+    % 【パイプライン構造】
+    %  1. センサ検知 (Level 0: 15m 球面レンジ)
+    %  2. 予測衝突フィルタ (Level 1: 粗い外接足切り -> Level 2: 微分平坦性将来干渉予測)
+    %  3. 将来の回避計画へ引き渡す回避対象 (relevant_obstacles) を確定
     % =========================================================================
     properties
         % =====================================================================
@@ -17,9 +17,10 @@ classdef REPLANNING_BSPLINE_NEW < handle
         % ---------------------------------------------------------------------
         % モジュール別フラグ (上記が 1 のときに個別で OFF にしたい場合に使用)
         % ---------------------------------------------------------------------
-        LOG_SENSOR    = 1;         % センサ検知ログ
-        % LOG_RISK      = 1;         % (今後用) 危険度評価ログ
-        % LOG_PLANNING  = 1;         % (今後用) 回避計画・QPログ
+        LOG_SENSOR    = 0;         % センサ検知ログ
+        LOG_TRIGGER    = 1;        % 回避開始判定 & O_rel 確定ログ (重要)
+
+        USE_SPHERE_APPROX = 0;     % 1: 外接球高速判定 (推奨・0.1ms級), 0: 楕円体厳密判定 (反復法)
         % =====================================================================
 
         self                       % ドローンエージェント自身
@@ -31,6 +32,26 @@ classdef REPLANNING_BSPLINE_NEW < handle
         
         % --- 静的障害物マップ (キャッシュ) ---
         static_obstacle_map = [];  % 初期化時に事前計算・保持する障害物リスト 全体の障害物で実環境として取得
+
+        % --- 将来予測トリガー・安全余裕パラメータ ---
+        T_lookahead          = 5.0;   % 将来予測時間ホライズン [s]
+        N_pred_sample        = 11;    % 粗い予測点数 (約0.5s間隔)
+        N_sub                = 4;     % 怪しい区間のみ行う局所細分化数
+        
+        % 【仮値】追従遅れや外乱を考慮した安全余裕マージン [m]
+        % ※ 本値(0.2m)は実験用仮値であり、実機や制御器の追従性能に応じて後で調整・置換すること
+        d_margin             = 0.2;   % システム離隔がこれ以下で衝突と判定
+
+        % --- 索保護球列パラメータ (隙間ゼロ幾何自動配置) ---
+        s_cable_ratios    = [];    % 索上の球体配置比率ベクトル (例: 2球なら [0.25, 0.75])
+        
+        % --- 機体・索・荷物 物理幾何パラメータ ---
+        % ※ MATLABの仕様上、properties内では obj を参照できないため固定デフォルト値で初期化
+        gravity           = 9.81;  % 重力加速度 [m/s^2]
+        L_cable           = 2.0;   % 索長 [m]
+        r_drone           = 0.5;   % 機体等価球半径 [m]
+        r_load            = 0.5;   % 荷物球半径 [m]
+        r_cable           = 0.5;   % 索保護球半径 [m]
         
         % --- 性能プロファイリング (計測バッファ) ---
         profiling = struct( ...
@@ -58,6 +79,34 @@ classdef REPLANNING_BSPLINE_NEW < handle
             % 外部オプションによるパラメータ上書き　外部から渡された場合上書き
             if isfield(opts, 'trigger_dist'), obj.trigger_dist = opts.trigger_dist; end % センサ検知球半径 R_sense [m]
             if isfield(opts, 'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG = opts.ENABLE_ALL_LOG; end % 追加ログの表示
+            if isfield(opts, 'LOG_SENSOR'),     obj.LOG_SENSOR     = opts.LOG_SENSOR;     end % センサログフラグ
+            if isfield(opts, 'LOG_TRIGGER'),    obj.LOG_TRIGGER    = opts.LOG_TRIGGER;    end % 回避トリガーログフラグ
+            if isfield(opts, 'USE_SPHERE_APPROX'), obj.USE_SPHERE_APPROX = opts.USE_SPHERE_APPROX; end
+            if isfield(opts, 'T_lookahead'),        obj.T_lookahead       = opts.T_lookahead;       end
+            if isfield(opts, 'N_pred_sample'),      obj.N_pred_sample     = opts.N_pred_sample;     end
+            if isfield(opts, 'N_sub'),              obj.N_sub             = opts.N_sub;             end
+            if isfield(opts, 'd_margin'),           obj.d_margin          = opts.d_margin;          end % 安全余裕マージン
+            if isfield(opts, 'd_collision_thresh'), obj.d_margin          = opts.d_collision_thresh; end % 互換用
+            if isfield(opts, 'D_trigger'),          obj.d_margin          = opts.D_trigger;          end % 互換用
+            if isfield(opts, 'D_margin'),           obj.d_margin          = opts.D_margin;           end % 互換用
+            if isfield(opts, 'r_drone'),            obj.r_drone            = opts.r_drone;            end % 機体半径 [m]
+            if isfield(opts, 'r_load'),             obj.r_load             = opts.r_load;             end % 荷物半径 [m]
+            if isfield(opts, 'r_cable'),            obj.r_cable            = opts.r_cable;            end % 索球半径 [m]
+
+            % =================================================================
+            % 物理パラメータの厳格バインド (DRONE_PARAM_SUSPENDED_LOAD から直接取得)
+            % =================================================================
+            obj.gravity = obj.self.parameter.get("gravity"); % 重力加速度 [m/s^2]
+            obj.L_cable = obj.self.parameter.get("cableL"); % 索長 [m]
+
+            % パラメータの妥当性検証 (取得できなければ即停止)
+            assert(~isempty(obj.gravity) && isnumeric(obj.gravity) && obj.gravity > 0, ...
+                '[REPLANNER ERROR] self.parameter から gravity の取得に失敗しました。');
+            assert(~isempty(obj.L_cable) && isnumeric(obj.L_cable) && obj.L_cable > 0, ...
+                '[REPLANNER ERROR] self.parameter から cableL の取得に失敗しました。');
+
+            % 索長確定後、直ちに索保護球の幾何配置比率を算出
+            obj.update_cable_sphere_ratios();
 
             % 出力構造体の初期テンプレートを公称軌道オブジェクトから継承
             obj.result = base_ref.result;
@@ -95,6 +144,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
                 "pQ", ...                            % センシング時のUAV機体重心座標 [m]
                 "detected_point", ...                % 15m以内に障害物が1つ以上存在するか (true/false)
                 "detected_obstacles", ...            % 15m以内で検知された障害物リスト (最寄り順ソート済み)
+                "need_replan", ...                   % 回避開始フラグ (true/false)
+                "relevant_obstacles", ...            % 回避対象集合 O_rel
                 "min_obstacle_id_point", ...         % 最も近接している障害物のID
                 "min_dist_point", ...                % 最も近接している障害物表面までの距離 [m]
                 "detected_obstacle_count_point", ... % 15m以内で検知された障害物の総数
@@ -120,14 +171,14 @@ classdef REPLANNING_BSPLINE_NEW < handle
         %
         % 【責務】
         %   1. 公称目標軌道 (Nominal Reference) の取得と処理時間の計測
-        %   2. 飛行フェーズ ('f') における UAV 搭載 15m 球面レンジセンサ検知の実行
-        %   3. センサ内部ステージ（外接球足切り、厳密距離計算、ソート等）の性能計測
-        %   4. 後続の制御器・ロガー・可視化系へ向けた状態データ (state) の更新・格納
+        %   2. 飛行フェーズ ('f') における UAV 搭載 15m 球面レンジセンサ検知の実行 (Step 1)
+        %   3. 将来軌道展開＋微分平坦性＋動的時間ベース回避判定の実行 (Step 2〜7)
+        %   4. 回避対象集合 O_rel の抽出と状態データ (state) への格納
         %
         % 【入出力引数】
         %   - 入力 varargin{1} : time 構造体 (time.t: 現在時刻 [s], time.dt: 制御周期 [s])
         %   - 入力 varargin{2} : cha 文字 (飛行フェーズ文字: 'f'=Flight, 't'=Takeoff, 'l'=Landing 等)
-        %   - 出力 result_out  : 状態量 (xd, 検知情報, プロファイリング結果等) を格納した結果構造体
+        %   - 出力 result_out  : 状態量 (xd, 検知情報, 回避判定, O_rel, プロファイリング結果等) を格納した結果構造体
         % =====================================================================
         function result_out = do(obj, varargin)
             % --- 引数のアンパック ---
@@ -150,7 +201,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
             obj.clear_state_sensor_values(time.t);
 
             % =================================================================
-            % 局所検知結果構造体 (detection) の定義と初期化
+            % 局所検知結果構造体 (detection) および回避判定変数の初期化の定義と初期化
             % =================================================================
             % 非飛行フェーズ（待機中や着陸中）または障害物非検知時でも
             % 変数の未定義エラーを防ぐため、デフォルト値（安全側・非検知側）で初期化します。
@@ -163,6 +214,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
             detection.min_dist_point                = inf;               % センサー範囲以内で最寄りの障害物表面までの距離 [m] (未捕捉時は無限大 inf)
             detection.detected_obstacle_count_point = 0;                 % センサー範囲以内で捕捉された障害物の個数 [個]
 
+            need_replan        = false;  % 回避行動への移行フラグ
+            relevant_obstacles = [];     % 回避対象障害物集合 O_rel
             % =================================================================
             % 飛行フェーズ ('f') における センサー範囲 球面レンジ検知
             % =================================================================
@@ -204,6 +257,22 @@ classdef REPLANNING_BSPLINE_NEW < handle
                         sensor_timing.stage2_ms, ...              % 厳密反復計算時間 [ms]
                         sensor_timing.candidate_count);           % 厳密計算を実施した候補数
                 end
+                % --- [Step 2] 将来干渉チェック (フラグ切り替え型: "sphere" or "exact") ---
+                if detection.detected_point
+                    t_eval_start = tic;
+                    [need_replan, relevant_obstacles] = obj.evaluate_collision_switchable( ...
+                        detection.detected_obstacles, time.t, varargin);
+                    obj.profiling.t_pred_eval_total_ms = toc(t_eval_start) * 1000.0;
+
+                    if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_TRIGGER == 1) && need_replan
+                        top = relevant_obstacles(1);
+                        mode_str = "外接球";
+                        if obj.USE_SPHERE_APPROX == 0, mode_str = "楕円体"; end
+                        
+                        fprintf("[COLLISION DETECTED -> REPLAN] t=%.3f s [%s] | 障害物 ID=%d (予測衝突: %.3f s, 離隔: %6.3f m <= 安全マージン: %.2f m) -> 即時打ち切り | 判定計算: %.3f ms\n", ...
+                            time.t, mode_str, top.id, top.t_risk, top.min_future_dist, obj.d_margin, obj.profiling.t_pred_eval_total_ms);
+                    end
+                end
             end
 
             % =================================================================
@@ -228,6 +297,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.pQ                            = detection.pQ;                            % 検知時の機体重心位置 [m]
             st.detected_point                = detection.detected_point;                % 障害物検知フラグ (true/false)
             st.detected_obstacles            = detection.detected_obstacles;            % 15m以内の障害物リスト構造体配列
+            st.need_replan                   = need_replan;                             % 回避開始フラグ (true/false)
+            st.relevant_obstacles            = relevant_obstacles;                      % 回避対象集合 O_rel
             st.min_obstacle_id_point         = detection.min_obstacle_id_point;         % 最も近接している障害物ID
             st.min_dist_point                = detection.min_dist_point;                % 最も近接している障害物表面までの距離 [m]
             st.detected_obstacle_count_point = detection.detected_obstacle_count_point; % 検知障害物数 [個]
@@ -237,6 +308,22 @@ classdef REPLANNING_BSPLINE_NEW < handle
 
             % 最終結果構造体を呼び出し元へ返却
             result_out = obj.result;
+        end
+
+        % =====================================================================
+        % update_cable_sphere_ratios: 索保護球列の幾何配置比率を更新
+        % ---------------------------------------------------------------------
+        % 【概要】
+        %   索長 L_cable と索保護球半径 r_cable から、索を隙間なく完全に覆う
+        %   最小限の球数 N_cable と、各球の中心位置比率 s_k in [0, 1] を等間隔配置で算出します。
+        %   (例: L=2.0m, r=0.5m -> 直径1.0mで2球 -> s = [0.25, 0.75])
+        % =====================================================================
+        function update_cable_sphere_ratios(obj)
+            % 直径 2*r_cable で索長 L_cable を隙間なく覆う最小球数 N_cable
+            n_spheres = max(1, ceil(obj.L_cable / (2.0 * obj.r_cable)));
+            % 各球の中心位置比率 s in [0, 1] を等間隔中心配置 (Midpoint)
+            % s_k = (k - 0.5) / N_cable
+            obj.s_cable_ratios = ((1:n_spheres) - 0.5) / n_spheres;
         end
 
         % =====================================================================
@@ -434,6 +521,135 @@ classdef REPLANNING_BSPLINE_NEW < handle
         end
 
         % =====================================================================
+        % evaluate_collision_switchable: モード切替型 衝突判定 & 即打ち切り
+        % ---------------------------------------------------------------------
+        % obj.COLLISION_CHECK_MODE:
+        %   - "sphere": 外接球下限による超高速判定 (0.1ms級・保守的)
+        %   - "exact" : 楕円体40回反復二分法による厳密距離判定
+        % =====================================================================
+        function [need_replan, relevant_obs] = evaluate_collision_switchable( ...
+                obj, detected_candidates, t_now, base_varargin)
+            need_replan = false;
+            relevant_obs = [];
+            if isempty(detected_candidates)
+                return;
+            end
+            orig_time = base_varargin{1};
+            sim_dt = 0.025;
+            if isprop(orig_time, 'dt') || isfield(orig_time, 'dt')
+                sim_dt = orig_time.dt;
+            end
+            N = max(5, obj.N_pred_sample);
+            sample_taus = linspace(0.1, obj.T_lookahead, N);
+            g_vec = [0; 0; obj.gravity];
+            
+            % ループに入る直前に一度だけフラグ判定
+            is_sphere = (obj.USE_SPHERE_APPROX == 1);
+            prev_tau = 0.0;
+            prev_pL = [];
+            prev_pQ = [];
+
+            % --- 時系列前進スキャン (粗い 11点) ---
+            for k = 1:N
+                tau_k = sample_taus(k);
+                
+                % 粗サンプリング点でのみ base_ref.do を実行
+                eval_time = struct('t', t_now + tau_k, 'dt', sim_dt);
+                nom_res_k = obj.base_ref.do(eval_time, base_varargin{2:end});
+                xd_k = nom_res_k.state.xd;
+                pL_k = xd_k(1:3);
+                if length(xd_k) >= 11, aL_k = xd_k(9:11); else, aL_k = [0; 0; 0]; end
+                a_tot = aL_k + g_vec;
+                pQ_k = pL_k + obj.L_cable * (a_tot / max(norm(a_tot), 1e-3));
+
+                % 候補障害物との干渉評価
+                for i = 1:length(detected_candidates)
+                    cand = detected_candidates(i);
+                    
+                    % 0 / 1 のフラグで高速分岐
+                    if is_sphere
+                        d_sys = obj.calc_system_lower_dist(pL_k, pQ_k, cand.p_obs, max(cand.radii_obs));
+                    else
+                        d_sys = obj.calc_system_exact_dist(pL_k, pQ_k, cand.p_obs, cand.radii_obs, cand.R_obs);
+                    end
+
+                    % 衝突検出 (安全余裕 d_margin 以下で即時打ち切り)
+                    if d_sys <= obj.d_margin
+                        need_replan = true;
+                        cand.t_risk = t_now + tau_k;
+                        cand.min_future_dist = d_sys;
+                        relevant_obs = cand;
+                        return;
+                    end
+
+                    % 近接区間の細分化 (すり抜け防止)
+                    % ※ 重い base_ref.do は呼ばず、pL と pQ の高速線形補間で評価
+                    if ~isempty(prev_pL) && (d_sys <= obj.d_margin + 1.2)
+                        for s_idx = 1:obj.N_sub
+                            alpha = s_idx / (obj.N_sub + 1);
+                            t_sub = (1.0 - alpha) * prev_tau + alpha * tau_k;
+                            pL_sub = (1.0 - alpha) * prev_pL  + alpha * pL_k;
+                            pQ_sub = (1.0 - alpha) * prev_pQ  + alpha * pQ_k;
+
+                            if is_sphere
+                                d_sub = obj.calc_system_lower_dist(pL_sub, pQ_sub, cand.p_obs, max(cand.radii_obs));
+                            else
+                                d_sub = obj.calc_system_exact_dist(pL_sub, pQ_sub, cand.p_obs, cand.radii_obs, cand.R_obs);
+                            end
+
+                            if d_sub <= obj.d_margin
+                                need_replan = true;
+                                cand.t_risk = t_now + t_sub;
+                                cand.min_future_dist = d_sub;
+                                relevant_obs = cand;
+                                return; % 細分化区間で衝突した瞬間に即時打ち切り
+                            end
+                        end
+                    end
+                end
+                
+                prev_tau = tau_k;
+                prev_pL  = pL_k;
+                prev_pQ  = pQ_k;
+            end
+        end
+
+        % =====================================================================
+        % calc_system_exact_dist: 楕円体反復法による厳密最短システム離隔
+        % =====================================================================
+        function d_min = calc_system_exact_dist(obj, pL, pQ, c, r, R)
+            dQ = obj.point_ellipsoid_signed_distance_fast(pQ, c, r, R) - obj.r_drone;
+            dL = obj.point_ellipsoid_signed_distance_fast(pL, c, r, R) - obj.r_load;
+            dC = inf;
+            for sc = obj.s_cable_ratios
+                pC = (1.0 - sc) * pL + sc * pQ;
+                d_pt = obj.point_ellipsoid_signed_distance_fast(pC, c, r, R) - obj.r_cable;
+                if d_pt < dC, dC = d_pt; end
+            end
+            d_min = min([dQ, dL, dC]);
+        end
+
+        % =====================================================================
+        % calc_system_lower_dist: 外接球による保守的なシステム離隔下限 (高速)
+        % =====================================================================
+        function d_min = calc_system_lower_dist(obj, pL, pQ, c, r_max)
+            % UAV
+            dQ = norm(pQ - c) - r_max - obj.r_drone;
+            % 荷物
+            dL = norm(pL - c) - r_max - obj.r_load;
+            % 索 (自動配置比率 s_cable_ratios)
+            dC = inf;
+            for sc = obj.s_cable_ratios
+                pC = (1.0 - sc) * pL + sc * pQ;
+                d_pt = norm(pC - c) - r_max - obj.r_cable;
+                if d_pt < dC
+                    dC = d_pt;
+                end
+            end
+            d_min = min([dQ, dL, dC]);
+        end
+
+        % =====================================================================
         % point_ellipsoid_signed_distance_fast: ラグランジュ未定乗数法 (表面距離)
         % ---------------------------------------------------------------------
         % 【概要】
@@ -525,6 +741,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.pQ                            = [NaN; NaN; NaN];   % 機体位置（未測定状態）
             st.detected_point                = false;             % 非検知
             st.detected_obstacles            = [];                % 空配列
+            st.need_replan                   = false;             % 回避フラグクリア
+            st.relevant_obstacles            = [];                % 回避対象クリア
             st.min_obstacle_id_point         = NaN;               % 未定義
             st.min_dist_point                = inf;               % 距離無限大
             st.detected_obstacle_count_point = 0;                 % 0個
