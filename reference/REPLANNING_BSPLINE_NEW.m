@@ -55,12 +55,13 @@ classdef REPLANNING_BSPLINE_NEW < handle
         
         % --- 性能プロファイリング (計測バッファ) ---
         profiling = struct( ...
-            't_base_ref_ms',       0.0, ... % 公称軌道生成所要時間 [ms]
-            't_sensor_total_ms',   0.0, ... % センサ検知合計時間 [ms]
-            't_sensor_stage1_ms',  0.0, ... % Stage 1 (外接球Reject) [ms]
-            't_sensor_stage2_ms',  0.0, ... % Stage 2 (表面距離反復計算) [ms]
-            't_sensor_sort_ms',    0.0, ... % ソート・パッキング [ms]
-            'candidate_count',     0);      % Stage 2 に進んだ候補障害物数
+            't_base_ref_ms',        0.0, ... % 公称軌道生成所要時間 [ms]
+            't_sensor_total_ms',    0.0, ... % センサ検知合計時間 [ms]
+            't_sensor_stage1_ms',   0.0, ... % Stage 1 (外接球Reject) [ms]
+            't_sensor_stage2_ms',   0.0, ... % Stage 2 (表面距離反復計算) [ms]
+            't_sensor_sort_ms',     0.0, ... % ソート・パッキング [ms]
+            't_pred_eval_total_ms', 0.0, ... % 将来区間衝突判定合計時間 [ms] (★新設: 予測処理の記録)
+            'candidate_count',      0);      % Stage 2 に進んだ候補障害物数
     end
 
     methods (Access = public)
@@ -197,6 +198,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
             base_res = obj.base_ref.do(varargin{:}); % 公称目標軌道の計算実行
             xd_nom = base_res.state.xd; % 公称目標状態ベクトル (28×1 など)
             obj.profiling.t_base_ref_ms = toc(t_base_start) * 1000.0; % 公称目標軌道の計算に要した時間 [ms] をプロファイラに記録
+            obj.profiling.t_pred_eval_total_ms = 0.0; % 将来予測時間のバッファリセット (★追加)
             % 前回ステップの検知プロパティ値をクリア（初期化）
             obj.clear_state_sensor_values(time.t);
 
@@ -521,112 +523,184 @@ classdef REPLANNING_BSPLINE_NEW < handle
         end
 
         % =====================================================================
-        % evaluate_collision_switchable: モード切替型 衝突判定 & 即打ち切り
+        % evaluate_collision_switchable: 区間判定 (Interval Check) & 即時打ち切り
         % ---------------------------------------------------------------------
-        % obj.COLLISION_CHECK_MODE:
-        %   - "sphere": 外接球下限による超高速判定 (0.1ms級・保守的)
-        %   - "exact" : 楕円体40回反復二分法による厳密距離判定
+        % 【アルゴリズム概要】
+        %  1. [事前サンプリング]: 未来11点 (約0.5s刻み) の荷物位置 pL と微分平坦性機体位置 pQ
+        %     を 1 回だけ生成 (base_ref.do はここでしか呼ばず重複を完全排除)。
+        %  2. [区間スキャン (Interval Check)]: 隣接する2点 [t_k, t_{k+1}] を線分とみなし、
+        %     UAV・Payload・Cableの各軌道線分と障害物の最短ユークリッド距離を評価。
+        %     ※ これにより、粗いサンプル点間ですり抜ける「点判定の死角」を完全に防止。
+        %  3. [幾何モード分岐]:
+        %     - 外接球 (USE_SPHERE_APPROX=1): 点-線分最短距離から (r_max + r_body) を引くだけ (O(1) 超高速)
+        %     - 楕円体 (USE_SPHERE_APPROX=0): 外接球で危険域近傍に入った区間のみ、
+        %       線形補間で局所細分化 (N_sub=4) して楕円体反復二分探索を実行。
+        %  4. [即時打ち切り (Early-Exit)]:
+        %     最小時刻側から走査し、システム離隔 d_interval <= d_margin (0.2m) を検出した瞬間に
+        %     need_replan = true として即座に return (後続の未来時間は一切計算しない)。
         % =====================================================================
         function [need_replan, relevant_obs] = evaluate_collision_switchable( ...
                 obj, detected_candidates, t_now, base_varargin)
+
             need_replan = false;
             relevant_obs = [];
+
             if isempty(detected_candidates)
                 return;
             end
+
+            % --- 1. 時間刻みの安全取得 (handleオブジェクト破壊防止) ---
             orig_time = base_varargin{1};
             sim_dt = 0.025;
             if isprop(orig_time, 'dt') || isfield(orig_time, 'dt')
                 sim_dt = orig_time.dt;
             end
+
             N = max(5, obj.N_pred_sample);
             sample_taus = linspace(0.1, obj.T_lookahead, N);
             g_vec = [0; 0; obj.gravity];
-            
-            % ループに入る直前に一度だけフラグ判定
             is_sphere = (obj.USE_SPHERE_APPROX == 1);
-            prev_tau = 0.0;
-            prev_pL = [];
-            prev_pQ = [];
 
-            % --- 時系列前進スキャン (粗い 11点) ---
+            % -----------------------------------------------------------------
+            % 2. [共通事前計算] 未来11点の公称軌道および微分平坦性格子を一括生成
+            % -----------------------------------------------------------------
+            pL_grid = zeros(3, N); % 将来の荷物位置列 [3 × N]
+            pQ_grid = zeros(3, N); % 将来のUAV位置列 [3 × N]
+
             for k = 1:N
-                tau_k = sample_taus(k);
-                
-                % 粗サンプリング点でのみ base_ref.do を実行
-                eval_time = struct('t', t_now + tau_k, 'dt', sim_dt);
+                % 大元の time を壊さないよう独立構造体を作成して評価
+                eval_time = struct('t', t_now + sample_taus(k), 'dt', sim_dt);
                 nom_res_k = obj.base_ref.do(eval_time, base_varargin{2:end});
                 xd_k = nom_res_k.state.xd;
+                
                 pL_k = xd_k(1:3);
+                pL_grid(:, k) = pL_k;
+                
+                % 荷物加速度から索張力方向単位ベクトル n_thrust を平坦性導出
                 if length(xd_k) >= 11, aL_k = xd_k(9:11); else, aL_k = [0; 0; 0]; end
                 a_tot = aL_k + g_vec;
-                pQ_k = pL_k + obj.L_cable * (a_tot / max(norm(a_tot), 1e-3));
+                norm_a = norm(a_tot);
+                if norm_a > 1e-3, n_thrust = a_tot / norm_a; else, n_thrust = [0; 0; 1]; end
+                
+                % UAV 位置: pQ = pL + L_cable * n_thrust
+                pQ_grid(:, k) = pL_k + obj.L_cable * n_thrust;
+            end
 
-                % 候補障害物との干渉評価
+            % -----------------------------------------------------------------
+            % 3. 区間スキャン (Interval Check: 過去から未来へ N-1 区間を前進走査)
+            % -----------------------------------------------------------------
+            for k = 1:(N - 1)
+                t_k0 = t_now + sample_taus(k);
+                t_k1 = t_now + sample_taus(k + 1);
+
+                % 当該区間の始点・終点座標
+                pL0 = pL_grid(:, k);   pL1 = pL_grid(:, k + 1);
+                pQ0 = pQ_grid(:, k);   pQ1 = pQ_grid(:, k + 1);
+
                 for i = 1:length(detected_candidates)
                     cand = detected_candidates(i);
-                    
-                    % 0 / 1 のフラグで高速分岐
+                    c = cand.p_obs;
+                    r_max = max(cand.radii_obs);
+
                     if is_sphere
-                        d_sys = obj.calc_system_lower_dist(pL_k, pQ_k, cand.p_obs, max(cand.radii_obs));
+                        % =====================================================
+                        % --- [方式 A: 外接球モード] 線分-球 最短距離による判定 ---
+                        % =====================================================
+                        % (a) UAV 軌道線分 [pQ0, pQ1] と球の最短距離
+                        dQ_seg = obj.point_to_segment_dist(c, pQ0, pQ1) - r_max - obj.r_drone;
+                        
+                        % (b) Payload 軌道線分 [pL0, pL1] と球の最短距離
+                        dL_seg = obj.point_to_segment_dist(c, pL0, pL1) - r_max - obj.r_load;
+                        
+                        % (c) Cable 各代表点の軌道線分 [pC0, pC1] と球の最短距離
+                        dC_seg = inf;
+                        for sc = obj.s_cable_ratios
+                            pC0 = (1.0 - sc) * pL0 + sc * pQ0;
+                            pC1 = (1.0 - sc) * pL1 + sc * pQ1;
+                            d_pt_seg = obj.point_to_segment_dist(c, pC0, pC1) - r_max - obj.r_cable;
+                            if d_pt_seg < dC_seg, dC_seg = d_pt_seg; end
+                        end
+
+                        % システム全体の最小離隔と脅威対象の特定
+                        [d_interval, src_idx] = min([dQ_seg, dL_seg, dC_seg]);
+                        threat_sources = ["UAV", "Payload", "Cable"];
+
+                        % 【即時打ち切り判定】安全余裕 d_margin を割り込んだら直ちに回避決定
+                        if d_interval <= obj.d_margin
+                            need_replan = true;
+                            item = cand;
+                            item.t_risk          = t_k0;                     % 危険侵入区間の開始時刻 [s]
+                            item.min_future_dist = d_interval;               % 予測最短離隔 [m]
+                            item.threat_source   = threat_sources(src_idx);  % 脅威対象
+                            relevant_obs = item;
+                            return; % ★ 即座に終了して後段の軌道計画へ遷移
+                        end
+
                     else
-                        d_sys = obj.calc_system_exact_dist(pL_k, pQ_k, cand.p_obs, cand.radii_obs, cand.R_obs);
-                    end
+                        % =====================================================
+                        % --- [方式 B: 楕円体厳密モード] 粗線分判定 + 危険域細分化 ---
+                        % =====================================================
+                        % 【高速化足切り】外接球による線分距離で十分に離れていれば厳密計算をスキップ
+                        dQ_bound = obj.point_to_segment_dist(c, pQ0, pQ1) - r_max - obj.r_drone;
+                        dL_bound = obj.point_to_segment_dist(c, pL0, pL1) - r_max - obj.r_load;
+                        if min(dQ_bound, dL_bound) > (obj.d_margin + 1.2)
+                            continue; % この区間は確実に安全なため反復法をスキップ
+                        end
 
-                    % 衝突検出 (安全余裕 d_margin 以下で即時打ち切り)
-                    if d_sys <= obj.d_margin
-                        need_replan = true;
-                        cand.t_risk = t_now + tau_k;
-                        cand.min_future_dist = d_sys;
-                        relevant_obs = cand;
-                        return;
-                    end
+                        % 危険の疑いがある近接区間のみ、区間内を N_sub 分割して線形補間
+                        % ※ ここで base_ref.do は呼ばず、pL と pQ の加減乗算のみで極小負荷を維持
+                        sub_alphas = linspace(0.0, 1.0, obj.N_sub + 2);
+                        for s_idx = 1:(obj.N_sub + 2)
+                            alpha = sub_alphas(s_idx);
+                            pL_sub = (1.0 - alpha) * pL0 + alpha * pL1;
+                            pQ_sub = (1.0 - alpha) * pQ0 + alpha * pQ1;
 
-                    % 近接区間の細分化 (すり抜け防止)
-                    % ※ 重い base_ref.do は呼ばず、pL と pQ の高速線形補間で評価
-                    if ~isempty(prev_pL) && (d_sys <= obj.d_margin + 1.2)
-                        for s_idx = 1:obj.N_sub
-                            alpha = s_idx / (obj.N_sub + 1);
-                            t_sub = (1.0 - alpha) * prev_tau + alpha * tau_k;
-                            pL_sub = (1.0 - alpha) * prev_pL  + alpha * pL_k;
-                            pQ_sub = (1.0 - alpha) * prev_pQ  + alpha * pQ_k;
-
-                            if is_sphere
-                                d_sub = obj.calc_system_lower_dist(pL_sub, pQ_sub, cand.p_obs, max(cand.radii_obs));
-                            else
-                                d_sub = obj.calc_system_exact_dist(pL_sub, pQ_sub, cand.p_obs, cand.radii_obs, cand.R_obs);
-                            end
-
+                            % 40回反復二分法による楕円体厳密距離の計算
+                            d_sub = obj.calc_system_exact_dist(pL_sub, pQ_sub, cand.p_obs, cand.radii_obs, cand.R_obs);
+                            
+                            % 【即時打ち切り判定】
                             if d_sub <= obj.d_margin
                                 need_replan = true;
-                                cand.t_risk = t_now + t_sub;
-                                cand.min_future_dist = d_sub;
-                                relevant_obs = cand;
-                                return; % 細分化区間で衝突した瞬間に即時打ち切り
+                                item = cand;
+                                item.t_risk          = (1.0 - alpha) * t_k0 + alpha * t_k1; % 補間時刻 [s]
+                                item.min_future_dist = d_sub;                              % 厳密最短離隔 [m]
+                                item.threat_source   = "Ellipsoid_Exact";
+                                relevant_obs = item;
+                                return; % ★ 厳密衝突が確定した瞬間に即座に終了
                             end
                         end
                     end
                 end
-                
-                prev_tau = tau_k;
-                prev_pL  = pL_k;
-                prev_pQ  = pQ_k;
             end
         end
 
         % =====================================================================
-        % calc_system_exact_dist: 楕円体反復法による厳密最短システム離隔
+        % point_to_segment_dist: 点 p と 線分 [a, b] の幾何的最短ユークリッド距離
+        % ---------------------------------------------------------------------
+        % 【数理モデル】
+        %   線分上の点 x(t) = a + t * (b - a)  (0 <= t <= 1) に対し、
+        %   ベクトル (p - x(t)) と線分方向 (b - a) が直交する射影係数 t を導出。
+        %   t = dot(p - a, b - a) / ||b - a||^2
+        %   t を [0, 1] にクランプすることで、端点外側も正しく最近接点として評価する。
         % =====================================================================
-        function d_min = calc_system_exact_dist(obj, pL, pQ, c, r, R)
-            dQ = obj.point_ellipsoid_signed_distance_fast(pQ, c, r, R) - obj.r_drone;
-            dL = obj.point_ellipsoid_signed_distance_fast(pL, c, r, R) - obj.r_load;
-            dC = inf;
-            for sc = obj.s_cable_ratios
-                pC = (1.0 - sc) * pL + sc * pQ;
-                d_pt = obj.point_ellipsoid_signed_distance_fast(pC, c, r, R) - obj.r_cable;
-                if d_pt < dC, dC = d_pt; end
+        function dist = point_to_segment_dist(~, p, a, b)
+            ab = b - a; % 線分方向ベクトル
+            ap = p - a; % 始点から点への相対ベクトル
+            ab_len2 = dot(ab, ab); % 線分長の2乗
+
+            % 特異点処理: 始点と終点がほぼ一致している（ドローンが静止している）場合
+            if ab_len2 < 1e-12
+                dist = norm(ap);
+                return;
             end
-            d_min = min([dQ, dL, dC]);
+
+            % 線分への直交射影パラメータ t を計算し、[0, 1] 区間にクランプ
+            t = dot(ap, ab) / ab_len2;
+            t = max(0.0, min(1.0, t));
+
+            % 線分上の最近接点とのユークリッド距離
+            closest_point = a + t * ab;
+            dist = norm(p - closest_point);
         end
 
         % =====================================================================
