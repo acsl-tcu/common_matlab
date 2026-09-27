@@ -18,7 +18,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
         % モジュール別フラグ (上記が 1 のときに個別で OFF にしたい場合に使用)
         % ---------------------------------------------------------------------
         LOG_SENSOR    = 0;         % センサ検知ログ
-        LOG_TRIGGER    = 1;        % 回避開始判定 & O_rel 確定ログ (重要)
+        LOG_TRIGGER    = 0;        % 回避開始判定 & O_rel 確定ログ (重要)
+        LOG_SMOOTHNESS_EVAL = 1;     % 1: 毎周期のC6滑らかさ・差分連続性診断ログを表示, 0: 非表示
 
         USE_SPHERE_APPROX = 0;     % 1: 外接球高速判定 (推奨・0.1ms級), 0: 楕円体厳密判定 (反復法)
         % =====================================================================
@@ -52,6 +53,31 @@ classdef REPLANNING_BSPLINE_NEW < handle
         r_drone           = 0.5;   % 機体等価球半径 [m]
         r_load            = 0.5;   % 荷物球半径 [m]
         r_cable           = 0.5;   % 索保護球半径 [m]
+
+        % --- C6 B-spline 軌道生成・幾何写像パラメータ ---
+        bspline_p          = 7;      % 次数 p=7 (C6 連続)
+        N_ctrl_pts         = 18;     % 制御点数 (始端7個 + 終端7個のC6拘束 + 回避自由度4個 = 計18個)
+        t_replan_horizon   = 4.0;    % 回避軌道の時間長 [s]
+        current_bspline    = [];     % 現在追従中の回避 B-spline 軌道構造体
+        prev_xd_out        = [];     % 前回ステップの出力目標値 (オンライン滑らかさ評価用)
+
+        % --- 動力学的実行可能性制約パラメータ (Zeng et al., Tang & Kumar 準拠) ---
+        a_load_max         = 6.0;    % 許容荷物最大加速度 [m/s^2]
+        tilt_angle_max_rad = pi/4;   % 許容UAV最大チルト角 [rad] (45度)
+        thrust_acc_min     = 2.0;    % 索張力維持のための見かけ全加速度下限 [m/s^2]
+        thrust_acc_max     = 18.0;   % 最大ロータ推力加速度 [m/s^2]
+        is_emergency_stop  = false;  % 安全軌道不成立時のホバリング停止フラグ
+        emergency_hover_pL = [];     % 緊急停止位置 [x; y; z]
+        prev_derivs_history= [];     % 0〜6階微分履歴バッファ [7 × 3]
+
+        % --- 第3回: C6 境界接続精度記録バッファ ---
+        last_c6_boundary_diag = struct( ...
+            't_replan',       0.0, ...
+            'err_start_mat',  zeros(3, 7), ...
+            'err_end_mat',    zeros(3, 7), ...
+            'max_err_start',  0.0, ...
+            'max_err_end',    0.0, ...
+            'is_c6_exact',    false);
         
         % --- 性能プロファイリング (計測バッファ) ---
         profiling = struct( ...
@@ -82,6 +108,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
             if isfield(opts, 'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG = opts.ENABLE_ALL_LOG; end % 追加ログの表示
             if isfield(opts, 'LOG_SENSOR'),     obj.LOG_SENSOR     = opts.LOG_SENSOR;     end % センサログフラグ
             if isfield(opts, 'LOG_TRIGGER'),    obj.LOG_TRIGGER    = opts.LOG_TRIGGER;    end % 回避トリガーログフラグ
+            if isfield(opts, 'LOG_SMOOTHNESS_EVAL'), obj.LOG_SMOOTHNESS_EVAL = opts.LOG_SMOOTHNESS_EVAL; end
             if isfield(opts, 'USE_SPHERE_APPROX'), obj.USE_SPHERE_APPROX = opts.USE_SPHERE_APPROX; end
             if isfield(opts, 'T_lookahead'),        obj.T_lookahead       = opts.T_lookahead;       end
             if isfield(opts, 'N_pred_sample'),      obj.N_pred_sample     = opts.N_pred_sample;     end
@@ -278,10 +305,66 @@ classdef REPLANNING_BSPLINE_NEW < handle
             end
 
             % =================================================================
-            % 目標軌道出力の決定
+            % 1. 現在時刻におけるリアルタイム衝突即時監視 (機体・索・荷物)
             % =================================================================
-            % 現段階では軌道回避を行わないため、公称軌道をそのまま制御目標としてバイパス出力
-            xd_out = xd_nom;
+            if detection.detected_point
+                [is_current_collision, min_cur_dist, hit_obs_id] = obj.check_current_system_collision( ...
+                    pQ_cur, xd_nom, detection.detected_obstacles);
+                if is_current_collision
+                    obj.is_emergency_stop = true;
+                    obj.emergency_hover_pL = xd_nom(1:3);
+                    fprintf(2, "[CRITICAL COLLISION!] t=%.3f s | 現在、障害物 ID=%d と干渉中 (最短離隔: %6.3f m <= 0.0 m) -> 直ちにホバリング停止\n", ...
+                        time.t, hit_obs_id, min_cur_dist);
+                end
+            end
+
+            % =================================================================
+            % 2. 目標軌道出力の決定 (安全性・動力学検証 & 安全停止機能付き)
+            % =================================================================
+            if obj.is_emergency_stop
+                % 【安全停止モード】実行可能軌道が作れなかった、または衝突検知時は安全停止
+                xd_out = zeros(28, 1);
+                xd_out(1:3)   = obj.emergency_hover_pL;
+                xd_out(4)     = xd_nom(4);
+                xd_out(13:15) = obj.emergency_hover_pL + [0; 0; obj.L_cable];
+            else
+                if need_replan && isempty(obj.current_bspline)
+                    % 回避軌道生成と厳密検証 (フォールバックなし1回解法)
+                    new_bspline = obj.generate_c6_avoidance_trajectory( ...
+                        time.t, xd_nom, relevant_obstacles, varargin);
+                    
+                    if ~isempty(new_bspline)
+                        obj.current_bspline = new_bspline;
+                    else
+                        % 実行可能軌道が作れなかった場合は墜落を防ぐため即座に安全停止
+                        obj.is_emergency_stop = true;
+                        obj.emergency_hover_pL = xd_nom(1:3);
+                        fprintf(2, "[PLANNER FAILURE -> EMERGENCY STOP] t=%.3f s | 安全・動力学制約を満たす軌道が生成できませんでした。現在位置で停止します。\n", time.t);
+                    end
+                end
+
+                is_avoiding = ~isempty(obj.current_bspline);
+                if is_avoiding
+                    % 回避軌道が有効な場合：C6 B-spline から微分平坦性を通じて 28次元目標値を算出
+                    xd_out = obj.evaluate_c6_full_state(time.t);
+                    
+                    % ホライズン終端に達したら公称軌道追従へ滑らかに復帰
+                    if time.t >= obj.current_bspline.t_end
+                        obj.current_bspline = [];
+                    end
+                else
+                    % 平常時：公称軌道を透過出力
+                    xd_out = xd_nom;
+                end
+            end
+
+            % =================================================================
+            % 3. 毎時刻 0〜6階微分 全階層連続性診断 (赤文字警告機能付き)
+            % =================================================================
+            if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_SMOOTHNESS_EVAL == 1)
+                obj.diagnose_c6_continuity(time.t, time.dt, xd_out);
+            end
+            obj.prev_xd_out = xd_out;
 
             % =================================================================
             % 状態格納 (後段の制御器・ロガー・プランナー向け出力パッキング)
@@ -523,6 +606,30 @@ classdef REPLANNING_BSPLINE_NEW < handle
         end
 
         % =====================================================================
+        % check_current_system_collision: 現在時刻における機体・荷物・索の衝突即時判定
+        % =====================================================================
+        function [is_colliding, min_dist, hit_id] = check_current_system_collision(obj, pQ_cur, xd_cur, active_obs)
+            is_colliding = false;
+            min_dist = inf;
+            hit_id = NaN;
+
+            pL_cur = xd_cur(1:3);
+            for i = 1:length(active_obs)
+                cand = active_obs(i);
+                d_cur = obj.calc_system_exact_dist(pL_cur, pQ_cur, cand.p_obs, cand.radii_obs, cand.R_obs);
+                if d_cur < min_dist
+                    min_dist = d_cur;
+                    hit_id = cand.id;
+                end
+                % 障害物表面に食い込んでいる（<= 0.0m）場合は即座に衝突判定
+                if d_cur <= 0.0
+                    is_colliding = true;
+                    return;
+                end
+            end
+        end
+
+        % =====================================================================
         % evaluate_collision_switchable: 区間判定 (Interval Check) & 即時打ち切り
         % ---------------------------------------------------------------------
         % 【アルゴリズム概要】
@@ -556,8 +663,20 @@ classdef REPLANNING_BSPLINE_NEW < handle
                 sim_dt = orig_time.dt;
             end
 
-            N = max(5, obj.N_pred_sample);
-            sample_taus = linspace(0.1, obj.T_lookahead, N);
+            % --- 現在時刻 t_now における公称軌道状態の取得 ---
+            eval_time_now = struct('t', t_now, 'dt', sim_dt);
+            nom_res_now   = obj.base_ref.do(eval_time_now, base_varargin{2:end});
+            xd_cur_now    = nom_res_now.state.xd;
+
+            % --- 速度適応型ホライズン & サンプリング間隔の動的決定 ---
+            v_cur_norm = norm(xd_cur_now(5:7));
+            % 高速時は予測時間を拡大 (T_lookahead = max(3.0, 1.5 + v/2))
+            T_adaptive = max(3.0, min(6.0, 1.5 + v_cur_norm * 0.6));
+            % 空間移動間隔 ds <= 0.4m を維持するための動的サンプリング数
+            N_adaptive = max(11, min(25, ceil(v_cur_norm * T_adaptive / 0.4)));
+            
+            sample_taus = linspace(0.1, T_adaptive, N_adaptive);
+            N = N_adaptive;
             g_vec = [0; 0; obj.gravity];
             is_sphere = (obj.USE_SPHERE_APPROX == 1);
 
@@ -673,6 +792,19 @@ classdef REPLANNING_BSPLINE_NEW < handle
                 end
             end
         end
+
+        function d_min = calc_system_exact_dist(obj, pL, pQ, c, r, R)
+            dQ = obj.point_ellipsoid_signed_distance_fast(pQ, c, r, R) - obj.r_drone;
+            dL = obj.point_ellipsoid_signed_distance_fast(pL, c, r, R) - obj.r_load;
+            dC = inf;
+            for sc = obj.s_cable_ratios
+                pC = (1.0 - sc) * pL + sc * pQ;
+                d_pt = obj.point_ellipsoid_signed_distance_fast(pC, c, r, R) - obj.r_cable;
+                if d_pt < dC, dC = d_pt; end
+            end
+            d_min = min([dQ, dL, dC]);
+        end
+
 
         % =====================================================================
         % point_to_segment_dist: 点 p と 線分 [a, b] の幾何的最短ユークリッド距離
@@ -800,6 +932,432 @@ classdef REPLANNING_BSPLINE_NEW < handle
         end
 
         % =====================================================================
+        % [STEP 1] payloadToSystemGeometry: ペイロード状態から全幾何を陽的展開
+        % ---------------------------------------------------------------------
+        % 【数理モデル】
+        %   pL (荷物位置), aL (荷物加速度) から微分平坦性を用いて
+        %   UAV 位置 pQ および索球列 pC を一度に算出し、後段の制約評価へ渡す。
+        % =====================================================================
+        function [pQ, pC_mat] = payloadToSystemGeometry(obj, pL, aL)
+            g_vec = [0; 0; obj.gravity];
+            a_tot = aL + g_vec;
+            norm_a = norm(a_tot);
+            
+            if norm_a > 1e-3
+                n_thrust = a_tot / norm_a;
+            else
+                n_thrust = [0; 0; 1];
+            end
+            
+            % 1. 機体位置の平坦性写像: pQ = pL + L * n_thrust
+            pQ = pL + obj.L_cable * n_thrust;
+            
+            % 2. 索保護球列の中心位置: pC_k = (1 - s_k) * pL + s_k * pQ
+            n_spheres = length(obj.s_cable_ratios);
+            pC_mat = zeros(3, n_spheres);
+            for k = 1:n_spheres
+                sc = obj.s_cable_ratios(k);
+                pC_mat(:, k) = (1.0 - sc) * pL + sc * pQ;
+            end
+        end
+
+        function bspline_data = generate_c6_avoidance_trajectory(obj, t_start, xd_cur, active_obs, base_varargin)
+            bspline_data = [];
+            t_horizon = obj.t_replan_horizon;
+            t_end = t_start + t_horizon;
+            p = obj.bspline_p;       % 7
+            N_ctrl = obj.N_ctrl_pts; % 18
+            
+            % 厳密に N_ctrl + p + 1 = 26 個のクランプド・ノットベクトル
+            n_internal = N_ctrl - p - 1; % 18 - 7 - 1 = 10
+            knots = [zeros(1, p+1), (1:n_internal) / (n_internal + 1), ones(1, p+1)];
+
+            orig_time = base_varargin{1};
+            sim_dt = 0.025;
+            if isprop(orig_time, 'dt') || isfield(orig_time, 'dt'), sim_dt = orig_time.dt; end
+
+            % 1. 初期制御点列 (公称軌道サンプリング)
+            P_opt = zeros(3, N_ctrl);
+            tau_samples = linspace(0, t_horizon, N_ctrl);
+            for i = 1:N_ctrl
+                tmp_t = struct('t', t_start + tau_samples(i), 'dt', sim_dt);
+                res_i = obj.base_ref.do(tmp_t, base_varargin{2:end});
+                P_opt(:, i) = res_i.state.xd(1:3);
+            end
+
+            % 2. 始端 0〜6階微分の厳密な境界接続方程式の解法 (B-spline真の基底逆算)
+            D_start = obj.sample_nominal_derivatives_0_to_6(t_start, base_varargin);
+            P_opt(:, 1:7) = obj.solve_boundary_control_points(p, knots, 0.0, D_start, t_horizon, true);
+
+            % 3. 終端 0〜6階微分の厳密な境界接続方程式の解法 (B-spline真の基底逆算)
+            D_end = obj.sample_nominal_derivatives_0_to_6(t_end, base_varargin);
+            P_opt(:, (N_ctrl-6):N_ctrl) = obj.solve_boundary_control_points(p, knots, 1.0, D_end, t_horizon, false);
+
+            % 4. 中間自由制御点 (P8 〜 P11) の回避最適化 (進行方向法線押し出し)
+            if ~isempty(active_obs)
+                obs_center = active_obs(1).p_obs;
+                r_clear = max(active_obs(1).radii_obs) + obj.r_load + obj.d_margin + 0.3;
+                
+                v_dir = P_opt(:, 12) - P_opt(:, 7);
+                if norm(v_dir) < 1e-3, v_dir = [1; 0; 0]; else, v_dir = v_dir / norm(v_dir); end
+                
+                for i = 8:(N_ctrl - 7)
+                    diff_vec = P_opt(:, i) - obs_center;
+                    lat_vec = diff_vec - dot(diff_vec, v_dir) * v_dir;
+                    if norm(lat_vec) < 1e-3, lat_vec = [0; 0; 1]; end
+                    lat_dir = lat_vec / norm(lat_vec);
+                    
+                    dist_to_center = norm(diff_vec);
+                    if dist_to_center < r_clear
+                        P_opt(:, i) = obs_center + lat_dir * r_clear;
+                    end
+                end
+            end
+
+            % 5. 【厳格検証】安全性 ＆ 動力学的実行可能性（Feasibility）のチェック
+            [is_feasible, fail_reason] = obj.verify_trajectory_feasibility(p, knots, P_opt, t_horizon, active_obs);
+            
+            if ~is_feasible
+                fprintf(2, "[VERIFICATION FAILED] 回避軌道が棄却されました: %s\n", fail_reason);
+                return; % 空を返却 -> doメソッド側で安全停止へ遷移
+            end
+
+            % 構造体構築
+            candidate.p       = p;
+            candidate.knots   = knots;
+            candidate.P       = P_opt;
+            candidate.t_start = t_start;
+            candidate.t_end   = t_end;
+            candidate.yaw     = xd_cur(4);
+            bspline_data = candidate;
+
+            % =================================================================
+            % 6. 【第3回 完了検証】完成 B-spline の 0〜6階微分 再評価 ＆ 境界完全一致検証
+            % =================================================================
+            % (a) 完成した軌道を u=0 (始端) および u=1 (終端) で実際に再評価
+            D_start_actual = obj.eval_bspline_all_derivatives_3d(p, knots, P_opt, 0.0, t_horizon);
+            D_end_actual   = obj.eval_bspline_all_derivatives_3d(p, knots, P_opt, 1.0, t_horizon);
+
+            % (b) 目標値との絶対差分行列の算出 [3 × 7] (各列が 0階〜6階)
+            err_start_mat = abs(D_start_actual - D_start);
+            err_end_mat   = abs(D_end_actual   - D_end);
+
+            max_err_s = max(err_start_mat(:));
+            max_err_e = max(err_end_mat(:));
+            is_c6_exact = (max_err_s < 1e-6) && (max_err_e < 1e-6);
+
+            % (c) プロパティへの検証結果記録
+            obj.last_c6_boundary_diag.t_replan      = t_start;
+            obj.last_c6_boundary_diag.err_start_mat = err_start_mat;
+            obj.last_c6_boundary_diag.err_end_mat   = err_end_mat;
+            obj.last_c6_boundary_diag.max_err_start = max_err_s;
+            obj.last_c6_boundary_diag.max_err_end   = max_err_e;
+            obj.last_c6_boundary_diag.is_c6_exact   = is_c6_exact;
+
+            % (d) 詳細ログ出力 (第3回 合否判定コンソール表示)
+            if obj.ENABLE_ALL_LOG == 1
+                fprintf("\n=======================================================================\n");
+                fprintf(" [第3回 C6 境界接続 厳密検証結果] t=%.3f s (Horizon: %.1f s)\n", t_start, t_horizon);
+                fprintf("-----------------------------------------------------------------------\n");
+                order_names = ["0階(Pos)", "1階(Vel)", "2階(Acc)", "3階(Jerk)", "4階(Snap)", "5階(Crackle)", "6階(Pop)"];
+                fprintf(" 階次        | 始端最大誤差 (u=0)       | 終端最大誤差 (u=1)\n");
+                fprintf("-----------------------------------------------------------------------\n");
+                for ord = 1:7
+                    err_s_ord = max(err_start_mat(:, ord));
+                    err_e_ord = max(err_end_mat(:, ord));
+                    fprintf(" %-11s | %18.4e m/s^%-2d | %18.4e m/s^%-2d\n", ...
+                        order_names(ord), err_s_ord, ord-1, err_e_ord, ord-1);
+                end
+                fprintf("-----------------------------------------------------------------------\n");
+                if is_c6_exact
+                    fprintf(" [判定] PASS: 始端最大誤差 = %.2e, 終端最大誤差 = %.2e -> C6 完全接続達成\n", max_err_s, max_err_e);
+                else
+                    fprintf(2, " [判定] FAIL: 境界誤差が大きすぎます (始端: %.2e, 終端: %.2e) -> 実装不備\n", max_err_s, max_err_e);
+                end
+                fprintf("=======================================================================\n\n");
+            end
+        end
+
+        % =====================================================================
+        % verify_trajectory_feasibility: 動力学・安全制約の事前検証 (50点スキャン)
+        % =====================================================================
+        function [feasible, reason] = verify_trajectory_feasibility(obj, p, knots, P, t_horizon, active_obs)
+            feasible = true;
+            reason = "";
+            N_check = 50;
+            g_vec = [0; 0; obj.gravity];
+            u_eval = linspace(0, 1, N_check);
+
+            for idx = 1:N_check
+                u_i = u_eval(idx);
+                [pL, ~, aL] = obj.eval_bspline_derivatives(p, knots, P, u_i, t_horizon);
+
+                % (1) 荷物加速度制約
+                if norm(aL) > obj.a_load_max
+                    feasible = false;
+                    reason = sprintf("荷物最大加速度超過: ||aL||=%.2f > %.2f m/s^2", norm(aL), obj.a_load_max);
+                    return;
+                end
+
+                % (2) UAV 推力・傾斜角制約
+                a_tot = aL + g_vec;
+                norm_a = norm(a_tot);
+                if (norm_a < obj.thrust_acc_min) || (norm_a > obj.thrust_acc_max)
+                    feasible = false;
+                    reason = sprintf("推力加速度限界逸脱: ||a_tot||=%.2f m/s^2", norm_a);
+                    return;
+                end
+
+                % チルト角: cos(theta) = a_tot_z / ||a_tot||
+                tilt_angle = acos(max(-1.0, min(1.0, a_tot(3) / norm_a)));
+                if tilt_angle > obj.tilt_angle_max_rad
+                    feasible = false;
+                    reason = sprintf("UAVチルト角超過: theta=%.1f deg > %.1f deg", rad2deg(tilt_angle), rad2deg(obj.tilt_angle_max_rad));
+                    return;
+                end
+
+                % (3) UAV / 索 / 荷物 全系の衝突クリアランス検証
+                [pQ, ~] = obj.payloadToSystemGeometry(pL, aL);
+                for o_idx = 1:length(active_obs)
+                    cand = active_obs(o_idx);
+                    d_sys = obj.calc_system_exact_dist(pL, pQ, cand.p_obs, cand.radii_obs, cand.R_obs);
+                    if d_sys <= obj.d_margin
+                        feasible = false;
+                        reason = sprintf("障害物 ID=%d との離隔マージン違反: dist=%.3f m <= %.2f m", cand.id, d_sys, obj.d_margin);
+                        return;
+                    end
+                end
+            end
+        end
+
+        % =====================================================================
+        % solve_boundary_control_points: B-spline 厳密基底逆算による C6 境界解法
+        % ---------------------------------------------------------------------
+        % 【数理モデル】
+        %   端点 u (0 または 1) における各階微分 D (0〜6階) は、
+        %   端点近傍の 7 個の制御点 P_sub の線形写像 D = M * P_sub で表される。
+        %   単位インパルス P_sub = I_7 に対する B-spline 微分評価器の出力を
+        %   直接サンプリングして真の感度行列 M (7×7) を数値構築し、
+        %   P_sub = M \ D_target を解く。これによりノット間隔のズレが完全相殺される。
+        % =====================================================================
+        function P_boundary = solve_boundary_control_points(obj, p, knots, u_eval, D_target, total_time, is_start)
+            N_b = 7;
+            M = zeros(N_b, N_b);
+            
+            % 各制御点の単位インパルスに対する端点微分の感度列ベクトルを取得
+            for j = 1:N_b
+                P_unit = zeros(1, N_b);
+                P_unit(j) = 1.0;
+                
+                derivs_j = obj.eval_bspline_all_derivatives_1d(p, knots, P_unit, u_eval, total_time, is_start);
+                M(:, j) = derivs_j(:);
+            end
+            
+            % 3軸 (X, Y, Z) について M \ D_target を解く
+            P_boundary = zeros(3, N_b);
+            for dim = 1:3
+                target_vals = D_target(dim, :)'; % [7 × 1]
+                P_boundary(dim, :) = (M \ target_vals)';
+            end
+        end
+
+        % =====================================================================
+        % eval_bspline_all_derivatives_1d: 1次元制御点列に対する 0〜6階微分一括算出
+        % =====================================================================
+        function d_all = eval_bspline_all_derivatives_1d(~, p, knots, P_sub, u, total_time, is_start)
+            d_all = zeros(7, 1);
+            
+            % 18制御点全体のベクトルに配置
+            P_full = zeros(1, 18);
+            if is_start
+                P_full(1:7) = P_sub;
+            else
+                P_full(12:18) = P_sub;
+            end
+            
+            % 0階〜6階微分を解析的に階層生成して評価
+            P_curr = P_full;
+            knots_curr = knots;
+            for ord = 0:6
+                if ord == 0
+                    val_pos = REPLANNING_BSPLINE_NEW.de_boor_eval(p, knots_curr, [P_curr; zeros(2, length(P_curr))], u);
+                    d_all(1) = val_pos(1);
+                else
+                    p_ord = p - ord + 1;
+                    n_c = length(P_curr);
+                    P_next = zeros(1, n_c - 1);
+                    for i = 1:(n_c - 1)
+                        dt_knot = knots_curr(i + p_ord + 1) - knots_curr(i + 1);
+                        if dt_knot > 1e-12
+                            P_next(i) = (p_ord / dt_knot) * (P_curr(i+1) - P_curr(i));
+                        end
+                    end
+                    knots_curr = knots_curr(2:end-1);
+                    P_curr = P_next;
+                    val = REPLANNING_BSPLINE_NEW.de_boor_eval(p - ord, knots_curr, [P_curr; zeros(2, length(P_curr))], u);
+                    d_all(ord + 1) = val(1) / (total_time^ord);
+                end
+            end
+        end
+
+        % =====================================================================
+        % sample_nominal_derivatives_0_to_6: 公称状態 28成分から 0〜6階微分を直結
+        % ---------------------------------------------------------------------
+        % 【マッピング仕様】
+        %   D(:, 1) = xd(1:3)   : 位置 pL       (0階)
+        %   D(:, 2) = xd(5:7)   : 速度 vL       (1階)
+        %   D(:, 3) = xd(9:11)  : 加速度 aL     (2階)
+        %   D(:, 4) = xd(17:19) : Jerk jL       (3階)
+        %   D(:, 5) = xd(20:22) : Snap sL       (4階)
+        %   D(:, 6) = xd(23:25) : Crackle cL    (5階)
+        %   D(:, 7) = xd(26:28) : Pop pL        (6階)
+        % =====================================================================
+        function D = sample_nominal_derivatives_0_to_6(obj, t_eval, base_varargin)
+            orig_time = base_varargin{1};
+            sim_dt = 0.025;
+            if isprop(orig_time, 'dt') || isfield(orig_time, 'dt'), sim_dt = orig_time.dt; end
+            
+            eval_t = struct('t', t_eval, 'dt', sim_dt);
+            res = obj.base_ref.do(eval_t, base_varargin{2:end});
+            xd = res.state.xd;
+            
+            D = zeros(3, 7);
+            D(:, 1) = xd(1:3); % 位置
+            D(:, 2) = xd(5:7); % 速度
+            if length(xd) >= 11, D(:, 3) = xd(9:11);  end % 加速度
+            if length(xd) >= 19, D(:, 4) = xd(17:19); end % Jerk
+            if length(xd) >= 22, D(:, 5) = xd(20:22); end % Snap
+            if length(xd) >= 25, D(:, 6) = xd(23:25); end % Crackle
+            if length(xd) >= 28, D(:, 7) = xd(26:28); end % Pop
+        end
+
+        % =====================================================================
+        % diagnose_c6_continuity: 0〜6階微分 毎制御周期全階層監視 (赤文字警告付き)
+        % =====================================================================
+        function diagnose_c6_continuity(obj, t_now, dt, xd_cur)
+            if isempty(obj.prev_xd_out) || dt <= 0
+                obj.prev_derivs_history = zeros(7, 3);
+                obj.prev_derivs_history(1, :) = xd_cur(1:3)';
+                obj.prev_derivs_history(2, :) = xd_cur(5:7)';
+                if length(xd_cur) >= 11, obj.prev_derivs_history(3, :) = xd_cur(9:11)'; end
+                return;
+            end
+
+            % 現在ステップの 0〜2階微分値
+            cur_p = xd_cur(1:3)';
+            cur_v = xd_cur(5:7)';
+            if length(xd_cur) >= 11, cur_a = xd_cur(9:11)'; else, cur_a = [0, 0, 0]; end
+
+            % 差分法による 3〜6階微分の算出 (Jerk, Snap, Crackle, Pop)
+            cur_derivs = zeros(7, 3);
+            cur_derivs(1, :) = cur_p;
+            cur_derivs(2, :) = cur_v;
+            cur_derivs(3, :) = cur_a;
+            cur_derivs(4, :) = (cur_a - obj.prev_derivs_history(3, :)) / dt; % Jerk (3階)
+            cur_derivs(5, :) = (cur_derivs(4, :) - obj.prev_derivs_history(4, :)) / dt; % Snap (4階)
+            cur_derivs(6, :) = (cur_derivs(5, :) - obj.prev_derivs_history(5, :)) / dt; % Crackle (5階)
+            cur_derivs(7, :) = (cur_derivs(6, :) - obj.prev_derivs_history(6, :)) / dt; % Pop (6階)
+
+            % 各階微分のジャンプ幅 (前ステップからの急変量)
+            jump = zeros(7, 1);
+            for d = 1:7
+                jump(d) = norm(cur_derivs(d, :) - obj.prev_derivs_history(d, :));
+            end
+
+            % 各階次の不連続判定しきい値 [Pos, Vel, Acc, Jerk, Snap, Crackle, Pop]
+            thresholds = [0.05, 0.5, 5.0, 50.0, 500.0, 5000.0, 50000.0]';
+            is_discontinuous = any(jump > thresholds);
+
+            if is_discontinuous
+                % どこで破綻したかを特定して赤文字で出力
+                broken_order = find(jump > thresholds, 1, 'first') - 1;
+                fprintf(2, "[C6 DISCONTINUITY!] t=%.3f s | 第%d階微分でジャンプ発生! (Pos_jump=%.1e, Vel_jump=%.1e, Acc_jump=%.1e, Jerk_jump=%.1e)\n", ...
+                    t_now, broken_order, jump(1), jump(2), jump(3), jump(4));
+            elseif mod(round(t_now / dt), 20) == 0
+                fprintf("[C6 CONTINUITY: PASS] t=%.3f s | 0〜6階微分すべて滑らか (ΔPos=%.1e m, ΔAcc=%.1e m/s^2, ΔJerk=%.1e m/s^3)\n", ...
+                    t_now, jump(1), jump(3), jump(4));
+            end
+
+            obj.prev_derivs_history = cur_derivs;
+        end
+
+        % =====================================================================
+        % evaluate_c6_full_state: C6 B-spline から 28次元フル状態ベクトルを算出
+        % =====================================================================
+        function xd_full = evaluate_c6_full_state(obj, t_now)
+            b = obj.current_bspline;
+            T_total = b.t_end - b.t_start;
+            u = (t_now - b.t_start) / max(T_total, 1e-6);
+            u = max(0.0, min(1.0, u));
+            
+            % B-spline 解析的微分評価 (位置 pL, 速度 vL, 加速度 aL)
+            [pL, vL, aL] = obj.eval_bspline_derivatives(b.p, b.knots, b.P, u, T_total);
+            
+            % 微分平坦性による機体位置 pQ
+            g_vec = [0; 0; obj.gravity];
+            a_tot = aL + g_vec;
+            norm_a = norm(a_tot);
+            if norm_a > 1e-3, n_thrust = a_tot / norm_a; else, n_thrust = [0; 0; 1]; end
+            pQ = pL + obj.L_cable * n_thrust;
+            
+            % 解析的高階微分 (Jerk〜Pop) の一括評価
+            D_eval = obj.eval_bspline_all_derivatives_3d(b.p, b.knots, b.P, u, T_total);
+            
+            % 28×1 状態ベクトルの完全パッキング (下位制御器へ 0〜6階微分を直結)
+            xd_full = zeros(28, 1);
+            xd_full(1:3)   = D_eval(:, 1);  % 荷物位置 pL       (0階)
+            xd_full(4)     = b.yaw;         % 目標 yaw 角 [rad]
+            xd_full(5:7)   = D_eval(:, 2);  % 荷物速度 vL       (1階)
+            xd_full(9:11)  = D_eval(:, 3);  % 荷物加速度 aL     (2階)
+            xd_full(13:15) = pQ;            % 参考機体位置 pQ   (微分平坦性)
+            xd_full(17:19) = D_eval(:, 4);  % 荷物 Jerk jL      (3階)
+            xd_full(20:22) = D_eval(:, 5);  % 荷物 Snap sL      (4階)
+            xd_full(23:25) = D_eval(:, 6);  % 荷物 Crackle cL   (5階)
+            xd_full(26:28) = D_eval(:, 7);  % 荷物 Pop pL       (6階)
+        end
+
+        % =====================================================================
+        % eval_bspline_all_derivatives_3d: 3次元制御点に対する 0〜6階微分の一括算出
+        % =====================================================================
+        function D_all = eval_bspline_all_derivatives_3d(obj, p, knots, P, u, total_time)
+            D_all = zeros(3, 7);
+            for dim = 1:3
+                D_all(dim, :) = obj.eval_bspline_all_derivatives_1d(p, knots, P(dim, :), u, total_time, true)';
+            end
+        end
+
+        % =====================================================================
+        % eval_bspline_derivatives: 局所 de Boor による高精度微分評価器
+        % =====================================================================
+        function [pos, vel, acc] = eval_bspline_derivatives(~, p, knots, P, u, total_time)
+            % 1. 位置評価
+            pos = REPLANNING_BSPLINE_NEW.de_boor_eval(p, knots, P, u);
+            
+            % 2. 1階微分 (速度) 制御点列
+            N_ctrl = size(P, 2);
+            P_vel = zeros(3, N_ctrl - 1);
+            for i = 1:(N_ctrl - 1)
+                dt_k = knots(i + p + 1) - knots(i + 1);
+                if dt_k > 1e-10
+                    P_vel(:, i) = (p / dt_k) * (P(:, i+1) - P(:, i));
+                end
+            end
+            vel = REPLANNING_BSPLINE_NEW.de_boor_eval(p - 1, knots(2:end-1), P_vel, u) / total_time;
+            
+            % 3. 2階微分 (加速度) 制御点列
+            P_acc = zeros(3, N_ctrl - 2);
+            for i = 1:(N_ctrl - 2)
+                dt_k = knots(i + p + 1) - knots(i + 2);
+                if dt_k > 1e-10
+                    P_acc(:, i) = ((p - 1) / dt_k) * (P_vel(:, i+1) - P_vel(:, i));
+                end
+            end
+            acc = REPLANNING_BSPLINE_NEW.de_boor_eval(p - 2, knots(3:end-2), P_acc, u) / (total_time^2);
+        end
+
+        
+
+        % =====================================================================
         % clear_state_sensor_values: 制御周期開始時のセンサ状態バッファ初期化
         % ---------------------------------------------------------------------
         % 【概要】
@@ -820,6 +1378,49 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.min_obstacle_id_point         = NaN;               % 未定義
             st.min_dist_point                = inf;               % 距離無限大
             st.detected_obstacle_count_point = 0;                 % 0個
+        end
+    end
+    methods (Static, Access = private)
+        % =====================================================================
+        % de_boor_eval: Cox-de Boor 局所反復法 (配列サイズ不適合のない頑健な実装)
+        % =====================================================================
+        function val = de_boor_eval(p, knots, P, u)
+            n = size(P, 2);
+            if u >= 1.0
+                val = P(:, n);
+                return;
+            end
+            if u <= 0.0
+                val = P(:, 1);
+                return;
+            end
+            
+            % ノットスパン k の探索 (knots(k) <= u < knots(k+1))
+            k = find(knots(1:end-1) <= u & u < knots(2:end), 1, 'last');
+            if isempty(k), k = p + 1; end
+            
+            % de Boor 三角形テーブルの初期化
+            d = zeros(3, p + 1);
+            for j = 0:p
+                idx = k - p + j;
+                idx = max(1, min(n, idx));
+                d(:, j + 1) = P(:, idx);
+            end
+            
+            % 凸結合の階層更新
+            for r = 1:p
+                for j = p:-1:r
+                    idx = k - p + j;
+                    denom = knots(idx + p - r + 1) - knots(idx);
+                    if abs(denom) > 1e-12
+                        alpha = (u - knots(idx)) / denom;
+                    else
+                        alpha = 0.0;
+                    end
+                    d(:, j + 1) = (1.0 - alpha) * d(:, j) + alpha * d(:, j + 1);
+                end
+            end
+            val = d(:, p + 1);
         end
     end
 end
