@@ -18,7 +18,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
         % モジュール別フラグ (上記が 1 のときに個別で OFF にしたい場合に使用)
         % ---------------------------------------------------------------------
         LOG_SENSOR    = 0;         % センサ検知ログ
-        LOG_TRIGGER    = 1;        % 回避開始判定 & O_rel 確定ログ (重要)
+        LOG_TRIGGER    = 0;        % 回避開始判定 & O_rel 確定ログ (重要)
         LOG_PHASE1        = 1;     % Phase 1: C6 B-spline 生成・検証ログ
 
         USE_SPHERE_APPROX = 0;     % 1: 外接球高速判定 (推奨・0.1ms級), 0: 楕円体厳密判定 (反復法)
@@ -53,7 +53,19 @@ classdef REPLANNING_BSPLINE_NEW < handle
         r_drone           = 0.5;   % 機体等価球半径 [m]
         r_load            = 0.5;   % 荷物球半径 [m]
         r_cable           = 0.5;   % 索保護球半径 [m]
-        
+
+        % --- Phase 1: C6 B-spline パラメータ & 内部モデルキャッシュ ---
+        bspline_p            = 7;     % 次数 p = 7 (C6 連続)
+        N_ctrl_pts           = 18;    % 全制御点数 (7 + 4 + 7 = 18)
+        N_fixed_start        = 7;     % 始端固定制御点数 (P1 ~ P7)
+        N_free               = 4;     % 自由制御点数 (P8 ~ P11)
+        N_fixed_end          = 7;     % 終端固定制御点数 (P12 ~ P18)
+        n_z                  = 12;    % 自由変数 z の次元数 (4点 × 3軸)
+        t_replan_horizon     = 5.0;   % 計画ホライズン T_plan [s]
+        current_bspline      = [];    % Phase 1 B-spline モデル構造体キャッシュ
+        phase1_template      = [];    % 事前計算キャッシュ (ノット・境界行列 Bs, Be) (★追加)
+        eval_time_buffer     = struct('t', 0.0, 'dt', 0.025); % 未来公称軌道取得用バッファ (★追加)
+        is_warming_up = false;     % JITウォームアップ専用フラグ
         % --- 性能プロファイリング (計測バッファ) ---
         profiling = struct( ...
             't_base_ref_ms',        0.0, ... % 公称軌道生成所要時間 [ms]
@@ -94,6 +106,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
             if isfield(opts, 'r_drone'),            obj.r_drone            = opts.r_drone;            end % 機体半径 [m]
             if isfield(opts, 'r_load'),             obj.r_load             = opts.r_load;             end % 荷物半径 [m]
             if isfield(opts, 'r_cable'),            obj.r_cable            = opts.r_cable;            end % 索球半径 [m]
+
+            if isfield(opts, 't_replan_horizon'),   obj.t_replan_horizon   = opts.t_replan_horizon;   end % (★追加)
 
             % =================================================================
             % 物理パラメータの厳格バインド (DRONE_PARAM_SUSPENDED_LOAD から直接取得)
@@ -152,6 +166,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
                 "min_dist_point", ...                % 最も近接している障害物表面までの距離 [m]
                 "detected_obstacle_count_point", ... % 15m以内で検知された障害物の総数
                 "profiling" ...                      % センサ処理各ステージの計算時間プロファイラ [ms]
+                "current_bspline", ...               % Phase 1 B-spline モデル構造体 (★追加)
             ];
             for p_name = sensor_props
                 % 未定義プロパティのみを動的に追加 (二重定義エラーを防止)
@@ -159,6 +174,9 @@ classdef REPLANNING_BSPLINE_NEW < handle
                     addprop(obj.result.state, p_name);
                 end
             end
+            % --- Phase 1 テンプレート初期化 & 親メソッド do の完全ウォームアップ ---
+            obj.init_phase1_static_template();
+            obj.warmup_phase1_jit();
             % --- 状態バッファの初期化 ---
             % 初期時刻 (t=0) における各センサ出力プロパティをデフォルト値 (NaN, false, inf) で初期化
             obj.clear_state_sensor_values(0.0);
@@ -199,7 +217,8 @@ classdef REPLANNING_BSPLINE_NEW < handle
             base_res = obj.base_ref.do(varargin{:}); % 公称目標軌道の計算実行
             xd_nom = base_res.state.xd; % 公称目標状態ベクトル (28×1 など)
             obj.profiling.t_base_ref_ms = toc(t_base_start) * 1000.0; % 公称目標軌道の計算に要した時間 [ms] をプロファイラに記録
-            obj.profiling.t_pred_eval_total_ms = 0.0; % 将来予測時間のバッファリセット (★追加)
+            obj.profiling.t_pred_eval_total_ms = 0.0; % 将来予測時間のバッファリセット
+            obj.profiling.t_phase1_build_ms    = 0.0; % Phase 1 構築時間のバッファリセット (★追加)
             % 前回ステップの検知プロパティ値をクリア（初期化）
             obj.clear_state_sensor_values(time.t);
 
@@ -279,11 +298,54 @@ classdef REPLANNING_BSPLINE_NEW < handle
             end
 
             % =================================================================
+            % 3. [Phase 1] 毎周期無条件 B-spline 生成 (定常 0.03ms 級)
+            % =================================================================
+            t_p1_start = tic;
+            T_plan = obj.t_replan_horizon;
+            t_now  = time.t;
+            
+            % (a) 始端境界条件 (現在時刻)
+            D_start = obj.extract_phase1_boundary(xd_nom);
+            
+            % (b) 終端境界条件 (t_now + T_plan の公称軌道)
+            xd_end = obj.evaluate_base_ref_at_time(t_now + T_plan, varargin);
+            D_end  = obj.extract_phase1_boundary(xd_end);
+            
+            % (c) テンプレート展開 & 事前逆行列積による境界確定
+            psi_current = xd_nom(4);
+            model = obj.build_phase1_bspline_from_template(T_plan, psi_current);
+            model = obj.set_phase1_boundary(model, D_start, D_end);
+            obj.current_bspline = model;
+            
+            obj.profiling.t_phase1_build_ms = toc(t_p1_start) * 1000.0;
+            
+            % -----------------------------------------------------------------
+            % 回避トリガー成立時のログ表示 (始端・終端 C6 全14条件の誤差診断)
+            % -----------------------------------------------------------------
+            if need_replan
+                if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_PHASE1 == 1)
+                    P_full_check = obj.assemble_phase1_control_points(model, zeros(obj.n_z, 1));
+                    err_s = zeros(7, 1);
+                    err_e = zeros(7, 1);
+                    for r_chk = 0:6
+                        ps = obj.eval_phase1_direct(model, 0.0, P_full_check, r_chk);
+                        pe = obj.eval_phase1_direct(model, 1.0, P_full_check, r_chk);
+                        err_s(r_chk + 1) = norm(ps - D_start(r_chk + 1, :)');
+                        err_e(r_chk + 1) = norm(pe - D_end(r_chk + 1, :)');
+                    end
+                    max_err_s = max(err_s);
+                    max_err_e = max(err_e);
+                    
+                    fprintf("[P1 READY] t=%.3f s | 計算:%5.3f ms | C6境界Max誤差: 始端=%.1e, 終端=%.1e\n", ...
+                        t_now, obj.profiling.t_phase1_build_ms, max_err_s, max_err_e);
+                end
+            end
+            
+            % =================================================================
             % 目標軌道出力の決定
             % =================================================================
             % 現段階では軌道回避を行わないため、公称軌道をそのまま制御目標としてバイパス出力
             xd_out = xd_nom;
-
             % =================================================================
             % 状態格納 (後段の制御器・ロガー・プランナー向け出力パッキング)
             % =================================================================
@@ -294,7 +356,6 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.p  = xd_out(1:3);     % 目標位置 [x; y; z] [m]
             st.v  = xd_out(5:7);     % 目標並進速度 [vx; vy; vz] [m/s]
             st.q  = [0; 0; xd_out(4)]; % 目標姿勢角 [roll; pitch; yaw] [rad] (yawのみ公称追従)
-
             % --- センサ検知・診断情報 ---
             st.time                          = detection.time;                          % センシング基準時刻 [s]
             st.pQ                            = detection.pQ;                            % 検知時の機体重心位置 [m]
@@ -305,10 +366,10 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.min_obstacle_id_point         = detection.min_obstacle_id_point;         % 最も近接している障害物ID
             st.min_dist_point                = detection.min_dist_point;                % 最も近接している障害物表面までの距離 [m]
             st.detected_obstacle_count_point = detection.detected_obstacle_count_point; % 検知障害物数 [個]
+            st.current_bspline               = obj.current_bspline;                     % (★追加)
             
             % --- プロファイリング情報 ---
             st.profiling                     = obj.profiling;                           % 各ステージの処理時間内訳構造体 [ms]
-
             % 最終結果構造体を呼び出し元へ返却
             result_out = obj.result;
         end
@@ -395,7 +456,149 @@ classdef REPLANNING_BSPLINE_NEW < handle
             fprintf("  - 1000回単発 tic/toc 最小/最大: %.6f ms / %.6f ms\n", min(t_samples_ms), max(t_samples_ms));
             fprintf("=======================================================================\n\n");
         end
+        % =====================================================================
+        % [Phase 1: Public Methods] 境界抽出・モデル構築・評価
+        % =====================================================================
+        function D = extract_phase1_boundary(~, xd)
+            % xd (28×1) から 7×3 境界条件行列を抽出
+            % 各行: [p; p_dot; p_ddot; p^(3); ...; p^(6)]
+            D = zeros(7, 3);
+            for r = 0:6
+                idx = 4 * r + (1:3);
+                D(r + 1, :) = xd(idx).';
+            end
+        end
+
+        function xd_eval = evaluate_base_ref_at_time(obj, t_eval, base_varargin)
+            % 毎周期の struct 生成を排除し、数値を書き換えるだけにする
+            obj.eval_time_buffer.t = t_eval;
+            if ~isempty(base_varargin) && (isprop(base_varargin{1}, 'dt') || isfield(base_varargin{1}, 'dt'))
+                obj.eval_time_buffer.dt = base_varargin{1}.dt;
+            end
+            nom_res = obj.base_ref.do(obj.eval_time_buffer, base_varargin{2:end});
+            xd_eval = nom_res.state.xd;
+        end
+
+        function model = init_phase1_bspline_model(obj, T_plan, psi_cur)
+            % Phase 1 用 B-spline 設定構造体の初期化
+            model.p             = obj.bspline_p;
+            model.N_ctrl        = obj.N_ctrl_pts;
+            model.N_fixed_start = obj.N_fixed_start;
+            model.N_free        = obj.N_free;
+            model.N_fixed_end   = obj.N_fixed_end;
+            model.n_z           = obj.n_z;
+            model.T             = T_plan;
+            model.psi_current   = psi_cur;
+
+            % Clamped ノットベクトル (端点多重度 p+1 = 8)
+            m_internal = model.N_ctrl - model.p;
+            internal_knots = linspace(0.0, 1.0, m_internal + 1);
+            model.knots = [zeros(1, model.p + 1), internal_knots(2:end-1), ones(1, model.p + 1)];
+
+            % 始端・終端境界条件行列の厳密評価
+            B_s = zeros(model.p, model.N_fixed_start);
+            B_e = zeros(model.p, model.N_fixed_end);
+            for r = 0:(model.p - 1)
+                dN_s = obj.eval_phase1_basis_derivative_all(0.0, model.knots, model.p, model.N_ctrl, r);
+                dN_e = obj.eval_phase1_basis_derivative_all(1.0, model.knots, model.p, model.N_ctrl, r);
+                B_s(r + 1, :) = dN_s(1:model.N_fixed_start);
+                B_e(r + 1, :) = dN_e((model.N_ctrl - model.N_fixed_end + 1):model.N_ctrl);
+            end
+
+            model.B_start = B_s;
+            model.B_end   = B_e;
+            model.P_fixed = zeros(model.N_ctrl, 3);
+        end
+
+        function model = set_phase1_boundary(~, model, D_start, D_end)
+            scale_vec = (model.T .^ (0:model.p-1))'; % [7 x 1]
+            U_start = D_start .* scale_vec;
+            U_end   = D_end   .* scale_vec;
+
+            % 事前キャッシュされた逆行列との純粋な行列積 (高速・ジッタなし)
+            P_start = model.B_start_inv * U_start;
+            P_end   = model.B_end_inv   * U_end;
+
+            model.P_fixed = zeros(model.N_ctrl, 3);
+            model.P_fixed(1:model.N_fixed_start, :) = P_start;
+            model.P_fixed((model.N_ctrl - model.N_fixed_end + 1):model.N_ctrl, :) = P_end;
+        end
+
+        function [P0_r, M_r] = get_phase1_affine_map(obj, model, u, r)
+            % 任意正規化時刻 u における r 階微分のアフィン写像取得: P^(r)(u) = P0_r + M_r * z
+            dN = obj.eval_phase1_basis_derivative_all(u, model.knots, model.p, model.N_ctrl, r);
+            t_scale = 1.0 / (model.T^r);
+            dN_scaled = dN * t_scale;
+
+            P0_r = (dN_scaled * model.P_fixed)';
+            dN_free = dN_scaled(8:11);
+
+            M_r = zeros(3, 12);
+            M_r(1, 1:4)  = dN_free;
+            M_r(2, 5:8)  = dN_free;
+            M_r(3, 9:12) = dN_free;
+        end
+
+        function P_full = assemble_phase1_control_points(~, model, z)
+            % 12次元自由変数 z を全18制御点配列 [18 x 3] に復元
+            P_full = model.P_fixed;
+            P_full(8:11, 1) = z(1:4);
+            P_full(8:11, 2) = z(5:8);
+            P_full(8:11, 3) = z(9:12);
+        end
+
+        function val = eval_phase1_direct(obj, model, u, P_ctrl, r)
+            % 制御点列 P_ctrl から直接 r 階微分値を評価
+            dN = obj.eval_phase1_basis_derivative_all(u, model.knots, model.p, model.N_ctrl, r);
+            t_scale = 1.0 / (model.T^r);
+            val = (dN * P_ctrl)' * t_scale;
+        end
+        % % =====================================================================
+        % % init_phase1_static_template: ノットおよび境界行列 Bs, Be の事前キャッシュ
+        % % =====================================================================
+
+        function init_phase1_static_template(obj)
+            tmpl.p             = obj.bspline_p;
+            tmpl.N_ctrl        = obj.N_ctrl_pts;
+            tmpl.N_fixed_start = obj.N_fixed_start;
+            tmpl.N_free        = obj.N_free;
+            tmpl.N_fixed_end   = obj.N_fixed_end;
+            tmpl.n_z           = obj.n_z;
+
+            % Clamped ノットベクトル (端点多重度 p+1 = 8)
+            m_internal = tmpl.N_ctrl - tmpl.p;
+            internal_knots = linspace(0.0, 1.0, m_internal + 1);
+            tmpl.knots = [zeros(1, tmpl.p + 1), internal_knots(2:end-1), ones(1, tmpl.p + 1)];
+
+            % 境界行列 Bs (7×7), Be (7×7) の事前計算と逆行列キャッシュ
+            B_s = zeros(tmpl.p, tmpl.N_fixed_start);
+            B_e = zeros(tmpl.p, tmpl.N_fixed_end);
+            for r = 0:(tmpl.p - 1)
+                dN_s = obj.eval_phase1_basis_derivative_all(0.0, tmpl.knots, tmpl.p, tmpl.N_ctrl, r);
+                dN_e = obj.eval_phase1_basis_derivative_all(1.0, tmpl.knots, tmpl.p, tmpl.N_ctrl, r);
+                B_s(r + 1, :) = dN_s(1:tmpl.N_fixed_start);
+                B_e(r + 1, :) = dN_e((tmpl.N_ctrl - tmpl.N_fixed_end + 1):tmpl.N_ctrl);
+            end
+
+            % オンラインでの \ 解法を排除するため、逆行列を事前保持
+            tmpl.B_start_inv = inv(B_s);
+            tmpl.B_end_inv   = inv(B_e);
+
+            obj.phase1_template = tmpl;
+        end
+
+        % =====================================================================
+        % build_phase1_bspline_from_template: テンプレートからモデルを瞬時構築
+        % =====================================================================
+        function model = build_phase1_bspline_from_template(obj, T_plan, psi_cur)
+            model = obj.phase1_template;
+            model.T = T_plan;
+            model.psi_current = psi_cur;
+            model.P_fixed = zeros(model.N_ctrl, 3);
+        end
     end
+
+    
 
     methods (Access = private)
         % =====================================================================
@@ -675,6 +878,18 @@ classdef REPLANNING_BSPLINE_NEW < handle
             end
         end
 
+        function d_min = calc_system_exact_dist(obj, pL, pQ, c, r, R)
+            dQ = obj.point_ellipsoid_signed_distance_fast(pQ, c, r, R) - obj.r_drone;
+            dL = obj.point_ellipsoid_signed_distance_fast(pL, c, r, R) - obj.r_load;
+            dC = inf;
+            for sc = obj.s_cable_ratios
+                pC = (1.0 - sc) * pL + sc * pQ;
+                d_pt = obj.point_ellipsoid_signed_distance_fast(pC, c, r, R) - obj.r_cable;
+                if d_pt < dC, dC = d_pt; end
+            end
+            d_min = min([dQ, dL, dC]);
+        end
+
         % =====================================================================
         % point_to_segment_dist: 点 p と 線分 [a, b] の幾何的最短ユークリッド距離
         % ---------------------------------------------------------------------
@@ -799,6 +1014,142 @@ classdef REPLANNING_BSPLINE_NEW < handle
                 d = d_abs;
             end
         end
+        % =====================================================================
+        % [Phase 1: Private Methods] 正準 Cox-de Boor 基底関数 & 解析微分
+        % =====================================================================
+        function dN = eval_phase1_basis_derivative_all(obj, u, knots, p, N_ctrl, r)
+            if u <= 0.0
+                dN = zeros(1, N_ctrl);
+                dN(1:p+1) = obj.eval_phase1_basis_deriv_local(0.0, knots, p, p+1, r);
+                return;
+            elseif u >= 1.0
+                dN = zeros(1, N_ctrl);
+                dN((N_ctrl - p):N_ctrl) = obj.eval_phase1_basis_deriv_local(1.0, knots, p, N_ctrl, r);
+                return;
+            end
+
+            span = obj.find_phase1_span(u, knots, p, N_ctrl);
+            local_vals = obj.eval_phase1_basis_deriv_local(u, knots, p, span, r);
+
+            dN = zeros(1, N_ctrl);
+            dN((span - p):span) = local_vals;
+        end
+
+        function dN_local = eval_phase1_basis_deriv_local(obj, u, knots, p, span, r)
+            if r == 0
+                dN_local = obj.eval_phase1_basis_local(u, knots, p, span);
+                return;
+            end
+            if r > p
+                dN_local = zeros(1, p + 1);
+                return;
+            end
+
+            M_loc = eye(p + 1);
+            cur_p = p;
+            for s = 1:r
+                cur_len = p + 2 - s;
+                D_step = zeros(cur_len - 1, cur_len);
+                for i = 1:(cur_len - 1)
+                    idx = span - cur_p + i;
+                    denom = knots(idx + cur_p) - knots(idx);
+                    if denom > 1e-15
+                        D_step(i, i)     = -cur_p / denom;
+                        D_step(i, i + 1) =  cur_p / denom;
+                    end
+                end
+                M_loc = D_step * M_loc;
+                cur_p = cur_p - 1;
+            end
+            N_low = obj.eval_phase1_basis_local(u, knots, cur_p, span);
+            dN_local = N_low * M_loc;
+        end
+
+        function N_local = eval_phase1_basis_local(~, u, knots, p, span)
+            N_local = zeros(1, p + 1);
+            left = zeros(1, p + 1);
+            right = zeros(1, p + 1);
+            N_local(1) = 1.0;
+            for j = 1:p
+                left(j + 1)  = u - knots(span + 1 - j);
+                right(j + 1) = knots(span + j) - u;
+                saved = 0.0;
+                for r_idx = 0:(j - 1)
+                    denom = right(r_idx + 2) + left(j - r_idx + 1);
+                    if denom > 1e-15
+                        temp = N_local(r_idx + 1) / denom;
+                        N_local(r_idx + 1) = saved + right(r_idx + 2) * temp;
+                        saved = left(j - r_idx + 1) * temp;
+                    else
+                        N_local(r_idx + 1) = saved;
+                        saved = 0.0;
+                    end
+                end
+                N_local(j + 1) = saved;
+            end
+        end
+
+        function span = find_phase1_span(~, u, knots, p, N_ctrl)
+            if u >= knots(N_ctrl + 1)
+                span = N_ctrl;
+                return;
+            end
+            if u <= knots(p + 1)
+                span = p + 1;
+                return;
+            end
+            low = p + 1;
+            high = N_ctrl + 1;
+            mid = floor((low + high) / 2);
+            while (u < knots(mid) || u >= knots(mid + 1))
+                if u < knots(mid)
+                    high = mid;
+                else
+                    low = mid;
+                end
+                mid = floor((low + high) / 2);
+            end
+            span = mid;
+        end
+        % =====================================================================
+        % warmup_phase1_jit: JIT 最適化を初回に完了させ実行遅延を排除
+        % =====================================================================
+        % function warmup_phase1_jit(obj)
+        %     % ダミーパラメータで Phase 1 の主要処理を空回し実行
+        %     dummy_model = obj.build_phase1_bspline_from_template(5.0, 0.0);
+        %     D_dummy = zeros(7, 3);
+        %     dummy_model = obj.set_phase1_boundary(dummy_model, D_dummy, D_dummy);
+        %     z_dummy = zeros(obj.n_z, 1);
+        %     P_dummy = obj.assemble_phase1_control_points(dummy_model, z_dummy);
+        % 
+        %     % 主要評価関数をコンパイル
+        %     for r = 0:2
+        %         obj.eval_phase1_direct(dummy_model, 0.5, P_dummy, r);
+        %         obj.get_phase1_affine_map(dummy_model, 0.5, r);
+        %     end
+        % end
+        % =====================================================================
+        % warmup_phase1_jit: JIT 最適化を確実に完了させ、初回実行遅延を排除
+        % =====================================================================
+        % =====================================================================
+        % warmup_phase1_jit: Phase 1 内部の数値計算経路 (r = 0~6) の純粋JIT
+        % =====================================================================
+        function warmup_phase1_jit(obj)
+            % 1. ダミー入力による B-spline 境界決定パイプライン
+            dummy_model = obj.build_phase1_bspline_from_template(5.0, 0.0);
+            D_dummy = zeros(7, 3);
+            dummy_model = obj.set_phase1_boundary(dummy_model, D_dummy, D_dummy);
+
+            % 2. 自由変数 z からの 18 制御点アセンブル
+            z_dummy = zeros(obj.n_z, 1);
+            P_dummy = obj.assemble_phase1_control_points(dummy_model, z_dummy);
+
+            % 3. Phase 1 で使用する全微分次数 (r = 0~6) の直接評価およびアフィン写像構築
+            for r = 0:6
+                obj.eval_phase1_direct(dummy_model, 0.5, P_dummy, r);
+                obj.get_phase1_affine_map(dummy_model, 0.5, r);
+            end
+        end
 
         % =====================================================================
         % clear_state_sensor_values: 制御周期開始時のセンサ状態バッファ初期化
@@ -821,6 +1172,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
             st.min_obstacle_id_point         = NaN;               % 未定義
             st.min_dist_point                = inf;               % 距離無限大
             st.detected_obstacle_count_point = 0;                 % 0個
+            st.current_bspline               = [];                % (★追加)
         end
     end
 end
