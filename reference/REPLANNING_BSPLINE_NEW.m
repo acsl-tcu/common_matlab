@@ -61,7 +61,7 @@ classdef REPLANNING_BSPLINE_NEW < handle
         N_free               = 4;     % 自由制御点数 (P8 ~ P11)
         N_fixed_end          = 7;     % 終端固定制御点数 (P12 ~ P18)
         n_z                  = 12;    % 自由変数 z の次元数 (4点 × 3軸)
-        t_replan_horizon     = 5.0;   % 計画ホライズン T_plan [s]
+        t_replan_horizon     = 5.0;   % 計画ホライズン T_plan [s] これについては今後は固定値ではなく動かしていく　構想
         current_bspline      = [];    % Phase 1 B-spline モデル構造体キャッシュ
         phase1_template      = [];    % 事前計算キャッシュ (ノット・境界行列 Bs, Be) (★追加)
         eval_time_buffer     = struct('t', 0.0, 'dt', 0.025); % 未来公称軌道取得用バッファ (★追加)
