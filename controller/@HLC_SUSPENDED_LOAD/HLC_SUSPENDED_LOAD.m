@@ -66,6 +66,10 @@ classdef HLC_SUSPENDED_LOAD < handle
             F2 = Param.F2; % x方向サブシステムのゲイン
             F3 = Param.F3; % y方向サブシステムのゲイン
             F4 = Param.F4; % yaw方向サブシステムのゲイン
+            obj.result.gain.F1=F1;
+            obj.result.gain.F2=F2;
+            obj.result.gain.F3=F3;
+            obj.result.gain.F4=F4;
 
             vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); % 実験で刻み時間が変わったときに対応
             vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); % 第二層x,y,yawサブシステムの仮想入力の計算

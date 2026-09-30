@@ -52,15 +52,15 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[0,0,0]},6})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[10;10;3.0], "t_go",10.0, "t_hold",5.0, "t_back",10.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Hinf_Suspended_Load(dt,agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Hinf_Suspended_Load(dt,agent)));
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -75,7 +75,7 @@ function post(app)
 close all
 % シミュレーション終了後の結果表示とアニメーション作成。
 % app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-app.logger.plot({{1, "p", "r"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
+app.logger.plot({{1, "p", "r"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","f");
 % app.logger.plot({1, "p1-p2", "er"},"phase","f", "fig_num",300);
 % app.logger.plot({1, "state.mL", "e"},"phase","f");
 %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
@@ -92,7 +92,7 @@ app.logger.plot({1, "input",""}, "phase","tf", "fig_num",5); % 制御入力: Thr
 % app.logger.plot({{1, "controller.result.after_notch2:3",""},{1,"controller.result.real2:3",""}}, "phase","f", "fig_num",1000); 
 % app.logger.plot({1, "controller.result.chirp_roll",""},"phase","f", "fig_num",4000);
 % app.logger.plot({1, "controller.result.chirp_pitch",""},"phase","f", "fig_num",5000);
-app.logger.plot({1, "controller.result.chirp",""},"phase","f", "fig_num",5000);
+% app.logger.plot({1, "controller.result.chirp",""},"phase","f", "fig_num",5000);
 % disp_rmse(app.logger, "f")
 
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
@@ -129,7 +129,7 @@ t_all = app.logger.Data.t(1:app.logger.k);
 
 % disp_bode(app.logger, [2.975, 48.600])
 % disp_bode_idx(app.logger, idx_f_clean)
-disp_bode_simple(app.logger, "f")
+% disp_bode_simple(app.logger, "f")
 
 
 
