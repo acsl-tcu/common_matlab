@@ -4,7 +4,8 @@ function [U_val, A_val, B_val, P_val, result] = ...
 
     %% 初期値
     rho_bar   = 0.99;
-    max_iter  = 30;
+    % max_iter  = 30;
+    max_iter = 14;
     tolerance = 1e-5;
 
     %% リフト
@@ -110,8 +111,9 @@ function [U_val, A_val, B_val, P_val, result] = ...
 
 
     % 固有値を記録するiteration
-    eig_save_iters = [1, 30];
-    
+    % eig_save_iters = [1, 30];
+        eig_save_iters = [1, 14];
+
     % 各iterationの固有値
     eigenvalue_history = complex(nan(p_theta, length(eig_save_iters)));
 

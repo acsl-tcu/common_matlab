@@ -1,0 +1,43 @@
+========== 実験メモ ==========
+作成日時 : 2026/09/30 15:47:21
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+A02_ciecle_errore018_Log(10-Sep-2026_12_57_27).mat
+A02_circle_errore02_2_Log(10-Sep-2026_11_27_21).mat
+A02_circle_errore02_Log(10-Sep-2026_10_45_30).mat
+A02_lemni_errore018_Log(10-Sep-2026_13_03_09).mat
+A02_lemni_errore02_2_Log(10-Sep-2026_11_25_58).mat
+A02_lemni_errore02_Log(10-Sep-2026_10_51_08).mat
+A02_saddle_errore018_Log(10-Sep-2026_12_55_58).mat
+A02_saddle_errore02_2_Log(10-Sep-2026_12_53_22).mat
+A02_saddle_errore02_Log(10-Sep-2026_11_00_28).mat
+A02_square_errore018_Log(10-Sep-2026_13_04_37).mat
+A02_square_errore02_2_Log(10-Sep-2026_12_45_01).mat
+A02_square_errore02_Log(10-Sep-2026_10_53_38).mat
+HL_data_for_KL_inv_circle_2_Log(29-Sep-2026_10_30_30).mat
+HL_data_for_KL_inv_circle_3_Log(29-Sep-2026_10_31_40).mat
+HL_data_for_KL_inv_circle_Log(28-Sep-2026_13_52_16).mat
+HL_data_for_KL_inv_circle_reiki_2_Log(29-Sep-2026_10_33_39).mat
+HL_data_for_KL_inv_circle_reiki_3_Log(29-Sep-2026_10_35_50).mat
+HL_data_for_KL_inv_circle_reikiari_Log(28-Sep-2026_15_39_18).mat
+HL_data_for_kl_circle_only_errore02_1_Log(30-Sep-2026_12_34_01).mat
+HL_data_for_kl_circle_only_errore02_2_Log(30-Sep-2026_13_26_29).mat
+HL_data_for_kl_circle_only_errore02_3_Log(30-Sep-2026_13_27_49).mat
+HL_data_for_kl_inv_circle_only_errore02_1_Log(30-Sep-2026_13_32_09).mat
+HL_data_for_kl_inv_circle_only_errore02_2_Log(30-Sep-2026_13_44_37).mat
+HL_data_for_kl_inv_circle_only_errore02_3_Log(30-Sep-2026_13_57_03).mat
+HL_data_for_kl_inv_lemni_Log(29-Sep-2026_10_25_52).mat
+HL_data_for_kl_inv_lemnni_only_errore02_1_Log(30-Sep-2026_14_04_45).mat
+HL_data_for_kl_inv_lemnni_only_errore02_2_Log(30-Sep-2026_14_05_19).mat
+HL_data_for_kl_inv_lemnni_only_errore02_3_Log(30-Sep-2026_14_11_05).mat
+HL_data_for_kl_inv_ｌemni_reiki_Log(29-Sep-2026_10_16_59).mat
+HL_data_for_kl_lemni_2_Log(29-Sep-2026_15_55_03).mat
+HL_data_for_kl_lemni_3_Log(29-Sep-2026_16_12_27).mat
+HL_data_for_kl_lemni_reiki_3_Log(29-Sep-2026_16_17_25).mat
+HL_data_for_kl_lemni_reiki_Log(29-Sep-2026_09_35_39).mat
+HL_data_for_kl_lemnni_only_errore02_1_Log(30-Sep-2026_13_59_18).mat
+HL_data_for_kl_lemnni_only_errore02_2_Log(30-Sep-2026_14_00_50).mat
+HL_data_for_kl_lemnni_only_errore02_3_Log(30-Sep-2026_14_01_49).mat
+LYKL回数 : 14

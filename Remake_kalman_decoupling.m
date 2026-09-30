@@ -33,16 +33,16 @@ if size(B,1) ~= n || size(C,2) ~= n
     error('A,B,Cの状態次元が一致していません。');
 end
 
-%% 2. 設定
-% 定数特徴1の添字を、A,Bの行構造から自動検出する。
-% 定数特徴の行は、理想的には A(i,:)=e_i' かつ B(i,:)=0 である。
-% 推定誤差を考慮し、以下は相対残差の許容値とする。
+%% 
+% 定数特徴1の添字を、A,Bの行構造から検出する。
+% 定数特徴の行は、理想的には A(i,:)=e_i' かつ B(i,:)=0 だけど
+% 推定誤差ある可能性ありで，相対残差の許容値とする。
 constantStructureTol = 1e-6;
 [const_idx, constDetect] = local_find_constant_idx(A, B, constantStructureTol);
 fprintf('自動検出した定数特徴の状態添字 const_idx = %d\n', const_idx);
 if isfield(est, 'const_idx') && est.const_idx ~= const_idx
     warning('est.const_idx=%d と自動検出結果=%d が一致しません。', ...
-            est.const_idx, const_idx);
+        est.const_idx, const_idx);
 end
 
 if numel(const_idx) ~= 1 || const_idx < 1 || const_idx > n || const_idx ~= round(const_idx)
@@ -74,7 +74,7 @@ fprintf('const_idx = %d\n', const_idx);
 fprintf('||A(const_idx,:)-e_const|| = %.3e\n', constRowResidual);
 fprintf('||B(const_idx,:)||         = %.3e\n', constInputResidual);
 fprintf(['この条件はx_const(k+1)=x_const(k)かつ、入力が定数特徴を直接変化させないことを表す。\n' ...
-         'A(dyn_idx,const_idx)が非零でも構造としては成立する。\n']);
+    'A(dyn_idx,const_idx)が非零でも構造としては成立する。\n']);
 
 if constRowResidual > constantStructureTol || constInputResidual > constantStructureTol
     warning('定数特徴の構造残差が大きいです。const_idxまたは推定モデルを確認してください。');
@@ -93,8 +93,8 @@ end
 fprintf('rho(A_dyn)       = %.6g\n', rhoAd);
 fprintf('rcond(I-A_dyn)   = %.3e\n', rcond(eye(nd)-Ad));
 
-%% 4. dynamic部分のカルマン4分解
-% full 26次元のctrbでは、定数モードが数値誤差で可制御に見えることがある。
+%% 4. dynamic部分のカルマン分解
+% full 26次元のctrbでは、定数モードが数値誤差で可制御に見えることがあるらしい
 % そこで定数特徴を除いたdynamic部分で部分空間を計算する。
 Mcd = ctrb(Ad, Bd);
 Mod = obsv(Ad, Cd);
@@ -126,7 +126,7 @@ fprintf('Xd: 不可制御・不可観測 = %d\n', size(Xd_d,2));
 
 %% 5. 固有値1の真の右固有ベクトルを追加
 % A=[Ad Adc; 0 1] なので、v=[vd;1]についてAv=vとなるvdは
-% (I-Ad)*vd=Adcを満たす。
+% (I-Ad)*vd=Adcを満たすっぽい
 vd = (eye(nd)-Ad) \ Adc;
 v = zeros(n,1);
 v(dyn_idx) = vd;
@@ -328,144 +328,144 @@ function [idx, info] = local_find_constant_idx(A, B, tol)
 % rank(ctrb(A,B))は使用しない。推定誤差で定数モードが可制御に
 % 見える場合でも、定数特徴の座標行そのものを検出できる。
 
-    n = size(A,1);
-    scaleA = max(1, norm(A,'fro'));
-    scaleB = max(1, norm(B,'fro'));
-    rowResidualA = zeros(n,1);
-    rowResidualB = zeros(n,1);
+n = size(A,1);
+scaleA = max(1, norm(A,'fro'));
+scaleB = max(1, norm(B,'fro'));
+rowResidualA = zeros(n,1);
+rowResidualB = zeros(n,1);
 
-    for i = 1:n
-        ei = zeros(1,n);
-        ei(i) = 1;
-        rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
-        rowResidualB(i) = norm(B(i,:)) / scaleB;
+for i = 1:n
+    ei = zeros(1,n);
+    ei(i) = 1;
+    rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
+    rowResidualB(i) = norm(B(i,:)) / scaleB;
+end
+
+score = max(rowResidualA, rowResidualB);
+[bestScore, idx] = min(score);
+candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+
+fprintf('\n===== 定数特徴の自動検出 =====\n');
+fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
+    idx, rowResidualA(idx), rowResidualB(idx), bestScore);
+
+if isempty(candidates) || bestScore > tol
+    [~, order] = sort(score, 'ascend');
+    top = order(1:min(5,n));
+    fprintf('候補上位のscore:\n');
+    for j = 1:numel(top)
+        q = top(j);
+        fprintf('  i=%d: %.3e\n', q, score(q));
     end
+    error(['定数特徴を自動検出できませんでした。' ...
+        'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
+end
 
-    score = max(rowResidualA, rowResidualB);
-    [bestScore, idx] = min(score);
-    candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+if numel(candidates) > 1
+    warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
+        mat2str(candidates(:)'));
+end
 
-    fprintf('\n===== 定数特徴の自動検出 =====\n');
-    fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
-        idx, rowResidualA(idx), rowResidualB(idx), bestScore);
-
-    if isempty(candidates) || bestScore > tol
-        [~, order] = sort(score, 'ascend');
-        top = order(1:min(5,n));
-        fprintf('候補上位のscore:\n');
-        for j = 1:numel(top)
-            q = top(j);
-            fprintf('  i=%d: %.3e\n', q, score(q));
-        end
-        error(['定数特徴を自動検出できませんでした。' ...
-               'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
-    end
-
-    if numel(candidates) > 1
-        warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
-            mat2str(candidates(:)'));
-    end
-
-    info = struct('candidates',candidates, ...
-                  'rowResidualA',rowResidualA, ...
-                  'rowResidualB',rowResidualB, ...
-                  'score',score, ...
-                  'bestScore',bestScore);
+info = struct('candidates',candidates, ...
+    'rowResidualA',rowResidualA, ...
+    'rowResidualB',rowResidualB, ...
+    'score',score, ...
+    'bestScore',bestScore);
 end
 
 function [Q,s,r] = local_range_svd(M,relTol)
-    nrow = size(M,1);
-    ncol = size(M,2);
-    if ncol == 0
-        Q = zeros(nrow,0);
-        s = zeros(0,1);
-        r = 0;
-        return;
-    end
-    [U,S,~] = svd(M,'econ');
-    s = diag(S);
-    if isempty(s) || max(s) == 0
-        Q = zeros(nrow,0);
-        r = 0;
-        return;
-    end
-    r = sum(s > relTol*max(s));
-    Q = U(:,1:r);
+nrow = size(M,1);
+ncol = size(M,2);
+if ncol == 0
+    Q = zeros(nrow,0);
+    s = zeros(0,1);
+    r = 0;
+    return;
+end
+[U,S,~] = svd(M,'econ');
+s = diag(S);
+if isempty(s) || max(s) == 0
+    Q = zeros(nrow,0);
+    r = 0;
+    return;
+end
+r = sum(s > relTol*max(s));
+Q = U(:,1:r);
 end
 
 function [N,s,r] = local_null_svd(M,relTol)
-    ncol = size(M,2);
-    if ncol == 0
-        N = zeros(0,0);
-        s = zeros(0,1);
-        r = 0;
-        return;
-    end
-    % MATLABでは 'full' はsvdの有効なオプションではない。
-    % オプションなしのsvd(M)が完全SVDを返す。
-    [~,S,V] = svd(M);
-    s = diag(S);
-    if isempty(s) || max(s) == 0
-        r = 0;
-        N = V;
-        return;
-    end
-    r = sum(s > relTol*max(s));
-    N = V(:,r+1:end);
+ncol = size(M,2);
+if ncol == 0
+    N = zeros(0,0);
+    s = zeros(0,1);
+    r = 0;
+    return;
+end
+% MATLABでは 'full' はsvdの有効なオプションではない。
+% オプションなしのsvd(M)が完全SVDを返す。
+[~,S,V] = svd(M);
+s = diag(S);
+if isempty(s) || max(s) == 0
+    r = 0;
+    N = V;
+    return;
+end
+r = sum(s > relTol*max(s));
+N = V(:,r+1:end);
 end
 
 function V = local_embed(Vd,dyn_idx,n)
-    V = zeros(n,size(Vd,2));
-    V(dyn_idx,:) = Vd;
+V = zeros(n,size(Vd,2));
+V(dyn_idx,:) = Vd;
 end
 
 function e = local_block_eigs(F,idx)
-    if isempty(idx)
-        e = zeros(0,1);
-    else
-        e = eig(F(idx,idx));
-    end
+if isempty(idx)
+    e = zeros(0,1);
+else
+    e = eig(F(idx,idx));
+end
 end
 
 function residual = local_block_lower_residual(M,dims)
-    residual = 0;
-    starts = cumsum([1,dims(1:end-1)]);
-    for i = 2:numel(dims)
-        rows = starts(i):(starts(i)+dims(i)-1);
-        if isempty(rows)
+residual = 0;
+starts = cumsum([1,dims(1:end-1)]);
+for i = 2:numel(dims)
+    rows = starts(i):(starts(i)+dims(i)-1);
+    if isempty(rows)
+        continue;
+    end
+    for j = 1:(i-1)
+        cols = starts(j):(starts(j)+dims(j)-1);
+        if isempty(cols)
             continue;
         end
-        for j = 1:(i-1)
-            cols = starts(j):(starts(j)+dims(j)-1);
-            if isempty(cols)
-                continue;
-            end
-            residual = max(residual,norm(M(rows,cols),'fro'));
-        end
+        residual = max(residual,norm(M(rows,cols),'fro'));
     end
+end
 end
 
 function local_print_spectrum(name,e)
-    if isempty(e)
-        fprintf('%s: なし\n',name);
-        return;
-    end
-    if all(abs(e)<1)
-        stableText = 'YES';
-    else
-        stableText = 'NO';
-    end
-    fprintf('%s: %d個, max|lambda|=%.6g, 単位円内=%s\n', ...
-        name,numel(e),max(abs(e)),stableText);
-    disp(e(:));
+if isempty(e)
+    fprintf('%s: なし\n',name);
+    return;
+end
+if all(abs(e)<1)
+    stableText = 'YES';
+else
+    stableText = 'NO';
+end
+fprintf('%s: %d個, max|lambda|=%.6g, 単位円内=%s\n', ...
+    name,numel(e),max(abs(e)),stableText);
+disp(e(:));
 end
 
 function local_plot_category(e,color,marker,labelText)
-    if isempty(e)
-        return;
-    end
-    plot(real(e),imag(e),'LineStyle','none','Marker',marker, ...
-        'MarkerEdgeColor',color,'MarkerFaceColor','none', ...
-        'LineWidth',1.5,'MarkerSize',9, ...
-        'DisplayName',sprintf('%s (%d)',labelText,numel(e)));
+if isempty(e)
+    return;
+end
+plot(real(e),imag(e),'LineStyle','none','Marker',marker, ...
+    'MarkerEdgeColor',color,'MarkerFaceColor','none', ...
+    'LineWidth',1.5,'MarkerSize',9, ...
+    'DisplayName',sprintf('%s (%d)',labelText,numel(e)));
 end

@@ -17,6 +17,9 @@ classdef MECKC < handle
             obj.param = param;
             obj.param.P = self.parameter.get(obj.parameter_name);
             obj.result.input = zeros(4,1);
+            % obj.result.input = zeros(self.estimator.model.dim(2),1);
+            % %これが元々のコード，modelのところでエラーが出るから上記に変更
+
             % % %%%%%%入力を振動させたいとき%%%%%%%%
             % % obj.param.A = 0.7;
             % % obj.param.f = 1;           % Hz
@@ -52,8 +55,16 @@ classdef MECKC < handle
             %---可制御部分をデカップリング---%
             % K_full=[zeros(4,24)];
             % load('koopman_common_z__gain_KD.mat','K_full');
-            % load('0708_second_new_KL_gain_KD.mat','K_full');
-            load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
+            load('0708_code_ga_genninnka_check_KL_KuDoKD.mat','K_full');
+            % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
+            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
+            % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
+            % load('exp_de_kensyou_KL_gain_KCD_LQR_check_KudouSenpainode.mat','K_full');     %remakeのカルマン正準分解でのゲイン
+
+            
+            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full');
+            % ←飛びはするがRMSEはおそらく低下
+
             % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
 
             % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
@@ -100,7 +111,8 @@ classdef MECKC < handle
                 % 励起入力
                 T_ex = A*cos(phase);
             end
-            obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
+
+            % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
             % obj.result.delta_u = 0;%unだけ確認したいとき
 
 

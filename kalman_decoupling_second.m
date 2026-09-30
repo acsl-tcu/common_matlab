@@ -1,5 +1,5 @@
 clear;
-% clc;
+clc;
 
 %%
 loadFileName = input('読み込むファイル名(.mat不要)：','s');
@@ -33,7 +33,7 @@ constantStructureTol = 1e-6;
 fprintf('自動検出した定数特徴の状態添字 const_idx = %d\n', const_idx);
 if isfield(est, 'const_idx') && est.const_idx ~= const_idx
     warning('est.const_idx=%d と自動検出結果=%d が一致しません。', ...
-            est.const_idx, const_idx);
+        est.const_idx, const_idx);
 end
 
 if numel(const_idx) ~= 1 || const_idx < 1 || const_idx > n || const_idx ~= round(const_idx)
@@ -151,7 +151,7 @@ plot_data = {
     eigs_b, [0 0 1],   's', 'Xb: 可制御・可観測';
     eigs_c, [0 0.7 0], 'd', 'Xc: 不可制御・可観測';
     eigs_d, [0.7 0 0.7],'x', 'Xd: 不可制御・不可観測'
-};
+    };
 
 h_legend = []; legend_labels = {};
 for i = 1:size(plot_data,1)
@@ -214,49 +214,49 @@ function [idx, info] = local_find_constant_idx(A, B, tol)
 % rank(ctrb(A,B))は使用しない。推定誤差で定数モードが可制御に
 % 見える場合でも、定数特徴の座標行そのものを検出できる。
 
-    n = size(A,1);
-    scaleA = max(1, norm(A,'fro'));
-    scaleB = max(1, norm(B,'fro'));
-    rowResidualA = zeros(n,1);
-    rowResidualB = zeros(n,1);
+n = size(A,1);
+scaleA = max(1, norm(A,'fro'));
+scaleB = max(1, norm(B,'fro'));
+rowResidualA = zeros(n,1);
+rowResidualB = zeros(n,1);
 
-    for i = 1:n
-        ei = zeros(1,n);
-        ei(i) = 1;
-        rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
-        rowResidualB(i) = norm(B(i,:)) / scaleB;
+for i = 1:n
+    ei = zeros(1,n);
+    ei(i) = 1;
+    rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
+    rowResidualB(i) = norm(B(i,:)) / scaleB;
+end
+
+score = max(rowResidualA, rowResidualB);
+[bestScore, idx] = min(score);
+candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+
+fprintf('\n===== 定数特徴の自動検出 =====\n');
+fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
+    idx, rowResidualA(idx), rowResidualB(idx), bestScore);
+
+if isempty(candidates) || bestScore > tol
+    [~, order] = sort(score, 'ascend');
+    top = order(1:min(5,n));
+    fprintf('候補上位のscore:\n');
+    for j = 1:numel(top)
+        q = top(j);
+        fprintf('  i=%d: %.3e\n', q, score(q));
     end
+    error(['定数特徴を自動検出できませんでした。' ...
+        'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
+end
 
-    score = max(rowResidualA, rowResidualB);
-    [bestScore, idx] = min(score);
-    candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+if numel(candidates) > 1
+    warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
+        mat2str(candidates(:)'));
+end
 
-    fprintf('\n===== 定数特徴の自動検出 =====\n');
-    fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
-        idx, rowResidualA(idx), rowResidualB(idx), bestScore);
-
-    if isempty(candidates) || bestScore > tol
-        [~, order] = sort(score, 'ascend');
-        top = order(1:min(5,n));
-        fprintf('候補上位のscore:\n');
-        for j = 1:numel(top)
-            q = top(j);
-            fprintf('  i=%d: %.3e\n', q, score(q));
-        end
-        error(['定数特徴を自動検出できませんでした。' ...
-               'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
-    end
-
-    if numel(candidates) > 1
-        warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
-            mat2str(candidates(:)'));
-    end
-
-    info = struct('candidates',candidates, ...
-                  'rowResidualA',rowResidualA, ...
-                  'rowResidualB',rowResidualB, ...
-                  'score',score, ...
-                  'bestScore',bestScore);
+info = struct('candidates',candidates, ...
+    'rowResidualA',rowResidualA, ...
+    'rowResidualB',rowResidualB, ...
+    'score',score, ...
+    'bestScore',bestScore);
 end
 
 function [Xa, Xb, Xc, Xd, k] = local_kalman_decompose(A, B, C, tol)
@@ -264,60 +264,71 @@ function [Xa, Xb, Xc, Xd, k] = local_kalman_decompose(A, B, C, tol)
 % A,B,Cが数値的に頑健な（固有値がrho_bar未満に収まっている）
 % 部分系である前提で使うこと。
 
-    n = size(A,1);
-    Mc = ctrb(A,B);
-    Mo = obsv(A,C);
+n = size(A,1);
+Mc = ctrb(A,B);
+Mo = obsv(A,C);
 
-    k = rank(Mc, tol);
+k = rank(Mc, tol);
 
-    ImMc_orth  = orth(Mc);
-    KerMo_orth = null(Mo, 'rational');
+ImMc_orth  = orth(Mc);
+KerMo_orth = null(Mo, 'rational');
 
-    T_inv = [];
+T_inv = [];
 
-    % Xa: 可制御かつ不可観測
-    if ~isempty(ImMc_orth) && ~isempty(KerMo_orth)
-        for i = 1:size(ImMc_orth,2)
-            v = ImMc_orth(:,i);
-            if norm(KerMo_orth*(KerMo_orth'*v) - v) < tol
-                if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
-                    T_inv = [T_inv, v];
-                end
-            end
-        end
+% % Xa: 可制御かつ不可観測
+% if ~isempty(ImMc_orth) && ~isempty(KerMo_orth)
+%     for i = 1:size(ImMc_orth,2)
+%         v = ImMc_orth(:,i);
+%         if norm(KerMo_orth*(KerMo_orth'*v) - v) < tol
+%             if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+%                 T_inv = [T_inv, v];
+%             end
+%         end
+%     end
+% end
+
+R = orth(Mc);
+N = null(Mo);
+
+if isempty(R) || isempty(N)
+    Xa = zeros(n,0);
+else
+    Z = null([R, -N]);
+    alpha = Z(1:size(R,2), :);
+    Xa = orth(R * alpha);
+end
+Xa = T_inv;
+
+% Xb: 可制御かつ可観測
+for i = 1:size(ImMc_orth,2)
+    v = ImMc_orth(:,i);
+    if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+        T_inv = [T_inv, v];
     end
-    Xa = T_inv;
+end
+Xb = T_inv(:, size(Xa,2)+1:size(T_inv,2));
 
-    % Xb: 可制御かつ可観測
-    for i = 1:size(ImMc_orth,2)
-        v = ImMc_orth(:,i);
-        if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
-            T_inv = [T_inv, v];
-        end
+% Xc: 不可制御かつ可観測
+for i = 1:size(KerMo_orth,2)
+    v = KerMo_orth(:,i);
+    if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
+        T_inv = [T_inv, v];
     end
-    Xb = T_inv(:, size(Xa,2)+1:size(T_inv,2));
+end
+Xc = T_inv(:, size(Xa,2)+size(Xb,2)+1:size(T_inv,2));
 
-    % Xc: 不可制御かつ可観測
-    for i = 1:size(KerMo_orth,2)
-        v = KerMo_orth(:,i);
-        if isempty(T_inv) || rank([T_inv, v]) > rank(T_inv)
-            T_inv = [T_inv, v];
-        end
-    end
-    Xc = T_inv(:, size(Xa,2)+size(Xb,2)+1:size(T_inv,2));
-
-    % Xd: 不可制御かつ不可観測（残りの直交補空間）
-    if size(T_inv,2) < n
-        Xd_new = null(T_inv');
-        T_inv = [T_inv, Xd_new];
-    end
-    Xd = T_inv(:, size(Xa,2)+size(Xb,2)+size(Xc,2)+1:end);
+% Xd: 不可制御かつ不可観測（残りの直交補空間）
+if size(T_inv,2) < n
+    Xd_new = null(T_inv');
+    T_inv = [T_inv, Xd_new];
+end
+Xd = T_inv(:, size(Xa,2)+size(Xb,2)+size(Xc,2)+1:end);
 end
 
 function V_full = local_embed(V_sub, idx, n)
 % (numel(idx) x m) の行列 V_sub を、idx行だけ埋めた (n x m) 行列に
 % ゼロ埋め込みする
-    m = size(V_sub, 2);
-    V_full = zeros(n, m);
-    V_full(idx, :) = V_sub;
+m = size(V_sub, 2);
+V_full = zeros(n, m);
+V_full(idx, :) = V_sub;
 end
