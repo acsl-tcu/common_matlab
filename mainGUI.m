@@ -47,3 +47,5 @@ else
 end
 
 app = SimExp(Setting);
+% app = SimExp_miya(Setting);
+% app.run_auto_trials(2, "MEC_same_condition");%自動くりかえし

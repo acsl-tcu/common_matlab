@@ -10,7 +10,7 @@ end
 %%
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 100; % terminal time
+te = 65; % terminal time
 time = TIME(ts,dt,te); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
 post_func = @(app) dfunc(app); % function working at the "draw button" pushed.
@@ -63,7 +63,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",-10,"center",[0;0;1],"radius",1.0},4}));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_for_hovering", {"position", [0;0;1]}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_star", {"freq",-10,"center",[0;0;1],"radius",1.0}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p", {"p0",[0;0;1],"pf",[1;1;1],"T",10}}));
@@ -76,8 +76,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
-
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}));%seedを固定すると同じ軌道，外すとランダム軌道
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;0.6]}}));%seedを固定すると同じ軌道，外すとランダム軌道
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}));%seedを固定すると同じ軌道，外すとランダム軌道
 
 
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));

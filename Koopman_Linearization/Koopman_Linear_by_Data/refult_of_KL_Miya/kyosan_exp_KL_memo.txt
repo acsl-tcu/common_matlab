@@ -1,0 +1,36 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/01 18:24:02
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+HL_Reiki_circle_Nopayload_1_Log(16-Sep-2026_14_17_36).mat
+HL_Reiki_circle_Nopayload_2_Log(16-Sep-2026_14_24_43).mat
+HL_Reiki_circle_Nopayload_3_Log(16-Sep-2026_14_26_56).mat
+HL_Reiki_fig8_Nopayload_1_Log(16-Sep-2026_14_29_19).mat
+HL_Reiki_fig8_Nopayload_2_Log(16-Sep-2026_14_31_26).mat
+HL_Reiki_fig8_Nopayload_3_Log(16-Sep-2026_14_38_41).mat
+HL_Reiki_saddle_Nopayload_1_Log(16-Sep-2026_14_56_03).mat
+HL_Reiki_saddle_Nopayload_2_Log(16-Sep-2026_14_58_23).mat
+HL_Reiki_saddle_Nopayload_3_Log(16-Sep-2026_15_02_01).mat
+HL_Reiki_spline_Nopayload_1_Log(16-Sep-2026_14_47_40).mat
+HL_Reiki_spline_Nopayload_2_Log(16-Sep-2026_14_51_15).mat
+HL_Reiki_spline_Nopayload_3_Log(16-Sep-2026_14_53_17).mat
+HL_circle_1_nopayload_Log(15-Sep-2026_15_49_22).mat
+HL_circle_1_payload143g_Log(15-Sep-2026_16_49_58).mat
+HL_circle_1_payload155g_Log(15-Sep-2026_16_55_45).mat
+HL_circle_1_payload167g_Log(15-Sep-2026_17_02_05).mat
+HL_circle_2_nopayload_Log(15-Sep-2026_15_50_50).mat
+HL_circle_3_nopayload_Log(15-Sep-2026_15_52_17).mat
+HL_fig8_1_nopayload_Log(15-Sep-2026_15_42_35).mat
+HL_fig8_1_payload143g_Log(15-Sep-2026_17_17_10).mat
+HL_fig8_2_nopayload_Log(15-Sep-2026_15_44_26).mat
+HL_fig8_3_nopayload_Log(15-Sep-2026_15_47_37).mat
+HL_saddle_1_nopayload_Log(15-Sep-2026_16_08_22).mat
+HL_saddle_1_payload143g_Log(15-Sep-2026_17_20_04).mat
+HL_saddle_2_nopayload_Log(15-Sep-2026_16_10_01).mat
+HL_saddle_3_nopayload_Log(15-Sep-2026_16_11_49).mat
+HL_spline_1_nopayload_Log(15-Sep-2026_15_55_12).mat
+HL_spline_2_nopayload_Log(15-Sep-2026_16_01_01).mat
+HL_spline_3_nopayload_Log(15-Sep-2026_16_03_52).mat
+KLでした

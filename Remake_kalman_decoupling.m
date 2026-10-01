@@ -268,7 +268,7 @@ Qc = eye(k);
 Rc = diag([1;0.1;0.1;1]);
 %=========================================
 
-Kc = dlqr(Ac,Bc,Qc,R);
+Kc = dlqr(Ac,Bc,Qc,Rc);
 K_dyn = Kc;
 
 % u=-Kc*z_c, z=T*x より、元座標のゲインは以下。
@@ -294,7 +294,12 @@ if ~exist(saveFolder,'dir')
     mkdir(saveFolder);
 end
 
-saveFileName = fullfile(saveFolder,[baseName '_gain_KCD_LQR_check.mat']);
+% 現在日時をファイル名に追加
+timeStamp = char(datetime("now",'Format','yyyyMMdd_HHmmss'));
+
+% saveFileName = fullfile(saveFolder,[baseName '_gain_KCD_LQR_check.mat']);
+saveFileName = fullfile(saveFolder, ...
+    [baseName '_gain_KCD_LQR_check_' timeStamp '.mat']);
 
 % 既存コードとの互換性のため、SをT_invという名前でも保存する。
 T_inv = S;
@@ -310,7 +315,7 @@ dims = [na nb nc nd4];
 
 save(saveFileName, ...
     'K_full','K_dyn','Kc','K_all', ...
-    'A','B','C','Ad','Bd','Cd','Ac','Bc','Qfull','Qc','R', ...
+    'A','B','C','Ad','Bd','Cd','Ac','Bc','Qfull','Qc','R', 'Rc',...
     'S','T','T_inv','F','G','H', ...
     'Xa','Xb','Xc','Xd','v','vd', ...
     'const_idx','dyn_idx','dims','relTol', ...

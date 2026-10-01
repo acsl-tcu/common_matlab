@@ -1,40 +1,76 @@
 function [ref, traj] = gen_ref_random(param)
 %GEN_REF_RANDOM パラメータを指定してランダム軌道の関数ref(t)を生成。
-%   ref = gen_ref_random;
+%
+%   ref(t) は20行N列：
+%   1:4     [position; yaw]
+%   5:8     [velocity; yaw_dot]
+%   9:12    [acceleration; yaw_ddot]
+%   13:16   [jerk; yaw_jerk]
+%   17:20   [snap; yaw_snap]
+%
+%   例：
 %   ref = gen_ref_random(T=40, seed=42, plot=false);
 %   [ref, traj] = gen_ref_random(T=32);
-%   ref(1.5) は [x; y; z; 0] の4行1列。末尾の0はyaw [rad]。
-%   ref([0 1 2]) は4行3列。時刻を列ベクトルで渡しても同じ形式。
-%   軌道はこの関数の呼び出し時に一度生成し、ref(t)で繰り返し評価。
-%   評価範囲は0 <= t <= T。T秒後の周期的な繰り返しは行わない。
-%   roll/pitch等の詳細は2番目の出力trajに格納（従来と同じ形式）。
-%   generate_random_trajectory.m を同じフォルダーに置いて使用する。
+%
+%   ref(1.5)       -> 20行1列
+%   ref([0 1 2])   -> 20行3列
 
 arguments
     % ----- 主に調整するパラメータ -----
-    param.T (1,1) double {mustBeReal,mustBeFinite,mustBePositive} = 32 % 全体の時間 [s]
-    param.n_waypoint (1,1) double {mustBeInteger,mustBeFinite,mustBeGreaterThanOrEqual(param.n_waypoint,4)} = 17 % 点数
-    param.start (3,1) double {mustBeReal,mustBeFinite} = [0; 0; 0.6] % 固定する始点 [m]
-    param.x_range (1,2) double {mustBeReal,mustBeFinite} = [-1 1]   % xの範囲 [m]
-    param.y_range (1,2) double {mustBeReal,mustBeFinite} = [-1 1]   % yの範囲 [m]
-    param.z_range (1,2) double {mustBeReal,mustBeFinite} = [0.6 1.3] % 始点を含むzの範囲 [m]
-    param.max_step (1,3) double {mustBeReal,mustBeFinite,mustBeNonnegative} = [0.5 0.5 0.2] % 各座標の最大変化量 [m]
-    param.max_angle (1,1) double {mustBeReal,mustBeFinite,mustBePositive} = 0.5 % roll/pitch上限 [rad]、pi/2未満
+    param.T (1,1) double ...
+        {mustBeReal,mustBeFinite,mustBePositive} = 32
+
+    param.n_waypoint (1,1) double ...
+        {mustBeInteger,mustBeFinite,...
+         mustBeGreaterThanOrEqual(param.n_waypoint,4)} = 17
+
+    param.start (3,1) double ...
+        {mustBeReal,mustBeFinite} = [0; 0; 0.6]
+
+    param.x_range (1,2) double ...
+        {mustBeReal,mustBeFinite} = [-1 1]
+
+    param.y_range (1,2) double ...
+        {mustBeReal,mustBeFinite} = [-1 1]
+
+    param.z_range (1,2) double ...
+        {mustBeReal,mustBeFinite} = [0.6 1.3]
+
+    param.max_step (1,3) double ...
+        {mustBeReal,mustBeFinite,mustBeNonnegative} = [0.5 0.5 0.2]
+
+    param.max_angle (1,1) double ...
+        {mustBeReal,mustBeFinite,mustBePositive} = 0.5
 
     % ----- 出力・乱数・表示の設定 -----
-    param.dt (1,1) double {mustBeReal,mustBeFinite,mustBePositive} = 0.01 % 出力周期 [s]
-    param.seed = []                 % []: 現在の乱数列、整数: 同じ軌道を再現
-    param.max_attempts (1,1) double {mustBeInteger,mustBeFinite,mustBePositive} = 10000 % 最大試行回数
-    param.plot (1,1) logical = true % 3次元図・位置と姿勢の確認図
-    param.verbose (1,1) logical = true % 検証結果の表示
+    param.dt (1,1) double ...
+        {mustBeReal,mustBeFinite,mustBePositive} = 0.01
+
+    param.seed = []
+
+    param.max_attempts (1,1) double ...
+        {mustBeInteger,mustBeFinite,mustBePositive} = 10000
+
+    param.plot (1,1) logical = true
+    param.verbose (1,1) logical = true
 end
 
-% waypointを等間隔の時刻に配置。既定値は32/(17-1)=2秒間隔。
-waypoint_interval = param.T / (param.n_waypoint - 1);
-lower_bound = [param.x_range(1), param.y_range(1), param.z_range(1)];
-upper_bound = [param.x_range(2), param.y_range(2), param.z_range(2)];
 
-% 三次スプラインの位置・姿勢制約を検証し、違反時は全点を再生成する。
+%% waypoint設定
+waypoint_interval = param.T / (param.n_waypoint - 1);
+
+lower_bound = [ ...
+    param.x_range(1), ...
+    param.y_range(1), ...
+    param.z_range(1)];
+
+upper_bound = [ ...
+    param.x_range(2), ...
+    param.y_range(2), ...
+    param.z_range(2)];
+
+
+%% ランダム軌道生成
 traj = generate_random_trajectory( ...
     'WaypointInterval', waypoint_interval, ...
     'NumWaypoints', param.n_waypoint, ...
@@ -48,27 +84,136 @@ traj = generate_random_trajectory( ...
     'MaxAttempts', param.max_attempts, ...
     'Plot', param.plot, ...
     'Verbose', param.verbose);
+
 traj.param = param;
 
-% symsは不要。生成済みのスプラインを保存した関数ハンドルを返す。
-pp = traj.ppPosition;
-final_time = traj.t(end);
-ref = @(t) evaluate_reference(pp, final_time, t);
+
+%% 位置・速度・加速度のpiecewise polynomial
+pp_pos = traj.ppPosition;
+pp_vel = traj.ppVelocity;
+pp_acc = traj.ppAcceleration;
+
+
+%% jerk・snapを追加で作成
+pp_jerk = cell(1,3);
+pp_snap = cell(1,3);
+
+for axis_idx = 1:3
+    pp_jerk{axis_idx} = differentiate_pp(pp_acc{axis_idx});
+    pp_snap{axis_idx} = differentiate_pp(pp_jerk{axis_idx});
 end
 
-function value = evaluate_reference(pp, final_time, t)
-% スカラー・行ベクトル・列ベクトルのいずれも4行N列にそろえる。
-validateattributes(t, {'numeric'}, {'real','finite','vector'}, mfilename, 't');
+% trajからも確認できるよう保存
+traj.ppJerk = pp_jerk;
+traj.ppSnap = pp_snap;
+
+
+%% 20状態を返すreference関数
+final_time = traj.t(end);
+
+ref = @(t) evaluate_reference( ...
+    pp_pos, ...
+    pp_vel, ...
+    pp_acc, ...
+    pp_jerk, ...
+    pp_snap, ...
+    final_time, ...
+    t);
+
+end
+
+
+%% ========================================================================
+function value = evaluate_reference( ...
+    pp_pos, pp_vel, pp_acc, pp_jerk, pp_snap, final_time, t)
+
+% ref(t)を20行N列にそろえる。
+validateattributes( ...
+    t, ...
+    {'numeric'}, ...
+    {'real','finite','vector'}, ...
+    mfilename, ...
+    't');
+
 t = double(t(:).');
-time_tolerance = 8*eps(max(1,final_time));
+
+
+%% 時刻範囲確認
+time_tolerance = 8 * eps(max(1,final_time));
+
 if any(t < -time_tolerance | t > final_time + time_tolerance)
     error('gen_ref_random:TimeOutOfRange', ...
-        'ref(t)の時刻は0から%.16g秒の範囲で指定してください。', final_time);
+        'ref(t)の時刻は0から%.16g秒の範囲で指定してください。', ...
+        final_time);
 end
-% 時間の丸め誤差だけを端点にそろえ、制約検証範囲外へ外挿しない。
+
 t = min(max(t,0),final_time);
-value = [ppval(pp{1},t); ... % x [m]
-         ppval(pp{2},t); ... % y [m]
-         ppval(pp{3},t); ... % z [m]
-         zeros(1,numel(t))]; % yaw [rad]
+
+
+%% position
+pos = [ ...
+    ppval(pp_pos{1},t); ...
+    ppval(pp_pos{2},t); ...
+    ppval(pp_pos{3},t)];
+
+
+%% velocity
+vel = [ ...
+    ppval(pp_vel{1},t); ...
+    ppval(pp_vel{2},t); ...
+    ppval(pp_vel{3},t)];
+
+
+%% acceleration
+acc = [ ...
+    ppval(pp_acc{1},t); ...
+    ppval(pp_acc{2},t); ...
+    ppval(pp_acc{3},t)];
+
+
+%% jerk
+jerk = [ ...
+    ppval(pp_jerk{1},t); ...
+    ppval(pp_jerk{2},t); ...
+    ppval(pp_jerk{3},t)];
+
+
+%% snap
+snap = [ ...
+    ppval(pp_snap{1},t); ...
+    ppval(pp_snap{2},t); ...
+    ppval(pp_snap{3},t)];
+
+
+%% yawおよびyawの各階微分
+zero = zeros(1,numel(t));
+
+
+%% 20状態
+value = [ ...
+    pos;   zero; ...
+    vel;   zero; ...
+    acc;   zero; ...
+    jerk;  zero; ...
+    snap;  zero];
+
+end
+
+
+%% ========================================================================
+function derivative = differentiate_pp(pp)
+% piecewise polynomialを解析的に1階微分する。
+
+[breaks, coefficients, pieces, order] = unmkpp(pp);
+
+if order == 1
+    % 定数を微分すると0
+    derivative = mkpp(breaks, zeros(pieces,1));
+else
+    derivative_coefficients = ...
+        coefficients(:,1:end-1) .* (order-1:-1:1);
+
+    derivative = mkpp(breaks, derivative_coefficients);
+end
+
 end
