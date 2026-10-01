@@ -87,8 +87,8 @@ classdef MECKC < handle
                 % ===== 設定値 =====
                 A = 2;
                 f_start = 0.1;
-                f_end   = 1.0;
-                T_sweep = 30.0;
+                f_end   = 2;
+                T_sweep = 40.0;
                 t_start = 7.0;
 
                 % ===== 励起時間外 =====
@@ -112,7 +112,7 @@ classdef MECKC < handle
             end
 
             % obj.result.delta_u = -K_full*e;     %補償入力オン
-            % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
+            obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
             obj.result.delta_u = 0;%unだけ確認したいとき
 
             obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力

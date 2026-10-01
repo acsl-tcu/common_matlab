@@ -35,11 +35,4 @@ ref=@(t) [x_0+r*sin(2*pi*t/T+phase); %x
     z_0; %z
     0];
 
-% 圧倒的に遅いので以下のような書き方はしないこと
-% xdf =@(t) [xd1(t),xd2(t),xd3(t),xd4(t)];
-% dxdf =@(tt) subs(diff(xdf(t),t),t,tt);
-% ddxdf =@(tt) subs( diff(dxdf(t),t),t,tt);
-% dddxdf =@(tt)  subs(diff(ddxdf(t),t),t,tt);
-% ddddxdf =@(tt)  subs(diff(dddxdf(t),t),t,tt);
-% tXd=@(t) double([xdf(t),dxdf(t),ddxdf(t),dddxdf(t),ddddxdf(t)]);
 end
