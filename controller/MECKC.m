@@ -27,6 +27,7 @@ classdef MECKC < handle
         end
 
         function result = do(obj,varargin)
+            % vararginの中身：do_loopのところに１個(?)あって，do(app.time,fCha,app.logger,app.env,app.agent,i)
             model = obj.self.estimator.result;
             t = varargin{1,1}.t;
             x = [model.state.p(1);
@@ -45,7 +46,7 @@ classdef MECKC < handle
                 obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
                 obj.x_pre = varargin{3}.Data.agent.estimator.result{:,end-1}.state.get; % LOGGERの中から前時刻の状態を取得
             end
-            dt = varargin{1}.dt;
+            dt = varargin{1}.dt;    %25msとか
             dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
             x_n_now = obj.x_pre + dx*dt;%x_nominal[k+1]
             % delta_x = x-x_n_now;
@@ -62,8 +63,7 @@ classdef MECKC < handle
             % load('exp_de_kensyou_KL_gain_KCD_LQR_check_KudouSenpainode.mat','K_full');     %remakeのカルマン正準分解でのゲイン
 
             
-            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full');
-            % ←飛びはするがRMSEはおそらく低下
+            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full'); % ←飛びはするがRMSEはおそらく低下
 
             % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
 
@@ -72,7 +72,6 @@ classdef MECKC < handle
             % % data = load('first_KL_gain_KD.mat');
             % % K = data.K;
             e = z_n-z_p;
-            obj.result.delta_u = -K_full*e;
             %%%%%-----lqr法終わり-----%%%%%
             %拡張状態取得
 
@@ -112,13 +111,11 @@ classdef MECKC < handle
                 T_ex = A*cos(phase);
             end
 
+            % obj.result.delta_u = -K_full*e;     %補償入力オン
             % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
-            % obj.result.delta_u = 0;%unだけ確認したいとき
+            obj.result.delta_u = 0;%unだけ確認したいとき
 
-
-            % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu
             obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力
-            % obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u + obj.param.A * sin(obj.param.ome * t);%un+Δu+外乱d
             result = obj.result;
         end
     end
