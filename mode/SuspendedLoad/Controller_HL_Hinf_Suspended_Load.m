@@ -33,17 +33,11 @@ Yaw = ss(A2, B2, C2, 0);
 Yaw.InputName  = {'uyaw'};
 Yaw.OutputName = {'pyaw0'; 'vyaw'};
 
-% 外乱の重み：低周波の外乱（ゲイン1、帯域 wd_dst [rad/s]）。
-% ss(1.0)（全周波数一定）だと、外乱が Wpos=(s/wb+1) に直接入って非プロパーになり hinfsyn が失敗する
-wd_dst = 10;
-Wd = tf(1, [1/wd_dst 1]);
-
-if class(agent.plant) ~= "DRONE_EXP_MODEL"
-    % sim用重み
-    PosTarget.z   = tf(1, [1/2.0 1]);
-    PosTarget.x   = tf(1, [1/0.5 1]);
-    PosTarget.yaw = tf(1, [1/1.0 1]);
-
+if class(agent.plant) ~= "DRONE_EXP_MODEL" % sim用重み
+    % 外乱の重み：低周波の外乱（ゲイン1、帯域 wd_dst [rad/s]）。
+    % ss(1.0)（全周波数一定）だと、外乱が Wpos=(s/wb+1) に直接入って非プロパーになり hinfsyn が失敗する
+    wd_dst = 10;
+    Wd = tf(1, [1/wd_dst 1]);
     Wdst.z   = Wd; Wdst.z.u   = 'dz';   Wdst.z.y   = 'rz';
     Wdst.x   = Wd; Wdst.x.u   = 'dx';   Wdst.x.y   = 'rx';
     Wdst.y   = Wd; Wdst.y.u   = 'dy';   Wdst.y.y   = 'ry';
@@ -54,6 +48,9 @@ if class(agent.plant) ~= "DRONE_EXP_MODEL"
     Wact.y   = 0.8*tf([1 0.5],[1 5]);   Wact.y.u   = 'acty';   Wact.y.y   = 'e1y';
     Wact.yaw = 0.8*tf([1 1],  [1 10]);  Wact.yaw.u = 'actyaw'; Wact.yaw.y = 'e1yaw';
 
+    PosTarget.z   = tf(1, [1/2.0 1]);
+    PosTarget.x   = tf(1, [1/0.5 1]);
+    PosTarget.yaw = tf(1, [1/1.0 1]);
     Wpos.z   = 1/PosTarget.z;   Wpos.z.u   = 'pz';   Wpos.z.y   = 'e2z';
     Wpos.x   = 1/PosTarget.x;   Wpos.x.u   = 'px';   Wpos.x.y   = 'e2x';
     Wpos.y   = 1/PosTarget.x;   Wpos.y.u   = 'py';   Wpos.y.y   = 'e2y';
@@ -65,12 +62,12 @@ if class(agent.plant) ~= "DRONE_EXP_MODEL"
     Wnoise.y   = ss(0.01); Wnoise.y.u   = 'ny';   Wnoise.y.y   = 'Wny';
     Wnoise.yaw = ss(0.01); Wnoise.yaw.u = 'nyaw'; Wnoise.yaw.y = 'Wnyaw';
 
-else
-    % exp用重み（保守的）
-    PosTarget.z   = tf(1, [1/1.0 1]);
-    PosTarget.x   = tf(1, [1/0.3 1]);
-    PosTarget.yaw = tf(1, [1/0.5 1]);
+else    % exp用重み（保守的）
 
+    % 外乱の重み：低周波の外乱（ゲイン1、帯域 wd_dst [rad/s]）。
+    % ss(1.0)（全周波数一定）だと、外乱が Wpos=(s/wb+1) に直接入って非プロパーになり hinfsyn が失敗する
+    wd_dst = 10;
+    Wd = tf(1, [1/wd_dst 1]);
     Wdst.z   = Wd; Wdst.z.u   = 'dz';   Wdst.z.y   = 'rz';
     Wdst.x   = Wd; Wdst.x.u   = 'dx';   Wdst.x.y   = 'rx';
     Wdst.y   = Wd; Wdst.y.u   = 'dy';   Wdst.y.y   = 'ry';
@@ -81,6 +78,9 @@ else
     Wact.y   = 0.8*tf([1 0.3],[1 3]);   Wact.y.u   = 'acty';   Wact.y.y   = 'e1y';
     Wact.yaw = 0.8*tf([1 0.5],[1 5]);   Wact.yaw.u = 'actyaw'; Wact.yaw.y = 'e1yaw';
 
+    PosTarget.z   = tf(1, [1/1.0 1]);
+    PosTarget.x   = tf(1, [1/0.3 1]);
+    PosTarget.yaw = tf(1, [1/0.5 1]);
     Wpos.z   = 1/PosTarget.z;   Wpos.z.u   = 'pz';   Wpos.z.y   = 'e2z';
     Wpos.x   = 1/PosTarget.x;   Wpos.x.u   = 'px';   Wpos.x.y   = 'e2x';
     Wpos.y   = 1/PosTarget.x;   Wpos.y.u   = 'py';   Wpos.y.y   = 'e2y';
@@ -135,18 +135,21 @@ dst.yaw = sumblk('pyaw = pyaw0 + ryaw');
 %% 測定ブロック（外乱を足した後の信号に、測定ノイズを加算）
 meas.pz   = sumblk('y1z = pz + Wnz');
 meas.vz   = sumblk('y2z = vz + Wnz');
+
 meas.pLx  = sumblk('y1x = pLx + Wnx');
 meas.vLx  = sumblk('y2x = vLx + Wnx');
 meas.px   = sumblk('y3x = px + Wnx');
 meas.vx   = sumblk('y4x = vx + Wnx');
 meas.axd  = sumblk('y5x = axd + Wnx');
 meas.jx   = sumblk('y6x = jx + Wnx');
+
 meas.pLy  = sumblk('y1y = pLy + Wny');
-meas.vLy  = sumblk('y2y = vLy+wny ');
+meas.vLy  = sumblk('y2y = vLy+Wny ');
 meas.py   = sumblk('y3y = py + Wny');
 meas.vy   = sumblk('y4y = vy + Wny');
 meas.ay   = sumblk('y5y = ay + Wny');
 meas.jy   = sumblk('y6y = jy + Wny');
+
 meas.pyaw = sumblk('y1yaw = pyaw + Wnyaw');
 meas.vyaw = sumblk('y2yaw = vyaw + Wnyaw');
 %% ブロック線図接続
@@ -169,7 +172,7 @@ IC.x = connect( ...
     meas.pLx, meas.vLx, meas.px, meas.vx, meas.axd, meas.jx, ...
     {'dx';'nx';'ux'}, ...
     {'e1x';'e2x'; ...
-     'y1x';'y2x';'y3x';'y4x';'y5x';'y6x'});
+    'y1x';'y2x';'y3x';'y4x';'y5x';'y6x'});
 
 % y軸（y1y=pLy, y2y=vLy, y3y=py, y4y=vy, y5y=ay, y6y=jy）
 IC.y = connect( ...
@@ -180,7 +183,7 @@ IC.y = connect( ...
     meas.pLy, meas.vLy, meas.py, meas.vy, meas.ay, meas.jy, ...
     {'dy';'ny';'uy'}, ...
     {'e1y';'e2y'; ...
-     'y1y';'y2y';'y3y';'y4y';'y5y';'y6y'});
+    'y1y';'y2y';'y3y';'y4y';'y5y';'y6y'});
 
 % yaw軸
 IC.yaw = connect( ...
@@ -233,14 +236,17 @@ fprintf('yaw gamma = %.4f\n', gamma4);
 
 A.cl.z   = [A2+B2*DK1*C2, B2*CK1; BK1*C2, AK1];
 A.cl.x   = [A6+B6*DK2*C6, B6*CK2; BK2*C6, AK2];
+A.cl.y   = [A6+B6*DK3*C6, B6*CK3; BK3*C6, AK3];
 A.cl.yaw = [A2+B2*DK4*C2, B2*CK4; BK4*C2, AK4];
 
 poles.z   = sort(eig(A.cl.z),   'ComparisonMethod', 'real');
 poles.x   = sort(eig(A.cl.x),   'ComparisonMethod', 'real');
+poles.y   = sort(eig(A.cl.y),   'ComparisonMethod', 'real');
 poles.yaw = sort(eig(A.cl.yaw), 'ComparisonMethod', 'real');
 
 fprintf('z  閉ループ極: '); disp(poles.z.');
 fprintf('x  閉ループ極: '); disp(poles.x.');
+fprintf('y  閉ループ極: '); disp(poles.y.');
 fprintf('yaw閉ループ極: '); disp(poles.yaw.');
 
 %% placeで静的ゲイン設計（共役ペアを崩さずに極を選ぶ）
@@ -252,10 +258,17 @@ end
 
 try
     Controller.F2 = place(A6, B6, pickpoles(poles.x, 6));
-    Controller.F3 = Controller.F2;
+    % Controller.F3 = Controller.F2;
 catch
     error('x/y: place失敗 閉ループ極を確認してください');
 end
+
+try
+    Controller.F3 = place(A6 ,B6, pickpoles(poles.y, 6));
+catch
+    error('y: place失敗 閉ループ極を確認してください');
+end
+
 
 try
     Controller.F4 = place(A2, B2, pickpoles(poles.yaw, 2));
@@ -266,6 +279,7 @@ end
 %% 確認
 fprintf('z  固有値: ');   disp(eig(A2-B2*Controller.F1).');
 fprintf('x  固有値: ');   disp(eig(A6-B6*Controller.F2).');
+fprintf('y  固有値: ');   disp(eig(A6-B6*Controller.F3).');
 fprintf('yaw固有値: ');   disp(eig(A2-B2*Controller.F4).');
 
 disp('F1 ='); disp(Controller.F1);
