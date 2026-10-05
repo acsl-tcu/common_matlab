@@ -1,0 +1,22 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/05 17:21:05
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+data_for_Koopman_ME0185_spline_001_Log(05-Oct-2026_15_59_34).mat
+data_for_Koopman_ME0185_spline_002_Log(05-Oct-2026_15_59_58).mat
+data_for_Koopman_ME0185_spline_003_Log(05-Oct-2026_16_00_22).mat
+data_for_Koopman_ME0185_spline_004_Log(05-Oct-2026_16_00_44).mat
+data_for_Koopman_ME0185_spline_005_Log(05-Oct-2026_16_01_07).mat
+data_for_Koopman_ME0185_spline_006_Log(05-Oct-2026_16_01_31).mat
+data_for_Koopman_ME0185_spline_007_Log(05-Oct-2026_16_01_53).mat
+data_for_Koopman_ME0185_spline_008_Log(05-Oct-2026_16_02_15).mat
+data_for_Koopman_ME0185_spline_009_Log(05-Oct-2026_16_02_37).mat
+data_for_Koopman_ME0185_spline_010_Log(05-Oct-2026_16_03_00).mat
+data_for_Koopman_ME0185_spline_011_Log(05-Oct-2026_16_03_31).mat
+data_for_Koopman_ME0185_spline_012_Log(05-Oct-2026_16_04_01).mat
+data_for_Koopman_ME0185_spline_013_Log(05-Oct-2026_16_04_29).mat
+data_for_Koopman_ME0185_spline_014_Log(05-Oct-2026_16_04_56).mat
+data_for_Koopman_ME0185_spline_015_Log(05-Oct-2026_16_05_27).mat
+KLでした

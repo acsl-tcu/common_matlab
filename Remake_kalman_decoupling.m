@@ -299,7 +299,7 @@ timeStamp = char(datetime("now",'Format','yyyyMMdd_HHmmss'));
 
 % saveFileName = fullfile(saveFolder,[baseName '_gain_KCD_LQR_check.mat']);
 saveFileName = fullfile(saveFolder, ...
-    [baseName '_gain_KCD_LQR_check_' timeStamp '.mat']);
+    [baseName '_gain_KD_LQR_check_' timeStamp '.mat']);
 
 % 既存コードとの互換性のため、SをT_invという名前でも保存する。
 T_inv = S;

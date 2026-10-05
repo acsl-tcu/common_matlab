@@ -25,7 +25,7 @@ arguments
          mustBeGreaterThanOrEqual(param.n_waypoint,4)} = 17
 
     param.start (3,1) double ...
-        {mustBeReal,mustBeFinite} = [0; 0; 0.6]
+        {mustBeReal,mustBeFinite} = [0; 0; 1]
 
     param.x_range (1,2) double ...
         {mustBeReal,mustBeFinite} = [-1 1]

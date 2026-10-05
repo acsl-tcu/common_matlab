@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/02 18:22:28
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+MEC_same_condition_seed001_20261002_180600_Log(02-Oct-2026_18_06_00).mat
+MEC_same_condition_seed002_20261002_180716_Log(02-Oct-2026_18_07_16).mat
+MEC_same_condition_seed003_20261002_180824_Log(02-Oct-2026_18_08_24).mat
+MEC_same_condition_seed004_20261002_180933_Log(02-Oct-2026_18_09_33).mat
+MEC_same_condition_seed005_20261002_181044_Log(02-Oct-2026_18_10_44).mat
+MEC_same_condition_seed006_20261002_181154_Log(02-Oct-2026_18_11_54).mat
+MEC_same_condition_seed007_20261002_181259_Log(02-Oct-2026_18_12_59).mat
+MEC_same_condition_seed008_20261002_181408_Log(02-Oct-2026_18_14_08).mat
+MEC_same_condition_seed009_20261002_181522_Log(02-Oct-2026_18_15_22).mat
+MEC_same_condition_seed010_20261002_181623_Log(02-Oct-2026_18_16_23).mat
+KLでした

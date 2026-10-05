@@ -56,13 +56,13 @@ classdef MECKC < handle
             %---可制御部分をデカップリング---%
             % K_full=[zeros(4,24)];
             % load('koopman_common_z__gain_KD.mat','K_full');
-            load('dataset_sim_circle_KL_gain_KCD_LQR_check_gain_KCD_LQR_check_20261001_195342.mat','K_full');
+            load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
             % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
             % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
             % load('exp_de_kensyou_KL_gain_KCD_LQR_check_KudouSenpainode.mat','K_full');     %remakeのカルマン正準分解でのゲイン
 
-            
+
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full'); % ←飛びはするがRMSEはおそらく低下
 
             % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
@@ -82,22 +82,50 @@ classdef MECKC < handle
             obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
 
+            % function T_ex = excitation_sweep_cos(t)
+            %
+            %     % ===== 設定値 =====
+            %     A = 2;
+            %     f_start = 0.1;
+            %     f_end   = 2;
+            %     T_sweep = 40.0;
+            %     t_start = 7.0;
+            %
+            %     % ===== 励起時間外 =====
+            %     if t < t_start || t >= t_start + T_sweep
+            %         T_ex = 0;
+            %         return
+            %     end
+            %
+            %     % 励起開始を t=0 とした相対時間
+            %     tau = t - t_start;
+            %
+            %     % 線形周波数スイープ
+            %     k = (f_end - f_start) / T_sweep;
+            %
+            %     % 位相
+            %     phase = 2*pi*(f_start*tau ...
+            %         + 0.5*k*tau^2);
+            %
+            %     % 励起入力
+            %     T_ex = A*cos(phase);
+            % end
             function T_ex = excitation_sweep_cos(t)
 
-                % ===== 設定値 =====
                 A = 2;
                 f_start = 0.1;
                 f_end   = 2;
                 T_sweep = 40.0;
                 t_start = 7.0;
 
-                % ===== 励起時間外 =====
+                % 振幅の立ち上げ・立ち下げ時間
+                T_ramp = 2.0;
+
                 if t < t_start || t >= t_start + T_sweep
                     T_ex = 0;
                     return
                 end
 
-                % 励起開始を t=0 とした相対時間
                 tau = t - t_start;
 
                 % 線形周波数スイープ
@@ -107,13 +135,27 @@ classdef MECKC < handle
                 phase = 2*pi*(f_start*tau ...
                     + 0.5*k*tau^2);
 
-                % 励起入力
-                T_ex = A*cos(phase);
+                % ===== smooth envelope =====
+                if tau < T_ramp
+                    % 0 -> 1
+                    envelope = 0.5*(1 - cos(pi*tau/T_ramp));
+
+                elseif tau > T_sweep - T_ramp
+                    % 1 -> 0
+                    tau_end = T_sweep - tau;
+                    envelope = 0.5*(1 - cos(pi*tau_end/T_ramp));
+
+                else
+                    envelope = 1;
+                end
+
+                T_ex = A * envelope * cos(phase);
             end
 
             % obj.result.delta_u = -K_full*e;     %補償入力オン
             % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
             obj.result.delta_u = 0;%unだけ確認したいとき
+            % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t); 0; 0; 0];   %補償入力＋励起入力オン
 
             obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力
             result = obj.result;

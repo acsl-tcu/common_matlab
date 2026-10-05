@@ -1,4 +1,6 @@
-classdef SimExp_miya < matlab.apps.AppBase
+%スプラインが自動で複数シード値でできるようになってる
+
+classdef SimExp < matlab.apps.AppBase
 
     % Properties that correspond to app components
     properties (Access = public)
@@ -247,7 +249,7 @@ classdef SimExp_miya < matlab.apps.AppBase
         end
 
         % Construct app
-        function app = SimExp_miya(varargin)
+        function app = SimExp(varargin)
 
             % Create UIFigure and components
             createComponents(app)
@@ -283,30 +285,51 @@ classdef SimExp_miya < matlab.apps.AppBase
 
             for trial = 1:nTrial
 
+                % 発散判定用フラグを初期化
+                diverged = false;
+                diverge_time = NaN;
+                diverge_input = [];
+
                 fprintf('\n');
                 fprintf('====================================\n');
                 fprintf(' Trial %d / %d\n', trial, nTrial);
                 fprintf('====================================\n');
 
-                %% ============================================================
+                % =============================================================
                 % Reload と同じ処理
                 % =============================================================
                 app.reset_app();
 
-                %% ============================================================
+
+                % =============================================================
+                % ★ trialごとにランダム軌道のseedを変更
+                % =============================================================
+                seed = trial;
+
+                app.agent = app.agent(1);
+
+                app.agent.reference.set_function_class( ...
+                    "time_varying", ...
+                    TIME_VARYING_REFERENCE( ...
+                    app.agent, ...
+                    {"gen_ref_random", ...
+                    {"T",50, ...
+                    "start",[0;0;1], ...
+                    "seed",seed}}));
+
+                fprintf('Random trajectory seed = %d\n', seed);
+
+
+                % =============================================================
                 % Startを押した直後に行われる初期化処理
-                %
-                % start_app.m では isReady=false の状態で
-                % a,t,f,l を1回ずつ loop() に通している。
                 % =============================================================
                 for cha = ['a','t','f','l']
-
                     app.fStart = 1;
                     app.cha = cha;
-
                     app.loop();
-
                 end
+
+                % 以下これまで通り
 
                 % 初期化完了
                 app.isReady = true;
@@ -375,6 +398,19 @@ classdef SimExp_miya < matlab.apps.AppBase
                     % この時刻の制御・プラント計算
                     app.do_calculation();
 
+                    % if k == 1
+                    %     fprintf("\n===== Flight first step =====\n");
+                    %     fprintf("time = %.6f\n", app.time.t);
+                    %
+                    %     disp("reference.result.state:")
+                    %     disp(app.agent(1).reference.result.state)
+                    %
+                    %     disp("controller input:")
+                    %     disp(app.agent(1).controller.result.input)
+                    %
+                    %     % keyboard   % ★ここで一時停止
+                    % end
+
                     % 発散判定
                     if any(abs(app.agent(1).controller.result.input(:)) >= 20)
 
@@ -410,11 +446,16 @@ classdef SimExp_miya < matlab.apps.AppBase
                     app.stop_app();
 
                     % 発散結果として保存
-                    filename = sprintf( ...
-                        '%s_%03d_DIVERGED_t%.3f', ...
-                        baseName, trial, diverge_time);
+                    % filename = sprintf( ...
+                    %     '%s_%03d_DIVERGED_t%.3f', ...
+                    %     baseName, trial, diverge_time);
+                    % splineのデータセット収集用
+                    timestamp = char(datetime('now','Format','yyyyMMdd_HHmmss'));
 
-                    % 小数点をファイル名用に変換
+                    filename = sprintf( ...
+                        '%s_seed%03d_%s_DIVERGED_t%.3f', ...
+                        baseName, seed, timestamp, diverge_time);
+
                     filename = strrep(filename, '.', 'p');
 
                     app.data_file_name = filename;
@@ -435,29 +476,83 @@ classdef SimExp_miya < matlab.apps.AppBase
                 app.cha0 = 'f';
 
                 %% l : Landing 10秒
-                app.cha = 'l';
-
-                ...
-                    app.cha0 = 'f';
 
                 fprintf('f finished : t = %.3f\n', app.time.t);
 
 
                 %% ============================================================
-                % l : Landing 10秒
+                % l : Landing 7秒
                 % =============================================================
+
                 app.cha = 'l';
 
-                N_l = round(10 / app.time.dt);
+                N_l = round(7 / app.time.dt);
 
                 for k = 1:N_l
 
+                    % この時刻の制御・プラント計算
                     app.do_calculation();
 
-                    app.time.t = app.time.t + app.time.dt;
+                    % ==========================================
+                    % ★ Landing中も発散判定
+                    % ==========================================
+                    if any(abs(app.agent(1).controller.result.input(:)) >= 20)
 
+                        diverged = true;
+                        diverge_time = app.time.t;
+                        diverge_input = app.agent(1).controller.result.input;
+
+                        fprintf('\n*** DIVERGENCE DETECTED ***\n');
+                        fprintf('Trial = %d\n', trial);
+                        fprintf('Phase = Landing\n');
+                        fprintf('Time  = %.3f s\n', diverge_time);
+                        fprintf('Input = ');
+                        fprintf('%.6f ', diverge_input);
+                        fprintf('\n');
+
+                        break;
+                    end
+
+                    % 正常なら時間を進める
+                    app.time.t = app.time.t + app.time.dt;
                 end
 
+
+                %% ============================================================
+                % ★ Landing中に発散していた場合
+                % ============================================================
+
+                if diverged
+                    % プラント停止
+                    app.StopProp();
+
+                    % SimExp側も停止
+                    app.stop_app();
+
+                    % 発散結果として保存
+                    % filename = sprintf( ...
+                    %     '%s_%03d_DIVERGED_LANDING_t%.3f', ...
+                    %     baseName, trial, diverge_time);
+                    % スプラインデータセット収集
+                    timestamp = char(datetime('now','Format','yyyyMMdd_HHmmss'));
+
+                    filename = sprintf( ...
+                        '%s_seed%03d_%s_DIVERGED_LANDING_t%.3f', ...
+                        baseName, seed, timestamp, diverge_time);
+
+                    filename = strrep(filename, '.', 'p');
+
+                    app.data_file_name = filename;
+                    app.logger.save(app.data_file_name);
+
+                    fprintf('Diverged data saved : %s\n', filename);
+
+                    % ★ s,qなどには行かず次のtrialへ
+                    continue;
+                end
+
+
+                % Landingが正常終了したときだけここへ来る
                 app.cha0 = 'l';
 
                 fprintf('l finished : t = %.3f\n', app.time.t);
@@ -498,16 +593,21 @@ classdef SimExp_miya < matlab.apps.AppBase
 
                 fprintf('q : trial finished\n');
 
+                % ★ GUI・timer等の保留中イベントをここで処理
+                drawnow;
 
-                %% ============================================================
-                % 保存
-                % =============================================================
+                %% 保存
+                timestamp = char(datetime('now','Format','yyyyMMdd_HHmmss'));
 
-                filename = sprintf('%s_%03d', baseName, trial);
+                filename = sprintf( ...
+                    '%s_seed%03d_%s', ...
+                    baseName, seed, timestamp);
 
                 app.data_file_name = filename;
 
                 app.logger.save(app.data_file_name);
+
+                fprintf('saved : %s\n', filename);
 
                 fprintf('saved : %s\n', filename);
 

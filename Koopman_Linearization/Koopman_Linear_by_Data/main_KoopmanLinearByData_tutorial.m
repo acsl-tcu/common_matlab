@@ -85,6 +85,15 @@ loading_filename = FileName;
 % % % % % %     movefile(oldFileName, newFileName);
 % % % % % % end
 
+% for seed = 1:10
+% 
+%     % データ読み込み・処理
+% 
+%     fprintf("seed=%d : X NaN=%d, U NaN=%d\n", ...
+%         seed, nnz(isnan(X)), nnz(isnan(U)));
+% 
+% end
+
 %% ファイル名変更
 for i = 1:nFiles
     oldFileName = fullfile(folderPath, fileList(i).name);

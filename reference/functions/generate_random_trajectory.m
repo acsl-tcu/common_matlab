@@ -46,7 +46,7 @@ function traj = generate_random_trajectory(varargin)
     addParameter(parser, 'Plot', true);
     addParameter(parser, 'Verbose', true);
     addParameter(parser, 'NumWaypoints', 17);
-    addParameter(parser, 'StartPoint', [0, 0, 0.6]);
+    addParameter(parser, 'StartPoint', [0, 0, 1]);
     addParameter(parser, 'LowerBound', [-1, -1, 0.6]);
     addParameter(parser, 'UpperBound', [1, 1, 1.3]);
     addParameter(parser, 'MaxStep', [0.5, 0.5, 0.2]);

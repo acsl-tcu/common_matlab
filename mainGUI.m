@@ -40,6 +40,9 @@ Setting.mode = SimBaseMode(15); % SimMEC_K
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
 % Setting.mode = ExpBaseMode(5); % ExpHL
+
+Setting.trajectory_seed = 1;
+
 if contains(Setting.mode, "Exp")
     Setting.fExp = 1;
 else
@@ -47,5 +50,4 @@ else
 end
 
 app = SimExp(Setting);
-% app = SimExp_miya(Setting);
-% app.run_auto_trials(2, "MEC_same_condition");%自動くりかえし
+app.run_auto_trials(1, "HL_noerrore_noReiki");%自動くりかえし
