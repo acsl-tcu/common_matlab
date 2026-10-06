@@ -226,7 +226,8 @@ local_print_spectrum('Xb 可制御・可観測', eigs_b);
 local_print_spectrum('Xc 不可制御・可観測', eigs_c);
 local_print_spectrum('Xd 不可制御・不可観測', eigs_d);
 
-figure('Color','w','Name','Kalman canonical decomposition');
+% figure('Color','w','Name','Kalman canonical decomposition');
+hFigEig = figure('Color','w','Name','Kalman canonical decomposition');
 hold on; grid on; axis equal;
 theta = linspace(0,2*pi,400);
 plot(cos(theta),sin(theta),'k:','HandleVisibility','off');
@@ -288,18 +289,25 @@ fprintf('||K_full*v_(lambda=1)|| = %.3e\n', feedbackOnOneMode);
 fprintf('注意: 不可制御の固有値1は閉ループにも残ります。\n');
 
 %% 9. 保存
+%% 9. 保存
+
 [~,baseName,~] = fileparts(loadFileName);
+
 saveFolder = fullfile(pwd,'kalman_gainたち');
+
 if ~exist(saveFolder,'dir')
     mkdir(saveFolder);
 end
 
-% 現在日時をファイル名に追加
+% 現在日時
 timeStamp = char(datetime("now",'Format','yyyyMMdd_HHmmss'));
 
-% saveFileName = fullfile(saveFolder,[baseName '_gain_KCD_LQR_check.mat']);
-saveFileName = fullfile(saveFolder, ...
-    [baseName '_gain_KD_LQR_check_' timeStamp '.mat']);
+% MATとFIGで共通の名前
+saveBaseName = [baseName '_gain_KD_LQR_check_' timeStamp];
+
+% 保存先
+saveFileName = fullfile(saveFolder,[saveBaseName '.mat']);
+saveFigName  = fullfile(saveFolder,[saveBaseName '.fig']);
 
 % 既存コードとの互換性のため、SをT_invという名前でも保存する。
 T_inv = S;

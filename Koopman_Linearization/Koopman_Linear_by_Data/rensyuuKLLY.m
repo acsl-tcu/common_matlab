@@ -49,26 +49,26 @@ function [U_val, A_val, B_val, P_val, result] = ...
     fprintf('rho_bar   = %.4f\n', rho_bar);
     fprintf('====================================\n');
 
-    %% ★定数観測量（λ=1方向）の自動検出
+    %% 観測量の１検出
     const_tol = 1e-8;
     is_const_row = all(abs(Xlift - 1) < const_tol, 2);
     const_idx = find(is_const_row);
 
     if isempty(const_idx)
-        warning(['定数観測量が見つかりませんでした。' ...
-                 '安定性LMIは従来通り全次元に課します。']);
+        warning(['観測量１が見つからない。' ...
+                 '安定性LMIは全次元に課う']);
         has_const = false;
         const_idx = [];
         dyn_idx   = 1:p_theta;
     else
         if numel(const_idx) > 1
-            warning(['定数観測量が複数見つかりました。先頭のみ' ...
-                     '固定し、残りは通常の状態として扱います。']);
+            warning(['定数観測量が複数ある，先頭のみ' ...
+                     '固定し、残りは通常の状態として扱う']);
             const_idx = const_idx(1);
         end
         has_const = true;
         dyn_idx = setdiff(1:p_theta, const_idx);
-        fprintf('定数観測量を検出: index = %d（λ=1に固定）\n', const_idx);
+        fprintf('観測量１を検出: index = %d（λ=1に固定）\n', const_idx);
         fprintf('動的部分空間の次元 = %d\n', numel(dyn_idx));
     end
 

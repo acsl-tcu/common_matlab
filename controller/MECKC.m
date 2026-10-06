@@ -48,6 +48,9 @@ classdef MECKC < handle
             end
             dt = varargin{1}.dt;    %25msとか
             dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
+            %ブレークポイントくっ付けてここのparamとノミナルのおparamが一緒だったらいいかな
+            %
+
             x_n_now = obj.x_pre + dx*dt;%x_nominal[k+1]
             % delta_x = x-x_n_now;
             z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
