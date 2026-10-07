@@ -78,6 +78,8 @@ settings.phase = "f";
 settings.fontsize = 11;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
+settings.legend_fontsize = settings.fontsize - 4;   % 凡例のフォントサイズ（ここを変えれば全プロットに反映）
+% settings.legend_fontsize = 8;
 settings.linewidth = 1.5;    % default=0.5 オススメ=1.5
 settings.agent_id = 1;
 settings.savefolder = 'plot\fig';  % default
@@ -124,7 +126,7 @@ for i=1:length(settings.target)
             chars(chars == "") = [];
             for cIdx = 1:numel(chars)
                 data = logger.data(1, parts(pIdx), chars(cIdx), "phase", settings.phase);
-                t = logger.Data.t(1:size(data,1));
+                t = get_phase_time(logger, settings.phase, size(data,1));   % ★正しい時間軸を取得
                 plot(t, data(:,1), t, data(:,2), t, data(:,3), ...
                     'LineWidth', settings.linewidth)
                 plegend_part = set_legend("p", chars(cIdx));   % {$x$..,$y$..,$z$..} を再利用
@@ -140,7 +142,7 @@ for i=1:length(settings.target)
         ax = gca;
         set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
         set(ax.XLabel, 'String', '$t$ [s]', 'Interpreter','latex')
-        legend(legend_entries, 'Interpreter','latex')
+        legend(legend_entries, 'Interpreter','latex', 'FontSize', settings.legend_fontsize)
 
         data = [];
         for pIdx = 1:numel(parts)
@@ -295,7 +297,7 @@ for i=1:length(settings.target)
                 t = logger.Data.t(1:N);
                 plot(ax, t, xd(:,1), t, xd(:,2), t, xd(:,3), 'LineWidth', settings.linewidth)
                 grid(ax,'on')
-                legend(ax, {'$x_d$','$y_d$','$z_d$'}, 'Interpreter','latex')
+                legend(ax, {'$x_d$','$y_d$','$z_d$'}, 'Interpreter','latex', 'FontSize', settings.legend_fontsize)
                 ylim(ax, [-1.5 1.5])
 
             otherwise
@@ -339,7 +341,7 @@ for i=1:length(settings.target)
     if ftitle == 0
         set(ax.Title, 'String', [])
     end
-    set(ax.Legend, 'Location','southeast', 'FontSize',settings.fontsize-4);
+    set(ax.Legend, 'Location','southeast', 'FontSize',settings.legend_fontsize);
 
     if ~exist('plot/fig', 'dir')
         mkdir('plot/fig')
@@ -386,11 +388,39 @@ for i=1:length(settings.target)
 end
 disp_rmse(logger,settings.phase)
 % disp_bode(logger, "f", 1) 
-% disp_fft(logger, "estimator.result.state.pL", "e", settings.phase)
-% disp_fft(logger, "input", "", settings.phase)
-disp_fft_time(logger, "estimator.result.state.pL", "e", [20 30])   % 10秒から20秒までのデータでFFT
-disp_fft_time(logger, "input", "", [20 30])                          % 0秒から30秒までのデータでFFT
+% disp_fft(logger, "estimator.result.state.pL", "e", settings.phase, settings.legend_fontsize)
+% disp_fft(logger, "input", "", settings.phase, settings.legend_fontsize)
+disp_fft_time(logger, "estimator.result.state.pL", "e", [20 30], settings.legend_fontsize)   % 20秒から30秒までのデータでFFT
+disp_fft_time(logger, "input", "", [20 30], settings.legend_fontsize)
 %% Local functions
+
+function t = get_phase_time(logger, phase, N)
+% LOGGERクラス内部(C_Logger_Plot.get_data_range)と同じロジックで
+% phaseに対応する正しい時刻範囲を取得する
+if nargin < 3
+    N = [];
+end
+
+if isempty(phase)
+    dataRange = 1:length(logger.Data.t);
+else
+    phaseString = char(phase);
+    ids = contains(string(char(logger.Data.phase)), string(phaseString(:)));
+    dataRange = 4 + find(ids(5:end), 1):4 + find(ids(5:end), 1, 'last'); % 空回しの4つ分を除く
+end
+
+t = logger.Data.t(dataRange);
+t = t(:);
+
+% 念のため、取得したデータ数と一致するか確認
+if ~isempty(N) && numel(t) ~= N
+    warning('get_phase_time:mismatch', ...
+        'phase="%s"から計算した時刻の数(%d)がデータ数(%d)と一致しません。先頭からの切り出しにフォールバックします。', ...
+        string(phase), numel(t), N);
+    t = logger.Data.t(1:N);
+end
+end
+
 function att = select_attribute(target, attribute)
 text = cell(1, 4);
 text{1} = ['\n<キーボードで「', char(target), '」用の値の種類を入力>\n'];%'\n<Keybord input attribute for [', char(target), ']>\n',
@@ -496,25 +526,9 @@ end
 end
 
 
-% function disp_rmse(logger, phase)
-% target = ["p","v"];
-% for i=1:length(target)
-%     ref = logger.data(1,target(i),"r", "phase",phase);
-%     data = logger.data(1,target(i),"e", "phase",phase);
-%     RMSE = rmse(ref, data, 1);
-%     fprintf('%s RMSE:\n', target(i))
-%     disp(RMSE)
-%     disp(sum(RMSE))
-% end
-
-% end
-
-
 function disp_rmse(logger, phase)
-% estimator と reference の position を取得（Nx3）
 p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
 p_ref = logger.data(1,"p","r","phase",phase);
-% サイズチェック
 N = min(size(p_est,1), size(p_ref,1));
 p_est = p_est(1:N,:);
 p_ref = p_ref(1:N,:);
@@ -531,20 +545,15 @@ end
 
 
 function disp_bode(logger, phase, method)
-% 周波数応答(Bode線図)とコヒーレンスを確認する関数
-% disp_bode(app.logger, "f", 1)
-% method: 1=tfestimate, 2=etfe, 3=spa, 4=cpsd/pwelch手動計算, 5=ssest, 6=tfest
-% u(n-1) と y(n) を対応させる（一制御周期前の入力を使用）
-% 区間長はデータ長に応じて自動調整（n_segments分割）
 arguments
     logger
     phase
-    method = 1   % 省略時はtfestimate（デフォルト）
+    method = 1
 end
 
 Fs = 1/0.025;
 dt = 1/Fs;
-n_segments = 4;   % 分割数（前回8→4に変更。区間を長くして低周波の分解能を優先）
+n_segments = 4;
 
 u   = logger.data(1, "controller.result.tmp", "", "phase", phase);
 pL  = logger.data(1, "estimator.result.state.pL", "e", "phase", phase);
@@ -567,12 +576,10 @@ for i = 1:4
         y_out = pL(:,co);
     end
 
-    % --- u(n-1) と y(n) を対応させる ---
     N = length(y_out);
     u_n_minus_1 = u(1:N-1, ci);
     y_n         = y_out(2:N);
 
-    % --- 区間長をデータ長から自動計算 ---
     Nd = length(y_n);
     wl = floor(Nd / n_segments * 2);
     wl = 2^floor(log2(wl));
@@ -580,46 +587,34 @@ for i = 1:4
     noverlap = round(wl/2);
     nfft = wl*2;
 
-    % --- 推定方法の切り替え ---
     switch method
         case 1
-            % tfestimate（H1推定、Welch法）
             [h,f] = tfestimate(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
             omega = 2*pi*f;
-
         case 2
-            % etfe（生のスペクトル比）
             data_id = iddata(y_n, u_n_minus_1, dt);
             g = etfe(data_id);
             [mag, ph, w] = bode(g);
             h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
             omega = squeeze(w);
-
         case 3
-            % spa（強い平滑化のスペクトル解析）
             data_id = iddata(y_n, u_n_minus_1, dt);
             g = spa(data_id);
             [mag, ph, w] = bode(g);
             h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
             omega = squeeze(w);
-
         case 4
-            % cpsd/pwelchによるH1推定を手動計算
             [Pyx, f] = cpsd(y_n, u_n_minus_1, window, noverlap, nfft, Fs);
             [Pxx, ~] = pwelch(u_n_minus_1, window, noverlap, nfft, Fs);
             h = Pyx ./ Pxx;
             omega = 2*pi*f;
-
         case 5
-            % ssest（状態空間モデルとして同定）
             data_id = iddata(y_n, u_n_minus_1, dt);
             sys = ssest(data_id, 4);
             [mag, ph, w] = bode(sys);
             h = squeeze(mag) .* exp(1j*deg2rad(squeeze(ph)));
             omega = squeeze(w);
-
         case 6
-            % tfest（伝達関数モデルとして同定）
             data_id = iddata(y_n, u_n_minus_1, dt);
             sys = tfest(data_id, 2, 2);
             [mag, ph, w] = bode(sys);
@@ -627,7 +622,6 @@ for i = 1:4
             omega = squeeze(w);
     end
 
-    % コヒーレンスは常にmscohereで計算（推定方法によらず共通の指標として使用）
     [cxy, fc] = mscohere(u_n_minus_1, y_n, window, noverlap, nfft, Fs);
     omega_c = 2*pi*fc;
 
@@ -636,7 +630,6 @@ for i = 1:4
     dec_max = ceil(log10(omega_pos(end)));
     xticks_dec = 10.^(dec_min:dec_max);
 
-    % --- Bode線図 ---
     figure('Color','w', 'Position', [100 100 900 500]);
     t = tiledlayout(2,1, 'TileSpacing','compact', 'Padding','compact');
     title(t, sprintf('%s (u(n) \\rightarrow y(n+1)), phase=%s, wl=%d, method=%d', nm, phase, wl, method), 'FontSize', 17);
@@ -656,7 +649,6 @@ for i = 1:4
     set(gca, 'FontSize', 13, 'XTick', xticks_dec);
     xlim([omega_pos(1) omega(end)]);
 
-    % --- コヒーレンス ---
     figure('Color','w', 'Position', [1050 100 900 300]);
     semilogx(omega_c, cxy, 'LineWidth', 1.5);
     grid on; box on;
@@ -670,47 +662,10 @@ end
 end
 
 
-% function rmse_xyz = disp_rmse(logger, phase)
-% % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
-% % Usage:
-% %   disp_rmse(logger, phase)
-% % Output:
-% %   rmse_xyz = [rmse_x rmse_y rmse_z] （必要なければ無視してOK）
-% % ===== 評価時間区間（ここで固定）=====
-% t_start = 20;   % [s]
-% t_end   = 25;   % [s]
-% % ===== logger.data オプション =====
-% opt = {"phase", phase, "ranget", [t_start t_end]};
-% % ===== データ取得 =====
-% % 推定された牽引物位置
-% p_est = logger.data(1,"estimator.result.state.pL","e", opt{:});  % [N x 3]
-% % 参照位置
-% p_ref = logger.data(1,"p","r", opt{:});                         % [N x 3]
-% % ===== サイズ合わせ =====
-% N = min(size(p_est,1), size(p_ref,1));
-% p_est = p_est(1:N,:);
-% p_ref = p_ref(1:N,:);
-% % ===== 誤差 =====
-% diff = p_est - p_ref;   % [N x 3]
-% % ===== 各軸 RMSE =====
-% rmse_x = sqrt(mean(diff(:,1).^2, "omitnan"));
-% rmse_y = sqrt(mean(diff(:,2).^2, "omitnan"));
-% rmse_z = sqrt(mean(diff(:,3).^2, "omitnan"));
-%
-% rmse_xyz = [rmse_x, rmse_y, rmse_z];
-% % ===== 表示 =====
-% fprintf('\n===== Position RMSE =====\n');
-% fprintf(' phase  = %s\n', string(phase));
-% fprintf(' time   = %.2f – %.2f [s]\n', t_start, t_end);
-% fprintf(' RMSE_x = %.6f [m]\n', rmse_x);
-% fprintf(' RMSE_y = %.6f [m]\n', rmse_y);
-% fprintf(' RMSE_z = %.6f [m]\n', rmse_z);
-% fprintf('=========================\n\n');
-% end
-
-function disp_fft(logger, target, att, phase)
-%   disp_fft(logger, "estimator.result.state.pL", "e", settings.phase)
-%   disp_fft(logger, "input", "", settings.phase)
+function disp_fft(logger, target, att, phase, legend_fontsize)
+if nargin < 5
+    legend_fontsize = 10;
+end
 
 data = logger.data(1, target, att, "phase", phase);
 
@@ -737,14 +692,14 @@ elseif nCols == 3 && contains(target, "input")
 else
     labels = "ch" + string(1:nCols);
 end
-legend(labels)
+legend(labels, 'FontSize', legend_fontsize)
 set(gca, 'FontSize', 12)
 end
 
-function disp_fft_time(logger, target, att, t_range)
-%   disp_fft(logger, "estimator.result.state.pL", "e", [10 20])
-%   disp_fft(logger, "input", "", [0 30])
-%   t_range: [開始時刻, 終了時刻] の2要素ベクトル[s]
+function disp_fft_time(logger, target, att, t_range, legend_fontsize)
+if nargin < 5
+    legend_fontsize = 10;
+end
 
 data = logger.data(1, target, att, "ranget", t_range);
 
@@ -772,6 +727,6 @@ elseif nCols == 3 && contains(target, "input")
 else
     labels = "ch" + string(1:nCols);
 end
-legend(labels)
+legend(labels, 'FontSize', legend_fontsize)
 set(gca, 'FontSize', 12)
 end
