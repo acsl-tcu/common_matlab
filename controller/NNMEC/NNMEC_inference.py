@@ -94,9 +94,9 @@ class InferenceWrapper(nn.Module):
         """NNModel / RNNModel共通の推論インターフェース"""
         with torch.no_grad():
             x = torch.tensor(x_list, dtype=torch.float32)
-            # print(f"[DEBUG] input shape: {x.shape}, values: {x}") # inputの形状と値をMATLABコマンドウィンドウ上に出力
+            print(f"[DEBUG] input shape: {x.shape}, values: {x}") # inputの形状と値をMATLABコマンドウィンドウ上に出力
 
-            if isinstance(self.model, RNNModel):
+            if isinstance(self.model, RNNModel): # ここのif文の挙動怪しいかも...
                 if x.dim() == 2:
                     x = x.unsqueeze(0)  # (seq_len, input_size) -> (1, seq_len, input_size)
                 out, _ = self.model(x)
@@ -110,7 +110,7 @@ class InferenceWrapper(nn.Module):
 
 if __name__ == "__main__": # デバッグ用のテストコード
     # 確認したいモデルのフルパス
-    model_full_path = r"\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\01_Python_ML\RNN-LearnExp\tmp__2026-7-15_12_15_52__RNN12__Exp_random__Euler__Device=NVIDIA GeForce RTX 4090\epoch_4\__4epoch_model.pt"
+    model_full_path = r"C:\Users\hiyou\Github\common_matlab\controller\NNMEC\NN_Model\pt\2026-8-3_12_40_53__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=6__Middle=[48]__100000epoch_model.pt"
     inference_wrapper = InferenceWrapper(model_full_path)
 
     # テスト入力データ

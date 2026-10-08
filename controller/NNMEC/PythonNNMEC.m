@@ -155,7 +155,7 @@ classdef PythonNNMEC
 
             % NNへの入力データ
             data = obj.gen_data_func(x_plant, x_nominal);
-            data_py = py.numpy.array(data);
+            data_py = py.numpy.array(data');
             py_result = obj.NNMEC_model.predict(data_py); % Pythonスクリプトでの推論
             obj.result.delta_input = (-1*double(py_result))';
             if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
