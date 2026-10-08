@@ -137,7 +137,7 @@ function agentObj = configure_single_agent(agentObj, idx, dt, init_state, load_a
         MODEL_CLASS(agentObj, Model_Suspended_Load(dt, init_state, 1, agentObj, "Load_mL_HL")), ["p", "q", "pL", "pT"])));
     agentObj.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agentObj));
 
-    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 2], "radius", [2, 2, 1]}, 5}));
+    agentObj.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agentObj, {"gen_ref_saddle", {"freq", 10, "center", [0; 0; 2], "radius", [2, 2, 1]}, 6}));
     agentObj.reference.set_function_class("offset", COOPERATIVE_LOAD_REF_OFFSET(agentObj, "payload_index", load_agent.id, "rho", load_agent.parameter.rho(:, idx)));
     agentObj.reference.set_function_class("avoid", COLLISION_AVOID_REF(agentObj, "payload_index", load_agent.id));
     agentObj.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agentObj));
