@@ -1,0 +1,10 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/08 17:46:35
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+errore_kiroku_check_001_Log(08-Oct-2026_17_41_54).mat
+errore_kiroku_check_002_Log(08-Oct-2026_17_42_19).mat
+errore_kiroku_check_003_Log(08-Oct-2026_17_42_43).mat
+KLでした

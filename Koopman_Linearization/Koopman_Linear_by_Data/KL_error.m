@@ -1,58 +1,88 @@
-function output = KL_error(X,U,Y,Xnom,Ynom,F,flg)
+
+function output = KL_error(E,dU,E_next,flg)
 
 tic
 
+%% Error system identification
+% e[k+1] = A*e[k] + B*delta_u[k]
+%
+% E      : e[k]        (26 x N)
+% dU     : delta_u[k]  (4 x N)
+% E_next : e[k+1]      (26 x N)
 
-%%観測量でリフト
-N = size(X,2);
+%% jigenn kakunin 
+N = size(E,2);
 
-for i = 1:N
-    Xplift(:,i) = F(X(:,i));
-    Xnlift(:,i) = F(Xnom(:,i));
+assert(size(dU,2) == N, ...
+    'EとdUのデータ数が一致しません');
 
-    Yplift(:,i) = F(Y(:,i));
-    Ynlift(:,1) = F(Znom(:,i));
+assert(size(E_next,2) == N, ...
+    'EとE_nextのデータ数が一致しません');
 
-end
+assert(size(E,1) == size(E_next,1), ...
+    '誤差の次元が一致しません');
 
-%% errore calc
-dXlift = Xplift - Xnlift;
-dYlift = Yplift - Ynlift;
-dU = U - Unon;
-dX = X - Xnom;
+assert(all(isfinite([E(:);dU(:);E_next(:)])), ...
+    'データにNaNまたはInfが含まれています');
 
-numX = size(dXlift,1);
-niimU = size(dU,1);
+numX = size(E,1);
+numU = size(dU,1);
 
-%%identifi A B
+%% Identification of A and B
 if flg.weight
-    Q = blkdiag(flg.weight_Qisobe, eye(numZ-size(flg.weight_Qisobe,1)));
 
-    dXlift = Q*dXlift;
-    dYlift = Q*dYlift;
+    % 誤差状態の重み付け
+    Q = blkdiag(flg.weight_Qisobe, ...
+        eye(numX-size(flg.weight_Qisobe,1)));
 
-    Omega = [dXlift; dU];
+    assert(isequal(size(Q),[numX numX]), ...
+        'Qのサイズが不正です');
 
-    G = Omega*Omega';
-    V = dYlift*Omega';
+    % 変換後の誤差モデルを同定
+    Xw = Q*E;
+    Yw = Q*E_next;
 
-    M = V*pinv(G);
+    Omega = [Xw; dU];
+
+    M = Yw * pinv(Omega);
 
     output.A = M(:,1:numX);
     output.B = M(:,numX+1:numX+numU);
-    output.C = dX*pinv(dXlift);
     output.Q = Q;
 
 else
-    Omega = [dXlift; dU];
 
-    G = Omega * Omega';
-    V = dYlift * Omega';
+    Omega = [E; dU];
 
-    M = V * pinv(G);
+    M = E_next * pinv(Omega);
 
-    output.A = M(:, 1:numX); % size(.A) = (numX, numX)
-    output.B = M(1:numX, numX+1:numX+numU); % size(.B) = (numX, numU)
-    output.C = dX*pinv(dXlift); % C: Z->X の厳密な求め方 pinv: Moore-Penrose疑似逆行列  size(.C) = (size(X), numX)
+    output.A = M(:,1:numX);
+    output.B = M(:,numX+1:numX+numU);
+
 end
+
+%% Identification accuracy
+if flg.weight
+    Ehat_next = output.A*Xw + output.B*dU;
+    residual = Yw-Ehat_next;
+else
+    Ehat_next = output.A*E + output.B*dU;
+    residual = E_next-Ehat_next;
+end
+
+output.RMSE = sqrt(mean(residual(:).^2));
+
+%% Output matrix
+if flg.weight
+    output.C = Q \ eye(numX);
+else
+    output.C = eye(numX);
+end
+
+fprintf('Error model RMSE : %.6g\n',output.RMSE);
+fprintf('A size : %d x %d\n',size(output.A));
+fprintf('B size : %d x %d\n',size(output.B));
+
 toc
+
+end

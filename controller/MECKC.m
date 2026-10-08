@@ -59,7 +59,8 @@ classdef MECKC < handle
             %---可制御部分をデカップリング---%
             % K_full=[zeros(4,24)];
             % load('koopman_common_z__gain_KD.mat','K_full');
-            load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
+            % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
+            load('kakunin_KL_err_gain_KD_LQR_check_20261008_173625.mat','K_full')
             % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
             % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
@@ -75,6 +76,7 @@ classdef MECKC < handle
             % % data = load('first_KL_gain_KD.mat');
             % % K = data.K;
             e = z_n-z_p;
+            obj.result.e = e;
             %%%%%-----lqr法終わり-----%%%%%
             %拡張状態取得
 
@@ -156,9 +158,10 @@ classdef MECKC < handle
             end
 
             % obj.result.delta_u = -K_full*e;     %補償入力オン
-            % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
-            obj.result.delta_u = 0;%unだけ確認したいとき
-            % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t); 0; 0; 0];   %補償入力＋励起入力オン
+            obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
+            % obj.result.delta_u = 0;%unだけ確認したいとき
+            % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t);
+            % 0; 0; 0];   %補償入力＋励起入力オン
 
             obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力
             result = obj.result;
