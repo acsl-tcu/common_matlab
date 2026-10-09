@@ -33,9 +33,9 @@ Setting.fDebug = 1; % 1: active : for debug function
 Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 Setting.mode = SimBaseMode(1); % SimSuspendedLoad
 % Setting.mode = SimBaseMode(2); % SimCoop
-% Setting.mode = SimBaseMode(5); % SimHL
-% Setting.mode = SimBaseMode(7); % SimFHL
-Setting.mode = SimBaseMode(15); % SimMEC_K
+Setting.mode = SimBaseMode(5); % SimHL
+% % Setting.mode = SimBaseMode(7); % SimFHL
+% Setting.mode = SimBaseMode(15); % SimMEC_K
 
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
@@ -50,4 +50,4 @@ else
 end
 
 app = SimExp(Setting);
-app.run_auto_trials(3, "errore_kiroku_check");%自動くりかえし
+app.run_auto_trials(1, "");%自動くりかえし

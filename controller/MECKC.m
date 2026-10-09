@@ -158,8 +158,8 @@ classdef MECKC < handle
             end
 
             % obj.result.delta_u = -K_full*e;     %補償入力オン
-            obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
-            % obj.result.delta_u = 0;%unだけ確認したいとき
+            % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
+            obj.result.delta_u = 0;%unだけ確認したいとき
             % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t);
             % 0; 0; 0];   %補償入力＋励起入力オン
 

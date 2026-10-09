@@ -87,9 +87,11 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));%これ位相ずらす必要あるんかな…
 
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
-% これ使うやつ↓
+% % これ使うやつ↓
 seed = app.initial_setting.trajectory_seed;
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
 
@@ -111,7 +113,6 @@ agent.cha_allocation.a.reference="takeoff";
 agent.cha_allocation.t.reference="takeoff";
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.l.reference="landing";
-
 
 agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
 agent.controller.set_function_class("mec", MECKC(agent,Controller_HL(dt)));
