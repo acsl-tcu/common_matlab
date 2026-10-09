@@ -82,18 +82,18 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p", {"p0",[0;0;1],"pf",[1;1;1],"T",10}}));
 % agent.reference.set_function_cltass("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline", {"point",17,"order",3,"filename",4,"ManualSetting",0,"point_dt",5,}}));
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",-10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));%これ位相ずらす必要あるんかな…
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
 % % これ使うやつ↓
-seed = app.initial_setting.trajectory_seed;
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
+% seed = app.initial_setting.trajectory_seed;
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}));%seedを固定すると同じ軌道，外すとランダム軌道
 

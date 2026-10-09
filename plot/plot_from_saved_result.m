@@ -1,15 +1,4 @@
 %% 説明
-% 2025/06 作成者：小関
-% Exp / Simデータをプロットすることができるファイル
-% 最初は全てのセクションを実行する．
-% データの読み込みができたら，プロットセクションだけ実行すれば手間が省ける．
-% プロットセクションのsettingsを変更して調整することでmainGUIの画面上とは違ういい感じのグラフが取れる
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 50行付近のsettingsは色々見てください！！  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 分からないことや追加したい機能などあったらSlackで聞いてください
-% 凡例に関しては，書き方・位置を要検討
-% プロットしたいフェーズを選べるようになると嬉しい
 
 %% 初期化&パスの設定
 clear all
@@ -61,7 +50,7 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
 % settings.target = ["p", "controller.result.delta_input"];
-settings.target = ["p", "v","p1-p2"];
+settings.target = ["p", "v","p1-p2-p3"];
 % settings.target = "input2:4";
 % settings.target = "p1-p2";
 % settings.target = "controller.result.xd";
@@ -170,11 +159,11 @@ for i=1:length(settings.target)
             zlabel = "$z$ [m]";
             tmp = settings.attribute;
             fcolor = 0;
-            att = select_attribute(settings.target(i), tmp);
-            case "controller.result.xd1:3"
-    ylabel = "Reference position $x_d$ [m]";
-    tmp = "";        % attribute は使わない
-    att = "";        % ← 重要
+            att = "er";
+        case "controller.result.xd1:3"
+            ylabel = "Reference position $x_d$ [m]";
+            tmp = "";        % attribute は使わない
+            att = "";        % ← 重要
 
         otherwise
             if contains(settings.target(i), 'input') % "input"が入っていたら
@@ -195,12 +184,51 @@ for i=1:length(settings.target)
                 att = select_attribute(settings.target(i), tmp);
             end
     end
+    
+
+if settings.target(i) == "p1-p2-p3"
+
+    % ドローンの推定位置
+    p_est = logger.data(settings.agent_id,"p","e", ...
+        "phase",settings.phase);
+
+    % 目標軌道
+    p_ref = logger.data(settings.agent_id,"p","r", ...
+        "phase",settings.phase);
+
+    fig = figure(i);
+    clf(fig);
+    ax = axes(fig);
+
+    % ドローンの推定軌道
+    plot3(ax, p_est(:,1), p_est(:,2), p_est(:,3), ...
+        'LineWidth',settings.linewidth);
+    hold(ax,'on');
+
+    % 目標軌道
+    plot3(ax, p_ref(:,1), p_ref(:,2), p_ref(:,3), ...
+        '--','LineWidth',settings.linewidth);
+
+    legend(ax,{'Estimate','Reference'}, ...
+        'Location','best');
+
+    grid(ax,'on');
+    axis(ax,'equal');
+    view(ax,3);
+
+else
+
     logger.plot({settings.agent_id, settings.target(i), att}, ...
-        'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
-        'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
+        'fig_num',i, 'color',fcolor, ...
+        "phase",settings.phase, ...
+        'FontSize',settings.fontsize, ...
+        'Linewidth',settings.linewidth)
 
     fig = gcf;
     ax = gca;
+
+end
+
 
     chars = string(split(att, ""));
     chars(chars == "") = [];
@@ -250,30 +278,30 @@ for i=1:length(settings.target)
             end
             ylim([y_min y_max])
 
-            case "controller.result.xd1:3"
-    set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
+        case "controller.result.xd1:3"
+            set(ax.YLabel, 'String', ylabel, 'Interpreter','latex')
 
-    % ===== xd を直接 logger.data ではなく cell から取得 =====
-    cr = logger.Data.agent(settings.agent_id).controller.result;
-    N  = numel(cr);
+            % ===== xd を直接 logger.data ではなく cell から取得 =====
+            cr = logger.Data.agent(settings.agent_id).controller.result;
+            N  = numel(cr);
 
-    xd = zeros(N,3);
-    for k = 1:N
-        xd(k,:) = cr{k}.xd(1:3).';
-    end
+            xd = zeros(N,3);
+            for k = 1:N
+                xd(k,:) = cr{k}.xd(1:3).';
+            end
 
-    t = logger.Data.t(1:N);
+            t = logger.Data.t(1:N);
 
-    plot(ax, t, xd(:,1), ...
-             t, xd(:,2), ...
-             t, xd(:,3), ...
-             'LineWidth', settings.linewidth)
+            plot(ax, t, xd(:,1), ...
+                t, xd(:,2), ...
+                t, xd(:,3), ...
+                'LineWidth', settings.linewidth)
 
-    grid(ax,'on')
-    legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
-        'Interpreter','latex')
+            grid(ax,'on')
+            legend(ax, {'$x_d$','$y_d$','$z_d$'}, ...
+                'Interpreter','latex')
 
-    ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
+            ylim(ax, [-1.5 1.5])   % ← 見えない問題防止
 
         otherwise
             if contains(settings.target(i), '2:4') % target = "input2:4"用
@@ -555,24 +583,12 @@ end
 end
 
 
-% function disp_rmse(logger, phase)
-% target = ["p","v"];
-% for i=1:length(target)
-%     ref = logger.data(1,target(i),"r", "phase",phase);
-%     data = logger.data(1,target(i),"e", "phase",phase);
-%     RMSE = rmse(ref, data, 1);
-%     fprintf('%s RMSE:\n', target(i))
-%     disp(RMSE)
-%     disp(sum(RMSE))
-% end
 
-% end
 
 
 function disp_rmse(logger, phase)
 % estimator と reference の position を取得（Nx3）
-p_est = logger.data(1,"estimator.result.state.pL","e","phase",phase);
-p_ref = logger.data(1,"p","r","phase",phase);
+p_est = logger.data(1,"p","e","phase",phase);p_ref = logger.data(1,"p","r","phase",phase);
 % サイズチェック
 N = min(size(p_est,1), size(p_ref,1));
 p_est = p_est(1:N,:);
@@ -588,40 +604,3 @@ fprintf(' RMSE_z = %.6f [m]\n', RMSE_z);
 fprintf('=====================================\n\n');
 end
 
-% function rmse_xyz = disp_rmse(logger, phase)
-% % disp_rmse : phase指定 + 内部で決めた時間区間で XYZ RMSE を表示
-% % Usage:
-% %   disp_rmse(logger, phase)
-% % Output:
-% %   rmse_xyz = [rmse_x rmse_y rmse_z] （必要なければ無視してOK）
-% % ===== 評価時間区間（ここで固定）=====
-% t_start = 20;   % [s]
-% t_end   = 25;   % [s]
-% % ===== logger.data オプション =====
-% opt = {"phase", phase, "ranget", [t_start t_end]};
-% % ===== データ取得 =====
-% % 推定された牽引物位置
-% p_est = logger.data(1,"estimator.result.state.pL","e", opt{:});  % [N x 3]
-% % 参照位置
-% p_ref = logger.data(1,"p","r", opt{:});                         % [N x 3]
-% % ===== サイズ合わせ =====
-% N = min(size(p_est,1), size(p_ref,1));
-% p_est = p_est(1:N,:);
-% p_ref = p_ref(1:N,:);
-% % ===== 誤差 =====
-% diff = p_est - p_ref;   % [N x 3]
-% % ===== 各軸 RMSE =====
-% rmse_x = sqrt(mean(diff(:,1).^2, "omitnan"));
-% rmse_y = sqrt(mean(diff(:,2).^2, "omitnan"));
-% rmse_z = sqrt(mean(diff(:,3).^2, "omitnan"));
-% 
-% rmse_xyz = [rmse_x, rmse_y, rmse_z];
-% % ===== 表示 =====
-% fprintf('\n===== Position RMSE =====\n');
-% fprintf(' phase  = %s\n', string(phase));
-% fprintf(' time   = %.2f – %.2f [s]\n', t_start, t_end);
-% fprintf(' RMSE_x = %.6f [m]\n', rmse_x);
-% fprintf(' RMSE_y = %.6f [m]\n', rmse_y);
-% fprintf(' RMSE_z = %.6f [m]\n', rmse_z);
-% fprintf('=========================\n\n');
-% end
