@@ -48,7 +48,8 @@ methods
         xd(17:19) = Rb0' * xd(17:19);
 
         if t > 5
-            obj.z = obj.z + xd(1:3) - x(5:7);
+            % obj.z = obj.z + xd(1:3) - x(5:7);
+            obj.z = obj.z + [0;0;xd(3)-x(7)]; % z方向にのみサーボを入れる
         end
 
         %% calc Z
