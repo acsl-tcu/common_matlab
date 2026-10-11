@@ -1,1179 +1,758 @@
 classdef REPLANNING_SYSTEM < handle
     % =========================================================================
-    % REPLANNING_BSPLINE_NEW
-    % 
-    % 【パイプライン構造】
-    %  1. センサ検知 (Level 0: 15m 球面レンジ)
-    %  2. 予測衝突フィルタ (Level 1: 粗い外接足切り -> Level 2: 微分平坦性将来干渉予測)
-    %  3. 将来の回避計画へ引き渡す回避対象 (relevant_obstacles) を確定
+    % REPLANNING_SYSTEM
+    %
+    % 【概要】
+    %   索吊り下げ型ドローン (Quadrotor with Suspended Load) 向け
+    %   超高速MEXトリガー＆20mセンサ検知統括クラス。
+    %
+    % 【設計思想】
+    %   1. スプラインモデル生成および重い公称軌道サンプリングループを完全撤廃。
+    %   2. 制御周期ごとの計算負荷をマイクロ秒（0.01ms級）に極小化。
+    %   3. 20m圏内センサ検知および現在状態（荷物・機体・索）の接触判定を
+    %      新C++ MEX カーネル (trigger_packet_kernel_mex) で瞬時に一括実行。
+    %   4. 制御周期 dt、重力加速度 gravity、索長 L_cable を本体・パラメータから
+    %      厳格に取得（未設定時は即座に assert エラー停止）。
+    %   5. 牽引物質量 loadmass は推定器の推定値 (estimator.result.state.mL) を厳格取得。
+    %      推定値が取得できない場合は即座に assert エラー停止（フォールバック完全撤廃）。
+    %   6. プロパティ名の衝突を防ぐため、索保護球半径を r_cable_sphere に改名。
+    %   7. ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE の全障害物形状 (球、円柱、直方体、
+    %      三角柱、円錐、角錐、楕円体、カスタム) に完全対応。外接球半径 r_obs を
+    %      環境側から直接受け取り、マージン無しの幾何楕円体近似をベースとして
+    %      システム側マージン (初期値 0.0) を付与。
+    %   8. ログ表示フラグ (ENABLE_ALL_LOG, LOG_SENSOR, LOG_TRIGGER) により
+    %      20m内障害物情報や接触判定の表示／非表示を自由に切り替え可能。
+    %      すべての検知・判定結果は状態構造体 (result.state) に毎周期記録され、
+    %      LOGGER クラスによって自動保存される。
     % =========================================================================
-    properties
-        % =====================================================================
-        % ★★★ ログ表示スイッチ (1: 表示する, 0: 一切表示しない) ★★★
-        % この部分の表示でコマンドウィンドウに追加のlogを表示するのか決定
-        % =====================================================================
-        ENABLE_ALL_LOG = 1;        % 1: ON (ログ表示), 0: OFF (非表示・最高速) 
-        
-        % ---------------------------------------------------------------------
-        % モジュール別フラグ (上記が 1 のときに個別で OFF にしたい場合に使用)
-        % ---------------------------------------------------------------------
-        LOG_SENSOR    = 0;         % センサ検知ログ
-        LOG_TRIGGER    = 0;        % 回避開始判定 & O_rel 確定ログ (重要)
-        LOG_PHASE1        = 1;     % Phase 1: C6 B-spline 生成・検証ログ
 
-        USE_SPHERE_APPROX = 0;     % 1: 外接球高速判定 (推奨・0.1ms級), 0: 楕円体厳密判定 (反復法)
+    properties (Access = public)
         % =====================================================================
+        % ログ表示マスタースイッチ & モジュール別スイッチ
+        % =====================================================================
+        ENABLE_ALL_LOG = 1;        % 1: ON (ログ表示), 0: OFF (非表示・最高速)
+        LOG_SENSOR     = 1;        % 20m以内の障害物検知ログ表示 (1: ON, 0: OFF)
+        LOG_TRIGGER    = 1;        % 接触判定 (回避トリガー) ログ表示 (1: ON, 0: OFF)
 
-        self                       % ドローンエージェント自身
-        base_ref                   % 公称参照軌道生成オブジェクト
+        % =====================================================================
+        % 基本オブジェクト参照
+        % =====================================================================
+        self                       % ドローンエージェント自身 (パラメータ・状態取得元)
+        base_ref                   % 公称参照軌道オブジェクト
         result                     % 出力結果構造体
-        
-        % --- センサ検知パラメータ ---
-        trigger_dist = 15.0;       % センサ検知球半径 R_sense [m]
-        
-        % --- 静的障害物マップ (キャッシュ) ---
-        static_obstacle_map = [];  % 初期化時に事前計算・保持する障害物リスト 全体の障害物で実環境として取得
 
-        % --- 将来予測トリガー・安全余裕パラメータ ---
-        T_lookahead          = 5.0;   % 将来予測時間ホライズン [s]
-        N_pred_sample        = 11;    % 粗い予測点数 (約0.5s間隔)
-        N_sub                = 4;     % 怪しい区間のみ行う局所細分化数
-        
-        % 【仮値】追従遅れや外乱を考慮した安全余裕マージン [m]
-        % ※ 本値(0.2m)は実験用仮値であり、実機や制御器の追従性能に応じて後で調整・置換すること
-        d_margin             = 0.2;   % システム離隔がこれ以下で衝突と判定
+        % =====================================================================
+        % センサ検知パラメータ
+        % =====================================================================
+        trigger_dist   = 20.0;     % センサ検知球半径 R_sense [m] (デフォルト: 20m)
+        prediction_dt  = 0.025;    % 制御周期 [s] (本体から厳格取得)
 
-        % --- 索保護球列パラメータ (隙間ゼロ幾何自動配置) ---
-        s_cable_ratios    = [];    % 索上の球体配置比率ベクトル (例: 2球なら [0.25, 0.75])
-        
-        % --- 機体・索・荷物 物理幾何パラメータ ---
-        % ※ MATLABの仕様上、properties内では obj を参照できないため固定デフォルト値で初期化
-        gravity           = 9.81;  % 重力加速度 [m/s^2]
-        L_cable           = 2.0;   % 索長 [m]
-        r_drone           = 0.5;   % 機体等価球半径 [m]
-        r_load            = 0.5;   % 荷物球半径 [m]
-        r_cable           = 0.5;   % 索保護球半径 [m]
+        % =====================================================================
+        % 幾何保護半径 & 安全マージン [m]
+        % =====================================================================
+        d_margin       = 0.0;      % システム離隔マージン [m] (デフォルト: 0.0)
+        r_drone        = 0.5;      % 機体等価球半径 [m]
+        r_load         = 0.5;      % 荷物球半径 [m]
+        r_cable_sphere = 0.5;      % 索保護球半径 [m] (旧 r_cable から改名し衝突回避)
 
-        % --- Phase 1: C6 B-spline パラメータ & 内部モデルキャッシュ ---
-        bspline_p            = 7;     % 次数 p = 7 (C6 連続)
-        N_ctrl_pts           = 18;    % 全制御点数 (7 + 4 + 7 = 18)
-        N_fixed_start        = 7;     % 始端固定制御点数 (P1 ~ P7)
-        N_free               = 4;     % 自由制御点数 (P8 ~ P11)
-        N_fixed_end          = 7;     % 終端固定制御点数 (P12 ~ P18)
-        n_z                  = 12;    % 自由変数 z の次元数 (4点 × 3軸)
-        t_replan_horizon     = 5.0;   % 計画ホライズン T_plan [s] これについては今後は固定値ではなく動かしていく　構想
-        current_bspline      = [];    % Phase 1 B-spline モデル構造体キャッシュ
-        phase1_template      = [];    % 事前計算キャッシュ (ノット・境界行列 Bs, Be) (★追加)
-        eval_time_buffer     = struct('t', 0.0, 'dt', 0.025); % 未来公称軌道取得用バッファ (★追加)
-        is_warming_up = false;     % JITウォームアップ専用フラグ
-        % --- 性能プロファイリング (計測バッファ) ---
+        % =====================================================================
+        % 物理モデルパラメータ
+        % =====================================================================
+        gravity        = 9.81;     % 重力加速度 [m/s^2] (self.parameter から厳格取得)
+        L_cable        = 2.0;      % 索長 [m] (self.parameter から厳格取得)
+        loadmass       = 0.0;      % 牽引物質量 [kg] (推定器から厳格取得・未推定時エラー)
+
+        % =====================================================================
+        % 静的障害物マップ & MEX用事前幾何パケット
+        % =====================================================================
+        static_obstacle_map = [];  % 生の環境障害物データ (ENVIRONMENT_OBSTACLE)
+        obstacle_packet     = [];  % MEX向け幾何前計算済み障害物パケット
+
+        % =====================================================================
+        % MEX ランタイム管理
+        % =====================================================================
+        mex_name       = 'trigger_packet_kernel_mex'; % MEX関数名
+        mex_ready      = false;    % MEX準備完了フラグ
+
+        % =====================================================================
+        % 互換用ダミープロパティ (外部参照でのエラー防止)
+        % =====================================================================
+        current_bspline = [];      % スプラインモデル生成廃止に伴う空プレースホルダー
+
+        % =====================================================================
+        % 計算負荷プロファイリング [ms]
+        % =====================================================================
         profiling = struct( ...
-            't_base_ref_ms',        0.0, ... % 公称軌道生成所要時間 [ms]
-            't_sensor_total_ms',    0.0, ... % センサ検知合計時間 [ms]
-            't_sensor_stage1_ms',   0.0, ... % Stage 1 (外接球Reject) [ms]
-            't_sensor_stage2_ms',   0.0, ... % Stage 2 (表面距離反復計算) [ms]
-            't_sensor_sort_ms',     0.0, ... % ソート・パッキング [ms]
-            't_pred_eval_total_ms', 0.0, ... % 将来区間衝突判定合計時間 [ms] (★新設: 予測処理の記録)
-            'candidate_count',      0);      % Stage 2 に進んだ候補障害物数
+            't_base_ref_ms', 0.0, ... % 公称軌道透過取得時間 [ms]
+            't_trigger_ms',  0.0, ... % センサ＆接触判定合計時間 [ms]
+            't_kernel_ms',   0.0);    % 純粋MEXカーネル時間 [ms]
     end
 
     methods (Access = public)
         % =====================================================================
-        % コンストラクタ：初期に一度だけ実行
+        % コンストラクタ：初期化・パラメータバインド・MEX自動コンパイル
         % =====================================================================
         function obj = REPLANNING_SYSTEM(self, base_ref, opts)
             arguments
-                self                  % 必須: エージェントインスタンス(状態推定値やパラメータ取得元)
-                base_ref              % 必須: 通常飛行用の公称軌道インスタンス
-                opts = struct()       % 任意: 外部設定構造体(検知半径やログスイッチ等)
+                self                  % 必須: エージェントインスタンス
+                base_ref              % 必須: 公称参照軌道オブジェクト
+                opts = struct()       % 任意: 外部設定構造体
             end
-            % --- 基本インスタンス・パラメータの初期設定 ---
-            obj.self = self;
+
+            % --- 1. 基本インスタンスの保持 ---
+            obj.self     = self;
             obj.base_ref = base_ref;
-            % 外部オプションによるパラメータ上書き　外部から渡された場合上書き
-            if isfield(opts, 'trigger_dist'), obj.trigger_dist = opts.trigger_dist; end % センサ検知球半径 R_sense [m]
-            if isfield(opts, 'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG = opts.ENABLE_ALL_LOG; end % 追加ログの表示
-            if isfield(opts, 'LOG_SENSOR'),     obj.LOG_SENSOR     = opts.LOG_SENSOR;     end % センサログフラグ
-            if isfield(opts, 'LOG_TRIGGER'),    obj.LOG_TRIGGER    = opts.LOG_TRIGGER;    end % 回避トリガーログフラグ
-            if isfield(opts, 'USE_SPHERE_APPROX'), obj.USE_SPHERE_APPROX = opts.USE_SPHERE_APPROX; end
-            if isfield(opts, 'T_lookahead'),        obj.T_lookahead       = opts.T_lookahead;       end
-            if isfield(opts, 'N_pred_sample'),      obj.N_pred_sample     = opts.N_pred_sample;     end
-            if isfield(opts, 'N_sub'),              obj.N_sub             = opts.N_sub;             end
-            if isfield(opts, 'd_margin'),           obj.d_margin          = opts.d_margin;          end % 安全余裕マージン
-            if isfield(opts, 'd_collision_thresh'), obj.d_margin          = opts.d_collision_thresh; end % 互換用
-            if isfield(opts, 'D_trigger'),          obj.d_margin          = opts.D_trigger;          end % 互換用
-            if isfield(opts, 'D_margin'),           obj.d_margin          = opts.D_margin;           end % 互換用
-            if isfield(opts, 'r_drone'),            obj.r_drone            = opts.r_drone;            end % 機体半径 [m]
-            if isfield(opts, 'r_load'),             obj.r_load             = opts.r_load;             end % 荷物半径 [m]
-            if isfield(opts, 'r_cable'),            obj.r_cable            = opts.r_cable;            end % 索球半径 [m]
 
-            if isfield(opts, 't_replan_horizon'),   obj.t_replan_horizon   = opts.t_replan_horizon;   end % (★追加)
+            % --- 2. 外部オプション (opts) によるパラメータ上書き ---
+            if isfield(opts, 'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG = opts.ENABLE_ALL_LOG; end
+            if isfield(opts, 'LOG_SENSOR'),     obj.LOG_SENSOR     = opts.LOG_SENSOR;     end
+            if isfield(opts, 'LOG_TRIGGER'),    obj.LOG_TRIGGER    = opts.LOG_TRIGGER;    end
 
-            % =================================================================
-            % 物理パラメータの厳格バインド (DRONE_PARAM_SUSPENDED_LOAD から直接取得)
-            % =================================================================
-            obj.gravity = obj.self.parameter.get("gravity"); % 重力加速度 [m/s^2]
-            obj.L_cable = obj.self.parameter.get("cableL"); % 索長 [m]
+            % センサ検知半径 (デフォルト 20m)
+            if isfield(opts, 'trigger_dist'),   obj.trigger_dist   = opts.trigger_dist;   end
+            if isfield(opts, 'sensor_range_m'), obj.trigger_dist   = opts.sensor_range_m; end
 
-            % パラメータの妥当性検証 (取得できなければ即停止)
+            % 安全マージン (システム側のマージン: デフォルト 0.0)
+            if isfield(opts, 'd_margin'),           obj.d_margin   = opts.d_margin;           end
+            if isfield(opts, 'D_margin'),           obj.d_margin   = opts.D_margin;           end
+            if isfield(opts, 'd_collision_thresh'), obj.d_margin   = opts.d_collision_thresh; end
+            if isfield(opts, 'D_trigger'),          obj.d_margin   = opts.D_trigger;          end
+
+            % 各部等価球半径 (r_cable プロパティ名衝突回避版)
+            if isfield(opts, 'r_drone'),        obj.r_drone        = opts.r_drone;        end
+            if isfield(opts, 'r_load'),         obj.r_load         = opts.r_load;         end
+            if isfield(opts, 'r_cable_sphere'), obj.r_cable_sphere = opts.r_cable_sphere; end
+            if isfield(opts, 'r_cable'),        obj.r_cable_sphere = opts.r_cable;        end % 旧オプション互換
+            if isfield(opts, 'cable'),          obj.r_cable_sphere = opts.cable;          end % 旧オプション互換
+
+            % --- 3. 制御周期 dt の厳格バインド (本体 self.plant から取得、無ければ停止) ---
+            dt_val = [];
+            if isprop(obj.self, 'plant') && ~isempty(obj.self.plant) && isprop(obj.self.plant, 'dt') && ~isempty(obj.self.plant.dt)
+                dt_val = obj.self.plant.dt;
+            elseif isprop(obj.self, 'parameter') && ~isempty(obj.self.parameter)
+                try
+                    dt_val = obj.self.parameter.get("dt");
+                catch
+                end
+            end
+            if isempty(dt_val) && isfield(opts, 'dt')
+                dt_val = opts.dt;
+            end
+            assert(~isempty(dt_val) && isnumeric(dt_val) && dt_val > 0, ...
+                '[REPLANNER ERROR] 制御周期 dt の取得に失敗しました。本体 (self.plant.dt 等) に設定されている必要があります。');
+            obj.prediction_dt = dt_val;
+
+            % --- 4. 物理パラメータの厳格バインド (self.parameter から直接取得) ---
+            obj.gravity = obj.self.parameter.get("gravity");
+            obj.L_cable = obj.self.parameter.get("cableL");
+
             assert(~isempty(obj.gravity) && isnumeric(obj.gravity) && obj.gravity > 0, ...
                 '[REPLANNER ERROR] self.parameter から gravity の取得に失敗しました。');
             assert(~isempty(obj.L_cable) && isnumeric(obj.L_cable) && obj.L_cable > 0, ...
                 '[REPLANNER ERROR] self.parameter から cableL の取得に失敗しました。');
 
-            % 索長確定後、直ちに索保護球の幾何配置比率を算出
-            obj.update_cable_sphere_ratios();
+            % 牽引物質量の取得 (推定値優先)
+            obj.loadmass = obj.get_load_mass();
 
-            % 出力構造体の初期テンプレートを公称軌道オブジェクトから継承
+            % 出力構造体の初期テンプレートを公称軌道から継承
             obj.result = base_ref.result;
 
-            % --- 2. シミュレーション環境全体の静的障害物マップ生成・キャッシュ ---
-            % 【設計意図】
-            %   実世界における「物理空間そのもの（Ground Truth）」をシミュレータ上に1度だけ構築
-            %   ※ 本データは「センサが検知した情報」ではなく，ワールド全体の「正解配置データ」
-            %   毎制御周期 (doメソッド内) で環境関数を呼び直すオーバーヘッドを完全排除し，
-            %   飛行中は本キャッシュマップに対して「15m以内に存在するか？」の照会 (Query) のみを行う
-            raw_obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(0.0); % 静的環境として t=0 の初期配置を取得
-            % 空の構造体配列を事前定義 (フィールド構造を固定してアクセスを高速化)
-            obj.static_obstacle_map = repmat(struct( ...
-                'id', [], 'p_obs', [], 'R_obs', [], 'radii_obs', [], 'r_max', []), 0, 1);
-            
-            for i = 1:numel(raw_obs)
-                o = raw_obs(i);
-                r = o.ellipsoid_radii(:);
-                item.id        = o.id; % 障害物固有識別ID
-                item.p_obs     = o.p_center(:); % 楕円体中心座標 [x; y; z] (ワールド座標系)
-                item.R_obs     = o.R_obs; % 姿勢回転行列 (ワールド -> 局所主軸座標系)
-                item.radii_obs = r; % 楕円体の3主軸半長 [rx; ry; rz]
-                % 【高速化事前計算】
-                % 楕円体中心から最遠表面までの距離（外接球半径 r_max）をあらかじめ保持
-                % これにより，オンライン実行時の Stage 1 (外接球 Reject) で max() 計算を毎回行わずに済む　
-                item.r_max     = max(r); % 外接球半径を事前計算
-                obj.static_obstacle_map(end+1, 1) = item;
-            end
+            % --- 5. MEXファイルの存在確認 & 自動ビルド ---
+            obj.ensure_mex_compiled();
 
-            % --- STATE_CLASS への診断・検知プロパティの動的登録 ---
-            % 後続の制御器，ロガー，可視化ツールが参照できるように，
-            % センサ検知結果や計算負荷プロファイリング用の変数を状態構造体 (state) に追加
+            % --- 6. 静的障害物マップの取得 & MEXパケット事前構築 ---
+            raw_obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(0.0);
+            obj.static_obstacle_map = raw_obs;
+            obj.obstacle_packet     = obj.prepare_obstacle_packet(raw_obs);
+
+            % --- 7. 状態構造体 (state) へのプロパティ動的登録 (LOGGER 保存用) ---
             sensor_props = [ ...
-                "time", ...                          % センシング実行時刻 [s]
-                "pQ", ...                            % センシング時のUAV機体重心座標 [m]
-                "detected_point", ...                % 15m以内に障害物が1つ以上存在するか (true/false)
-                "detected_obstacles", ...            % 15m以内で検知された障害物リスト (最寄り順ソート済み)
-                "need_replan", ...                   % 回避開始フラグ (true/false)
-                "relevant_obstacles", ...            % 回避対象集合 O_rel
-                "min_obstacle_id_point", ...         % 最も近接している障害物のID
-                "min_dist_point", ...                % 最も近接している障害物表面までの距離 [m]
-                "detected_obstacle_count_point", ... % 15m以内で検知された障害物の総数
-                "profiling" ...                      % センサ処理各ステージの計算時間プロファイラ [ms]
-                "current_bspline", ...               % Phase 1 B-spline モデル構造体 (★追加)
+                "time", ...                          % 実行時刻 [s]
+                "pQ", ...                            % 機体重心座標 [m]
+                "detected_point", ...                % 20m内検知フラグ (true/false)
+                "detected_obstacles", ...            % 20m内障害物リスト
+                "need_replan", ...                   % 接触・回避トリガーフラグ (true/false)
+                "relevant_obstacles", ...            % 接触対象障害物情報
+                "min_obstacle_id_point", ...         % 最寄障害物ID
+                "min_dist_point", ...                % 最短離隔距離 [m]
+                "detected_obstacle_count_point", ... % 20m内障害物数
+                "loadmass", ...                      % 牽引物質量 [kg] (推定値)
+                "profiling", ...                     % 計算時間プロファイル構造体
+                "current_bspline" ...                % 互換用ダミー
             ];
             for p_name = sensor_props
-                % 未定義プロパティのみを動的に追加 (二重定義エラーを防止)
                 if ~isprop(obj.result.state, p_name)
                     addprop(obj.result.state, p_name);
                 end
             end
-            % --- Phase 1 テンプレート初期化 & 親メソッド do の完全ウォームアップ ---
-            obj.init_phase1_static_template();
-            obj.warmup_phase1_jit();
-            % --- 状態バッファの初期化 ---
-            % 初期時刻 (t=0) における各センサ出力プロパティをデフォルト値 (NaN, false, inf) で初期化
+
+            % --- 8. 状態バッファの初期化 ---
             obj.clear_state_sensor_values(0.0);
         end
 
         % =====================================================================
-        % do: 制御周期ごとのセンシング実行 & プロファイリング
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   シミュレーションのメイン制御ループから毎ステップ（制御周期 dt ごと）
-        %   自動的に呼び出される実行メソッド。
-        %
-        % 【責務】
-        %   1. 公称目標軌道 (Nominal Reference) の取得と処理時間の計測
-        %   2. 飛行フェーズ ('f') における UAV 搭載 15m 球面レンジセンサ検知の実行 (Step 1)
-        %   3. 将来軌道展開＋微分平坦性＋動的時間ベース回避判定の実行 (Step 2〜7)
-        %   4. 回避対象集合 O_rel の抽出と状態データ (state) への格納
-        %
-        % 【入出力引数】
-        %   - 入力 varargin{1} : time 構造体 (time.t: 現在時刻 [s], time.dt: 制御周期 [s])
-        %   - 入力 varargin{2} : cha 文字 (飛行フェーズ文字: 'f'=Flight, 't'=Takeoff, 'l'=Landing 等)
-        %   - 出力 result_out  : 状態量 (xd, 検知情報, 回避判定, O_rel, プロファイリング結果等) を格納した結果構造体
+        % do: 制御周期ごとの公称軌道透過取得・20mセンサ検知・接触トリガー判定
         % =====================================================================
         function result_out = do(obj, varargin)
-            % --- 引数のアンパック ---
-            time = varargin{1}; % 時間管理構造体 (time.t: シミュレーション現在時刻 [s])
-            cha  = varargin{2}; % 現在のフライトモード文字 (例: 'f'=飛行中, 't'=離陸中)
+            % 引数アンパック: time (時刻構造体), cha (フライトモード文字)
+            time = varargin{1};
+            cha  = varargin{2};
 
-            % =================================================================
-            % 公称目標軌道の取得 (Nominal Reference 透過処理)
-            % =================================================================
-            % 【設計意図】
-            %   本クラスは現段階では「純粋センサ検知モジュール」であるため、
-            %   公称軌道生成器 (base_ref) の出力をそのまま後段へバイパス（透過）します。
-            %   センサ自体の処理時間と公称軌道の生成時間を完全に分離して計測するため、
-            %   呼び出しの前後を tic / toc で囲んで独立計測します。
+            % 制御周期の動的追従 (time.dt が存在する場合)
+            if isfield(time, 'dt') && ~isempty(time.dt) && time.dt > 0
+                obj.prediction_dt = time.dt;
+            end
+
+            % 牽引物質量の最新値取得 (推定値優先)
+            obj.loadmass = obj.get_load_mass();
+
+            % --- 1. 公称目標軌道の取得 (Nominal Reference 透過処理) ---
             t_base_start = tic;
-            base_res = obj.base_ref.do(varargin{:}); % 公称目標軌道の計算実行
-            xd_nom = base_res.state.xd; % 公称目標状態ベクトル (28×1 など)
-            obj.profiling.t_base_ref_ms = toc(t_base_start) * 1000.0; % 公称目標軌道の計算に要した時間 [ms] をプロファイラに記録
-            obj.profiling.t_pred_eval_total_ms = 0.0; % 将来予測時間のバッファリセット
-            obj.profiling.t_phase1_build_ms    = 0.0; % Phase 1 構築時間のバッファリセット (★追加)
-            % 前回ステップの検知プロパティ値をクリア（初期化）
+            base_res = obj.base_ref.do(varargin{:});
+            xd_nom   = base_res.state.xd;
+            obj.profiling.t_base_ref_ms = toc(t_base_start) * 1000.0;
+
+            % プロファイリングバッファのリセット
+            obj.profiling.t_trigger_ms = 0.0;
+            obj.profiling.t_kernel_ms  = 0.0;
+
+            % 前ステップの状態値をクリア
             obj.clear_state_sensor_values(time.t);
 
-            % =================================================================
-            % 局所検知結果構造体 (detection) および回避判定変数の初期化の定義と初期化
-            % =================================================================
-            % 非飛行フェーズ（待機中や着陸中）または障害物非検知時でも
-            % 変数の未定義エラーを防ぐため、デフォルト値（安全側・非検知側）で初期化します。
+            % --- 2. 出力変数のデフォルト初期化 ---
             detection = struct();
-            detection.time                          = time.t;            % センシング実行時刻 [s]
-            detection.pQ                            = [NaN; NaN; NaN];   % センシング時のUAV機体重心位置 [x; y; z] [m] (非飛行時は未定義)
-            detection.detected_point                = false;             % センサー範囲検知フラグ (true: 1つ以上の障害物を捕捉, false: 未捕捉)
-            detection.detected_obstacles            = [];                % センサー範囲以内で捕捉された障害物情報の配列 (未捕捉時は空)
-            detection.min_obstacle_id_point         = NaN;               % センサー範囲以内で最寄りの障害物ID (未捕捉時は NaN)
-            detection.min_dist_point                = inf;               % センサー範囲以内で最寄りの障害物表面までの距離 [m] (未捕捉時は無限大 inf)
-            detection.detected_obstacle_count_point = 0;                 % センサー範囲以内で捕捉された障害物の個数 [個]
+            detection.time                          = time.t;
+            detection.pQ                            = [NaN; NaN; NaN];
+            detection.detected_point                = false;
+            detection.detected_obstacles            = [];
+            detection.min_obstacle_id_point         = NaN;
+            detection.min_dist_point                = inf;
+            detection.detected_obstacle_count_point = 0;
 
-            need_replan        = false;  % 回避行動への移行フラグ
-            relevant_obstacles = [];     % 回避対象障害物集合 O_rel
-            % =================================================================
-            % 飛行フェーズ ('f') における センサー範囲 球面レンジ検知
-            % =================================================================
+            need_replan        = false;
+            relevant_obstacles = [];
+
+            % --- 3. 飛行フェーズ ('f') における超高速20mセンサ＆接触判定 ---
             if cha == 'f'
-                % エスティメータ（状態推定器）から現在のUAV機体重心位置 pQ [m] (3×1) を取得
-                pQ_cur = obj.self.estimator.result.state.p(:);
+                t_trig_start = tic;
 
-                % --- センサ検知本体の実行 ---
-                % 【引数】pQ_cur: UAV位置, time.t: 現在時刻
-                % 【戻り値】
-                %   - detection    : 検知結果が格納された構造体
-                %   - sensor_timing: 内部ステージごとの実行時間詳細 [ms]
-                [detection, sensor_timing] = obj.detect_obstacles_fast(pQ_cur, time.t);
-
-                % --- 計測時間・性能情報のプロファイラ構造体への格納 ---
-                obj.profiling.t_sensor_total_ms  = sensor_timing.total_ms;         % センサ処理全体の合計時間 [ms]
-                obj.profiling.t_sensor_stage1_ms = sensor_timing.stage1_ms;        % Stage 1: 外接球による足切り判定の所要時間 [ms]
-                obj.profiling.t_sensor_stage2_ms = sensor_timing.stage2_ms;        % Stage 2: 楕円体表面最短距離の反復計算時間 [ms]
-                obj.profiling.t_sensor_sort_ms   = sensor_timing.sort_ms;          % Stage 3: 最寄り順ソート・構造体詰替時間 [ms]
-                obj.profiling.candidate_count    = sensor_timing.candidate_count;  % Stage 1 の足切りを通過して Stage 2 に進んだ候補障害物数 [個]
-
-                % =============================================================
-                % リアルタイムログ出力判定
-                % =============================================================
-                % 【条件】
-                %   1. ENABLE_ALL_LOG == 1 : クラス全体のマスターログスイッチが有効
-                %   2. LOG_SENSOR == 1     : センサモジュールのログスイッチが有効
-                %   3. detected_point      : 実際に1つ以上の障害物を検知している
-                % これらすべてを満たす場合のみ fprintf を実行し、平常時の I/O 負荷を完全に遮断します。
-                if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_SENSOR == 1) && detection.detected_point
-                    tgt = detection.detected_obstacles(1); % ソート済みのため第1要素が最寄り障害物
-                    fprintf("[SENSOR DETECT] t=%.3f s | 捕捉数: %d | 最寄ID: %d | 表面距離: %6.3f m | 総計算: %.3f ms (Stage1: %.3f ms, Stage2: %.3f ms, 候補数: %d)\n", ...
-                        time.t, ...                               % 現在時刻 [s]
-                        detection.detected_obstacle_count_point, ... % 検知した障害物の総数
-                        tgt.id, ...                               % 最寄り障害物の識別番号
-                        tgt.range, ...                            % 最寄り障害物表面までのユークリッド距離 [m]
-                        sensor_timing.total_ms, ...               % センサ検知の総計算時間 [ms]
-                        sensor_timing.stage1_ms, ...              % 外接球足切り時間 [ms]
-                        sensor_timing.stage2_ms, ...              % 厳密反復計算時間 [ms]
-                        sensor_timing.candidate_count);           % 厳密計算を実施した候補数
+                % (a) 現在の状態ベクトルを取得 (推定器または公称軌道からO(1)で直接取得)
+                if isprop(obj.self.estimator.result.state, "p")
+                    pQ_cur = obj.self.estimator.result.state.p(:);
+                else
+                    pQ_cur = xd_nom(1:3);
                 end
-                % --- [Step 2] 将来干渉チェック (フラグ切り替え型: "sphere" or "exact") ---
-                if detection.detected_point
-                    t_eval_start = tic;
-                    [need_replan, relevant_obstacles] = obj.evaluate_collision_switchable( ...
-                        detection.detected_obstacles, time.t, varargin);
-                    obj.profiling.t_pred_eval_total_ms = toc(t_eval_start) * 1000.0;
+                detection.pQ = pQ_cur;
 
-                    if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_TRIGGER == 1) && need_replan
-                        top = relevant_obstacles(1);
-                        mode_str = "外接球";
-                        if obj.USE_SPHERE_APPROX == 0, mode_str = "楕円体"; end
-                        
-                        fprintf("[COLLISION DETECTED -> REPLAN] t=%.3f s [%s] | 障害物 ID=%d (予測衝突: %.3f s, 離隔: %6.3f m <= 安全マージン: %.2f m) -> 即時打ち切り | 判定計算: %.3f ms\n", ...
-                            time.t, mode_str, top.id, top.t_risk, top.min_future_dist, obj.d_margin, obj.profiling.t_pred_eval_total_ms);
+                % 荷物位置 pL
+                if isprop(obj.self.estimator.result.state, "pL")
+                    pL_cur = obj.self.estimator.result.state.pL(:);
+                else
+                    pL_cur = pQ_cur - [0; 0; obj.L_cable];
+                end
+
+                % 索姿勢単位ベクトル q (UAV -> Load 方向)
+                if isprop(obj.self.estimator.result.state, "pT")
+                    q_cur = obj.self.estimator.result.state.pT(:);
+                    norm_q = norm(q_cur);
+                    if norm_q > 1e-6, q_cur = q_cur / norm_q; else, q_cur = [0; 0; -1]; end
+                else
+                    if length(xd_nom) >= 11, aL = xd_nom(9:11); else, aL = [0; 0; 0]; end
+                    cable_vec = aL + [0; 0; obj.gravity];
+                    norm_cable = norm(cable_vec);
+                    if norm_cable > 1e-4, q_cur = -cable_vec / norm_cable; else, q_cur = [0; 0; -1]; end
+                end
+
+                % (b) C++ MEX カーネル呼び出し (全形状対応・距離計算もC++内で一括実行)
+                pack = obj.obstacle_packet;
+                t_k_start = tic;
+
+                [triggered, ~, obs_id, comp_code, vis_count, min_dist, min_id, all_dists] = ...
+                    trigger_packet_kernel_mex( ...
+                        1, ...                % 開始インデックス
+                        0.0, ...              % ホライズン H = 0 (瞬時判定)
+                        obj.prediction_dt, ...% dt
+                        obj.trigger_dist, ... % センサ検知半径 (20m)
+                        obj.L_cable, ...      % 索長 L
+                        pL_cur, ...           % 3×1 現在荷物位置
+                        q_cur, ...            % 3×1 現在索姿勢
+                        pack.C, ...           % 障害物中心 (3×M)
+                        pack.r_obs, ...       % 外接球半径 (1×M) (ENVIRONMENTから直接取得)
+                        pack.raw_h, ...       % 補助パラメータ (1×M)
+                        pack.R, ...           % 回転行列 (9×M)
+                        pack.Apay, ...        % 荷物保護楕円体 (3×M)
+                        pack.Auav, ...        % UAV保護楕円体 (3×M)
+                        pack.Acable, ...      % 索保護楕円体 (3×M)
+                        pack.ids);            % 障害物ID (1×M)
+
+                t_kernel = toc(t_k_start) * 1000.0;
+                obj.profiling.t_kernel_ms = t_kernel;
+
+                % (c) 20m以内の障害物リスト生成 (MEXから返された距離配列を利用し超高速パッキング)
+                detected_obs = [];
+                if vis_count > 0
+                    vis_indices = find(all_dists <= obj.trigger_dist);
+                    num_vis = numel(vis_indices);
+                    detected_obs = repmat(struct('id', 0, 'range', 0), num_vis, 1);
+                    for k = 1:num_vis
+                        idx = vis_indices(k);
+                        detected_obs(k).id    = pack.ids(idx);
+                        detected_obs(k).range = all_dists(idx);
+                    end
+                end
+
+                % (d) 判定結果のパッキング
+                detection.detected_point                = (vis_count > 0);
+                detection.detected_obstacles            = detected_obs;
+                detection.min_obstacle_id_point         = min_id;
+                detection.min_dist_point                = min_dist;
+                detection.detected_obstacle_count_point = vis_count;
+
+                need_replan = logical(triggered);
+
+                if need_replan
+                    comp_name = obj.get_component_name(comp_code);
+                    rel = struct();
+                    rel.id            = obs_id;
+                    rel.threat_source = comp_name;
+                    rel.pL_collision  = pL_cur;
+                    rel.q_collision   = q_cur;
+                    rel.pQ_collision  = pQ_cur;
+                    relevant_obstacles = rel;
+                end
+
+                obj.profiling.t_trigger_ms = toc(t_trig_start) * 1000.0;
+
+                % =============================================================
+                % リアルタイムログ出力 (表示切替フラグ対応)
+                % =============================================================
+                if obj.ENABLE_ALL_LOG == 1
+                    % 1. 20m内障害物検知ログ (LOG_SENSOR == 1)
+                    if (obj.LOG_SENSOR == 1) && detection.detected_point
+                        fprintf("[SENSOR 20m] t=%.3f s | 捕捉数: %d | 最寄ID: %d | 表面距離: %6.3f m | 判定計算: %.3f ms (MEX: %.3f ms)\n", ...
+                            time.t, vis_count, min_id, min_dist, obj.profiling.t_trigger_ms, t_kernel);
+                    end
+
+                    % 2. 接触・衝突トリガーログ (LOG_TRIGGER == 1)
+                    if (obj.LOG_TRIGGER == 1) && need_replan
+                        fprintf("[CONTACT HIT -> REPLAN] t=%.3f s | 障害物 ID=%d 接触検知！ (接触部位: %s) | 判定計算: %.3f ms\n", ...
+                            time.t, obs_id, comp_name, obj.profiling.t_trigger_ms);
                     end
                 end
             end
 
-            % =================================================================
-            % 3. [Phase 1] 毎周期無条件 B-spline 生成 (定常 0.03ms 級)
-            % =================================================================
-            t_p1_start = tic;
-            T_plan = obj.t_replan_horizon;
-            t_now  = time.t;
-            
-            % (a) 始端境界条件 (現在時刻)
-            D_start = obj.extract_phase1_boundary(xd_nom);
-            
-            % (b) 終端境界条件 (t_now + T_plan の公称軌道)
-            xd_end = obj.evaluate_base_ref_at_time(t_now + T_plan, varargin);
-            D_end  = obj.extract_phase1_boundary(xd_end);
-            
-            % (c) テンプレート展開 & 事前逆行列積による境界確定
-            psi_current = xd_nom(4);
-            model = obj.build_phase1_bspline_from_template(T_plan, psi_current);
-            model = obj.set_phase1_boundary(model, D_start, D_end);
-            obj.current_bspline = model;
-            
-            obj.profiling.t_phase1_build_ms = toc(t_p1_start) * 1000.0;
-            
-            % -----------------------------------------------------------------
-            % 回避トリガー成立時のログ表示 (始端・終端 C6 全14条件の誤差診断)
-            % -----------------------------------------------------------------
-            if need_replan
-                if (obj.ENABLE_ALL_LOG == 1) && (obj.LOG_PHASE1 == 1)
-                    P_full_check = obj.assemble_phase1_control_points(model, zeros(obj.n_z, 1));
-                    err_s = zeros(7, 1);
-                    err_e = zeros(7, 1);
-                    for r_chk = 0:6
-                        ps = obj.eval_phase1_direct(model, 0.0, P_full_check, r_chk);
-                        pe = obj.eval_phase1_direct(model, 1.0, P_full_check, r_chk);
-                        err_s(r_chk + 1) = norm(ps - D_start(r_chk + 1, :)');
-                        err_e(r_chk + 1) = norm(pe - D_end(r_chk + 1, :)');
-                    end
-                    max_err_s = max(err_s);
-                    max_err_e = max(err_e);
-                    
-                    fprintf("[P1 READY] t=%.3f s | 計算:%5.3f ms | C6境界Max誤差: 始端=%.1e, 終端=%.1e\n", ...
-                        t_now, obj.profiling.t_phase1_build_ms, max_err_s, max_err_e);
-                end
-            end
-            
-            % =================================================================
-            % 目標軌道出力の決定
-            % =================================================================
-            % 現段階では軌道回避を行わないため、公称軌道をそのまま制御目標としてバイパス出力
-            xd_out = xd_nom;
-            % =================================================================
-            % 状態格納 (後段の制御器・ロガー・プランナー向け出力パッキング)
-            % =================================================================
+            % --- 4. 状態構造体への格納 & 出力返却 (LOGGER が自動保存) ---
             st = obj.result.state;
-            
-            % --- 制御目標値 ---
-            st.xd = xd_out;         % 目標全状態ベクトル [28×1] (位置, 速度, 加速度, 躍度, 姿勢等)
-            st.p  = xd_out(1:3);     % 目標位置 [x; y; z] [m]
-            st.v  = xd_out(5:7);     % 目標並進速度 [vx; vy; vz] [m/s]
-            st.q  = [0; 0; xd_out(4)]; % 目標姿勢角 [roll; pitch; yaw] [rad] (yawのみ公称追従)
-            % --- センサ検知・診断情報 ---
-            st.time                          = detection.time;                          % センシング基準時刻 [s]
-            st.pQ                            = detection.pQ;                            % 検知時の機体重心位置 [m]
-            st.detected_point                = detection.detected_point;                % 障害物検知フラグ (true/false)
-            st.detected_obstacles            = detection.detected_obstacles;            % 15m以内の障害物リスト構造体配列
-            st.need_replan                   = need_replan;                             % 回避開始フラグ (true/false)
-            st.relevant_obstacles            = relevant_obstacles;                      % 回避対象集合 O_rel
-            st.min_obstacle_id_point         = detection.min_obstacle_id_point;         % 最も近接している障害物ID
-            st.min_dist_point                = detection.min_dist_point;                % 最も近接している障害物表面までの距離 [m]
-            st.detected_obstacle_count_point = detection.detected_obstacle_count_point; % 検知障害物数 [個]
-            st.current_bspline               = obj.current_bspline;                     % (★追加)
-            
-            % --- プロファイリング情報 ---
-            st.profiling                     = obj.profiling;                           % 各ステージの処理時間内訳構造体 [ms]
-            % 最終結果構造体を呼び出し元へ返却
+
+            % 制御目標値 (公称軌道をそのまま透過出力)
+            st.xd = xd_nom;
+            st.p  = xd_nom(1:3);
+            st.v  = xd_nom(5:7);
+            st.q  = [0; 0; xd_nom(4)];
+
+            % センサ・接触判定結果
+            st.time                          = detection.time;
+            st.pQ                            = detection.pQ;
+            st.detected_point                = detection.detected_point;
+            st.detected_obstacles            = detection.detected_obstacles;
+            st.need_replan                   = need_replan;
+            st.relevant_obstacles            = relevant_obstacles;
+            st.min_obstacle_id_point         = detection.min_obstacle_id_point;
+            st.min_dist_point                = detection.min_dist_point;
+            st.detected_obstacle_count_point = detection.detected_obstacle_count_point;
+            st.loadmass                      = obj.loadmass;
+            st.current_bspline               = [];
+
+            % プロファイリング情報
+            st.profiling                     = obj.profiling;
+
             result_out = obj.result;
         end
 
         % =====================================================================
-        % update_cable_sphere_ratios: 索保護球列の幾何配置比率を更新
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   索長 L_cable と索保護球半径 r_cable から、索を隙間なく完全に覆う
-        %   最小限の球数 N_cable と、各球の中心位置比率 s_k in [0, 1] を等間隔配置で算出します。
-        %   (例: L=2.0m, r=0.5m -> 直径1.0mで2球 -> s = [0.25, 0.75])
+        % get_load_mass: 牽引物質量の厳格取得 (推定器 mL の取得を必須化)
         % =====================================================================
-        function update_cable_sphere_ratios(obj)
-            % 直径 2*r_cable で索長 L_cable を隙間なく覆う最小球数 N_cable
-            n_spheres = max(1, ceil(obj.L_cable / (2.0 * obj.r_cable)));
-            % 各球の中心位置比率 s in [0, 1] を等間隔中心配置 (Midpoint)
-            % s_k = (k - 0.5) / N_cable
-            obj.s_cable_ratios = ((1:n_spheres) - 0.5) / n_spheres;
-        end
-
-        % =====================================================================
-        % benchmark_stage2: timeit による厳密アルゴリズムベンチマーク (公開関数)
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   MATLAB 公式の性能評価関数 `timeit` および 1000 回サンプリングを用い、
-        %   Stage 2（楕円体表面最短距離計算コア関数）の純粋な計算時間・ジッタ幅を精密測定します。
-        %
-        % 【背景と目的】
-        %   制御ループ内の単発 tic/toc 計測では、OS のコンテキストスイッチや CPU 周波数スケーリング
-        %   などの外部ノイズが乗りやすく、見かけ上の値が跳ねる場合があります。
-        %   本メソッドはウォームアップ＋複数回反復により、JIT コンパイル後の「真の処理性能」を明らかにします。
-        %
-        % 【入出力引数】
-        %   - 入力 pQ_test   : テスト用の UAV 評価位置 [x; y; z] [m]（省略時は [0.3; 0.3; 5.0]）
-        %   - 出力 t_mean_ms : timeit により得られた代表実行時間（平均処理時間）[ms]
-        %   - 出力 t_std_ms  : 1000 回単発実行における標準偏差（測定ジッタ・ばらつき幅）[ms]
-        % =====================================================================
-        function [t_mean_ms, t_std_ms] = benchmark_stage2(obj, pQ_test)
-            % --- テスト位置および事前キャッシュマップの確認 ---
-            if nargin < 2 || isempty(pQ_test)
-                pQ_test = [0.3; 0.3; 5.0]; % デフォルト評価位置 [m]
-            end
-            if isempty(obj.static_obstacle_map)
-                error('静的障害物マップが空です。初期化されているか確認してください。');
+        function mL = get_load_mass(obj)
+            % 牽引物質量の取得: 推定器の推定値 (estimator.result.state.mL) を厳格取得
+            % ※ 推定器から mL の推定値が取得できない場合は即座にエラー停止 (フォールバック完全撤廃)
+            st_est = [];
+            if (isprop(obj.self, 'estimator') || isfield(obj.self, 'estimator')) && ~isempty(obj.self.estimator)
+                est_obj = obj.self.estimator;
+                if (isprop(est_obj, 'result') || isfield(est_obj, 'result')) && ~isempty(est_obj.result)
+                    res = est_obj.result;
+                    if (isprop(res, 'state') || isfield(res, 'state')) && ~isempty(res.state)
+                        st_est = res.state;
+                    end
+                end
             end
 
-            % --- 評価対象パラメータの抽出 ---
-            test_obs = obj.static_obstacle_map(1); % マップ内の先頭障害物をテスト対象として選定
-            p = pQ_test(:);                        % UAV の位置ベクトル [3×1] [m]
-            c = test_obs.p_obs;                    % 楕円体中心座標 [3×1] [m]
-            r = test_obs.radii_obs;                % 楕円体3主軸半径 [rx; ry; rz] [m]
-            R = test_obs.R_obs;                    % 姿勢回転行列 [3×3]
+            has_mL = ~isempty(st_est) && (isprop(st_est, 'mL') || isfield(st_est, 'mL'));
 
-            % 計測対象となるコア関数の関数ハンドルを作成（struct 生成等の余分な処理を含まない純粋処理）
-            core_fun = @() obj.point_ellipsoid_signed_distance_fast(p, c, r, R);
+            assert(has_mL, ...
+                '[REPLANNER ERROR] 推定器 (self.estimator.result.state) に牽引物質量の推定プロパティ "mL" が存在しません。本システムは牽引物質量の推定値に基づく安全検証を必須としています。');
 
-            % --- ウォームアップ実行 (50回) ---
-            % MATLAB インタプリタの JIT 最適化を確実に完了させ、初回実行時のオーバーヘッドを排除
-            for w = 1:50
-                core_fun();
-            end
+            mL = st_est.mL;
 
-            % --- timeit による代表実行時間（統計的中央値ベース）の厳密測定 ---
-            t_sec = timeit(core_fun); % 秒単位で取得
-            t_mean_ms = t_sec * 1000.0; % ミリ秒単位 [ms] に換算
-
-            % --- 1000回単発 tic/toc によるジッタ（ばらつき）サンプリング ---
-            N_samples = 1000; % サンプル数
-            t_samples_ms = zeros(N_samples, 1); % 各回の計測値格納配列 [ms]
-            for s = 1:N_samples
-                t_s = tic;
-                core_fun();
-                t_samples_ms(s) = toc(t_s) * 1000.0;
-            end
-            t_std_ms = std(t_samples_ms); % サンプル標準偏差 [ms]
-
-            % --- 6. ベンチマーク結果のコンソール表示 ---
-            fprintf("\n=======================================================================\n");
-            fprintf(" [STAGE 2: 楕円体表面距離計算 (40回反復) timeit ベンチマーク結果]\n");
-            fprintf("=======================================================================\n");
-            fprintf("  - timeit 代表実行時間 (平均): %.6f ms (約 %.2f マイクロ秒)\n", t_mean_ms, t_mean_ms * 1000.0);
-            fprintf("  - 1000回単発 tic/toc 標本平均 : %.6f ms\n", mean(t_samples_ms));
-            fprintf("  - 1000回単発 tic/toc 標準偏差 : %.6f ms (ジッタ幅)\n", t_std_ms);
-            fprintf("  - 1000回単発 tic/toc 最小/最大: %.6f ms / %.6f ms\n", min(t_samples_ms), max(t_samples_ms));
-            fprintf("=======================================================================\n\n");
-        end
-        % =====================================================================
-        % [Phase 1: Public Methods] 境界抽出・モデル構築・評価
-        % =====================================================================
-        function D = extract_phase1_boundary(~, xd)
-            % xd (28×1) から 7×3 境界条件行列を抽出
-            % 各行: [p; p_dot; p_ddot; p^(3); ...; p^(6)]
-            D = zeros(7, 3);
-            for r = 0:6
-                idx = 4 * r + (1:3);
-                D(r + 1, :) = xd(idx).';
-            end
-        end
-
-        function xd_eval = evaluate_base_ref_at_time(obj, t_eval, base_varargin)
-            % 毎周期の struct 生成を排除し、数値を書き換えるだけにする
-            obj.eval_time_buffer.t = t_eval;
-            if ~isempty(base_varargin) && (isprop(base_varargin{1}, 'dt') || isfield(base_varargin{1}, 'dt'))
-                obj.eval_time_buffer.dt = base_varargin{1}.dt;
-            end
-            nom_res = obj.base_ref.do(obj.eval_time_buffer, base_varargin{2:end});
-            xd_eval = nom_res.state.xd;
-        end
-
-        function model = init_phase1_bspline_model(obj, T_plan, psi_cur)
-            % Phase 1 用 B-spline 設定構造体の初期化
-            model.p             = obj.bspline_p;
-            model.N_ctrl        = obj.N_ctrl_pts;
-            model.N_fixed_start = obj.N_fixed_start;
-            model.N_free        = obj.N_free;
-            model.N_fixed_end   = obj.N_fixed_end;
-            model.n_z           = obj.n_z;
-            model.T             = T_plan;
-            model.psi_current   = psi_cur;
-
-            % Clamped ノットベクトル (端点多重度 p+1 = 8)
-            m_internal = model.N_ctrl - model.p;
-            internal_knots = linspace(0.0, 1.0, m_internal + 1);
-            model.knots = [zeros(1, model.p + 1), internal_knots(2:end-1), ones(1, model.p + 1)];
-
-            % 始端・終端境界条件行列の厳密評価
-            B_s = zeros(model.p, model.N_fixed_start);
-            B_e = zeros(model.p, model.N_fixed_end);
-            for r = 0:(model.p - 1)
-                dN_s = obj.eval_phase1_basis_derivative_all(0.0, model.knots, model.p, model.N_ctrl, r);
-                dN_e = obj.eval_phase1_basis_derivative_all(1.0, model.knots, model.p, model.N_ctrl, r);
-                B_s(r + 1, :) = dN_s(1:model.N_fixed_start);
-                B_e(r + 1, :) = dN_e((model.N_ctrl - model.N_fixed_end + 1):model.N_ctrl);
-            end
-
-            model.B_start = B_s;
-            model.B_end   = B_e;
-            model.P_fixed = zeros(model.N_ctrl, 3);
-        end
-
-        function model = set_phase1_boundary(~, model, D_start, D_end)
-            scale_vec = (model.T .^ (0:model.p-1))'; % [7 x 1]
-            U_start = D_start .* scale_vec;
-            U_end   = D_end   .* scale_vec;
-
-            % 事前キャッシュされた逆行列との純粋な行列積 (高速・ジッタなし)
-            P_start = model.B_start_inv * U_start;
-            P_end   = model.B_end_inv   * U_end;
-
-            model.P_fixed = zeros(model.N_ctrl, 3);
-            model.P_fixed(1:model.N_fixed_start, :) = P_start;
-            model.P_fixed((model.N_ctrl - model.N_fixed_end + 1):model.N_ctrl, :) = P_end;
-        end
-
-        function [P0_r, M_r] = get_phase1_affine_map(obj, model, u, r)
-            % 任意正規化時刻 u における r 階微分のアフィン写像取得: P^(r)(u) = P0_r + M_r * z
-            dN = obj.eval_phase1_basis_derivative_all(u, model.knots, model.p, model.N_ctrl, r);
-            t_scale = 1.0 / (model.T^r);
-            dN_scaled = dN * t_scale;
-
-            P0_r = (dN_scaled * model.P_fixed)';
-            dN_free = dN_scaled(8:11);
-
-            M_r = zeros(3, 12);
-            M_r(1, 1:4)  = dN_free;
-            M_r(2, 5:8)  = dN_free;
-            M_r(3, 9:12) = dN_free;
-        end
-
-        function P_full = assemble_phase1_control_points(~, model, z)
-            % 12次元自由変数 z を全18制御点配列 [18 x 3] に復元
-            P_full = model.P_fixed;
-            P_full(8:11, 1) = z(1:4);
-            P_full(8:11, 2) = z(5:8);
-            P_full(8:11, 3) = z(9:12);
-        end
-
-        function val = eval_phase1_direct(obj, model, u, P_ctrl, r)
-            % 制御点列 P_ctrl から直接 r 階微分値を評価
-            dN = obj.eval_phase1_basis_derivative_all(u, model.knots, model.p, model.N_ctrl, r);
-            t_scale = 1.0 / (model.T^r);
-            val = (dN * P_ctrl)' * t_scale;
-        end
-        % % =====================================================================
-        % % init_phase1_static_template: ノットおよび境界行列 Bs, Be の事前キャッシュ
-        % % =====================================================================
-
-        function init_phase1_static_template(obj)
-            tmpl.p             = obj.bspline_p;
-            tmpl.N_ctrl        = obj.N_ctrl_pts;
-            tmpl.N_fixed_start = obj.N_fixed_start;
-            tmpl.N_free        = obj.N_free;
-            tmpl.N_fixed_end   = obj.N_fixed_end;
-            tmpl.n_z           = obj.n_z;
-
-            % Clamped ノットベクトル (端点多重度 p+1 = 8)
-            m_internal = tmpl.N_ctrl - tmpl.p;
-            internal_knots = linspace(0.0, 1.0, m_internal + 1);
-            tmpl.knots = [zeros(1, tmpl.p + 1), internal_knots(2:end-1), ones(1, tmpl.p + 1)];
-
-            % 境界行列 Bs (7×7), Be (7×7) の事前計算と逆行列キャッシュ
-            B_s = zeros(tmpl.p, tmpl.N_fixed_start);
-            B_e = zeros(tmpl.p, tmpl.N_fixed_end);
-            for r = 0:(tmpl.p - 1)
-                dN_s = obj.eval_phase1_basis_derivative_all(0.0, tmpl.knots, tmpl.p, tmpl.N_ctrl, r);
-                dN_e = obj.eval_phase1_basis_derivative_all(1.0, tmpl.knots, tmpl.p, tmpl.N_ctrl, r);
-                B_s(r + 1, :) = dN_s(1:tmpl.N_fixed_start);
-                B_e(r + 1, :) = dN_e((tmpl.N_ctrl - tmpl.N_fixed_end + 1):tmpl.N_ctrl);
-            end
-
-            % オンラインでの \ 解法を排除するため、逆行列を事前保持
-            tmpl.B_start_inv = inv(B_s);
-            tmpl.B_end_inv   = inv(B_e);
-
-            obj.phase1_template = tmpl;
-        end
-
-        % =====================================================================
-        % build_phase1_bspline_from_template: テンプレートからモデルを瞬時構築
-        % =====================================================================
-        function model = build_phase1_bspline_from_template(obj, T_plan, psi_cur)
-            model = obj.phase1_template;
-            model.T = T_plan;
-            model.psi_current = psi_cur;
-            model.P_fixed = zeros(model.N_ctrl, 3);
+            assert(~isempty(mL) && isnumeric(mL) && ~isnan(mL) && mL > 0, ...
+                '[REPLANNER ERROR] 牽引物質量の推定値 (self.estimator.result.state.mL) が有効な正の数値ではありません (値: %s)。', mat2str(mL));
         end
     end
-
-    
 
     methods (Access = private)
         % =====================================================================
-        % detect_obstacles_fast: 事前キャッシュマップに対する 15m 球面検知 (詳細計測)
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   UAV 機体重心 pQ を中心とする半径 15m の全方位球面レンジ内に、
-        %   楕円体障害物の表面が存在するかどうかを 2 段階スクリーニングで高速検知します。
-        %
-        % 【アルゴリズムの 3 ステージ構成】
-        %   - Stage 1: 外接球による高速 Reject（遠方の障害物を乗算・比較のみで瞬時に除外）
-        %   - Stage 2: 残った候補に対する厳密な楕円体表面距離判定（40回反復二分法）
-        %   - Stage 3: 最寄り順（表面距離昇順）ソートと出力構造体パッキング
-        %
-        % 【入出力引数】
-        %   - 入力 pQ     : UAV 機体重心位置 [x; y; z] [m]
-        %   - 入力 t_now  : センシング現在時刻 [s]
-        %   - 出力 det    : 検知情報構造体（検知フラグ、最寄ID、リスト等）
-        %   - 出力 timing : 各ステージの処理時間 [ms] および通過候補数を格納した構造体
+        % ensure_mex_compiled: C++ソース生成 & MEX自動コンパイル
         % =====================================================================
-        function [det, timing] = detect_obstacles_fast(obj, pQ, t_now)
-            t_total_start = tic; % センサ検知全体の計測開始
+        function ensure_mex_compiled(obj)
+            root = fileparts(mfilename('fullpath'));
+            cpp_path = fullfile(root, [obj.mex_name '.cpp']);
+            mex_path = fullfile(root, [obj.mex_name '.' mexext]);
 
-            % --- 出力用構造体 (det) の初期化 ---
-            det = struct();
-            det.time                          = t_now;            % センシング基準時刻 [s]
-            det.pQ                            = pQ;               % センシング時のUAV位置 [m]
-            det.detected_point                = false;            % 検知フラグ（1つでも検知すれば true）
-            det.detected_obstacles            = [];               % 15m以内で検知された障害物配列
-            det.min_obstacle_id_point         = NaN;              % 最寄り障害物の識別番号 ID
-            det.min_dist_point                = inf;              % 最寄り障害物表面までの距離 [m]
-            det.detected_obstacle_count_point = 0;                % 15m以内で検知された障害物の個数
-
-            % --- 計測時間・性能統計用構造体 (timing) の初期化 ---
-            timing = struct( ...
-                'stage1_ms',       0.0, ... % Stage 1: 外接球足切り時間 [ms]
-                'stage2_ms',       0.0, ... % Stage 2: 楕円体表面距離反復計算時間 [ms]
-                'sort_ms',         0.0, ... % Stage 3: ソート・パッキング時間 [ms]
-                'total_ms',        0.0, ... % センサ検知の総処理時間 [ms]
-                'candidate_count', 0);      % Stage 1 を通過した候補障害物数
-
-            obs_map = obj.static_obstacle_map;
-            if isempty(obs_map)
-                timing.total_ms = toc(t_total_start) * 1000.0;
-                return;
-            end
-
-            % -----------------------------------------------------------------
-            % Stage 1: 事前計算外接球による高速 Reject 判定 (全障害物スクリーニング)
-            % -----------------------------------------------------------------
-            % 【原理】
-            %   中心間距離の2乗 ||pQ - c||^2 が (15m + r_max)^2 より大きければ、
-            %   楕円体がどの方向を向いていようとも表面が 15m 圏内に入ることは幾何学的にあり得ない。
-            %   平方根 sqrt を取らず、dot 積による 2 乗比較で計算コストを最小化。
-            t_stage1_start = tic;
-            passed_indices = []; % 足切りをクリアした障害物のインデックス配列
-            for i = 1:numel(obs_map)
-                dc = pQ - obs_map(i).p_obs; % 中心間相対位置ベクトル [m]
-                d2c = dot(dc, dc); % 中心間距離の2乗 [m^2]
-                % 外接球判定: 中心距離 <= センサ半径(15m) + 最大半径 r_max
-                if d2c <= (obj.trigger_dist + obs_map(i).r_max)^2
-                    passed_indices(end+1) = i; % 候補として通過
+            % 1. C++ ソースコードファイルが存在しなければ生成
+            if exist(cpp_path, 'file') ~= 2
+                obj.write_mex_source(cpp_path);
+                if obj.ENABLE_ALL_LOG
+                    fprintf('[REPLANNING_SYSTEM] MEXソースコードを生成しました: %s\n', cpp_path);
                 end
             end
-            timing.stage1_ms = toc(t_stage1_start) * 1000.0;
-            timing.candidate_count = length(passed_indices);
 
-            % 候補が 1 つも無ければ Stage 2 を行わずに即座に早期リターン
-            if isempty(passed_indices)
-                timing.total_ms = toc(t_total_start) * 1000.0;
-                return;
-            end
+            % 2. MEX バイナリが存在しない場合はコンパイル実行
+            if exist(mex_path, 'file') ~= 3
+                if obj.ENABLE_ALL_LOG
+                    fprintf('[REPLANNING_SYSTEM] MEXバイナリが存在しないため自動コンパイルを実行します...\n');
+                end
+                old_dir = pwd;
+                cleanup = onCleanup(@() cd(old_dir));
+                cd(root);
 
-            % -----------------------------------------------------------------
-            % Stage 2: 候補に対する楕円体表面最短距離判定 (反復法)
-            % -----------------------------------------------------------------
-            % 【原理】
-            %   Stage 1 を通過した近傍の障害物のみを対象に、楕円体方程式に対する
-            %   厳密な最短ユークリッド距離を計算し、真に 15m 圏内にあるかを確定する。
-            t_stage2_start = tic;
-            % 15m 検知候補を格納する構造体配列テンプレート
-            candidates = repmat(struct( ...
-                'id',        [], ... % 障害物ID
-                'p_obs',     [], ... % 中心座標 [m]
-                'R_obs',     [], ... % 回転行列 [3×3]
-                'radii_obs', [], ... % 3主軸半径 [m]
-                'range',     []), ...% 表面までの真のユークリッド距離 [m]
-                0, 1);
+                mex('-R2018a', cpp_path, '-output', obj.mex_name);
+                rehash;
 
-            for idx = passed_indices
-                o = obs_map(idx);
-                % struct 生成を避け、引数を直接渡して表面距離を計算
-                d_surface = obj.point_ellipsoid_signed_distance_fast(pQ, o.p_obs, o.radii_obs, o.R_obs);
-                % 表面距離が 15m 以内の場合のみ最終検知リストへ登録
-                if d_surface <= obj.trigger_dist
-                    tmp.id        = o.id;
-                    tmp.p_obs     = o.p_obs;
-                    tmp.R_obs     = o.R_obs;
-                    tmp.radii_obs = o.radii_obs;
-                    tmp.range     = d_surface;
-                    candidates(end+1, 1) = tmp;
+                if obj.ENABLE_ALL_LOG
+                    fprintf('[REPLANNING_SYSTEM] MEXコンパイルが正常に完了しました: %s\n', mex_path);
                 end
             end
-            timing.stage2_ms = toc(t_stage2_start) * 1000.0;
-            % 15m 以内に障害物が無ければ終了
-            if isempty(candidates)
-                timing.total_ms = toc(t_total_start) * 1000.0;
-                return;
-            end
 
-            % -----------------------------------------------------------------
-            % Stage 3: 最寄り順ソートと出力格納
-            % -----------------------------------------------------------------
-            % 表面距離 (range) が近い順（昇順）に並べ替え、配列の先頭を「最優先・最寄り」とする
-            t_sort_start = tic;
-            [~, sort_idx] = sort([candidates.range], 'ascend');
-            
-            det.detected_obstacles            = candidates(sort_idx);              % ソート済み障害物配列
-            det.detected_point                = true;                               % 検知フラグ成立
-            det.min_dist_point                = det.detected_obstacles(1).range;   % 最寄り障害物の表面距離 [m]
-            det.min_obstacle_id_point         = det.detected_obstacles(1).id;      % 最寄り障害物のID
-            det.detected_obstacle_count_point = length(candidates);                % 検知総数 [個]
-            
-            timing.sort_ms = toc(t_sort_start) * 1000.0;
-            timing.total_ms = toc(t_total_start) * 1000.0;
+            obj.mex_ready = true;
         end
 
         % =====================================================================
-        % evaluate_collision_switchable: 区間判定 (Interval Check) & 即時打ち切り
-        % ---------------------------------------------------------------------
-        % 【アルゴリズム概要】
-        %  1. [事前サンプリング]: 未来11点 (約0.5s刻み) の荷物位置 pL と微分平坦性機体位置 pQ
-        %     を 1 回だけ生成 (base_ref.do はここでしか呼ばず重複を完全排除)。
-        %  2. [区間スキャン (Interval Check)]: 隣接する2点 [t_k, t_{k+1}] を線分とみなし、
-        %     UAV・Payload・Cableの各軌道線分と障害物の最短ユークリッド距離を評価。
-        %     ※ これにより、粗いサンプル点間ですり抜ける「点判定の死角」を完全に防止。
-        %  3. [幾何モード分岐]:
-        %     - 外接球 (USE_SPHERE_APPROX=1): 点-線分最短距離から (r_max + r_body) を引くだけ (O(1) 超高速)
-        %     - 楕円体 (USE_SPHERE_APPROX=0): 外接球で危険域近傍に入った区間のみ、
-        %       線形補間で局所細分化 (N_sub=4) して楕円体反復二分探索を実行。
-        %  4. [即時打ち切り (Early-Exit)]:
-        %     最小時刻側から走査し、システム離隔 d_interval <= d_margin (0.2m) を検出した瞬間に
-        %     need_replan = true として即座に return (後続の未来時間は一切計算しない)。
+        % prepare_obstacle_packet: ENVIRONMENTの全形状に対応した幾何パケット構築
         % =====================================================================
-        function [need_replan, relevant_obs] = evaluate_collision_switchable( ...
-                obj, detected_candidates, t_now, base_varargin)
-
-            need_replan = false;
-            relevant_obs = [];
-
-            if isempty(detected_candidates)
-                return;
-            end
-
-            % --- 1. 時間刻みの安全取得 (handleオブジェクト破壊防止) ---
-            orig_time = base_varargin{1};
-            sim_dt = 0.025;
-            if isprop(orig_time, 'dt') || isfield(orig_time, 'dt')
-                sim_dt = orig_time.dt;
-            end
-
-            N = max(5, obj.N_pred_sample);
-            sample_taus = linspace(0.1, obj.T_lookahead, N);
-            g_vec = [0; 0; obj.gravity];
-            is_sphere = (obj.USE_SPHERE_APPROX == 1);
-
-            % -----------------------------------------------------------------
-            % 2. [共通事前計算] 未来11点の公称軌道および微分平坦性格子を一括生成
-            % -----------------------------------------------------------------
-            pL_grid = zeros(3, N); % 将来の荷物位置列 [3 × N]
-            pQ_grid = zeros(3, N); % 将来のUAV位置列 [3 × N]
-
-            for k = 1:N
-                % 大元の time を壊さないよう独立構造体を作成して評価
-                eval_time = struct('t', t_now + sample_taus(k), 'dt', sim_dt);
-                nom_res_k = obj.base_ref.do(eval_time, base_varargin{2:end});
-                xd_k = nom_res_k.state.xd;
-                
-                pL_k = xd_k(1:3);
-                pL_grid(:, k) = pL_k;
-                
-                % 荷物加速度から索張力方向単位ベクトル n_thrust を平坦性導出
-                if length(xd_k) >= 11, aL_k = xd_k(9:11); else, aL_k = [0; 0; 0]; end
-                a_tot = aL_k + g_vec;
-                norm_a = norm(a_tot);
-                if norm_a > 1e-3, n_thrust = a_tot / norm_a; else, n_thrust = [0; 0; 1]; end
-                
-                % UAV 位置: pQ = pL + L_cable * n_thrust
-                pQ_grid(:, k) = pL_k + obj.L_cable * n_thrust;
-            end
-
-            % -----------------------------------------------------------------
-            % 3. 区間スキャン (Interval Check: 過去から未来へ N-1 区間を前進走査)
-            % -----------------------------------------------------------------
-            for k = 1:(N - 1)
-                t_k0 = t_now + sample_taus(k);
-                t_k1 = t_now + sample_taus(k + 1);
-
-                % 当該区間の始点・終点座標
-                pL0 = pL_grid(:, k);   pL1 = pL_grid(:, k + 1);
-                pQ0 = pQ_grid(:, k);   pQ1 = pQ_grid(:, k + 1);
-
-                for i = 1:length(detected_candidates)
-                    cand = detected_candidates(i);
-                    c = cand.p_obs;
-                    r_max = max(cand.radii_obs);
-
-                    if is_sphere
-                        % =====================================================
-                        % --- [方式 A: 外接球モード] 線分-球 最短距離による判定 ---
-                        % =====================================================
-                        % (a) UAV 軌道線分 [pQ0, pQ1] と球の最短距離
-                        dQ_seg = obj.point_to_segment_dist(c, pQ0, pQ1) - r_max - obj.r_drone;
-                        
-                        % (b) Payload 軌道線分 [pL0, pL1] と球の最短距離
-                        dL_seg = obj.point_to_segment_dist(c, pL0, pL1) - r_max - obj.r_load;
-                        
-                        % (c) Cable 各代表点の軌道線分 [pC0, pC1] と球の最短距離
-                        dC_seg = inf;
-                        for sc = obj.s_cable_ratios
-                            pC0 = (1.0 - sc) * pL0 + sc * pQ0;
-                            pC1 = (1.0 - sc) * pL1 + sc * pQ1;
-                            d_pt_seg = obj.point_to_segment_dist(c, pC0, pC1) - r_max - obj.r_cable;
-                            if d_pt_seg < dC_seg, dC_seg = d_pt_seg; end
-                        end
-
-                        % システム全体の最小離隔と脅威対象の特定
-                        [d_interval, src_idx] = min([dQ_seg, dL_seg, dC_seg]);
-                        threat_sources = ["UAV", "Payload", "Cable"];
-
-                        % 【即時打ち切り判定】安全余裕 d_margin を割り込んだら直ちに回避決定
-                        if d_interval <= obj.d_margin
-                            need_replan = true;
-                            item = cand;
-                            item.t_risk          = t_k0;                     % 危険侵入区間の開始時刻 [s]
-                            item.min_future_dist = d_interval;               % 予測最短離隔 [m]
-                            item.threat_source   = threat_sources(src_idx);  % 脅威対象
-                            relevant_obs = item;
-                            return; % ★ 即座に終了して後段の軌道計画へ遷移
-                        end
-
-                    else
-                        % =====================================================
-                        % --- [方式 B: 楕円体厳密モード] 粗線分判定 + 危険域細分化 ---
-                        % =====================================================
-                        % 【高速化足切り】外接球による線分距離で十分に離れていれば厳密計算をスキップ
-                        dQ_bound = obj.point_to_segment_dist(c, pQ0, pQ1) - r_max - obj.r_drone;
-                        dL_bound = obj.point_to_segment_dist(c, pL0, pL1) - r_max - obj.r_load;
-                        if min(dQ_bound, dL_bound) > (obj.d_margin + 1.2)
-                            continue; % この区間は確実に安全なため反復法をスキップ
-                        end
-
-                        % 危険の疑いがある近接区間のみ、区間内を N_sub 分割して線形補間
-                        % ※ ここで base_ref.do は呼ばず、pL と pQ の加減乗算のみで極小負荷を維持
-                        sub_alphas = linspace(0.0, 1.0, obj.N_sub + 2);
-                        for s_idx = 1:(obj.N_sub + 2)
-                            alpha = sub_alphas(s_idx);
-                            pL_sub = (1.0 - alpha) * pL0 + alpha * pL1;
-                            pQ_sub = (1.0 - alpha) * pQ0 + alpha * pQ1;
-
-                            % 40回反復二分法による楕円体厳密距離の計算
-                            d_sub = obj.calc_system_exact_dist(pL_sub, pQ_sub, cand.p_obs, cand.radii_obs, cand.R_obs);
-                            
-                            % 【即時打ち切り判定】
-                            if d_sub <= obj.d_margin
-                                need_replan = true;
-                                item = cand;
-                                item.t_risk          = (1.0 - alpha) * t_k0 + alpha * t_k1; % 補間時刻 [s]
-                                item.min_future_dist = d_sub;                              % 厳密最短離隔 [m]
-                                item.threat_source   = "Ellipsoid_Exact";
-                                relevant_obs = item;
-                                return; % ★ 厳密衝突が確定した瞬間に即座に終了
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        function d_min = calc_system_exact_dist(obj, pL, pQ, c, r, R)
-            dQ = obj.point_ellipsoid_signed_distance_fast(pQ, c, r, R) - obj.r_drone;
-            dL = obj.point_ellipsoid_signed_distance_fast(pL, c, r, R) - obj.r_load;
-            dC = inf;
-            for sc = obj.s_cable_ratios
-                pC = (1.0 - sc) * pL + sc * pQ;
-                d_pt = obj.point_ellipsoid_signed_distance_fast(pC, c, r, R) - obj.r_cable;
-                if d_pt < dC, dC = d_pt; end
-            end
-            d_min = min([dQ, dL, dC]);
-        end
-
-        % =====================================================================
-        % point_to_segment_dist: 点 p と 線分 [a, b] の幾何的最短ユークリッド距離
-        % ---------------------------------------------------------------------
-        % 【数理モデル】
-        %   線分上の点 x(t) = a + t * (b - a)  (0 <= t <= 1) に対し、
-        %   ベクトル (p - x(t)) と線分方向 (b - a) が直交する射影係数 t を導出。
-        %   t = dot(p - a, b - a) / ||b - a||^2
-        %   t を [0, 1] にクランプすることで、端点外側も正しく最近接点として評価する。
-        % =====================================================================
-        function dist = point_to_segment_dist(~, p, a, b)
-            ab = b - a; % 線分方向ベクトル
-            ap = p - a; % 始点から点への相対ベクトル
-            ab_len2 = dot(ab, ab); % 線分長の2乗
-
-            % 特異点処理: 始点と終点がほぼ一致している（ドローンが静止している）場合
-            if ab_len2 < 1e-12
-                dist = norm(ap);
-                return;
-            end
-
-            % 線分への直交射影パラメータ t を計算し、[0, 1] 区間にクランプ
-            t = dot(ap, ab) / ab_len2;
-            t = max(0.0, min(1.0, t));
-
-            % 線分上の最近接点とのユークリッド距離
-            closest_point = a + t * ab;
-            dist = norm(p - closest_point);
-        end
-
-        % =====================================================================
-        % calc_system_lower_dist: 外接球による保守的なシステム離隔下限 (高速)
-        % =====================================================================
-        function d_min = calc_system_lower_dist(obj, pL, pQ, c, r_max)
-            % UAV
-            dQ = norm(pQ - c) - r_max - obj.r_drone;
-            % 荷物
-            dL = norm(pL - c) - r_max - obj.r_load;
-            % 索 (自動配置比率 s_cable_ratios)
-            dC = inf;
-            for sc = obj.s_cable_ratios
-                pC = (1.0 - sc) * pL + sc * pQ;
-                d_pt = norm(pC - c) - r_max - obj.r_cable;
-                if d_pt < dC
-                    dC = d_pt;
-                end
-            end
-            d_min = min([dQ, dL, dC]);
-        end
-
-        % =====================================================================
-        % point_ellipsoid_signed_distance_fast: ラグランジュ未定乗数法 (表面距離)
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   3次元空間の点 p から楕円体表面までの「符号付き最短ユークリッド距離」を、
-        %   楕円体方程式に対するラグランジュ未定乗数法と二分法（40回反復）で厳密に計算します。
-        %
-        % 【数理モデル】
-        %   楕円体主軸局所座標 y = R^T * (p - c) に対し、表面上の最寄り点 y* は
-        %   未定乗数 lambda を用いて y*_i = (r_i^2 * y_i) / (lambda + r_i^2) と表される。
-        %   これが楕円面方程式 sum((y*_i / r_i)^2) = 1 を満たす単調減少関数 f(lambda) = 0
-        %   となる lambda を二分探索で決定し、||y - y*|| を算出する。
-        %
-        % 【入出力引数】
-        %   - 入力 p : UAV 機体重心座標 [3×1] [m]
-        %   - 入力 c : 楕円体中心座標 [3×1] [m]
-        %   - 入力 r : 楕円体3主軸半径 [rx; ry; rz] [m]
-        %   - 入力 R : 楕円体姿勢回転行列 [3×3]（ワールド -> 局所座標系）
-        %   - 出力 d : 符号付き表面距離 [m] (外部: d > 0, 表面: d = 0, 内部: d < 0)
-        % =====================================================================
-        function d = point_ellipsoid_signed_distance_fast(~, p, c, r, R)
-            p = p(:);
-            c = c(:);
-            r = r(:);
-
-            % --- 1. 楕円体の局所（主軸）座標系への変換 ---
-            y  = R' * (p - c);              % 局所座標系での相対位置ベクトル [m]
-            r2 = r.^2;                      % 各主軸半径の2乗 [rx^2; ry^2; rz^2]
-            q  = sum((y ./ r).^2);          % 楕円体二次形式の値
-            inside = (q < 1.0);             % q < 1 なら内部、q >= 1 なら外部/表面
-
-            % 特異点処理: 点が中心近傍 (y ≈ 0) にある場合、最短距離は最小主軸半径
-            if norm(y) < 1e-14
-                d = -min(r);
-                return;
-            end
-
-            % --- 2. ラグランジュ方程式 f(lambda) の定義 ---
-            % f(lambda) = sum[ r_i^2 * y_i^2 / (lambda + r_i^2)^2 ] - 1 = 0
-            f = @(lam) sum(r2 .* (y.^2) ./ ((lam + r2).^2)) - 1.0;
-
-            % --- 3. 二分探索の初期探索区間 [lo, hi] の設定 ---
-            if q > 1.0
-                % 外部点の場合: 解 lambda は 0 以上
-                lo = 0.0;
-                hi = max(r) * norm(y);
+        function pack = prepare_obstacle_packet(obj, OBS)
+            if isempty(OBS)
+                M = 0;
             else
-                % 内部点の場合: 解 lambda は -min(r^2) よりわずかに大きい負の値
-                lo = -min(r2) * (1.0 - 1e-12);
-                hi = 0.0;
+                M = numel(OBS);
             end
 
-            % --- 4. 固定反復数（40回）による二分探索 ---
-            % 探索区間幅が (hi - lo) * (1/2)^40 ≈ 10^(-12) 程度まで収束
-            for kk = 1:40
-                mid = 0.5 * (lo + hi);
-                if f(mid) > 0
-                    lo = mid; % 単調減少関数のため、f(mid) > 0 なら解は右側
+            pack = struct();
+            pack.count  = M;
+            pack.C      = zeros(3, M);
+            pack.r_obs  = zeros(1, M);
+            pack.raw_h  = zeros(1, M);
+            pack.R      = zeros(9, M);
+            pack.Apay   = zeros(3, M);
+            pack.Auav   = zeros(3, M);
+            pack.Acable = zeros(3, M);
+            pack.ids    = zeros(1, M);
+
+            for i = 1:M
+                o = OBS(i);
+                pack.ids(i)  = o.id;
+                pack.C(:, i) = o.p_center(:);
+                pack.R(:, i) = o.R_obs(:);
+
+                % 1. 外接球半径 (r_obs) の取得: ENVIRONMENT側から直接取得
+                if isfield(o, 'r_obs') && ~isempty(o.r_obs)
+                    r_bound = o.r_obs;
+                elseif isfield(o, 'ellipsoid_radii') && ~isempty(o.ellipsoid_radii)
+                    r_bound = max(o.ellipsoid_radii);
                 else
-                    hi = mid; % f(mid) <= 0 なら解は左側
+                    r_bound = 1.0;
                 end
-            end
+                pack.r_obs(i) = r_bound;
 
-            % --- 5. 最短表面点およびユークリッド距離の算出 ---
-            lambda = 0.5 * (lo + hi);                     % 確定した未定乗数 lambda
-            closest_local = r2 .* y ./ (lambda + r2);      % 局所座標系における楕円体表面最近接点 [m]
-            d_abs = norm(closest_local - y);              % 幾何ユークリッド距離の絶対値 [m]
-
-            % 内部の場合は負値、外部の場合は正値として符号を付与
-            if inside
-                d = -d_abs;
-            else
-                d = d_abs;
-            end
-        end
-        % =====================================================================
-        % [Phase 1: Private Methods] 正準 Cox-de Boor 基底関数 & 解析微分
-        % =====================================================================
-        function dN = eval_phase1_basis_derivative_all(obj, u, knots, p, N_ctrl, r)
-            if u <= 0.0
-                dN = zeros(1, N_ctrl);
-                dN(1:p+1) = obj.eval_phase1_basis_deriv_local(0.0, knots, p, p+1, r);
-                return;
-            elseif u >= 1.0
-                dN = zeros(1, N_ctrl);
-                dN((N_ctrl - p):N_ctrl) = obj.eval_phase1_basis_deriv_local(1.0, knots, p, N_ctrl, r);
-                return;
-            end
-
-            span = obj.find_phase1_span(u, knots, p, N_ctrl);
-            local_vals = obj.eval_phase1_basis_deriv_local(u, knots, p, span, r);
-
-            dN = zeros(1, N_ctrl);
-            dN((span - p):span) = local_vals;
-        end
-
-        function dN_local = eval_phase1_basis_deriv_local(obj, u, knots, p, span, r)
-            if r == 0
-                dN_local = obj.eval_phase1_basis_local(u, knots, p, span);
-                return;
-            end
-            if r > p
-                dN_local = zeros(1, p + 1);
-                return;
-            end
-
-            M_loc = eye(p + 1);
-            cur_p = p;
-            for s = 1:r
-                cur_len = p + 2 - s;
-                D_step = zeros(cur_len - 1, cur_len);
-                for i = 1:(cur_len - 1)
-                    idx = span - cur_p + i;
-                    denom = knots(idx + cur_p) - knots(idx);
-                    if denom > 1e-15
-                        D_step(i, i)     = -cur_p / denom;
-                        D_step(i, i + 1) =  cur_p / denom;
-                    end
-                end
-                M_loc = D_step * M_loc;
-                cur_p = cur_p - 1;
-            end
-            N_low = obj.eval_phase1_basis_local(u, knots, cur_p, span);
-            dN_local = N_low * M_loc;
-        end
-
-        function N_local = eval_phase1_basis_local(~, u, knots, p, span)
-            N_local = zeros(1, p + 1);
-            left = zeros(1, p + 1);
-            right = zeros(1, p + 1);
-            N_local(1) = 1.0;
-            for j = 1:p
-                left(j + 1)  = u - knots(span + 1 - j);
-                right(j + 1) = knots(span + j) - u;
-                saved = 0.0;
-                for r_idx = 0:(j - 1)
-                    denom = right(r_idx + 2) + left(j - r_idx + 1);
-                    if denom > 1e-15
-                        temp = N_local(r_idx + 1) / denom;
-                        N_local(r_idx + 1) = saved + right(r_idx + 2) * temp;
-                        saved = left(j - r_idx + 1) * temp;
-                    else
-                        N_local(r_idx + 1) = saved;
-                        saved = 0.0;
-                    end
-                end
-                N_local(j + 1) = saved;
-            end
-        end
-
-        function span = find_phase1_span(~, u, knots, p, N_ctrl)
-            if u >= knots(N_ctrl + 1)
-                span = N_ctrl;
-                return;
-            end
-            if u <= knots(p + 1)
-                span = p + 1;
-                return;
-            end
-            low = p + 1;
-            high = N_ctrl + 1;
-            mid = floor((low + high) / 2);
-            while (u < knots(mid) || u >= knots(mid + 1))
-                if u < knots(mid)
-                    high = mid;
+                % 2. マージンなしの外接楕円体半軸 [a; b; c] の取得
+                if isfield(o, 'ellipsoid_radii') && ~isempty(o.ellipsoid_radii)
+                    radii = o.ellipsoid_radii(:);
                 else
-                    low = mid;
+                    radii = obj.compute_raw_ellipsoid_radii(o);
                 end
-                mid = floor((low + high) / 2);
-            end
-            span = mid;
-        end
-        % =====================================================================
-        % warmup_phase1_jit: JIT 最適化を初回に完了させ実行遅延を排除
-        % =====================================================================
-        % function warmup_phase1_jit(obj)
-        %     % ダミーパラメータで Phase 1 の主要処理を空回し実行
-        %     dummy_model = obj.build_phase1_bspline_from_template(5.0, 0.0);
-        %     D_dummy = zeros(7, 3);
-        %     dummy_model = obj.set_phase1_boundary(dummy_model, D_dummy, D_dummy);
-        %     z_dummy = zeros(obj.n_z, 1);
-        %     P_dummy = obj.assemble_phase1_control_points(dummy_model, z_dummy);
-        % 
-        %     % 主要評価関数をコンパイル
-        %     for r = 0:2
-        %         obj.eval_phase1_direct(dummy_model, 0.5, P_dummy, r);
-        %         obj.get_phase1_affine_map(dummy_model, 0.5, r);
-        %     end
-        % end
-        % =====================================================================
-        % warmup_phase1_jit: JIT 最適化を確実に完了させ、初回実行遅延を排除
-        % =====================================================================
-        % =====================================================================
-        % warmup_phase1_jit: Phase 1 内部の数値計算経路 (r = 0~6) の純粋JIT
-        % =====================================================================
-        function warmup_phase1_jit(obj)
-            % 1. ダミー入力による B-spline 境界決定パイプライン
-            dummy_model = obj.build_phase1_bspline_from_template(5.0, 0.0);
-            D_dummy = zeros(7, 3);
-            dummy_model = obj.set_phase1_boundary(dummy_model, D_dummy, D_dummy);
 
-            % 2. 自由変数 z からの 18 制御点アセンブル
-            z_dummy = zeros(obj.n_z, 1);
-            P_dummy = obj.assemble_phase1_control_points(dummy_model, z_dummy);
+                % 3. システム側マージン (初期値ゼロ) ＋ 各部位の等価球半径による拡張
+                % ※ 障害物側のマージン (o.d_margin) は加算せず，マージンなしの楕円近似を渡す
+                Dp = obj.d_margin + obj.r_load;
+                Dq = obj.d_margin + obj.r_drone;
+                Dc = obj.d_margin + obj.r_cable_sphere;
 
-            % 3. Phase 1 で使用する全微分次数 (r = 0~6) の直接評価およびアフィン写像構築
-            for r = 0:6
-                obj.eval_phase1_direct(dummy_model, 0.5, P_dummy, r);
-                obj.get_phase1_affine_map(dummy_model, 0.5, r);
+                pack.Apay(:, i)   = radii + Dp;
+                pack.Auav(:, i)   = radii + Dq;
+                pack.Acable(:, i) = radii + Dc;
+
+                % 補助パラメータ (円柱等の高さが存在する場合は格納)
+                if isfield(o, 'raw_param') && numel(o.raw_param) >= 2
+                    pack.raw_h(i) = o.raw_param(2);
+                else
+                    pack.raw_h(i) = 2.0 * radii(3);
+                end
             end
         end
 
         % =====================================================================
-        % clear_state_sensor_values: 制御周期開始時のセンサ状態バッファ初期化
-        % ---------------------------------------------------------------------
-        % 【概要】
-        %   毎ステップのセンシング処理前に状態構造体 (state) 内のセンサプロパティを
-        %   非検知状態（安全側デフォルト値）にリセットし、過去ステップの残存値をクリアします。
-        %
-        % 【引数】
-        %   - 入力 t_now : 現在時刻 [s]
+        % compute_raw_ellipsoid_radii: 障害物形状に応じた外接楕円体寸法の計算
+        % (ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE と完全整合)
+        % =====================================================================
+        function radii = compute_raw_ellipsoid_radii(~, o)
+            type = 'unknown';
+            if isfield(o, 'type'), type = lower(o.type); end
+            raw = [1.0, 1.0];
+            if isfield(o, 'raw_param'), raw = o.raw_param; end
+
+            switch type
+                case 'sphere'
+                    r = raw(1);
+                    radii = [r; r; r];
+                case 'cylinder'
+                    r = raw(1); h = raw(2);
+                    radii = [r * sqrt(2); r * sqrt(2); (h / 2) * sqrt(2)];
+                case 'box'
+                    dx = raw(1); dy = raw(2); dz = raw(3);
+                    radii = [dx/2; dy/2; dz/2] * sqrt(3);
+                case 'prism'
+                    r_tri = raw(1) / sqrt(3); h = raw(2);
+                    radii = [r_tri * sqrt(2); r_tri * sqrt(2); (h / 2) * sqrt(2)];
+                case 'cone'
+                    r = raw(1); h = raw(2);
+                    r_bound = max(h / 2, sqrt(r^2 + (h / 2)^2));
+                    radii = [r_bound; r_bound; r_bound];
+                case 'pyramid'
+                    r_bot = sqrt(2) * (raw(1) / 2); h = raw(2);
+                    r_bound = max(h / 2, sqrt(r_bot^2 + (h / 2)^2));
+                    radii = [r_bound; r_bound; r_bound];
+                case 'ellipsoid'
+                    radii = raw(:);
+                case 'custom'
+                    diffs = raw - mean(raw, 2);
+                    a = max(abs(diffs(1, :))) * sqrt(3);
+                    b = max(abs(diffs(2, :))) * sqrt(3);
+                    c = max(abs(diffs(3, :))) * sqrt(3);
+                    radii = [max(a, 0.1); max(b, 0.1); max(c, 0.1)];
+                otherwise
+                    radii = [1.0; 1.0; 1.0];
+            end
+        end
+
+        % =====================================================================
+        % get_component_name: 接触部位コードを文字列へ変換
+        % =====================================================================
+        function name = get_component_name(~, code)
+            switch code
+                case 1, name = 'PAYLOAD';
+                case 2, name = 'UAV';
+                case 3, name = 'CABLE';
+                otherwise, name = 'NONE';
+            end
+        end
+
+        % =====================================================================
+        % clear_state_sensor_values: 毎周期開始時の状態バッファ初期化
         % =====================================================================
         function clear_state_sensor_values(obj, t_now)
             st = obj.result.state;
-            st.time                          = t_now;            % 現在時刻 [s]
-            st.pQ                            = [NaN; NaN; NaN];   % 機体位置（未測定状態）
-            st.detected_point                = false;             % 非検知
-            st.detected_obstacles            = [];                % 空配列
-            st.need_replan                   = false;             % 回避フラグクリア
-            st.relevant_obstacles            = [];                % 回避対象クリア
-            st.min_obstacle_id_point         = NaN;               % 未定義
-            st.min_dist_point                = inf;               % 距離無限大
-            st.detected_obstacle_count_point = 0;                 % 0個
-            st.current_bspline               = [];                % (★追加)
+            st.time                          = t_now;
+            st.pQ                            = [NaN; NaN; NaN];
+            st.detected_point                = false;
+            st.detected_obstacles            = [];
+            st.need_replan                   = false;
+            st.relevant_obstacles            = [];
+            st.min_obstacle_id_point         = NaN;
+            st.min_dist_point                = inf;
+            st.detected_obstacle_count_point = 0;
+            st.loadmass                      = obj.loadmass;
+            st.current_bspline               = [];
+        end
+
+        % =====================================================================
+        % write_mex_source: C++ MEX ソースコードの自己生成
+        % =====================================================================
+        function write_mex_source(~, target_path)
+            fid = fopen(target_path, 'w');
+            assert(fid >= 0, '[REPLANNER ERROR] MEXソースファイルの作成に失敗しました: %s', target_path);
+            cleanup = onCleanup(@() fclose(fid));
+
+            lines = {
+                '// Trigger packet kernel for replanning system'
+                '// Auto-generated by REPLANNING_SYSTEM'
+                '#include "mex.h"'
+                '#include <cmath>'
+                '#include <algorithm>'
+                '#include <limits>'
+                ''
+                'struct V3 { double x, y, z; };'
+                ''
+                'static inline V3 sub(V3 a, V3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }'
+                'static inline V3 add(V3 a, V3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }'
+                'static inline V3 mul(double s, V3 a) { return {s * a.x, s * a.y, s * a.z}; }'
+                'static inline double dot(V3 a, V3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }'
+                'static inline double nrm(V3 a) { return std::sqrt(dot(a, a)); }'
+                ''
+                'static inline V3 col3(const double* A, mwSize j) {'
+                '    return {A[3 * j], A[3 * j + 1], A[3 * j + 2]};'
+                '}'
+                ''
+                'static inline V3 Rt(const double* R, V3 v) {'
+                '    return {'
+                '        R[0] * v.x + R[1] * v.y + R[2] * v.z,'
+                '        R[3] * v.x + R[4] * v.y + R[5] * v.z,'
+                '        R[6] * v.x + R[7] * v.y + R[8] * v.z};'
+                '}'
+                ''
+                'static double pointLevel(V3 p, V3 c, const double* R, V3 a) {'
+                '    V3 z = Rt(R, sub(p, c));'
+                '    z.x /= a.x; z.y /= a.y; z.z /= a.z;'
+                '    return nrm(z);'
+                '}'
+                ''
+                'static double segmentLevel(V3 p0, V3 p1, V3 c, const double* R, V3 a) {'
+                '    V3 z0 = Rt(R, sub(p0, c));'
+                '    V3 z1 = Rt(R, sub(p1, c));'
+                '    z0.x /= a.x; z0.y /= a.y; z0.z /= a.z;'
+                '    z1.x /= a.x; z1.y /= a.y; z1.z /= a.z;'
+                '    V3 d = sub(z1, z0);'
+                '    double den = dot(d, d);'
+                '    if (den <= std::numeric_limits<double>::epsilon()) return nrm(z0);'
+                '    double u = -dot(z0, d) / den;'
+                '    u = std::max(0.0, std::min(1.0, u));'
+                '    return nrm(add(z0, mul(u, d)));'
+                '}'
+                ''
+                'void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {'
+                '    if (nrhs != 15) mexErrMsgIdAndTxt("TRIGGER:MEX", "Expected 15 inputs.");'
+                '    if (nlhs > 8)   mexErrMsgIdAndTxt("TRIGGER:MEX", "At most 8 outputs.");'
+                ''
+                '    mwSize i0m = (mwSize)mxGetScalar(prhs[0]);'
+                '    double H   = mxGetScalar(prhs[1]);'
+                '    double dt  = mxGetScalar(prhs[2]);'
+                '    double rangeMax = mxGetScalar(prhs[3]);'
+                '    double L   = mxGetScalar(prhs[4]);'
+                ''
+                '    const mxArray* pLmx = prhs[5];'
+                '    const mxArray* qmx  = prhs[6];'
+                '    const mxArray* Cmx  = prhs[7];'
+                '    const mxArray* rbmx = prhs[8];'
+                '    const mxArray* rhmx = prhs[9];'
+                '    const mxArray* Rmx  = prhs[10];'
+                '    const mxArray* Apmx = prhs[11];'
+                '    const mxArray* Aqmx = prhs[12];'
+                '    const mxArray* Acmx = prhs[13];'
+                '    const mxArray* Idmx = prhs[14];'
+                ''
+                '    mwSize N = mxGetN(pLmx);'
+                '    mwSize M = mxGetN(Cmx);'
+                ''
+                '    const double* pL = mxGetPr(pLmx);'
+                '    const double* q  = mxGetPr(qmx);'
+                '    const double* C  = mxGetPr(Cmx);'
+                '    const double* rb = mxGetPr(rbmx);'
+                '    const double* Rf = mxGetPr(Rmx);'
+                '    const double* Ap = mxGetPr(Apmx);'
+                '    const double* Aq = mxGetPr(Aqmx);'
+                '    const double* Ac = mxGetPr(Acmx);'
+                '    const double* ids = mxGetPr(Idmx);'
+                ''
+                '    mwSize i0 = i0m - 1;'
+                '    V3 pL0 = col3(pL, i0);'
+                '    V3 q0  = col3(q, i0);'
+                '    V3 pQ0 = sub(pL0, mul(L, q0));'
+                ''
+                '    unsigned char* active = (unsigned char*)mxCalloc(M, sizeof(unsigned char));'
+                '    mxArray* distsMx = mxCreateDoubleMatrix(1, M, mxREAL);'
+                '    double* dists = mxGetPr(distsMx);'
+                ''
+                '    bool any = false;'
+                '    mwSize visibleCount = 0;'
+                '    double minDist = std::numeric_limits<double>::infinity();'
+                '    double minId = mxGetNaN();'
+                ''
+                '    for (mwSize i = 0; i < M; i++) {'
+                '        V3 c = {C[3 * i], C[3 * i + 1], C[3 * i + 2]};'
+                '        double d_center = nrm(sub(pQ0, c));'
+                '        double d_surf = std::max(0.0, d_center - rb[i]);'
+                '        dists[i] = d_surf;'
+                ''
+                '        if (d_surf <= rangeMax) {'
+                '            active[i] = 1;'
+                '            any = true;'
+                '            visibleCount++;'
+                '            if (d_surf < minDist) {'
+                '                minDist = d_surf;'
+                '                minId = ids[i];'
+                '            }'
+                '        }'
+                '    }'
+                ''
+                '    bool found = false;'
+                '    double jhit = mxGetNaN();'
+                '    double oid  = mxGetNaN();'
+                '    double comp = mxGetNaN();'
+                ''
+                '    if (any) {'
+                '        mwSize nH = (mwSize)std::floor(H / dt + 1e-12);'
+                '        mwSize i1 = std::min(N - 1, i0 + nH);'
+                ''
+                '        for (mwSize j = i0; j <= i1; j++) {'
+                '            V3 pLj = col3(pL, j);'
+                '            V3 qj  = col3(q, j);'
+                '            V3 pQj = sub(pLj, mul(L, qj));'
+                ''
+                '            double best = std::numeric_limits<double>::infinity();'
+                '            double bestComp = mxGetNaN();'
+                '            double bestOid  = mxGetNaN();'
+                ''
+                '            for (mwSize i = 0; i < M; i++) {'
+                '                if (!active[i]) continue;'
+                '                V3 c = {C[3 * i], C[3 * i + 1], C[3 * i + 2]};'
+                '                const double* R = Rf + 9 * i;'
+                '                V3 ap = {Ap[3 * i], Ap[3 * i + 1], Ap[3 * i + 2]};'
+                '                V3 aq = {Aq[3 * i], Aq[3 * i + 1], Aq[3 * i + 2]};'
+                '                V3 ac = {Ac[3 * i], Ac[3 * i + 1], Ac[3 * i + 2]};'
+                ''
+                '                double sp = pointLevel(pLj, c, R, ap) - 1.0;'
+                '                if (sp < best) { best = sp; bestComp = 1; bestOid = ids[i]; }'
+                ''
+                '                double sq = pointLevel(pQj, c, R, aq) - 1.0;'
+                '                if (sq < best) { best = sq; bestComp = 2; bestOid = ids[i]; }'
+                ''
+                '                double sc = segmentLevel(pLj, pQj, c, R, ac) - 1.0;'
+                '                if (sc < best) { best = sc; bestComp = 3; bestOid = ids[i]; }'
+                '            }'
+                ''
+                '            if (best <= 0.0) {'
+                '                found = true;'
+                '                jhit = (double)(j + 1);'
+                '                oid  = bestOid;'
+                '                comp = bestComp;'
+                '                break;'
+                '            }'
+                '        }'
+                '    }'
+                ''
+                '    mxFree(active);'
+                ''
+                '    if (nlhs > 0) plhs[0] = mxCreateLogicalScalar(found);'
+                '    if (nlhs > 1) plhs[1] = mxCreateDoubleScalar(jhit);'
+                '    if (nlhs > 2) plhs[2] = mxCreateDoubleScalar(oid);'
+                '    if (nlhs > 3) plhs[3] = mxCreateDoubleScalar(comp);'
+                '    if (nlhs > 4) plhs[4] = mxCreateDoubleScalar((double)visibleCount);'
+                '    if (nlhs > 5) plhs[5] = mxCreateDoubleScalar(minDist);'
+                '    if (nlhs > 6) plhs[6] = mxCreateDoubleScalar(minId);'
+                '    if (nlhs > 7) plhs[7] = distsMx;'
+                '}'
+            };
+
+            for k = 1:numel(lines)
+                fprintf(fid, '%s\n', lines{k});
+            end
         end
     end
 end
-
