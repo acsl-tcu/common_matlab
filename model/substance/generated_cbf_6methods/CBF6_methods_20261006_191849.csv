@@ -1,0 +1,7 @@
+MethodID,Geometry,Formulation,Components,ObservedRD,CurrentSafetyStatus
+S1,single_ellipsoid,support_plane,single,"4",candidate: auxiliary dynamics / final proof pending
+S2,multi_sphere,support_plane,sphere_generic,"4",candidate: auxiliary dynamics / final proof pending
+S3,multi_ellipsoid,support_plane,uav+cable+load,"UAV=4,Cable=4,Load=6",candidate: auxiliary dynamics / final proof pending
+K1,single_ellipsoid,kkt_min_distance,single,"pending KKT extended-system audit",candidate: auxiliary dynamics / final proof pending
+K2,multi_sphere,kkt_min_distance,sphere_generic,"pending KKT extended-system audit",candidate: auxiliary dynamics / final proof pending
+K3,multi_ellipsoid,kkt_min_distance,uav+cable+load,"pending KKT extended-system audit",candidate: auxiliary dynamics / final proof pending

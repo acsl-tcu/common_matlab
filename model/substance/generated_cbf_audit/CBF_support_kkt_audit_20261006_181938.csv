@@ -1,0 +1,6 @@
+Formulation,DetectedRD,RDLB,Status,TotalSec,MaxStepSec,LastPhiChars
+B0 fixed-metric,4,4,relative_degree_detected,103.2200312,8.6315454,79700
+B3 UAV/support,4,4,relative_degree_detected,15.3699162,2.9385606,25576
+B4 load/support,6,6,relative_degree_detected,26.9241997,6.1686682,54680
+B1 single/support,4,4,relative_degree_detected,42.7067636,12.0645749,317921
+B2 cable/support,4,4,relative_degree_detected,42.0623362,11.9320409,303713

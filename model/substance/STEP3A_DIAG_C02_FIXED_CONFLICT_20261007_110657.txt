@@ -1,0 +1,143 @@
+========================================================================================================================
+ STEP 3A DIAGNOSTIC: C02 FIXED-CONFLICT ANATOMY
+ identify immutable whole-BSPLINE_D7 safety conflicts only
+ timestamp=2026-10-07 11:06:57
+========================================================================================================================
+[FRONT] initialOutside=1 detectedAt=[4.1 8.05] memory=1 trigger=1 t=13.650 TTC=5.000 known=[1 2]
+[GUIDE] pTrigger=[13.650000 0.000000 0.000000] xiRejoin=11.723030177082318 limitingObs=2
+[GUIDE] phi=4.355192591910 n=[-0.000000000000 0.349648961112 0.936880784301] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.3165229061167742 pathLength=14.356075989316
+[ROUND-V3] d original=1.316522906116774 final=1.3165229061167742 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=11.723030177082316 final=11.723030177082318 ULPsteps=1 delta=+1.77635683940025046e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+6.74042677912933819e-04 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 0 11.72303017708232 11.72303017708232] dXi=[0 11.72303017708232 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=1.77635683940025046e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.86895092972065235e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86895092972065235e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.96394446877702045e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.39790323760990987e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=6 rejected=4 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+3.88770400802620841e+00
+[CELL 2 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.86895092972065235e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.86895092972065235e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86895092972065235e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.96394446877702045e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.39790323760990987e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=9 rejected=1 rank(A)=3 guideMinSlack=+9.69280500310425452e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.29911035585008605e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.69280500310425452e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.86895092972065235e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=9 rank=3 bounded=0 strict=1 minGuideSlack=+9.69280500310425452e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[REPRODUCTION]
+case=C02_TWO_BASE
+xiGeom=11.723030177082318
+xiTerminalOnly=12.12659956390894
+additionalRunout=4.03569386826621468e-01
+terminalMinHardSlack=+2.13162820728030056e-14
+nEq=42 rankEq=42 nullity=24 nIneq=624
+eqResidual=5.32907051820075139e-15 nullResidual=0.00000000000000000e+00 tauRow=7.09405867382884026e-11
+fixedRows=119 fixedConflictCount=6
+
+[FIXED CONFLICT DETAILS]
+row span cell cp plane obs source                    rowInf         hardSlack       endpointJet
+567   15    2  2     6   2 POINT_START              0.000e+00 -2.84272884383785396e-01 1
+    point=[25.313030177082336 -1.3928235052544538e-15 -1.3940465067303414e-15]
+    normal=[0.82231688555701055 0.12611601406309508 0.55487808636191038] support_b=21.099605023612753 directSlack=-2.84272884383781843e-01
+568   15    2  2     7   2 POINT_MID                0.000e+00 -6.43596332874771804e-02 1
+    point=[25.313030177082336 -1.3928235052544538e-15 -1.3940465067303414e-15]
+    normal=[0.95402657917152678 -0.020312407436342481 0.29903292851860741] support_b=24.213663221594967 directSlack=-6.43596332874807331e-02
+576   15    2  3     6   2 POINT_START              0.000e+00 -2.20739395314641484e-01 1
+    point=[25.390291741553444 -7.9109099525259121e-16 2.3110853508128407e-16]
+    normal=[0.82231688555701055 0.12611601406309508 0.55487808636191038] support_b=21.099605023612753 directSlack=-2.20739395314637932e-01
+585   15    2  4     6   2 POINT_START              0.000e+00 -1.57205906245511784e-01 1
+    point=[25.467553306024534 -1.0044203379923398e-28 -1.0242165722760733e-15]
+    normal=[0.82231688555701055 0.12611601406309508 0.55487808636191038] support_b=21.099605023612753 directSlack=-1.57205906245511784e-01
+594   15    2  5     6   2 POINT_START              0.000e+00 -9.36724171763749780e-02 1
+    point=[25.544814870495635 8.8652635769310555e-16 -8.7344538064327787e-16]
+    normal=[0.82231688555701055 0.12611601406309508 0.55487808636191038] support_b=21.099605023612753 directSlack=-9.36724171763714253e-02
+603   15    2  6     6   2 POINT_START              0.000e+00 -3.01389281072346193e-02 1
+    point=[25.622076434966736 1.3536792851462643e-15 -1.0544760810332721e-15]
+    normal=[0.82231688555701055 0.12611601406309508 0.55487808636191038] support_b=21.099605023612753 directSlack=-3.01389281072346193e-02
+
+[CONFLICT GROUPING]
+uniqueSpans=15
+uniqueCells0based=2
+uniqueObstacles=2
+source POINT_MID                count=1
+source POINT_START              count=5
+firstSpanConflicts=0
+lastSpanConflicts=6
+endpointJetConflicts=6
+
+[FIRST/LAST SPAN FIXED-ROW RANGE]
+count=119 minHardSlack=-2.84272884383785396e-01 maxHardSlack=+9.04454084842862116e+00
+
+========================================================================================================================
+ C02 FIXED-CONFLICT DIAGNOSTIC RESULT
+========================================================================================================================
+fixedConflictCount=6
+allConflictsEndpointJet=1
+allConflictsFinalSpan=1
+allConflictsInitialSpan=0
+NOTE: this file does not modify xi/control points or claim a general remedy.
+NOTE: next formulation should be chosen from the observed conflict location, not by post-hoc analytic correction.
+log file=C:\Users\student\Documents\GitHub\common_matlab\model\substance\STEP3A_DIAG_C02_FIXED_CONFLICT_20261007_110657.txt
+========================================================================================================================

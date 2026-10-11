@@ -1,0 +1,1454 @@
+========================================================================================================================
+ STEP 3A: BSPLINE_D7 VARIABLE-REJOIN 14-CASE HARD-SAFETY AUDIT
+ degree7 | 22 CP | 15 spans | C6 structural | no J7 | no T
+ timestamp=2026-10-07 04:58:50
+========================================================================================================================
+
+########################################################################################################################
+ CASE 01 / 14 : C01_ONE
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=4.05 memory=1 trigger=1 t=13.700 TTC=5.000 known=1
+[GUIDE] pTrigger=[13.700000 0.000000 0.000000] xiRejoin=7.7196723048982792 limitingObs=1
+[GUIDE] phi=3.036685179453 n=[0.000000000000 0.994502255865 -0.104715152098] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=0.90386111293528337 pathLength=9.527394530769
+[ROUND-V3] d original=0.90386111293528326 final=0.90386111293528337 ULPsteps=1 delta=+1.11022302462515654e-16
+[ROUND-V3] xi original=7.7196723048982765 final=7.7196723048982792 ULPsteps=3 delta=+2.66453525910037570e-15
+[MULTIKERNEL-BYPASS] scalar=+1.11022302462515654e-16 matrix=+1.11022302462515654e-16 expanded=+1.11022302462515654e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+0.00000000000000000e+00 worstSeg=2 worstObs=1
+[EQUALITY] xiWaypoints=[0 0 7.71967230489828 7.71967230489828] dXi=[0 7.71967230489828 0] eqTol=1.13686837721616030e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=8.88178419700125232e-16
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=5
+[CELL 0] kept=4 rejected=1 rank(A)=3 guideMinSlack=+4.87611832349513463e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.87611832349513463e+00
+
+[CELL 1] candidatePlanes=5
+[CELL 1] kept=1 rejected=4 rank(A)=1 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=1 rejected=4 minKeptSlack=+1.11022302462515654e-16
+
+[CELL 2] candidatePlanes=5
+[CELL 2] kept=4 rejected=1 rank(A)=3 guideMinSlack=+1.10864061967390626e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+1.10864061967390626e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+4.87611832349513463e+00
+[CELL 1] nPlanes=1 rank=1 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+1.10864061967390626e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=7.7196723048982792 xiUsed=8.019935820422095 additionalRunout=3.00263515523815805e-01 terminalSlack=+3.55271367880050093e-15
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=5
+[CELL 0] kept=4 rejected=1 rank(A)=3 guideMinSlack=+4.87611832349513463e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.87611832349513463e+00
+
+[CELL 1] candidatePlanes=5
+[CELL 1] kept=1 rejected=4 rank(A)=1 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=1 rejected=4 minKeptSlack=+1.11022302462515654e-16
+
+[CELL 2] candidatePlanes=5
+[CELL 2] kept=4 rejected=1 rank(A)=3 guideMinSlack=+2.90664933408795179e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+2.90664933408795179e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+4.87611832349513463e+00
+[CELL 1] nPlanes=1 rank=1 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.90664933408795179e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=216 fixed=56 active=160 fixedConflict=0
+[BSPLINE_D7 RESULT] candExit=1 dirExit=1 minGain=4.54910670361422710e-05 alphaReq=2.23218497701402559e-12 alphaFinal=2.23311650960745935e-12 corrIters=2
+[BSPLINE_D7 RESULT] eqResidual=3.55271367880050093e-15 minOriginal=+1.11022302462515654e-16 minBezier=+1.11022302462515654e-16 PASS=1
+
+########################################################################################################################
+ CASE 02 / 14 : C02_TWO_BASE
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[4.1 8.05] memory=1 trigger=1 t=13.650 TTC=5.000 known=[1 2]
+[GUIDE] pTrigger=[13.650000 0.000000 0.000000] xiRejoin=11.723030177082318 limitingObs=2
+[GUIDE] phi=4.355192591910 n=[-0.000000000000 0.349648961112 0.936880784301] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.3165229061167742 pathLength=14.356075989316
+[ROUND-V3] d original=1.316522906116774 final=1.3165229061167742 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=11.723030177082316 final=11.723030177082318 ULPsteps=1 delta=+1.77635683940025046e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+6.74042677912933819e-04 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 0 11.72303017708232 11.72303017708232] dXi=[0 11.72303017708232 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=1.77635683940025046e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.86895092972065235e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86895092972065235e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.96394446877702045e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.39790323760990987e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=6 rejected=4 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+3.88770400802620841e+00
+[CELL 2 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.86895092972065235e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=11.723030177082318 xiUsed=12.12659956390894 additionalRunout=4.03569386826621468e-01 terminalSlack=+2.13162820728030056e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.86895092972065235e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86895092972065235e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.96394446877702045e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.39790323760990987e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=9 rejected=1 rank(A)=3 guideMinSlack=+9.69280500310425452e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.29911035585008605e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.69280500310425452e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.86895092972065235e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=9 rank=3 bounded=0 strict=1 minGuideSlack=+9.69280500310425452e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=624 fixed=119 active=505 fixedConflict=6
+
+########################################################################################################################
+ CASE 03 / 14 : C03_FOUR_MIX
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[2.2 4.95 8.2 10.85] memory=1 trigger=1 t=12.000 TTC=5.000 known=[1 2 3 4]
+[GUIDE] pTrigger=[12.000000 0.000000 0.000000] xiRejoin=16.326605456982264 limitingObs=4
+[GUIDE] phi=5.475039008073 n=[0.000000000000 -0.690839859336 0.723007806841] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.4929888195671472 pathLength=19.312583096117
+[ROUND-V3] d original=1.492988819567147 final=1.4929888195671472 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=16.326605456982261 final=16.326605456982264 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+1.48803740507630344e-03 worstSeg=2 worstObs=4
+[EQUALITY] xiWaypoints=[0 0 16.326605456982264 16.326605456982264] dXi=[0 16.326605456982264 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=0.00000000000000000e+00
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=17 rejected=3 rank(A)=3 guideMinSlack=+4.70901582694601828e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.70901582694601828e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+7.45438783720013376e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.05691088927229018e+01
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+1.36731332528637726e+01
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.23935099960448269e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.12637454190659936e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+4.42407140656211340e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=15 rejected=5 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+9.09851542825766302e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+5.82023350914495552e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+2.75471040050470251e+00
+[CELL 2 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=17 rank=3 bounded=0 strict=1 minGuideSlack=+4.70901582694601828e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=15 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.326605456982264 xiUsed=16.809943744741801 additionalRunout=4.83338287759536911e-01 terminalSlack=+5.32907051820075139e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=17 rejected=3 rank(A)=3 guideMinSlack=+4.70901582694601828e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.70901582694601828e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+7.45438783720013376e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.05691088927229018e+01
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+1.36731332528637726e+01
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.23935099960448269e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.12637454190659936e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+4.42407140656211340e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=18 rejected=2 rank(A)=3 guideMinSlack=+9.80309013488636083e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+9.58546689789573847e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.30704870933308470e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+3.25597885574009993e+00
+[CELL 2 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+9.80309013488636083e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=17 rank=3 bounded=0 strict=1 minGuideSlack=+4.70901582694601828e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=18 rank=3 bounded=0 strict=1 minGuideSlack=+9.80309013488636083e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=1264 fixed=245 active=1019 fixedConflict=6
+
+########################################################################################################################
+ CASE 04 / 14 : C04_EIGHT_DENSE
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[2.25 3.75 5.45 6.95 8.45 9.95 11.45 NaN] memory=1 trigger=1 t=12.050 TTC=5.000 known=[1 2 3 4 5 6 7]
+[GUIDE] pTrigger=[12.050000 0.000000 0.000000] xiRejoin=16.400899390087741 limitingObs=7
+[GUIDE] phi=2.134308159359 n=[0.000000000000 0.534158334346 -0.845384453281] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.3447110992365312 pathLength=19.090321588561
+[ROUND-V3] d original=1.344711099236531 final=1.3447110992365312 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=16.400899390087737 final=16.400899390087741 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+2.22044604925031308e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+7.26743481267655422e-03 worstSeg=2 worstObs=7
+[EQUALITY] xiWaypoints=[0 0 16.400899390087741 16.400899390087741] dXi=[0 16.400899390087741 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=0.00000000000000000e+00
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=35
+[CELL 0] kept=31 rejected=4 rank(A)=3 guideMinSlack=+4.74767004718518493e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.74767004718518493e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.32931832575282272e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.85106252546324868e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+9.33862959945226656e+00
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+1.08701095040604709e+01
+[CELL 0 OBS 6] keptPlanes=5 rejected=0 minKeptSlack=+1.25465095526879971e+01
+[CELL 0 OBS 7] keptPlanes=4 rejected=1 minKeptSlack=+1.41025249438725258e+01
+
+[CELL 1] candidatePlanes=35
+[CELL 1] kept=14 rejected=21 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.04406816104597056e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.33276809953979924e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+5.70821226339202958e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+4.51767808475709631e-01
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+3.63450201531555495e-01
+[CELL 1 OBS 6] keptPlanes=2 rejected=3 minKeptSlack=+7.77588090084155859e-02
+[CELL 1 OBS 7] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=35
+[CELL 2] kept=26 rejected=9 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+9.29341158787980959e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+7.74511665015729633e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+6.12294218024253922e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+4.48925511694012869e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+2.87212907112061444e+00
+[CELL 2 OBS 6] keptPlanes=4 rejected=1 minKeptSlack=+1.37799991491040430e+00
+[CELL 2 OBS 7] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=31 rank=3 bounded=0 strict=1 minGuideSlack=+4.74767004718518493e+00
+[CELL 1] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=26 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.400899390087741 xiUsed=16.837831654604827 additionalRunout=4.36932264517086111e-01 terminalSlack=+3.55271367880050093e-15
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=35
+[CELL 0] kept=31 rejected=4 rank(A)=3 guideMinSlack=+4.74767004718518493e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.74767004718518493e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.32931832575282272e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.85106252546324868e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+9.33862959945226656e+00
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+1.08701095040604709e+01
+[CELL 0 OBS 6] keptPlanes=5 rejected=0 minKeptSlack=+1.25465095526879971e+01
+[CELL 0 OBS 7] keptPlanes=4 rejected=1 minKeptSlack=+1.41025249438725258e+01
+
+[CELL 1] candidatePlanes=35
+[CELL 1] kept=14 rejected=21 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.04406816104597056e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.33276809953979924e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+5.70821226339202958e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+4.51767808475709631e-01
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+3.63450201531555495e-01
+[CELL 1 OBS 6] keptPlanes=2 rejected=3 minKeptSlack=+7.77588090084155859e-02
+[CELL 1 OBS 7] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=35
+[CELL 2] kept=29 rejected=6 rank(A)=3 guideMinSlack=+1.16952232462153916e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+9.73284471981570931e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.18518413168514058e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+6.56612781788563638e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+4.93427618684043878e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+3.31986066118289003e+00
+[CELL 2 OBS 6] keptPlanes=4 rejected=1 minKeptSlack=+1.83099145014472953e+00
+[CELL 2 OBS 7] keptPlanes=5 rejected=0 minKeptSlack=+1.16952232462153916e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=31 rank=3 bounded=0 strict=1 minGuideSlack=+4.74767004718518493e+00
+[CELL 1] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=29 rank=3 bounded=0 strict=1 minGuideSlack=+1.16952232462153916e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=2192 fixed=420 active=1772 fixedConflict=7
+
+########################################################################################################################
+ CASE 05 / 14 : C05_TWELVE_DENSE
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[1.25 2.4 3.75 4.9 6.05 7.2 8.35 9.85 11 NaN NaN NaN] memory=1 trigger=1 t=11.050 TTC=5.000 known=[1 2 3 4 5 6 7 8 9]
+[GUIDE] pTrigger=[11.050000 0.000000 0.000000] xiRejoin=16.80800141163127 limitingObs=9
+[GUIDE] phi=2.134308159359 n=[0.000000000000 0.534158334346 -0.845384453281] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.3447110992365312 pathLength=19.497423610104
+[ROUND-V3] d original=1.344711099236531 final=1.3447110992365312 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=16.808001411631267 final=16.80800141163127 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+2.22044604925031308e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+7.26743481267666525e-03 worstSeg=2 worstObs=7
+[EQUALITY] xiWaypoints=[0 0 16.80800141163127 16.80800141163127] dXi=[0 16.80800141163127 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=0.00000000000000000e+00
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=45
+[CELL 0] kept=40 rejected=5 rank(A)=3 guideMinSlack=+4.74767004718518670e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.74767004718518670e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+5.97580013526413900e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.14433170315751553e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+8.28034802157764105e+00
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+9.46294081415134514e+00
+[CELL 0 OBS 6] keptPlanes=5 rejected=0 minKeptSlack=+1.07896317582780394e+01
+[CELL 0 OBS 7] keptPlanes=4 rejected=1 minKeptSlack=+1.19939151587116442e+01
+[CELL 0 OBS 8] keptPlanes=4 rejected=1 minKeptSlack=+1.32398631871471988e+01
+[CELL 0 OBS 9] keptPlanes=5 rejected=0 minKeptSlack=+1.43086464457060902e+01
+
+[CELL 1] candidatePlanes=45
+[CELL 1] kept=19 rejected=26 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.04406816104597056e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.33276809953979924e-01
+[CELL 1 OBS 3] keptPlanes=3 rejected=2 minKeptSlack=+2.37849272618536056e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+4.51767808475709631e-01
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+3.63450201531555495e-01
+[CELL 1 OBS 6] keptPlanes=2 rejected=3 minKeptSlack=+7.77588090084155859e-02
+[CELL 1 OBS 7] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+[CELL 1 OBS 8] keptPlanes=2 rejected=3 minKeptSlack=+2.76283020746849406e-01
+[CELL 1 OBS 9] keptPlanes=2 rejected=3 minKeptSlack=+2.16849683666481052e-01
+
+[CELL 2] candidatePlanes=45
+[CELL 2] kept=37 rejected=8 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+9.70284952767588749e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.50748671035011839e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.24471825425046134e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+5.97007871451164007e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+4.71747588869700607e+00
+[CELL 2 OBS 6] keptPlanes=4 rejected=1 minKeptSlack=+3.60211683669432858e+00
+[CELL 2 OBS 7] keptPlanes=5 rejected=0 minKeptSlack=+2.35713228525344931e+00
+[CELL 2 OBS 8] keptPlanes=5 rejected=0 minKeptSlack=+1.10100655971692163e+00
+[CELL 2 OBS 9] keptPlanes=3 rejected=2 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=40 rank=3 bounded=0 strict=1 minGuideSlack=+4.74767004718518670e+00
+[CELL 1] nPlanes=19 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=37 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.80800141163127 xiUsed=17.246560978137801 additionalRunout=4.38559566506530274e-01 terminalSlack=+2.48689957516035065e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=45
+[CELL 0] kept=40 rejected=5 rank(A)=3 guideMinSlack=+4.74767004718518670e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.74767004718518670e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+5.97580013526413900e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.14433170315751553e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+8.28034802157764105e+00
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+9.46294081415134514e+00
+[CELL 0 OBS 6] keptPlanes=5 rejected=0 minKeptSlack=+1.07896317582780394e+01
+[CELL 0 OBS 7] keptPlanes=4 rejected=1 minKeptSlack=+1.19939151587116442e+01
+[CELL 0 OBS 8] keptPlanes=4 rejected=1 minKeptSlack=+1.32398631871471988e+01
+[CELL 0 OBS 9] keptPlanes=5 rejected=0 minKeptSlack=+1.43086464457060902e+01
+
+[CELL 1] candidatePlanes=45
+[CELL 1] kept=18 rejected=27 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.04406816104597056e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.33276809953979924e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+5.70821226339202958e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+4.51767808475709631e-01
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+3.63450201531555495e-01
+[CELL 1 OBS 6] keptPlanes=2 rejected=3 minKeptSlack=+7.77588090084155859e-02
+[CELL 1 OBS 7] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+[CELL 1 OBS 8] keptPlanes=2 rejected=3 minKeptSlack=+2.76283020746849406e-01
+[CELL 1 OBS 9] keptPlanes=2 rejected=3 minKeptSlack=+2.16849683666481052e-01
+
+[CELL 2] candidatePlanes=45
+[CELL 2] kept=39 rejected=6 rank(A)=3 guideMinSlack=+2.80129470830733140e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+1.01437544097075012e+01
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+8.94876629884531738e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+7.68814211026280248e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+6.41423374301683680e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+5.16300316769502388e+00
+[CELL 2 OBS 6] keptPlanes=4 rejected=1 minKeptSlack=+4.05046267946289973e+00
+[CELL 2 OBS 7] keptPlanes=5 rejected=0 minKeptSlack=+2.81466015758931931e+00
+[CELL 2 OBS 8] keptPlanes=5 rejected=0 minKeptSlack=+1.57327137605483358e+00
+[CELL 2 OBS 9] keptPlanes=5 rejected=0 minKeptSlack=+2.80129470830733140e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=40 rank=3 bounded=0 strict=1 minGuideSlack=+4.74767004718518670e+00
+[CELL 1] nPlanes=18 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=39 rank=3 bounded=0 strict=1 minGuideSlack=+2.80129470830733140e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=2848 fixed=553 active=2295 fixedConflict=2
+
+########################################################################################################################
+ CASE 06 / 14 : C06_LARGE
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[3.4 8 NaN] memory=1 trigger=1 t=12.900 TTC=5.000 known=[1 2]
+[GUIDE] pTrigger=[12.900000 0.000000 0.000000] xiRejoin=14.249178982378762 limitingObs=2
+[GUIDE] phi=2.234254456896 n=[0.000000000000 0.615845076418 -0.787867274261] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.9506091618668466 pathLength=18.150397306112
+[ROUND-V3] d original=1.9506091618668466 final=1.9506091618668466 ULPsteps=0 delta=+0.00000000000000000e+00
+[ROUND-V3] xi original=14.24917898237876 final=14.249178982378762 ULPsteps=1 delta=+1.77635683940025046e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+3.33066907387546962e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+7.53813982558781959e-03 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 0 14.249178982378764 14.249178982378764] dXi=[0 14.249178982378764 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=1.77635683940025046e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.70807145259608717e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.70807145259608717e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+9.84933079774193665e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.22359544297535194e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=8 rejected=2 rank(A)=3 guideMinSlack=+1.10067203664847568e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.80884349701598524e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+1.10067203664847568e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.70807145259608717e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+1.10067203664847568e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=14.249178982378762 xiUsed=14.85123994573059 additionalRunout=6.02060963351828349e-01 terminalSlack=+3.55271367880050093e-15
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=10
+[CELL 0] kept=8 rejected=2 rank(A)=3 guideMinSlack=+4.70807145259608717e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.70807145259608717e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+9.84933079774193665e+00
+
+[CELL 1] candidatePlanes=10
+[CELL 1] kept=4 rejected=6 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+9.22359544297535194e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+
+[CELL 2] candidatePlanes=10
+[CELL 2] kept=9 rejected=1 rank(A)=3 guideMinSlack=+3.96258133001285984e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+5.42313839856387148e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+3.96258133001285984e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.70807145259608717e+00
+[CELL 1] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=9 rank=3 bounded=0 strict=1 minGuideSlack=+3.96258133001285984e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=624 fixed=119 active=505 fixedConflict=2
+
+########################################################################################################################
+ CASE 07 / 14 : C07_SMALL
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[3.65 5.6 7.7 9.65] memory=1 trigger=1 t=13.250 TTC=5.000 known=[1 2 3 4]
+[GUIDE] pTrigger=[13.250000 0.000000 0.000000] xiRejoin=12.669458098715591 limitingObs=4
+[GUIDE] phi=1.570796326795 n=[0.000000000000 -0.000000000000 -1.000000000000] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=0.93750615678402938 pathLength=14.544470412284
+[ROUND-V3] d original=0.93750615678402927 final=0.93750615678402938 ULPsteps=1 delta=+1.11022302462515654e-16
+[ROUND-V3] xi original=12.669458098715587 final=12.669458098715591 ULPsteps=2 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+1.11022302462515654e-16 matrix=+1.11022302462515654e-16 expanded=+1.11022302462515654e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+5.27608303501160836e-02 worstSeg=2 worstObs=1
+[EQUALITY] xiWaypoints=[0 0 12.669458098715591 12.669458098715591] dXi=[0 12.669458098715591 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=0.00000000000000000e+00
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=17 rejected=3 rank(A)=3 guideMinSlack=+4.86360000900418932e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86360000900418932e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.98483136172733055e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+8.93080002807132800e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+1.08546639140596817e+01
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.91700997423207564e-02
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+1.41345214628204263e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.11022302462515654e-16
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+1.15932606781313230e-01
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=16 rejected=4 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+6.04828174780305972e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+4.12195261651046607e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+2.00219101305271252e+00
+[CELL 2 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=17 rank=3 bounded=0 strict=1 minGuideSlack=+4.86360000900418932e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=16 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=12.669458098715591 xiUsed=12.960465606326554 additionalRunout=2.91007507610963501e-01 terminalSlack=+1.77635683940025046e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=17 rejected=3 rank(A)=3 guideMinSlack=+4.86360000900418932e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.86360000900418932e+00
+[CELL 0 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.98483136172733055e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+8.93080002807132800e+00
+[CELL 0 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+1.08546639140596817e+01
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.91700997423207564e-02
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+1.41345214628204263e-01
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.11022302462515654e-16
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+1.15932606781313230e-01
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=19 rejected=1 rank(A)=3 guideMinSlack=+7.17562628265540070e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+6.34155749247594258e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+4.41686424208554129e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+2.30480067282324086e+00
+[CELL 2 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+7.17562628265540070e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=17 rank=3 bounded=0 strict=1 minGuideSlack=+4.86360000900418932e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=19 rank=3 bounded=0 strict=1 minGuideSlack=+7.17562628265540070e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=1280 fixed=252 active=1028 fixedConflict=7
+
+########################################################################################################################
+ CASE 08 / 14 : C08_SLENDER
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[2.95 7.1 10.9] memory=1 trigger=1 t=14.150 TTC=5.000 known=[1 2 3]
+[GUIDE] pTrigger=[14.150000 0.000000 0.000000] xiRejoin=16.145560282033156 limitingObs=3
+[GUIDE] phi=3.892280214859 n=[-0.000000000000 0.731220027550 0.682141679792] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=0.91652462379677746 pathLength=17.978609529627
+[ROUND-V3] d original=0.91652462379677735 final=0.91652462379677746 ULPsteps=1 delta=+1.11022302462515654e-16
+[ROUND-V3] xi original=16.145560282033152 final=16.145560282033156 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+2.22044604925031308e-16 matrix=+2.22044604925031308e-16 expanded=+2.22044604925031308e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+2.22044604925031308e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+1.03428234162315946e-01 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 0 16.145560282033159 16.145560282033159] dXi=[0 16.145560282033159 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=3.55271367880050093e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+4.36770677064813562e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.36770677064813562e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+7.50576048809209695e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.16096471954444436e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.14965869191798409e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+2.22044604925031308e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+5.24316867700491684e-08
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=13 rejected=2 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.81326705268129373e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+3.94243762545996290e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+4.36770677064813562e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.145560282033156 xiUsed=16.793843637266988 additionalRunout=6.48283355233832737e-01 terminalSlack=+2.84217094304040074e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+4.36770677064813562e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+4.36770677064813562e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+7.50576048809209695e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.16096471954444436e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=7 rejected=8 rank(A)=3 guideMinSlack=+2.22044604925031308e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+1.14965869191798409e-01
+[CELL 1 OBS 2] keptPlanes=3 rejected=2 minKeptSlack=+2.22044604925031308e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+5.24316867700491684e-08
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=13 rejected=2 rank(A)=3 guideMinSlack=+7.08283355233831458e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+9.46155040791512292e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+4.59345719762063709e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+7.08283355233831458e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+4.36770677064813562e+00
+[CELL 1] nPlanes=7 rank=3 bounded=0 strict=1 minGuideSlack=+2.22044604925031308e-16
+[CELL 2] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+7.08283355233831458e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+2.22044604925031308e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+2.22044604925031308e-16 minSharedSlack=+2.22044604925031308e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=1000 fixed=189 active=811 fixedConflict=0
+
+########################################################################################################################
+ CASE 09 / 14 : C09_DIAG_XY
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[3.5 6.75 9.95] memory=1 trigger=1 t=10.700 TTC=5.000 known=[1 2 3]
+[GUIDE] pTrigger=[9.079251 9.079251 0.000000] xiRejoin=16.475835843096643 limitingObs=3
+[GUIDE] phi=4.095708232661 n=[-0.408941416070 0.408941416070 0.815802571978] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.5369845439069558 pathLength=19.549804930911
+[ROUND-V3] d original=1.5369845439069554 final=1.5369845439069558 ULPsteps=2 delta=+4.44089209850062616e-16
+[ROUND-V3] xi original=16.47583584309664 final=16.475835843096643 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+1.33226762955018785e-15 matrix=+1.11022302462515654e-15 expanded=+1.11022302462515654e-15 pass=1
+[MULTIKERNEL-REJOIN] nominal=+6.41153796721027902e-15 payloadScalar=+6.00000000000058265e-02 payloadMatrix=+6.00000000000058265e-02 payloadExpanded=+6.00000000000058265e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.44328993201270350e-15
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+3.06500646688451783e-02 worstSeg=2 worstObs=3
+[EQUALITY] xiWaypoints=[0 0 16.475835843096647 16.475835843096647] dXi=[0 16.475835843096647 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=2.51214793389404027e-15 rejoinResidual=3.55271367880050093e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=13 rejected=2 rank(A)=3 guideMinSlack=+5.80266131779601579e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+5.80266131779601579e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.87484352003093946e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.38434293401024142e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+1.11022302462515654e-15
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+4.13165773230949940e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+1.11022302462515654e-15
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+7.95145571608202317e-09
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=11 rejected=4 rank(A)=3 guideMinSlack=+6.00000000000058265e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.00057160240598364e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+3.94162942845046516e+00
+[CELL 2 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000058265e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+5.80266131779601579e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-15
+[CELL 2] nPlanes=11 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000058265e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.33226762955018785e-15 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-15 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-15 minSharedSlack=+1.11022302462515654e-15
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.475835843096643 xiUsed=16.973541087403731 additionalRunout=4.97705244307088179e-01 terminalSlack=+2.48689957516035065e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=13 rejected=2 rank(A)=3 guideMinSlack=+5.80266131779601579e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+5.80266131779601579e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.87484352003093946e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.38434293401024142e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+1.11022302462515654e-15
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+4.13165773230949940e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+1.11022302462515654e-15
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+7.95145571608202317e-09
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=14 rejected=1 rank(A)=3 guideMinSlack=+4.55960898284111238e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.50316627815575998e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+4.45209560824688211e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+4.55960898284111238e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+5.80266131779601579e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-15
+[CELL 2] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+4.55960898284111238e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.33226762955018785e-15 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-15 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-15 minSharedSlack=+1.11022302462515654e-15
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=960 fixed=189 active=771 fixedConflict=7
+
+########################################################################################################################
+ CASE 10 / 14 : C10_CLIMB
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[3.7 7.55 11.5] memory=1 trigger=1 t=13.650 TTC=5.000 known=[1 2 3]
+[GUIDE] pTrigger=[13.000000 3.250000 2.600000] xiRejoin=16.108107162511004 limitingObs=3
+[GUIDE] phi=2.767950061692 n=[-0.158351937449 0.920068917239 -0.358326459302] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.466118119786314 pathLength=19.040343402084
+[ROUND-V3] d original=1.4661181197863131 final=1.466118119786314 ULPsteps=4 delta=+8.88178419700125232e-16
+[ROUND-V3] xi original=16.108107162511001 final=16.108107162511004 ULPsteps=1 delta=+3.55271367880050093e-15
+[MULTIKERNEL-BYPASS] scalar=+1.77635683940025046e-15 matrix=+1.77635683940025046e-15 expanded=+1.77635683940025046e-15 pass=1
+[MULTIKERNEL-REJOIN] nominal=+1.47104550762833242e-15 payloadScalar=+4.40952380952381873e-01 payloadMatrix=+4.40952380952381873e-01 payloadExpanded=+4.40952380952381873e-01 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.88737914186276612e-15
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+6.62694986249949269e-02 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 8.3266726846886741e-17 16.108107162511004 16.108107162511001] dXi=[8.3266726846886741e-17 16.108107162511004 -3.5527136788005009e-15] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=1.73777390727309118e-15 rejoinResidual=3.55271367880050093e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+4.80600035670400061e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.80600035670400061e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+8.86957724234977540e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.29754754485026815e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+1.77635683940025046e-15
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+4.48841479278697886e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+8.55814930034171084e-09
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.77635683940025046e-15
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=13 rejected=2 rank(A)=3 guideMinSlack=+2.28762145998739896e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.30293080311070497e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+4.17605820250187776e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+2.28762145998739896e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+4.80600035670400061e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+1.77635683940025046e-15
+[CELL 2] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+2.28762145998739896e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+3.10862446895043831e-15 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.77635683940025046e-15 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.77635683940025046e-15 minSharedSlack=+1.77635683940025046e-15
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.108107162511004 xiUsed=16.348829986329662 additionalRunout=2.40722823818657616e-01 terminalSlack=+1.06581410364015028e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+4.80600035670400061e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.80600035670400061e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+8.86957724234977540e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.29754754485026815e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+8.88178419700125232e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+4.48841479278697886e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+8.55814885625250099e-09
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+8.88178419700125232e-16
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=13 rejected=2 rank(A)=3 guideMinSlack=+4.71291419862009064e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.54526491526191734e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+4.42398114789678587e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+4.71291419862009064e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+4.80600035670400061e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+8.88178419700125232e-16
+[CELL 2] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+4.71291419862009064e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.77635683940025046e-15 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+8.88178419700125232e-16 minSharedSlack=+8.88178419700125232e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=960 fixed=189 active=771 fixedConflict=0
+[BSPLINE_D7 RESULT] candExit=-2 dirExit=1 minGain=1.92502233148606494e-05 alphaReq=6.73588385566709388e-09 alphaFinal=6.73588385566709388e-09 corrIters=0
+[BSPLINE_D7 RESULT] eqResidual=8.88178419700125232e-15 minOriginal=+0.00000000000000000e+00 minBezier=+2.22044604925031308e-16 PASS=1
+
+########################################################################################################################
+ CASE 11 / 14 : C11_DESCEND
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[3.2 6.6 10.2] memory=1 trigger=1 t=11.150 TTC=5.000 known=[1 2 3]
+[GUIDE] pTrigger=[11.843748 -2.368750 -2.131875] xiRejoin=16.320322549467388 limitingObs=3
+[GUIDE] phi=1.776843585270 n=[-0.126713129882 0.233986731527 -0.963947089930] eDotN=-1.38777878078144568e-17
+[GUIDE] bypass=1.5067455644693943 pathLength=19.333813678406
+[ROUND-V3] d original=1.5067455644693939 final=1.5067455644693943 ULPsteps=2 delta=+4.44089209850062616e-16
+[ROUND-V3] xi original=16.320322549467377 final=16.320322549467388 ULPsteps=3 delta=+1.06581410364015028e-14
+[MULTIKERNEL-BYPASS] scalar=+1.11022302462515654e-15 matrix=+8.88178419700125232e-16 expanded=+8.88178419700125232e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+7.68829444552920904e-15 payloadScalar=+7.10542735760100186e-15 payloadMatrix=+1.06581410364015028e-14 payloadExpanded=+1.06581410364015028e-14 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.22124532708767219e-15
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+2.48092809821936489e-02 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 2.4980018054066022e-16 16.320322549467388 16.320322549467392] dXi=[2.4980018054066022e-16 16.320322549467388 3.5527136788005009e-15] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=1.76700810010610499e-15 rejoinResidual=3.55271367880050093e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+5.28190576099101428e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+5.28190576099101428e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.52398555895987187e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.30862027318864929e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+8.88178419700125232e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+8.36158831063471553e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+8.88178419700125232e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.30924518364681219e-01
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=11 rejected=4 rank(A)=3 guideMinSlack=+7.10542735760100186e-15
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+8.17345209349984003e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+4.33454386363588995e+00
+[CELL 2 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+7.10542735760100186e-15
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+5.28190576099101428e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+8.88178419700125232e-16
+[CELL 2] nPlanes=11 rank=3 bounded=0 strict=1 minGuideSlack=+7.10542735760100186e-15
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.55431223447521916e-15 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+8.88178419700125232e-16 minSharedSlack=+8.88178419700125232e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=16.320322549467388 xiUsed=16.868193825080347 additionalRunout=5.47871275612958897e-01 terminalSlack=+3.90798504668055102e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+5.28190576099101428e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+5.28190576099101428e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+9.52398555895987187e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+1.30862027318864929e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+8.88178419700125232e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+8.36158875472392538e-09
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+8.88178419700125232e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.30924518364681219e-01
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=14 rejected=1 rank(A)=3 guideMinSlack=+9.91151828648781930e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+8.72734810128450178e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+4.89178037543671351e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+9.91151828648781930e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+5.28190576099101428e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+8.88178419700125232e-16
+[CELL 2] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+9.91151828648781930e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+8.88178419700125232e-16 minSharedSlack=+8.88178419700125232e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=976 fixed=196 active=780 fixedConflict=6
+
+########################################################################################################################
+ CASE 12 / 14 : C12_CLOSE_SPACING
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[4.65 5.9 7.2 8.55] memory=1 trigger=1 t=15.850 TTC=5.000 known=[1 2 3 4]
+[GUIDE] pTrigger=[14.265000 0.000000 0.000000] xiRejoin=10.787436772190706 limitingObs=4
+[GUIDE] phi=2.402379322162 n=[0.000000000000 0.738998771284 -0.673706773041] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.4464605012286003 pathLength=13.680357774648
+[ROUND-V3] d original=1.4464605012286 final=1.4464605012286003 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=10.787436772190704 final=10.787436772190706 ULPsteps=1 delta=+1.77635683940025046e-15
+[MULTIKERNEL-BYPASS] scalar=+4.44089209850062616e-16 matrix=+4.44089209850062616e-16 expanded=+4.44089209850062616e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+3.33066907387546962e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+3.81051529108401565e-02 worstSeg=2 worstObs=3
+[EQUALITY] xiWaypoints=[0 0 10.787436772190707 10.787436772190707] dXi=[0 10.787436772190707 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=1.77635683940025046e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=18 rejected=2 rank(A)=3 guideMinSlack=+4.27763433870850740e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.27763433870850740e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+5.56524420017256283e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+6.72412087801033387e+00
+[CELL 0 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+7.83666029809663733e+00
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+4.44089209850062616e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+2.80254655295942179e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+3.69647157327790410e-09
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+4.44089209850062616e-16
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+1.56670840686080837e-01
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=16 rejected=4 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+3.57006377874636982e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+2.37889111320811253e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.10373732485575715e+00
+[CELL 2 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=18 rank=3 bounded=0 strict=1 minGuideSlack=+4.27763433870850740e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.44089209850062616e-16
+[CELL 2] nPlanes=16 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+4.44089209850062616e-16 minSharedSlack=+4.44089209850062616e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=10.787436772190706 xiUsed=11.220279047431593 additionalRunout=4.32842275240886920e-01 terminalSlack=+1.06581410364015028e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=20
+[CELL 0] kept=18 rejected=2 rank(A)=3 guideMinSlack=+4.27763433870850740e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.27763433870850740e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+5.56524420017256283e+00
+[CELL 0 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+6.72412087801033387e+00
+[CELL 0 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+7.83666029809663733e+00
+
+[CELL 1] candidatePlanes=20
+[CELL 1] kept=8 rejected=12 rank(A)=3 guideMinSlack=+4.44089209850062616e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+2.80254655295942179e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+3.69647157327790410e-09
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+4.44089209850062616e-16
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+1.56670840686080837e-01
+
+[CELL 2] candidatePlanes=20
+[CELL 2] kept=19 rejected=1 rank(A)=3 guideMinSlack=+4.43312222909000297e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.01491774762023468e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+2.83060965788348895e+00
+[CELL 2 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.56307040837811684e+00
+[CELL 2 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+4.43312222909000297e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=18 rank=3 bounded=0 strict=1 minGuideSlack=+4.27763433870850740e+00
+[CELL 1] nPlanes=8 rank=3 bounded=0 strict=1 minGuideSlack=+4.44089209850062616e-16
+[CELL 2] nPlanes=19 rank=3 bounded=0 strict=1 minGuideSlack=+4.43312222909000297e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+4.44089209850062616e-16 minSharedSlack=+4.44089209850062616e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=1296 fixed=259 active=1037 fixedConflict=8
+
+########################################################################################################################
+ CASE 13 / 14 : C13_ORIENT_SWEEP
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[1.9 3.95 5.9 7.95 9.9 NaN] memory=1 trigger=1 t=11.750 TTC=5.000 known=[1 2 3 4 5]
+[GUIDE] pTrigger=[11.750000 0.000000 0.000000] xiRejoin=15.771468191440027 limitingObs=5
+[GUIDE] phi=3.892508940415 n=[-0.000000000000 0.731063985190 0.682308910655] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.3190697507249185 pathLength=18.409607692890
+[ROUND-V3] d original=1.3190697507249181 final=1.3190697507249185 ULPsteps=2 delta=+4.44089209850062616e-16
+[ROUND-V3] xi original=15.771468191440025 final=15.771468191440027 ULPsteps=1 delta=+1.77635683940025046e-15
+[MULTIKERNEL-BYPASS] scalar=+4.44089209850062616e-16 matrix=+4.44089209850062616e-16 expanded=+4.44089209850062616e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+3.33066907387546962e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+3.25210968955252921e-03 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 0 15.771468191440029 15.771468191440029] dXi=[0 15.771468191440029 0] eqTol=2.27373675443232059e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=1.77635683940025046e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=25
+[CELL 0] kept=24 rejected=1 rank(A)=3 guideMinSlack=+4.74269140801549582e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.74269140801549582e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+6.76734717932975016e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+8.70747238600825924e+00
+[CELL 0 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+1.06760313980515171e+01
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+1.27273226610381744e+01
+
+[CELL 1] candidatePlanes=25
+[CELL 1] kept=10 rejected=15 rank(A)=3 guideMinSlack=+4.44089209850062616e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+3.13395445356805080e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+4.44089209850062616e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.08937693297294746e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+9.88024728698633226e-09
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+2.72231844751763319e-01
+
+[CELL 2] candidatePlanes=25
+[CELL 2] kept=20 rejected=5 rank(A)=3 guideMinSlack=+6.00000000000022737e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.05135380927524835e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.03453277202633487e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+3.91583879435132687e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+1.84743419218465732e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+6.00000000000022737e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=24 rank=3 bounded=0 strict=1 minGuideSlack=+4.74269140801549582e+00
+[CELL 1] nPlanes=10 rank=3 bounded=0 strict=1 minGuideSlack=+4.44089209850062616e-16
+[CELL 2] nPlanes=20 rank=3 bounded=0 strict=1 minGuideSlack=+6.00000000000022737e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+4.44089209850062616e-16 minSharedSlack=+4.44089209850062616e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=15.771468191440027 xiUsed=16.197605543334113 additionalRunout=4.26137351894086081e-01 terminalSlack=+3.90798504668055102e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=25
+[CELL 0] kept=24 rejected=1 rank(A)=3 guideMinSlack=+4.74269140801549582e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.74269140801549582e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+6.76734717932975016e+00
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+8.70747238600825924e+00
+[CELL 0 OBS 4] keptPlanes=5 rejected=0 minKeptSlack=+1.06760313980515171e+01
+[CELL 0 OBS 5] keptPlanes=5 rejected=0 minKeptSlack=+1.27273226610381744e+01
+
+[CELL 1] candidatePlanes=25
+[CELL 1] kept=10 rejected=15 rank(A)=3 guideMinSlack=+4.44089209850062616e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+3.13395445356805080e-01
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+4.44089209850062616e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+1.08937693297294746e-01
+[CELL 1 OBS 4] keptPlanes=2 rejected=3 minKeptSlack=+9.88024728698633226e-09
+[CELL 1 OBS 5] keptPlanes=2 rejected=3 minKeptSlack=+2.72231844751763319e-01
+
+[CELL 2] candidatePlanes=25
+[CELL 2] kept=20 rejected=5 rank(A)=3 guideMinSlack=+4.86137351894086578e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.48073464097955210e+00
+[CELL 2 OBS 2] keptPlanes=4 rejected=1 minKeptSlack=+6.46584510531914702e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+4.34971572632333547e+00
+[CELL 2 OBS 4] keptPlanes=4 rejected=1 minKeptSlack=+2.27955843782131495e+00
+[CELL 2 OBS 5] keptPlanes=4 rejected=1 minKeptSlack=+4.86137351894086578e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=24 rank=3 bounded=0 strict=1 minGuideSlack=+4.74269140801549582e+00
+[CELL 1] nPlanes=10 rank=3 bounded=0 strict=1 minGuideSlack=+4.44089209850062616e-16
+[CELL 2] nPlanes=20 rank=3 bounded=0 strict=1 minGuideSlack=+4.86137351894086578e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+4.44089209850062616e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+4.44089209850062616e-16 minSharedSlack=+4.44089209850062616e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=1584 fixed=308 active=1276 fixedConflict=0
+[BSPLINE_D7 RESULT] candExit=1 dirExit=1 minGain=1.45742205603090605e-05 alphaReq=3.45566769077465358e-09 alphaFinal=3.45566769077465358e-09 corrIters=0
+[BSPLINE_D7 RESULT] eqResidual=1.06581410364015028e-14 minOriginal=+0.00000000000000000e+00 minBezier=+0.00000000000000000e+00 PASS=1
+
+########################################################################################################################
+ CASE 14 / 14 : C14_SPEED_1P8
+########################################################################################################################
+[FRONT] initialOutside=1 detectedAt=[2.2 3.8 5.45 NaN NaN] memory=1 trigger=1 t=5.450 TTC=5.000 known=[1 2 3]
+[GUIDE] pTrigger=[9.248957 3.237135 0.462448] xiRejoin=17.98553407764512 limitingObs=3
+[GUIDE] phi=2.290689896362 n=[-0.184347673726 0.633999070812 -0.751040021171] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=1.4503803518597551 pathLength=20.886294781365
+[ROUND-V3] d original=1.4503803518597549 final=1.4503803518597551 ULPsteps=1 delta=+2.22044604925031308e-16
+[ROUND-V3] xi original=17.98553407764512 final=17.98553407764512 ULPsteps=0 delta=+0.00000000000000000e+00
+[MULTIKERNEL-BYPASS] scalar=+4.44089209850062616e-16 matrix=+4.44089209850062616e-16 expanded=+4.44089209850062616e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+3.85802501057241898e-15 payloadScalar=+1.54280904158209609e-01 payloadMatrix=+1.54280904158206056e-01 payloadExpanded=+1.54280904158206056e-01 pass=1
+[CERT] supportPass=1 minSupportSlack=+5.55111512312578270e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+1.19686137107529733e-02 worstSeg=2 worstObs=2
+[EQUALITY] xiWaypoints=[0 7.7715611723760958e-16 17.985534077645124 17.985534077645124] dXi=[7.7715611723760958e-16 17.985534077645124 0] eqTol=4.54747350886464119e-13
+[EQUALITY] transverseResidual=3.11137441563627697e-15 rejoinResidual=3.55271367880050093e-15
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+8.82546279028664493e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.82546279028664493e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+1.15952091118277352e+01
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.44945642567129855e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+8.88178419700125232e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+2.47917495421745571e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+8.88178419700125232e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+2.40848164366622264e-01
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=13 rejected=2 rank(A)=3 guideMinSlack=+1.30873086736130517e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+6.39466020817209113e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+3.10694847834220411e+00
+[CELL 2 OBS 3] keptPlanes=3 rejected=2 minKeptSlack=+1.30873086736130517e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+8.82546279028664493e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+8.88178419700125232e-16
+[CELL 2] nPlanes=13 rank=3 bounded=0 strict=1 minGuideSlack=+1.30873086736130517e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+8.88178419700125232e-16 minSharedSlack=+8.88178419700125232e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[VARIABLE REJOIN]
+xiGeom=17.98553407764512 xiUsed=18.368068651780103 additionalRunout=3.82534574134982819e-01 terminalSlack=+1.06581410364015028e-14
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=15
+[CELL 0] kept=14 rejected=1 rank(A)=3 guideMinSlack=+8.82546279028664493e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+8.82546279028664493e+00
+[CELL 0 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+1.15952091118277352e+01
+[CELL 0 OBS 3] keptPlanes=5 rejected=0 minKeptSlack=+1.44945642567129855e+01
+
+[CELL 1] candidatePlanes=15
+[CELL 1] kept=6 rejected=9 rank(A)=3 guideMinSlack=+6.66133814775093924e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=2 rejected=3 minKeptSlack=+2.47917493201299521e-08
+[CELL 1 OBS 2] keptPlanes=2 rejected=3 minKeptSlack=+6.66133814775093924e-16
+[CELL 1 OBS 3] keptPlanes=2 rejected=3 minKeptSlack=+2.40848164366622042e-01
+
+[CELL 2] candidatePlanes=15
+[CELL 2] kept=14 rejected=1 rank(A)=3 guideMinSlack=+3.10862144656738337e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=5 rejected=0 minKeptSlack=+6.78275475586332632e+00
+[CELL 2 OBS 2] keptPlanes=5 rejected=0 minKeptSlack=+3.50138548792533655e+00
+[CELL 2 OBS 3] keptPlanes=4 rejected=1 minKeptSlack=+3.10862144656738337e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+8.82546279028664493e+00
+[CELL 1] nPlanes=6 rank=3 bounded=0 strict=1 minGuideSlack=+6.66133814775093924e-16
+[CELL 2] nPlanes=14 rank=3 bounded=0 strict=1 minGuideSlack=+3.10862144656738337e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+8.88178419700125232e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+6.66133814775093924e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+6.66133814775093924e-16 minSharedSlack=+6.66133814775093924e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+[REDUCED] nEq=42 rankEq=42 nullity=24 nIneq=976 fixed=196 active=780 fixedConflict=2
+
+========================================================================================================================
+ STEP-3A VARIABLE-REJOIN 14-CASE SUMMARY
+========================================================================================================================
+ case              xiGeom      xiUsed      dXi         fixed cand dir  minGain      alphaReq     eqRes        minOrig      minBezier    PASS
+------------------------------------------------------------------------------------------------------------------------------------------
+ C01_ONE            7.71967    8.01994  3.003e-01      0    1   1  4.549e-05  2.232e-12  3.553e-15  +1.110e-16  +1.110e-16   1
+ C02_TWO_BASE      11.72303   12.12660  4.036e-01      6  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C03_FOUR_MIX      16.32661   16.80994  4.833e-01      6  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C04_EIGHT_DENSE   16.40090   16.83783  4.369e-01      7  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C05_TWELVE_DENSE  16.80800   17.24656  4.386e-01      2  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C06_LARGE         14.24918   14.85124  6.021e-01      2  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C07_SMALL         12.66946   12.96047  2.910e-01      7  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C08_SLENDER       16.14556   16.79384  6.483e-01      0    2   1  4.285e-06  0.000e+00  NaN  NaN  NaN   0
+ C09_DIAG_XY       16.47584   16.97354  4.977e-01      7  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C10_CLIMB         16.10811   16.34883  2.407e-01      0   -2   1  1.925e-05  6.736e-09  8.882e-15  +0.000e+00  +2.220e-16   1
+ C11_DESCEND       16.32032   16.86819  5.479e-01      6  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C12_CLOSE_SPACING  10.78744   11.22028  4.328e-01      8  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+ C13_ORIENT_SWEEP  15.77147   16.19761  4.261e-01      0    1   1  1.457e-05  3.456e-09  1.066e-14  +0.000e+00  +0.000e+00   1
+ C14_SPEED_1P8     17.98553   18.36807  3.825e-01      2  NaN NaN  NaN  NaN  NaN  NaN  NaN   0
+
+[SUMMARY] allPass                    = 0
+[SUMMARY] globalMinOriginalHardSlack = +0.00000000000000000e+00
+[SUMMARY] globalMinBezierHardSlack   = +0.00000000000000000e+00
+[SUMMARY] globalMaxEqResidual        = 1.06581410364015028e-14
+[SUMMARY] maxAdditionalRunout        = 6.48283355233832737e-01
+[SUMMARY] meanAdditionalRunout       = 4.37987742309919714e-01
+[SUMMARY] failedCases = C02_TWO_BASE, C03_FOUR_MIX, C04_EIGHT_DENSE, C05_TWELVE_DENSE, C06_LARGE, C07_SMALL, C08_SLENDER, C09_DIAG_XY, C11_DESCEND, C12_CLOSE_SPACING, C14_SPEED_1P8
+
+========================================================================================================================
+ STEP-3A VARIABLE-REJOIN 14-CASE HARD-SAFETY PASS = 0
+ log file = C:\Users\student\Documents\GitHub\common_matlab\model\substance\STEP3A_BSPLINE_D7_VARIABLE_REJOIN_14CASE_20261007_045850.txt
+========================================================================================================================

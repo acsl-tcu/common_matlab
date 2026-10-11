@@ -1,0 +1,1 @@
+MethodID,Scenario,TimeSec,ObstacleID,ConstraintCount,CbfEvalSec,AuxUpdateSec,QpSolveSec,MinH,MinGeomDistance,InterventionNorm,TrackingErrorNorm,ExitFlag,MaxActuatorRatio,KKTResidualNorm,KKTJzRcond,KKTMinLambda,SupportNormError,SupportNdotNorm,Notes

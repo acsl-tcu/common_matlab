@@ -1,0 +1,1488 @@
+[19:03:53.983] ============================================================
+[19:03:53.983] CBF SIX-METHOD COMMON GENERATOR START
+[19:03:53.983] MATLAB version: 26.1.0.3276743 (R2026a) Update 3
+[19:03:53.983] Output dir: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf_6methods
+[19:03:53.983] Methods: S1 S2 S3 K1 K2 K3
+[19:03:53.983] Direct symbolic inverse collision formulations: DISABLED
+[19:03:53.983] ============================================================
+[19:03:54.174] [MODEL] FLxyDst START
+[19:03:54.206] [MODEL] FLxyDst 0.031s
+[19:03:54.208] [MODEL] GLxyDst START
+[19:03:54.244] [MODEL] GLxyDst 0.035s
+[19:03:56.857] [HLC] FG simplify START
+[19:03:56.979] [HLC] FG simplify 0.113s chars=1399
+[19:03:56.979] [HLC] g1 simplify START
+[19:03:57.147] [HLC] g1 simplify 0.168s chars=66
+[19:03:57.155] [PASS] size(x)=[19 1]
+[19:03:57.157] [PASS] size(f1)=[19 1]
+[19:03:57.157] [PASS] size(g1)=[19 3]
+[19:03:57.161] [PASS] beta1(1) is not symbolically zero.
+[19:03:57.238] --- SUPPORT PRIMITIVE SIZES ---
+[19:03:57.249] [GEOM] S1 single/support            chars=2990 symvars=21
+[19:03:57.258] [GEOM] S2 sphere/support generic    chars=2657 symvars=21
+[19:03:57.268] [GEOM] S3 UAV/support               chars=2609 symvars=22
+[19:03:57.278] [GEOM] S3 cable/support             chars=2969 symvars=21
+[19:03:57.286] [GEOM] S3 load/support              chars=2573 symvars=18
+[19:03:57.389] [KKT] K1 single/KKT            build=0.053s F=2033 Jz=2362 Jx=5285 JxgZero=1
+[19:03:57.419] [KKT] K2 sphere/KKT generic    build=0.030s F=884 Jz=952 Jx=698 JxgZero=1
+[19:03:57.450] [KKT] K3 UAV/KKT               build=0.031s F=788 Jz=847 Jx=506 JxgZero=1
+[19:03:57.503] [KKT] K3 cable/KKT             build=0.051s F=1991 Jz=2299 Jx=5120 JxgZero=1
+[19:03:57.534] [KKT] K3 load/KKT              build=0.030s F=716 Jz=778 Jx=272 JxgZero=1
+{異なる構造体での添字による代入です。
+エラー: <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_6Methods_Common', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_6Methods_Common.m', 192)" style="font-weight:bold">Generate_CBF_6Methods_Common</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_6Methods_Common.m',192,0)">行 192</a>)
+Methods(1)=MethodDef('S1','single_ellipsoid','support_plane',{'single'},'external nH; final n-dynamics pending');
+^^^^^^^^^^} 
+CURRENT_C6_G1_G5_SHARED_FAST_EVALUATOR_ONECLICK
+
+========================================================================================================================
+ G1/G5 SHARED FAST CANDIDATE EVALUATOR -- ONE CLICK
+ BSPLINE variable-T only | same certificate | full rebuild before acceptance
+========================================================================================================================
+[SOURCE] C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m
+[TEMP]   C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT__G1G5_FAST.m
+[BUILD] optimized temporary copy validated.
+[RUN] running complete Stage-E/F1/G1/G5 automatically.
+------------------------------------------------------------------------------------------------------------------------
+
+========================================================================================================================
+ STAGE-E + F1 ONE-FILE -- THREE NATIVE C6 REPRESENTATIONS
+ methods: BSPLINE_D7, POLY_D13_MIN7, BEZIER_D13_MIN7
+ C6 objective: exact physical integral ||p^(7)||^2 in square-root form
+ geometry: oriented ellipsoid support | cable length L=2 m
+ v/a/j: MEASURE ONLY; no acceptance limits
+ yaw: nominal reference PASSTHROUGH; avoidance yaw modification = OFF
+========================================================================================================================
+
+########################################################################################################################
+ METHOD: BSPLINE_D7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.986853e-01 [L/U/C]=[+2.986853e-01 +1.020965e+00 +4.936853e-01] candidate=67.452 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.107e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.467e+01 sigmaMaxCZ=3.090e+02 J7=1.028294612371e+02 solve=1.511 ms
+ [A-POST] eqRes=2.916e-11 eqRel=6.881e-18 eqCorrection<=1.709e-10 projectedGrad=4.596e-10 optCoeffCorrection<=2.137e-12
+ [QR] nullResidual=1.031e-16 particularResidual=5.613e-17
+ [C6] joinAbs=[0.00e+00 2.06e-12 9.84e-11 1.08e-09 2.60e-08 1.11e-07 1.15e-06 ]
+ [C6] joinRel=[0.00e+00 2.06e-12 9.84e-11 1.08e-09 2.60e-08 1.11e-07 7.83e-07 ]
+ [END] endpointAbs=[0.00e+00 7.57e-13 2.68e-11 5.67e-10 7.55e-09 6.45e-08 3.26e-07 ]
+ [END] endpointRel=[0.00e+00 7.57e-13 2.68e-11 5.67e-10 7.55e-09 6.45e-08 3.26e-07 ]
+ [OBS] id=1 minG=+3.031641e-01 [L/U/C]=[+3.031641e-01 +1.020965e+00 +4.977826e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.986853e-01 [L/U/C]=[+2.986853e-01 +1.057534e+00 +4.936853e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.0000 m/s a<=0.5370 m/s^2 j<=0.6958 m/s^3 tensionLB=9.7179
+[PERF] case=E01 front=1903.562 ms route=24.692 ms build=55.317 ms cert=12.135 ms searchTotal=75.732 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.146e-06 maxEndpointAbs=3.261e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.094931e-01 [L/U/C]=[+3.094931e-01 +1.090345e+00 +5.034364e-01] candidate=46.598 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.130e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.451e+01 sigmaMaxCZ=3.091e+02 J7=6.928316064903e+01 solve=0.865 ms
+ [A-POST] eqRes=1.200e-10 eqRel=2.822e-17 eqCorrection<=7.032e-10 projectedGrad=3.336e-10 optCoeffCorrection<=1.585e-12
+ [QR] nullResidual=1.320e-16 particularResidual=6.294e-17
+ [C6] joinAbs=[0.00e+00 1.72e-12 9.57e-11 1.08e-09 2.59e-08 1.09e-07 1.11e-06 ]
+ [C6] joinRel=[0.00e+00 1.72e-12 9.57e-11 1.08e-09 2.59e-08 9.91e-08 8.00e-07 ]
+ [END] endpointAbs=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [END] endpointRel=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [OBS] id=1 minG=+3.227235e-01 [L/U/C]=[+3.227235e-01 +1.090345e+00 +5.034364e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.094931e-01 [L/U/C]=[+3.094931e-01 +1.161316e+00 +5.044931e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0000 m/s a<=0.5286 m/s^2 j<=0.6725 m/s^3 tensionLB=9.7679
+[PERF] case=E02 front=1952.567 ms route=19.496 ms build=40.666 ms cert=5.932 ms searchTotal=50.225 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.110e-06 maxEndpointAbs=5.874e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.780118e-01 [L/U/C]=[+2.780118e-01 +9.049485e-01 +4.413285e-01] candidate=36.453 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=1.638e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.465e+01
+ [SPECTRUM] sigmaMinA=1.570e-01 sigmaMaxA=2.571e+04 sigmaMinCZ=9.129e+00 sigmaMaxCZ=2.251e+02 J7=1.475129953363e+02 solve=0.725 ms
+ [A-POST] eqRes=8.264e-11 eqRel=2.580e-17 eqCorrection<=5.264e-10 projectedGrad=2.565e-10 optCoeffCorrection<=3.078e-12
+ [QR] nullResidual=9.393e-17 particularResidual=3.633e-17
+ [C6] joinAbs=[0.00e+00 1.96e-12 8.58e-11 1.30e-09 2.08e-08 1.23e-07 8.11e-07 ]
+ [C6] joinRel=[0.00e+00 1.96e-12 8.58e-11 1.30e-09 2.08e-08 1.23e-07 7.48e-07 ]
+ [END] endpointAbs=[0.00e+00 2.18e-12 7.64e-11 1.47e-09 1.81e-08 1.45e-07 6.91e-07 ]
+ [END] endpointRel=[0.00e+00 2.18e-12 7.64e-11 1.47e-09 1.81e-08 1.45e-07 6.91e-07 ]
+ [OBS] id=1 minG=+2.780118e-01 [L/U/C]=[+2.780118e-01 +9.049485e-01 +4.413285e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.157394e-01 [L/U/C]=[+3.157394e-01 +9.963092e-01 +4.917028e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.0000 m/s a<=0.7320 m/s^2 j<=0.9785 m/s^3 tensionLB=9.7118
+[PERF] case=E03_LARGER_OBS front=1848.382 ms route=15.746 ms build=32.865 ms cert=3.588 ms searchTotal=39.200 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=8.106e-07 maxEndpointAbs=6.913e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+1.398938e-01 [L/U/C]=[+1.398938e-01 +8.009731e-01 +3.219266e-01] candidate=35.578 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=3.786e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=8.163e+00 sigmaMaxCZ=3.091e+02 J7=2.127094053579e+03 solve=0.653 ms
+ [A-POST] eqRes=2.916e-11 eqRel=6.930e-18 eqCorrection<=1.709e-10 projectedGrad=2.093e-10 optCoeffCorrection<=3.140e-12
+ [QR] nullResidual=1.132e-16 particularResidual=5.143e-17
+ [C6] joinAbs=[0.00e+00 2.00e-12 9.00e-11 1.64e-09 2.27e-08 1.74e-07 9.03e-07 ]
+ [C6] joinRel=[0.00e+00 2.00e-12 7.25e-11 1.64e-09 1.84e-08 1.74e-07 5.70e-07 ]
+ [END] endpointAbs=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [END] endpointRel=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [OBS] id=1 minG=+1.398938e-01 [L/U/C]=[+1.398938e-01 +8.009731e-01 +3.219266e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+1.465078e-01 [L/U/C]=[+1.465078e-01 +8.892865e-01 +3.272532e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=2.1993 m/s a<=2.1233 m/s^2 j<=2.9567 m/s^3 tensionLB=9.4802
+[PERF] case=E04_CLOSE_PAIR front=1990.450 ms route=13.497 ms build=32.589 ms cert=2.990 ms searchTotal=41.736 ms tested=1
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=9.027e-07 maxEndpointAbs=7.121e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.901617e-01 [L/U/C]=[+2.901617e-01 +1.019605e+00 +4.831456e-01] candidate=48.091 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.922e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.607e+01 sigmaMaxCZ=3.090e+02 J7=1.694969531347e+02 solve=3.708 ms
+ [A-POST] eqRes=1.200e-10 eqRel=2.815e-17 eqCorrection<=7.032e-10 projectedGrad=2.849e-10 optCoeffCorrection<=1.103e-12
+ [QR] nullResidual=1.015e-16 particularResidual=3.126e-17
+ [C6] joinAbs=[0.00e+00 1.77e-12 1.16e-10 1.01e-09 3.03e-08 1.22e-07 1.25e-06 ]
+ [C6] joinRel=[0.00e+00 1.77e-12 1.16e-10 1.01e-09 3.03e-08 8.81e-08 1.05e-06 ]
+ [END] endpointAbs=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [END] endpointRel=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [OBS] id=1 minG=+2.901617e-01 [L/U/C]=[+2.901617e-01 +1.019605e+00 +4.831456e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.921269e-01 [L/U/C]=[+2.921269e-01 +1.031792e+00 +4.871269e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.1107 m/s a<=0.8245 m/s^2 j<=1.1012 m/s^3 tensionLB=9.7522
+[PERF] case=E05_LATERAL front=1910.392 ms route=15.735 ms build=43.954 ms cert=4.137 ms searchTotal=54.698 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.255e-06 maxEndpointAbs=7.121e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.037556e-01 [L/U/C]=[+3.037556e-01 +1.034264e+00 +4.850498e-01] candidate=34.748 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.851e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.670e+01 sigmaMaxCZ=3.090e+02 J7=1.845933681577e+02 solve=0.387 ms
+ [A-POST] eqRes=1.166e-10 eqRel=2.747e-17 eqCorrection<=6.836e-10 projectedGrad=1.681e-10 optCoeffCorrection<=6.031e-13
+ [QR] nullResidual=9.385e-17 particularResidual=4.822e-17
+ [C6] joinAbs=[0.00e+00 2.49e-12 1.04e-10 1.65e-09 2.71e-08 1.70e-07 1.10e-06 ]
+ [C6] joinRel=[0.00e+00 2.49e-12 1.04e-10 1.65e-09 2.71e-08 1.70e-07 9.65e-07 ]
+ [END] endpointAbs=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [END] endpointRel=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [OBS] id=1 minG=+3.037556e-01 [L/U/C]=[+3.037556e-01 +1.034264e+00 +4.850498e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.136416e-01 [L/U/C]=[+3.136416e-01 +1.038922e+00 +5.086416e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.0000 m/s a<=0.7239 m/s^2 j<=1.0508 m/s^3 tensionLB=9.1867
+[PERF] case=E06_VERTICAL front=1897.665 ms route=13.119 ms build=31.919 ms cert=2.829 ms searchTotal=35.952 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.097e-06 maxEndpointAbs=5.874e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.913956e-01 [L/U/C]=[+2.913956e-01 +9.737029e-01 +4.863956e-01] candidate=37.386 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=4.086e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=5.226e+01
+ [SPECTRUM] sigmaMinA=2.164e-01 sigmaMaxA=8.842e+04 sigmaMinCZ=1.700e+01 sigmaMaxCZ=8.886e+02 J7=3.117565369535e+03 solve=0.387 ms
+ [A-POST] eqRes=4.844e-10 eqRel=4.547e-17 eqCorrection<=2.239e-09 projectedGrad=3.627e-09 optCoeffCorrection<=1.255e-11
+ [QR] nullResidual=6.744e-17 particularResidual=2.230e-17
+ [C6] joinAbs=[0.00e+00 2.06e-12 1.47e-10 1.84e-09 5.08e-08 2.80e-07 2.86e-06 ]
+ [C6] joinRel=[0.00e+00 1.90e-12 1.47e-10 1.84e-09 3.21e-08 1.88e-07 1.27e-06 ]
+ [END] endpointAbs=[0.00e+00 1.43e-12 6.36e-11 1.60e-09 2.56e-08 2.61e-07 1.58e-06 ]
+ [END] endpointRel=[0.00e+00 1.06e-12 6.36e-11 1.60e-09 2.56e-08 2.61e-07 1.58e-06 ]
+ [OBS] id=1 minG=+2.913956e-01 [L/U/C]=[+2.913956e-01 +9.737029e-01 +4.863956e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.021467e-01 [L/U/C]=[+3.021467e-01 +1.002439e+00 +4.910347e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.3500 m/s a<=1.0784 m/s^2 j<=1.6927 m/s^3 tensionLB=9.6038
+[PERF] case=E07_FAST front=1115.230 ms route=13.587 ms build=33.210 ms cert=4.175 ms searchTotal=38.459 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.858e-06 maxEndpointAbs=1.576e-06
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.938758e-01 [L/U/C]=[+2.938758e-01 +1.024865e+00 +4.847496e-01] candidate=36.615 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=8.435e+04 condA(rowScaled)=1.618e+04 condCZ(coord)=3.184e+01
+ [SPECTRUM] sigmaMinA=1.114e-01 sigmaMaxA=9.395e+03 sigmaMinCZ=2.277e+00 sigmaMaxCZ=7.249e+01 J7=4.487520250173e+00 solve=0.483 ms
+ [A-POST] eqRes=2.522e-11 eqRel=2.109e-17 eqCorrection<=2.264e-10 projectedGrad=4.039e-11 optCoeffCorrection<=7.791e-12
+ [QR] nullResidual=1.455e-16 particularResidual=7.461e-17
+ [C6] joinAbs=[0.00e+00 1.51e-12 5.40e-11 5.44e-10 8.82e-09 3.43e-08 2.25e-07 ]
+ [C6] joinRel=[0.00e+00 1.51e-12 5.40e-11 5.44e-10 8.82e-09 3.43e-08 2.25e-07 ]
+ [END] endpointAbs=[0.00e+00 9.67e-13 2.75e-11 4.60e-10 4.93e-09 3.40e-08 1.39e-07 ]
+ [END] endpointRel=[0.00e+00 9.67e-13 2.75e-11 4.60e-10 4.93e-09 3.40e-08 1.39e-07 ]
+ [OBS] id=1 minG=+2.938758e-01 [L/U/C]=[+2.938758e-01 +1.024865e+00 +4.847496e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.064938e-01 [L/U/C]=[+3.064938e-01 +1.075812e+00 +5.014938e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.7127 m/s a<=0.3947 m/s^2 j<=0.3880 m/s^3 tensionLB=9.7592
+[PERF] case=E08_SLOW front=3242.572 ms route=13.790 ms build=32.778 ms cert=3.837 ms searchTotal=37.822 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.249e-07 maxEndpointAbs=1.394e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.630442e-01 [L/U/C]=[+2.630442e-01 +9.869526e-01 +4.515355e-01] candidate=35.571 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=3.154e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=7.469e+01
+ [SPECTRUM] sigmaMinA=2.004e-01 sigmaMaxA=6.323e+04 sigmaMinCZ=8.203e+00 sigmaMaxCZ=6.127e+02 J7=5.450202782877e+02 solve=0.360 ms
+ [A-POST] eqRes=1.202e-10 eqRel=1.617e-17 eqCorrection<=5.998e-10 projectedGrad=1.712e-09 optCoeffCorrection<=2.544e-11
+ [QR] nullResidual=9.971e-17 particularResidual=4.367e-17
+ [C6] joinAbs=[0.00e+00 1.69e-12 1.02e-10 1.66e-09 3.54e-08 2.22e-07 1.87e-06 ]
+ [C6] joinRel=[0.00e+00 1.56e-12 1.02e-10 1.66e-09 3.20e-08 2.22e-07 9.80e-07 ]
+ [END] endpointAbs=[0.00e+00 1.48e-12 5.58e-11 1.22e-09 1.73e-08 1.60e-07 8.88e-07 ]
+ [END] endpointRel=[0.00e+00 1.48e-12 5.58e-11 1.22e-09 1.73e-08 1.60e-07 8.88e-07 ]
+ [OBS] id=1 minG=+3.004061e-01 [L/U/C]=[+3.004061e-01 +9.869526e-01 +4.934850e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.630442e-01 [L/U/C]=[+2.630442e-01 +1.000591e+00 +4.515355e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=1.6580 m/s a<=1.0542 m/s^2 j<=1.2933 m/s^3 tensionLB=9.5343
+[PERF] case=E09_NEAR_SENSOR_EDGE front=1864.276 ms route=13.136 ms build=32.657 ms cert=2.914 ms searchTotal=36.552 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.874e-06 maxEndpointAbs=8.884e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.313086e-01 [L/U/C]=[+3.313086e-01 +1.018035e+00 +4.844568e-01] candidate=35.923 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=1.638e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.978e+01
+ [SPECTRUM] sigmaMinA=1.570e-01 sigmaMaxA=2.571e+04 sigmaMinCZ=1.138e+01 sigmaMaxCZ=2.251e+02 J7=7.694146230810e+01 solve=0.367 ms
+ [A-POST] eqRes=6.508e-11 eqRel=2.025e-17 eqCorrection<=4.146e-10 projectedGrad=1.860e-10 optCoeffCorrection<=1.435e-12
+ [QR] nullResidual=1.035e-16 particularResidual=4.486e-17
+ [C6] joinAbs=[0.00e+00 1.50e-12 1.21e-10 1.01e-09 2.69e-08 8.74e-08 9.74e-07 ]
+ [C6] joinRel=[0.00e+00 1.50e-12 1.21e-10 1.01e-09 2.69e-08 8.74e-08 9.74e-07 ]
+ [END] endpointAbs=[0.00e+00 1.71e-12 6.05e-11 1.19e-09 1.51e-08 1.23e-07 5.97e-07 ]
+ [END] endpointRel=[0.00e+00 1.71e-12 6.05e-11 1.19e-09 1.51e-08 1.23e-07 5.97e-07 ]
+ [OBS] id=1 minG=+3.771737e-01 [L/U/C]=[+3.771737e-01 +1.356435e+00 +5.721737e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.313086e-01 [L/U/C]=[+3.313086e-01 +1.018035e+00 +4.844568e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.0000 m/s a<=0.6386 m/s^2 j<=0.7711 m/s^3 tensionLB=9.6459
+[PERF] case=E10_ASYMMETRIC front=1936.992 ms route=13.362 ms build=33.032 ms cert=2.891 ms searchTotal=37.069 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=9.742e-07 maxEndpointAbs=5.970e-07
+
+########################################################################################################################
+ METHOD: POLY_D13_MIN7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +9.982268e-01 +4.528669e-01] candidate=22.128 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.785e+07 condA(rowScaled)=1.102e+04 condCZ(coord)=1.414e+06
+ [SPECTRUM] sigmaMinA=3.592e-03 sigmaMaxA=1.359e+05 sigmaMinCZ=4.484e-04 sigmaMaxCZ=6.340e+02 J7=6.537145644020e+01 solve=3.486 ms
+ [A-POST] eqRes=3.653e-09 eqRel=1.757e-17 eqCorrection<=1.017e-06 projectedGrad=2.675e-07 optCoeffCorrection<=1.331e+00
+ [QR] nullResidual=2.060e-16 particularResidual=2.449e-17
+ [C6] joinAbs=[4.33e-13 6.46e-13 4.16e-12 2.42e-11 1.52e-10 1.96e-09 1.90e-08 ]
+ [C6] joinRel=[1.71e-14 6.46e-13 4.16e-12 2.42e-11 1.52e-10 1.96e-09 1.15e-08 ]
+ [END] endpointAbs=[5.10e-13 4.14e-13 3.49e-13 3.05e-13 3.68e-13 1.90e-12 3.83e-12 ]
+ [END] endpointRel=[1.70e-14 4.14e-13 3.49e-13 3.05e-13 3.68e-13 1.90e-12 3.83e-12 ]
+ [OBS] id=1 minG=+3.053770e-01 [L/U/C]=[+3.053770e-01 +9.982268e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +1.007711e+00 +4.865650e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.1586 m/s a<=1.1308 m/s^2 j<=2.0432 m/s^3 tensionLB=9.6832
+[PERF] case=E01 front=1877.349 ms route=13.404 ms build=20.128 ms cert=1.999 ms searchTotal=22.829 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.900e-08 maxEndpointAbs=3.830e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.064198e+00 +4.560642e-01] candidate=14.519 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.198e+07 condA(rowScaled)=1.098e+04 condCZ(coord)=1.714e+06
+ [SPECTRUM] sigmaMinA=3.595e-03 sigmaMaxA=1.509e+05 sigmaMinCZ=4.145e-04 sigmaMaxCZ=7.103e+02 J7=4.082032199463e+01 solve=2.535 ms
+ [A-POST] eqRes=3.793e-09 eqRel=1.523e-17 eqCorrection<=1.055e-06 projectedGrad=6.259e-07 optCoeffCorrection<=3.643e+00
+ [QR] nullResidual=1.703e-16 particularResidual=2.111e-17
+ [C6] joinAbs=[2.46e-13 3.48e-13 1.93e-12 9.82e-12 2.00e-10 1.64e-09 3.05e-08 ]
+ [C6] joinRel=[1.29e-14 3.48e-13 1.93e-12 9.82e-12 2.00e-10 1.64e-09 2.18e-08 ]
+ [END] endpointAbs=[6.05e-14 8.37e-14 3.79e-13 3.81e-13 1.55e-12 3.27e-12 6.19e-12 ]
+ [END] endpointRel=[2.02e-15 8.37e-14 3.79e-13 3.81e-13 1.55e-12 3.27e-12 6.19e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.064198e+00 +4.560642e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.125326e+00 +5.010737e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0483 m/s a<=1.0170 m/s^2 j<=1.8335 m/s^3 tensionLB=9.7521
+[PERF] case=E02 front=1957.632 ms route=13.036 ms build=12.625 ms cert=1.894 ms searchTotal=15.102 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.048e-08 maxEndpointAbs=6.194e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] candidate=13.786 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=7.570e+07 condA(rowScaled)=1.127e+04 condCZ(coord)=2.409e+06
+ [SPECTRUM] sigmaMinA=3.457e-03 sigmaMaxA=2.617e+05 sigmaMinCZ=3.283e-04 sigmaMaxCZ=7.909e+02 J7=7.839018980432e+01 solve=3.403 ms
+ [A-POST] eqRes=2.126e-09 eqRel=4.392e-18 eqCorrection<=6.149e-07 projectedGrad=9.625e-08 optCoeffCorrection<=8.931e-01
+ [QR] nullResidual=1.789e-16 particularResidual=2.450e-17
+ [C6] joinAbs=[6.65e-13 4.08e-13 2.45e-12 1.78e-11 1.35e-10 1.15e-09 5.07e-09 ]
+ [C6] joinRel=[3.49e-14 4.08e-13 2.45e-12 1.78e-11 1.35e-10 1.15e-09 2.76e-09 ]
+ [END] endpointAbs=[9.89e-14 1.17e-13 1.17e-12 3.37e-12 4.84e-12 1.03e-11 9.72e-12 ]
+ [END] endpointRel=[3.30e-15 1.17e-13 1.17e-12 3.37e-12 4.84e-12 1.03e-11 9.72e-12 ]
+ [OBS] id=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.074518e-01 [L/U/C]=[+3.074518e-01 +9.275238e-01 +4.891195e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.1387 m/s a<=1.1967 m/s^2 j<=1.7949 m/s^3 tensionLB=9.7075
+[PERF] case=E03_LARGER_OBS front=1828.945 ms route=14.216 ms build=11.405 ms cert=2.380 ms searchTotal=14.571 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=5.075e-09 maxEndpointAbs=1.026e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d09-d09_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.329891e+00 +4.190286e-01] candidate=11.251 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.323e+10 condA(rowScaled)=1.098e+04 condCZ(coord)=6.045e+08
+ [SPECTRUM] sigmaMinA=2.285e-03 sigmaMaxA=3.023e+07 sigmaMinCZ=1.759e-04 sigmaMaxCZ=1.063e+05 J7=1.932911129863e+03 solve=2.685 ms
+ [A-POST] eqRes=9.901e-07 eqRel=1.596e-18 eqCorrection<=4.333e-04 projectedGrad=3.175e-02 optCoeffCorrection<=1.026e+06
+ [QR] nullResidual=2.141e-16 particularResidual=1.275e-17
+ [C6] joinAbs=[9.26e-12 2.25e-11 5.84e-11 4.01e-10 2.67e-09 1.19e-07 2.78e-06 ]
+ [C6] joinRel=[4.87e-13 2.25e-11 5.84e-11 1.55e-10 1.87e-09 1.74e-08 4.17e-07 ]
+ [END] endpointAbs=[1.11e-11 1.07e-11 2.40e-11 2.29e-11 4.43e-11 6.34e-11 7.48e-11 ]
+ [END] endpointRel=[3.69e-13 1.07e-11 2.40e-11 2.29e-11 4.43e-11 6.34e-11 7.48e-11 ]
+ [OBS] id=1 minG=+2.534396e-01 [L/U/C]=[+2.534396e-01 +1.329891e+00 +4.484396e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.492373e+00 +4.190286e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=9 build=9 C6ok=9 geom=1 tension=9 safe=1 suppressed=8
+[REP-FAIL] route=ell_d08-d08_x0.25 reason=GEOMETRY_FAIL tension=1 minG=-2.446910e-02 [L/U/C]=[-2.446910e-02 +1.064640e+00 +1.705309e-01] maxJoinAbs=1.111e-06
+ [REP-SOLVER] condA(raw)=1.874e+10 condCZ(coord)=8.191e+08 sigmaMinCZ=1.815e-04 eqCorr<=4.175e-04 optCoeffCorr<=8.156e+05
+ [REP-OBS] perObsMinG=[2.37e-01 -2.45e-02 ]
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=4.4301 m/s a<=6.2713 m/s^2 j<=9.6947 m/s^3 tensionLB=8.1715
+[PERF] case=E04_CLOSE_PAIR front=2016.887 ms route=13.017 ms build=9.350 ms cert=1.902 ms searchTotal=114.712 ms tested=9
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.782e-06 maxEndpointAbs=7.485e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.528669e-01] candidate=11.544 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.669e+07 condA(rowScaled)=1.092e+04 condCZ(coord)=1.712e+06
+ [SPECTRUM] sigmaMinA=3.574e-03 sigmaMaxA=1.669e+05 sigmaMinCZ=4.619e-04 sigmaMaxCZ=7.907e+02 J7=1.138194456623e+02 solve=2.434 ms
+ [A-POST] eqRes=2.376e-09 eqRel=1.272e-17 eqCorrection<=6.649e-07 projectedGrad=1.295e-07 optCoeffCorrection<=6.070e-01
+ [QR] nullResidual=2.333e-16 particularResidual=2.413e-17
+ [C6] joinAbs=[1.64e-13 4.95e-13 2.90e-12 1.30e-11 1.11e-10 2.14e-09 1.48e-08 ]
+ [C6] joinRel=[8.63e-15 4.95e-13 2.90e-12 1.30e-11 1.11e-10 1.51e-09 9.57e-09 ]
+ [END] endpointAbs=[2.16e-13 8.37e-13 2.06e-12 3.65e-12 5.44e-12 1.02e-11 1.14e-11 ]
+ [END] endpointRel=[7.19e-15 8.37e-13 2.06e-12 3.65e-12 5.44e-12 1.02e-11 1.14e-11 ]
+ [OBS] id=1 minG=+2.917365e-01 [L/U/C]=[+2.917365e-01 +1.001090e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.795669e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.4962 m/s a<=1.4139 m/s^2 j<=2.5358 m/s^3 tensionLB=9.7366
+[PERF] case=E05_LATERAL front=1905.078 ms route=13.037 ms build=9.639 ms cert=1.905 ms searchTotal=12.296 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.482e-08 maxEndpointAbs=1.136e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] candidate=13.033 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.700e+07 condA(rowScaled)=1.101e+04 condCZ(coord)=1.189e+06
+ [SPECTRUM] sigmaMinA=3.820e-03 sigmaMaxA=1.413e+05 sigmaMinCZ=5.563e-04 sigmaMaxCZ=6.614e+02 J7=1.212515389008e+02 solve=3.542 ms
+ [A-POST] eqRes=3.757e-09 eqRel=8.475e-18 eqCorrection<=9.835e-07 projectedGrad=6.527e-07 optCoeffCorrection<=2.109e+00
+ [QR] nullResidual=2.093e-16 particularResidual=1.693e-17
+ [C6] joinAbs=[7.63e-13 8.55e-13 4.67e-12 2.68e-11 2.44e-10 1.15e-09 1.94e-08 ]
+ [C6] joinRel=[4.02e-14 8.55e-13 4.67e-12 2.68e-11 2.44e-10 1.15e-09 9.38e-09 ]
+ [END] endpointAbs=[1.30e-12 2.94e-13 9.59e-13 5.43e-12 4.11e-12 2.95e-12 1.74e-11 ]
+ [END] endpointRel=[4.33e-14 2.94e-13 9.59e-13 5.43e-12 4.11e-12 2.95e-12 1.74e-11 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.011751e+00 +4.950645e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.2130 m/s a<=1.0706 m/s^2 j<=1.9758 m/s^3 tensionLB=9.0991
+[PERF] case=E06_VERTICAL front=1904.996 ms route=14.081 ms build=10.966 ms cert=2.067 ms searchTotal=13.737 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.939e-08 maxEndpointAbs=1.744e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.089051e-01 +4.528669e-01] candidate=11.651 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.315e+08 condA(rowScaled)=1.103e+04 condCZ(coord)=8.741e+06
+ [SPECTRUM] sigmaMinA=4.883e-03 sigmaMaxA=6.421e+05 sigmaMinCZ=3.933e-04 sigmaMaxCZ=3.438e+03 J7=1.768830761896e+03 solve=3.158 ms
+ [A-POST] eqRes=1.759e-07 eqRel=1.882e-17 eqCorrection<=3.603e-05 projectedGrad=4.873e-05 optCoeffCorrection<=3.150e+02
+ [QR] nullResidual=2.319e-16 particularResidual=1.994e-17
+ [C6] joinAbs=[2.37e-12 8.94e-12 7.11e-11 4.91e-10 3.61e-09 1.96e-08 1.18e-07 ]
+ [C6] joinRel=[1.25e-13 7.72e-12 7.11e-11 3.37e-10 3.61e-09 8.41e-09 1.18e-07 ]
+ [END] endpointAbs=[1.23e-12 1.16e-11 1.96e-11 5.30e-11 5.90e-11 1.29e-10 2.62e-10 ]
+ [END] endpointRel=[4.10e-14 8.62e-12 1.96e-11 5.30e-11 5.90e-11 1.29e-10 2.62e-10 ]
+ [OBS] id=1 minG=+2.956231e-01 [L/U/C]=[+2.956231e-01 +9.089051e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.653626e-01 +4.885597e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.6322 m/s a<=2.4226 m/s^2 j<=4.6153 m/s^3 tensionLB=9.2018
+[PERF] case=E07_FAST front=1091.304 ms route=13.180 ms build=9.801 ms cert=1.850 ms searchTotal=12.370 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.180e-07 maxEndpointAbs=2.619e-10
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] candidate=11.867 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.691e+07 condA(rowScaled)=1.103e+04 condCZ(coord)=1.308e+06
+ [SPECTRUM] sigmaMinA=1.249e-03 sigmaMaxA=2.113e+04 sigmaMinCZ=6.331e-05 sigmaMaxCZ=8.280e+01 J7=2.168615763593e+00 solve=3.142 ms
+ [A-POST] eqRes=5.058e-10 eqRel=3.199e-17 eqCorrection<=4.048e-07 projectedGrad=1.583e-09 optCoeffCorrection<=3.949e-01
+ [QR] nullResidual=2.042e-16 particularResidual=3.138e-17
+ [C6] joinAbs=[5.45e-14 3.32e-13 2.04e-12 8.45e-12 4.02e-11 3.15e-10 3.48e-09 ]
+ [C6] joinRel=[2.87e-15 3.32e-13 2.04e-12 8.45e-12 4.02e-11 3.15e-10 3.48e-09 ]
+ [END] endpointAbs=[1.80e-13 4.72e-14 1.53e-13 2.16e-13 2.59e-13 4.77e-13 8.14e-13 ]
+ [END] endpointRel=[5.98e-15 4.72e-14 1.53e-13 2.16e-13 2.59e-13 4.77e-13 8.14e-13 ]
+ [OBS] id=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.972999e-01 [L/U/C]=[+2.972999e-01 +1.039857e+00 +4.903593e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.8123 m/s a<=0.5588 m/s^2 j<=0.7382 m/s^3 tensionLB=9.7348
+[PERF] case=E08_SLOW front=3167.496 ms route=13.016 ms build=9.949 ms cert=1.918 ms searchTotal=12.451 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.480e-09 maxEndpointAbs=8.139e-13
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.528669e-01] candidate=12.066 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=2.953e+08 condA(rowScaled)=1.040e+04 condCZ(coord)=2.412e+07
+ [SPECTRUM] sigmaMinA=2.265e-03 sigmaMaxA=6.687e+05 sigmaMinCZ=1.484e-04 sigmaMaxCZ=3.579e+03 J7=4.102530657788e+02 solve=2.931 ms
+ [A-POST] eqRes=2.221e-07 eqRel=5.911e-17 eqCorrection<=9.808e-05 projectedGrad=2.531e-05 optCoeffCorrection<=1.150e+03
+ [QR] nullResidual=1.972e-16 particularResidual=2.121e-17
+ [C6] joinAbs=[2.03e-12 1.55e-11 1.24e-10 9.23e-10 5.31e-09 3.35e-08 2.12e-07 ]
+ [C6] joinRel=[1.18e-13 1.37e-11 1.24e-10 9.17e-10 5.31e-09 1.20e-08 1.54e-07 ]
+ [END] endpointAbs=[4.26e-13 1.41e-12 1.60e-12 2.97e-12 3.76e-12 6.04e-12 7.73e-12 ]
+ [END] endpointRel=[1.42e-14 1.41e-12 1.60e-12 2.97e-12 3.76e-12 6.04e-12 7.73e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.772475e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.561161e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=2.9466 m/s a<=4.1210 m/s^2 j<=6.2060 m/s^3 tensionLB=9.0238
+[PERF] case=E09_NEAR_SENSOR_EDGE front=1885.627 ms route=13.748 ms build=9.955 ms cert=2.111 ms searchTotal=12.763 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.118e-07 maxEndpointAbs=7.731e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] candidate=12.333 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.233e+07 condA(rowScaled)=1.124e+04 condCZ(coord)=1.934e+06
+ [SPECTRUM] sigmaMinA=3.510e-03 sigmaMaxA=1.486e+05 sigmaMinCZ=3.179e-04 sigmaMaxCZ=6.150e+02 J7=4.559752365252e+01 solve=2.649 ms
+ [A-POST] eqRes=4.989e-09 eqRel=1.504e-17 eqCorrection<=1.421e-06 projectedGrad=8.942e-07 optCoeffCorrection<=8.846e+00
+ [QR] nullResidual=2.156e-16 particularResidual=2.216e-17
+ [C6] joinAbs=[5.16e-13 1.77e-12 8.50e-12 5.31e-11 2.09e-10 1.05e-09 7.45e-09 ]
+ [C6] joinRel=[2.00e-14 1.77e-12 8.50e-12 5.31e-11 2.09e-10 1.05e-09 7.45e-09 ]
+ [END] endpointAbs=[2.87e-13 1.36e-12 2.04e-12 4.65e-12 8.44e-12 1.23e-11 1.27e-11 ]
+ [END] endpointRel=[9.56e-15 1.36e-12 2.04e-12 4.65e-12 8.44e-12 1.23e-11 1.27e-11 ]
+ [OBS] id=1 minG=+3.214742e-01 [L/U/C]=[+3.214742e-01 +1.328977e+00 +5.164742e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.1232 m/s a<=1.1218 m/s^2 j<=1.7064 m/s^3 tensionLB=9.6033
+[PERF] case=E10_ASYMMETRIC front=1980.070 ms route=13.790 ms build=10.383 ms cert=1.950 ms searchTotal=13.002 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=7.446e-09 maxEndpointAbs=1.268e-11
+
+########################################################################################################################
+ METHOD: BEZIER_D13_MIN7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +9.982268e-01 +4.528669e-01] candidate=16.018 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.695e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.110e+05
+ [SPECTRUM] sigmaMinA=1.320e-01 sigmaMaxA=4.878e+06 sigmaMinCZ=6.721e+00 sigmaMaxCZ=2.091e+06 J7=6.537145640816e+01 solve=2.628 ms
+ [A-POST] eqRes=3.504e-08 eqRel=3.241e-17 eqCorrection<=2.654e-07 projectedGrad=5.004e-02 optCoeffCorrection<=1.108e-03
+ [QR] nullResidual=1.181e-16 particularResidual=1.720e-17
+ [C6] joinAbs=[1.42e-14 1.04e-13 1.56e-12 2.35e-11 3.84e-10 1.88e-09 2.42e-08 ]
+ [C6] joinRel=[6.24e-16 1.04e-13 1.56e-12 2.35e-11 3.84e-10 1.88e-09 1.47e-08 ]
+ [END] endpointAbs=[2.63e-20 4.33e-15 6.00e-14 2.77e-14 1.02e-13 1.76e-13 1.29e-12 ]
+ [END] endpointRel=[8.77e-22 4.33e-15 6.00e-14 2.77e-14 1.02e-13 1.76e-13 1.29e-12 ]
+ [OBS] id=1 minG=+3.053770e-01 [L/U/C]=[+3.053770e-01 +9.982268e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +1.007711e+00 +4.865650e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.1586 m/s a<=1.1308 m/s^2 j<=2.0432 m/s^3 tensionLB=9.6832
+[PERF] case=E01 front=1916.869 ms route=13.557 ms build=14.061 ms cert=1.958 ms searchTotal=16.811 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.424e-08 maxEndpointAbs=1.288e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.064198e+00 +4.560642e-01] candidate=11.008 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.198e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.542e+05
+ [SPECTRUM] sigmaMinA=1.291e-01 sigmaMaxA=5.420e+06 sigmaMinCZ=6.614e+00 sigmaMaxCZ=2.343e+06 J7=4.082032200731e+01 solve=3.279 ms
+ [A-POST] eqRes=6.849e-08 eqRel=5.682e-17 eqCorrection<=5.304e-07 projectedGrad=4.722e-02 optCoeffCorrection<=1.079e-03
+ [QR] nullResidual=1.220e-16 particularResidual=1.835e-17
+ [C6] joinAbs=[1.07e-14 8.65e-14 1.82e-12 3.12e-11 3.10e-10 4.41e-09 4.63e-08 ]
+ [C6] joinRel=[5.27e-16 8.65e-14 1.82e-12 3.12e-11 3.10e-10 4.41e-09 4.63e-08 ]
+ [END] endpointAbs=[1.39e-20 3.00e-15 4.48e-14 2.64e-14 8.97e-14 1.03e-12 1.17e-12 ]
+ [END] endpointRel=[4.63e-22 3.00e-15 4.48e-14 2.64e-14 8.97e-14 1.03e-12 1.17e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.064198e+00 +4.560642e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.125326e+00 +5.010737e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0483 m/s a<=1.0170 m/s^2 j<=1.8335 m/s^3 tensionLB=9.7521
+[PERF] case=E02 front=1952.224 ms route=14.790 ms build=9.051 ms cert=1.957 ms searchTotal=11.683 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=4.628e-08 maxEndpointAbs=1.174e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] candidate=9.515 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=5.555e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=4.142e+05
+ [SPECTRUM] sigmaMinA=1.216e-01 sigmaMaxA=6.755e+06 sigmaMinCZ=4.307e+00 sigmaMaxCZ=1.784e+06 J7=7.839018980446e+01 solve=2.876 ms
+ [A-POST] eqRes=3.870e-08 eqRel=2.535e-17 eqCorrection<=3.182e-07 projectedGrad=7.039e-02 optCoeffCorrection<=3.794e-03
+ [QR] nullResidual=1.283e-16 particularResidual=2.333e-17
+ [C6] joinAbs=[7.16e-15 1.55e-13 1.31e-12 1.66e-11 1.98e-10 3.12e-09 5.67e-08 ]
+ [C6] joinRel=[3.21e-16 1.55e-13 1.31e-12 1.66e-11 1.98e-10 3.12e-09 2.76e-08 ]
+ [END] endpointAbs=[3.65e-20 5.44e-15 5.50e-14 1.47e-13 2.01e-13 1.21e-12 2.08e-12 ]
+ [END] endpointRel=[1.22e-21 5.44e-15 5.50e-14 1.47e-13 2.01e-13 1.21e-12 2.08e-12 ]
+ [OBS] id=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.074518e-01 [L/U/C]=[+3.074518e-01 +9.275238e-01 +4.891195e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.1387 m/s a<=1.1967 m/s^2 j<=1.7949 m/s^3 tensionLB=9.7075
+[PERF] case=E03_LARGER_OBS front=1901.115 ms route=14.024 ms build=6.375 ms cert=3.139 ms searchTotal=10.543 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=5.665e-08 maxEndpointAbs=2.076e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d09-d09_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.329891e+00 +4.190286e-01] candidate=8.380 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=7.586e+09 condA(rowScaled)=4.216e+02 condCZ(coord)=3.444e+07
+ [SPECTRUM] sigmaMinA=1.029e-01 sigmaMaxA=7.804e+08 sigmaMinCZ=4.014e+00 sigmaMaxCZ=1.382e+08 J7=1.932910930656e+03 solve=2.659 ms
+ [A-POST] eqRes=1.574e-05 eqRel=9.316e-17 eqCorrection<=1.530e-04 projectedGrad=3.538e+02 optCoeffCorrection<=2.196e+01
+ [QR] nullResidual=1.242e-16 particularResidual=2.244e-17
+ [C6] joinAbs=[1.43e-14 1.47e-13 5.95e-12 8.62e-11 6.08e-09 2.31e-07 7.59e-06 ]
+ [C6] joinRel=[7.01e-16 1.47e-13 5.95e-12 3.70e-11 2.66e-09 3.38e-08 1.14e-06 ]
+ [END] endpointAbs=[6.47e-21 7.12e-15 5.48e-14 8.47e-14 1.44e-13 4.56e-13 1.84e-12 ]
+ [END] endpointRel=[2.16e-22 7.12e-15 5.48e-14 8.47e-14 1.44e-13 4.56e-13 1.84e-12 ]
+ [OBS] id=1 minG=+2.534396e-01 [L/U/C]=[+2.534396e-01 +1.329891e+00 +4.484396e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.492373e+00 +4.190286e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=9 build=9 C6ok=9 geom=1 tension=9 safe=1 suppressed=8
+[REP-FAIL] route=ell_d08-d08_x0.25 reason=GEOMETRY_FAIL tension=1 minG=-2.446910e-02 [L/U/C]=[-2.446910e-02 +1.064641e+00 +1.705309e-01] maxJoinAbs=4.176e-06
+ [REP-SOLVER] condA(raw)=1.077e+10 condCZ(coord)=4.732e+07 sigmaMinCZ=4.103e+00 eqCorr<=1.039e-04 optCoeffCorr<=1.263e+02
+ [REP-OBS] perObsMinG=[2.37e-01 -2.45e-02 ]
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=4.4301 m/s a<=6.2713 m/s^2 j<=9.6946 m/s^3 tensionLB=8.1715
+[PERF] case=E04_CLOSE_PAIR front=2017.416 ms route=12.915 ms build=6.371 ms cert=2.010 ms searchTotal=79.849 ms tested=9
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=7.585e-06 maxEndpointAbs=1.837e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.528669e-01] candidate=7.607 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.435e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.536e+05
+ [SPECTRUM] sigmaMinA=1.352e-01 sigmaMaxA=5.997e+06 sigmaMinCZ=7.394e+00 sigmaMaxCZ=2.614e+06 J7=1.138194456548e+02 solve=3.067 ms
+ [A-POST] eqRes=6.897e-08 eqRel=5.187e-17 eqCorrection<=5.101e-07 projectedGrad=9.067e-02 optCoeffCorrection<=1.658e-03
+ [QR] nullResidual=1.297e-16 particularResidual=2.409e-17
+ [C6] joinAbs=[2.14e-14 6.42e-14 1.95e-12 2.07e-11 2.17e-10 5.27e-09 3.51e-08 ]
+ [C6] joinRel=[9.34e-16 6.42e-14 1.95e-12 2.07e-11 1.93e-10 3.72e-09 3.51e-08 ]
+ [END] endpointAbs=[1.09e-20 8.44e-15 5.86e-14 7.87e-14 4.73e-13 1.14e-12 5.85e-12 ]
+ [END] endpointRel=[3.62e-22 8.44e-15 5.86e-14 7.87e-14 4.73e-13 1.14e-12 5.85e-12 ]
+ [OBS] id=1 minG=+2.917365e-01 [L/U/C]=[+2.917365e-01 +1.001090e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.795669e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.4962 m/s a<=1.4139 m/s^2 j<=2.5358 m/s^3 tensionLB=9.7366
+[PERF] case=E05_LATERAL front=1931.144 ms route=13.287 ms build=5.413 ms cert=2.193 ms searchTotal=8.705 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.512e-08 maxEndpointAbs=5.850e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] candidate=7.263 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.606e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=2.824e+05
+ [SPECTRUM] sigmaMinA=1.407e-01 sigmaMaxA=5.073e+06 sigmaMinCZ=7.724e+00 sigmaMaxCZ=2.181e+06 J7=1.212515388120e+02 solve=2.953 ms
+ [A-POST] eqRes=8.611e-08 eqRel=7.653e-17 eqCorrection<=6.121e-07 projectedGrad=4.054e-02 optCoeffCorrection<=6.794e-04
+ [QR] nullResidual=1.139e-16 particularResidual=2.156e-17
+ [C6] joinAbs=[7.14e-15 1.26e-13 2.54e-12 2.82e-11 2.89e-10 2.46e-09 3.94e-08 ]
+ [C6] joinRel=[3.29e-16 1.26e-13 2.54e-12 2.82e-11 2.89e-10 1.77e-09 2.96e-08 ]
+ [END] endpointAbs=[2.10e-20 4.44e-15 4.69e-14 5.77e-14 1.44e-13 1.49e-13 2.44e-12 ]
+ [END] endpointRel=[6.99e-22 4.44e-15 4.69e-14 5.77e-14 1.44e-13 1.49e-13 2.44e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.011751e+00 +4.950645e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.2130 m/s a<=1.0706 m/s^2 j<=1.9758 m/s^3 tensionLB=9.0991
+[PERF] case=E06_VERTICAL front=1895.605 ms route=13.281 ms build=5.214 ms cert=2.049 ms searchTotal=8.222 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.938e-08 maxEndpointAbs=2.444e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.089051e-01 +4.528669e-01] candidate=7.147 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.837e+08 condA(rowScaled)=4.216e+02 condCZ(coord)=1.373e+06
+ [SPECTRUM] sigmaMinA=1.264e-01 sigmaMaxA=2.323e+07 sigmaMinCZ=8.259e+00 sigmaMaxCZ=1.134e+07 J7=1.768830763251e+03 solve=2.621 ms
+ [A-POST] eqRes=2.702e-07 eqRel=5.267e-17 eqCorrection<=2.137e-06 projectedGrad=2.977e+00 optCoeffCorrection<=4.364e-02
+ [QR] nullResidual=1.298e-16 particularResidual=1.957e-17
+ [C6] joinAbs=[1.07e-14 2.07e-13 1.88e-12 5.24e-11 7.41e-10 1.52e-08 1.86e-07 ]
+ [C6] joinRel=[5.26e-16 2.07e-13 1.88e-12 5.24e-11 4.35e-10 1.13e-08 6.52e-08 ]
+ [END] endpointAbs=[1.87e-21 1.04e-14 2.56e-14 1.78e-13 1.24e-13 1.46e-12 2.52e-12 ]
+ [END] endpointRel=[6.22e-23 7.73e-15 2.56e-14 1.78e-13 1.24e-13 1.46e-12 2.52e-12 ]
+ [OBS] id=1 minG=+2.956231e-01 [L/U/C]=[+2.956231e-01 +9.089051e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.653626e-01 +4.885597e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.6322 m/s a<=2.4226 m/s^2 j<=4.6153 m/s^3 tensionLB=9.2018
+[PERF] case=E07_FAST front=1091.314 ms route=13.107 ms build=4.976 ms cert=2.170 ms searchTotal=7.774 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.861e-07 maxEndpointAbs=2.524e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] candidate=7.242 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.015e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=2.530e+05
+ [SPECTRUM] sigmaMinA=7.339e-02 sigmaMaxA=7.452e+05 sigmaMinCZ=1.079e+00 sigmaMaxCZ=2.730e+05 J7=2.168615762909e+00 solve=2.823 ms
+ [A-POST] eqRes=8.486e-09 eqRel=5.119e-17 eqCorrection<=1.156e-07 projectedGrad=2.447e-03 optCoeffCorrection<=2.102e-03
+ [QR] nullResidual=1.323e-16 particularResidual=1.892e-17
+ [C6] joinAbs=[1.42e-14 1.07e-13 1.43e-12 1.08e-11 4.97e-11 7.48e-10 4.36e-09 ]
+ [C6] joinRel=[7.01e-16 1.07e-13 1.43e-12 1.08e-11 4.97e-11 7.48e-10 4.36e-09 ]
+ [END] endpointAbs=[2.05e-19 4.55e-15 1.60e-14 2.63e-14 8.56e-14 8.22e-14 4.21e-13 ]
+ [END] endpointRel=[6.84e-21 4.55e-15 1.60e-14 2.63e-14 8.56e-14 8.22e-14 4.21e-13 ]
+ [OBS] id=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.972999e-01 [L/U/C]=[+2.972999e-01 +1.039857e+00 +4.903593e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.8123 m/s a<=0.5588 m/s^2 j<=0.7382 m/s^3 tensionLB=9.7348
+[PERF] case=E08_SLOW front=3193.770 ms route=13.258 ms build=5.102 ms cert=2.140 ms searchTotal=7.879 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=4.359e-09 maxEndpointAbs=4.210e-13
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.528669e-01] candidate=6.734 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=2.479e+08 condA(rowScaled)=4.216e+02 condCZ(coord)=2.915e+06
+ [SPECTRUM] sigmaMinA=9.759e-02 sigmaMaxA=2.419e+07 sigmaMinCZ=4.064e+00 sigmaMaxCZ=1.185e+07 J7=4.102530680640e+02 solve=2.572 ms
+ [A-POST] eqRes=2.805e-07 eqRel=5.938e-17 eqCorrection<=2.875e-06 projectedGrad=2.865e+00 optCoeffCorrection<=1.734e-01
+ [QR] nullResidual=1.210e-16 particularResidual=2.973e-17
+ [C6] joinAbs=[2.14e-14 2.70e-13 1.82e-12 5.90e-11 3.44e-10 1.23e-08 1.44e-07 ]
+ [C6] joinRel=[9.58e-16 2.38e-13 1.82e-12 5.86e-11 3.44e-10 6.78e-09 1.37e-07 ]
+ [END] endpointAbs=[1.61e-20 9.99e-16 3.12e-14 1.57e-14 1.79e-13 4.46e-13 1.53e-12 ]
+ [END] endpointRel=[5.36e-22 9.99e-16 3.12e-14 1.57e-14 1.79e-13 4.46e-13 1.53e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.772475e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.561161e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=2.9466 m/s a<=4.1210 m/s^2 j<=6.2060 m/s^3 tensionLB=9.0238
+[PERF] case=E09_NEAR_SENSOR_EDGE front=1855.720 ms route=12.932 ms build=4.758 ms cert=1.976 ms searchTotal=7.777 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.442e-07 maxEndpointAbs=1.528e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] candidate=6.775 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.446e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=4.451e+05
+ [SPECTRUM] sigmaMinA=1.200e-01 sigmaMaxA=5.336e+06 sigmaMinCZ=5.176e+00 sigmaMaxCZ=2.304e+06 J7=4.559752368270e+01 solve=2.508 ms
+ [A-POST] eqRes=2.264e-08 eqRel=1.895e-17 eqCorrection<=1.886e-07 projectedGrad=3.347e-02 optCoeffCorrection<=1.249e-03
+ [QR] nullResidual=1.311e-16 particularResidual=2.071e-17
+ [C6] joinAbs=[1.78e-14 9.10e-14 1.94e-12 3.10e-11 2.37e-10 3.32e-09 2.03e-08 ]
+ [C6] joinRel=[9.22e-16 9.10e-14 1.94e-12 3.10e-11 2.37e-10 3.32e-09 1.39e-08 ]
+ [END] endpointAbs=[1.35e-20 1.55e-15 6.22e-14 1.09e-14 4.78e-13 1.51e-13 7.40e-13 ]
+ [END] endpointRel=[4.51e-22 1.55e-15 6.22e-14 1.09e-14 4.78e-13 1.51e-13 7.40e-13 ]
+ [OBS] id=1 minG=+3.214742e-01 [L/U/C]=[+3.214742e-01 +1.328977e+00 +5.164742e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.1232 m/s a<=1.1218 m/s^2 j<=1.7064 m/s^3 tensionLB=9.6033
+[PERF] case=E10_ASYMMETRIC front=1920.180 ms route=13.039 ms build=4.663 ms cert=2.112 ms searchTotal=7.751 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.033e-08 maxEndpointAbs=7.399e-13
+
+========================================================================================================================
+ STAGE-E SQRT-LS THEORY-INTEGRATED SUMMARY
+========================================================================================================================
+ case  method                 core geom tens tested    minG      tLB      vBound   aBound   jBound    condCZ(coord) J7          searchMs
+ E01   BSPLINE_D7             PASS PASS PASS      1 +2.987e-01    9.718    1.000    0.537    0.696  2.107e+01  1.0283e+02     75.73
+ E01   POLY_D13_MIN7          PASS PASS PASS      1 +2.916e-01    9.683    1.159    1.131    2.043  1.414e+06  6.5371e+01     22.83
+ E01   BEZIER_D13_MIN7        PASS PASS PASS      1 +2.916e-01    9.683    1.159    1.131    2.043  3.110e+05  6.5371e+01     16.81
+ E02   BSPLINE_D7             PASS PASS PASS      1 +3.095e-01    9.768    1.000    0.529    0.672  2.130e+01  6.9283e+01     50.23
+ E02   POLY_D13_MIN7          PASS PASS PASS      1 +3.078e-01    9.752    1.048    1.017    1.833  1.714e+06  4.0820e+01     15.10
+ E02   BEZIER_D13_MIN7        PASS PASS PASS      1 +3.078e-01    9.752    1.048    1.017    1.833  3.542e+05  4.0820e+01     11.68
+ E03_LARGER_OBS BSPLINE_D7             PASS PASS PASS      1 +2.780e-01    9.712    1.000    0.732    0.979  2.465e+01  1.4751e+02     39.20
+ E03_LARGER_OBS POLY_D13_MIN7          PASS PASS PASS      1 +2.848e-01    9.707    1.139    1.197    1.795  2.409e+06  7.8390e+01     14.57
+ E03_LARGER_OBS BEZIER_D13_MIN7        PASS PASS PASS      1 +2.848e-01    9.707    1.139    1.197    1.795  4.142e+05  7.8390e+01     10.54
+ E04_CLOSE_PAIR BSPLINE_D7             PASS PASS PASS      1 +1.399e-01    9.480    2.199    2.123    2.957  3.786e+01  2.1271e+03     41.74
+ E04_CLOSE_PAIR POLY_D13_MIN7          PASS PASS PASS      9 +2.240e-01    8.171    4.430    6.271    9.695  6.045e+08  1.9329e+03    114.71
+ E04_CLOSE_PAIR BEZIER_D13_MIN7        PASS PASS PASS      9 +2.240e-01    8.171    4.430    6.271    9.695  3.444e+07  1.9329e+03     79.85
+ E05_LATERAL BSPLINE_D7             PASS PASS PASS      1 +2.902e-01    9.752    1.111    0.824    1.101  1.922e+01  1.6950e+02     54.70
+ E05_LATERAL POLY_D13_MIN7          PASS PASS PASS      1 +2.846e-01    9.737    1.496    1.414    2.536  1.712e+06  1.1382e+02     12.30
+ E05_LATERAL BEZIER_D13_MIN7        PASS PASS PASS      1 +2.846e-01    9.737    1.496    1.414    2.536  3.536e+05  1.1382e+02      8.71
+ E06_VERTICAL BSPLINE_D7             PASS PASS PASS      1 +3.038e-01    9.187    1.000    0.724    1.051  1.851e+01  1.8459e+02     35.95
+ E06_VERTICAL POLY_D13_MIN7          PASS PASS PASS      1 +3.100e-01    9.099    1.213    1.071    1.976  1.189e+06  1.2125e+02     13.74
+ E06_VERTICAL BEZIER_D13_MIN7        PASS PASS PASS      1 +3.100e-01    9.099    1.213    1.071    1.976  2.824e+05  1.2125e+02      8.22
+ E07_FAST BSPLINE_D7             PASS PASS PASS      1 +2.914e-01    9.604    1.350    1.078    1.693  5.226e+01  3.1176e+03     38.46
+ E07_FAST POLY_D13_MIN7          PASS PASS PASS      1 +2.936e-01    9.202    1.632    2.423    4.615  8.741e+06  1.7688e+03     12.37
+ E07_FAST BEZIER_D13_MIN7        PASS PASS PASS      1 +2.936e-01    9.202    1.632    2.423    4.615  1.373e+06  1.7688e+03      7.77
+ E08_SLOW BSPLINE_D7             PASS PASS PASS      1 +2.939e-01    9.759    0.713    0.395    0.388  3.184e+01  4.4875e+00     37.82
+ E08_SLOW POLY_D13_MIN7          PASS PASS PASS      1 +2.926e-01    9.735    0.812    0.559    0.738  1.308e+06  2.1686e+00     12.45
+ E08_SLOW BEZIER_D13_MIN7        PASS PASS PASS      1 +2.926e-01    9.735    0.812    0.559    0.738  2.530e+05  2.1686e+00      7.88
+ E09_NEAR_SENSOR_EDGE BSPLINE_D7             PASS PASS PASS      1 +2.630e-01    9.534    1.658    1.054    1.293  7.469e+01  5.4502e+02     36.55
+ E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          PASS PASS PASS      1 +2.611e-01    9.024    2.947    4.121    6.206  2.412e+07  4.1025e+02     12.76
+ E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        PASS PASS PASS      1 +2.611e-01    9.024    2.947    4.121    6.206  2.915e+06  4.1025e+02      7.78
+ E10_ASYMMETRIC BSPLINE_D7             PASS PASS PASS      1 +3.313e-01    9.646    1.000    0.639    0.771  1.978e+01  7.6941e+01     37.07
+ E10_ASYMMETRIC POLY_D13_MIN7          PASS PASS PASS      1 +3.104e-01    9.603    1.123    1.122    1.706  1.934e+06  4.5598e+01     13.00
+ E10_ASYMMETRIC BEZIER_D13_MIN7        PASS PASS PASS      1 +3.104e-01    9.603    1.123    1.122    1.706  4.451e+05  4.5598e+01      7.75
+
+Theory policy:
+ - C6 acceptance is native-structural for degree-7 simple-knot B-spline and equality-constrained for Power/Bezier; floating join/end residuals are diagnostics.
+ - All three methods solve exact seventh-derivative energy in square-root form; no Q/Hessian normal-equation solve.
+ - QR uses the structurally full-row-rank equality system; no SVD rank truncation or artificial ridge.
+ - v/a/j are conservative Bernstein bounds and are measurement only.
+ - Geometry certificate is conservative/sufficient finite-direction Bernstein support certification, not exact global distance.
+ - Positive cable-tension lower bound is reported and gated separately from geometric separation.
+ - Search logs retain one representative failed candidate; every candidate row remains in result for offline analysis.
+ - condCZ(coord) and optCoeffCorrection are coordinate-space numerical diagnostics; they must not be interpreted as basis-independent physical quality metrics.
+
+================================================================================================================================================
+ STAGE-F1 NOMINAL DYNAMIC FEASIBILITY -- NO HLC / NO LOGGER / NO CLOSED-LOOP SIMULATION
+ mQ=0.762 kg  mL=0.0556 kg  L=2 m  J=[0.02237568 0.02985236 0.0480374] kg m^2  g=9.81
+ actuator check: thrust in [0, 20] N, |M| <= [1 1 1] N m
+ yaw reference: PASSTHROUGH (no avoidance-side modification)
+ v/a/j: diagnostic only | nonlinear actuator audit sampling dt <= 0.01 s
+================================================================================================================================================
+[F1] E01   BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9530,  8.1089] MabsMax=[  0.0012   0.0007   0.0000] v/a/j=[  1.000   0.522   0.688] swingMax=  3.041deg cableWMax=  0.070 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2002 reason=PASS
+[F1] E02   BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9947,  8.0601] MabsMax=[  0.0010   0.0007   0.0000] v/a/j=[  1.000   0.509   0.660] swingMax=  2.973deg cableWMax=  0.067 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2002 reason=PASS
+[F1] E03_LARGER_OBS BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9488,  8.1269] MabsMax=[  0.0015   0.0011   0.0001] v/a/j=[  1.000   0.726   0.933] swingMax=  4.245deg cableWMax=  0.095 usage[f/M/max]=[ 0.406  0.002  0.406] samples=2117 reason=PASS
+[F1] E04_CLOSE_PAIR BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5389 f=[  7.8439,  8.4007] MabsMax=[  0.0052   0.0055   0.0009] v/a/j=[  2.164   2.080   2.761] swingMax= 12.219deg cableWMax=  0.279 usage[f/M/max]=[ 0.420  0.006  0.420] samples=2002 reason=PASS
+[F1] E05_LATERAL BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9909,  8.0997] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.101   0.804   1.061] swingMax=  4.641deg cableWMax=  0.108 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2002 reason=PASS
+[F1] E06_VERTICAL BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5125 f=[  7.5360,  8.5082] MabsMax=[  0.0011   0.0009   0.0000] v/a/j=[  1.000   0.705   0.978] swingMax=  2.860deg cableWMax=  0.061 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2002 reason=PASS
+[F1] E07_FAST BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5370 f=[  7.8960,  8.2261] MabsMax=[  0.0028   0.0016   0.0001] v/a/j=[  1.350   1.052   1.581] swingMax=  6.134deg cableWMax=  0.160 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1703 reason=PASS
+[F1] E08_SLOW BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9811,  8.0638] MabsMax=[  0.0006   0.0004   0.0000] v/a/j=[  0.706   0.387   0.372] swingMax=  2.261deg cableWMax=  0.038 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2508 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5333 f=[  7.8418,  8.2045] MabsMax=[  0.0024   0.0009   0.0001] v/a/j=[  1.649   1.036   1.243] swingMax=  5.991deg cableWMax=  0.123 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1818 reason=PASS
+[F1] E10_ASYMMETRIC BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5371 f=[  7.8983,  8.1614] MabsMax=[  0.0012   0.0010   0.0001] v/a/j=[  1.000   0.618   0.763] swingMax=  3.588deg cableWMax=  0.077 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2117 reason=PASS
+[F1] E01   POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9532,  8.1076] MabsMax=[  0.0012   0.0006   0.0000] v/a/j=[  1.000   0.485   0.616] swingMax=  2.824deg cableWMax=  0.062 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2003 reason=PASS
+[F1] E02   POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9954,  8.0565] MabsMax=[  0.0009   0.0006   0.0000] v/a/j=[  1.000   0.463   0.581] swingMax=  2.701deg cableWMax=  0.059 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2005 reason=PASS
+[F1] E03_LARGER_OBS POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9495,  8.1229] MabsMax=[  0.0013   0.0009   0.0001] v/a/j=[  1.000   0.627   0.784] swingMax=  3.666deg cableWMax=  0.080 usage[f/M/max]=[ 0.406  0.001  0.406] samples=2105 reason=PASS
+[F1] E04_CLOSE_PAIR POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5139 f=[  7.4808,  8.5768] MabsMax=[  0.0056   0.0058   0.0010] v/a/j=[  2.164   2.239   2.956] swingMax= 13.140deg cableWMax=  0.300 usage[f/M/max]=[ 0.429  0.006  0.429] samples=2004 reason=PASS
+[F1] E05_LATERAL POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9916,  8.0976] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.105   0.790   1.036] swingMax=  4.562deg cableWMax=  0.105 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2004 reason=PASS
+[F1] E06_VERTICAL POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5127 f=[  7.5394,  8.5052] MabsMax=[  0.0009   0.0010   0.0000] v/a/j=[  1.000   0.698   0.958] swingMax=  2.553deg cableWMax=  0.053 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2004 reason=PASS
+[F1] E07_FAST POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5369 f=[  7.8967,  8.2255] MabsMax=[  0.0025   0.0013   0.0001] v/a/j=[  1.350   1.015   1.487] swingMax=  5.911deg cableWMax=  0.149 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1704 reason=PASS
+[F1] E08_SLOW POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9814,  8.0635] MabsMax=[  0.0005   0.0003   0.0000] v/a/j=[  0.700   0.334   0.303] swingMax=  1.949deg cableWMax=  0.031 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2504 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5334 f=[  7.8441,  8.2092] MabsMax=[  0.0024   0.0008   0.0001] v/a/j=[  1.678   1.081   1.269] swingMax=  6.260deg cableWMax=  0.125 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1805 reason=PASS
+[F1] E10_ASYMMETRIC POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5372 f=[  7.8990,  8.1611] MabsMax=[  0.0011   0.0008   0.0001] v/a/j=[  1.000   0.551   0.662] swingMax=  3.192deg cableWMax=  0.067 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2103 reason=PASS
+[F1] E01   BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9532,  8.1076] MabsMax=[  0.0012   0.0006   0.0000] v/a/j=[  1.000   0.485   0.616] swingMax=  2.824deg cableWMax=  0.062 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2003 reason=PASS
+[F1] E02   BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9954,  8.0565] MabsMax=[  0.0009   0.0006   0.0000] v/a/j=[  1.000   0.463   0.581] swingMax=  2.701deg cableWMax=  0.059 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2005 reason=PASS
+[F1] E03_LARGER_OBS BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9495,  8.1229] MabsMax=[  0.0013   0.0009   0.0001] v/a/j=[  1.000   0.627   0.784] swingMax=  3.666deg cableWMax=  0.080 usage[f/M/max]=[ 0.406  0.001  0.406] samples=2105 reason=PASS
+[F1] E04_CLOSE_PAIR BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5139 f=[  7.4808,  8.5768] MabsMax=[  0.0056   0.0058   0.0010] v/a/j=[  2.164   2.239   2.956] swingMax= 13.140deg cableWMax=  0.300 usage[f/M/max]=[ 0.429  0.006  0.429] samples=2004 reason=PASS
+[F1] E05_LATERAL BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9916,  8.0976] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.105   0.790   1.036] swingMax=  4.562deg cableWMax=  0.105 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2004 reason=PASS
+[F1] E06_VERTICAL BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5127 f=[  7.5394,  8.5052] MabsMax=[  0.0009   0.0010   0.0000] v/a/j=[  1.000   0.698   0.958] swingMax=  2.553deg cableWMax=  0.053 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2004 reason=PASS
+[F1] E07_FAST BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5369 f=[  7.8967,  8.2255] MabsMax=[  0.0025   0.0013   0.0001] v/a/j=[  1.350   1.015   1.487] swingMax=  5.911deg cableWMax=  0.149 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1704 reason=PASS
+[F1] E08_SLOW BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9814,  8.0635] MabsMax=[  0.0005   0.0003   0.0000] v/a/j=[  0.700   0.334   0.303] swingMax=  1.949deg cableWMax=  0.031 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2504 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5334 f=[  7.8441,  8.2092] MabsMax=[  0.0024   0.0008   0.0001] v/a/j=[  1.678   1.081   1.269] swingMax=  6.260deg cableWMax=  0.125 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1805 reason=PASS
+[F1] E10_ASYMMETRIC BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5372 f=[  7.8990,  8.1611] MabsMax=[  0.0011   0.0008   0.0001] v/a/j=[  1.000   0.551   0.662] swingMax=  3.192deg cableWMax=  0.067 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2103 reason=PASS
+
+================================================================================================================================================
+ STAGE-F1 SUMMARY
+================================================================================================================================================
+ E01   BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E01   POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E01   BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E02   BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E02   POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E02   BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E07_FAST BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E07_FAST POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E07_FAST BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+
+Policy:
+ - No HLC/logger/closed-loop simulation is part of planning feasibility.
+ - Nominal yaw reference is passed through unchanged.
+ - v/a/j are diagnostics only; no empirical derivative limits are introduced.
+ - Upstream C6/geometry/tension and nominal actuator feasibility are both required for final pass.
+ - Actuator feasibility is sampled in time; it is not claimed as a continuous-time nonlinear actuator certificate.
+================================================================================================================================================
+
+
+================================================================================================================================================
+ STAGE-G1 AUTOMATIC SYNCHRONIZED REJOIN / VARIABLE-T PARETO CHARACTERIZATION [G1/G5 SHARED FAST]
+ Fixed avoidance duration S.T: NOT used as the G1 decision.
+ Fixed endpoint S.pg:          NOT used as the G1 rejoin endpoint.
+ Rejoin definition: D1(T) = nominal_reference_jet(t_trigger + T), matched through derivative order 6.
+ Current regression nominal mode: LINEAR constant-velocity reference.
+ Candidate anchor: T_clear = nominal passage beyond farthest known oriented-ellipsoid support + system support + d_margin.
+ Candidate spacing: tau_obs = traversal time of the largest known obstacle longitudinal diameter.
+ Tail landmark indices k: [0 1 2 3], giving T_k = T_clear + k*tau_obs.
+ IMPORTANT: k values are characterization landmarks, not safety limits and not the final automatic-T law.
+ Acceptance remains C6 + continuous geometry + positive tension + sampled nominal actuator feasibility.
+ No weighted quality cost and no arbitrary a/j/swing threshold are introduced.
+================================================================================================================================================
+
+[G1] E01                / BSPLINE_D7              trigger=13.900  Tclear=11.442  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.442    25.342  [ 25.34   0.00   0.00]    0     0     93.83  87.845  368.694  832.668   1.58e+10  682.280 34640.234 -5.398e-01
+      2   1.0   13.375    27.275  [ 27.28   0.00   0.00]    1     1     21.14   0.808   3.674   7.920   6.88e+05  0.443 0.076 +3.276e-02
+      3   2.0   15.308    29.208  [ 29.21   0.00   0.00]    1     1      5.73   0.174   0.979   1.708   4.90e+03  0.409 0.004 +2.907e-01
+      4   3.0   17.241    31.141  [ 31.14   0.00   0.00]    1     1      4.06   0.103   0.700   1.030   6.06e+02  0.408 0.002 +2.798e-01
+
+[G1] E02                / BSPLINE_D7              trigger=14.100  Tclear=11.306  tauObs=1.722  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.306    25.406  [ 25.41   0.00   0.00]    0     0     93.03  89.291  464.598  956.080   1.36e+10  663.834 1507.422 -5.484e-01
+      2   1.0   13.028    27.128  [ 27.13   0.00   0.00]    1     1     25.22   1.056   4.470  10.340   1.41e+06  0.469 0.181 +8.468e-02
+      3   2.0   14.751    28.851  [ 28.85   0.00   0.00]    1     1      7.06   0.221   1.207   2.169   9.16e+03  0.407 0.006 +3.117e-01
+      4   3.0   16.473    30.573  [ 30.57   0.00   0.00]    1     1      3.64   0.095   0.624   0.930   5.29e+02  0.404 0.001 +3.080e-01
+
+[G1] E03_LARGER_OBS     / BSPLINE_D7              trigger=14.000  Tclear=12.183  tauObs=2.480  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   12.183    26.183  [ 26.18   0.00   0.00]    0     0     92.44  92.187  464.383  827.581   4.46e+09  821.715 1698.189 -6.016e-01
+      2   1.0   14.662    28.662  [ 28.66   0.00   0.00]    1     1     14.43   0.472   2.480   4.613   7.88e+04  0.421 0.020 +1.276e-01
+      3   2.0   17.142    31.142  [ 31.14   0.00   0.00]    1     1      4.89   0.132   0.838   1.318   1.03e+03  0.410 0.002 +2.773e-01
+      4   3.0   19.622    33.622  [ 33.62   0.00   0.00]    1     1      5.76   0.114   0.995   1.153   2.65e+02  0.410 0.002 +2.320e-01
+
+[G1] E04_CLOSE_PAIR     / BSPLINE_D7              trigger=13.900  Tclear=10.392  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   10.392    24.292  [ 24.29   0.00   0.00]    0     0     71.24   9.210  21.919  68.083   3.73e+08  6.215 23.760 -5.774e-01
+      2   1.0   12.325    26.225  [ 26.23   0.00   0.00]    1     1     31.60   1.137   5.614  11.062   1.70e+06  0.491 0.193 +3.004e-02
+      3   2.0   14.258    28.158  [ 28.16   0.00   0.00]    1     1     17.00   0.589   2.901   5.814   9.06e+04  0.439 0.016 +9.068e-02
+      4   3.0   16.191    30.091  [ 30.09   0.00   0.00]    1     1     19.75   0.554   3.376   5.461   3.68e+04  0.440 0.015 +1.427e-01
+
+[G1] E05_LATERAL        / BSPLINE_D7              trigger=14.100  Tclear=11.242  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.242    25.342  [ 25.34   0.00   0.00]    0     0    117.39  60.928  214.861  462.491   3.84e+09  289.187 866.159 -1.407e-01
+      2   1.0   13.175    27.275  [ 27.28   0.00   0.00]    1     1     22.29   0.835   3.914   8.176   5.60e+05  0.446 0.083 +8.434e-02
+      3   2.0   15.108    29.208  [ 29.21   0.00   0.00]    1     1      8.10   0.251   1.415   2.469   9.22e+03  0.411 0.005 +2.828e-01
+      4   3.0   17.041    31.141  [ 31.14   0.00   0.00]    1     1      6.74   0.197   1.161   1.933   1.62e+03  0.408 0.003 +2.688e-01
+
+[G1] E06_VERTICAL       / BSPLINE_D7              trigger=14.050  Tclear=11.308  tauObs=1.940  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.308    25.358  [ 25.36   0.00   0.00]    0     0    132.05  173.747  608.974  1342.143   3.70e+10  2426.958 11610.217 -3.902e-01
+      2   1.0   13.248    27.298  [ 27.30   0.00   0.00]    1     1     20.07   0.931   4.096   9.298   8.76e+05  0.490 0.150 +7.632e-02
+      3   2.0   15.188    29.238  [ 29.24   0.00   0.00]    1     1      5.62   0.166   1.211   2.143   7.77e+03  0.439 0.004 +3.122e-01
+      4   3.0   17.128    31.178  [ 31.18   0.00   0.00]    1     1      3.51   0.094   1.073   1.819   2.08e+03  0.440 0.002 +3.055e-01
+
+[G1] E07_FAST           / BSPLINE_D7              trigger=9.000  Tclear=9.772  tauObs=1.432  candidates=4 feasible=2
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0    9.772    18.772  [ 25.34   0.00   0.00]    0     0     92.58  116.472  481.741  1079.773   1.04e+11  1191.971 2805.919 -6.248e-01
+      2   1.0   11.204    20.204  [ 27.28   0.00   0.00]    0     0     49.00   1.842   8.932  18.542   1.61e+07  0.606 3.536 +8.172e-02
+      3   2.0   12.636    21.636  [ 29.21   0.00   0.00]    1     1     13.41   0.450   2.278   4.462   2.42e+05  0.430 0.031 +2.851e-01
+      4   3.0   14.068    23.068  [ 31.14   0.00   0.00]    1     1      8.15   0.274   1.393   2.734   2.77e+04  0.417 0.007 +2.808e-01
+
+[G1] E08_SLOW           / BSPLINE_D7              trigger=22.000  Tclear=14.203  tauObs=2.761  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   14.203    36.203  [ 25.34   0.00   0.00]    0     0     92.41  57.516  356.239  500.652   3.59e+08  259.380 581.662 -4.665e-01
+      2   1.0   16.965    38.965  [ 27.28   0.00   0.00]    1     1      9.85   0.260   1.683   2.552   6.07e+03  0.410 0.006 +1.499e-01
+      3   2.0   19.726    41.726  [ 29.21   0.00   0.00]    1     1      3.08   0.063   0.527   0.624   6.23e+01  0.405 0.001 +2.831e-01
+      4   3.0   22.488    44.488  [ 31.14   0.00   0.00]    1     1      3.00   0.059   0.513   0.581   3.15e+01  0.404 0.001 +2.820e-01
+
+[G1] E09_NEAR_SENSOR_EDGE / BSPLINE_D7              trigger=10.850  Tclear=11.492  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.492    22.342  [ 22.34   0.00   0.00]    0     0     93.86  92.593  375.397  841.292   1.54e+10  702.118 21315.269 -5.407e-01
+      2   1.0   13.425    24.275  [ 24.28   0.00   0.00]    1     1     21.27   0.816   3.698   7.994   6.74e+05  0.443 0.076 +3.088e-02
+      3   2.0   15.358    26.208  [ 26.21   0.00   0.00]    1     1      5.71   0.172   0.976   1.693   4.55e+03  0.409 0.004 +2.929e-01
+      4   3.0   17.291    28.141  [ 28.14   0.00   0.00]    1     1      3.88   0.098   0.669   0.980   5.21e+02  0.407 0.002 +2.816e-01
+
+[G1] E10_ASYMMETRIC     / BSPLINE_D7              trigger=14.250  Tclear=11.597  tauObs=2.194  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.597    25.847  [ 25.85   0.00   0.00]    0     0     93.42  233.670  1301.211  2921.355   1.51e+11  5390.749 10082.596 -5.228e-01
+      2   1.0   13.792    28.042  [ 28.04   0.00   0.00]    1     1     17.10   0.590   3.057   5.861   1.69e+05  0.435 0.033 +7.381e-02
+      3   2.0   15.986    30.236  [ 30.24   0.00   0.00]    1     1      5.18   0.142   0.903   1.423   2.07e+03  0.414 0.002 +3.389e-01
+      4   3.0   18.181    32.431  [ 32.43   0.00   0.00]    1     1      4.42   0.103   0.849   1.115   4.82e+02  0.417 0.002 +3.507e-01
+
+[G1] E01                / POLY_D13_MIN7           trigger=13.900  Tclear=11.442  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.442    25.342  [ 25.34   0.00   0.00]    0     0     77.50   7.941  34.171  76.372   1.24e+08  4.485 18.635 -5.310e-01
+      2   1.0   13.375    27.275  [ 27.28   0.00   0.00]    1     1     15.20   0.549   2.610   5.366   1.90e+05  0.423 0.027 +1.621e-01
+      3   2.0   15.308    29.208  [ 29.21   0.00   0.00]    1     1      5.11   0.150   0.873   1.474   2.73e+03  0.409 0.003 +2.930e-01
+      4   3.0   17.241    31.141  [ 31.14   0.00   0.00]    1     1      4.10   0.101   0.707   1.019   4.46e+02  0.408 0.002 +2.775e-01
+
+[G1] E02                / POLY_D13_MIN7           trigger=14.100  Tclear=11.306  tauObs=1.722  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.306    25.406  [ 25.41   0.00   0.00]    0     0    105.33   9.453  39.313  85.327   1.43e+08  6.473 36.525 -5.516e-01
+      2   1.0   13.028    27.128  [ 27.13   0.00   0.00]    1     1     17.82   0.665   3.086   6.508   3.53e+05  0.429 0.047 +2.261e-01
+      3   2.0   14.751    28.851  [ 28.85   0.00   0.00]    1     1      6.08   0.184   1.040   1.803   4.41e+03  0.406 0.004 +3.100e-01
+      4   3.0   16.473    30.573  [ 30.57   0.00   0.00]    1     1      3.46   0.087   0.593   0.855   3.51e+02  0.404 0.001 +3.061e-01
+
+[G1] E03_LARGER_OBS     / POLY_D13_MIN7           trigger=14.000  Tclear=12.183  tauObs=2.480  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   12.183    26.183  [ 26.18   0.00   0.00]    0     0     79.65   9.633  37.257  74.910   6.18e+07  6.773 456.899 -6.091e-01
+      2   1.0   14.662    28.662  [ 28.66   0.00   0.00]    1     1     11.17   0.352   1.912   3.446   2.87e+04  0.416 0.009 +1.872e-01
+      3   2.0   17.142    31.142  [ 31.14   0.00   0.00]    1     1      4.76   0.127   0.817   1.272   6.99e+02  0.410 0.002 +2.710e-01
+      4   3.0   19.622    33.622  [ 33.62   0.00   0.00]    1     1      6.05   0.117   1.043   1.181   2.03e+02  0.411 0.002 +2.244e-01
+
+[G1] E04_CLOSE_PAIR     / POLY_D13_MIN7           trigger=13.900  Tclear=10.392  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   10.392    24.292  [ 24.29   0.00   0.00]    0     0     63.29   6.019  18.285  55.469   2.11e+08  2.498 1041.394 -5.219e-01
+      2   1.0   12.325    26.225  [ 26.23   0.00   0.00]    1     1     21.44   0.736   3.943   7.233   2.74e+05  0.480 0.067 +4.907e-01
+      3   2.0   14.258    28.158  [ 28.16   0.00   0.00]    1     1     20.01   0.667   3.869   6.739   8.25e+04  0.460 0.025 +2.429e-01
+      4   3.0   16.191    30.091  [ 30.09   0.00   0.00]    1     1     20.57   0.555   3.521   5.476   2.68e+04  0.441 0.014 +2.023e-02
+
+[G1] E05_LATERAL        / POLY_D13_MIN7           trigger=14.100  Tclear=11.242  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.242    25.342  [ 25.34   0.00   0.00]    0     0     94.94   7.964  28.835  64.616   8.46e+07  4.601 37.209 -1.580e-01
+      2   1.0   13.175    27.275  [ 27.28   0.00   0.00]    1     1     17.14   0.608   2.967   5.952   1.90e+05  0.426 0.030 +1.662e-01
+      3   2.0   15.108    29.208  [ 29.21   0.00   0.00]    1     1      7.82   0.237   1.365   2.335   5.46e+03  0.410 0.004 +2.831e-01
+      4   3.0   17.041    31.141  [ 31.14   0.00   0.00]    1     1      6.72   0.194   1.155   1.905   1.18e+03  0.408 0.003 +2.615e-01
+
+[G1] E06_VERTICAL       / POLY_D13_MIN7           trigger=14.050  Tclear=11.308  tauObs=1.940  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.308    25.358  [ 25.36   0.00   0.00]    0     0     90.01  12.225  44.777  109.682   4.40e+08  11.092 41.761 -3.844e-01
+      2   1.0   13.248    27.298  [ 27.30   0.00   0.00]    1     1     14.78   0.569   2.859   5.835   2.35e+05  0.453 0.038 +2.072e-01
+      3   2.0   15.188    29.238  [ 29.24   0.00   0.00]    1     1      4.91   0.140   1.178   2.059   4.58e+03  0.439 0.003 +3.100e-01
+      4   3.0   17.128    31.178  [ 31.18   0.00   0.00]    1     1      3.46   0.093   1.063   1.791   1.41e+03  0.440 0.002 +3.001e-01
+
+[G1] E07_FAST           / POLY_D13_MIN7           trigger=9.000  Tclear=9.772  tauObs=1.432  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0    9.772    18.772  [ 25.34   0.00   0.00]    0     0     82.64  11.102  54.385  110.776   1.37e+09  8.998 87.412 -6.579e-01
+      2   1.0   11.204    20.204  [ 27.28   0.00   0.00]    1     1     37.69   1.526   7.750  15.111   7.96e+06  0.556 0.726 +1.834e-02
+      3   2.0   12.636    21.636  [ 29.21   0.00   0.00]    1     1     12.01   0.393   2.041   3.879   1.15e+05  0.427 0.014 +2.831e-01
+      4   3.0   14.068    23.068  [ 31.14   0.00   0.00]    1     1      8.20   0.268   1.403   2.677   1.88e+04  0.416 0.004 +2.795e-01
+
+[G1] E08_SLOW           / POLY_D13_MIN7           trigger=22.000  Tclear=14.203  tauObs=2.761  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   14.203    36.203  [ 25.34   0.00   0.00]    0     0     70.03   3.633  21.688  37.914   5.05e+06  0.944 70.614 -4.394e-01
+      2   1.0   16.965    38.965  [ 27.28   0.00   0.00]    1     1      7.61   0.194   1.300   1.907   2.22e+03  0.407 0.003 +2.026e-01
+      3   2.0   19.726    41.726  [ 29.21   0.00   0.00]    1     1      2.74   0.055   0.469   0.545   3.57e+01  0.404 0.001 +2.843e-01
+      4   3.0   22.488    44.488  [ 31.14   0.00   0.00]    1     1      2.53   0.047   0.433   0.465   1.25e+01  0.404 0.001 +2.838e-01
+
+[G1] E09_NEAR_SENSOR_EDGE / POLY_D13_MIN7           trigger=10.850  Tclear=11.492  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.492    22.342  [ 22.34   0.00   0.00]    0     0     77.61   7.922  34.379  76.284   1.19e+08  4.459 18.362 -5.329e-01
+      2   1.0   13.425    24.275  [ 24.28   0.00   0.00]    1     1     15.25   0.548   2.618   5.358   1.85e+05  0.422 0.027 +1.627e-01
+      3   2.0   15.358    26.208  [ 26.21   0.00   0.00]    1     1      5.07   0.148   0.868   1.456   2.51e+03  0.409 0.003 +2.957e-01
+      4   3.0   17.291    28.141  [ 28.14   0.00   0.00]    1     1      3.90   0.095   0.673   0.962   3.82e+02  0.407 0.002 +2.806e-01
+
+[G1] E10_ASYMMETRIC     / POLY_D13_MIN7           trigger=14.250  Tclear=11.597  tauObs=2.194  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.597    25.847  [ 25.85   0.00   0.00]    0     0     77.13   9.161  36.037  92.284   2.73e+08  6.040 33.980 -5.636e-01
+      2   1.0   13.792    28.042  [ 28.04   0.00   0.00]    1     1     13.27   0.437   2.335   4.337   6.03e+04  0.421 0.013 +1.676e-01
+      3   2.0   15.986    30.236  [ 30.24   0.00   0.00]    1     1      4.78   0.127   0.836   1.288   1.33e+03  0.414 0.002 +3.104e-01
+      4   3.0   18.181    32.431  [ 32.43   0.00   0.00]    1     1      4.59   0.103   0.881   1.112   3.49e+02  0.417 0.002 +3.104e-01
+
+[G1] E01                / BEZIER_D13_MIN7         trigger=13.900  Tclear=11.442  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.442    25.342  [ 25.34   0.00   0.00]    0     0     77.50   7.941  34.171  76.372   1.24e+08  4.485 18.635 -5.310e-01
+      2   1.0   13.375    27.275  [ 27.28   0.00   0.00]    1     1     15.20   0.549   2.610   5.366   1.90e+05  0.423 0.027 +1.621e-01
+      3   2.0   15.308    29.208  [ 29.21   0.00   0.00]    1     1      5.11   0.150   0.873   1.474   2.73e+03  0.409 0.003 +2.930e-01
+      4   3.0   17.241    31.141  [ 31.14   0.00   0.00]    1     1      4.10   0.101   0.707   1.019   4.46e+02  0.408 0.002 +2.775e-01
+
+[G1] E02                / BEZIER_D13_MIN7         trigger=14.100  Tclear=11.306  tauObs=1.722  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.306    25.406  [ 25.41   0.00   0.00]    0     0    105.33   9.453  39.313  85.327   1.43e+08  6.473 36.525 -5.516e-01
+      2   1.0   13.028    27.128  [ 27.13   0.00   0.00]    1     1     17.82   0.665   3.086   6.508   3.53e+05  0.429 0.047 +2.261e-01
+      3   2.0   14.751    28.851  [ 28.85   0.00   0.00]    1     1      6.08   0.184   1.040   1.803   4.41e+03  0.406 0.004 +3.100e-01
+      4   3.0   16.473    30.573  [ 30.57   0.00   0.00]    1     1      3.46   0.087   0.593   0.855   3.51e+02  0.404 0.001 +3.061e-01
+
+[G1] E03_LARGER_OBS     / BEZIER_D13_MIN7         trigger=14.000  Tclear=12.183  tauObs=2.480  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   12.183    26.183  [ 26.18   0.00   0.00]    0     0     79.65   9.633  37.257  74.910   6.18e+07  6.773 456.899 -6.091e-01
+      2   1.0   14.662    28.662  [ 28.66   0.00   0.00]    1     1     11.17   0.352   1.912   3.446   2.87e+04  0.416 0.009 +1.872e-01
+      3   2.0   17.142    31.142  [ 31.14   0.00   0.00]    1     1      4.76   0.127   0.817   1.272   6.99e+02  0.410 0.002 +2.710e-01
+      4   3.0   19.622    33.622  [ 33.62   0.00   0.00]    1     1      6.05   0.117   1.043   1.181   2.03e+02  0.411 0.002 +2.244e-01
+
+[G1] E04_CLOSE_PAIR     / BEZIER_D13_MIN7         trigger=13.900  Tclear=10.392  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   10.392    24.292  [ 24.29   0.00   0.00]    0     0     63.29   6.019  18.285  55.469   2.11e+08  2.498 1041.401 -5.219e-01
+      2   1.0   12.325    26.225  [ 26.23   0.00   0.00]    1     1     21.44   0.736   3.943   7.233   2.74e+05  0.480 0.067 +4.907e-01
+      3   2.0   14.258    28.158  [ 28.16   0.00   0.00]    1     1     20.01   0.667   3.869   6.739   8.25e+04  0.460 0.025 +2.429e-01
+      4   3.0   16.191    30.091  [ 30.09   0.00   0.00]    1     1     20.57   0.555   3.521   5.476   2.68e+04  0.441 0.014 +2.023e-02
+
+[G1] E05_LATERAL        / BEZIER_D13_MIN7         trigger=14.100  Tclear=11.242  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.242    25.342  [ 25.34   0.00   0.00]    0     0     94.94   7.964  28.835  64.616   8.46e+07  4.601 37.209 -1.580e-01
+      2   1.0   13.175    27.275  [ 27.28   0.00   0.00]    1     1     17.14   0.608   2.967   5.952   1.90e+05  0.426 0.030 +1.662e-01
+      3   2.0   15.108    29.208  [ 29.21   0.00   0.00]    1     1      7.82   0.237   1.365   2.335   5.46e+03  0.410 0.004 +2.831e-01
+      4   3.0   17.041    31.141  [ 31.14   0.00   0.00]    1     1      6.72   0.194   1.155   1.905   1.18e+03  0.408 0.003 +2.615e-01
+
+[G1] E06_VERTICAL       / BEZIER_D13_MIN7         trigger=14.050  Tclear=11.308  tauObs=1.940  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.308    25.358  [ 25.36   0.00   0.00]    0     0     90.01  12.225  44.777  109.682   4.40e+08  11.092 41.761 -3.844e-01
+      2   1.0   13.248    27.298  [ 27.30   0.00   0.00]    1     1     14.78   0.569   2.859   5.835   2.35e+05  0.453 0.038 +2.072e-01
+      3   2.0   15.188    29.238  [ 29.24   0.00   0.00]    1     1      4.91   0.140   1.178   2.059   4.58e+03  0.439 0.003 +3.100e-01
+      4   3.0   17.128    31.178  [ 31.18   0.00   0.00]    1     1      3.46   0.093   1.063   1.791   1.41e+03  0.440 0.002 +3.001e-01
+
+[G1] E07_FAST           / BEZIER_D13_MIN7         trigger=9.000  Tclear=9.772  tauObs=1.432  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0    9.772    18.772  [ 25.34   0.00   0.00]    0     0     82.64  11.102  54.385  110.776   1.37e+09  8.998 87.412 -6.579e-01
+      2   1.0   11.204    20.204  [ 27.28   0.00   0.00]    1     1     37.69   1.526   7.750  15.111   7.96e+06  0.556 0.726 +1.834e-02
+      3   2.0   12.636    21.636  [ 29.21   0.00   0.00]    1     1     12.01   0.393   2.041   3.879   1.15e+05  0.427 0.014 +2.831e-01
+      4   3.0   14.068    23.068  [ 31.14   0.00   0.00]    1     1      8.20   0.268   1.403   2.677   1.88e+04  0.416 0.004 +2.795e-01
+
+[G1] E08_SLOW           / BEZIER_D13_MIN7         trigger=22.000  Tclear=14.203  tauObs=2.761  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   14.203    36.203  [ 25.34   0.00   0.00]    0     0     70.03   3.633  21.688  37.914   5.05e+06  0.944 70.614 -4.394e-01
+      2   1.0   16.965    38.965  [ 27.28   0.00   0.00]    1     1      7.61   0.194   1.300   1.907   2.22e+03  0.407 0.003 +2.026e-01
+      3   2.0   19.726    41.726  [ 29.21   0.00   0.00]    1     1      2.74   0.055   0.469   0.545   3.57e+01  0.404 0.001 +2.843e-01
+      4   3.0   22.488    44.488  [ 31.14   0.00   0.00]    1     1      2.53   0.047   0.433   0.465   1.25e+01  0.404 0.001 +2.838e-01
+
+[G1] E09_NEAR_SENSOR_EDGE / BEZIER_D13_MIN7         trigger=10.850  Tclear=11.492  tauObs=1.933  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.492    22.342  [ 22.34   0.00   0.00]    0     0     77.61   7.922  34.379  76.284   1.19e+08  4.459 18.362 -5.329e-01
+      2   1.0   13.425    24.275  [ 24.28   0.00   0.00]    1     1     15.25   0.548   2.618   5.358   1.85e+05  0.422 0.027 +1.627e-01
+      3   2.0   15.358    26.208  [ 26.21   0.00   0.00]    1     1      5.07   0.148   0.868   1.456   2.51e+03  0.409 0.003 +2.957e-01
+      4   3.0   17.291    28.141  [ 28.14   0.00   0.00]    1     1      3.90   0.095   0.673   0.962   3.82e+02  0.407 0.002 +2.806e-01
+
+[G1] E10_ASYMMETRIC     / BEZIER_D13_MIN7         trigger=14.250  Tclear=11.597  tauObs=2.194  candidates=4 feasible=3
+     idx   k       T      trejoin    rejoin[x y z]              feas Pareto  swing  cableW    aMax    jMax       J7       fUse  MUse  minG
+      1   0.0   11.597    25.847  [ 25.85   0.00   0.00]    0     0     77.13   9.161  36.037  92.284   2.73e+08  6.040 33.980 -5.636e-01
+      2   1.0   13.792    28.042  [ 28.04   0.00   0.00]    1     1     13.27   0.437   2.335   4.337   6.03e+04  0.421 0.013 +1.676e-01
+      3   2.0   15.986    30.236  [ 30.24   0.00   0.00]    1     1      4.78   0.127   0.836   1.288   1.33e+03  0.414 0.002 +3.104e-01
+      4   3.0   18.181    32.431  [ 32.43   0.00   0.00]    1     1      4.59   0.103   0.881   1.112   3.49e+02  0.417 0.002 +3.104e-01
+
+G1 interpretation policy:
+ - G1 removes the fixed duration and fixed rejoin endpoint from the decision itself.
+ - The current discrete T landmarks are for characterization of the rejoin/time trade-off; they are not yet the final continuous/adaptive T solver.
+ - Pareto dominance is used only to identify non-dominated feasible candidates; no arbitrary scalar weights are introduced.
+ - High speed alone is not treated as payload swing. a, j, cable angle/rate, J7 and input usage are reported separately.
+ - Runtime optimization/F2C/F2D remains deferred; obvious repeated front-end work is already avoided by reusing the trigger state.
+ - G1 diagnostic errors are printed explicitly; a NaN row must not be interpreted as physical infeasibility without the error field.
+================================================================================================================================================
+
+
+================================================================================================================================================
+ STAGE-G5 PHYSICAL SWING-OBJECTIVE AUDIT -- NO AUTOMATIC T SELECTOR [G1/G5 SHARED FAST]
+ Feasibility remains: C6 + continuous geometry + positive tension + sampled nominal actuator feasibility.
+ Absolute pendulum-coordinate energy: Eabs = mL*g*L*(1-cos(theta_down)) + 0.5*mL*L^2*||omega_c||^2.
+ Nominal-relative deviation surrogate: Edev = mL*g*L*(1-pA'pN) + 0.5*mL*L^2*||omegaA-omegaN||^2.
+ Edev has energy units but is a deviation surrogate, NOT total mechanical energy.
+ No weighted sum, no arbitrary swing/a/j threshold, and NO single T is selected in G5.
+================================================================================================================================================
+
+[G5] E01                / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.442   0     0    0            NaN         NaN          NaN         NaN     93.831 87.8448 368.694 832.668  1.58e+10 -5.398e-01
+   2   12.167   0     0    0            NaN         NaN          NaN         NaN     61.290  4.6788  15.057  38.014  3.32e+07 -1.574e-01
+   3   12.892   1     1    1     9.8325e-02  3.6142e-02   9.8325e-02  3.6142e-02     20.351  0.9381   4.617  10.055  1.09e+06 +3.697e-02
+   4   13.617   1     1    1     4.9441e-02  1.8925e-02   4.9441e-02  1.8925e-02     17.034  0.6209   2.933   6.065  3.09e+05 +1.341e-01
+   5   14.342   1     1    1     1.5765e-02  5.1774e-03   1.5765e-02  5.1774e-03      9.748  0.3275   1.665   3.210  3.82e+04 +2.585e-01
+   6   15.067   1     1    1     6.8216e-03  2.3027e-03   6.8216e-03  2.3027e-03      6.402  0.1992   1.094   1.957  7.59e+03 +2.862e-01
+   7   15.792   1     1    1     3.8292e-03  1.4393e-03   3.8292e-03  1.4393e-03      4.789  0.1382   0.820   1.360  2.35e+03 +2.984e-01
+   8   16.516   1     1    1     2.8352e-03  1.1234e-03   2.8352e-03  1.1234e-03      4.118  0.1121   0.707   1.119  1.05e+03 +2.887e-01
+   9   17.241   1     1    1     2.7521e-03  1.0210e-03   2.7521e-03  1.0210e-03      4.060  0.1028   0.700   1.030  6.06e+02 +2.798e-01
+
+[G5] E02                / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.306   0     0    0            NaN         NaN          NaN         NaN     93.025 89.2912 464.598 956.080  1.36e+10 -5.484e-01
+   2   11.952   0     0    0            NaN         NaN          NaN         NaN     63.095  4.7948  18.450  46.917  6.93e+07 -2.105e-01
+   3   12.598   1     1    1     2.1539e-01  6.8986e-02   2.1539e-01  6.8986e-02     28.326  1.3607   6.085  14.552  3.64e+06 +1.610e-01
+   4   13.244   1     1    1     7.7346e-02  2.9095e-02   7.7346e-02  2.9095e-02     20.763  0.8001   3.622   7.831  6.63e+05 +1.846e-01
+   5   13.890   1     1    1     2.4767e-02  7.5297e-03   2.4767e-02  7.5297e-03     12.232  0.4251   2.097   4.164  8.54e+04 +2.830e-01
+   6   14.535   1     1    1     1.0560e-02  2.9217e-03   1.0560e-02  2.9217e-03      7.978  0.2561   1.364   2.513  1.52e+04 +3.193e-01
+   7   15.181   1     1    1     5.3698e-03  1.5626e-03   5.3698e-03  1.5626e-03      5.685  0.1693   0.972   1.663  3.69e+03 +3.151e-01
+   8   15.827   1     1    1     3.1898e-03  1.0442e-03   3.1898e-03  1.0442e-03      4.380  0.1218   0.749   1.197  1.21e+03 +3.114e-01
+   9   16.473   1     1    1     2.2104e-03  8.1013e-04   2.2104e-03  8.1013e-04      3.645  0.0946   0.624   0.930  5.29e+02 +3.080e-01
+
+[G5] E03_LARGER_OBS     / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   12.183   0     0    0            NaN         NaN          NaN         NaN     92.442 92.1875 464.383 827.581  4.46e+09 -6.016e-01
+   2   13.113   0     0    0            NaN         NaN          NaN         NaN     63.057  4.0791  17.886  39.102  1.46e+07 -6.020e-02
+   3   14.042   1     1    1     4.8496e-02  1.9183e-02   4.8496e-02  1.9183e-02     16.697  0.6596   3.660   7.078  2.21e+05 +1.967e-01
+   4   14.972   1     1    1     2.2203e-02  7.1834e-03   2.2203e-02  7.1834e-03     11.570  0.3674   1.981   3.593  3.55e+04 +1.877e-01
+   5   15.902   1     1    1     7.7078e-03  2.7601e-03   7.7078e-03  2.7601e-03      6.797  0.1982   1.161   1.944  5.13e+03 +2.751e-01
+   6   16.832   1     1    1     4.3121e-03  1.7061e-03   4.3121e-03  1.7061e-03      5.091  0.1393   0.872   1.388  1.41e+03 +2.911e-01
+   7   17.762   1     1    1     3.5407e-03  1.3997e-03   3.5407e-03  1.3997e-03      4.612  0.1221   0.790   1.217  6.29e+02 +2.661e-01
+   8   18.692   1     1    1     3.8481e-03  1.3771e-03   3.8481e-03  1.3771e-03      4.802  0.1131   0.828   1.145  3.76e+02 +2.441e-01
+   9   19.622   1     0    0     5.5181e-03  1.5489e-03   5.5181e-03  1.5489e-03      5.759  0.1138   0.995   1.153  2.65e+02 +2.320e-01
+
+[G5] E04_CLOSE_PAIR     / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   10.392   0     0    0            NaN         NaN          NaN         NaN     71.236  9.2101  21.919  68.083  3.73e+08 -5.774e-01
+   2   11.117   0     0    0            NaN         NaN          NaN         NaN     59.913  5.3598  14.169  42.807  8.61e+07 -8.886e-02
+   3   11.842   1     1    1     1.6556e-01  6.4539e-02   1.6556e-01  6.4539e-02     31.941  1.0955   5.618  11.251  1.60e+06 +5.851e-02
+   4   12.567   1     1    1     1.3770e-01  5.2806e-02   1.3770e-01  5.2806e-02     29.053  1.0120   5.438  10.441  5.81e+05 +1.428e-01
+   5   13.292   1     1    1     7.3035e-02  2.5935e-02   7.3035e-02  2.5935e-02     21.052  0.7315   3.613   7.183  2.34e+05 +4.430e-05
+   6   14.017   1     1    1     5.2136e-02  1.9238e-02   5.2136e-02  1.9238e-02     17.759  0.6149   3.033   6.061  1.09e+05 +6.440e-02
+   7   14.742   1     1    1     4.1144e-02  1.7111e-02   4.1144e-02  1.7111e-02     15.762  0.5488   2.687   5.424  6.73e+04 +1.347e-01
+   8   15.466   1     1    1     3.7012e-02  1.7538e-02   3.7012e-02  1.7538e-02     14.904  0.5138   2.538   5.093  4.79e+04 +1.749e-01
+   9   16.191   1     0    0     6.4307e-02  2.0427e-02   6.4307e-02  2.0427e-02     19.747  0.5536   3.376   5.461  3.68e+04 +1.427e-01
+
+[G5] E05_LATERAL        / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.242   0     0    0            NaN         NaN          NaN         NaN    117.386 60.9284 214.861 462.491  3.84e+09 -1.407e-01
+   2   11.967   0     0    0            NaN         NaN          NaN         NaN     43.947  2.0406   8.385  21.548  1.06e+07 +1.619e-02
+   3   12.692   1     1    1     1.0453e-01  1.8188e-02   1.0453e-01  1.8188e-02     21.209  0.8712   5.684  12.775  2.06e+06 +1.478e-01
+   4   13.417   1     1    1     5.9030e-02  2.2861e-02   5.9030e-02  2.2861e-02     18.883  0.6805   3.282   6.657  2.94e+05 +1.493e-01
+   5   14.142   1     1    1     2.3818e-02  8.7698e-03   2.3818e-02  8.7698e-03     11.958  0.3969   2.051   3.890  5.19e+04 +2.475e-01
+   6   14.867   1     1    1     1.2014e-02  4.7010e-03   1.2014e-02  4.7010e-03      8.470  0.2666   1.482   2.627  1.33e+04 +2.838e-01
+   7   15.592   1     1    1     9.5160e-03  3.2631e-03   9.5160e-03  3.2631e-03      7.549  0.2283   1.317   2.248  5.01e+03 +2.845e-01
+   8   16.316   1     1    1     8.2112e-03  2.7039e-03   8.2112e-03  2.7039e-03      7.017  0.2081   1.222   2.048  2.57e+03 +2.818e-01
+   9   17.041   1     1    1     7.5643e-03  2.5455e-03   7.5643e-03  2.5455e-03      6.739  0.1965   1.161   1.933  1.62e+03 +2.688e-01
+
+[G5] E06_VERTICAL       / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.308   0     0    0            NaN         NaN          NaN         NaN    132.047 173.7473 608.974 1342.143  3.70e+10 -3.902e-01
+   2   12.036   0     0    0            NaN         NaN          NaN         NaN     88.846  8.0772  29.657  70.929  1.05e+08 -5.301e-03
+   3   12.763   1     1    1     3.6146e-02  8.1790e-03   3.6146e-02  8.1790e-03     13.764  0.5100   4.216   8.808  4.99e+05 +7.690e-02
+   4   13.491   1     0    0     5.1849e-02  2.0572e-02   5.1849e-02  2.0572e-02     16.494  0.6818   3.253   6.854  3.90e+05 +1.674e-01
+   5   14.218   1     1    1     1.5755e-02  5.2890e-03   1.5755e-02  5.2890e-03      9.735  0.3301   1.816   3.471  4.86e+04 +2.832e-01
+   6   14.946   1     1    1     6.7848e-03  2.2817e-03   6.7848e-03  2.2817e-03      6.356  0.1940   1.261   2.247  1.11e+04 +3.009e-01
+   7   15.673   1     1    1     3.4953e-03  1.3911e-03   3.4953e-03  1.3911e-03      4.511  0.1261   1.141   2.010  4.57e+03 +3.076e-01
+   8   16.401   1     1    1     2.3843e-03  1.0479e-03   2.3843e-03  1.0479e-03      3.725  0.1016   1.076   1.892  2.80e+03 +3.024e-01
+   9   17.128   1     1    1     2.1134e-03  9.0540e-04   2.1134e-03  9.0540e-04      3.508  0.0944   1.073   1.819  2.08e+03 +3.055e-01
+
+[G5] E07_FAST           / BSPLINE_D7             evaluated=9 feasible=5
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1    9.772   0     0    0            NaN         NaN          NaN         NaN     92.577 116.4721 481.741 1079.773  1.04e+11 -6.248e-01
+   2   10.309   0     0    0            NaN         NaN          NaN         NaN    148.135 506.5522 707.103 1384.929  2.95e+10 -2.922e-01
+   3   10.846   0     0    0            NaN         NaN          NaN         NaN     82.491  3.7770  16.731  33.632  8.49e+07 +1.090e-01
+   4   11.383   0     0    0            NaN         NaN          NaN         NaN     40.592  1.4609   7.160  15.042  9.11e+06 +2.078e-01
+   5   11.920   1     1    1     1.0059e-01  4.3304e-02   1.0059e-01  4.3304e-02     24.796  0.9184   4.519   9.118  2.07e+06 +2.121e-01
+   6   12.457   1     1    1     3.7684e-02  1.5361e-02   3.7684e-02  1.5361e-02     15.100  0.5137   2.566   5.125  3.82e+05 +2.762e-01
+   7   12.994   1     1    1     2.0564e-02  8.0383e-03   2.0564e-02  8.0383e-03     11.139  0.3731   1.895   3.693  1.12e+05 +2.882e-01
+   8   13.531   1     1    1     1.4134e-02  5.4915e-03   1.4134e-02  5.4915e-03      9.229  0.3086   1.574   3.072  4.86e+04 +2.929e-01
+   9   14.068   1     1    1     1.1022e-02  4.4982e-03   1.1022e-02  4.4982e-03      8.148  0.2737   1.393   2.734  2.77e+04 +2.808e-01
+
+[G5] E08_SLOW           / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   14.203   0     0    0            NaN         NaN          NaN         NaN     92.409 57.5162 356.239 500.652  3.59e+08 -4.665e-01
+   2   15.239   0     0    0            NaN         NaN          NaN         NaN     77.155  5.9640  32.853  50.513  4.61e+06 -4.328e-03
+   3   16.274   1     1    1     2.0488e-02  5.8021e-03   2.0488e-02  5.8021e-03     11.122  0.3337   2.267   3.577  1.32e+04 +9.672e-02
+   4   17.310   1     1    1     1.0544e-02  2.6311e-03   1.0544e-02  2.6311e-03      7.972  0.2047   1.362   2.008  2.77e+03 +1.983e-01
+   5   18.345   1     1    1     3.6118e-03  9.9176e-04   3.6118e-03  9.9176e-04      4.663  0.1095   0.798   1.077  3.62e+02 +2.700e-01
+   6   19.381   1     1    1     1.6280e-03  5.6726e-04   1.6280e-03  5.6726e-04      3.131  0.0669   0.536   0.659  8.56e+01 +2.812e-01
+   7   20.417   1     1    1     1.5151e-03  4.1523e-04   1.5151e-03  4.1523e-04      3.020  0.0605   0.517   0.594  4.13e+01 +2.862e-01
+   8   21.452   1     1    1     1.4878e-03  3.4694e-04   1.4878e-03  3.4694e-04      2.993  0.0584   0.512   0.574  3.26e+01 +2.863e-01
+   9   22.488   1     1    1     1.4952e-03  3.1077e-04   1.4952e-03  3.1077e-04      3.000  0.0591   0.513   0.581  3.15e+01 +2.820e-01
+
+[G5] E09_NEAR_SENSOR_EDGE / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.492   0     0    0            NaN         NaN          NaN         NaN     93.856 92.5927 375.397 841.292  1.54e+10 -5.407e-01
+   2   12.217   0     0    0            NaN         NaN          NaN         NaN     61.564  4.6796  15.232  38.130  3.21e+07 -1.603e-01
+   3   12.942   1     1    1     9.7942e-02  3.6114e-02   9.7942e-02  3.6114e-02     20.413  0.9363   4.635  10.047  1.06e+06 +3.462e-02
+   4   13.667   1     1    1     4.9775e-02  1.8957e-02   4.9775e-02  1.8957e-02     17.129  0.6214   2.950   6.070  3.02e+05 +1.339e-01
+   5   14.392   1     1    1     1.5867e-02  5.0945e-03   1.5867e-02  5.0945e-03      9.780  0.3268   1.671   3.203  3.68e+04 +2.606e-01
+   6   15.117   1     1    1     6.8090e-03  2.2263e-03   6.8090e-03  2.2263e-03      6.397  0.1978   1.093   1.943  7.12e+03 +2.881e-01
+   7   15.842   1     1    1     3.7535e-03  1.3697e-03   3.7535e-03  1.3697e-03      4.743  0.1362   0.812   1.340  2.13e+03 +3.008e-01
+   8   16.566   1     1    1     2.6928e-03  1.0532e-03   2.6928e-03  1.0532e-03      4.014  0.1071   0.689   1.069  9.22e+02 +2.914e-01
+   9   17.291   1     1    1     2.5140e-03  9.4242e-04   2.5140e-03  9.4242e-04      3.880  0.0982   0.669   0.980  5.21e+02 +2.816e-01
+
+[G5] E10_ASYMMETRIC     / BSPLINE_D7             evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.597   0     0    0            NaN         NaN          NaN         NaN     93.419 233.6701 1301.211 2921.355  1.51e+11 -5.228e-01
+   2   12.420   0     0    0            NaN         NaN          NaN         NaN     77.477  9.5355  47.482  97.037  8.48e+07 -1.256e-01
+   3   13.243   1     1    1     6.0214e-02  1.9395e-02   6.0214e-02  1.9395e-02     17.654  0.7324   4.038   8.035  3.53e+05 +1.662e-01
+   4   14.066   1     1    1     3.2531e-02  9.4124e-03   3.2531e-02  9.4124e-03     14.022  0.4669   2.476   4.632  7.96e+04 +1.537e-01
+   5   14.889   1     1    1     1.1673e-02  3.3777e-03   1.1673e-02  3.3777e-03      8.376  0.2546   1.455   2.525  1.17e+04 +2.858e-01
+   6   15.712   1     1    1     5.4456e-03  1.8448e-03   5.4456e-03  1.8448e-03      5.706  0.1606   0.991   1.601  2.92e+03 +3.304e-01
+   7   16.535   1     1    1     3.4167e-03  1.3430e-03   3.4167e-03  1.3430e-03      4.510  0.1174   0.795   1.238  1.19e+03 +3.495e-01
+   8   17.358   1     1    1     2.9377e-03  1.1809e-03   2.9377e-03  1.1809e-03      4.185  0.1090   0.765   1.164  6.85e+02 +3.557e-01
+   9   18.181   1     0    0     3.2627e-03  1.1846e-03   3.2627e-03  1.1846e-03      4.419  0.1035   0.849   1.115  4.82e+02 +3.507e-01
+
+[G5] E01                / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.442   0     0    0            NaN         NaN          NaN         NaN     77.499  7.9406  34.171  76.372  1.24e+08 -5.310e-01
+   2   12.167   0     0    0            NaN         NaN          NaN         NaN     75.681  5.1715  30.084  54.980  2.23e+07 -2.653e-02
+   3   12.892   1     1    1     9.0087e-02  3.7952e-02   9.0087e-02  3.7952e-02     22.149  0.8600   3.865   8.428  8.08e+05 +4.021e-03
+   4   13.617   1     1    1     2.6841e-02  9.7559e-03   2.6841e-02  9.7559e-03     12.732  0.4463   2.180   4.368  9.67e+04 +2.104e-01
+   5   14.342   1     1    1     1.0636e-02  3.6321e-03   1.0636e-02  3.6321e-03      8.000  0.2588   1.366   2.539  1.61e+04 +2.774e-01
+   6   15.067   1     1    1     5.2339e-03  1.9240e-03   5.2339e-03  1.9240e-03      5.602  0.1685   0.958   1.656  3.98e+03 +2.887e-01
+   7   15.792   1     1    1     3.2791e-03  1.3206e-03   3.2791e-03  1.3206e-03      4.428  0.1235   0.759   1.218  1.45e+03 +2.991e-01
+   8   16.516   1     1    1     2.6816e-03  1.0859e-03   2.6816e-03  1.0859e-03      4.004  0.1085   0.688   1.085  7.24e+02 +2.838e-01
+   9   17.241   1     1    1     2.8054e-03  1.0200e-03   2.8054e-03  1.0200e-03      4.100  0.1006   0.707   1.019  4.46e+02 +2.775e-01
+
+[G5] E02                / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.306   0     0    0            NaN         NaN          NaN         NaN    105.331  9.4533  39.313  85.327  1.43e+08 -5.516e-01
+   2   11.952   0     0    0            NaN         NaN          NaN         NaN     65.582  4.1702  19.501  41.270  2.30e+07 -1.018e-01
+   3   12.598   1     1    1     1.2297e-01  4.8083e-02   1.2297e-01  4.8083e-02     24.829  1.0270   4.397  10.054  1.33e+06 +7.532e-02
+   4   13.244   1     1    1     3.8354e-02  1.3196e-02   3.8354e-02  1.3196e-02     15.172  0.5492   2.613   5.375  1.87e+05 +2.558e-01
+   5   13.890   1     1    1     1.5819e-02  4.6421e-03   1.5819e-02  4.6421e-03      9.768  0.3254   1.671   3.191  3.17e+04 +3.096e-01
+   6   14.535   1     1    1     7.5973e-03  2.1807e-03   7.5973e-03  2.1807e-03      6.764  0.2091   1.156   2.053  6.91e+03 +3.100e-01
+   7   15.181   1     1    1     4.2085e-03  1.2991e-03   4.2085e-03  1.2991e-03      5.032  0.1450   0.860   1.425  1.97e+03 +3.100e-01
+   8   15.827   1     1    1     2.6883e-03  9.2082e-04   2.6883e-03  9.2082e-04      4.020  0.1083   0.688   1.065  7.34e+02 +3.087e-01
+   9   16.473   1     1    1     1.9954e-03  7.3930e-04   1.9954e-03  7.3930e-04      3.462  0.0869   0.593   0.855  3.51e+02 +3.061e-01
+
+[G5] E03_LARGER_OBS     / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   12.183   0     0    0            NaN         NaN          NaN         NaN     79.654  9.6329  37.257  74.910  6.18e+07 -6.091e-01
+   2   13.113   0     0    0            NaN         NaN          NaN         NaN     41.426  2.0637   8.449  19.834  3.50e+06 +2.518e-02
+   3   14.042   1     1    1     4.6986e-02  1.6802e-02   4.6986e-02  1.6802e-02     16.870  0.5685   2.913   5.552  1.32e+05 +6.053e-02
+   4   14.972   1     1    1     1.4324e-02  4.9107e-03   1.4324e-02  4.9107e-03      9.281  0.2845   1.587   2.785  1.45e+04 +2.252e-01
+   5   15.902   1     1    1     5.9015e-03  2.3437e-03   5.9015e-03  2.3437e-03      5.939  0.1679   1.015   1.647  2.76e+03 +2.814e-01
+   6   16.832   1     1    1     4.0589e-03  1.6031e-03   4.0589e-03  1.6031e-03      4.940  0.1332   0.847   1.330  9.15e+02 +2.767e-01
+   7   17.762   1     1    1     3.3721e-03  1.3829e-03   3.3721e-03  1.3829e-03      4.502  0.1184   0.772   1.196  4.54e+02 +2.552e-01
+   8   18.692   1     0    0     4.1268e-03  1.4044e-03   4.1268e-03  1.4044e-03      4.976  0.1123   0.858   1.136  2.85e+02 +2.399e-01
+   9   19.622   1     0    0     6.0800e-03  1.6198e-03   6.0800e-03  1.6198e-03      6.047  0.1169   1.043   1.181  2.03e+02 +2.244e-01
+
+[G5] E04_CLOSE_PAIR     / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   10.392   0     0    0            NaN         NaN          NaN         NaN     63.289  6.0192  18.285  55.469  2.11e+08 -5.219e-01
+   2   11.117   0     0    0            NaN         NaN          NaN         NaN     63.485  3.2287  10.722  28.537  3.55e+07 +3.966e-03
+   3   11.842   1     1    1     9.3189e-02  4.1104e-02   9.3189e-02  4.1104e-02     19.489  0.9080   4.292   9.305  8.17e+05 +3.155e-01
+   4   12.567   1     0    0     1.3918e-01  5.4930e-02   1.3918e-01  5.4930e-02     29.222  1.0106   5.657  10.481  3.84e+05 +1.640e-03
+   5   13.292   1     1    1     7.6273e-02  3.2635e-02   7.6273e-02  3.2635e-02     21.474  0.7253   4.129   7.340  1.14e+05 +5.773e-01
+   6   14.017   1     1    1     6.8964e-02  2.9312e-02   6.8964e-02  2.9312e-02     20.411  0.6824   3.947   6.905  8.92e+04 +4.240e-01
+   7   14.742   1     1    1     4.1642e-02  1.9502e-02   4.1642e-02  1.9502e-02     15.849  0.5393   2.923   5.373  4.80e+04 +1.402e-01
+   8   15.466   1     1    1     3.8201e-02  2.0432e-02   3.8201e-02  2.0432e-02     15.178  0.5150   2.724   5.199  4.02e+04 +1.482e-01
+   9   16.191   1     0    0     6.9686e-02  2.2176e-02   6.9686e-02  2.2176e-02     20.571  0.5555   3.521   5.476  2.68e+04 +2.023e-02
+
+[G5] E05_LATERAL        / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.242   0     0    0            NaN         NaN          NaN         NaN     94.941  7.9644  28.835  64.616  8.46e+07 -1.580e-01
+   2   11.967   0     0    0            NaN         NaN          NaN         NaN     35.430  1.4786   6.684  16.499  3.47e+06 +8.088e-03
+   3   12.692   1     1    1     9.1863e-02  3.6871e-02   9.1863e-02  3.6871e-02     22.921  0.8679   4.038   8.493  6.09e+05 +4.898e-02
+   4   13.417   1     1    1     3.6619e-02  1.3994e-02   3.6619e-02  1.3994e-02     14.856  0.5124   2.559   5.018  1.08e+05 +2.017e-01
+   5   14.142   1     1    1     1.6779e-02  6.7007e-03   1.6779e-02  6.7007e-03     10.008  0.3205   1.713   3.144  2.41e+04 +2.657e-01
+   6   14.867   1     1    1     1.0950e-02  4.1299e-03   1.0950e-02  4.1299e-03      8.097  0.2486   1.415   2.449  7.47e+03 +2.831e-01
+   7   15.592   1     1    1     9.0882e-03  3.1001e-03   9.0882e-03  3.1001e-03      7.385  0.2203   1.288   2.169  3.22e+03 +2.859e-01
+   8   16.316   1     1    1     8.0231e-03  2.6836e-03   8.0231e-03  2.6836e-03      6.942  0.2041   1.209   2.008  1.79e+03 +2.778e-01
+   9   17.041   1     1    1     7.5047e-03  2.5909e-03   7.5047e-03  2.5909e-03      6.717  0.1937   1.155   1.905  1.18e+03 +2.615e-01
+
+[G5] E06_VERTICAL       / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.308   0     0    0            NaN         NaN          NaN         NaN     90.014 12.2251  44.777 109.682  4.40e+08 -3.844e-01
+   2   12.036   0     0    0            NaN         NaN          NaN         NaN     48.363  2.5198   8.617  23.998  1.32e+07 +3.879e-02
+   3   12.763   1     1    1     1.0610e-01  4.1161e-02   1.0610e-01  4.1161e-02     20.833  0.9756   4.260   9.734  1.01e+06 +5.213e-02
+   4   13.491   1     1    1     2.6004e-02  9.9076e-03   2.6004e-02  9.9076e-03     12.526  0.4509   2.380   4.731  1.19e+05 +2.460e-01
+   5   14.218   1     1    1     1.0643e-02  3.5479e-03   1.0643e-02  3.5479e-03      7.986  0.2570   1.471   2.711  2.08e+04 +2.985e-01
+   6   14.946   1     1    1     5.0851e-03  1.8329e-03   5.0851e-03  1.8329e-03      5.482  0.1606   1.214   2.131  6.13e+03 +3.100e-01
+   7   15.673   1     1    1     2.8324e-03  1.2222e-03   2.8324e-03  1.2222e-03      4.035  0.1094   1.125   1.955  2.93e+03 +3.100e-01
+   8   16.401   1     1    1     2.2603e-03  9.6386e-04   2.2603e-03  9.6386e-04      3.645  0.0987   1.070   1.856  1.89e+03 +3.085e-01
+   9   17.128   1     1    1     2.0343e-03  8.5562e-04   2.0343e-03  8.5562e-04      3.462  0.0927   1.063   1.791  1.41e+03 +3.001e-01
+
+[G5] E07_FAST           / POLY_D13_MIN7          evaluated=9 feasible=6
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1    9.772   0     0    0            NaN         NaN          NaN         NaN     82.641 11.1018  54.385 110.776  1.37e+09 -6.579e-01
+   2   10.309   0     0    0            NaN         NaN          NaN         NaN     92.468  5.1026  19.001  40.085  1.29e+08 -2.351e-01
+   3   10.846   0     0    0            NaN         NaN          NaN         NaN     53.948  2.5825  11.789  23.748  2.91e+07 +1.235e-01
+   4   11.383   1     1    1     1.6113e-01  7.2098e-02   1.6113e-01  7.2098e-02     31.015  1.1856   6.021  11.755  4.06e+06 +1.502e-01
+   5   11.920   1     1    1     5.6791e-02  2.4324e-02   5.6791e-02  2.4324e-02     18.565  0.6426   3.246   6.402  6.81e+05 +2.562e-01
+   6   12.457   1     1    1     2.8318e-02  1.1437e-02   2.8318e-02  1.1437e-02     13.080  0.4286   2.222   4.266  1.68e+05 +2.831e-01
+   7   12.994   1     1    1     1.8192e-02  7.0761e-03   1.8192e-02  7.0761e-03     10.475  0.3421   1.784   3.393  6.11e+04 +2.918e-01
+   8   13.531   1     1    1     1.3639e-02  5.3195e-03   1.3639e-02  5.3195e-03      9.067  0.2960   1.547   2.949  3.04e+04 +2.858e-01
+   9   14.068   1     1    1     1.1174e-02  4.6070e-03   1.1174e-02  4.6070e-03      8.205  0.2679   1.403   2.677  1.88e+04 +2.795e-01
+
+[G5] E08_SLOW           / POLY_D13_MIN7          evaluated=9 feasible=8
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   14.203   0     0    0            NaN         NaN          NaN         NaN     70.026  3.6326  21.688  37.914  5.05e+06 -4.394e-01
+   2   15.239   1     1    1     3.2627e-01  1.0113e-01   3.2627e-01  1.0113e-01     45.465  1.4179   9.229  14.849  3.81e+05 +1.943e-02
+   3   16.274   1     1    1     2.0993e-02  5.6153e-03   2.0993e-02  5.6153e-03     11.258  0.3050   1.926   2.986  9.71e+03 +9.088e-02
+   4   17.310   1     1    1     6.7112e-03  1.7036e-03   6.7112e-03  1.7036e-03      6.358  0.1579   1.087   1.550  1.11e+03 +2.345e-01
+   5   18.345   1     1    1     2.6398e-03  7.6580e-04   2.6398e-03  7.6580e-04      3.985  0.0912   0.682   0.897  1.82e+02 +2.784e-01
+   6   19.381   1     1    1     1.2978e-03  4.7119e-04   1.2978e-03  4.7119e-04      2.795  0.0587   0.479   0.579  4.90e+01 +2.831e-01
+   7   20.417   1     1    1     1.1694e-03  3.5339e-04   1.1694e-03  3.5339e-04      2.653  0.0520   0.454   0.512  2.25e+01 +2.883e-01
+   8   21.452   1     1    1     1.1037e-03  2.9835e-04   1.1037e-03  2.9835e-04      2.577  0.0490   0.441   0.483  1.52e+01 +2.905e-01
+   9   22.488   1     1    1     1.0645e-03  2.7147e-04   1.0645e-03  2.7147e-04      2.531  0.0472   0.433   0.465  1.25e+01 +2.838e-01
+
+[G5] E09_NEAR_SENSOR_EDGE / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.492   0     0    0            NaN         NaN          NaN         NaN     77.606  7.9216  34.379  76.284  1.19e+08 -5.329e-01
+   2   12.217   0     0    0            NaN         NaN          NaN         NaN     75.677  5.1474  30.075  54.675  2.14e+07 -2.919e-02
+   3   12.942   1     1    1     9.0285e-02  3.7989e-02   9.0285e-02  3.7989e-02     22.236  0.8652   3.881   8.478  7.87e+05 +1.403e-03
+   4   13.667   1     1    1     2.6998e-02  9.6408e-03   2.6998e-02  9.6408e-03     12.770  0.4454   2.186   4.359  9.35e+04 +2.120e-01
+   5   14.392   1     1    1     1.0654e-02  3.5321e-03   1.0654e-02  3.5321e-03      8.008  0.2576   1.368   2.527  1.53e+04 +2.789e-01
+   6   15.117   1     1    1     5.1904e-03  1.8410e-03   5.1904e-03  1.8410e-03      5.581  0.1669   0.954   1.640  3.69e+03 +2.911e-01
+   7   15.842   1     1    1     3.1832e-03  1.2447e-03   3.1832e-03  1.2447e-03      4.365  0.1211   0.748   1.193  1.30e+03 +3.020e-01
+   8   16.566   1     1    1     2.5184e-03  1.0087e-03   2.5184e-03  1.0087e-03      3.882  0.1033   0.667   1.033  6.32e+02 +2.866e-01
+   9   17.291   1     1    1     2.5416e-03  9.3344e-04   2.5416e-03  9.3344e-04      3.903  0.0952   0.673   0.962  3.82e+02 +2.806e-01
+
+[G5] E10_ASYMMETRIC     / POLY_D13_MIN7          evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.597   0     0    0            NaN         NaN          NaN         NaN     77.132  9.1611  36.037  92.284  2.73e+08 -5.636e-01
+   2   12.420   0     0    0            NaN         NaN          NaN         NaN     67.608  4.7968  26.400  50.641  1.98e+07 -2.415e-03
+   3   13.243   1     1    1     5.9876e-02  1.9795e-02   5.9876e-02  1.9795e-02     19.067  0.6757   3.438   6.720  2.47e+05 +2.813e-02
+   4   14.066   1     1    1     2.0768e-02  6.0729e-03   2.0768e-02  6.0729e-03     11.188  0.3575   1.956   3.543  3.14e+04 +2.164e-01
+   5   14.889   1     1    1     8.5520e-03  2.6845e-03   8.5520e-03  2.6845e-03      7.161  0.2109   1.242   2.094  5.93e+03 +3.094e-01
+   6   15.712   1     1    1     4.4762e-03  1.6442e-03   4.4762e-03  1.6442e-03      5.167  0.1413   0.899   1.412  1.80e+03 +3.104e-01
+   7   16.535   1     1    1     3.1336e-03  1.2736e-03   3.1336e-03  1.2736e-03      4.319  0.1148   0.766   1.218  8.21e+02 +3.104e-01
+   8   17.358   1     1    1     2.9639e-03  1.1644e-03   2.9639e-03  1.1644e-03      4.206  0.1076   0.774   1.153  4.94e+02 +3.104e-01
+   9   18.181   1     0    0     3.5158e-03  1.2060e-03   3.5158e-03  1.2060e-03      4.591  0.1032   0.881   1.112  3.49e+02 +3.104e-01
+
+[G5] E01                / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.442   0     0    0            NaN         NaN          NaN         NaN     77.499  7.9406  34.171  76.372  1.24e+08 -5.310e-01
+   2   12.167   0     0    0            NaN         NaN          NaN         NaN     75.681  5.1715  30.084  54.980  2.23e+07 -2.653e-02
+   3   12.892   1     1    1     9.0087e-02  3.7952e-02   9.0087e-02  3.7952e-02     22.149  0.8600   3.865   8.428  8.08e+05 +4.021e-03
+   4   13.617   1     1    1     2.6841e-02  9.7559e-03   2.6841e-02  9.7559e-03     12.732  0.4463   2.180   4.368  9.67e+04 +2.104e-01
+   5   14.342   1     1    1     1.0636e-02  3.6321e-03   1.0636e-02  3.6321e-03      8.000  0.2588   1.366   2.539  1.61e+04 +2.774e-01
+   6   15.067   1     1    1     5.2339e-03  1.9240e-03   5.2339e-03  1.9240e-03      5.602  0.1685   0.958   1.656  3.98e+03 +2.887e-01
+   7   15.792   1     1    1     3.2791e-03  1.3206e-03   3.2791e-03  1.3206e-03      4.428  0.1235   0.759   1.218  1.45e+03 +2.991e-01
+   8   16.516   1     1    1     2.6816e-03  1.0859e-03   2.6816e-03  1.0859e-03      4.004  0.1085   0.688   1.085  7.24e+02 +2.838e-01
+   9   17.241   1     1    1     2.8054e-03  1.0200e-03   2.8054e-03  1.0200e-03      4.100  0.1006   0.707   1.019  4.46e+02 +2.775e-01
+
+[G5] E02                / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.306   0     0    0            NaN         NaN          NaN         NaN    105.331  9.4533  39.313  85.327  1.43e+08 -5.516e-01
+   2   11.952   0     0    0            NaN         NaN          NaN         NaN     65.582  4.1702  19.501  41.270  2.30e+07 -1.018e-01
+   3   12.598   1     1    1     1.2297e-01  4.8083e-02   1.2297e-01  4.8083e-02     24.829  1.0270   4.397  10.054  1.33e+06 +7.532e-02
+   4   13.244   1     1    1     3.8354e-02  1.3196e-02   3.8354e-02  1.3196e-02     15.172  0.5492   2.613   5.375  1.87e+05 +2.558e-01
+   5   13.890   1     1    1     1.5819e-02  4.6421e-03   1.5819e-02  4.6421e-03      9.768  0.3254   1.671   3.191  3.17e+04 +3.096e-01
+   6   14.535   1     1    1     7.5973e-03  2.1807e-03   7.5973e-03  2.1807e-03      6.764  0.2091   1.156   2.053  6.91e+03 +3.100e-01
+   7   15.181   1     1    1     4.2085e-03  1.2991e-03   4.2085e-03  1.2991e-03      5.032  0.1450   0.860   1.425  1.97e+03 +3.100e-01
+   8   15.827   1     1    1     2.6883e-03  9.2082e-04   2.6883e-03  9.2082e-04      4.020  0.1083   0.688   1.065  7.34e+02 +3.087e-01
+   9   16.473   1     1    1     1.9954e-03  7.3930e-04   1.9954e-03  7.3930e-04      3.462  0.0869   0.593   0.855  3.51e+02 +3.061e-01
+
+[G5] E03_LARGER_OBS     / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   12.183   0     0    0            NaN         NaN          NaN         NaN     79.654  9.6329  37.257  74.910  6.18e+07 -6.091e-01
+   2   13.113   0     0    0            NaN         NaN          NaN         NaN     41.426  2.0637   8.449  19.834  3.50e+06 +2.518e-02
+   3   14.042   1     1    1     4.6986e-02  1.6802e-02   4.6986e-02  1.6802e-02     16.870  0.5685   2.913   5.552  1.32e+05 +6.053e-02
+   4   14.972   1     1    1     1.4324e-02  4.9107e-03   1.4324e-02  4.9107e-03      9.281  0.2845   1.587   2.785  1.45e+04 +2.252e-01
+   5   15.902   1     1    1     5.9015e-03  2.3437e-03   5.9015e-03  2.3437e-03      5.939  0.1679   1.015   1.647  2.76e+03 +2.814e-01
+   6   16.832   1     1    1     4.0589e-03  1.6031e-03   4.0589e-03  1.6031e-03      4.940  0.1332   0.847   1.330  9.15e+02 +2.767e-01
+   7   17.762   1     1    1     3.3721e-03  1.3829e-03   3.3721e-03  1.3829e-03      4.502  0.1184   0.772   1.196  4.54e+02 +2.552e-01
+   8   18.692   1     0    0     4.1268e-03  1.4044e-03   4.1268e-03  1.4044e-03      4.976  0.1123   0.858   1.136  2.85e+02 +2.399e-01
+   9   19.622   1     0    0     6.0800e-03  1.6198e-03   6.0800e-03  1.6198e-03      6.047  0.1169   1.043   1.181  2.03e+02 +2.244e-01
+
+[G5] E04_CLOSE_PAIR     / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   10.392   0     0    0            NaN         NaN          NaN         NaN     63.289  6.0192  18.285  55.469  2.11e+08 -5.219e-01
+   2   11.117   0     0    0            NaN         NaN          NaN         NaN     63.485  3.2287  10.722  28.537  3.55e+07 +3.966e-03
+   3   11.842   1     1    1     9.3189e-02  4.1104e-02   9.3189e-02  4.1104e-02     19.489  0.9080   4.292   9.305  8.17e+05 +3.155e-01
+   4   12.567   1     0    0     1.3918e-01  5.4930e-02   1.3918e-01  5.4930e-02     29.222  1.0106   5.657  10.481  3.84e+05 +1.641e-03
+   5   13.292   1     1    1     7.6273e-02  3.2635e-02   7.6273e-02  3.2635e-02     21.474  0.7253   4.129   7.340  1.14e+05 +5.773e-01
+   6   14.017   1     1    1     6.8964e-02  2.9312e-02   6.8964e-02  2.9312e-02     20.411  0.6824   3.947   6.905  8.92e+04 +4.240e-01
+   7   14.742   1     1    1     4.1642e-02  1.9502e-02   4.1642e-02  1.9502e-02     15.849  0.5393   2.923   5.373  4.80e+04 +1.402e-01
+   8   15.466   1     1    1     3.8201e-02  2.0432e-02   3.8201e-02  2.0432e-02     15.178  0.5150   2.724   5.199  4.02e+04 +1.482e-01
+   9   16.191   1     0    0     6.9686e-02  2.2176e-02   6.9686e-02  2.2176e-02     20.571  0.5555   3.521   5.476  2.68e+04 +2.023e-02
+
+[G5] E05_LATERAL        / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.242   0     0    0            NaN         NaN          NaN         NaN     94.941  7.9644  28.835  64.616  8.46e+07 -1.580e-01
+   2   11.967   0     0    0            NaN         NaN          NaN         NaN     35.430  1.4786   6.684  16.499  3.47e+06 +8.088e-03
+   3   12.692   1     1    1     9.1863e-02  3.6871e-02   9.1863e-02  3.6871e-02     22.921  0.8679   4.038   8.493  6.09e+05 +4.898e-02
+   4   13.417   1     1    1     3.6619e-02  1.3994e-02   3.6619e-02  1.3994e-02     14.856  0.5124   2.559   5.018  1.08e+05 +2.017e-01
+   5   14.142   1     1    1     1.6779e-02  6.7007e-03   1.6779e-02  6.7007e-03     10.008  0.3205   1.713   3.144  2.41e+04 +2.657e-01
+   6   14.867   1     1    1     1.0950e-02  4.1299e-03   1.0950e-02  4.1299e-03      8.097  0.2486   1.415   2.449  7.47e+03 +2.831e-01
+   7   15.592   1     1    1     9.0882e-03  3.1001e-03   9.0882e-03  3.1001e-03      7.385  0.2203   1.288   2.169  3.22e+03 +2.859e-01
+   8   16.316   1     1    1     8.0231e-03  2.6836e-03   8.0231e-03  2.6836e-03      6.942  0.2041   1.209   2.008  1.79e+03 +2.778e-01
+   9   17.041   1     1    1     7.5047e-03  2.5909e-03   7.5047e-03  2.5909e-03      6.717  0.1937   1.155   1.905  1.18e+03 +2.615e-01
+
+[G5] E06_VERTICAL       / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.308   0     0    0            NaN         NaN          NaN         NaN     90.014 12.2251  44.777 109.682  4.40e+08 -3.844e-01
+   2   12.036   0     0    0            NaN         NaN          NaN         NaN     48.363  2.5198   8.617  23.998  1.32e+07 +3.879e-02
+   3   12.763   1     1    1     1.0610e-01  4.1161e-02   1.0610e-01  4.1161e-02     20.833  0.9756   4.260   9.734  1.01e+06 +5.213e-02
+   4   13.491   1     1    1     2.6004e-02  9.9076e-03   2.6004e-02  9.9076e-03     12.526  0.4509   2.380   4.731  1.19e+05 +2.460e-01
+   5   14.218   1     1    1     1.0643e-02  3.5479e-03   1.0643e-02  3.5479e-03      7.986  0.2570   1.471   2.711  2.08e+04 +2.985e-01
+   6   14.946   1     1    1     5.0851e-03  1.8329e-03   5.0851e-03  1.8329e-03      5.482  0.1606   1.214   2.131  6.13e+03 +3.100e-01
+   7   15.673   1     1    1     2.8324e-03  1.2222e-03   2.8324e-03  1.2222e-03      4.035  0.1094   1.125   1.955  2.93e+03 +3.100e-01
+   8   16.401   1     1    1     2.2603e-03  9.6386e-04   2.2603e-03  9.6386e-04      3.645  0.0987   1.070   1.856  1.89e+03 +3.085e-01
+   9   17.128   1     1    1     2.0343e-03  8.5562e-04   2.0343e-03  8.5562e-04      3.462  0.0927   1.063   1.791  1.41e+03 +3.001e-01
+
+[G5] E07_FAST           / BEZIER_D13_MIN7        evaluated=9 feasible=6
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1    9.772   0     0    0            NaN         NaN          NaN         NaN     82.641 11.1018  54.385 110.776  1.37e+09 -6.579e-01
+   2   10.309   0     0    0            NaN         NaN          NaN         NaN     92.468  5.1026  19.001  40.085  1.29e+08 -2.351e-01
+   3   10.846   0     0    0            NaN         NaN          NaN         NaN     53.948  2.5825  11.789  23.748  2.91e+07 +1.235e-01
+   4   11.383   1     1    1     1.6113e-01  7.2098e-02   1.6113e-01  7.2098e-02     31.015  1.1856   6.021  11.755  4.06e+06 +1.502e-01
+   5   11.920   1     1    1     5.6791e-02  2.4324e-02   5.6791e-02  2.4324e-02     18.565  0.6426   3.246   6.402  6.81e+05 +2.562e-01
+   6   12.457   1     1    1     2.8318e-02  1.1437e-02   2.8318e-02  1.1437e-02     13.080  0.4286   2.222   4.266  1.68e+05 +2.831e-01
+   7   12.994   1     1    1     1.8192e-02  7.0761e-03   1.8192e-02  7.0761e-03     10.475  0.3421   1.784   3.393  6.11e+04 +2.918e-01
+   8   13.531   1     1    1     1.3639e-02  5.3195e-03   1.3639e-02  5.3195e-03      9.067  0.2960   1.547   2.949  3.04e+04 +2.858e-01
+   9   14.068   1     1    1     1.1174e-02  4.6070e-03   1.1174e-02  4.6070e-03      8.205  0.2679   1.403   2.677  1.88e+04 +2.795e-01
+
+[G5] E08_SLOW           / BEZIER_D13_MIN7        evaluated=9 feasible=8
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   14.203   0     0    0            NaN         NaN          NaN         NaN     70.026  3.6326  21.688  37.914  5.05e+06 -4.394e-01
+   2   15.239   1     1    1     3.2627e-01  1.0113e-01   3.2627e-01  1.0113e-01     45.465  1.4179   9.229  14.849  3.81e+05 +1.943e-02
+   3   16.274   1     1    1     2.0993e-02  5.6153e-03   2.0993e-02  5.6153e-03     11.258  0.3050   1.926   2.986  9.71e+03 +9.088e-02
+   4   17.310   1     1    1     6.7112e-03  1.7036e-03   6.7112e-03  1.7036e-03      6.358  0.1579   1.087   1.550  1.11e+03 +2.345e-01
+   5   18.345   1     1    1     2.6398e-03  7.6580e-04   2.6398e-03  7.6580e-04      3.985  0.0912   0.682   0.897  1.82e+02 +2.784e-01
+   6   19.381   1     1    1     1.2978e-03  4.7119e-04   1.2978e-03  4.7119e-04      2.795  0.0587   0.479   0.579  4.90e+01 +2.831e-01
+   7   20.417   1     1    1     1.1694e-03  3.5339e-04   1.1694e-03  3.5339e-04      2.653  0.0520   0.454   0.512  2.25e+01 +2.883e-01
+   8   21.452   1     1    1     1.1037e-03  2.9835e-04   1.1037e-03  2.9835e-04      2.577  0.0490   0.441   0.483  1.52e+01 +2.905e-01
+   9   22.488   1     1    1     1.0645e-03  2.7147e-04   1.0645e-03  2.7147e-04      2.531  0.0472   0.433   0.465  1.25e+01 +2.838e-01
+
+[G5] E09_NEAR_SENSOR_EDGE / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.492   0     0    0            NaN         NaN          NaN         NaN     77.606  7.9216  34.379  76.284  1.19e+08 -5.329e-01
+   2   12.217   0     0    0            NaN         NaN          NaN         NaN     75.677  5.1474  30.075  54.675  2.14e+07 -2.919e-02
+   3   12.942   1     1    1     9.0285e-02  3.7989e-02   9.0285e-02  3.7989e-02     22.236  0.8652   3.881   8.478  7.87e+05 +1.403e-03
+   4   13.667   1     1    1     2.6998e-02  9.6408e-03   2.6998e-02  9.6408e-03     12.770  0.4454   2.186   4.359  9.35e+04 +2.120e-01
+   5   14.392   1     1    1     1.0654e-02  3.5321e-03   1.0654e-02  3.5321e-03      8.008  0.2576   1.368   2.527  1.53e+04 +2.789e-01
+   6   15.117   1     1    1     5.1904e-03  1.8410e-03   5.1904e-03  1.8410e-03      5.581  0.1669   0.954   1.640  3.69e+03 +2.911e-01
+   7   15.842   1     1    1     3.1832e-03  1.2447e-03   3.1832e-03  1.2447e-03      4.365  0.1211   0.748   1.193  1.30e+03 +3.020e-01
+   8   16.566   1     1    1     2.5184e-03  1.0087e-03   2.5184e-03  1.0087e-03      3.882  0.1033   0.667   1.033  6.32e+02 +2.866e-01
+   9   17.291   1     1    1     2.5416e-03  9.3344e-04   2.5416e-03  9.3344e-04      3.903  0.0952   0.673   0.962  3.82e+02 +2.806e-01
+
+[G5] E10_ASYMMETRIC     / BEZIER_D13_MIN7        evaluated=9 feasible=7
+ idx      T     feas  Pabs Pdev   EabsPeak[J] EabsMean[J]  EdevPeak[J] EdevMean[J]  swing[deg] cableW   aMax    jMax      J7       minG
+   1   11.597   0     0    0            NaN         NaN          NaN         NaN     77.132  9.1611  36.037  92.284  2.73e+08 -5.636e-01
+   2   12.420   0     0    0            NaN         NaN          NaN         NaN     67.608  4.7968  26.400  50.641  1.98e+07 -2.415e-03
+   3   13.243   1     1    1     5.9876e-02  1.9795e-02   5.9876e-02  1.9795e-02     19.067  0.6757   3.438   6.720  2.47e+05 +2.813e-02
+   4   14.066   1     1    1     2.0768e-02  6.0729e-03   2.0768e-02  6.0729e-03     11.188  0.3575   1.956   3.543  3.14e+04 +2.164e-01
+   5   14.889   1     1    1     8.5520e-03  2.6845e-03   8.5520e-03  2.6845e-03      7.161  0.2109   1.242   2.094  5.93e+03 +3.094e-01
+   6   15.712   1     1    1     4.4762e-03  1.6442e-03   4.4762e-03  1.6442e-03      5.167  0.1413   0.899   1.412  1.80e+03 +3.104e-01
+   7   16.535   1     1    1     3.1336e-03  1.2736e-03   3.1336e-03  1.2736e-03      4.319  0.1148   0.766   1.218  8.21e+02 +3.104e-01
+   8   17.358   1     1    1     2.9639e-03  1.1644e-03   2.9639e-03  1.1644e-03      4.206  0.1076   0.774   1.153  4.94e+02 +3.104e-01
+   9   18.181   1     0    0     3.5158e-03  1.2060e-03   3.5158e-03  1.2060e-03      4.591  0.1032   0.881   1.112  3.49e+02 +3.104e-01
+
+G5 summary: valid case/method pairs=30/30
+G5 interpretation policy:
+ - Eabs is a pendulum-coordinate energy relative to vertical hanging; with a moving quadrotor pivot it is not the total conserved system energy.
+ - Edev measures excess cable-direction/rate deviation from the nominal reference and is explicitly labeled a surrogate.
+ - Current LINEAR nominal has pN=-e3 and omegaN=0, so Eabs and Edev should nearly coincide; future accelerating nominal references need not.
+ - G5 exposes Pareto sets only. It intentionally does not invent a final T-selection law.
+================================================================================================================================================
+
+
+========================================================================================================================
+[G1G5-FAST] COMPLETE
+Optimized copy: C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT__G1G5_FAST.m
+Original source was not overwritten.
+========================================================================================================================
+ans = 
+  フィールドをもつ <a href="matlab:helpPopup('struct')" style="font-weight:bold">struct</a>:
+
+          mode: 'STAGE_E_C6_F1_G1_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT'
+            c6: [1×1 struct]
+       dynamic: [1×1 struct]
+            g1: [1×1 struct]
+            g5: [1×1 struct]
+    validation: [1×1 struct]
+          phys: [1×1 struct]
+        policy: [1×1 struct]
+Generate_CBF_6Methods_Common_v2

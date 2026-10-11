@@ -1,0 +1,124 @@
+========================================================================================================================
+ STEP 3A DIAGNOSTIC: C01 CONSTRUCTIVE HARD-SAFE INTERIOR
+ variable rejoin | common improving direction | minimum required alpha | original hard post-check
+ timestamp=2026-10-07 04:52:29
+========================================================================================================================
+[FRONT] initialOutside=1 detectedAt=4.05 memory=1 trigger=1 t=13.700 TTC=5.000 known=1
+[GUIDE] pTrigger=[13.700000 0.000000 0.000000] xiRejoin=7.7196723048982792 limitingObs=1
+[GUIDE] phi=3.036685179453 n=[0.000000000000 0.994502255865 -0.104715152098] eDotN=+0.00000000000000000e+00
+[GUIDE] bypass=0.90386111293528337 pathLength=9.527394530769
+[ROUND-V3] d original=0.90386111293528326 final=0.90386111293528337 ULPsteps=1 delta=+1.11022302462515654e-16
+[ROUND-V3] xi original=7.7196723048982765 final=7.7196723048982792 ULPsteps=3 delta=+2.66453525910037570e-15
+[MULTIKERNEL-BYPASS] scalar=+1.11022302462515654e-16 matrix=+1.11022302462515654e-16 expanded=+1.11022302462515654e-16 pass=1
+[MULTIKERNEL-REJOIN] nominal=+2.85882428840977809e-15 payloadScalar=+6.00000000000022737e-02 payloadMatrix=+6.00000000000022737e-02 payloadExpanded=+6.00000000000022737e-02 pass=1
+[CERT] supportPass=1 minSupportSlack=+1.11022302462515654e-16
+[CERT] multiKernelPass=1
+[CERT] exactPass=1 minExactSlack=+0.00000000000000000e+00 worstSeg=2 worstObs=1
+[EQUALITY] xiWaypoints=[0 0 7.71967230489828 7.71967230489828] dXi=[0 7.71967230489828 0] eqTol=1.13686837721616030e-13
+[EQUALITY] transverseResidual=0.00000000000000000e+00 rejoinResidual=8.88178419700125232e-16
+[CERT] progressPass=1 rejoinPass=1 GUIDE_PASS=1
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=5
+[CELL 0] kept=4 rejected=1 rank(A)=3 guideMinSlack=+4.87611832349513463e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.87611832349513463e+00
+
+[CELL 1] candidatePlanes=5
+[CELL 1] kept=1 rejected=4 rank(A)=1 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=1 rejected=4 minKeptSlack=+1.11022302462515654e-16
+
+[CELL 2] candidatePlanes=5
+[CELL 2] kept=4 rejected=1 rank(A)=3 guideMinSlack=+1.10864061967390626e-02
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+1.10864061967390626e-02
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+4.87611832349513463e+00
+[CELL 1] nPlanes=1 rank=1 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+1.10864061967390626e-02
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[STEP2B] MULTI-PLANE EXACT-SUPPORT CORRIDOR
+[STEP2B] no artificial box | no b relaxation | unbounded allowed if free space is open
+
+[CELL 0] candidatePlanes=5
+[CELL 0] kept=4 rejected=1 rank(A)=3 guideMinSlack=+4.87611832349513463e+00
+[CELL 0] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 0 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+4.87611832349513463e+00
+
+[CELL 1] candidatePlanes=5
+[CELL 1] kept=1 rejected=4 rank(A)=1 guideMinSlack=+1.11022302462515654e-16
+[CELL 1] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 1 OBS 1] keptPlanes=1 rejected=4 minKeptSlack=+1.11022302462515654e-16
+
+[CELL 2] candidatePlanes=5
+[CELL 2] kept=4 rejected=1 rank(A)=3 guideMinSlack=+2.90664933408795179e-01
+[CELL 2] strictInterior=1 chebRadius=+Inf bounded=0
+[CELL 2 OBS 1] keptPlanes=4 rejected=1 minKeptSlack=+2.90664933408795179e-01
+
+[AUDIT] CELL GEOMETRY
+[CELL 0] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+4.87611832349513463e+00
+[CELL 1] nPlanes=1 rank=1 bounded=0 strict=1 minGuideSlack=+1.11022302462515654e-16
+[CELL 2] nPlanes=4 rank=3 bounded=0 strict=1 minGuideSlack=+2.90664933408795179e-01
+
+[AUDIT] CONSECUTIVE OVERLAPS
+[0->1] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+[1->2] strict=1 radius=+Inf bounded=0 sharedSlack=+1.11022302462515654e-16 sharedPass=1
+
+[STEP2B-RESULT] guideContainment=1 supportStructure=1 strictCell=1 strictOverlap=1 sharedWaypoint=1 PASS=1
+[STEP2B-RESULT] minGuideSlack=+1.11022302462515654e-16 minSharedSlack=+1.11022302462515654e-16
+[STEP2B-RESULT] boundedCells=0/3 boundedOverlaps=0/2
+
+[BASE SYSTEM]
+xiGeom=7.7196723048982792 xiUsed=8.019935820422095 additionalRunout=3.00263515523815805e-01
+terminalMinHardSlack=+3.55271367880050093e-15
+nEq=42 rankEq=42 nullity=24 nIneq=216
+eqResidual=3.55271367880050093e-15 nullResidual=1.23480002816748234e-17
+fixedRows=56 activeRows=160 fixedConflict=0 tauRow=2.45563569478690624e-11
+
+[ACTIVE FEASIBILITY CANDIDATE]
+exit=1 returned=1 message=制約を満たす最小値が見つかりました。
+
+目的関数が最適性の許容誤差値の範囲内の実行可能な方向
+において非減少であり、制約が制約の許容誤差値の範囲内で
+満たされているため、最適化は完了しました。
+
+<停止条件の詳細>
+
+最適化が完了しました: 相対的な双対実行可能性、5.726819e-19 が
+options.OptimalityTolerance = 1.000000e-09 未満、相補性指標、5.322472e-12 が 
+options.OptimalityTolerance 未満、相対的な最大制約違反、4.347461e-16 が
+options.ConstraintTolerance = 1.000000e-09 未満です。
+minReducedOriginalSlackAtCandidate=-1.06414876910321254e-12 worst span=8 cell=2 cp=7 plane=1
+
+[COMMON IMPROVING DIRECTION]
+exit=1 returned=1 message=制約を満たす最小値が見つかりました。
+
+目的関数が最適性の許容誤差値の範囲内の実行可能な方向
+において非減少であり、制約が制約の許容誤差値の範囲内で
+満たされているため、最適化は完了しました。
+
+<停止条件の詳細>
+
+最適化が完了しました: 相対的な双対実行可能性、4.440892e-16 が
+options.OptimalityTolerance = 1.000000e-09 未満、相補性指標、1.851183e-10 が 
+options.OptimalityTolerance 未満、相対的な最大制約違反、1.537760e-10 が
+options.ConstraintTolerance = 1.000000e-09 未満です。
+minOriginalDirectionalGain=4.54910670361422710e-05
+worstGain row span=1 cell=1 cp=8 plane=1
+
+[MINIMUM REQUIRED MOVE]
+negativeActiveRowsAtCandidate=2
+alphaRequired=2.23218497701402559e-12
+atAlphaRequired: eqResidual=3.55271367880050093e-15 minOriginal=-3.33066907387546962e-16 minBezier=-3.33066907387546962e-16

@@ -1,0 +1,11 @@
+ComponentID,Geometry,Formulation,PrimitiveChars,JzChars,JxChars,JxgZero
+S1.single,single_ellipsoid,support_plane,2990,NaN,NaN,0
+S2.sphere_generic,multi_sphere,support_plane,2657,NaN,NaN,0
+S3.uav,multi_ellipsoid,support_plane,2609,NaN,NaN,0
+S3.cable,multi_ellipsoid,support_plane,2969,NaN,NaN,0
+S3.load,multi_ellipsoid,support_plane,2573,NaN,NaN,0
+K1.single,single_ellipsoid,kkt_min_distance,2033,2362,5285,1
+K2.sphere_generic,multi_sphere,kkt_min_distance,884,952,698,1
+K3.uav,multi_ellipsoid,kkt_min_distance,788,847,506,1
+K3.cable,multi_ellipsoid,kkt_min_distance,1991,2299,5120,1
+K3.load,multi_ellipsoid,kkt_min_distance,716,778,272,1

@@ -1,0 +1,55 @@
+[14:14:49.598] ============================================================
+[14:14:49.604] CBF GENERATION START
+[14:14:49.607] MATLAB version: 26.1.0.3276743 (R2026a) Update 3
+[14:14:49.612] MAX_RELATIVE_DEGREE=6, simplifyEachStep=0
+[14:14:49.622] Models: single=1, multiSphere=1, multiEllipsoid=1
+[14:14:49.624] Log file: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf\CBF_generation_log_20261006_141449.txt
+[14:14:49.625] ============================================================
+[14:14:50.467] [MODEL] Calling FLxyDst ...
+[14:14:50.518] [MODEL] FLxyDst done in 0.043 s
+[14:14:50.519] [MODEL] Calling GLxyDst ...
+[14:14:50.553] [MODEL] GLxyDst done in 0.034 s
+[14:14:50.563] [MODEL] Built FLxyDst / GLxyDst. size(x)=[19 1], size(f)=[19 1], size(g)=[19 4]
+[14:14:50.565] [HLC-1] Building h1/dh1/alpha1/beta1 ...
+[14:14:50.689] [HLC-1] dh1 done at 0.123 s
+[14:14:50.743] [HLC-1] alpha1 done at 0.178 s
+[14:14:50.794] [HLC-1] beta1 done; total 0.229 s
+[14:14:50.804] [HLC-1] Building embedded FG, g1, f1 ...
+[14:14:50.817] [HLC-1] FG formed at 0.012 s
+[14:14:51.000] [HLC-1] g1 formed at 0.195 s
+[14:14:51.011] [HLC-1] f1 formed; total 0.206 s
+[14:14:51.015] [HLC] First layer rebuilt. size(beta1)=[1 4], size(H)=[4 4], size(f1)=[19 1], size(g1)=[19 3]
+[14:14:51.131] [HLC-2] Building x/y derivative chains ...
+[14:14:51.240] [HLC-2] x/y derivative order 1 done in 0.109 s
+[14:14:51.343] [HLC-2] x/y derivative order 2 done in 0.102 s
+[14:14:51.605] [HLC-2] x/y derivative order 3 done in 0.262 s
+[14:14:54.322] [HLC-2] x/y derivative order 4 done in 2.722 s
+[14:16:26.132] [HLC-2] x/y derivative order 5 done in 91.808 s
+[14:16:26.266] [HLC-2] Building yaw derivative order 1 ...
+[14:16:26.548] [HLC-2] yaw derivative order 1 done in 0.260 s
+[14:16:26.548] [HLC-2] Building alpha2 ...
+{処理は途中で終了しました <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/privUnaryOp', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m', 881)" style="font-weight:bold">sym/privUnaryOp</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m',881,0)">行 881</a>)
+
+
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/ctranspose', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\ctranspose.m', 6)" style="font-weight:bold"> ' </a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\ctranspose.m',6,0)">行 6</a>)
+B = privUnaryOp(A, 'symobj::ctranspose');
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED>@(func)arrayfun(@(xx)diff(func,xx),vars)''', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 735)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED>@(func)arrayfun(@(xx)diff(func,xx),vars)'</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',735,0)">行 735</a>)
+    pdiff_tmp = @(flist,vars) arrayfun(@(func) arrayfun(@(xx) diff(func,xx),vars)',flist,'UniformOutput',false);
+                                                                                 ^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED>@(flist,vars)arrayfun(@(func)arrayfun(@(xx)diff(func,xx),vars)'',flist,''UniformOutput'',false)', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 735)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED>@(flist,vars)arrayfun(@(func)arrayfun(@(xx)diff(func,xx),vars)',flist,'UniformOutput',false)</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',735,0)">行 735</a>)
+    pdiff_tmp = @(flist,vars) arrayfun(@(func) arrayfun(@(xx) diff(func,xx),vars)',flist,'UniformOutput',false);
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED>pdiff', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 736)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED>pdiff</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',736,0)">行 736</a>)
+    pd = cell2sym(pdiff_tmp(flist,vars));
+                  ^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED>LieD', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 741)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED>LieD</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',741,0)">行 741</a>)
+    dh = pdiff(h,x)*f;
+         ^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED>Dbar', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 729)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED>Dbar</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',729,0)">行 729</a>)
+    y = LieD(h,f,x) + diff(h,t);
+        ^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m', 200)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED.m',200,0)">行 200</a>)
+alpha2 = [Dbar(d5h2,f1,x,t); ...
+          ^^^^^^^^^^^^^^^^^
+} 

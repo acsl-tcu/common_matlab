@@ -1,0 +1,1015 @@
+[15:51:34.149] ============================================================
+[15:51:34.182] CBF GENERATION START (LOGGED v2: original-HLC simplify restored)
+[15:51:34.185] MATLAB version: 26.1.0.3276743 (R2026a) Update 3
+[15:51:34.194] MAX_RELATIVE_DEGREE=6, simplifyEachStep=0
+[15:51:34.196] Models: single=1, multiSphere=1, multiEllipsoid=1
+[15:51:34.197] Log file: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf\CBF_generation_log_20261006_155134.txt
+[15:51:34.197] ============================================================
+[15:51:35.028] [MODEL] Calling FLxyDst ...
+[15:51:35.071] [MODEL] FLxyDst done in 0.039 s
+[15:51:35.072] [MODEL] Calling GLxyDst ...
+[15:51:35.106] [MODEL] GLxyDst done in 0.034 s
+[15:51:35.111] [MODEL] Built FLxyDst / GLxyDst. size(x)=[19 1], size(f)=[19 1], size(g)=[19 4]
+[15:51:35.111] [HLC-1] Building h1/dh1/alpha1/beta1 ...
+[15:51:35.231] [HLC-1] dh1 done at 0.121 s
+[15:51:35.287] [HLC-1] alpha1 done at 0.176 s
+[15:51:35.337] [HLC-1] beta1 done; total 0.226 s
+[15:51:35.346] [HLC-1] Building embedded FG, g1, f1 ...
+[15:51:35.714] [HLC-1] FG simplify done at 0.345 s | exprChars=1428
+[15:51:35.909] [HLC-1] g1 simplify done at 0.560 s | exprChars=66
+[15:51:35.918] [HLC-1] f1 formed; total 0.572 s
+[15:51:35.918] [HLC] First layer rebuilt. size(beta1)=[1 4], size(H)=[4 4], size(f1)=[19 1], size(g1)=[19 3]
+[15:51:36.008] [HLC-2] Building x/y derivative chains ...
+[15:51:36.119] [HLC-2] x/y derivative order 1 done in 0.108 s | chars(x,y)=(22,22)
+[15:51:36.219] [HLC-2] x/y derivative order 2 done in 0.096 s | chars(x,y)=(86,86)
+[15:51:36.322] [HLC-2] x/y derivative order 3 done in 0.100 s | chars(x,y)=(270,270)
+[15:51:36.442] [HLC-2] x/y derivative order 4 done in 0.106 s | chars(x,y)=(2229,2229)
+[15:51:37.025] [HLC-2] x/y derivative order 5 done in 0.320 s | chars(x,y)=(37945,37945)
+[15:51:37.025] [HLC-2] Building yaw derivative order 1 ...
+[15:51:37.090] [HLC-2] yaw derivative order 1 done in 0.065 s
+[15:51:37.091] [HLC-2] Building alpha2 component-wise ...
+[15:51:37.091] [HLC-2] alpha2-x START
+[15:51:43.069] [HLC-2] alpha2-x done in 2.015 s | exprChars=937053
+[15:51:43.071] [HLC-2] alpha2-y START
+[15:51:49.064] [HLC-2] alpha2-y done in 2.170 s | exprChars=937053
+[15:51:49.064] [HLC-2] alpha2-yaw START
+[15:51:49.251] [HLC-2] alpha2-yaw done in 0.132 s | exprChars=17589
+[15:51:49.251] [HLC-2] Building beta2 component-wise ...
+[15:51:49.251] [HLC-2] beta2-x START
+[15:51:51.475] [HLC-2] beta2-x done in 2.099 s | exprChars=29792
+[15:51:51.475] [HLC-2] beta2-y START
+[15:51:53.728] [HLC-2] beta2-y done in 2.141 s | exprChars=29791
+[15:51:53.728] [HLC-2] beta2-yaw START
+[15:51:53.882] [HLC-2] beta2-yaw done in 0.134 s | exprChars=2322
+[15:51:53.883] [HLC] Second layer rebuilt. size(alpha2)=[3 1], size(beta2)=[3 3]
+[15:51:53.883] --- HLC STRUCTURE AUDIT START ---
+[15:51:53.884] [PASS] size(x)=[19 1]
+[15:51:53.885] [PASS] size(f)=[19 1]
+[15:51:53.885] [PASS] size(g)=[19 4]
+[15:51:53.885] [PASS] size(f1)=[19 1]
+[15:51:53.887] [PASS] size(g1)=[19 3]
+[15:51:53.887] [PASS] size(beta1)=[1 4]
+[15:51:53.887] [PASS] size(alpha2)=[3 1]
+[15:51:53.887] [PASS] size(beta2)=[3 3]
+[15:51:54.037] [PASS] beta1(1) is not symbolically zero.
+[15:51:54.038] [AUDIT] HLC h2 (load x) expected relative degree=6
+[15:51:54.126] [AUDIT] HLC h2 (load x): Lg of derivative order 0 -> zero=1 (0.088 s)
+[15:51:54.179] [AUDIT] HLC h2 (load x): Lg of derivative order 1 -> zero=1 (0.051 s)
+[15:51:54.225] [AUDIT] HLC h2 (load x): Lg of derivative order 2 -> zero=1 (0.046 s)
+[15:51:54.279] [AUDIT] HLC h2 (load x): Lg of derivative order 3 -> zero=1 (0.055 s)
+[15:51:54.433] [AUDIT] HLC h2 (load x): Lg of derivative order 4 -> zero=1 (0.154 s)
+[15:52:09.082] [AUDIT] HLC h2 (load x): Lg of derivative order 5 -> zero=0 (14.647 s)
+[15:52:09.084] [PASS] HLC h2 (load x) relative-degree structure matches expected 6.
+[15:52:09.084] [AUDIT] HLC h3 (load y) expected relative degree=6
+[15:52:09.207] [AUDIT] HLC h3 (load y): Lg of derivative order 0 -> zero=1 (0.123 s)
+[15:52:09.256] [AUDIT] HLC h3 (load y): Lg of derivative order 1 -> zero=1 (0.049 s)
+[15:52:09.304] [AUDIT] HLC h3 (load y): Lg of derivative order 2 -> zero=1 (0.047 s)
+[15:52:09.353] [AUDIT] HLC h3 (load y): Lg of derivative order 3 -> zero=1 (0.049 s)
+[15:52:09.543] [AUDIT] HLC h3 (load y): Lg of derivative order 4 -> zero=1 (0.190 s)
+[15:52:24.459] [AUDIT] HLC h3 (load y): Lg of derivative order 5 -> zero=0 (14.918 s)
+[15:52:24.459] [PASS] HLC h3 (load y) relative-degree structure matches expected 6.
+[15:52:24.459] [AUDIT] HLC h4 (yaw) expected relative degree=2
+[15:52:24.610] [AUDIT] HLC h4 (yaw): Lg of derivative order 0 -> zero=1 (0.148 s)
+[15:52:25.102] [AUDIT] HLC h4 (yaw): Lg of derivative order 1 -> zero=0 (0.505 s)
+[15:52:25.102] [PASS] HLC h4 (yaw) relative-degree structure matches expected 2.
+[15:52:25.102] [AUDIT] beta2 determinant is intentionally not simplified here (too expensive). Runtime conditioning should be logged separately.
+[15:52:25.102] --- HLC STRUCTURE AUDIT END ---
+[15:52:25.395] [GEOM] Building single-ellipsoid barrier h_single ...
+[15:52:51.954] [GEOM] h_single built in 26.572 s
+[15:52:51.970] [GEOM] Building generic-sphere barrier h_sphere ...
+[15:52:54.313] [GEOM] h_sphere built in 2.339 s
+[15:52:54.331] [GEOM] Building UAV-ellipsoid barrier h_uav ...
+{処理は途中で終了しました <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/privBinaryOp', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m', 871)" style="font-weight:bold">sym/privBinaryOp</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m',871,0)">行 871</a>)
+
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/mldivide', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m', 342)" style="font-weight:bold"> \ </a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m',342,0)">行 342</a>)
+            X = privBinaryOp(A, B, 'symobj::mldivide');
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED_v2>EllipsoidSeparationBarrier', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED_v2.m', 637)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED_v2>EllipsoidSeparationBarrier</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED_v2.m',637,0)">行 637</a>)
+    h = dc.'*(Ssum\dc) - 1;
+                  ^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('Generate_CBF_SuspendedLoad_3Models_LOGGED_v2', 'C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED_v2.m', 347)" style="font-weight:bold">Generate_CBF_SuspendedLoad_3Models_LOGGED_v2</a> (<a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\model\substance\Generate_CBF_SuspendedLoad_3Models_LOGGED_v2.m',347,0)">行 347</a>)
+h_uav = EllipsoidSeparationBarrier(pU,Suav,cObs,SObs,betaM);
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^} 
+{処理は途中で終了しました mupadengine/evalin2sym
+
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('digits', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\digits.m', 23)" style="font-weight:bold">digits</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\digits.m',23,0)">行 23</a>)
+        dsym = evalin2sym(symengine, d);
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/stringFromObj', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m', 1125)" style="font-weight:bold">sym/stringFromObj</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m',1125,0)">行 1125</a>)
+                oldDigits = digits(useDigits);
+                            ^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('sym/compactRepresentationForSingleLine', 'C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m', 1149)" style="font-weight:bold">sym/compactRepresentationForSingleLine</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\symbolic\symbolic\@sym\sym.m',1149,0)">行 1149</a>)
+                stringObj = stringFromObj(obj);
+                            ^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('matlab.display.internal.CompactDisplayProvider/compactRepresentation', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\lang\+matlab\+display\+internal\@CompactDisplayProvider\compactRepresentation.m', 21)" style="font-weight:bold">matlab.display.internal.CompactDisplayProvider/compactRepresentation</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\lang\+matlab\+display\+internal\@CompactDisplayProvider\compactRepresentation.m',21,0)">行 21</a>)
+        rep = compactRepresentationForSingleLine(obj, displayConfiguration, width);
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('internal.matlab.datatoolsservices.FormatDataUtils.getCompactDisplayForData', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\@FormatDataUtils\getCompactDisplayForData.m', 30)" style="font-weight:bold">internal.matlab.datatoolsservices.FormatDataUtils.getCompactDisplayForData</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\@FormatDataUtils\getCompactDisplayForData.m',30,0)">行 30</a>)
+    rep = compactRepresentation(currentVal, displayConfig, 10000, false);
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('internal.matlab.datatoolsservices.FormatDataUtils.formatDataBlockForMixedView', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\@FormatDataUtils\formatDataBlockForMixedView.m', 59)" style="font-weight:bold">internal.matlab.datatoolsservices.FormatDataUtils.formatDataBlockForMixedView</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\@FormatDataUtils\formatDataBlockForMixedView.m',59,0)">行 59</a>)
+                        [formattedVal, isDimsAndClassName] = internal.matlab.datatoolsservices.FormatDataUtils.getCompactDisplayForData(currentVal, displayConfig);
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('internal.matlab.datatoolsservices.WSBUtil.getEditValue', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m', 366)" style="font-weight:bold">internal.matlab.datatoolsservices.WSBUtil.getEditValue</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m',366,0)">行 366</a>)
+                [c, ~, m] = internal.matlab.datatoolsservices.FormatDataUtils.formatDataBlockForMixedView(1, 1, 1, 1, {var}, currentFormat);
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('internal.matlab.datatoolsservices.WSBUtil.getDisplayStruct', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m', 258)" style="font-weight:bold">internal.matlab.datatoolsservices.WSBUtil.getDisplayStruct</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m',258,0)">行 258</a>)
+                                [t(idx).Value, t(idx).IsSummary] = internal.matlab.datatoolsservices.WSBUtil.getEditValue(var, currentFormat);
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay', 'C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m', 56)" style="font-weight:bold">internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026a\toolbox\matlab\datatools\datatoolsservices\matlab\+internal\+matlab\+datatoolsservices\WSBUtil.m',56,0)">行 56</a>)
+                info = internal.matlab.datatoolsservices.WSBUtil.getDisplayStruct( ...
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^} 
+CURRENT_C6_G1_G5_RUNTIME_AUDIT
+
+========================================================================================================================
+ CURRENT C6 G1/G5 RUNTIME AUDIT -- PROFILER ONLY / NO ALGORITHM CHANGE
+ target: CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT
+ Measure TotalTime, NumCalls, MeanTimePerCall, and repeated-call hotspots.
+ This audit does NOT alter candidate sets, feasibility, or planner mathematics.
+========================================================================================================================
+[AUDIT-SOURCE] target path: C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m
+[AUDIT-WORKSPACE] base variables before run: 210
+[AUDIT-TIME] integrated Stage-E/F1/G1/G5 run started.
+
+========================================================================================================================
+ STAGE-E + F1 ONE-FILE -- THREE NATIVE C6 REPRESENTATIONS
+ methods: BSPLINE_D7, POLY_D13_MIN7, BEZIER_D13_MIN7
+ C6 objective: exact physical integral ||p^(7)||^2 in square-root form
+ geometry: oriented ellipsoid support | cable length L=2 m
+ v/a/j: MEASURE ONLY; no acceptance limits
+ yaw: nominal reference PASSTHROUGH; avoidance yaw modification = OFF
+========================================================================================================================
+
+########################################################################################################################
+ METHOD: BSPLINE_D7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.986853e-01 [L/U/C]=[+2.986853e-01 +1.020965e+00 +4.936853e-01] candidate=1233.529 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.107e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.467e+01 sigmaMaxCZ=3.090e+02 J7=1.028294612371e+02 solve=5.093 ms
+ [A-POST] eqRes=2.916e-11 eqRel=6.881e-18 eqCorrection<=1.709e-10 projectedGrad=4.596e-10 optCoeffCorrection<=2.137e-12
+ [QR] nullResidual=1.031e-16 particularResidual=5.613e-17
+ [C6] joinAbs=[0.00e+00 2.06e-12 9.84e-11 1.08e-09 2.60e-08 1.11e-07 1.15e-06 ]
+ [C6] joinRel=[0.00e+00 2.06e-12 9.84e-11 1.08e-09 2.60e-08 1.11e-07 7.83e-07 ]
+ [END] endpointAbs=[0.00e+00 7.57e-13 2.68e-11 5.67e-10 7.55e-09 6.45e-08 3.26e-07 ]
+ [END] endpointRel=[0.00e+00 7.57e-13 2.68e-11 5.67e-10 7.55e-09 6.45e-08 3.26e-07 ]
+ [OBS] id=1 minG=+3.031641e-01 [L/U/C]=[+3.031641e-01 +1.020965e+00 +4.977826e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.986853e-01 [L/U/C]=[+2.986853e-01 +1.057534e+00 +4.936853e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.0000 m/s a<=0.5370 m/s^2 j<=0.6958 m/s^3 tensionLB=9.7179
+[PERF] case=E01 front=10312.533 ms route=34.248 ms build=1222.305 ms cert=11.223 ms searchTotal=1246.738 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.146e-06 maxEndpointAbs=3.261e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.094931e-01 [L/U/C]=[+3.094931e-01 +1.090345e+00 +5.034364e-01] candidate=1197.404 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.130e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.451e+01 sigmaMaxCZ=3.091e+02 J7=6.928316064903e+01 solve=0.459 ms
+ [A-POST] eqRes=1.200e-10 eqRel=2.822e-17 eqCorrection<=7.032e-10 projectedGrad=3.336e-10 optCoeffCorrection<=1.585e-12
+ [QR] nullResidual=1.320e-16 particularResidual=6.294e-17
+ [C6] joinAbs=[0.00e+00 1.72e-12 9.57e-11 1.08e-09 2.59e-08 1.09e-07 1.11e-06 ]
+ [C6] joinRel=[0.00e+00 1.72e-12 9.57e-11 1.08e-09 2.59e-08 9.91e-08 8.00e-07 ]
+ [END] endpointAbs=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [END] endpointRel=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [OBS] id=1 minG=+3.227235e-01 [L/U/C]=[+3.227235e-01 +1.090345e+00 +5.034364e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.094931e-01 [L/U/C]=[+3.094931e-01 +1.161316e+00 +5.044931e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0000 m/s a<=0.5286 m/s^2 j<=0.6725 m/s^3 tensionLB=9.7679
+[PERF] case=E02 front=10164.549 ms route=32.673 ms build=1194.324 ms cert=3.081 ms searchTotal=1199.865 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.110e-06 maxEndpointAbs=5.874e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.780118e-01 [L/U/C]=[+2.780118e-01 +9.049485e-01 +4.413285e-01] candidate=1198.880 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=1.638e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=2.465e+01
+ [SPECTRUM] sigmaMinA=1.570e-01 sigmaMaxA=2.571e+04 sigmaMinCZ=9.129e+00 sigmaMaxCZ=2.251e+02 J7=1.475129953363e+02 solve=0.427 ms
+ [A-POST] eqRes=8.264e-11 eqRel=2.580e-17 eqCorrection<=5.264e-10 projectedGrad=2.565e-10 optCoeffCorrection<=3.078e-12
+ [QR] nullResidual=9.393e-17 particularResidual=3.633e-17
+ [C6] joinAbs=[0.00e+00 1.96e-12 8.58e-11 1.30e-09 2.08e-08 1.23e-07 8.11e-07 ]
+ [C6] joinRel=[0.00e+00 1.96e-12 8.58e-11 1.30e-09 2.08e-08 1.23e-07 7.48e-07 ]
+ [END] endpointAbs=[0.00e+00 2.18e-12 7.64e-11 1.47e-09 1.81e-08 1.45e-07 6.91e-07 ]
+ [END] endpointRel=[0.00e+00 2.18e-12 7.64e-11 1.47e-09 1.81e-08 1.45e-07 6.91e-07 ]
+ [OBS] id=1 minG=+2.780118e-01 [L/U/C]=[+2.780118e-01 +9.049485e-01 +4.413285e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.157394e-01 [L/U/C]=[+3.157394e-01 +9.963092e-01 +4.917028e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.0000 m/s a<=0.7320 m/s^2 j<=0.9785 m/s^3 tensionLB=9.7118
+[PERF] case=E03_LARGER_OBS front=9871.984 ms route=16.486 ms build=1194.919 ms cert=3.961 ms searchTotal=1202.933 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=8.106e-07 maxEndpointAbs=6.913e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+1.398938e-01 [L/U/C]=[+1.398938e-01 +8.009731e-01 +3.219266e-01] candidate=1225.985 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=3.786e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=8.163e+00 sigmaMaxCZ=3.091e+02 J7=2.127094053579e+03 solve=0.405 ms
+ [A-POST] eqRes=2.916e-11 eqRel=6.930e-18 eqCorrection<=1.709e-10 projectedGrad=2.093e-10 optCoeffCorrection<=3.140e-12
+ [QR] nullResidual=1.132e-16 particularResidual=5.143e-17
+ [C6] joinAbs=[0.00e+00 2.00e-12 9.00e-11 1.64e-09 2.27e-08 1.74e-07 9.03e-07 ]
+ [C6] joinRel=[0.00e+00 2.00e-12 7.25e-11 1.64e-09 1.84e-08 1.74e-07 5.70e-07 ]
+ [END] endpointAbs=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [END] endpointRel=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [OBS] id=1 minG=+1.398938e-01 [L/U/C]=[+1.398938e-01 +8.009731e-01 +3.219266e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+1.465078e-01 [L/U/C]=[+1.465078e-01 +8.892865e-01 +3.272532e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=2.1993 m/s a<=2.1233 m/s^2 j<=2.9567 m/s^3 tensionLB=9.4802
+[PERF] case=E04_CLOSE_PAIR front=10692.504 ms route=16.387 ms build=1222.576 ms cert=3.409 ms searchTotal=1234.331 ms tested=1
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=9.027e-07 maxEndpointAbs=7.121e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.901617e-01 [L/U/C]=[+2.901617e-01 +1.019605e+00 +4.831456e-01] candidate=1184.831 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.922e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.607e+01 sigmaMaxCZ=3.090e+02 J7=1.694969531347e+02 solve=0.467 ms
+ [A-POST] eqRes=1.200e-10 eqRel=2.815e-17 eqCorrection<=7.032e-10 projectedGrad=2.849e-10 optCoeffCorrection<=1.103e-12
+ [QR] nullResidual=1.015e-16 particularResidual=3.126e-17
+ [C6] joinAbs=[0.00e+00 1.77e-12 1.16e-10 1.01e-09 3.03e-08 1.22e-07 1.25e-06 ]
+ [C6] joinRel=[0.00e+00 1.77e-12 1.16e-10 1.01e-09 3.03e-08 8.81e-08 1.05e-06 ]
+ [END] endpointAbs=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [END] endpointRel=[0.00e+00 1.53e-12 5.68e-11 1.20e-09 1.61e-08 1.39e-07 7.12e-07 ]
+ [OBS] id=1 minG=+2.901617e-01 [L/U/C]=[+2.901617e-01 +1.019605e+00 +4.831456e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.921269e-01 [L/U/C]=[+2.921269e-01 +1.031792e+00 +4.871269e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.1107 m/s a<=0.8245 m/s^2 j<=1.1012 m/s^3 tensionLB=9.7522
+[PERF] case=E05_LATERAL front=10203.223 ms route=16.423 ms build=1181.825 ms cert=3.006 ms searchTotal=1186.818 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.255e-06 maxEndpointAbs=7.121e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.037556e-01 [L/U/C]=[+3.037556e-01 +1.034264e+00 +4.850498e-01] candidate=1190.372 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=2.002e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.851e+01
+ [SPECTRUM] sigmaMinA=1.706e-01 sigmaMaxA=3.416e+04 sigmaMinCZ=1.670e+01 sigmaMaxCZ=3.090e+02 J7=1.845933681577e+02 solve=0.455 ms
+ [A-POST] eqRes=1.166e-10 eqRel=2.747e-17 eqCorrection<=6.836e-10 projectedGrad=1.681e-10 optCoeffCorrection<=6.031e-13
+ [QR] nullResidual=9.385e-17 particularResidual=4.822e-17
+ [C6] joinAbs=[0.00e+00 2.49e-12 1.04e-10 1.65e-09 2.71e-08 1.70e-07 1.10e-06 ]
+ [C6] joinRel=[0.00e+00 2.49e-12 1.04e-10 1.65e-09 2.71e-08 1.70e-07 9.65e-07 ]
+ [END] endpointAbs=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [END] endpointRel=[0.00e+00 1.13e-12 4.16e-11 9.10e-10 1.26e-08 1.12e-07 5.87e-07 ]
+ [OBS] id=1 minG=+3.037556e-01 [L/U/C]=[+3.037556e-01 +1.034264e+00 +4.850498e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.136416e-01 [L/U/C]=[+3.136416e-01 +1.038922e+00 +5.086416e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.0000 m/s a<=0.7239 m/s^2 j<=1.0508 m/s^3 tensionLB=9.1867
+[PERF] case=E06_VERTICAL front=10129.637 ms route=16.329 ms build=1187.250 ms cert=3.122 ms searchTotal=1192.452 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.097e-06 maxEndpointAbs=5.874e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.913956e-01 [L/U/C]=[+2.913956e-01 +9.737029e-01 +4.863956e-01] candidate=1209.776 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=4.086e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=5.226e+01
+ [SPECTRUM] sigmaMinA=2.164e-01 sigmaMaxA=8.842e+04 sigmaMinCZ=1.700e+01 sigmaMaxCZ=8.886e+02 J7=3.117565369535e+03 solve=0.505 ms
+ [A-POST] eqRes=4.844e-10 eqRel=4.547e-17 eqCorrection<=2.239e-09 projectedGrad=3.627e-09 optCoeffCorrection<=1.255e-11
+ [QR] nullResidual=6.744e-17 particularResidual=2.230e-17
+ [C6] joinAbs=[0.00e+00 2.06e-12 1.47e-10 1.84e-09 5.08e-08 2.80e-07 2.86e-06 ]
+ [C6] joinRel=[0.00e+00 1.90e-12 1.47e-10 1.84e-09 3.21e-08 1.88e-07 1.27e-06 ]
+ [END] endpointAbs=[0.00e+00 1.43e-12 6.36e-11 1.60e-09 2.56e-08 2.61e-07 1.58e-06 ]
+ [END] endpointRel=[0.00e+00 1.06e-12 6.36e-11 1.60e-09 2.56e-08 2.61e-07 1.58e-06 ]
+ [OBS] id=1 minG=+2.913956e-01 [L/U/C]=[+2.913956e-01 +9.737029e-01 +4.863956e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.021467e-01 [L/U/C]=[+3.021467e-01 +1.002439e+00 +4.910347e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.3500 m/s a<=1.0784 m/s^2 j<=1.6927 m/s^3 tensionLB=9.6038
+[PERF] case=E07_FAST front=5892.456 ms route=17.212 ms build=1206.724 ms cert=3.052 ms searchTotal=1219.716 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.858e-06 maxEndpointAbs=1.576e-06
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.938758e-01 [L/U/C]=[+2.938758e-01 +1.024865e+00 +4.847496e-01] candidate=1224.885 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=8.435e+04 condA(rowScaled)=1.618e+04 condCZ(coord)=3.184e+01
+ [SPECTRUM] sigmaMinA=1.114e-01 sigmaMaxA=9.395e+03 sigmaMinCZ=2.277e+00 sigmaMaxCZ=7.249e+01 J7=4.487520250173e+00 solve=0.506 ms
+ [A-POST] eqRes=2.522e-11 eqRel=2.109e-17 eqCorrection<=2.264e-10 projectedGrad=4.039e-11 optCoeffCorrection<=7.791e-12
+ [QR] nullResidual=1.455e-16 particularResidual=7.461e-17
+ [C6] joinAbs=[0.00e+00 1.51e-12 5.40e-11 5.44e-10 8.82e-09 3.43e-08 2.25e-07 ]
+ [C6] joinRel=[0.00e+00 1.51e-12 5.40e-11 5.44e-10 8.82e-09 3.43e-08 2.25e-07 ]
+ [END] endpointAbs=[0.00e+00 9.67e-13 2.75e-11 4.60e-10 4.93e-09 3.40e-08 1.39e-07 ]
+ [END] endpointRel=[0.00e+00 9.67e-13 2.75e-11 4.60e-10 4.93e-09 3.40e-08 1.39e-07 ]
+ [OBS] id=1 minG=+2.938758e-01 [L/U/C]=[+2.938758e-01 +1.024865e+00 +4.847496e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.064938e-01 [L/U/C]=[+3.064938e-01 +1.075812e+00 +5.014938e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.7127 m/s a<=0.3947 m/s^2 j<=0.3880 m/s^3 tensionLB=9.7592
+[PERF] case=E08_SLOW front=17477.692 ms route=16.329 ms build=1221.879 ms cert=3.007 ms searchTotal=1226.894 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.249e-07 maxEndpointAbs=1.394e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+2.630442e-01 [L/U/C]=[+2.630442e-01 +9.869526e-01 +4.515355e-01] candidate=1189.856 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=3.154e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=7.469e+01
+ [SPECTRUM] sigmaMinA=2.004e-01 sigmaMaxA=6.323e+04 sigmaMinCZ=8.203e+00 sigmaMaxCZ=6.127e+02 J7=5.450202782877e+02 solve=0.471 ms
+ [A-POST] eqRes=1.202e-10 eqRel=1.617e-17 eqCorrection<=5.998e-10 projectedGrad=1.712e-09 optCoeffCorrection<=2.544e-11
+ [QR] nullResidual=9.971e-17 particularResidual=4.367e-17
+ [C6] joinAbs=[0.00e+00 1.69e-12 1.02e-10 1.66e-09 3.54e-08 2.22e-07 1.87e-06 ]
+ [C6] joinRel=[0.00e+00 1.56e-12 1.02e-10 1.66e-09 3.20e-08 2.22e-07 9.80e-07 ]
+ [END] endpointAbs=[0.00e+00 1.48e-12 5.58e-11 1.22e-09 1.73e-08 1.60e-07 8.88e-07 ]
+ [END] endpointRel=[0.00e+00 1.48e-12 5.58e-11 1.22e-09 1.73e-08 1.60e-07 8.88e-07 ]
+ [OBS] id=1 minG=+3.004061e-01 [L/U/C]=[+3.004061e-01 +9.869526e-01 +4.934850e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.630442e-01 [L/U/C]=[+2.630442e-01 +1.000591e+00 +4.515355e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=1.6580 m/s a<=1.0542 m/s^2 j<=1.2933 m/s^3 tensionLB=9.5343
+[PERF] case=E09_NEAR_SENSOR_EDGE front=10166.199 ms route=18.893 ms build=1186.769 ms cert=3.087 ms searchTotal=1191.871 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.874e-06 maxEndpointAbs=8.884e-07
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / BSPLINE_D7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BSPLINE_D7 route=ell_d01-d01_x0.25 vias=6 C6mode=native-structural C6ok=1 geom=1 tension=1 minG=+3.313086e-01 [L/U/C]=[+3.313086e-01 +1.018035e+00 +4.844568e-01] candidate=1190.984 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=20x30 rankA(struct)=20 null=10 rankCZ(struct)=10 condA(raw)=1.638e+05 condA(rowScaled)=1.618e+04 condCZ(coord)=1.978e+01
+ [SPECTRUM] sigmaMinA=1.570e-01 sigmaMaxA=2.571e+04 sigmaMinCZ=1.138e+01 sigmaMaxCZ=2.251e+02 J7=7.694146230810e+01 solve=0.433 ms
+ [A-POST] eqRes=6.508e-11 eqRel=2.025e-17 eqCorrection<=4.146e-10 projectedGrad=1.860e-10 optCoeffCorrection<=1.435e-12
+ [QR] nullResidual=1.035e-16 particularResidual=4.486e-17
+ [C6] joinAbs=[0.00e+00 1.50e-12 1.21e-10 1.01e-09 2.69e-08 8.74e-08 9.74e-07 ]
+ [C6] joinRel=[0.00e+00 1.50e-12 1.21e-10 1.01e-09 2.69e-08 8.74e-08 9.74e-07 ]
+ [END] endpointAbs=[0.00e+00 1.71e-12 6.05e-11 1.19e-09 1.51e-08 1.23e-07 5.97e-07 ]
+ [END] endpointRel=[0.00e+00 1.71e-12 6.05e-11 1.19e-09 1.51e-08 1.23e-07 5.97e-07 ]
+ [OBS] id=1 minG=+3.771737e-01 [L/U/C]=[+3.771737e-01 +1.356435e+00 +5.721737e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.313086e-01 [L/U/C]=[+3.313086e-01 +1.018035e+00 +4.844568e-01] guide=+2.500000e-01
+[SEARCH] method=BSPLINE_D7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.0000 m/s a<=0.6386 m/s^2 j<=0.7711 m/s^3 tensionLB=9.6459
+[PERF] case=E10_ASYMMETRIC front=10497.244 ms route=16.262 ms build=1187.972 ms cert=3.012 ms searchTotal=1192.952 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=9.742e-07 maxEndpointAbs=5.970e-07
+
+########################################################################################################################
+ METHOD: POLY_D13_MIN7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +9.982268e-01 +4.528669e-01] candidate=44.360 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.785e+07 condA(rowScaled)=1.102e+04 condCZ(coord)=1.414e+06
+ [SPECTRUM] sigmaMinA=3.592e-03 sigmaMaxA=1.359e+05 sigmaMinCZ=4.484e-04 sigmaMaxCZ=6.340e+02 J7=6.537145644020e+01 solve=3.615 ms
+ [A-POST] eqRes=3.653e-09 eqRel=1.757e-17 eqCorrection<=1.017e-06 projectedGrad=2.675e-07 optCoeffCorrection<=1.331e+00
+ [QR] nullResidual=2.060e-16 particularResidual=2.449e-17
+ [C6] joinAbs=[4.33e-13 6.46e-13 4.16e-12 2.42e-11 1.52e-10 1.96e-09 1.90e-08 ]
+ [C6] joinRel=[1.71e-14 6.46e-13 4.16e-12 2.42e-11 1.52e-10 1.96e-09 1.15e-08 ]
+ [END] endpointAbs=[5.10e-13 4.14e-13 3.49e-13 3.05e-13 3.68e-13 1.90e-12 3.83e-12 ]
+ [END] endpointRel=[1.70e-14 4.14e-13 3.49e-13 3.05e-13 3.68e-13 1.90e-12 3.83e-12 ]
+ [OBS] id=1 minG=+3.053770e-01 [L/U/C]=[+3.053770e-01 +9.982268e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +1.007711e+00 +4.865650e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.1586 m/s a<=1.1308 m/s^2 j<=2.0432 m/s^3 tensionLB=9.6832
+[PERF] case=E01 front=9987.239 ms route=16.434 ms build=39.690 ms cert=4.670 ms searchTotal=45.501 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.900e-08 maxEndpointAbs=3.830e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.064198e+00 +4.560642e-01] candidate=25.998 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.198e+07 condA(rowScaled)=1.098e+04 condCZ(coord)=1.714e+06
+ [SPECTRUM] sigmaMinA=3.595e-03 sigmaMaxA=1.509e+05 sigmaMinCZ=4.145e-04 sigmaMaxCZ=7.103e+02 J7=4.082032199463e+01 solve=3.080 ms
+ [A-POST] eqRes=3.793e-09 eqRel=1.523e-17 eqCorrection<=1.055e-06 projectedGrad=6.259e-07 optCoeffCorrection<=3.643e+00
+ [QR] nullResidual=1.703e-16 particularResidual=2.111e-17
+ [C6] joinAbs=[2.46e-13 3.48e-13 1.93e-12 9.82e-12 2.00e-10 1.64e-09 3.05e-08 ]
+ [C6] joinRel=[1.29e-14 3.48e-13 1.93e-12 9.82e-12 2.00e-10 1.64e-09 2.18e-08 ]
+ [END] endpointAbs=[6.05e-14 8.37e-14 3.79e-13 3.81e-13 1.55e-12 3.27e-12 6.19e-12 ]
+ [END] endpointRel=[2.02e-15 8.37e-14 3.79e-13 3.81e-13 1.55e-12 3.27e-12 6.19e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.064198e+00 +4.560642e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.125326e+00 +5.010737e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0483 m/s a<=1.0170 m/s^2 j<=1.8335 m/s^3 tensionLB=9.7521
+[PERF] case=E02 front=10148.431 ms route=16.602 ms build=22.254 ms cert=3.744 ms searchTotal=26.828 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.048e-08 maxEndpointAbs=6.194e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] candidate=27.704 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=7.570e+07 condA(rowScaled)=1.127e+04 condCZ(coord)=2.409e+06
+ [SPECTRUM] sigmaMinA=3.457e-03 sigmaMaxA=2.617e+05 sigmaMinCZ=3.283e-04 sigmaMaxCZ=7.909e+02 J7=7.839018980432e+01 solve=2.898 ms
+ [A-POST] eqRes=2.126e-09 eqRel=4.392e-18 eqCorrection<=6.149e-07 projectedGrad=9.625e-08 optCoeffCorrection<=8.931e-01
+ [QR] nullResidual=1.789e-16 particularResidual=2.450e-17
+ [C6] joinAbs=[6.65e-13 4.08e-13 2.45e-12 1.78e-11 1.35e-10 1.15e-09 5.07e-09 ]
+ [C6] joinRel=[3.49e-14 4.08e-13 2.45e-12 1.78e-11 1.35e-10 1.15e-09 2.76e-09 ]
+ [END] endpointAbs=[9.89e-14 1.17e-13 1.17e-12 3.37e-12 4.84e-12 1.03e-11 9.72e-12 ]
+ [END] endpointRel=[3.30e-15 1.17e-13 1.17e-12 3.37e-12 4.84e-12 1.03e-11 9.72e-12 ]
+ [OBS] id=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.074518e-01 [L/U/C]=[+3.074518e-01 +9.275238e-01 +4.891195e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.1387 m/s a<=1.1967 m/s^2 j<=1.7949 m/s^3 tensionLB=9.7075
+[PERF] case=E03_LARGER_OBS front=9736.885 ms route=16.715 ms build=23.909 ms cert=3.795 ms searchTotal=28.582 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=5.075e-09 maxEndpointAbs=1.026e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d09-d09_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.329891e+00 +4.190286e-01] candidate=25.141 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.323e+10 condA(rowScaled)=1.098e+04 condCZ(coord)=6.045e+08
+ [SPECTRUM] sigmaMinA=2.285e-03 sigmaMaxA=3.023e+07 sigmaMinCZ=1.759e-04 sigmaMaxCZ=1.063e+05 J7=1.932911129863e+03 solve=2.524 ms
+ [A-POST] eqRes=9.901e-07 eqRel=1.596e-18 eqCorrection<=4.333e-04 projectedGrad=3.175e-02 optCoeffCorrection<=1.026e+06
+ [QR] nullResidual=2.141e-16 particularResidual=1.275e-17
+ [C6] joinAbs=[9.26e-12 2.25e-11 5.84e-11 4.01e-10 2.67e-09 1.19e-07 2.78e-06 ]
+ [C6] joinRel=[4.87e-13 2.25e-11 5.84e-11 1.55e-10 1.87e-09 1.74e-08 4.17e-07 ]
+ [END] endpointAbs=[1.11e-11 1.07e-11 2.40e-11 2.29e-11 4.43e-11 6.34e-11 7.48e-11 ]
+ [END] endpointRel=[3.69e-13 1.07e-11 2.40e-11 2.29e-11 4.43e-11 6.34e-11 7.48e-11 ]
+ [OBS] id=1 minG=+2.534396e-01 [L/U/C]=[+2.534396e-01 +1.329891e+00 +4.484396e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.492373e+00 +4.190286e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=9 build=9 C6ok=9 geom=1 tension=9 safe=1 suppressed=8
+[REP-FAIL] route=ell_d08-d08_x0.25 reason=GEOMETRY_FAIL tension=1 minG=-2.446910e-02 [L/U/C]=[-2.446910e-02 +1.064640e+00 +1.705309e-01] maxJoinAbs=1.111e-06
+ [REP-SOLVER] condA(raw)=1.874e+10 condCZ(coord)=8.191e+08 sigmaMinCZ=1.815e-04 eqCorr<=4.175e-04 optCoeffCorr<=8.156e+05
+ [REP-OBS] perObsMinG=[2.37e-01 -2.45e-02 ]
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=4.4301 m/s a<=6.2713 m/s^2 j<=9.6947 m/s^3 tensionLB=8.1715
+[PERF] case=E04_CLOSE_PAIR front=10704.045 ms route=16.546 ms build=21.540 ms cert=3.600 ms searchTotal=239.091 ms tested=9
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.782e-06 maxEndpointAbs=7.485e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.528669e-01] candidate=27.204 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.669e+07 condA(rowScaled)=1.092e+04 condCZ(coord)=1.712e+06
+ [SPECTRUM] sigmaMinA=3.574e-03 sigmaMaxA=1.669e+05 sigmaMinCZ=4.619e-04 sigmaMaxCZ=7.907e+02 J7=1.138194456623e+02 solve=3.202 ms
+ [A-POST] eqRes=2.376e-09 eqRel=1.272e-17 eqCorrection<=6.649e-07 projectedGrad=1.295e-07 optCoeffCorrection<=6.070e-01
+ [QR] nullResidual=2.333e-16 particularResidual=2.413e-17
+ [C6] joinAbs=[1.64e-13 4.95e-13 2.90e-12 1.30e-11 1.11e-10 2.14e-09 1.48e-08 ]
+ [C6] joinRel=[8.63e-15 4.95e-13 2.90e-12 1.30e-11 1.11e-10 1.51e-09 9.57e-09 ]
+ [END] endpointAbs=[2.16e-13 8.37e-13 2.06e-12 3.65e-12 5.44e-12 1.02e-11 1.14e-11 ]
+ [END] endpointRel=[7.19e-15 8.37e-13 2.06e-12 3.65e-12 5.44e-12 1.02e-11 1.14e-11 ]
+ [OBS] id=1 minG=+2.917365e-01 [L/U/C]=[+2.917365e-01 +1.001090e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.795669e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.4962 m/s a<=1.4139 m/s^2 j<=2.5358 m/s^3 tensionLB=9.7366
+[PERF] case=E05_LATERAL front=10172.618 ms route=16.799 ms build=23.594 ms cert=3.610 ms searchTotal=28.103 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.482e-08 maxEndpointAbs=1.136e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] candidate=25.371 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.700e+07 condA(rowScaled)=1.101e+04 condCZ(coord)=1.189e+06
+ [SPECTRUM] sigmaMinA=3.820e-03 sigmaMaxA=1.413e+05 sigmaMinCZ=5.563e-04 sigmaMaxCZ=6.614e+02 J7=1.212515389008e+02 solve=2.669 ms
+ [A-POST] eqRes=3.757e-09 eqRel=8.475e-18 eqCorrection<=9.835e-07 projectedGrad=6.527e-07 optCoeffCorrection<=2.109e+00
+ [QR] nullResidual=2.093e-16 particularResidual=1.693e-17
+ [C6] joinAbs=[7.63e-13 8.55e-13 4.67e-12 2.68e-11 2.44e-10 1.15e-09 1.94e-08 ]
+ [C6] joinRel=[4.02e-14 8.55e-13 4.67e-12 2.68e-11 2.44e-10 1.15e-09 9.38e-09 ]
+ [END] endpointAbs=[1.30e-12 2.94e-13 9.59e-13 5.43e-12 4.11e-12 2.95e-12 1.74e-11 ]
+ [END] endpointRel=[4.33e-14 2.94e-13 9.59e-13 5.43e-12 4.11e-12 2.95e-12 1.74e-11 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.011751e+00 +4.950645e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.2130 m/s a<=1.0706 m/s^2 j<=1.9758 m/s^3 tensionLB=9.0991
+[PERF] case=E06_VERTICAL front=10101.546 ms route=16.438 ms build=21.163 ms cert=4.208 ms searchTotal=26.242 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.939e-08 maxEndpointAbs=1.744e-11
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.089051e-01 +4.528669e-01] candidate=24.834 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.315e+08 condA(rowScaled)=1.103e+04 condCZ(coord)=8.741e+06
+ [SPECTRUM] sigmaMinA=4.883e-03 sigmaMaxA=6.421e+05 sigmaMinCZ=3.933e-04 sigmaMaxCZ=3.438e+03 J7=1.768830761896e+03 solve=2.684 ms
+ [A-POST] eqRes=1.759e-07 eqRel=1.882e-17 eqCorrection<=3.603e-05 projectedGrad=4.873e-05 optCoeffCorrection<=3.150e+02
+ [QR] nullResidual=2.319e-16 particularResidual=1.994e-17
+ [C6] joinAbs=[2.37e-12 8.94e-12 7.11e-11 4.91e-10 3.61e-09 1.96e-08 1.18e-07 ]
+ [C6] joinRel=[1.25e-13 7.72e-12 7.11e-11 3.37e-10 3.61e-09 8.41e-09 1.18e-07 ]
+ [END] endpointAbs=[1.23e-12 1.16e-11 1.96e-11 5.30e-11 5.90e-11 1.29e-10 2.62e-10 ]
+ [END] endpointRel=[4.10e-14 8.62e-12 1.96e-11 5.30e-11 5.90e-11 1.29e-10 2.62e-10 ]
+ [OBS] id=1 minG=+2.956231e-01 [L/U/C]=[+2.956231e-01 +9.089051e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.653626e-01 +4.885597e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.6322 m/s a<=2.4226 m/s^2 j<=4.6153 m/s^3 tensionLB=9.2018
+[PERF] case=E07_FAST front=5659.660 ms route=16.411 ms build=21.101 ms cert=3.732 ms searchTotal=25.677 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.180e-07 maxEndpointAbs=2.619e-10
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] candidate=25.597 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.691e+07 condA(rowScaled)=1.103e+04 condCZ(coord)=1.308e+06
+ [SPECTRUM] sigmaMinA=1.249e-03 sigmaMaxA=2.113e+04 sigmaMinCZ=6.331e-05 sigmaMaxCZ=8.280e+01 J7=2.168615763593e+00 solve=3.366 ms
+ [A-POST] eqRes=5.058e-10 eqRel=3.199e-17 eqCorrection<=4.048e-07 projectedGrad=1.583e-09 optCoeffCorrection<=3.949e-01
+ [QR] nullResidual=2.042e-16 particularResidual=3.138e-17
+ [C6] joinAbs=[5.45e-14 3.32e-13 2.04e-12 8.45e-12 4.02e-11 3.15e-10 3.48e-09 ]
+ [C6] joinRel=[2.87e-15 3.32e-13 2.04e-12 8.45e-12 4.02e-11 3.15e-10 3.48e-09 ]
+ [END] endpointAbs=[1.80e-13 4.72e-14 1.53e-13 2.16e-13 2.59e-13 4.77e-13 8.14e-13 ]
+ [END] endpointRel=[5.98e-15 4.72e-14 1.53e-13 2.16e-13 2.59e-13 4.77e-13 8.14e-13 ]
+ [OBS] id=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.972999e-01 [L/U/C]=[+2.972999e-01 +1.039857e+00 +4.903593e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.8123 m/s a<=0.5588 m/s^2 j<=0.7382 m/s^3 tensionLB=9.7348
+[PERF] case=E08_SLOW front=16857.377 ms route=16.387 ms build=21.965 ms cert=3.633 ms searchTotal=26.500 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.480e-09 maxEndpointAbs=8.139e-13
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.528669e-01] candidate=25.443 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=2.953e+08 condA(rowScaled)=1.040e+04 condCZ(coord)=2.412e+07
+ [SPECTRUM] sigmaMinA=2.265e-03 sigmaMaxA=6.687e+05 sigmaMinCZ=1.484e-04 sigmaMaxCZ=3.579e+03 J7=4.102530657788e+02 solve=3.331 ms
+ [A-POST] eqRes=2.221e-07 eqRel=5.911e-17 eqCorrection<=9.808e-05 projectedGrad=2.531e-05 optCoeffCorrection<=1.150e+03
+ [QR] nullResidual=1.972e-16 particularResidual=2.121e-17
+ [C6] joinAbs=[2.03e-12 1.55e-11 1.24e-10 9.23e-10 5.31e-09 3.35e-08 2.12e-07 ]
+ [C6] joinRel=[1.18e-13 1.37e-11 1.24e-10 9.17e-10 5.31e-09 1.20e-08 1.54e-07 ]
+ [END] endpointAbs=[4.26e-13 1.41e-12 1.60e-12 2.97e-12 3.76e-12 6.04e-12 7.73e-12 ]
+ [END] endpointRel=[1.42e-14 1.41e-12 1.60e-12 2.97e-12 3.76e-12 6.04e-12 7.73e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.772475e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.561161e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=2.9466 m/s a<=4.1210 m/s^2 j<=6.2060 m/s^3 tensionLB=9.0238
+[PERF] case=E09_NEAR_SENSOR_EDGE front=9942.924 ms route=16.714 ms build=21.765 ms cert=3.678 ms searchTotal=26.350 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.118e-07 maxEndpointAbs=7.731e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / POLY_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=POLY_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] candidate=25.394 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.233e+07 condA(rowScaled)=1.124e+04 condCZ(coord)=1.934e+06
+ [SPECTRUM] sigmaMinA=3.510e-03 sigmaMaxA=1.486e+05 sigmaMinCZ=3.179e-04 sigmaMaxCZ=6.150e+02 J7=4.559752365252e+01 solve=3.330 ms
+ [A-POST] eqRes=4.989e-09 eqRel=1.504e-17 eqCorrection<=1.421e-06 projectedGrad=8.942e-07 optCoeffCorrection<=8.846e+00
+ [QR] nullResidual=2.156e-16 particularResidual=2.216e-17
+ [C6] joinAbs=[5.16e-13 1.77e-12 8.50e-12 5.31e-11 2.09e-10 1.05e-09 7.45e-09 ]
+ [C6] joinRel=[2.00e-14 1.77e-12 8.50e-12 5.31e-11 2.09e-10 1.05e-09 7.45e-09 ]
+ [END] endpointAbs=[2.87e-13 1.36e-12 2.04e-12 4.65e-12 8.44e-12 1.23e-11 1.27e-11 ]
+ [END] endpointRel=[9.56e-15 1.36e-12 2.04e-12 4.65e-12 8.44e-12 1.23e-11 1.27e-11 ]
+ [OBS] id=1 minG=+3.214742e-01 [L/U/C]=[+3.214742e-01 +1.328977e+00 +5.164742e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] guide=+2.500000e-01
+[SEARCH] method=POLY_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.1232 m/s a<=1.1218 m/s^2 j<=1.7064 m/s^3 tensionLB=9.6033
+[PERF] case=E10_ASYMMETRIC front=10458.717 ms route=16.783 ms build=21.738 ms cert=3.656 ms searchTotal=26.258 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=7.446e-09 maxEndpointAbs=1.268e-11
+
+########################################################################################################################
+ METHOD: BEZIER_D13_MIN7
+########################################################################################################################
+
+------------------------------------------------------------------------------------------------------------------------
+ E01_BASELINE / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E01 initialOutside=1 detectAt=[4.35 8] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E01: baseline repeat | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +9.982268e-01 +4.528669e-01] candidate=19.712 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.695e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.110e+05
+ [SPECTRUM] sigmaMinA=1.320e-01 sigmaMaxA=4.878e+06 sigmaMinCZ=6.721e+00 sigmaMaxCZ=2.091e+06 J7=6.537145640816e+01 solve=2.821 ms
+ [A-POST] eqRes=3.504e-08 eqRel=3.241e-17 eqCorrection<=2.654e-07 projectedGrad=5.004e-02 optCoeffCorrection<=1.108e-03
+ [QR] nullResidual=1.181e-16 particularResidual=1.720e-17
+ [C6] joinAbs=[1.42e-14 1.04e-13 1.56e-12 2.35e-11 3.84e-10 1.88e-09 2.42e-08 ]
+ [C6] joinRel=[6.24e-16 1.04e-13 1.56e-12 2.35e-11 3.84e-10 1.88e-09 1.47e-08 ]
+ [END] endpointAbs=[2.63e-20 4.33e-15 6.00e-14 2.77e-14 1.02e-13 1.76e-13 1.29e-12 ]
+ [END] endpointRel=[8.77e-22 4.33e-15 6.00e-14 2.77e-14 1.02e-13 1.76e-13 1.29e-12 ]
+ [OBS] id=1 minG=+3.053770e-01 [L/U/C]=[+3.053770e-01 +9.982268e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.915650e-01 [L/U/C]=[+2.915650e-01 +1.007711e+00 +4.865650e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E01 v<=1.1586 m/s a<=1.1308 m/s^2 j<=2.0432 m/s^3 tensionLB=9.6832
+[PERF] case=E01 front=10043.175 ms route=15.892 ms build=16.059 ms cert=3.653 ms searchTotal=20.553 ms tested=1
+[E-REQ] case=E01 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.424e-08 maxEndpointAbs=1.288e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E02_HIGH_ROTATION / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E02 initialOutside=1 detectAt=[4.4 8.1] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E02: strong obstacle rotations | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.064198e+00 +4.560642e-01] candidate=11.208 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.198e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.542e+05
+ [SPECTRUM] sigmaMinA=1.291e-01 sigmaMaxA=5.420e+06 sigmaMinCZ=6.614e+00 sigmaMaxCZ=2.343e+06 J7=4.082032200731e+01 solve=2.934 ms
+ [A-POST] eqRes=6.849e-08 eqRel=5.682e-17 eqCorrection<=5.304e-07 projectedGrad=4.722e-02 optCoeffCorrection<=1.079e-03
+ [QR] nullResidual=1.220e-16 particularResidual=1.835e-17
+ [C6] joinAbs=[1.07e-14 8.65e-14 1.82e-12 3.12e-11 3.10e-10 4.41e-09 4.63e-08 ]
+ [C6] joinRel=[5.27e-16 8.65e-14 1.82e-12 3.12e-11 3.10e-10 4.41e-09 4.63e-08 ]
+ [END] endpointAbs=[1.39e-20 3.00e-15 4.48e-14 2.64e-14 8.97e-14 1.03e-12 1.17e-12 ]
+ [END] endpointRel=[4.63e-22 3.00e-15 4.48e-14 2.64e-14 8.97e-14 1.03e-12 1.17e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.064198e+00 +4.560642e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.078319e-01 [L/U/C]=[+3.078319e-01 +1.125326e+00 +5.010737e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E02 v<=1.0483 m/s a<=1.0170 m/s^2 j<=1.8335 m/s^3 tensionLB=9.7521
+[PERF] case=E02 front=10212.056 ms route=16.604 ms build=7.351 ms cert=3.857 ms searchTotal=12.237 ms tested=1
+[E-REQ] case=E02 build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=4.628e-08 maxEndpointAbs=1.174e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E03_LARGER_OBS / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E03_LARGER_OBS initialOutside=1 detectAt=[4.45 8.4] memory=1 trigger=1 t=14.00 TTC=5.00 known=[1 2]
+[CASE] E03_LARGER_OBS: larger ellipsoids | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] candidate=11.055 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=5.555e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=4.142e+05
+ [SPECTRUM] sigmaMinA=1.216e-01 sigmaMaxA=6.755e+06 sigmaMinCZ=4.307e+00 sigmaMaxCZ=1.784e+06 J7=7.839018980446e+01 solve=2.869 ms
+ [A-POST] eqRes=3.870e-08 eqRel=2.535e-17 eqCorrection<=3.182e-07 projectedGrad=7.039e-02 optCoeffCorrection<=3.794e-03
+ [QR] nullResidual=1.283e-16 particularResidual=2.333e-17
+ [C6] joinAbs=[7.16e-15 1.55e-13 1.31e-12 1.66e-11 1.98e-10 3.12e-09 5.67e-08 ]
+ [C6] joinRel=[3.21e-16 1.55e-13 1.31e-12 1.66e-11 1.98e-10 3.12e-09 2.76e-08 ]
+ [END] endpointAbs=[3.65e-20 5.44e-15 5.50e-14 1.47e-13 2.01e-13 1.21e-12 2.08e-12 ]
+ [END] endpointRel=[1.22e-21 5.44e-15 5.50e-14 1.47e-13 2.01e-13 1.21e-12 2.08e-12 ]
+ [OBS] id=1 minG=+2.848031e-01 [L/U/C]=[+2.848031e-01 +9.050936e-01 +4.380486e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.074518e-01 [L/U/C]=[+3.074518e-01 +9.275238e-01 +4.891195e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E03_LARGER_OBS v<=1.1387 m/s a<=1.1967 m/s^2 j<=1.7949 m/s^3 tensionLB=9.7075
+[PERF] case=E03_LARGER_OBS front=9702.530 ms route=16.457 ms build=6.611 ms cert=4.444 ms searchTotal=12.288 ms tested=1
+[E-REQ] case=E03_LARGER_OBS build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=5.665e-08 maxEndpointAbs=2.076e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E04_CLOSE_PAIR / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E04_CLOSE_PAIR initialOutside=1 detectAt=[4.35 6.95] memory=1 trigger=1 t=13.90 TTC=5.00 known=[1 2]
+[CASE] E04_CLOSE_PAIR: closer obstacle spacing | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d09-d09_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.329891e+00 +4.190286e-01] candidate=9.441 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=7.586e+09 condA(rowScaled)=4.216e+02 condCZ(coord)=3.444e+07
+ [SPECTRUM] sigmaMinA=1.029e-01 sigmaMaxA=7.804e+08 sigmaMinCZ=4.014e+00 sigmaMaxCZ=1.382e+08 J7=1.932910930656e+03 solve=2.435 ms
+ [A-POST] eqRes=1.574e-05 eqRel=9.316e-17 eqCorrection<=1.530e-04 projectedGrad=3.538e+02 optCoeffCorrection<=2.196e+01
+ [QR] nullResidual=1.242e-16 particularResidual=2.244e-17
+ [C6] joinAbs=[1.43e-14 1.47e-13 5.95e-12 8.62e-11 6.08e-09 2.31e-07 7.59e-06 ]
+ [C6] joinRel=[7.01e-16 1.47e-13 5.95e-12 3.70e-11 2.66e-09 3.38e-08 1.14e-06 ]
+ [END] endpointAbs=[6.47e-21 7.12e-15 5.48e-14 8.47e-14 1.44e-13 4.56e-13 1.84e-12 ]
+ [END] endpointRel=[2.16e-22 7.12e-15 5.48e-14 8.47e-14 1.44e-13 4.56e-13 1.84e-12 ]
+ [OBS] id=1 minG=+2.534396e-01 [L/U/C]=[+2.534396e-01 +1.329891e+00 +4.484396e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.240286e-01 [L/U/C]=[+2.240286e-01 +1.492373e+00 +4.190286e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=9 build=9 C6ok=9 geom=1 tension=9 safe=1 suppressed=8
+[REP-FAIL] route=ell_d08-d08_x0.25 reason=GEOMETRY_FAIL tension=1 minG=-2.446910e-02 [L/U/C]=[-2.446910e-02 +1.064641e+00 +1.705309e-01] maxJoinAbs=4.176e-06
+ [REP-SOLVER] condA(raw)=1.077e+10 condCZ(coord)=4.732e+07 sigmaMinCZ=4.103e+00 eqCorr<=1.039e-04 optCoeffCorr<=1.263e+02
+ [REP-OBS] perObsMinG=[2.37e-01 -2.45e-02 ]
+[VAJ-BOUND] case=E04_CLOSE_PAIR v<=4.4301 m/s a<=6.2713 m/s^2 j<=9.6946 m/s^3 tensionLB=8.1715
+[PERF] case=E04_CLOSE_PAIR front=10630.333 ms route=16.437 ms build=5.832 ms cert=3.608 ms searchTotal=115.431 ms tested=9
+[E-REQ] case=E04_CLOSE_PAIR build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=7.585e-06 maxEndpointAbs=1.837e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E05_LATERAL / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E05_LATERAL initialOutside=1 detectAt=[4.35 8.05] memory=1 trigger=1 t=14.10 TTC=5.00 known=[1 2]
+[CASE] E05_LATERAL: opposite lateral offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.528669e-01] candidate=9.734 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.435e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=3.536e+05
+ [SPECTRUM] sigmaMinA=1.352e-01 sigmaMaxA=5.997e+06 sigmaMinCZ=7.394e+00 sigmaMaxCZ=2.614e+06 J7=1.138194456548e+02 solve=2.704 ms
+ [A-POST] eqRes=6.897e-08 eqRel=5.187e-17 eqCorrection<=5.101e-07 projectedGrad=9.067e-02 optCoeffCorrection<=1.658e-03
+ [QR] nullResidual=1.297e-16 particularResidual=2.409e-17
+ [C6] joinAbs=[2.14e-14 6.42e-14 1.95e-12 2.07e-11 2.17e-10 5.27e-09 3.51e-08 ]
+ [C6] joinRel=[9.34e-16 6.42e-14 1.95e-12 2.07e-11 1.93e-10 3.72e-09 3.51e-08 ]
+ [END] endpointAbs=[1.09e-20 8.44e-15 5.86e-14 7.87e-14 4.73e-13 1.14e-12 5.85e-12 ]
+ [END] endpointRel=[3.62e-22 8.44e-15 5.86e-14 7.87e-14 4.73e-13 1.14e-12 5.85e-12 ]
+ [OBS] id=1 minG=+2.917365e-01 [L/U/C]=[+2.917365e-01 +1.001090e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.845669e-01 [L/U/C]=[+2.845669e-01 +9.704320e-01 +4.795669e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E05_LATERAL v<=1.4962 m/s a<=1.4139 m/s^2 j<=2.5358 m/s^3 tensionLB=9.7366
+[PERF] case=E05_LATERAL front=10197.605 ms route=16.703 ms build=6.135 ms cert=3.599 ms searchTotal=10.762 ms tested=1
+[E-REQ] case=E05_LATERAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.512e-08 maxEndpointAbs=5.850e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E06_VERTICAL / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E06_VERTICAL initialOutside=1 detectAt=[4.3 8.1] memory=1 trigger=1 t=14.05 TTC=5.00 known=[1 2]
+[CASE] E06_VERTICAL: opposite vertical offsets | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] candidate=9.652 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=3.606e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=2.824e+05
+ [SPECTRUM] sigmaMinA=1.407e-01 sigmaMaxA=5.073e+06 sigmaMinCZ=7.724e+00 sigmaMaxCZ=2.181e+06 J7=1.212515388120e+02 solve=2.453 ms
+ [A-POST] eqRes=8.611e-08 eqRel=7.653e-17 eqCorrection<=6.121e-07 projectedGrad=4.054e-02 optCoeffCorrection<=6.794e-04
+ [QR] nullResidual=1.139e-16 particularResidual=2.156e-17
+ [C6] joinAbs=[7.14e-15 1.26e-13 2.54e-12 2.82e-11 2.89e-10 2.46e-09 3.94e-08 ]
+ [C6] joinRel=[3.29e-16 1.26e-13 2.54e-12 2.82e-11 2.89e-10 1.77e-09 2.96e-08 ]
+ [END] endpointAbs=[2.10e-20 4.44e-15 4.69e-14 5.77e-14 1.44e-13 1.49e-13 2.44e-12 ]
+ [END] endpointRel=[6.99e-22 4.44e-15 4.69e-14 5.77e-14 1.44e-13 1.49e-13 2.44e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.813024e-01 +4.541436e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +1.011751e+00 +4.950645e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E06_VERTICAL v<=1.2130 m/s a<=1.0706 m/s^2 j<=1.9758 m/s^3 tensionLB=9.0991
+[PERF] case=E06_VERTICAL front=10129.182 ms route=16.382 ms build=5.940 ms cert=3.713 ms searchTotal=10.636 ms tested=1
+[E-REQ] case=E06_VERTICAL build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=3.938e-08 maxEndpointAbs=2.444e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E07_FAST / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E07_FAST initialOutside=1 detectAt=[3.25 5.95] memory=1 trigger=1 t=9.00 TTC=5.00 known=[1 2]
+[CASE] E07_FAST: faster nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.089051e-01 +4.528669e-01] candidate=9.371 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.837e+08 condA(rowScaled)=4.216e+02 condCZ(coord)=1.373e+06
+ [SPECTRUM] sigmaMinA=1.264e-01 sigmaMaxA=2.323e+07 sigmaMinCZ=8.259e+00 sigmaMaxCZ=1.134e+07 J7=1.768830763251e+03 solve=2.377 ms
+ [A-POST] eqRes=2.702e-07 eqRel=5.267e-17 eqCorrection<=2.137e-06 projectedGrad=2.977e+00 optCoeffCorrection<=4.364e-02
+ [QR] nullResidual=1.298e-16 particularResidual=1.957e-17
+ [C6] joinAbs=[1.07e-14 2.07e-13 1.88e-12 5.24e-11 7.41e-10 1.52e-08 1.86e-07 ]
+ [C6] joinRel=[5.26e-16 2.07e-13 1.88e-12 5.24e-11 4.35e-10 1.13e-08 6.52e-08 ]
+ [END] endpointAbs=[1.87e-21 1.04e-14 2.56e-14 1.78e-13 1.24e-13 1.46e-12 2.52e-12 ]
+ [END] endpointRel=[6.22e-23 7.73e-15 2.56e-14 1.78e-13 1.24e-13 1.46e-12 2.52e-12 ]
+ [OBS] id=1 minG=+2.956231e-01 [L/U/C]=[+2.956231e-01 +9.089051e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.935597e-01 [L/U/C]=[+2.935597e-01 +9.653626e-01 +4.885597e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E07_FAST v<=1.6322 m/s a<=2.4226 m/s^2 j<=4.6153 m/s^3 tensionLB=9.2018
+[PERF] case=E07_FAST front=5678.688 ms route=16.324 ms build=5.691 ms cert=3.680 ms searchTotal=11.006 ms tested=1
+[E-REQ] case=E07_FAST build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.861e-07 maxEndpointAbs=2.524e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E08_SLOW / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E08_SLOW initialOutside=1 detectAt=[6.2 11.45] memory=1 trigger=1 t=22.00 TTC=5.00 known=[1 2]
+[CASE] E08_SLOW: slower nominal approach | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] candidate=10.020 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=1.015e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=2.530e+05
+ [SPECTRUM] sigmaMinA=7.339e-02 sigmaMaxA=7.452e+05 sigmaMinCZ=1.079e+00 sigmaMaxCZ=2.730e+05 J7=2.168615762909e+00 solve=2.773 ms
+ [A-POST] eqRes=8.486e-09 eqRel=5.119e-17 eqCorrection<=1.156e-07 projectedGrad=2.447e-03 optCoeffCorrection<=2.102e-03
+ [QR] nullResidual=1.323e-16 particularResidual=1.892e-17
+ [C6] joinAbs=[1.42e-14 1.07e-13 1.43e-12 1.08e-11 4.97e-11 7.48e-10 4.36e-09 ]
+ [C6] joinRel=[7.01e-16 1.07e-13 1.43e-12 1.08e-11 4.97e-11 7.48e-10 4.36e-09 ]
+ [END] endpointAbs=[2.05e-19 4.55e-15 1.60e-14 2.63e-14 8.56e-14 8.22e-14 4.21e-13 ]
+ [END] endpointRel=[6.84e-21 4.55e-15 1.60e-14 2.63e-14 8.56e-14 8.22e-14 4.21e-13 ]
+ [OBS] id=1 minG=+2.925948e-01 [L/U/C]=[+2.925948e-01 +1.023063e+00 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.972999e-01 [L/U/C]=[+2.972999e-01 +1.039857e+00 +4.903593e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E08_SLOW v<=0.8123 m/s a<=0.5588 m/s^2 j<=0.7382 m/s^3 tensionLB=9.7348
+[PERF] case=E08_SLOW front=16810.507 ms route=16.349 ms build=6.304 ms cert=3.715 ms searchTotal=11.033 ms tested=1
+[E-REQ] case=E08_SLOW build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=4.359e-09 maxEndpointAbs=4.210e-13
+
+------------------------------------------------------------------------------------------------------------------------
+ E09_NEAR_SENSOR_EDGE / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E09_NEAR_SENSOR_EDGE initialOutside=1 detectAt=[1.3 5] memory=1 trigger=1 t=10.85 TTC=5.00 known=[1 2]
+[CASE] E09_NEAR_SENSOR_EDGE: initially just outside sensor | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.528669e-01] candidate=9.952 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=2.479e+08 condA(rowScaled)=4.216e+02 condCZ(coord)=2.915e+06
+ [SPECTRUM] sigmaMinA=9.759e-02 sigmaMaxA=2.419e+07 sigmaMinCZ=4.064e+00 sigmaMaxCZ=1.185e+07 J7=4.102530680640e+02 solve=2.636 ms
+ [A-POST] eqRes=2.805e-07 eqRel=5.938e-17 eqCorrection<=2.875e-06 projectedGrad=2.865e+00 optCoeffCorrection<=1.734e-01
+ [QR] nullResidual=1.210e-16 particularResidual=2.973e-17
+ [C6] joinAbs=[2.14e-14 2.70e-13 1.82e-12 5.90e-11 3.44e-10 1.23e-08 1.44e-07 ]
+ [C6] joinRel=[9.58e-16 2.38e-13 1.82e-12 5.86e-11 3.44e-10 6.78e-09 1.37e-07 ]
+ [END] endpointAbs=[1.61e-20 9.99e-16 3.12e-14 1.57e-14 1.79e-13 4.46e-13 1.53e-12 ]
+ [END] endpointRel=[5.36e-22 9.99e-16 3.12e-14 1.57e-14 1.79e-13 4.46e-13 1.53e-12 ]
+ [OBS] id=1 minG=+3.100000e-01 [L/U/C]=[+3.100000e-01 +9.772475e-01 +4.528669e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+2.611161e-01 [L/U/C]=[+2.611161e-01 +9.080426e-01 +4.561161e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E09_NEAR_SENSOR_EDGE v<=2.9466 m/s a<=4.1210 m/s^2 j<=6.2060 m/s^3 tensionLB=9.0238
+[PERF] case=E09_NEAR_SENSOR_EDGE front=9770.856 ms route=16.396 ms build=6.149 ms cert=3.803 ms searchTotal=10.813 ms tested=1
+[E-REQ] case=E09_NEAR_SENSOR_EDGE build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=1.442e-07 maxEndpointAbs=1.528e-12
+
+------------------------------------------------------------------------------------------------------------------------
+ E10_ASYMMETRIC / BEZIER_D13_MIN7
+------------------------------------------------------------------------------------------------------------------------
+[FRONT] case=E10_ASYMMETRIC initialOutside=1 detectAt=[4.2 8.25] memory=1 trigger=1 t=14.25 TTC=5.00 known=[1 2]
+[CASE] E10_ASYMMETRIC: asymmetric size and orientation | obstacles=2
+[GENERATOR] oriented support h_E(n)=n'c+sqrt(n'Sn), outerSphereUsed=0, obstacles=2, candidates=720
+[SELECTED] method=BEZIER_D13_MIN7 route=ell_d01-d01_x0.25 vias=6 C6mode=equality-constrained C6ok=1 geom=1 tension=1 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] candidate=9.858 ms <SELECTED>
+ [SOLVER] mode=sqrt-ls-completeQR A=62x98 rankA(struct)=62 null=36 rankCZ(struct)=36 condA(raw)=4.446e+07 condA(rowScaled)=4.216e+02 condCZ(coord)=4.451e+05
+ [SPECTRUM] sigmaMinA=1.200e-01 sigmaMaxA=5.336e+06 sigmaMinCZ=5.176e+00 sigmaMaxCZ=2.304e+06 J7=4.559752368270e+01 solve=2.550 ms
+ [A-POST] eqRes=2.264e-08 eqRel=1.895e-17 eqCorrection<=1.886e-07 projectedGrad=3.347e-02 optCoeffCorrection<=1.249e-03
+ [QR] nullResidual=1.311e-16 particularResidual=2.071e-17
+ [C6] joinAbs=[1.78e-14 9.10e-14 1.94e-12 3.10e-11 2.37e-10 3.32e-09 2.03e-08 ]
+ [C6] joinRel=[9.22e-16 9.10e-14 1.94e-12 3.10e-11 2.37e-10 3.32e-09 1.39e-08 ]
+ [END] endpointAbs=[1.35e-20 1.55e-15 6.22e-14 1.09e-14 4.78e-13 1.51e-13 7.40e-13 ]
+ [END] endpointRel=[4.51e-22 1.55e-15 6.22e-14 1.09e-14 4.78e-13 1.51e-13 7.40e-13 ]
+ [OBS] id=1 minG=+3.214742e-01 [L/U/C]=[+3.214742e-01 +1.328977e+00 +5.164742e-01] guide=+2.500000e-01
+ [OBS] id=2 minG=+3.104389e-01 [L/U/C]=[+3.104389e-01 +1.001483e+00 +4.342421e-01] guide=+2.500000e-01
+[SEARCH] method=BEZIER_D13_MIN7 tested=1 build=1 C6ok=1 geom=1 tension=1 safe=1 suppressed=0
+[VAJ-BOUND] case=E10_ASYMMETRIC v<=1.1232 m/s a<=1.1218 m/s^2 j<=1.7064 m/s^3 tensionLB=9.6033
+[PERF] case=E10_ASYMMETRIC front=10318.019 ms route=16.299 ms build=6.025 ms cert=3.833 ms searchTotal=10.863 ms tested=1
+[E-REQ] case=E10_ASYMMETRIC build=1 C6ok=1 geom=1 tension=1 safety=1 initialOutside=1 memory=1 trigger=1 known=2 maxJoinAbs=2.033e-08 maxEndpointAbs=7.399e-13
+
+========================================================================================================================
+ STAGE-E SQRT-LS THEORY-INTEGRATED SUMMARY
+========================================================================================================================
+ case  method                 core geom tens tested    minG      tLB      vBound   aBound   jBound    condCZ(coord) J7          searchMs
+ E01   BSPLINE_D7             PASS PASS PASS      1 +2.987e-01    9.718    1.000    0.537    0.696  2.107e+01  1.0283e+02   1246.74
+ E01   POLY_D13_MIN7          PASS PASS PASS      1 +2.916e-01    9.683    1.159    1.131    2.043  1.414e+06  6.5371e+01     45.50
+ E01   BEZIER_D13_MIN7        PASS PASS PASS      1 +2.916e-01    9.683    1.159    1.131    2.043  3.110e+05  6.5371e+01     20.55
+ E02   BSPLINE_D7             PASS PASS PASS      1 +3.095e-01    9.768    1.000    0.529    0.672  2.130e+01  6.9283e+01   1199.86
+ E02   POLY_D13_MIN7          PASS PASS PASS      1 +3.078e-01    9.752    1.048    1.017    1.833  1.714e+06  4.0820e+01     26.83
+ E02   BEZIER_D13_MIN7        PASS PASS PASS      1 +3.078e-01    9.752    1.048    1.017    1.833  3.542e+05  4.0820e+01     12.24
+ E03_LARGER_OBS BSPLINE_D7             PASS PASS PASS      1 +2.780e-01    9.712    1.000    0.732    0.979  2.465e+01  1.4751e+02   1202.93
+ E03_LARGER_OBS POLY_D13_MIN7          PASS PASS PASS      1 +2.848e-01    9.707    1.139    1.197    1.795  2.409e+06  7.8390e+01     28.58
+ E03_LARGER_OBS BEZIER_D13_MIN7        PASS PASS PASS      1 +2.848e-01    9.707    1.139    1.197    1.795  4.142e+05  7.8390e+01     12.29
+ E04_CLOSE_PAIR BSPLINE_D7             PASS PASS PASS      1 +1.399e-01    9.480    2.199    2.123    2.957  3.786e+01  2.1271e+03   1234.33
+ E04_CLOSE_PAIR POLY_D13_MIN7          PASS PASS PASS      9 +2.240e-01    8.171    4.430    6.271    9.695  6.045e+08  1.9329e+03    239.09
+ E04_CLOSE_PAIR BEZIER_D13_MIN7        PASS PASS PASS      9 +2.240e-01    8.171    4.430    6.271    9.695  3.444e+07  1.9329e+03    115.43
+ E05_LATERAL BSPLINE_D7             PASS PASS PASS      1 +2.902e-01    9.752    1.111    0.824    1.101  1.922e+01  1.6950e+02   1186.82
+ E05_LATERAL POLY_D13_MIN7          PASS PASS PASS      1 +2.846e-01    9.737    1.496    1.414    2.536  1.712e+06  1.1382e+02     28.10
+ E05_LATERAL BEZIER_D13_MIN7        PASS PASS PASS      1 +2.846e-01    9.737    1.496    1.414    2.536  3.536e+05  1.1382e+02     10.76
+ E06_VERTICAL BSPLINE_D7             PASS PASS PASS      1 +3.038e-01    9.187    1.000    0.724    1.051  1.851e+01  1.8459e+02   1192.45
+ E06_VERTICAL POLY_D13_MIN7          PASS PASS PASS      1 +3.100e-01    9.099    1.213    1.071    1.976  1.189e+06  1.2125e+02     26.24
+ E06_VERTICAL BEZIER_D13_MIN7        PASS PASS PASS      1 +3.100e-01    9.099    1.213    1.071    1.976  2.824e+05  1.2125e+02     10.64
+ E07_FAST BSPLINE_D7             PASS PASS PASS      1 +2.914e-01    9.604    1.350    1.078    1.693  5.226e+01  3.1176e+03   1219.72
+ E07_FAST POLY_D13_MIN7          PASS PASS PASS      1 +2.936e-01    9.202    1.632    2.423    4.615  8.741e+06  1.7688e+03     25.68
+ E07_FAST BEZIER_D13_MIN7        PASS PASS PASS      1 +2.936e-01    9.202    1.632    2.423    4.615  1.373e+06  1.7688e+03     11.01
+ E08_SLOW BSPLINE_D7             PASS PASS PASS      1 +2.939e-01    9.759    0.713    0.395    0.388  3.184e+01  4.4875e+00   1226.89
+ E08_SLOW POLY_D13_MIN7          PASS PASS PASS      1 +2.926e-01    9.735    0.812    0.559    0.738  1.308e+06  2.1686e+00     26.50
+ E08_SLOW BEZIER_D13_MIN7        PASS PASS PASS      1 +2.926e-01    9.735    0.812    0.559    0.738  2.530e+05  2.1686e+00     11.03
+ E09_NEAR_SENSOR_EDGE BSPLINE_D7             PASS PASS PASS      1 +2.630e-01    9.534    1.658    1.054    1.293  7.469e+01  5.4502e+02   1191.87
+ E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          PASS PASS PASS      1 +2.611e-01    9.024    2.947    4.121    6.206  2.412e+07  4.1025e+02     26.35
+ E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        PASS PASS PASS      1 +2.611e-01    9.024    2.947    4.121    6.206  2.915e+06  4.1025e+02     10.81
+ E10_ASYMMETRIC BSPLINE_D7             PASS PASS PASS      1 +3.313e-01    9.646    1.000    0.639    0.771  1.978e+01  7.6941e+01   1192.95
+ E10_ASYMMETRIC POLY_D13_MIN7          PASS PASS PASS      1 +3.104e-01    9.603    1.123    1.122    1.706  1.934e+06  4.5598e+01     26.26
+ E10_ASYMMETRIC BEZIER_D13_MIN7        PASS PASS PASS      1 +3.104e-01    9.603    1.123    1.122    1.706  4.451e+05  4.5598e+01     10.86
+
+Theory policy:
+ - C6 acceptance is native-structural for degree-7 simple-knot B-spline and equality-constrained for Power/Bezier; floating join/end residuals are diagnostics.
+ - All three methods solve exact seventh-derivative energy in square-root form; no Q/Hessian normal-equation solve.
+ - QR uses the structurally full-row-rank equality system; no SVD rank truncation or artificial ridge.
+ - v/a/j are conservative Bernstein bounds and are measurement only.
+ - Geometry certificate is conservative/sufficient finite-direction Bernstein support certification, not exact global distance.
+ - Positive cable-tension lower bound is reported and gated separately from geometric separation.
+ - Search logs retain one representative failed candidate; every candidate row remains in result for offline analysis.
+ - condCZ(coord) and optCoeffCorrection are coordinate-space numerical diagnostics; they must not be interpreted as basis-independent physical quality metrics.
+
+================================================================================================================================================
+ STAGE-F1 NOMINAL DYNAMIC FEASIBILITY -- NO HLC / NO LOGGER / NO CLOSED-LOOP SIMULATION
+ mQ=0.762 kg  mL=0.0556 kg  L=2 m  J=[0.02237568 0.02985236 0.0480374] kg m^2  g=9.81
+ actuator check: thrust in [0, 20] N, |M| <= [1 1 1] N m
+ yaw reference: PASSTHROUGH (no avoidance-side modification)
+ v/a/j: diagnostic only | nonlinear actuator audit sampling dt <= 0.01 s
+================================================================================================================================================
+[F1] E01   BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9530,  8.1089] MabsMax=[  0.0012   0.0007   0.0000] v/a/j=[  1.000   0.522   0.688] swingMax=  3.041deg cableWMax=  0.070 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2002 reason=PASS
+[F1] E02   BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9947,  8.0601] MabsMax=[  0.0010   0.0007   0.0000] v/a/j=[  1.000   0.509   0.660] swingMax=  2.973deg cableWMax=  0.067 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2002 reason=PASS
+[F1] E03_LARGER_OBS BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9488,  8.1269] MabsMax=[  0.0015   0.0011   0.0001] v/a/j=[  1.000   0.726   0.933] swingMax=  4.245deg cableWMax=  0.095 usage[f/M/max]=[ 0.406  0.002  0.406] samples=2117 reason=PASS
+[F1] E04_CLOSE_PAIR BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5389 f=[  7.8439,  8.4007] MabsMax=[  0.0052   0.0055   0.0009] v/a/j=[  2.164   2.080   2.761] swingMax= 12.219deg cableWMax=  0.279 usage[f/M/max]=[ 0.420  0.006  0.420] samples=2002 reason=PASS
+[F1] E05_LATERAL BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9909,  8.0997] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.101   0.804   1.061] swingMax=  4.641deg cableWMax=  0.108 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2002 reason=PASS
+[F1] E06_VERTICAL BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5125 f=[  7.5360,  8.5082] MabsMax=[  0.0011   0.0009   0.0000] v/a/j=[  1.000   0.705   0.978] swingMax=  2.860deg cableWMax=  0.061 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2002 reason=PASS
+[F1] E07_FAST BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5370 f=[  7.8960,  8.2261] MabsMax=[  0.0028   0.0016   0.0001] v/a/j=[  1.350   1.052   1.581] swingMax=  6.134deg cableWMax=  0.160 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1703 reason=PASS
+[F1] E08_SLOW BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9811,  8.0638] MabsMax=[  0.0006   0.0004   0.0000] v/a/j=[  0.706   0.387   0.372] swingMax=  2.261deg cableWMax=  0.038 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2508 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5333 f=[  7.8418,  8.2045] MabsMax=[  0.0024   0.0009   0.0001] v/a/j=[  1.649   1.036   1.243] swingMax=  5.991deg cableWMax=  0.123 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1818 reason=PASS
+[F1] E10_ASYMMETRIC BSPLINE_D7             upstream=1 dyn=1 TloadMin=  0.5371 f=[  7.8983,  8.1614] MabsMax=[  0.0012   0.0010   0.0001] v/a/j=[  1.000   0.618   0.763] swingMax=  3.588deg cableWMax=  0.077 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2117 reason=PASS
+[F1] E01   POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9532,  8.1076] MabsMax=[  0.0012   0.0006   0.0000] v/a/j=[  1.000   0.485   0.616] swingMax=  2.824deg cableWMax=  0.062 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2003 reason=PASS
+[F1] E02   POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9954,  8.0565] MabsMax=[  0.0009   0.0006   0.0000] v/a/j=[  1.000   0.463   0.581] swingMax=  2.701deg cableWMax=  0.059 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2005 reason=PASS
+[F1] E03_LARGER_OBS POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9495,  8.1229] MabsMax=[  0.0013   0.0009   0.0001] v/a/j=[  1.000   0.627   0.784] swingMax=  3.666deg cableWMax=  0.080 usage[f/M/max]=[ 0.406  0.001  0.406] samples=2105 reason=PASS
+[F1] E04_CLOSE_PAIR POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5139 f=[  7.4808,  8.5768] MabsMax=[  0.0056   0.0058   0.0010] v/a/j=[  2.164   2.239   2.956] swingMax= 13.140deg cableWMax=  0.300 usage[f/M/max]=[ 0.429  0.006  0.429] samples=2004 reason=PASS
+[F1] E05_LATERAL POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9916,  8.0976] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.105   0.790   1.036] swingMax=  4.562deg cableWMax=  0.105 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2004 reason=PASS
+[F1] E06_VERTICAL POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5127 f=[  7.5394,  8.5052] MabsMax=[  0.0009   0.0010   0.0000] v/a/j=[  1.000   0.698   0.958] swingMax=  2.553deg cableWMax=  0.053 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2004 reason=PASS
+[F1] E07_FAST POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5369 f=[  7.8967,  8.2255] MabsMax=[  0.0025   0.0013   0.0001] v/a/j=[  1.350   1.015   1.487] swingMax=  5.911deg cableWMax=  0.149 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1704 reason=PASS
+[F1] E08_SLOW POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9814,  8.0635] MabsMax=[  0.0005   0.0003   0.0000] v/a/j=[  0.700   0.334   0.303] swingMax=  1.949deg cableWMax=  0.031 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2504 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5334 f=[  7.8441,  8.2092] MabsMax=[  0.0024   0.0008   0.0001] v/a/j=[  1.678   1.081   1.269] swingMax=  6.260deg cableWMax=  0.125 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1805 reason=PASS
+[F1] E10_ASYMMETRIC POLY_D13_MIN7          upstream=1 dyn=1 TloadMin=  0.5372 f=[  7.8990,  8.1611] MabsMax=[  0.0011   0.0008   0.0001] v/a/j=[  1.000   0.551   0.662] swingMax=  3.192deg cableWMax=  0.067 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2103 reason=PASS
+[F1] E01   BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5408 f=[  7.9532,  8.1076] MabsMax=[  0.0012   0.0006   0.0000] v/a/j=[  1.000   0.485   0.616] swingMax=  2.824deg cableWMax=  0.062 usage[f/M/max]=[ 0.405  0.001  0.405] samples=2003 reason=PASS
+[F1] E02   BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9954,  8.0565] MabsMax=[  0.0009   0.0006   0.0000] v/a/j=[  1.000   0.463   0.581] swingMax=  2.701deg cableWMax=  0.059 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2005 reason=PASS
+[F1] E03_LARGER_OBS BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5406 f=[  7.9495,  8.1229] MabsMax=[  0.0013   0.0009   0.0001] v/a/j=[  1.000   0.627   0.784] swingMax=  3.666deg cableWMax=  0.080 usage[f/M/max]=[ 0.406  0.001  0.406] samples=2105 reason=PASS
+[F1] E04_CLOSE_PAIR BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5139 f=[  7.4808,  8.5768] MabsMax=[  0.0056   0.0058   0.0010] v/a/j=[  2.164   2.239   2.956] swingMax= 13.140deg cableWMax=  0.300 usage[f/M/max]=[ 0.429  0.006  0.429] samples=2004 reason=PASS
+[F1] E05_LATERAL BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5438 f=[  7.9916,  8.0976] MabsMax=[  0.0018   0.0011   0.0001] v/a/j=[  1.105   0.790   1.036] swingMax=  4.562deg cableWMax=  0.105 usage[f/M/max]=[ 0.405  0.002  0.405] samples=2004 reason=PASS
+[F1] E06_VERTICAL BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5127 f=[  7.5394,  8.5052] MabsMax=[  0.0009   0.0010   0.0000] v/a/j=[  1.000   0.698   0.958] swingMax=  2.553deg cableWMax=  0.053 usage[f/M/max]=[ 0.425  0.001  0.425] samples=2004 reason=PASS
+[F1] E07_FAST BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5369 f=[  7.8967,  8.2255] MabsMax=[  0.0025   0.0013   0.0001] v/a/j=[  1.350   1.015   1.487] swingMax=  5.911deg cableWMax=  0.149 usage[f/M/max]=[ 0.411  0.003  0.411] samples=1704 reason=PASS
+[F1] E08_SLOW BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5428 f=[  7.9814,  8.0635] MabsMax=[  0.0005   0.0003   0.0000] v/a/j=[  0.700   0.334   0.303] swingMax=  1.949deg cableWMax=  0.031 usage[f/M/max]=[ 0.403  0.001  0.403] samples=2504 reason=PASS
+[F1] E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5334 f=[  7.8441,  8.2092] MabsMax=[  0.0024   0.0008   0.0001] v/a/j=[  1.678   1.081   1.269] swingMax=  6.260deg cableWMax=  0.125 usage[f/M/max]=[ 0.410  0.002  0.410] samples=1805 reason=PASS
+[F1] E10_ASYMMETRIC BEZIER_D13_MIN7        upstream=1 dyn=1 TloadMin=  0.5372 f=[  7.8990,  8.1611] MabsMax=[  0.0011   0.0008   0.0001] v/a/j=[  1.000   0.551   0.662] swingMax=  3.192deg cableWMax=  0.067 usage[f/M/max]=[ 0.408  0.001  0.408] samples=2103 reason=PASS
+
+================================================================================================================================================
+ STAGE-F1 SUMMARY
+================================================================================================================================================
+ E01   BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E01   POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E01   BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E02   BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E02   POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E02   BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E03_LARGER_OBS BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E04_CLOSE_PAIR BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E05_LATERAL BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E06_VERTICAL BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E07_FAST BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E07_FAST POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E07_FAST BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E08_SLOW BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E09_NEAR_SENSOR_EDGE BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC BSPLINE_D7             upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC POLY_D13_MIN7          upstream=1 dynamic=1 final=1  PASS
+ E10_ASYMMETRIC BEZIER_D13_MIN7        upstream=1 dynamic=1 final=1  PASS
+
+Policy:
+ - No HLC/logger/closed-loop simulation is part of planning feasibility.
+ - Nominal yaw reference is passed through unchanged.
+ - v/a/j are diagnostics only; no empirical derivative limits are introduced.
+ - Upstream C6/geometry/tension and nominal actuator feasibility are both required for final pass.
+ - Actuator feasibility is sampled in time; it is not claimed as a continuous-time nonlinear actuator certificate.
+================================================================================================================================================
+
+
+================================================================================================================================================
+ STAGE-G1 AUTOMATIC SYNCHRONIZED REJOIN / VARIABLE-T PARETO CHARACTERIZATION
+ Fixed avoidance duration S.T: NOT used as the G1 decision.
+ Fixed endpoint S.pg:          NOT used as the G1 rejoin endpoint.
+ Rejoin definition: D1(T) = nominal_reference_jet(t_trigger + T), matched through derivative order 6.
+ Current regression nominal mode: LINEAR constant-velocity reference.
+ Candidate anchor: T_clear = nominal passage beyond farthest known oriented-ellipsoid support + system support + d_margin.
+ Candidate spacing: tau_obs = traversal time of the largest known obstacle longitudinal diameter.
+ Tail landmark indices k: [0 1 2 3], giving T_k = T_clear + k*tau_obs.
+ IMPORTANT: k values are characterization landmarks, not safety limits and not the final automatic-T law.
+ Acceptance remains C6 + continuous geometry + positive tension + sampled nominal actuator feasibility.
+ No weighted quality cost and no arbitrary a/j/swing threshold are introduced.
+================================================================================================================================================
+{処理は途中で終了しました <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1449)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1449,0)">行 1449</a>)
+
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1455)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1455,0)">行 1455</a>)
+if d2~=0,b=(U(i+p+1)-u)/d2*c6c_bs_basis(i+1,p-1,u,U);end
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1454)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1454,0)">行 1454</a>)
+if d1~=0,a=(u-U(i))/d1*c6c_bs_basis(i,p-1,u,U);end
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1454)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1454,0)">行 1454</a>)
+if d1~=0,a=(u-U(i))/d1*c6c_bs_basis(i,p-1,u,U);end
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1454)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1454,0)">行 1454</a>)
+if d1~=0,a=(u-U(i))/d1*c6c_bs_basis(i,p-1,u,U);end
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1455)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1455,0)">行 1455</a>)
+if d2~=0,b=(U(i+p+1)-u)/d2*c6c_bs_basis(i+1,p-1,u,U);end
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1454)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1454,0)">行 1454</a>)
+if d1~=0,a=(u-U(i))/d1*c6c_bs_basis(i,p-1,u,U);end
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1454)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1454,0)">行 1454</a>)
+if d1~=0,a=(u-U(i))/d1*c6c_bs_basis(i,p-1,u,U);end
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis_derivative_single', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1441)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis_derivative_single</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1441,0)">行 1441</a>)
+if r==0,v=c6c_bs_basis(i,p,u,U);return,end
+          ^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis_derivative_all', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1437)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_bs_basis_derivative_all</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1437,0)">行 1437</a>)
+dN=zeros(1,N); for i=1:N,dN(i)=c6c_bs_basis_derivative_single(i,p,r,u,U);end
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_build_bspline', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1419)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_build_bspline</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1419,0)">行 1419</a>)
+    for k=1:p+1, u=ua+(ub-ua)*tau(k); V(k,:)=c6c_bs_basis_derivative_all(u,U,p,N,0)*X; end
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_build', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1393)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_build</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1393,0)">行 1393</a>)
+    case "BSPLINE_D7", seg=c6c_build_bspline(T,D0,D1,vias,P);
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_run', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 1095)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>c6c_run</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',1095,0)">行 1095</a>)
+        seg=c6c_build(method,Splan.T,D0,D1,routes{ir},P);
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>g1_run_automatic_sync_rejoin', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 310)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT>g1_run_automatic_sync_rejoin</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',310,0)">行 310</a>)
+                [~,run]=evalc('c6c_run(method,Sg,R6.params,front,T,D0,D1);');
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT', 'C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m', 107)" style="font-weight:bold">CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m',107,0)">行 107</a>)
+G1=g1_run_automatic_sync_rejoin(R6,phys);
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+場所 <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('CURRENT_C6_G1_G5_RUNTIME_AUDIT', 'C:\Users\student\Downloads\CURRENT_C6_G1_G5_RUNTIME_AUDIT.m', 109)" style="font-weight:bold">CURRENT_C6_G1_G5_RUNTIME_AUDIT</a> (<a href="matlab: opentoline('C:\Users\student\Downloads\CURRENT_C6_G1_G5_RUNTIME_AUDIT.m',109,0)">行 109</a>)
+    R = feval(target);
+        ^^^^^^^^^^^^^} 
+CURRENT_C6_G1_G5_LIGHTWEIGHT_RUNTIME_AUDIT
+
+========================================================================================================================
+ CURRENT C6 G1/G5 LIGHTWEIGHT RUNTIME AUDIT -- PROFILER OFF
+ target: CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT
+ No algorithm change. Existing [PERF] logs are parsed after normal execution.
+========================================================================================================================
+[LIGHT-AUDIT] target path: C:\Users\student\Downloads\CURRENT_C6_STAGE_G5_PHYSICAL_SWING_OBJECTIVE_AUDIT.m
+[LIGHT-AUDIT] MATLAB profiler is OFF.
