@@ -63,7 +63,8 @@ replan_opts.trigger_dist = 15.0;
 replan_opts.r_load       = 0.5;
 replan_opts.r_drone      = 0.5;
 replan_opts.cable        = 0.5;
-replanner_instance = REPLANNING_BSPLINE_NEW(agent, nominal_ref, replan_opts);
+% replanner_instance = REPLANNING_BSPLINE_NEW(agent, nominal_ref, replan_opts);
+replanner_instance = REPLANNING_SYSTEM(agent, nominal_ref, replan_opts);
 
 agent.reference.set_function_class("timevarying", replanner_instance);
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
