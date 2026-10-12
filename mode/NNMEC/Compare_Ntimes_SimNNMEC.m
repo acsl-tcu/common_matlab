@@ -19,7 +19,7 @@ close all hidden; clear; clc;
 
 %% 比較設定 ===========================================================================================================================================
 dataDir = fullfile("Data", "NNMEC_MonteCarlo");
-% 比較するファイル（dataDir からの相対パス）。空なら選択ダイアログで複数選択する
+% 比較するファイル（dataDir からの相対パス，または絶対パス・rootDir からの相対パス）。空なら選択ダイアログで複数選択する
 fileNames = [
     % "2026-10-9_15_26_43__Ntimes_SimNNMEC__trial10.mat"
     % "2026-10-9_16_0_0__Ntimes_SimNNMEC__trial10.mat"
@@ -43,13 +43,26 @@ LW = 1.5;% LineWidth
 
 %% 読み込み ===========================================================================================================================================
 if isempty(fileNames)
-    [selectedFiles, selectedDir] = uigetfile(fullfile(dataDir, "*.mat"), "比較する結果ファイルを選択（複数選択可）", "MultiSelect", "on");
-    if isequal(selectedFiles, 0)
+    % 別フォルダのファイルも比較できるよう，キャンセルするまで繰り返し選択する（前回選択したフォルダから開く）
+    filePaths = strings(0, 1);
+    startDir = dataDir;
+    while true
+        dialogTitle = sprintf("比較する結果ファイルを選択（複数選択可，%d 件選択済み，キャンセルで選択終了）", numel(filePaths));
+        [selectedFiles, selectedDir] = uigetfile(fullfile(startDir, "*.mat"), dialogTitle, "MultiSelect", "on");
+        if isequal(selectedFiles, 0); break; end
+        selectedFiles = string(selectedFiles);
+        filePaths = [filePaths; fullfile(string(selectedDir), selectedFiles(:))]; %#ok<AGROW>
+        startDir = selectedDir;
+    end
+    if isempty(filePaths)
         error("Compare_Ntimes_SimNNMEC: ファイルが選択されていません。");
     end
-    filePaths = fullfile(string(selectedDir), string(selectedFiles));
+    filePaths = unique(filePaths, "stable");
 else
-    filePaths = fullfile(dataDir, string(fileNames));
+    % 存在するパス（絶対パス・rootDir からの相対パス）はそのまま，それ以外は dataDir からの相対パスとして扱う
+    filePaths = string(fileNames);
+    fInDataDir = ~isfile(filePaths);
+    filePaths(fInDataDir) = fullfile(dataDir, filePaths(fInDataDir));
 end
 filePaths = filePaths(:);
 fileN = numel(filePaths);
