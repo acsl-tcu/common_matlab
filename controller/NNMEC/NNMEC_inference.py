@@ -94,7 +94,7 @@ class InferenceWrapper(nn.Module):
         """NNModel / RNNModel共通の推論インターフェース"""
         with torch.no_grad():
             x = torch.tensor(x_list, dtype=torch.float32)
-            print(f"[DEBUG] input shape: {x.shape}, values: {x}") # inputの形状と値をMATLABコマンドウィンドウ上に出力
+            # print(f"[DEBUG] input shape: {x.shape}, values: {x}") # inputの形状と値をMATLABコマンドウィンドウ上に出力
 
             if isinstance(self.model, RNNModel): # ここのif文の挙動怪しいかも...
                 if x.dim() == 2:
