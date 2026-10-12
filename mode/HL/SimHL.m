@@ -40,7 +40,9 @@ agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1]},4}));
+
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10,"orig",[0;0;1],"radius",1.0,"phase",0.0,"x",1},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 
@@ -65,7 +67,7 @@ app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Line
 % app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 show_animation(app);
 end
 function dfunc(app)
@@ -80,7 +82,7 @@ app.logger.plot({1, "q", "e"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linew
 % app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "p1-p2", "er"},"fig_num",60, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",61, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",61, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 end
 function show_animation(app)
 % 協調吊り下げ（複数ドローン＋牽引物）のアニメーションを生成する。

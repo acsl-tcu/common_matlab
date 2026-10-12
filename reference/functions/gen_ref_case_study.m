@@ -4,10 +4,11 @@ arguments
     param.orig = [0 0 1]
 end
 
-x_0 = param.orig(1);
+
+x_0= param.orig(1);
 y_0 = param.orig(2);
 z_0 = param.orig(3);
-T = param.freq; % ★追加
+T = param.freq; % 追加
 
 ref = @trajectory;
 

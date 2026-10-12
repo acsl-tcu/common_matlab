@@ -35,28 +35,9 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
-% ↓パラメータの上書き モデル誤差をプラントに与える
-% plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
-% plant_model.param.param(1) = 0.8;
-% plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
-
 % % モデル誤差
 % plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
 % plant_model.param.param(7) = 0.185; % 
-
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.2; % 
-% 
-% plant_model.param.param(6) = 0.22; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.22; % 
-% 
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
-% 
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
-
-
 
 % agent.parameter = DRONE_PARAM("DIATONE", "jx", 0.185);
 % agent.parameter = DRONE_PARAM("DIATONE", "jy", 0.185);
@@ -87,7 +68,7 @@ agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));%これ位相ずらす必要あるんかな…
 
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
 
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
