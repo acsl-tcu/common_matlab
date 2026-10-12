@@ -1,0 +1,8 @@
+component,status,relativeDegree,timeSeconds,completedSteps,maxStageSeconds,coefficientChars,nuCoefficientNonzero,momentCoefficientNonzero
+single,guard: symbol-size preflight before RD k=2 (chars=154524 > 100000),NaN,2.8469322,1,1.2749138,NaN,0,0
+sphere,guard: symbol-size preflight before RD k=4 (chars=961224 > 100000),NaN,4.3600462,3,0.4201449,NaN,0,0
+sphere_load,not_run: repeated symbolic guards,NaN,NaN,0,NaN,NaN,0,0
+,not_run: repeated symbolic guards,NaN,NaN,0,NaN,NaN,0,0
+,not_run: repeated symbolic guards,NaN,NaN,0,NaN,NaN,0,0
+,not_run: repeated symbolic guards,NaN,NaN,0,NaN,NaN,0,0
+,not_run: repeated symbolic guards,NaN,NaN,0,NaN,NaN,0,0

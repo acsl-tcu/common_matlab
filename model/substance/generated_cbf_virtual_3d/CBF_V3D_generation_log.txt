@@ -1,0 +1,102 @@
+[CBF-V3D] Output dir: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf_virtual_3d
+[CBF-V3D] One-shot 4-input QP; NO directional priority.
+[CBF-V3D] Output dir: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf_virtual_3d
+[CBF-V3D] One-shot 4-input QP; NO directional priority.
+
+[CBF-V3D][single] Building 3D ellipsoid separation h...
+[CBF-V3D][single] RD test k=1: nonzero=0
+[CBF-V3D][single] RD test k=2: nonzero=0
+[CBF-V3D][single] No generated primitive: symbol-size guard
+[CBF-V3D][single] 6.68 s; symbol-size guard
+
+[CBF-V3D][sphere] Building 3D ellipsoid separation h...
+[CBF-V3D][sphere] RD test k=1: nonzero=0
+[CBF-V3D][sphere] RD test k=2: nonzero=0
+[CBF-V3D][sphere] RD test k=3: nonzero=0
+[CBF-V3D][sphere] No generated primitive: symbol-size guard
+[CBF-V3D][sphere] 3.58 s; symbol-size guard
+
+[CBF-V3D][sphere_load] Building 3D ellipsoid separation h...
+[CBF-V3D][sphere_load] RD test k=1: nonzero=0
+[CBF-V3D][sphere_load] RD test k=2: nonzero=0
+[CBF-V3D][sphere_load] RD test k=3: nonzero=0
+[CBF-V3D][sphere_load] RD test k=4: nonzero=0
+[CBF-V3D][sphere_load] No generated primitive: symbol-size guard
+[CBF-V3D][sphere_load] 127.23 s; symbol-size guard
+
+[CBF-V3D][sphere_uav] Building 3D ellipsoid separation h...
+[CBF-V3D][sphere_uav] RD test k=1: nonzero=0
+[CBF-V3D][sphere_uav] RD test k=2: nonzero=0
+[CBF-V3D][sphere_uav] RD test k=3: nonzero=0
+[CBF-V3D] Output dir: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf_virtual_3d
+[CBF-V3D] One-shot 4-input QP; NO directional priority.
+[CBF-V3D] Start: 2026-10-12 15:47:01
+[CBF-V3D] Limits: run 300s, model 120s, step 35s, chars 200000, preflight factor 2.0, consecutive guards 2
+[CBF-V3D] NOTE: time limits are checked AFTER MATLAB symbolic calls return; they cannot interrupt a blocked symbolic call.
+
+[CBF-V3D][+1.7s][1/7][single] START at 15:47:02
+[CBF-V3D][+    1.7s | model     0.0s][single] BUILD h: starting 3D ellipsoid separation (15:47:02)
+[CBF-V3D][+2.0s][single] h ready: 0.29s construction + 0.05s size check, chars=17425
+[CBF-V3D][+2.1s] preflight RD k=1: chars=17425 (0.05s) | model=0.4s
+[CBF-V3D][+    2.1s | model     0.4s][single] RD 1/6: starting jacobian(phi,X)*G (15:47:03)
+[CBF-V3D][+3.3s][single] RD k=1: input jacobian 1.27s
+[CBF-V3D][+3.5s][single] RD k=1: coefficient chars=4, check 0.12s
+[CBF-V3D][+    3.5s | model     1.8s][single] RD 1/6: checking symbolic zero (isAlways) (15:47:04)
+[CBF-V3D][+3.5s][single] RD k=1: nonzero=0; zero-test 0.00s
+[CBF-V3D][+3.6s] preflight drift k=1: chars=17425 (0.05s) | model=1.9s
+[CBF-V3D][+    3.6s | model     1.9s][single] RD 1/6: starting next drift derivative (15:47:04)
+[CBF-V3D][+4.0s][single] drift 1: derivative 0.43s
+[CBF-V3D][+4.5s] preflight RD k=2: chars=154524 (0.45s) | model=2.8s
+[CBF-V3D][single] No generated primitive: guard: symbol-size preflight before RD k=2 (chars=154524 > 100000)
+[CBF-V3D][+4.5s][1/7][single] END model=2.85s; guard: symbol-size preflight before RD k=2 (chars=154524 > 100000)
+
+[CBF-V3D][+6.0s][2/7][sphere] START at 15:47:07
+[CBF-V3D][+    6.0s | model     0.0s][sphere] BUILD h: starting 3D ellipsoid separation (15:47:07)
+[CBF-V3D][+6.1s][sphere] h ready: 0.01s construction + 0.01s size check, chars=5014
+[CBF-V3D][+6.1s] preflight RD k=1: chars=5014 (0.01s) | model=0.0s
+[CBF-V3D][+    6.1s | model     0.0s][sphere] RD 1/6: starting jacobian(phi,X)*G (15:47:07)
+[CBF-V3D][+6.1s][sphere] RD k=1: input jacobian 0.01s
+[CBF-V3D][+6.1s][sphere] RD k=1: coefficient chars=4, check 0.00s
+[CBF-V3D][+    6.1s | model     0.0s][sphere] RD 1/6: checking symbolic zero (isAlways) (15:47:07)
+[CBF-V3D][+6.1s][sphere] RD k=1: nonzero=0; zero-test 0.00s
+[CBF-V3D][+6.1s] preflight drift k=1: chars=5014 (0.01s) | model=0.1s
+[CBF-V3D][+    6.1s | model     0.1s][sphere] RD 1/6: starting next drift derivative (15:47:07)
+[CBF-V3D][+6.1s][sphere] drift 1: derivative 0.01s
+[CBF-V3D][+6.2s] preflight RD k=2: chars=21513 (0.06s) | model=0.1s
+[CBF-V3D][+    6.2s | model     0.1s][sphere] RD 2/6: starting jacobian(phi,X)*G (15:47:07)
+[CBF-V3D][+6.2s][sphere] RD k=2: input jacobian 0.01s
+[CBF-V3D][+6.2s][sphere] RD k=2: coefficient chars=4, check 0.00s
+[CBF-V3D][+    6.2s | model     0.1s][sphere] RD 2/6: checking symbolic zero (isAlways) (15:47:07)
+[CBF-V3D][+6.2s][sphere] RD k=2: nonzero=0; zero-test 0.00s
+[CBF-V3D][+6.2s] preflight drift k=2: chars=21513 (0.06s) | model=0.2s
+[CBF-V3D][+    6.2s | model     0.2s][sphere] RD 2/6: starting next drift derivative (15:47:07)
+[CBF-V3D][+6.3s][sphere] drift 2: derivative 0.02s
+[CBF-V3D][+6.5s] preflight RD k=3: chars=94013 (0.27s) | model=0.5s
+[CBF-V3D][+    6.5s | model     0.5s][sphere] RD 3/6: starting jacobian(phi,X)*G (15:47:07)
+[CBF-V3D][+6.6s][sphere] RD k=3: input jacobian 0.06s
+[CBF-V3D][+6.6s][sphere] RD k=3: coefficient chars=4, check 0.00s
+[CBF-V3D][+    6.6s | model     0.6s][sphere] RD 3/6: checking symbolic zero (isAlways) (15:47:07)
+[CBF-V3D][+6.6s][sphere] RD k=3: nonzero=0; zero-test 0.00s
+[CBF-V3D][+6.9s] preflight drift k=3: chars=94013 (0.28s) | model=0.8s
+[CBF-V3D][+    6.9s | model     0.8s][sphere] RD 3/6: starting next drift derivative (15:47:07)
+[CBF-V3D][+7.3s][sphere] drift 3: derivative 0.42s
+[CBF-V3D][+10.3s] preflight RD k=4: chars=961224 (2.98s) | model=4.3s
+[CBF-V3D][sphere] No generated primitive: guard: symbol-size preflight before RD k=4 (chars=961224 > 100000)
+[CBF-V3D][+10.4s][2/7][sphere] END model=4.36s; guard: symbol-size preflight before RD k=4 (chars=961224 > 100000)
+[CBF-V3D][+10.5s] RUN STOP: 2 model attempts hit consecutive guards.
+      component                                     status                                   relativeDegree    timeSeconds    completedSteps    maxStageSeconds    coefficientChars    nuCoefficientNonzero    momentCoefficientNonzero
+    _____________    ____________________________________________________________________    ______________    ___________    ______________    _______________    ________________    ____________________    ________________________
+
+    "single"         "guard: symbol-size preflight before RD k=2 (chars=154524 > 100000)"         NaN            2.8469             1                1.2749              NaN                  false                     false          
+    "sphere"         "guard: symbol-size preflight before RD k=4 (chars=961224 > 100000)"         NaN              4.36             3               0.42014              NaN                  false                     false          
+    "sphere_load"    "not_run: repeated symbolic guards"                                          NaN               NaN             0                   NaN              NaN                  false                     false          
+    ""               "not_run: repeated symbolic guards"                                          NaN               NaN             0                   NaN              NaN                  false                     false          
+    ""               "not_run: repeated symbolic guards"                                          NaN               NaN             0                   NaN              NaN                  false                     false          
+    ""               "not_run: repeated symbolic guards"                                          NaN               NaN             0                   NaN              NaN                  false                     false          
+    ""               "not_run: repeated symbolic guards"                                          NaN               NaN             0                   NaN              NaN                  false                     false          
+
+[CBF-V3D] FINISHED at 2026-10-12 15:47:12 | elapsed 11.6s (0.2 min).
+[CBF-V3D] Report: C:\Users\student\Documents\GitHub\common_matlab\model\substance\generated_cbf_virtual_3d\CBF_V3D_report.csv
+[CBF-V3D] ADVICE: repeated size guards imply symbolic expression explosion; raising the time limit alone is unlikely to solve it.
+[CBF-V3D] ADVICE: consider compact derivative recursion/Taylor jets on the feedback-linearized chains instead.
+[CBF-V3D] Generated functions are NOT certified safety filters.

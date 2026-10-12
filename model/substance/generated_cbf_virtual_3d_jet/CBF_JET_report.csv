@@ -1,0 +1,8 @@
+component,status,rd,seconds,maxResidual,nuCoefficient,momentCoefficientNorm
+single,generated+sample_audited,4,0.4583253,0,0,474.070954759921
+sphere,generated+sample_audited,4,0.037456,0,0,729.730842147211
+sphere_load,generated+sample_audited,6,0.013301,1.4210854715202e-14,-0.0829311194970614,14987.6096522482
+sphere_uav,generated+sample_audited,4,0.0087341,0,0,1586.58888268967
+uav,generated+sample_audited,4,0.0285364,0,0,1604.97844661418
+cable,generated+sample_audited,4,0.0211815,0,0,736.722152313117
+load,generated+sample_audited,6,0.0168904,4.2632564145606e-14,-0.092974847259029,15238.5656419826
