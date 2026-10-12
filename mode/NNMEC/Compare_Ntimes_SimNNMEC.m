@@ -1,5 +1,6 @@
 %% Compare_Ntimes_SimNNMEC
 % Ntimes_SimNNMEC.m で保存した結果ファイル(.mat)を複数読み込み，プロット・データ比較するスクリプト。
+%   - 設定確認 : ファイルごとのシミュレーション設定（simScript, seed, モデル/制御器, フェーズ遷移）とモデル誤差の範囲・サンプル値の統計
 %   - 統計比較 : ファイルごとの失敗数，flight フェーズ RMSE の平均・標準偏差・最大
 %   - 対応比較 : seed と サンプル値が同じファイル同士は，同じモデル誤差の試行どうしで RMSE 差を比較
 %   - 描画     : RMSE の箱ひげ図，パラメータと RMSE の散布図，ファイル間 RMSE の散布図，
@@ -76,7 +77,7 @@ filePaths = filePaths(:);
 fileN = numel(filePaths);
 
 data = repmat(struct("file", "", "label", "", "results", [], "summaryTable", [], "sampledParam", [], ...
-                     "paramNames", [], "seed", [], "simInfo", struct()), fileN, 1);
+                     "paramNames", [], "errorParam", [], "seed", [], "phaseOpts", [], "simScript", "", "simInfo", struct()), fileN, 1);
 for fileIdx = 1:fileN
     loaded = load(filePaths(fileIdx));
     [~, data(fileIdx).file] = fileparts(filePaths(fileIdx));
@@ -84,7 +85,10 @@ for fileIdx = 1:fileN
     data(fileIdx).summaryTable = loaded.summaryTable;
     data(fileIdx).sampledParam = loaded.sampledParam;
     data(fileIdx).paramNames = [loaded.errorParam.name];
+    data(fileIdx).errorParam = loaded.errorParam;
     data(fileIdx).seed = loaded.seed;
+    if isfield(loaded, "phaseOpts"); data(fileIdx).phaseOpts = loaded.phaseOpts; end
+    if isfield(loaded, "simScript"); data(fileIdx).simScript = string(loaded.simScript); end
     if isfield(loaded, "simInfo"); data(fileIdx).simInfo = loaded.simInfo; end
 
     if numel(labels) >= fileIdx
@@ -113,6 +117,49 @@ if numel(labels) < fileN
 end
 labelList = [data.label];
 fprintf("\n凡例ラベル : %s\n", strjoin(labelList, "  |  "));
+
+%% シミュレーション設定の確認 =========================================================================================================================
+% Ntimes_SimNNMEC.m で保存した設定（シミュレーション条件，モデル誤差の範囲とサンプル値の統計）をファイルごとに表示する
+% 試行ごとのモデル誤差値は data(fileIdx).summaryTable（または data(fileIdx).sampledParam）で確認できる
+% 図の保存時に txt でも保存するため，表示内容を settingText に溜めてからまとめて表示する
+settingText = "===== シミュレーション設定 =====" + newline;
+for fileIdx = 1:fileN
+    sampled = data(fileIdx).sampledParam;
+    settingText = settingText + sprintf("\n[%d] %s\n", fileIdx, labelList(fileIdx));
+    settingText = settingText + sprintf("    file : %s\n", filePaths(fileIdx));
+    settingText = settingText + sprintf("    simScript : %s  |  seed : %d  |  trialN : %d\n", data(fileIdx).simScript, data(fileIdx).seed, size(sampled, 1));
+    % 使用したモデルファイル名・制御器・dt・te（空の項目は表示しない）
+    simInfo = data(fileIdx).simInfo;
+    for fieldName = string(fieldnames(simInfo))'
+        value = string(simInfo.(fieldName));
+        if isempty(value) || all(strlength(value) == 0); continue; end
+        settingText = settingText + sprintf("    %s : %s\n", fieldName, strjoin(value, ", "));
+    end
+    % フェーズ遷移の設定
+    phaseOpts = data(fileIdx).phaseOpts;
+    if ~isempty(phaseOpts)
+        phaseNames = string(fieldnames(phaseOpts))';
+        phaseValues = arrayfun(@(name) strjoin(string(phaseOpts.(name)), " "), phaseNames);
+        settingText = settingText + sprintf("    phaseOpts : %s\n", strjoin(phaseNames + "=" + phaseValues, ", "));
+    end
+    % モデル誤差：設定した範囲と，実際にサンプルされた値の最小・平均・最大
+    errorParam = data(fileIdx).errorParam;
+    errorRange = vertcat(errorParam.range);
+    sampledMin = min(sampled, [], 1);
+    sampledMean = mean(sampled, 1);
+    sampledMax = max(sampled, [], 1);
+    settingText = settingText + sprintf("    モデル誤差（plant.param(idx) に一様分布 U[rangeMin, rangeMax] からのサンプル値を設定）:\n");
+    settingText = settingText + sprintf("    %-10s %4s %12s %12s %12s %12s %12s\n", "name", "idx", "rangeMin", "rangeMax", "sampledMin", "sampledMean", "sampledMax");
+    for paramIdx = 1:numel(errorParam)
+        settingText = settingText + sprintf("    %-10s %4d %12.6g %12.6g %12.6g %12.6g %12.6g\n", errorParam(paramIdx).name, errorParam(paramIdx).idx, ...
+                                            errorRange(paramIdx, 1), errorRange(paramIdx, 2), sampledMin(paramIdx), sampledMean(paramIdx), sampledMax(paramIdx));
+    end
+    paramNames = data(fileIdx).paramNames;
+    if all(ismember(["jx", "jy"], paramNames)) && isequal(sampled(:, paramNames == "jx"), sampled(:, paramNames == "jy"))
+        settingText = settingText + sprintf("    ※ jy は jx と同じサンプル値（fSameJxJy = true）\n");
+    end
+end
+fprintf("\n%s", settingText);
 colors = lines(fileN);
 
 %% 統計比較 ===========================================================================================================================================
@@ -299,7 +346,11 @@ if fSaveFig
     for figHandle = findobj("Type", "figure")'
         exportgraphics(figHandle, fullfile(figDir, "fig" + figHandle.Number + ".png"));
     end
-    fprintf("図の保存先 : %s\n", figDir);
+    % シミュレーション設定（「シミュレーション設定の確認」で表示した内容）も txt で保存する
+    fileId = fopen(fullfile(figDir, "sim_settings.txt"), "w", "n", "UTF-8");
+    fprintf(fileId, "%s", settingText);
+    fclose(fileId);
+    fprintf("図・設定(sim_settings.txt)の保存先 : %s\n", figDir);
 end
 
 
