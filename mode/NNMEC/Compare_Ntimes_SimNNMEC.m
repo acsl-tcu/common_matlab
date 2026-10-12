@@ -234,8 +234,8 @@ if fLegend
         plot(dummyX, NaN, "-", "Color", boxColor, "LineWidth", 2, "DisplayName", "箱内の線 : 中央値"), ...
         plot(dummyX, NaN, "-", "Color", boxColor, "DisplayName", "ひげ : 外れ値を除く最小〜最大"), ...
         plot(dummyX, NaN, "o", "Color", boxColor, "DisplayName", "○ : 外れ値（箱から 1.5×IQR 超）")];
-    boxLegend = legend(legendHandle, "Location", "southoutside", "NumColumns", 2);
-    boxLegend.Layout.Tile = "south";
+    boxLegend = legend(legendHandle, "Location", "northoutside", "NumColumns", 2);
+    boxLegend.Layout.Tile = "north";
 end
 
 % パラメータと RMSE(ノルム) の散布図（x: 失敗試行）
@@ -251,7 +251,7 @@ for paramIdx = 1:paramN
         scatter(paramValue(st.fDiverged), zeros(sum(st.fDiverged), 1), (1.2 * MS)^2, colors(fileIdx, :), "x", "LineWidth", LW, "MarkerEdgeAlpha", MA, "HandleVisibility", "off");
     end
     xlabel(data(1).paramNames(paramIdx)); ylabel("RMSE norm [m]"); grid on; grid minor
-    set(gca, "FontSize", FS);
+    set(gca, "FontSize", FS, "XTickLabelRotation", 45);
 end
 if fLegend; legend("Interpreter", "none", "Location", "best"); end
 
