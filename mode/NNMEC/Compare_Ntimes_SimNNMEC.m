@@ -3,7 +3,7 @@
 %   - 統計比較 : ファイルごとの失敗数，flight フェーズ RMSE の平均・標準偏差・最大
 %   - 対応比較 : seed と サンプル値が同じファイル同士は，同じモデル誤差の試行どうしで RMSE 差を比較
 %   - 描画     : RMSE の箱ひげ図，パラメータと RMSE の散布図，ファイル間 RMSE の散布図，
-%                全試行の時系列(位置・位置誤差・姿勢・入力・補償入力)の平均(太線)と ±nσ バンド，平均 xy 軌跡
+%                全試行の時系列(位置・位置誤差・姿勢・入力・補償入力)の平均(太線)と ±nσ バンド，平均 xy 軌跡と法線方向の ±nσ バンド
 %
 % 2026/10 作成
 
@@ -23,23 +23,30 @@ dataDir = fullfile("Data", "NNMEC_MonteCarlo");
 fileNames = [
     % "2026-10-9_15_26_43__Ntimes_SimNNMEC__trial10.mat"
     % "2026-10-9_16_0_0__Ntimes_SimNNMEC__trial10.mat"
-    "2026-10-9_16_14_57__Ntimes_SimHL__trial100.mat";
-    "2026-10-9_17_56_54__Ntimes_SimNNMEC__trial100.mat";
+    % "2026-10-9_16_14_57__Ntimes_SimHL__trial100.mat";
+    % "2026-10-9_17_56_54__Ntimes_SimNNMEC__trial100.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_8_44_9__LemniscateT=10__Ntimes_SimHL__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_2_15_7__LemniscateT=10__Ntimes_SimHL_with_NNMEC__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_10_35_57__SaddleT=5__Ntimes_SimHL__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_12_44_47__SaddleT=5__Ntimes_SimHL_with_NNMEC__trial1000.mat"
     ];
 % 凡例ラベル（fileNames と同じ数）。空ならファイルの ptName（無ければファイル名）を使う
 labels = [
-    "w/o HL";
+    "w/o NN-MEC";
     "w/ NN-MEC";
     ];
 nSigma = 2;             % 時系列の描画で 平均 ± nSigma×標準偏差 をバンドで描く
 fExcludeFailed = true;  % true: 時系列の統計から発散/墜落した試行を除く（途中で打ち切られて長さが揃わないため）
 fPlotEachTrial = false; % true: 時系列・xy 軌跡に各試行も細線で重ねて描く
 plotPhase = 'tf';       % 時系列を描画するフェーズ（'a','t','f','l' の組合せ）
+fLegend = true;         % true: 全ての図に凡例を表示する
 fSaveFig = false;       % true: 図を figDir に png で保存する
 figDir = fullfile(dataDir, "compare_fig");
 
 FS = 14; % FontSize
-LW = 1.5;% LineWidth
+LW = 1.0;% LineWidth
+MS = 7;  % MarkerSize [pt]（散布図のマーカー。scatter は面積指定のため MS^2 で渡す）
+MA = 0.5;% MarkerAlpha（散布図のマーカーの不透明度。1: 不透明, 0: 透明）
 
 %% 読み込み ===========================================================================================================================================
 if isempty(fileNames)
@@ -166,20 +173,22 @@ for rmseIdx = 1:numel(rmseNames)
         groups = [groups; repmat(fileIdx, numel(validValue), 1)]; %#ok<AGROW>
     end
     boxHandle = boxchart(categorical(groups, 1:fileN, cellstr(labelList)), values);
-    ylabel(rmseNames(rmseIdx) + " [m]"); grid on
+    ylabel(rmseNames(rmseIdx) + " [m]"); grid on; grid minor
     set(gca, "FontSize", FS, "TickLabelInterpreter", "none");
 end
 % 箱ひげ図の見方の凡例（凡例表示用のダミー描画。x 軸が categorical のため x も categorical の欠損値にする）
-hold on
-boxColor = boxHandle.BoxFaceColor;
-dummyX = categorical(missing);
-legendHandle = [ ...
-    plot(dummyX, NaN, "s", "MarkerSize", 12, "MarkerFaceColor", boxColor * 0.4 + 0.6, "MarkerEdgeColor", boxColor, "DisplayName", "箱 : 25〜75 パーセンタイル"), ...
-    plot(dummyX, NaN, "-", "Color", boxColor, "LineWidth", 2, "DisplayName", "箱内の線 : 中央値"), ...
-    plot(dummyX, NaN, "-", "Color", boxColor, "DisplayName", "ひげ : 外れ値を除く最小〜最大"), ...
-    plot(dummyX, NaN, "o", "Color", boxColor, "DisplayName", "○ : 外れ値（箱から 1.5×IQR 超）")];
-boxLegend = legend(legendHandle, "Location", "southoutside", "NumColumns", 2);
-boxLegend.Layout.Tile = "south";
+if fLegend
+    hold on
+    boxColor = boxHandle.BoxFaceColor;
+    dummyX = categorical(missing);
+    legendHandle = [ ...
+        plot(dummyX, NaN, "s", "MarkerSize", 12, "MarkerFaceColor", boxColor * 0.4 + 0.6, "MarkerEdgeColor", boxColor, "DisplayName", "箱 : 25〜75 パーセンタイル"), ...
+        plot(dummyX, NaN, "-", "Color", boxColor, "LineWidth", 2, "DisplayName", "箱内の線 : 中央値"), ...
+        plot(dummyX, NaN, "-", "Color", boxColor, "DisplayName", "ひげ : 外れ値を除く最小〜最大"), ...
+        plot(dummyX, NaN, "o", "Color", boxColor, "DisplayName", "○ : 外れ値（箱から 1.5×IQR 超）")];
+    boxLegend = legend(legendHandle, "Location", "southoutside", "NumColumns", 2);
+    boxLegend.Layout.Tile = "south";
+end
 
 % パラメータと RMSE(ノルム) の散布図（x: 失敗試行）
 figure(201); clf;
@@ -190,13 +199,13 @@ for paramIdx = 1:paramN
     for fileIdx = 1:fileN
         st = data(fileIdx).summaryTable;
         paramValue = data(fileIdx).sampledParam(:, paramIdx);
-        scatter(paramValue(~st.fDiverged), st.rmseNorm(~st.fDiverged), 40, colors(fileIdx, :), "filled", "DisplayName", labelList(fileIdx));
-        scatter(paramValue(st.fDiverged), zeros(sum(st.fDiverged), 1), 60, colors(fileIdx, :), "x", "LineWidth", LW, "HandleVisibility", "off");
+        scatter(paramValue(~st.fDiverged), st.rmseNorm(~st.fDiverged), MS^2, colors(fileIdx, :), "filled", "MarkerFaceAlpha", MA, "MarkerEdgeAlpha", MA, "DisplayName", labelList(fileIdx));
+        scatter(paramValue(st.fDiverged), zeros(sum(st.fDiverged), 1), (1.2 * MS)^2, colors(fileIdx, :), "x", "LineWidth", LW, "MarkerEdgeAlpha", MA, "HandleVisibility", "off");
     end
-    xlabel(data(1).paramNames(paramIdx)); ylabel("RMSE norm [m]"); grid on
+    xlabel(data(1).paramNames(paramIdx)); ylabel("RMSE norm [m]"); grid on; grid minor
     set(gca, "FontSize", FS);
 end
-legend("Interpreter", "none", "Location", "best");
+if fLegend; legend("Interpreter", "none", "Location", "best"); end
 
 % ファイル間 RMSE の散布図（対応比較できる場合。y=x より下なら縦軸側の方が誤差が小さい）
 for fileIdx = find(fPaired)'
@@ -204,12 +213,12 @@ for fileIdx = find(fPaired)'
     stBase = data(1).summaryTable;
     st = data(fileIdx).summaryTable;
     bothValid = ~stBase.fDiverged & ~st.fDiverged;
-    scatter(stBase.rmseNorm(bothValid), st.rmseNorm(bothValid), 50, "filled");
+    scatter(stBase.rmseNorm(bothValid), st.rmseNorm(bothValid), MS^2, "filled", "MarkerFaceAlpha", MA, "MarkerEdgeAlpha", MA);
     rmseMax = max([stBase.rmseNorm(bothValid); st.rmseNorm(bothValid)]);
     plot([0 rmseMax], [0 rmseMax], "k--", "LineWidth", LW);
     xlabel("RMSE norm [m] : " + labelList(1), "Interpreter", "none");
     ylabel("RMSE norm [m] : " + labelList(fileIdx), "Interpreter", "none");
-    axis equal; grid on
+    axis equal; grid on; grid minor
     set(gca, "FontSize", FS);
 end
 
@@ -229,7 +238,7 @@ for fileIdx = 1:fileN
     logList{fileIdx} = {res(useTrial).log};
     fprintf("[%d] %s : %d / %d 試行を使用\n", fileIdx, labelList(fileIdx), sum(useTrial), numel(res));
 end
-plotOpts = struct("plotPhase", plotPhase, "nSigma", nSigma, "fPlotEachTrial", fPlotEachTrial, "FS", FS, "LW", LW);
+plotOpts = struct("plotPhase", plotPhase, "nSigma", nSigma, "fPlotEachTrial", fPlotEachTrial, "fLegend", fLegend, "FS", FS, "LW", LW);
 
 % 位置（プラント真値），目標位置
 plot_compare_band(300, logList, labelList, colors, @(trialLog) trialLog.plant.state.p, ["x", "y", "z"] + " [m]", ...
@@ -247,12 +256,28 @@ plot_compare_band(303, logList, labelList, colors, @(trialLog) trialLog.input, [
 plot_compare_band(304, logList, labelList, colors, @(trialLog) trialLog.controller.delta_input, ["\DeltaT [N]", "\Delta\tau_x [Nm]", "\Delta\tau_y [Nm]", "\Delta\tau_z [Nm]"], ...
                   [], plotOpts);
 
-% xy 軌跡（平均軌跡を太線。2次元のためバンドは描かず，fPlotEachTrial で各試行を細線表示）
+% xy 軌跡（平均軌跡を太線。バンドは平均軌跡の法線方向（進行方向に垂直）の偏差の 平均 ± nσ，fPlotEachTrial で各試行を細線表示）
 figure(305); clf; hold on
+minSpeedXY = 1e-2; % [m/s] 平均軌跡の xy 速度がこれ未満のステップ（離陸中のホバなど）は法線方向が定まらないためバンドを描かない
 fRefPlotted = false;
 for fileIdx = 1:fileN
     if isempty(logList{fileIdx}); continue; end
-    [~, pMean, pStack] = stack_trials(logList{fileIdx}, @(trialLog) trialLog.plant.state.p, plotPhase);
+    [tXY, pMean, pStack] = stack_trials(logList{fileIdx}, @(trialLog) trialLog.plant.state.p, plotPhase);
+    xyMean = pMean(:, 1:2);
+    velX = gradient(xyMean(:, 1), tXY);
+    velY = gradient(xyMean(:, 2), tXY);
+    speedXY = hypot(velX, velY);
+    normalXY = [-velY, velX] ./ speedXY;
+    normalXY(speedXY < minSpeedXY, :) = NaN;
+    crossDev = reshape(sum((pStack(:, 1:2, :) - xyMean) .* normalXY, 2), size(pStack, 1), []); % [ステップ × 試行] 法線方向の偏差
+    crossStd = std(crossDev, 0, 2, "omitnan");
+    upperXY = xyMean + nSigma * crossStd .* normalXY;
+    lowerXY = xyMean - nSigma * crossStd .* normalXY;
+    % 自己交差する軌跡（8の字など）でも崩れないよう，隣接ステップ間の四角形を並べたパッチで描く（NaN を含む面は描画されない）
+    stepN = size(xyMean, 1);
+    bandFaces = [(1:stepN - 1)', (2:stepN)', stepN + (2:stepN)', stepN + (1:stepN - 1)'];
+    patch("Faces", bandFaces, "Vertices", [upperXY; lowerXY], "FaceColor", colors(fileIdx, :), "FaceAlpha", 0.2, "EdgeColor", "none", ...
+          "DisplayName", labelList(fileIdx) + " ±" + nSigma + "\sigma");
     if fPlotEachTrial
         plot(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), "Color", [colors(fileIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
     end
@@ -263,8 +288,8 @@ for fileIdx = 1:fileN
         fRefPlotted = true;
     end
 end
-xlabel("x [m]"); ylabel("y [m]"); axis equal; grid on
-legend("Interpreter", "none", "Location", "best");
+xlabel("x [m]"); ylabel("y [m]"); axis equal; grid on; grid minor
+if fLegend; legend("Interpreter", "tex", "Location", "best"); end
 set(gca, "FontSize", FS);
 
 %% 図の保存 ===========================================================================================================================================
@@ -318,11 +343,11 @@ for fileIdx = 1:numel(logList)
     end
 end
 for colIdx = 1:numel(yLabels)
-    ylabel(axList(colIdx), yLabels(colIdx)); grid(axList(colIdx), "on");
+    ylabel(axList(colIdx), yLabels(colIdx)); grid(axList(colIdx), "on"); grid(axList(colIdx), "minor");
     set(axList(colIdx), "FontSize", opts.FS);
 end
 xlabel(axList(end), "time [s]");
-legend(axList(1), "Interpreter", "tex", "Location", "best");
+if opts.fLegend; legend(axList(1), "Interpreter", "tex", "Location", "best"); end
 end
 
 function [t, valueMean, valueStack] = stack_trials(trialLogs, getValue, plotPhase)
