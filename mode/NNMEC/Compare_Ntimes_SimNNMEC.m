@@ -256,6 +256,25 @@ for paramIdx = 1:paramN
 end
 if fLegend; legend("Interpreter", "none", "Location", "best"); end
 
+% パラメータと各軸 RMSE の散布図（行: x, y, z の RMSE，列: パラメータ。x: 失敗試行）
+figure(202); clf; set(gcf, "Name", "param_vs_rmseXYZ");
+axisRmseNames = ["rmseX", "rmseY", "rmseZ"];
+tiledlayout(numel(axisRmseNames), paramN, "TileSpacing", "compact");
+for rmseIdx = 1:numel(axisRmseNames)
+    for paramIdx = 1:paramN
+        nexttile; hold on
+        for fileIdx = 1:fileN
+            st = data(fileIdx).summaryTable;
+            paramValue = data(fileIdx).sampledParam(:, paramIdx);
+            scatter(paramValue(~st.fDiverged), st.(axisRmseNames(rmseIdx))(~st.fDiverged), MS^2, colors(fileIdx, :), "filled", "MarkerFaceAlpha", MA, "MarkerEdgeAlpha", MA, "DisplayName", labelList(fileIdx));
+            scatter(paramValue(st.fDiverged), zeros(sum(st.fDiverged), 1), (1.2 * MS)^2, colors(fileIdx, :), "x", "LineWidth", LW, "MarkerEdgeAlpha", MA, "HandleVisibility", "off");
+        end
+        xlabel(data(1).paramNames(paramIdx)); ylabel(axisRmseNames(rmseIdx) + " [m]"); grid on; grid minor
+        set(gca, "FontSize", FS, "XTickLabelRotation", 45);
+    end
+end
+if fLegend; legend("Interpreter", "none", "Location", "best"); end
+
 % ファイル間 RMSE の散布図（対応比較できる場合。y=x より下なら縦軸側の方が誤差が小さい）
 for fileIdx = find(fPaired)'
     figure(202 + fileIdx); clf; set(gcf, "Name", "rmseNorm_pair_1_vs_" + fileIdx); hold on
