@@ -208,7 +208,7 @@ end
 
 %% 描画：試行全体の比較 ===============================================================================================================================
 % RMSE の箱ひげ図（x, y, z, norm）
-figure(200); clf;
+figure(200); clf; set(gcf, "Name", "rmse_boxplot");
 rmseNames = ["rmseX", "rmseY", "rmseZ", "rmseNorm"];
 tiledlayout(1, numel(rmseNames));
 for rmseIdx = 1:numel(rmseNames)
@@ -240,7 +240,7 @@ if fLegend
 end
 
 % パラメータと RMSE(ノルム) の散布図（x: 失敗試行）
-figure(201); clf;
+figure(201); clf; set(gcf, "Name", "param_vs_rmseNorm");
 paramN = numel(data(1).paramNames);
 tiledlayout(1, paramN);
 for paramIdx = 1:paramN
@@ -258,7 +258,7 @@ if fLegend; legend("Interpreter", "none", "Location", "best"); end
 
 % ファイル間 RMSE の散布図（対応比較できる場合。y=x より下なら縦軸側の方が誤差が小さい）
 for fileIdx = find(fPaired)'
-    figure(202 + fileIdx); clf; hold on
+    figure(202 + fileIdx); clf; set(gcf, "Name", "rmseNorm_pair_1_vs_" + fileIdx); hold on
     stBase = data(1).summaryTable;
     st = data(fileIdx).summaryTable;
     bothValid = ~stBase.fDiverged & ~st.fDiverged;
@@ -290,23 +290,23 @@ end
 plotOpts = struct("plotPhase", plotPhase, "nSigma", nSigma, "fPlotEachTrial", fPlotEachTrial, "fLegend", fLegend, "FS", FS, "LW", LW);
 
 % 位置（プラント真値），目標位置
-plot_compare_band(300, logList, labelList, colors, @(trialLog) trialLog.plant.state.p, ["x", "y", "z"] + " [m]", ...
+plot_compare_band(300, "position", logList, labelList, colors, @(trialLog) trialLog.plant.state.p, ["x", "y", "z"] + " [m]", ...
                   @(trialLog) trialLog.reference.state.p, plotOpts);
 % 位置誤差（プラント真値 - 目標位置）
-plot_compare_band(301, logList, labelList, colors, @(trialLog) trialLog.plant.state.p - trialLog.reference.state.p, ["e_x", "e_y", "e_z"] + " [m]", ...
+plot_compare_band(301, "position_error", logList, labelList, colors, @(trialLog) trialLog.plant.state.p - trialLog.reference.state.p, ["e_x", "e_y", "e_z"] + " [m]", ...
                   [], plotOpts);
 % 姿勢（プラント真値）
-plot_compare_band(302, logList, labelList, colors, @(trialLog) trialLog.plant.state.q, ["roll", "pitch", "yaw"] + " [rad]", ...
+plot_compare_band(302, "attitude", logList, labelList, colors, @(trialLog) trialLog.plant.state.q, ["roll", "pitch", "yaw"] + " [rad]", ...
                   [], plotOpts);
 % 入力
-plot_compare_band(303, logList, labelList, colors, @(trialLog) trialLog.input, ["T [N]", "\tau_x [Nm]", "\tau_y [Nm]", "\tau_z [Nm]"], ...
+plot_compare_band(303, "input", logList, labelList, colors, @(trialLog) trialLog.input, ["T [N]", "\tau_x [Nm]", "\tau_y [Nm]", "\tau_z [Nm]"], ...
                   [], plotOpts);
 % NN による補償入力（delta_input を持たない制御器のファイルは描画しない）
-plot_compare_band(304, logList, labelList, colors, @(trialLog) trialLog.controller.delta_input, ["\DeltaT [N]", "\Delta\tau_x [Nm]", "\Delta\tau_y [Nm]", "\Delta\tau_z [Nm]"], ...
+plot_compare_band(304, "delta_input", logList, labelList, colors, @(trialLog) trialLog.controller.delta_input, ["\DeltaT [N]", "\Delta\tau_x [Nm]", "\Delta\tau_y [Nm]", "\Delta\tau_z [Nm]"], ...
                   [], plotOpts);
 
 % xy 軌跡（平均軌跡を太線。バンドは平均軌跡の法線方向（進行方向に垂直）の偏差の 平均 ± nσ，fPlotEachTrial で各試行を細線表示）
-figure(305); clf; hold on
+figure(305); clf; set(gcf, "Name", "xy_trajectory"); hold on
 minSpeedXY = 1e-2; % [m/s] 平均軌跡の xy 速度がこれ未満のステップ（離陸中のホバなど）は法線方向が定まらないためバンドを描かない
 fRefPlotted = false;
 for fileIdx = 1:fileN
@@ -346,8 +346,13 @@ if fSaveFig
     if ~exist(figDir, "dir"); mkdir(figDir); end
     vectorFormats = ["pdf", "eps", "emf"];
     for figHandle = findobj("Type", "figure")'
+        % ファイル名 : fig<番号>_<Figure の Name>（Name が無い図は番号のみ）
+        figBaseName = "fig" + figHandle.Number;
+        if strlength(figHandle.Name) > 0
+            figBaseName = figBaseName + "_" + regexprep(string(figHandle.Name), '[^\w\-]', '_');
+        end
         for figFormat = lower(figFormats)
-            figPath = fullfile(figDir, "fig" + figHandle.Number + "." + figFormat);
+            figPath = fullfile(figDir, figBaseName + "." + figFormat);
             if ismember(figFormat, vectorFormats)
                 exportgraphics(figHandle, figPath, "ContentType", "vector");
             else
@@ -364,10 +369,10 @@ end
 
 
 %% ローカル関数 =======================================================================================================================================
-function plot_compare_band(figNum, logList, labelList, colors, getValue, yLabels, getRef, opts)
+function plot_compare_band(figNum, figName, logList, labelList, colors, getValue, yLabels, getRef, opts)
 % 各ファイルの全試行について getValue(trialLog) の各列の 平均(太線) と 平均 ± nσ(バンド) を時系列で重ね描きする
 % getRef があれば1つ目に描画できたファイルの目標値の平均を黒破線で描く
-figure(figNum); clf;
+figure(figNum); clf; set(gcf, "Name", figName);
 tiledlayout(numel(yLabels), 1, "TileSpacing", "compact");
 axList = gobjects(numel(yLabels), 1);
 for colIdx = 1:numel(yLabels)
