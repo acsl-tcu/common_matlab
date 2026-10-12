@@ -42,7 +42,8 @@ fExcludeFailed = true;  % true: 時系列の統計から発散/墜落した試�
 fPlotEachTrial = false; % true: 時系列・xy 軌跡に各試行も細線で重ねて描く
 plotPhase = 'tf';       % 時系列を描画するフェーズ（'a','t','f','l' の組合せ）
 fLegend = true;         % true: 全ての図に凡例を表示する
-fSaveFig = false;       % true: 図を figDir に png で保存する
+fSaveFig = false;       % true: 図を figDir に figFormats の形式で保存する
+figFormats = ["png", "pdf"]; % 保存形式（複数指定可）: "png","jpg","tif" 等のラスタ形式，"pdf","eps","emf" のベクトル形式
 figDir = fullfile(dataDir, "compare_fig");
 
 FS = 14; % FontSize
@@ -343,8 +344,16 @@ set(gca, "FontSize", FS);
 %% 図の保存 ===========================================================================================================================================
 if fSaveFig
     if ~exist(figDir, "dir"); mkdir(figDir); end
+    vectorFormats = ["pdf", "eps", "emf"];
     for figHandle = findobj("Type", "figure")'
-        exportgraphics(figHandle, fullfile(figDir, "fig" + figHandle.Number + ".png"));
+        for figFormat = lower(figFormats)
+            figPath = fullfile(figDir, "fig" + figHandle.Number + "." + figFormat);
+            if ismember(figFormat, vectorFormats)
+                exportgraphics(figHandle, figPath, "ContentType", "vector");
+            else
+                exportgraphics(figHandle, figPath, "Resolution", 300);
+            end
+        end
     end
     % シミュレーション設定（「シミュレーション設定の確認」で表示した内容）も txt で保存する
     fileId = fopen(fullfile(figDir, "sim_settings.txt"), "w", "n", "UTF-8");
