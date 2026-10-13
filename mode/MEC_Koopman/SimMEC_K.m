@@ -41,20 +41,8 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
 
 % % モデル誤差
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
-
-% plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.2; % 
-% 
-% plant_model.param.param(6) = 0.22; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.22; % 
-% 
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
-% 
-% plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.185; % 
+plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.185; % 
 
 
 
@@ -76,7 +64,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_for_hovering", {"position", [0;0;1]}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_star", {"freq",-10,"center",[0;0;1],"radius",1.0}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p", {"p0",[0;0;1],"pf",[1;1;1],"T",10}}));
@@ -92,8 +80,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
 % % これ使うやつ↓
-seed = app.initial_setting.trajectory_seed;
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
+% seed = app.initial_setting.trajectory_seed;
+% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}}));%seedを固定すると同じ軌道，外すとランダム軌道
 

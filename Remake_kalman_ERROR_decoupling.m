@@ -1,512 +1,204 @@
-%% Koopmanモデル用 カルマン正準分解 + LQRゲイン計算
+%% Koopmanモデル: カルマン正準分解 -> 可制御部分だけにdlqr
+
+% 固定ゼロ・定数特徴を手動で除去せず、全状態を可制御性で分解する。
+% 保存したK_fullを用いて、元の状態座標で u(k)=-K_full*x(k) とする。
 
 clear;
 clc;
+if exist('ctrbf', 'file') == 0 || exist('dlqr', 'file') == 0
+    error('koopman:MissingControlToolbox', 'Control System Toolboxが必要です。');
+end
 
 %% 1. MATファイルの読み込み
-loadFileName = input('読み込むファイル名(.mat可): ', 's');
-if isempty(regexp(loadFileName, '\.mat$', 'once'))
+loadFileName = strtrim(input('読み込むファイル名(.mat可): ', 's'));
+if isempty(loadFileName)
+    error('MATファイル名を入力してください。');
+end
+[~, baseName, extension] = fileparts(loadFileName);
+if isempty(extension)
     loadFileName = [loadFileName '.mat'];
+elseif ~strcmpi(extension, '.mat')
+    error('MATファイルを指定してください。');
 end
 
 loaded = load(loadFileName);
 if isfield(loaded, 'est')
     est = loaded.est;
-elseif all(isfield(loaded, {'A','B','C'}))
-    est.A = loaded.A;
-    est.B = loaded.B;
-    est.C = loaded.C;
+elseif all(isfield(loaded, {'A', 'B', 'C'}))
+    est = struct('A', loaded.A, 'B', loaded.B, 'C', loaded.C);
 else
     error('MATファイルに est または A,B,C がありません。');
 end
+if ~all(isfield(est, {'A', 'B', 'C'}))
+    error('estにA,B,Cがありません。');
+end
 
-A = est.A;
-B = est.B;
-C = est.C;
+A = double(est.A);
+B = double(est.B);
+C = double(est.C);
 n = size(A, 1);
 m = size(B, 2);
 
-if size(A,2) ~= n
-    error('Aは正方行列でなければなりません。');
+%%
+if n == 0 || size(A, 2) ~= n || size(B, 1) ~= n || ...
+        size(C, 2) ~= n || m == 0
+    error('Aは正方行列、Bはn行m列、Cはn列である必要があります。');
 end
-if size(B,1) ~= n || size(C,2) ~= n
-    error('A,B,Cの状態次元が一致していません。');
+if ~isreal(A) || ~isreal(B) || ~isreal(C) || ...
+        any(~isfinite(A(:))) || any(~isfinite(B(:))) || any(~isfinite(C(:)))
+    error('A,B,Cは有限の実数行列で指定してください。');
 end
 
-%% 
-% 定数特徴1は，エラーだから0に消えちゃう
-% これの改善に固定のゼロを探すように改善したらいいっぽい
-
-%% 検出
-
-constantStructureTol = 1e-6;
-
-% 学習に使用した誤差データから検出
-assert(isfield(loaded,'Data') &&isfield(loaded.Data,'E'), 'MATファイルにData.Eがありません');
-
-E = loaded.Data.E;
-
-maxAbsE = max(abs(E),[],2);
-
-zeroCandidates = find(maxAbsE < 1e-12);
-
-fprintf('固定ゼロ特徴の候補: ');
-disp(zeroCandidates');
-
-assert(numel(zeroCandidates) == 1,'固定ゼロ特徴が1個ではありません');
-
-const_idx = zeroCandidates;
-
-constDetect = struct('candidates',zeroCandidates,'maxAbsE',maxAbsE);
-
-dyn_idx = setdiff(1:n, const_idx, 'stable');
-nd = numel(dyn_idx);
-
-% 推定モデルに対する相対特異値閾値。必要なら1e-6等に変更する。
-relTol = 1e-5;
-
-% LQR重み．
+%% 2. 重みと可制御性判定の許容誤差
+% 元の状態座標での重み。変更する場合はここを編集する。
 Qfull = eye(n);
 if m == 4
-    R = diag([1; 0.1; 0.1; 1]);
+    R = diag([1, 0.1, 0.1, 1]);
 else
     R = eye(m);
 end
 
-%% 3. 定数特徴の構造チェック
-econst = zeros(1,n);
-constRowResidual = norm(A(const_idx,:) - econst, 'fro');
-constInputResidual = norm(B(const_idx,:), 'fro');
+% ctrbfのtolは絶対閾値なので、行列の大きさに合わせて設定する。
+% 推定モデルのスケールや誤差に応じてrelTolを調整する。
+% この閾値以下の弱い可制御性は、数値的に不可制御と判定される。
+relTol = 1e-5;
+tol = relTol * max(1, norm([A, B], 1));
 
-fprintf('\n===== 定数特徴の構造チェック =====\n');
-fprintf('const_idx = %d\n', const_idx);
-fprintf('||A(const_idx,:)-e_const|| = %.3e\n', constRowResidual);
-fprintf('||B(const_idx,:)||         = %.3e\n', constInputResidual);
-fprintf(['この条件はx_const(k+1)=x_const(k)かつ、入力が定数特徴を直接変化させないことを表す。\n' ...
-    'A(dyn_idx,const_idx)が非零でも構造としては成立する。\n']);
+%% 3. 可制御性に関するカルマン正準分解
+% z=T*x, x=S*z。Tは直交行列なのでS=T'。
+% ctrbfの出力順は [不可制御; 可制御]。
+% F=[Auc, 0; A21, Ac], G=[0; Bc], H=C*S。
+% 可観測性による4分類は、今回の可制御部分へのLQR設計には不要。
+% [F, G, H, T, kSteps] = ctrbf(A, B, C, tol);
+[F, G, H, T, kSteps] = ctrbf(A, B, C);
+nCont = sum(kSteps);
+fprintf('既定閾値での可制御次元: %d / %d\n', nCont, n);
 
-if constRowResidual > constantStructureTol || constInputResidual > constantStructureTol
-    warning('定数特徴の構造残差が大きいです。const_idxまたは推定モデルを確認してください。');
+S = T';
+T_inv = S;
+nCont = sum(kSteps);
+nUncont = n - nCont;
+ucIdx = 1:nUncont;
+cIdx = (nUncont + 1):n;
+
+fprintf('\n可制御次元: %d / %d\n', nCont, n);
+fprintf('不可制御次元: %d / %d\n', nUncont, n);
+fprintf('ctrbfの許容誤差: %.3e\n', tol);
+if nCont == 0
+    error('koopman:NoControllableStates', ...
+        '可制御部分が存在しないためdlqrを実行できません。');
 end
 
-Ad  = A(dyn_idx, dyn_idx);
-Bd  = B(dyn_idx, :);
-Cd  = C(:, dyn_idx);
-Adc = A(dyn_idx, const_idx);
+Ac = F(cIdx, cIdx);
+Bc = G(cIdx, :);
+Auc = F(ucIdx, ucIdx);
+Tc = T(cIdx, :);
+residuals = struct( ...
+    'uncontrollableInput', norm(G(ucIdx, :), 'fro'), ...
+    'controllableToUncontrollable', norm(F(ucIdx, cIdx), 'fro'), ...
+    'stateTransform', norm(F - T*A*S, 'fro'));
+fprintf('||G(不可制御行,:)||F = %.3e\n', residuals.uncontrollableInput);
+fprintf('||F(不可制御行,可制御列)||F = %.3e\n', ...
+    residuals.controllableToUncontrollable);
 
-rhoAd = max(abs(eig(Ad)));
+%% 4. 可制御部分だけにdlqrを適用
+% x=S*zより Qz=S'*Qfull*S。
+% Qcはその可制御ブロック。これはz_uc=0に制限した系の重み。
+Qc = Tc * Qfull * Tc';
+Qc = (Qc + Qc') / 2;
+[Kc, Pc, eigControlledClosed] = dlqr(Ac, Bc, Qc, R);
+K_dyn = Kc;  % 可制御座標のゲインとして保存する互換名
 
+% u=-Kc*z_c, z_c=Tc*x より元座標のゲインを復元する。
+K_all = [zeros(m, nUncont), Kc];
+K_full = K_all * T;  % = Kc*Tc
 
-fprintf('rho(A_dyn)       = %.6g\n', rhoAd);
-fprintf('rcond(I-A_dyn)   = %.3e\n', rcond(eye(nd)-Ad));
-
-%% 4. dynamic部分のカルマン分解
-% full 26次元のctrbでは、定数モードが数値誤差で可制御に見えることがあるらしい
-% そこで定数特徴を除いたdynamic部分で部分空間を計算する。
-Mcd = ctrb(Ad, Bd);
-Mod = obsv(Ad, Cd);
-
-[Uc, svMc, rankMc] = local_range_svd(Mcd, relTol);
-[N,  svMo, rankMo] = local_null_svd(Mod, relTol);
-
-% Xa: 可制御∩不可観測
-coeffXa = local_null_svd(Mod*Uc, relTol);
-Xa_d = local_range_svd(Uc*coeffXa, relTol);
-
-% Xb: 可制御だが不可観測ではない
-Xb_d = local_range_svd(Uc - Xa_d*(Xa_d'*Uc), relTol);
-
-% Xd: 不可観測だが可制御ではない
-Xd_d = local_range_svd(N - Xa_d*(Xa_d'*N), relTol);
-
-% Xc: 可制御部分空間と不可観測部分空間の和の補空間
-Wsum = local_range_svd([Uc,N], relTol);
-Xc_d = local_null_svd(Wsum', relTol);
-
-fprintf('\n===== dynamic部分のカルマン分解 =====\n');
-fprintf('rank(ctrb(A_dyn,B_dyn)) = %d / %d\n', rankMc, nd);
-fprintf('rank(obsv(A_dyn,C_dyn)) = %d / %d\n', rankMo, nd);
-fprintf('Xa: 可制御・不可観測 = %d\n', size(Xa_d,2));
-fprintf('Xb: 可制御・可観測   = %d\n', size(Xb_d,2));
-fprintf('Xc: 不可制御・可観測 = %d\n', size(Xc_d,2));
-fprintf('Xd: 不可制御・不可観測 = %d\n', size(Xd_d,2));
-
-%% 5. 固有値1の真の右固有ベクトルを追加
-% A=[Ad Adc; 0 1] なので、v=[vd;1]についてAv=vとなるvdは
-% (I-Ad)*vd=Adcを満たすっぽい
-% % % % % % % vd = (eye(nd)-Ad) \ Adc;
-% % % % % % % v = zeros(n,1);
-% % % % % % % v(dyn_idx) = vd;
-% % % % % % % v(const_idx) = 1;
-% % % % % % % v = v/norm(v);
-% % % % % % % 
-% % % % % % % eigResidual = norm(A*v-v)/max(1,norm(v));
-% % % % % % % modeOutput = norm(C*v)/max(1,norm(C,'fro'));
-% % % % % % % modeIsObservable = modeOutput > relTol;
-
-%% 固定ゼロ特徴に対応するモード
-
-v = zeros(n,1);
-v(const_idx) = 1;
-
-vd = zeros(nd,1);
-
-% 固有値0に対応するか確認
-eigResidual = norm(A*v);
-
-if eigResidual > constantStructureTol
-    error('固定ゼロ特徴が固有値0のモードになっていません');
+eigUncontrolled = eig(Auc);
+eigClosed = eig(A - B*K_full);
+fprintf('\n可制御部分の閉ループ最大固有値絶対値: %.6g\n', ...
+    max(abs(eigControlledClosed)));
+fprintf('全状態の閉ループ最大固有値絶対値: %.6g\n', ...
+    max(abs(eigClosed)));
+if ~isempty(eigUncontrolled)
+    fprintf('不可制御部分の固有値');
+    disp(eigUncontrolled);
+    if any(abs(eigUncontrolled) >= 1)
+        warning('koopman:UncontrollableModes', ...
+            ['不可制御部分に|lambda|>=1のモードがあります。' ...
+             '可制御部分のdlqrでは全状態を漸近安定化できません。']);
+    end
 end
+% z_ucが非零の場合は、Acの状態方程式にF(cIdx,ucIdx)*z_ucが入る。
+% このゲインは可制御部分のLQR解であり、全系のLQR最適解ではない。
+% このゲインは可制御部分のLQR解であり、全系のLQR最適解とは一般に異なる。
 
-modeOutput = norm(C*v)/max(1,norm(C,'fro'));
-modeIsObservable = modeOutput > relTol;
-
-fprintf('\n===== 固定ゼロモード =====\n');
-fprintf('||A*v|| = %.3e\n',eigResidual);
-
-
-fprintf('\n===== 固有値1モード =====\n');
-fprintf('||A*v-v||/||v||        = %.3e\n', eigResidual);
-fprintf('||C*v||/max(1,||C||F)  = %.3e\n', modeOutput);
-
-embed = @(V) local_embed(V, dyn_idx, n);
-Xa = embed(Xa_d);
-Xb = embed(Xb_d);
-Xc = embed(Xc_d);
-Xd = embed(Xd_d);
-
-if modeIsObservable
-    fprintf('固有値0モードは不可制御・可観測なのでXcへ追加します。\n');
-    Xc = [Xc, v];
-else
-    fprintf('固有値oモードは不可制御・不可観測なのでXdへ追加します。\n');
-    Xd = [Xd, v];
-end
-
-%% 6. 変換行列とカルマン分解の検証
-% x=S*z, z=T*x
-S = [Xa, Xb, Xc, Xd];
-if size(S,2) ~= n
-    error('分解基底の総列数がnと一致しません: %d vs %d', size(S,2), n);
-end
-if rcond(S) < 100*eps
-    error('分解基底Sが数値的に特異です。relTolを確認してください。');
-end
-
-T = S \ eye(n);
-F = T*A*S;
-G = T*B;
-H = C*S;
-
-na = size(Xa,2);
-nb = size(Xb,2);
-nc = size(Xc,2);
-nd4 = size(Xd,2);
-k = na + nb;
-
-ia = 1:na;
-ib = na + (1:nb);
-ic = na + nb + (1:nc);
-id = na + nb + nc + (1:nd4);
-
-if isempty(ia), ia = zeros(1,0); end
-if isempty(ib), ib = zeros(1,0); end
-if isempty(ic), ic = zeros(1,0); end
-if isempty(id), id = zeros(1,0); end
-
-% [Xa Xb Xd Xc]の順では、Aはブロック上三角になる。
-ord = [ia, ib, id, ic];
-Ford = F(ord,ord);
-blockLowerResidual = local_block_lower_residual(Ford, [na nb nd4 nc]);
-
-uncRows = [ic,id];
-unobsCols = [ia,id];
-if isempty(uncRows)
-    inputResidual = 0;
-else
-    inputResidual = norm(G(uncRows,:), 'fro');
-end
-if isempty(unobsCols)
-    outputResidual = 0;
-else
-    outputResidual = norm(H(:,unobsCols), 'fro');
-end
-
-fprintf('\n===== カルマン分解の検証 =====\n');
-fprintf('rank(S)                         = %d / %d\n', rank(S), n);
-fprintf('Aのブロック下三角残差           = %.3e\n', blockLowerResidual);
-fprintf('G(不可制御行,:)の残差           = %.3e\n', inputResidual);
-fprintf('H(:,不可観測列)の残差           = %.3e\n', outputResidual);
-
-if blockLowerResidual > 100*relTol || inputResidual > 100*relTol || outputResidual > 100*relTol
-    warning('カルマン分解の残差が大きいです。relTol、const_idx、推定誤差を確認してください。');
-end
-
-%% 7. 各カテゴリの固有値と安定性をplot
-eigs_a = local_block_eigs(F,ia);
-eigs_b = local_block_eigs(F,ib);
-eigs_c = local_block_eigs(F,ic);
-eigs_d = local_block_eigs(F,id);
-
-fprintf('\n===== 各カテゴリの固有値 =====\n');
-local_print_spectrum('Xa 可制御・不可観測', eigs_a);
-local_print_spectrum('Xb 可制御・可観測', eigs_b);
-local_print_spectrum('Xc 不可制御・可観測', eigs_c);
-local_print_spectrum('Xd 不可制御・不可観測', eigs_d);
-
-% figure('Color','w','Name','Kalman canonical decomposition');
-hFigEig = figure('Color','w','Name','Kalman canonical decomposition');
-hold on; grid on; axis equal;
-theta = linspace(0,2*pi,400);
-plot(cos(theta),sin(theta),'k:','HandleVisibility','off');
-local_plot_category(eigs_a,[1 0 0],'o','Xa: 可制御・不可観測');
-local_plot_category(eigs_b,[0 0 1],'s','Xb: 可制御・可観測');
-local_plot_category(eigs_c,[0 0.6 0],'d','Xc: 不可制御・可観測');
-local_plot_category(eigs_d,[0.7 0 0.7],'x','Xd: 不可制御・不可観測');
-xlabel('実部');
-ylabel('虚部');
-title(sprintf('カルマン正準分解 (%d状態)',n));
-legend('Location','northeastoutside');
-
-allEig = [eigs_a; eigs_b; eigs_c; eigs_d];
-if ~isempty(allEig)
-    lim = 1.1*max([1.2; abs(allEig)]);
-    xlim([-lim lim]);
-    ylim([-lim lim]);
-end
-
-%% 8. 可制御部分だけにLQRを設計
-if k == 0
-    error('可制御部分が存在しないためLQRを設計できません。');
-end
-
-Ac = F(1:k,1:k);
-Bc = G(1:k,:);
-
-% x=S*zなので、変換後重みはQz=S'*Qfull*S。
-% Qz = S'*Qfull*S;
-% Qc = Qz(1:k,1:k);
-% Qc = (Qc+Qc')/2;
-% R = (R+R')/2;
-%=========================================
-%重みづけ
-%pqvwの順
-Q = diag([1,1,1,1,1,1,1,1,1,1,1,1,ones(1,size(est.A,1)-12)]);
-% I = T_inv\Q*T_inv;
-Qc = eye(k);
-Rc = diag([1;0.1;0.1;1]);
-%=========================================
-
-Kc = dlqr(Ac,Bc,Qc,Rc);
-K_dyn = Kc;
-
-% u=-Kc*z_c, z=T*x より、元座標のゲインは以下。
-K_all = [Kc, zeros(m,n-k)];
-K_full = K_all*T;
-
-Acl = A-B*K_full;
-eigClosed = eig(Acl);
-eigControlledClosed = eig(Ac-Bc*Kc);
-feedbackOnOneMode = norm(K_full*v);
-
-fprintf('\n===== LQR結果 =====\n');
-fprintf('可制御次元 k = %d / %d\n', k, n);
-fprintf('max|eig(Ac-Bc*Kc)| = %.6g\n', max(abs(eigControlledClosed)));
-fprintf('max|eig(A-B*K_full)| = %.6g\n', max(abs(eigClosed)));
-fprintf('||K_full*v_(lambda=1)|| = %.3e\n', feedbackOnOneMode);
-% fprintf('注意: 不可制御の固有値1は閉ループにも残ります。\n');
-
-%% 9. 保存
-%% 9. 保存
-
-[~,baseName,~] = fileparts(loadFileName);
-
-saveFolder = fullfile(pwd,'kalman_gainたち');
-
-if ~exist(saveFolder,'dir')
+%% 5. ゲインと分解結果の保存
+saveFolder = fullfile(pwd, 'kalman_gainたち');
+if ~exist(saveFolder, 'dir')
     mkdir(saveFolder);
 end
-
-% 現在日時
-timeStamp = char(datetime("now",'Format','yyyyMMdd_HHmmss'));
-
-% MATとFIGで共通の名前
-saveBaseName = [baseName '_gain_KD_LQR_check_' timeStamp];
-
-% 保存先
-saveFileName = fullfile(saveFolder,[saveBaseName '.mat']);
-saveFigName  = fullfile(saveFolder,[saveBaseName '.fig']);
-
-% 既存コードとの互換性のため、SをT_invという名前でも保存する。
-T_inv = S;
-residuals = struct(...
-    'constantRow',constRowResidual,...
-    'constantInput',constInputResidual,...
-    'lambda1Eigenvector',eigResidual,...
-    'blockLower',blockLowerResidual,...
-    'uncontrollableInput',inputResidual,...
-    'unobservableOutput',outputResidual,...
-    'feedbackOnLambda1',feedbackOnOneMode);
-dims = [na nb nc nd4];
-
+timeStamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss_SSS'));
+saveFileName = fullfile(saveFolder, ...
+    [baseName '_gain_controllable_dlqr_' timeStamp '.mat']);
 save(saveFileName, ...
-    'K_full','K_dyn','Kc','K_all', ...
-    'A','B','C','Ad','Bd','Cd','Ac','Bc','Qfull','Qc','R', 'Rc',...
-    'S','T','T_inv','F','G','H', ...
-    'Xa','Xb','Xc','Xd','v','vd', ...
-    'const_idx','dyn_idx','dims','relTol', ...
-    'constDetect','constantStructureTol', ...
-    'eigs_a','eigs_b','eigs_c','eigs_d', ...
-    'eigClosed','eigControlledClosed','residuals', ...
-    'rankMc','rankMo','svMc','svMo');
+    'A', 'B', 'C', 'F', 'G', 'H', 'T', 'S', 'T_inv', 'kSteps', ...
+    'nCont', 'nUncont', 'cIdx', 'ucIdx', 'Ac', 'Bc', 'Auc', ...
+    'Qfull', 'Qc', 'R', 'relTol', 'tol', 'residuals', ...
+    'Kc', 'K_dyn', 'K_all', 'K_full', 'Pc', ...
+    'eigControlledClosed', 'eigUncontrolled', 'eigClosed');
+fprintf('\nゲインと分解結果を保存しました。\n%s\n', saveFileName);
 
-fprintf('\nゲインと分解結果を保存しました。\n%s\n',saveFileName);
 
-%% ===== 以下はスクリプトから呼び出す補助関数 =====
+%% 6. 固有値プロット
 
-function [idx, info] = local_find_constant_idx(A, B, tol)
-% A(i,:)が単位行列のi行、かつB(i,:)が零に近い状態を探す。
-% rank(ctrb(A,B))は使用しない。推定誤差で定数モードが可制御に
-% 見える場合でも、定数特徴の座標行そのものを検出できる。
+% A行列の固有値
+eigA = eig(A);
 
-n = size(A,1);
-scaleA = max(1, norm(A,'fro'));
-scaleB = max(1, norm(B,'fro'));
-rowResidualA = zeros(n,1);
-rowResidualB = zeros(n,1);
+% 閉ループ行列 A-BK_full の固有値
+% ※ eigClosedはセクション4ですでに計算済み
+eigABK = eigClosed;
 
-for i = 1:n
-    ei = zeros(1,n);
-    ei(i) = 1;
-    rowResidualA(i) = norm(A(i,:) - ei) / scaleA;
-    rowResidualB(i) = norm(B(i,:)) / scaleB;
-end
+% 単位円
+theta = linspace(0, 2*pi, 500);
+unitX = cos(theta);
+unitY = sin(theta);
 
-score = max(rowResidualA, rowResidualB);
-[bestScore, idx] = min(score);
-candidates = find(rowResidualA <= tol & rowResidualB <= tol);
+%% 6-1. A行列の固有値分布
+figure('Name', 'Eigenvalues of A', 'Color', 'w');
 
-fprintf('\n===== 定数特徴の自動検出 =====\n');
-fprintf('最良候補: i=%d, A行残差=%.3e, B行残差=%.3e, score=%.3e\n', ...
-    idx, rowResidualA(idx), rowResidualB(idx), bestScore);
+hold on;
+h1 = plot(unitX, unitY, 'k--', 'LineWidth', 1.2);
+h2 = plot(real(eigA), imag(eigA), 'bx', ...
+    'MarkerSize', 8, 'LineWidth', 1.5);
 
-if isempty(candidates) || bestScore > tol
-    [~, order] = sort(score, 'ascend');
-    top = order(1:min(5,n));
-    fprintf('候補上位のscore:\n');
-    for j = 1:numel(top)
-        q = top(j);
-        fprintf('  i=%d: %.3e\n', q, score(q));
-    end
-    error(['定数特徴を自動検出できませんでした。' ...
-        'constantStructureTolを調整するか、A/Bの定数行を確認してください。']);
-end
+xline(0, 'k:');
+yline(0, 'k:');
 
-if numel(candidates) > 1
-    warning('定数特徴の条件を満たす候補が複数あります: %s。最良候補を使用します。', ...
-        mat2str(candidates(:)'));
-end
+axis equal;
+grid on;
+xlabel('Real Part');
+ylabel('Imaginary Part');
+title('Eigenvalues of A');
+legend([h2, h1], {'Eigenvalues', 'Unit Circle'}, ...
+    'Location', 'best');
+hold off;
 
-info = struct('candidates',candidates, ...
-    'rowResidualA',rowResidualA, ...
-    'rowResidualB',rowResidualB, ...
-    'score',score, ...
-    'bestScore',bestScore);
-end
+%% 6-2. A-BK_full行列の固有値分布
+figure('Name', 'Eigenvalues of A-BK', 'Color', 'w');
 
-function [Q,s,r] = local_range_svd(M,relTol)
-nrow = size(M,1);
-ncol = size(M,2);
-if ncol == 0
-    Q = zeros(nrow,0);
-    s = zeros(0,1);
-    r = 0;
-    return;
-end
-[U,S,~] = svd(M,'econ');
-s = diag(S);
-if isempty(s) || max(s) == 0
-    Q = zeros(nrow,0);
-    r = 0;
-    return;
-end
-r = sum(s > relTol*max(s));
-Q = U(:,1:r);
-end
+hold on;
+h1 = plot(unitX, unitY, 'k--', 'LineWidth', 1.2);
+h2 = plot(real(eigABK), imag(eigABK), 'rx', ...
+    'MarkerSize', 8, 'LineWidth', 1.5);
 
-function [N,s,r] = local_null_svd(M,relTol)
-ncol = size(M,2);
-if ncol == 0
-    N = zeros(0,0);
-    s = zeros(0,1);
-    r = 0;
-    return;
-end
-% MATLABでは 'full' はsvdの有効なオプションではない。
-% オプションなしのsvd(M)が完全SVDを返す。
-[~,S,V] = svd(M);
-s = diag(S);
-if isempty(s) || max(s) == 0
-    r = 0;
-    N = V;
-    return;
-end
-r = sum(s > relTol*max(s));
-N = V(:,r+1:end);
-end
+xline(0, 'k:');
+yline(0, 'k:');
 
-function V = local_embed(Vd,dyn_idx,n)
-V = zeros(n,size(Vd,2));
-V(dyn_idx,:) = Vd;
-end
-
-function e = local_block_eigs(F,idx)
-if isempty(idx)
-    e = zeros(0,1);
-else
-    e = eig(F(idx,idx));
-end
-end
-
-function residual = local_block_lower_residual(M,dims)
-residual = 0;
-starts = cumsum([1,dims(1:end-1)]);
-for i = 2:numel(dims)
-    rows = starts(i):(starts(i)+dims(i)-1);
-    if isempty(rows)
-        continue;
-    end
-    for j = 1:(i-1)
-        cols = starts(j):(starts(j)+dims(j)-1);
-        if isempty(cols)
-            continue;
-        end
-        residual = max(residual,norm(M(rows,cols),'fro'));
-    end
-end
-end
-
-function local_print_spectrum(name,e)
-if isempty(e)
-    fprintf('%s: なし\n',name);
-    return;
-end
-if all(abs(e)<1)
-    stableText = 'YES';
-else
-    stableText = 'NO';
-end
-fprintf('%s: %d個, max|lambda|=%.6g, 単位円内=%s\n', ...
-    name,numel(e),max(abs(e)),stableText);
-disp(e(:));
-end
-
-function local_plot_category(e,color,marker,labelText)
-if isempty(e)
-    return;
-end
-plot(real(e),imag(e),'LineStyle','none','Marker',marker, ...
-    'MarkerEdgeColor',color,'MarkerFaceColor','none', ...
-    'LineWidth',1.5,'MarkerSize',9, ...
-    'DisplayName',sprintf('%s (%d)',labelText,numel(e)));
-end
+axis equal;
+grid on;
+xlabel('Real Part');
+ylabel('Imaginary Part');
+title('Eigenvalues of A-BK_{full}');
+legend([h2, h1], {'Eigenvalues', 'Unit Circle'}, ...
+    'Location', 'best');
+hold off;
