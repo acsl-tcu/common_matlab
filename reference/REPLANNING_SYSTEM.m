@@ -124,13 +124,16 @@ classdef REPLANNING_SYSTEM < handle
         ENABLE_ALL_LOG   = 1;  % ログ表示マスタースイッチ (1: 有効, 0: 無効)
         LOG_SENSOR       = 0;  % 球状センサ障害物捕捉ログの個別スイッチ (20m内に障害物検知時)
         LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
-        ENABLE_PROFILING = 1;  % 各モジュール実行時間計測スイッチ (通常運用時はスパイク防止のため0推奨)
+        ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
+        ENABLE_LIGHT_RUNTIME_AUDIT = 1; % 外側1個の軽量 wall timer のみ有効
+        SPIKE_CAPTURE_THRESHOLD_MS = 2.0; % rare-stage snapshot threshold [ms]
 
         % -----------------------------------------------------------------
         % 【離陸前コールドパス完全事前燃焼 (Pre-motion Prime) 設定】
         % -----------------------------------------------------------------
         ONLINE_PRIME_CALLS           = 3;   % 各合成テストケース (マスク・衝突パターン) の反復実行回数
         SETUP_EXACT_DO_PRIME_CALLS   = 12;  % 本番引数による do() の事前呼び出し回数 (JIT・キャッシュ完全温め)
+        SEQUENTIAL_FLIGHT_PRIME_CALLS = 8;   % tf,tf+dt,... 本番同順序の protected-path 事前プライム
         REQUIRE_PRIME_BEFORE_TAKEOFF = 1;   % 離陸開始前に完全プライム完了を必須とする安全ガードフラグ
         takeoff_end_s                = NaN; % 離陸完了時刻 [s] (自動解決または手動設定)
 
@@ -187,6 +190,7 @@ classdef REPLANNING_SYSTEM < handle
         nominal_table_dt         = NaN;    % テーブル時間刻み [s]
         nominal_table_pL         = [];     % 事前計算済み荷物位置行列 (3×K)
         nominal_table_q          = [];     % 事前計算済み索姿勢ベクトル行列 (3×K)
+        nominal_table_xd         = [];     % 同じ base_ref.do() で事前計算した完全 xd 行列 (D×K)
         nominal_table_build_ms   = NaN;    % テーブル事前生成所要時間 [ms]
         nominal_table_eval_count = 0;      % 飛行中のテーブル参照カウント
 
@@ -243,6 +247,7 @@ classdef REPLANNING_SYSTEM < handle
         hlc_robust_certificate      = struct();
 
         runtime_dependency_signature = struct();
+        runtime_reference_func_handle = []; % cached handle for allocation-free dependency fast path
         runtime_source_signature     = struct();
         certificate_stale            = struct();
         dependency_refresh_count      = 0;
@@ -259,6 +264,7 @@ classdef REPLANNING_SYSTEM < handle
         replan_commit_count          = 0;
         last_replan_commit_time      = NaN;
         last_replan_status           = struct();
+        replan_request_active        = false;  % diagnostic request-edge latch only
 
         % 互換性保持用プレースホルダー
         current_bspline = [];
@@ -267,6 +273,15 @@ classdef REPLANNING_SYSTEM < handle
         % 【最小プロファイリング情報構造体 (ENABLE_PROFILING=1 時のみ更新)】
         % -----------------------------------------------------------------
         profiling = struct( ...
+            't_live_binding_ms',        NaN, ... % live HLC binding check [ms]
+            't_dependency_ms',          NaN, ... % runtime dependency check [ms]
+            't_cert_guard_ms',          NaN, ... % runtime certificate guard [ms]
+            't_geometry_eval_ms',       NaN, ... % active-reference/current-geometry eval [ms]
+            't_replan_status_ms',       NaN, ... % last_replan_status update [ms]
+            't_output_write_ms',        NaN, ... % write_active_output [ms]
+            't_state_trigger_write_ms', NaN, ... % scalar/vector trigger state write [ms]
+            't_state_cert_write_ms',    NaN, ... % certificate/dependency state write [ms]
+            't_state_meta_write_ms',    NaN, ... % repaired/meta state write [ms]
             't_base_ref_ms',            NaN, ... % 公称軌道計算時間 [ms]
             't_sensor_ms',              NaN, ... % センサ検知ゲート時間 [ms]
             't_reference_packet_ms',    NaN, ... % 将来参照パケット取得時間 [ms]
@@ -445,6 +460,82 @@ classdef REPLANNING_SYSTEM < handle
                 obj.mass_certificate_rebuild_count;
         end
 
+
+
+        function S = get_nominal_stop_geometry_actuator_T_set(obj)
+            % =============================================================
+            % Read-only certified T-set helper for the CURRENT NOMINAL
+            % backup-stop theorem.
+            %
+            % Scope is deliberately limited to the intersection of:
+            %   - STOP_GEOMETRY_4MS_CERT, and
+            %   - current vertical-stop ACTUATOR_DYNAMICS_CERT.
+            %
+            % It is NOT the general obstacle-replan T optimizer and does not
+            % include general HLC/rejoin/new-obstacle feasibility.
+            % =============================================================
+            assert(strcmpi(char(obj.active_reference_mode),'NOMINAL'), ...
+                '[REPLANNER ERROR] nominal stop T-set requested outside NOMINAL mode.');
+
+            G=obj.stop_geometry_4ms_certificate;
+            A=obj.actuator_dynamics_certificate;
+
+            assert(isstruct(G) && isfield(G,'certified') && logical(G.certified), ...
+                '[REPLANNER ERROR] nominal stop-geometry certificate is unavailable.');
+            assert(isstruct(A) && isfield(A,'certified') && logical(A.certified), ...
+                '[REPLANNER ERROR] nominal stop actuator/dynamics certificate is unavailable.');
+            assert(isfield(A,'T_actuator_theorem_lower') && ...
+                isfinite(A.T_actuator_theorem_lower), ...
+                '[REPLANNER ERROR] actuator T lower bound is unavailable.');
+
+            I=obj.intersect_T_intervals_with_lower( ...
+                G.INTERVALS,double(A.T_actuator_theorem_lower));
+
+            intervals=zeros(0,2);
+            loClosed=false(0,1);
+            hiClosed=false(0,1);
+
+            if ~isempty(I.branch1)
+                intervals=[intervals;I.branch1]; %#ok<AGROW>
+                loClosed=[loClosed;I.branch1_left_closed(:)]; %#ok<AGROW>
+                hiClosed=[hiClosed;I.branch1_right_closed(:)]; %#ok<AGROW>
+            end
+            if ~isempty(I.branch2)
+                intervals=[intervals;I.branch2]; %#ok<AGROW>
+                loClosed=[loClosed;I.branch2_left_closed(:)]; %#ok<AGROW>
+                hiClosed=[hiClosed;I.branch2_right_closed(:)]; %#ok<AGROW>
+            end
+
+            if ~isempty(intervals)
+                [~,ord]=sort(intervals(:,1),'ascend');
+                intervals=intervals(ord,:);
+                loClosed=loClosed(ord);
+                hiClosed=hiClosed(ord);
+            end
+
+            S=struct();
+            S.certified_subset=true;
+            S.scope='NOMINAL_STOP_GEOMETRY_INTERSECT_ACTUATOR_ONLY';
+            S.intervals=intervals;
+            S.lo_closed=loClosed;
+            S.hi_closed=hiClosed;
+            S.nonempty=~isempty(intervals);
+            S.selected_minimum_exists=false;
+            S.T_selected=NaN;
+            S.reason='';
+
+            if ~isempty(intervals)
+                if loClosed(1)
+                    S.selected_minimum_exists=true;
+                    S.T_selected=intervals(1,1);
+                    S.reason='ATTAINED_MINIMUM_OF_CERTIFIED_NOMINAL_STOP_SUBSET';
+                else
+                    S.reason='INFIMUM_NOT_ATTAINED_FAIL_CLOSED';
+                end
+            else
+                S.reason='EMPTY_CERTIFIED_NOMINAL_STOP_SUBSET';
+            end
+        end
 
 
         function sig = get_next_repaired_dependency_signature(obj,eval_fn)
@@ -626,6 +717,7 @@ classdef REPLANNING_SYSTEM < handle
                     'reference_version',newVersion, ...
                     'backend',char(candidate.backend), ...
                     'commit_time',double(t_commit));
+                obj.replan_request_active=false;
 
                 % Final fail-closed verification after every field changed.
                 obj.assert_trigger_packet_certificate_current();
@@ -654,6 +746,7 @@ classdef REPLANNING_SYSTEM < handle
                     'committed',false, ...
                     'reason',ME.message, ...
                     'commit_time',double(t_commit));
+                obj.replan_request_active=false;
                 rethrow(ME);
             end
         end
@@ -673,6 +766,12 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'LOG_SENSOR'), obj.LOG_SENSOR=logical(opts.LOG_SENSOR); end
             if isfield(opts,'LOG_TRIGGER'), obj.LOG_TRIGGER=logical(opts.LOG_TRIGGER); end
             if isfield(opts,'ENABLE_PROFILING'), obj.ENABLE_PROFILING=logical(opts.ENABLE_PROFILING); end
+            if isfield(opts,'ENABLE_LIGHT_RUNTIME_AUDIT')
+                obj.ENABLE_LIGHT_RUNTIME_AUDIT=logical(opts.ENABLE_LIGHT_RUNTIME_AUDIT);
+            end
+            if isfield(opts,'SPIKE_CAPTURE_THRESHOLD_MS')
+                obj.SPIKE_CAPTURE_THRESHOLD_MS=double(opts.SPIKE_CAPTURE_THRESHOLD_MS);
+            end
 
             if isfield(opts,'sensor_range_m'), obj.trigger_dist=opts.sensor_range_m; end
             if isfield(opts,'trigger_dist'), obj.trigger_dist=opts.trigger_dist; end
@@ -690,6 +789,9 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'ONLINE_PRIME_CALLS'), obj.ONLINE_PRIME_CALLS=opts.ONLINE_PRIME_CALLS; end
             if isfield(opts,'SETUP_EXACT_DO_PRIME_CALLS')
                 obj.SETUP_EXACT_DO_PRIME_CALLS=opts.SETUP_EXACT_DO_PRIME_CALLS;
+            end
+            if isfield(opts,'SEQUENTIAL_FLIGHT_PRIME_CALLS')
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS=opts.SEQUENTIAL_FLIGHT_PRIME_CALLS;
             end
             if isfield(opts,'REQUIRE_PRIME_BEFORE_TAKEOFF')
                 obj.REQUIRE_PRIME_BEFORE_TAKEOFF=logical(opts.REQUIRE_PRIME_BEFORE_TAKEOFF);
@@ -714,6 +816,12 @@ classdef REPLANNING_SYSTEM < handle
                 obj.SETUP_EXACT_DO_PRIME_CALLS>=1 && ...
                 obj.SETUP_EXACT_DO_PRIME_CALLS==round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
                 '[REPLANNER ERROR] SETUP_EXACT_DO_PRIME_CALLS must be a positive integer.');
+            assert(isnumeric(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                isscalar(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                isfinite(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS>=5 && ...
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS==round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
+                '[REPLANNER ERROR] SEQUENTIAL_FLIGHT_PRIME_CALLS must be an integer >=5.');
 
             dt_val=[];
             if obj.has_prop_or_field(obj.self,'plant') && ~isempty(obj.self.plant)
@@ -793,13 +901,6 @@ classdef REPLANNING_SYSTEM < handle
                 "min_dist_point", ...
                 "detected_obstacle_count_point", ...
                 "loadmass", ...
-                "profiling", ...
-                "current_bspline", ...
-                "active_repaired_reference", ...
-                "active_repaired_certificates", ...
-                "last_replan_status", ...
-                "replan_commit_count", ...
-                "last_replan_commit_time", ...
                 "trigger_ttc", ...
                 "trigger_collision_time", ...
                 "trigger_obstacle_id", ...
@@ -819,18 +920,70 @@ classdef REPLANNING_SYSTEM < handle
                 "trigger_kernel_called", ...
                 "active_reference_mode", ...
                 "active_reference_version", ...
-                "active_speed_certificate", ...
-                "trigger_sweep_inflation", ...
-                "sensor_horizon_certificate", ...
-                "stop_geometry_4ms_certificate", ...
-                "command_limit_certificate", ...
+                "nominal_xd_table_used", ...
+                "certificate_guard_passed", ...
+                "certificate_stale_mask", ...
+                "hlc_optional_stale", ...
                 "command_limit_live_verified", ...
-                "actuator_dynamics_certificate", ...
-                "certificate_stale", ...
-                "runtime_dependency_signature" ...
+                "dependency_refresh_count", ...
+                "mass_certificate_rebuild_count", ...
+                "replan_commit_count", ...
+                "last_replan_commit_time" ...
             ];
 
             for p_name=sensor_props
+                if ~isprop(obj.result.state,p_name)
+                    addprop(obj.result.state,p_name);
+                end
+            end
+
+            % -------------------------------------------------------------
+            % LOGGER-safe scalar timing fields.
+            % Keep these separate from sensor_props to avoid changing the
+            % existing production sensor/state interface.
+            % -------------------------------------------------------------
+            timing_props=[ ...
+                "rt_light_e2e_ms", ...
+                "rt_spike_capture_time", ...
+                "rt_spike_total_ms", ...
+                "rt_spike_stage_front_ms", ...
+                "rt_spike_stage_loadmass_ms", ...
+                "rt_spike_stage_dependency_ms", ...
+                "rt_spike_stage_base_cert_geom_ms", ...
+                "rt_spike_stage_sensor_trigger_ms", ...
+                "rt_spike_stage_output_state_ms", ...
+                "rt_spike_base_ref_ms", ...
+                "rt_spike_flight_guard_ms", ...
+                "rt_spike_cert_guard_ms", ...
+                "rt_spike_active_ref_ms", ...
+                "rt_spike_geometry_ms", ...
+                "rt_spike_state_handle_ms", ...
+                "rt_spike_write_active_output_ms", ...
+                "rt_spike_state_basic_ms", ...
+                "rt_spike_state_trigger_scalar_ms", ...
+                "rt_spike_state_trigger_heavy_ms", ...
+                "rt_spike_state_cert_ms", ...
+                "rt_spike_state_meta_ms", ...
+                "rt_spike_active_count", ...
+                "rt_spike_need_replan", ...
+                "rt_live_binding_ms", ...
+                "rt_dependency_ms", ...
+                "rt_cert_guard_ms", ...
+                "rt_geometry_eval_ms", ...
+                "rt_replan_status_ms", ...
+                "rt_output_write_ms", ...
+                "rt_state_trigger_write_ms", ...
+                "rt_state_cert_write_ms", ...
+                "rt_state_meta_write_ms", ...
+                "rt_base_ref_ms", ...
+                "rt_sensor_ms", ...
+                "rt_reference_packet_ms", ...
+                "rt_kernel_ms", ...
+                "rt_trigger_ms", ...
+                "rt_total_ms" ...
+            ];
+
+            for p_name=timing_props
                 if ~isprop(obj.result.state,p_name)
                     addprop(obj.result.state,p_name);
                 end
@@ -875,6 +1028,13 @@ classdef REPLANNING_SYSTEM < handle
             time=varargin{1};
             cha=varargin{2};
 
+            % Single lightweight production wall timer for A/B diagnosis.
+            % This remains active while the detailed multi-stage profiling
+            % below is disabled.
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                t_light_e2e=tic;
+            end
+
             if isfield(time,'dt') && ~isempty(time.dt) && time.dt>0
                 if abs(time.dt-obj.prediction_dt)>1e-12
                     obj.prediction_dt=time.dt;
@@ -883,38 +1043,72 @@ classdef REPLANNING_SYSTEM < handle
                         '[REPLANNER ERROR] horizon_s/prediction_dt must be integer.');
                     obj.reference_cache_valid=false;
                     obj.nominal_table_valid=false;
+                    obj.nominal_table_xd=[];
                     obj.online_prime_done=false;
                     obj.setup_exact_do_prime_done=false;
                 end
             end
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_front_ms=1e3*toc(t_light_e2e);
+            end
+
             obj.loadmass=obj.get_load_mass();
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_loadmass_ms=1e3*toc(t_light_e2e);
+            end
 
             % The replanner is constructed before the live HLC controller
             % object exists in run_flight_headless.  Command limits are
             % therefore source-bound in the constructor and the actual live
             % controller handle is verified lazily once it exists.  Flight
             % may not proceed without that live verification.
+            if obj.ENABLE_PROFILING
+                t_live_binding=tic;
+            end
             obj.verify_live_controller_binding(isequal(cha,'f'));
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_live_binding_ms=1e3*toc(t_live_binding);
+                t_dependency=tic;
+            end
 
             % Fast dependency check: scalar/string comparisons only.
             % No source-file parsing and no symbolic derivation is performed
             % in the Flight control cycle.
             obj.update_runtime_dependency_state_fast(cha);
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_dependency_ms=1e3*toc(t_light_e2e);
+            end
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_dependency_ms=1e3*toc(t_dependency);
+            end
 
             if obj.ENABLE_PROFILING
                 t_total=tic;
                 t0=tic;
             end
 
-            base_res=obj.base_ref.do(varargin{:});
-            xd_nom=base_res.state.xd;
+            protected_phase=isequal(cha,'f');
+
+            if protected_phase
+                % NOMINAL current xd has already been evaluated exactly by
+                % base_ref.do() during preflight table construction.
+                % Reading it here removes repeated Flight-time reference
+                % evaluation without changing the reference mathematics.
+                xd_nom=obj.get_nominal_xd_from_table(time.t);
+            else
+                base_res=obj.base_ref.do(varargin{:});
+                xd_nom=base_res.state.xd;
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_base_ref_ms=1e3*toc(t_light_e2e);
+            end
 
             if obj.ENABLE_PROFILING
                 obj.profiling.t_base_ref_ms=1e3*toc(t0);
             end
-
-            protected_phase=isequal(cha,'f');
 
             if ~protected_phase
                 obj.clear_state_sensor_values(time.t);
@@ -953,12 +1147,39 @@ classdef REPLANNING_SYSTEM < handle
                     '[REPLANNER ERROR] setup-only forced-hit flag leaked into Flight.');
             end
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_flight_guard_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                t_cert_guard=tic;
+            end
             obj.assert_runtime_core_certificates_current();
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_cert_guard_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_cert_guard_ms=1e3*toc(t_cert_guard);
+                t_geometry_eval=tic;
+            end
 
             xd_active_now=obj.evaluate_active_reference_xd(time.t,xd_nom);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_active_ref_ms=1e3*toc(t_light_e2e);
+            end
             [pQ_cur,~,~,cable_residual]=obj.get_current_physical_geometry(xd_active_now);
 
-            if obj.ENABLE_PROFILING, ts=tic; end
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_geometry_ms=1e3*toc(t_light_e2e);
+                cp_base_cert_geom_ms=cp_geometry_ms;
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_geometry_eval_ms=1e3*toc(t_geometry_eval);
+                ts=tic;
+            end
             [active,min_dist,min_id,all_dists]= ...
                 obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
             if obj.ENABLE_PROFILING
@@ -1007,19 +1228,51 @@ classdef REPLANNING_SYSTEM < handle
                 obj.profiling.t_trigger_ms=1e3*toc(tt);
             end
 
+            if obj.ENABLE_PROFILING
+                t_replan_status=tic;
+            end
+            % Diagnostic status is refreshed only on a new request edge.
+            % Exact per-cycle request data already exists in trigger_* fields.
             if need_replan
-                obj.last_replan_status=struct( ...
-                    'requested',true, ...
-                    'committed',false, ...
-                    'reason','CURRENT primary generator not yet installed', ...
-                    'request_time',double(time.t), ...
-                    'trigger_ttc',double(ttc), ...
-                    'trigger_obstacle_id',double(obs_id), ...
-                    'trigger_component',char(comp_name));
+                if ~obj.replan_request_active
+                    obj.last_replan_status=struct( ...
+                        'requested',true, ...
+                        'committed',false, ...
+                        'reason','CURRENT primary generator not yet installed', ...
+                        'request_time',double(time.t), ...
+                        'trigger_ttc',double(ttc), ...
+                        'trigger_obstacle_id',double(obs_id), ...
+                        'trigger_component',char(comp_name));
+                    obj.replan_request_active=true;
+                end
+            else
+                obj.replan_request_active=false;
+            end
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_replan_status_ms=1e3*toc(t_replan_status);
+                t_output_write=tic;
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_sensor_trigger_ms=1e3*toc(t_light_e2e);
             end
 
             st=obj.result.state;
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_handle_ms=1e3*toc(t_light_e2e);
+            end
+
             obj.write_active_output(time.t,xd_nom);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_write_active_output_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_output_write_ms=1e3*toc(t_output_write);
+                t_state_trigger_write=tic;
+            end
 
             st.time=time.t;
             st.pQ=pQ_cur;
@@ -1032,51 +1285,163 @@ classdef REPLANNING_SYSTEM < handle
             st.min_dist_point=min_dist;
             st.detected_obstacle_count_point=vis_count;
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_basic_ms=1e3*toc(t_light_e2e);
+            end
+
+            % Fixed scalar trigger fields first.
             st.need_replan=need_replan;
             st.trigger_ttc=ttc;
             st.trigger_collision_time=collision_time;
             st.trigger_obstacle_id=obs_id;
-            st.trigger_component=comp_name;
             st.trigger_component_code=comp_code;
+            st.trigger_effective_horizon=effective_horizon;
+            st.trigger_reference_points=N;
+            st.trigger_cable_residual=cable_residual;
+            st.trigger_hit_index=jhit;
+            st.trigger_kernel_called=double(kernel_called);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_trigger_scalar_ms=1e3*toc(t_light_e2e);
+            end
+
+            % Small vectors / strings / mask-distance arrays are separated
+            % because these assignments can create/copy MATLAB data.
+            st.trigger_component=comp_name;
             st.trigger_pL_collision=pL_collision;
             st.trigger_q_collision=q_collision;
             st.trigger_pQ_collision=pQ_collision;
-            st.trigger_effective_horizon=effective_horizon;
-            st.trigger_reference_points=N;
             st.trigger_reference_source=ref_source;
             st.trigger_sensor_origin=pQ_cur;
-            st.trigger_cable_residual=cable_residual;
             st.trigger_active_mask=double(active);
             st.trigger_raw_distances=all_dists;
-            st.trigger_hit_index=jhit;
-            st.trigger_kernel_called=double(kernel_called);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_trigger_heavy_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_state_trigger_write_ms=1e3*toc(t_state_trigger_write);
+                t_state_cert_write=tic;
+            end
+
             st.active_reference_mode=obj.active_reference_mode;
             st.active_reference_version=obj.active_reference_version;
-            st.active_speed_certificate=obj.active_speed_certificate;
-            st.trigger_sweep_inflation=obj.trigger_sweep_inflation;
-            st.sensor_horizon_certificate=obj.sensor_horizon_certificate;
-            st.stop_geometry_4ms_certificate=obj.stop_geometry_4ms_certificate;
-            st.command_limit_certificate=obj.command_limit_certificate;
+            st.nominal_xd_table_used=protected_phase;
+
+            % Full certificate structs remain authoritative in obj.*.
+            % The fail-closed certificate guard above is unchanged.
+            % LOGGER receives fixed-size summaries only.
+            st.certificate_guard_passed=true;
+            st.certificate_stale_mask = ...
+                double(obj.certificate_stale.SPEED_TRIGGER_CERT) + ...
+                2*double(obj.certificate_stale.SENSOR_HORIZON_CERT) + ...
+                4*double(obj.certificate_stale.STOP_GEOMETRY_4MS_CERT) + ...
+                8*double(obj.certificate_stale.ACTUATOR_DYNAMICS_CERT);
+            st.hlc_optional_stale=logical(obj.certificate_stale.HLC_ROBUST_CERT);
             if isfield(obj.command_limit_certificate,'live_controller_verified')
                 st.command_limit_live_verified= ...
                     logical(obj.command_limit_certificate.live_controller_verified);
             else
                 st.command_limit_live_verified=false;
             end
-            st.actuator_dynamics_certificate=obj.actuator_dynamics_certificate;
-            st.certificate_stale=obj.certificate_stale;
-            st.runtime_dependency_signature=obj.runtime_dependency_signature;
+            st.dependency_refresh_count=obj.dependency_refresh_count;
+            st.mass_certificate_rebuild_count=obj.mass_certificate_rebuild_count;
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_cert_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_state_cert_write_ms=1e3*toc(t_state_cert_write);
+                t_state_meta_write=tic;
+            end
+
             st.loadmass=obj.loadmass;
-            st.current_bspline=obj.current_bspline;
-            st.active_repaired_reference=obj.repaired_reference_metadata();
-            st.active_repaired_certificates=obj.active_repaired_certificates;
-            st.last_replan_status=obj.last_replan_status;
             st.replan_commit_count=obj.replan_commit_count;
             st.last_replan_commit_time=obj.last_replan_commit_time;
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_meta_ms=1e3*toc(t_light_e2e);
+            end
+
             if obj.ENABLE_PROFILING
+                obj.profiling.t_state_meta_write_ms=1e3*toc(t_state_meta_write);
                 obj.profiling.t_total_ms=1e3*toc(t_total);
-                st.profiling=obj.profiling;
+
+                % LOGGER-safe scalar timing mirror.
+                % Diagnostic only: these values do not feed any safety or
+                % replanning decision.
+                st.rt_live_binding_ms=obj.profiling.t_live_binding_ms;
+                st.rt_dependency_ms=obj.profiling.t_dependency_ms;
+                st.rt_cert_guard_ms=obj.profiling.t_cert_guard_ms;
+                st.rt_geometry_eval_ms=obj.profiling.t_geometry_eval_ms;
+                st.rt_replan_status_ms=obj.profiling.t_replan_status_ms;
+                st.rt_output_write_ms=obj.profiling.t_output_write_ms;
+                st.rt_state_trigger_write_ms=obj.profiling.t_state_trigger_write_ms;
+                st.rt_state_cert_write_ms=obj.profiling.t_state_cert_write_ms;
+                st.rt_state_meta_write_ms=obj.profiling.t_state_meta_write_ms;
+                st.rt_base_ref_ms=obj.profiling.t_base_ref_ms;
+                st.rt_sensor_ms=obj.profiling.t_sensor_ms;
+                st.rt_reference_packet_ms=obj.profiling.t_reference_packet_ms;
+                st.rt_kernel_ms=obj.profiling.t_kernel_ms;
+                st.rt_trigger_ms=obj.profiling.t_trigger_ms;
+                st.rt_total_ms=obj.profiling.t_total_ms;
+
+                % Nested profiling is intentionally not attached to result.state.
+                % Direct rt_* scalars are the runtime diagnostic interface.
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_output_state_ms=1e3*toc(t_light_e2e);
+                st.rt_light_e2e_ms=cp_output_state_ms;
+
+                % Capture only rare slow cycles. The production total above is
+                % measured before these diagnostic writes.
+                if cp_output_state_ms > obj.SPIKE_CAPTURE_THRESHOLD_MS
+                    st.rt_spike_capture_time=double(time.t);
+                    st.rt_spike_total_ms=cp_output_state_ms;
+                    st.rt_spike_stage_front_ms=cp_front_ms;
+                    st.rt_spike_stage_loadmass_ms=cp_loadmass_ms-cp_front_ms;
+                    st.rt_spike_stage_dependency_ms=cp_dependency_ms-cp_loadmass_ms;
+                    st.rt_spike_stage_base_cert_geom_ms= ...
+                        cp_base_cert_geom_ms-cp_dependency_ms;
+                    st.rt_spike_stage_sensor_trigger_ms= ...
+                        cp_sensor_trigger_ms-cp_base_cert_geom_ms;
+                    st.rt_spike_stage_output_state_ms= ...
+                        cp_output_state_ms-cp_sensor_trigger_ms;
+
+                    % Fine split of BASE_CERT_GEOM.
+                    st.rt_spike_base_ref_ms= ...
+                        cp_base_ref_ms-cp_dependency_ms;
+                    st.rt_spike_flight_guard_ms= ...
+                        cp_flight_guard_ms-cp_base_ref_ms;
+                    st.rt_spike_cert_guard_ms= ...
+                        cp_cert_guard_ms-cp_flight_guard_ms;
+                    st.rt_spike_active_ref_ms= ...
+                        cp_active_ref_ms-cp_cert_guard_ms;
+                    st.rt_spike_geometry_ms= ...
+                        cp_geometry_ms-cp_active_ref_ms;
+
+                    % Fine split of OUTPUT_STATE.
+                    st.rt_spike_state_handle_ms= ...
+                        cp_state_handle_ms-cp_sensor_trigger_ms;
+                    st.rt_spike_write_active_output_ms= ...
+                        cp_write_active_output_ms-cp_state_handle_ms;
+                    st.rt_spike_state_basic_ms= ...
+                        cp_state_basic_ms-cp_write_active_output_ms;
+                    st.rt_spike_state_trigger_scalar_ms= ...
+                        cp_state_trigger_scalar_ms-cp_state_basic_ms;
+                    st.rt_spike_state_trigger_heavy_ms= ...
+                        cp_state_trigger_heavy_ms-cp_state_trigger_scalar_ms;
+                    st.rt_spike_state_cert_ms= ...
+                        cp_state_cert_ms-cp_state_trigger_heavy_ms;
+                    st.rt_spike_state_meta_ms= ...
+                        cp_state_meta_ms-cp_state_cert_ms;
+
+                    st.rt_spike_active_count=double(vis_count);
+                    st.rt_spike_need_replan=double(need_replan);
+                end
             end
 
             if obj.ENABLE_ALL_LOG
@@ -1095,38 +1460,21 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function mL = get_load_mass(obj)
-            % =================================================================
-            % 【牽引物質量推定値取得関数】
-            %   状態推定器 (self.estimator.result.state.mL) から牽引物質量の最新推定値を取得します。
-            %
-            % 【安全性に関する厳格な制約（フォールバック禁止）】
-            %   本制御システムにおいて牽引物質量のオンライン推定値は安全保証の中核です。
-            %   推定値が存在しない場合、あるいは非正値・不正値の場合は安全のため即座にエラー停止します。
-            %   （設計方針に基づき、安易なデフォルト値や固定値へのフォールバックは一切行いません）
-            % =================================================================
-            st_est = [];
-            if obj.has_prop_or_field(obj.self,'estimator') && ~isempty(obj.self.estimator)
-                est_obj = obj.self.estimator;
-                if obj.has_prop_or_field(est_obj,'result') && ~isempty(est_obj.result)
-                    res = est_obj.result;
-                    if obj.has_prop_or_field(res,'state') && ~isempty(res.state)
-                        st_est = res.state;
-                    end
-                end
+            % Fast fail-closed live mass read.
+            % The estimator schema is fixed after construction; direct access
+            % avoids repeated isprop/isfield traversal in the control cycle.
+            try
+                mL=obj.self.estimator.result.state.mL;
+            catch
+                error(['[REPLANNER ERROR] estimator live mass path ' ...
+                    'self.estimator.result.state.mL is unavailable.']);
             end
-            has_mL = ~isempty(st_est) && obj.has_prop_or_field(st_est,'mL');
-            assert(has_mL, ...
-                '[REPLANNER ERROR] 推定器 (self.estimator.result.state) に牽引物質量の推定プロパティ "mL" が存在しません。本システムは牽引物質量の推定値に基づく安全検証を必須としています。');
-            mL = st_est.mL;
+
             assert(isnumeric(mL) && isscalar(mL) && isfinite(mL) && mL>0, ...
-                '[REPLANNER ERROR] 牽引物質量の推定値 (self.estimator.result.state.mL) が有効な正の数値ではありません (値: %s)。', mat2str(mL));
+                ['[REPLANNER ERROR] live load-mass estimate must be a finite ' ...
+                 'positive scalar.']);
+            mL=double(mL);
         end
-
-    end
-
-
-
-    methods (Access = private)
 
 
         function cert = build_nominal_active_speed_certificate(obj)
@@ -1730,6 +2078,25 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function Jdep = get_inertia_dependency_fast(obj)
+            % Read live inertia without constructing a string-array query in
+            % the common path when direct parameter properties are available.
+            P=obj.self.parameter;
+
+            if isobject(P) && isprop(P,'jx') && isprop(P,'jy') && isprop(P,'jz')
+                Jdep=[P.jx;P.jy;P.jz];
+            elseif isstruct(P) && isfield(P,'jx') && isfield(P,'jy') && isfield(P,'jz')
+                Jdep=[P.jx;P.jy;P.jz];
+            else
+                Jdep=P.get(["jx","jy","jz"]);
+            end
+
+            Jdep=double(Jdep(:));
+            assert(numel(Jdep)==3 && all(isfinite(Jdep)) && all(Jdep>0), ...
+                '[REPLANNER ERROR] invalid live inertia parameter dependency.');
+        end
+
+
         function sig = capture_runtime_dependency_signature_fast(obj)
             obj.assert_hard_modify_deadline_limit();
             sig=struct();
@@ -1739,8 +2106,10 @@ classdef REPLANNING_SYSTEM < handle
             if isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
                     isprop(obj.base_ref,'func') && ...
                     isa(obj.base_ref.func,'function_handle')
+                obj.runtime_reference_func_handle=obj.base_ref.func;
                 sig.reference_func_signature=func2str(obj.base_ref.func);
             else
+                obj.runtime_reference_func_handle=[];
                 sig.reference_func_signature='';
             end
 
@@ -1753,6 +2122,10 @@ classdef REPLANNING_SYSTEM < handle
             sig.cable_length=double(obj.L_cable);
             sig.gravity=double(obj.gravity);
             sig.mQ=obj.get_vehicle_mass();
+            Jdep=obj.get_inertia_dependency_fast();
+            sig.jx=Jdep(1);
+            sig.jy=Jdep(2);
+            sig.jz=Jdep(3);
             sig.mL_snapshot=double(obj.loadmass);
             sig.hard_modify_deadline_s=double(obj.hard_modify_deadline_s);
         end
@@ -1771,96 +2144,148 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function update_runtime_dependency_state_fast(obj,cha)
-            cur=obj.capture_runtime_dependency_signature_fast();
-
-            if isempty(fieldnames(obj.runtime_dependency_signature))
-                obj.runtime_dependency_signature=cur;
-                return;
-            end
-
+            % =============================================================
+            % Allocation-light live dependency watcher.
+            %
+            % Common unchanged cycle:
+            %   - NO new dependency struct
+            %   - NO func2str()
+            %   - direct scalar comparisons against the certified snapshot
+            %
+            % Change cycle:
+            %   - preserve the previous fail-closed invalidation/rebuild rules
+            %   - rebuild the snapshot only after the detected change
+            % =============================================================
             old=obj.runtime_dependency_signature;
 
-            refChanged= ...
-                ~strcmp(char(old.reference_mode),char(cur.reference_mode)) || ...
-                double(old.reference_version)~=double(cur.reference_version) || ...
-                ~strcmp(char(old.reference_func_signature), ...
-                        char(cur.reference_func_signature));
+            if ~isstruct(old) || ~isfield(old,'dt')
+                obj.runtime_dependency_signature= ...
+                    obj.capture_runtime_dependency_signature_fast();
+                old=obj.runtime_dependency_signature;
+            end
 
-            dtChanged=double(old.dt)~=double(cur.dt);
+            % Reference mode/version are cheap scalar/string dependencies.
+            refChanged = ...
+                ~strcmp(char(old.reference_mode),char(obj.active_reference_mode)) || ...
+                double(old.reference_version)~=double(obj.active_reference_version);
+
+            % Avoid func2str in the common cycle. Only stringify a newly
+            % installed function handle, preserving the previous textual
+            % signature semantics.
+            funcChanged=false;
+            hasFunc=isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                isprop(obj.base_ref,'func') && ...
+                isa(obj.base_ref.func,'function_handle');
+
+            if hasFunc
+                fh=obj.base_ref.func;
+                if isempty(obj.runtime_reference_func_handle) || ...
+                        ~isequal(fh,obj.runtime_reference_func_handle)
+                    sigNow=func2str(fh);
+                    funcChanged=~strcmp(char(old.reference_func_signature),sigNow);
+                    if ~funcChanged
+                        obj.runtime_reference_func_handle=fh;
+                    end
+                end
+            else
+                funcChanged=~isempty(char(old.reference_func_signature));
+            end
+            refChanged=refChanged || funcChanged;
+
+            dtChanged=double(old.dt)~=double(obj.prediction_dt);
 
             sensorGeomChanged= ...
-                double(old.sensor_range)~=double(cur.sensor_range) || ...
-                double(old.horizon)~=double(cur.horizon) || ...
-                double(old.r_drone)~=double(cur.r_drone) || ...
-                double(old.r_load)~=double(cur.r_load) || ...
-                double(old.r_cable)~=double(cur.r_cable) || ...
-                double(old.cable_length)~=double(cur.cable_length);
+                double(old.sensor_range)~=double(obj.trigger_dist) || ...
+                double(old.horizon)~=double(obj.horizon_s) || ...
+                double(old.r_drone)~=double(obj.r_drone) || ...
+                double(old.r_load)~=double(obj.r_load) || ...
+                double(old.r_cable)~=double(obj.r_cable) || ...
+                double(old.cable_length)~=double(obj.L_cable);
 
-            gravityChanged=double(old.gravity)~=double(cur.gravity);
+            gravityChanged=double(old.gravity)~=double(obj.gravity);
             deadlineChanged= ...
                 double(old.hard_modify_deadline_s)~= ...
-                double(cur.hard_modify_deadline_s);
+                double(obj.hard_modify_deadline_s);
 
+            mQNow=obj.get_vehicle_mass();
             massChanged= ...
-                double(old.mQ)~=double(cur.mQ) || ...
-                double(old.mL_snapshot)~=double(cur.mL_snapshot);
+                double(old.mQ)~=double(mQNow) || ...
+                double(old.mL_snapshot)~=double(obj.loadmass);
 
-            if refChanged
-                obj.certificate_stale.SPEED_TRIGGER_CERT=true;
-                obj.certificate_stale.SENSOR_HORIZON_CERT=true;
-                obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
-                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
-                obj.certificate_stale.HLC_ROBUST_CERT=true;
-            end
+            JNow=obj.get_inertia_dependency_fast();
+            inertiaChanged= ...
+                double(old.jx)~=JNow(1) || ...
+                double(old.jy)~=JNow(2) || ...
+                double(old.jz)~=JNow(3);
 
-            if dtChanged
-                obj.certificate_stale.SPEED_TRIGGER_CERT=true;
-                obj.certificate_stale.SENSOR_HORIZON_CERT=true;
-                obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
-                obj.certificate_stale.HLC_ROBUST_CERT=true;
-            end
+            anyChanged=refChanged || dtChanged || sensorGeomChanged || ...
+                gravityChanged || deadlineChanged || massChanged || inertiaChanged;
 
-            if sensorGeomChanged
-                obj.certificate_stale.SENSOR_HORIZON_CERT=true;
-                obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
-            end
-
-            if gravityChanged
-                obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
-                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
-                obj.certificate_stale.HLC_ROBUST_CERT=true;
-            end
-
-            if deadlineChanged
-                obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
-            end
-
-            % Mass changes are the high-rate expected dependency change.
-            % Rebuild only the mass-dependent nominal actuator certificate.
-            % Geometry/sensor certificates are intentionally untouched.
-            if massChanged && ~refChanged && ~gravityChanged
-                if strcmpi(char(obj.active_reference_mode),'NOMINAL')
-                    obj.actuator_dynamics_certificate= ...
-                        obj.build_current_actuator_dynamics_certificate();
-                    obj.certificate_stale.ACTUATOR_DYNAMICS_CERT= ...
-                        ~logical(obj.actuator_dynamics_certificate.certified);
-                    obj.certificate_stale.HLC_ROBUST_CERT=true;
-                    obj.mass_certificate_rebuild_count= ...
-                        obj.mass_certificate_rebuild_count+1;
-                else
-                    % A general REPAIRED trajectory can have nonzero cable
-                    % motion/attitude dynamics.  The nominal vertical-stop
-                    % formula must NEVER be reused after a mass change.
+            if anyChanged
+                if refChanged
+                    obj.certificate_stale.SPEED_TRIGGER_CERT=true;
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
                     obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
                     obj.certificate_stale.HLC_ROBUST_CERT=true;
                 end
+
+                if dtChanged
+                    obj.certificate_stale.SPEED_TRIGGER_CERT=true;
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if sensorGeomChanged
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                end
+
+                if gravityChanged
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                    obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if deadlineChanged
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                end
+
+                if inertiaChanged
+                    if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                        obj.actuator_dynamics_certificate= ...
+                            obj.build_current_actuator_dynamics_certificate();
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT= ...
+                            ~logical(obj.actuator_dynamics_certificate.certified);
+                    else
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                    end
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if massChanged && ~refChanged && ~gravityChanged
+                    if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                        obj.actuator_dynamics_certificate= ...
+                            obj.build_current_actuator_dynamics_certificate();
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT= ...
+                            ~logical(obj.actuator_dynamics_certificate.certified);
+                        obj.certificate_stale.HLC_ROBUST_CERT=true;
+                        obj.mass_certificate_rebuild_count= ...
+                            obj.mass_certificate_rebuild_count+1;
+                    else
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                        obj.certificate_stale.HLC_ROBUST_CERT=true;
+                    end
+                end
+
+                % Build a fresh authoritative snapshot only when a dependency
+                % actually changed.
+                obj.runtime_dependency_signature= ...
+                    obj.capture_runtime_dependency_signature_fast();
             end
 
-            obj.runtime_dependency_signature=cur;
-
-            % Configuration/reference changes are supported fail-closed.
-            % Heavy/source/symbolic rebuild must occur through
-            % refresh_runtime_certificates() outside the Flight cycle.
+            % Same fail-closed Flight rules as before.
             if isequal(cha,'f')
                 assert(~obj.certificate_stale.SPEED_TRIGGER_CERT, ...
                     ['[REPLANNER DEPENDENCY ERROR] speed/trigger certificate ' ...
@@ -2250,15 +2675,36 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function INT = geometric_stop_T_intervals(~,v,k,g,L,S)
+            % =============================================================
+            % Certified stop-geometry T intervals with explicit endpoint
+            % topology.
+            %
+            % branch1:
+            %   lower Tf belongs to the first analytic branch.
+            %   upper Tb is closed only when the strict clearance boundary
+            %   b1upper lies beyond Tb. If b1upper is active (including
+            %   b1upper==Tb), the strict-clearance endpoint is open.
+            %
+            % branch2:
+            %   the quadratic clearance condition is strict between r1,r2.
+            %   Root endpoints are therefore open. If Tb lies strictly
+            %   inside (r1,r2), the branch switch at Tb is closed.
+            %
+            % No epsilon is used to emulate an open boundary.
+            % =============================================================
             INT=struct();
             INT.branch1=zeros(0,2);
+            INT.branch1_left_closed=false(0,1);
             INT.branch1_right_closed=false(0,1);
             INT.branch2=zeros(0,2);
+            INT.branch2_left_closed=false(0,1);
+            INT.branch2_right_closed=false(0,1);
             INT.nonempty=false;
 
             if v==0
                 INT.branch1=[0,Inf];
-                INT.branch1_right_closed=true;
+                INT.branch1_left_closed=true;
+                INT.branch1_right_closed=false;
                 INT.nonempty=S>0;
                 return;
             end
@@ -2270,6 +2716,7 @@ classdef REPLANNING_SYSTEM < handle
             hi=min(Tb,b1upper);
             if hi>Tf
                 INT.branch1=[Tf,hi];
+                INT.branch1_left_closed=true;
                 INT.branch1_right_closed=(Tb<b1upper);
             end
 
@@ -2286,6 +2733,8 @@ classdef REPLANNING_SYSTEM < handle
 
                 if hi>lo
                     INT.branch2=[lo,hi];
+                    INT.branch2_left_closed=(Tb>r1);
+                    INT.branch2_right_closed=false;
                 end
             end
 
@@ -2294,29 +2743,53 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function INT2 = intersect_T_intervals_with_lower(~,INT,Tlo)
+            % Intersect with the closed lower-bound set [Tlo,Inf).
             INT2=struct();
             INT2.branch1=zeros(0,2);
+            INT2.branch1_left_closed=false(0,1);
             INT2.branch1_right_closed=false(0,1);
             INT2.branch2=zeros(0,2);
+            INT2.branch2_left_closed=false(0,1);
+            INT2.branch2_right_closed=false(0,1);
             INT2.nonempty=false;
 
             for i=1:size(INT.branch1,1)
-                lo=max(INT.branch1(i,1),Tlo);
+                oldlo=INT.branch1(i,1);
+                lo=max(oldlo,Tlo);
                 hi=INT.branch1(i,2);
 
-                if hi>lo
+                if lo>oldlo
+                    lclosed=true;
+                else
+                    lclosed=INT.branch1_left_closed(i);
+                end
+                hclosed=INT.branch1_right_closed(i);
+
+                nonempty=(hi>lo) || (hi==lo && lclosed && hclosed);
+                if nonempty
                     INT2.branch1(end+1,:)=[lo,hi]; %#ok<AGROW>
-                    INT2.branch1_right_closed(end+1,1)= ...
-                        INT.branch1_right_closed(i); %#ok<AGROW>
+                    INT2.branch1_left_closed(end+1,1)=lclosed; %#ok<AGROW>
+                    INT2.branch1_right_closed(end+1,1)=hclosed; %#ok<AGROW>
                 end
             end
 
             for i=1:size(INT.branch2,1)
-                lo=max(INT.branch2(i,1),Tlo);
+                oldlo=INT.branch2(i,1);
+                lo=max(oldlo,Tlo);
                 hi=INT.branch2(i,2);
 
-                if hi>lo
+                if lo>oldlo
+                    lclosed=true;
+                else
+                    lclosed=INT.branch2_left_closed(i);
+                end
+                hclosed=INT.branch2_right_closed(i);
+
+                nonempty=(hi>lo) || (hi==lo && lclosed && hclosed);
+                if nonempty
                     INT2.branch2(end+1,:)=[lo,hi]; %#ok<AGROW>
+                    INT2.branch2_left_closed(end+1,1)=lclosed; %#ok<AGROW>
+                    INT2.branch2_right_closed(end+1,1)=hclosed; %#ok<AGROW>
                 end
             end
 
@@ -2708,7 +3181,7 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
-        function [pL,q] = evaluate_nominal_payload_and_q( ...
+        function [pL,q,xd_eval] = evaluate_nominal_payload_and_q( ...
                 obj,t_query,cha,varargin_in,~)
             args = varargin_in;
             time_orig = args{1};
@@ -2735,8 +3208,8 @@ classdef REPLANNING_SYSTEM < handle
             args{1} = tlocal;
             args{2} = cha;
             r = obj.base_ref.do(args{:});
-            xd = r.state.xd;
-            [pL,q] = obj.nominal_payload_and_q_from_xd(xd);
+            xd_eval = r.state.xd;
+            [pL,q] = obj.nominal_payload_and_q_from_xd(xd_eval);
         end
 
         function [pL,q] = nominal_payload_and_q_from_xd(obj,xd)
@@ -3201,16 +3674,66 @@ classdef REPLANNING_SYSTEM < handle
             st.trigger_kernel_called=0;
             st.active_reference_mode=obj.active_reference_mode;
             st.active_reference_version=obj.active_reference_version;
-            st.active_speed_certificate=obj.active_speed_certificate;
-            st.trigger_sweep_inflation=obj.trigger_sweep_inflation;
+            st.nominal_xd_table_used=false;
+            st.certificate_guard_passed=false;
+            st.certificate_stale_mask = ...
+                double(obj.certificate_stale.SPEED_TRIGGER_CERT) + ...
+                2*double(obj.certificate_stale.SENSOR_HORIZON_CERT) + ...
+                4*double(obj.certificate_stale.STOP_GEOMETRY_4MS_CERT) + ...
+                8*double(obj.certificate_stale.ACTUATOR_DYNAMICS_CERT);
+            st.hlc_optional_stale=logical(obj.certificate_stale.HLC_ROBUST_CERT);
+            if isfield(obj.command_limit_certificate,'live_controller_verified')
+                st.command_limit_live_verified= ...
+                    logical(obj.command_limit_certificate.live_controller_verified);
+            else
+                st.command_limit_live_verified=false;
+            end
+            st.dependency_refresh_count=obj.dependency_refresh_count;
+            st.mass_certificate_rebuild_count=obj.mass_certificate_rebuild_count;
             st.loadmass=obj.loadmass;
-            st.current_bspline=obj.current_bspline;
-            st.active_repaired_reference=obj.repaired_reference_metadata();
-            st.active_repaired_certificates=obj.active_repaired_certificates;
-            st.last_replan_status=obj.last_replan_status;
             st.replan_commit_count=obj.replan_commit_count;
             st.last_replan_commit_time=obj.last_replan_commit_time;
-            st.profiling=obj.profiling;
+
+            % LOGGER-safe direct scalar timing mirrors.
+            st.rt_light_e2e_ms=NaN;
+            st.rt_spike_capture_time=NaN;
+            st.rt_spike_total_ms=NaN;
+            st.rt_spike_stage_front_ms=NaN;
+            st.rt_spike_stage_loadmass_ms=NaN;
+            st.rt_spike_stage_dependency_ms=NaN;
+            st.rt_spike_stage_base_cert_geom_ms=NaN;
+            st.rt_spike_stage_sensor_trigger_ms=NaN;
+            st.rt_spike_stage_output_state_ms=NaN;
+            st.rt_spike_base_ref_ms=NaN;
+            st.rt_spike_flight_guard_ms=NaN;
+            st.rt_spike_cert_guard_ms=NaN;
+            st.rt_spike_active_ref_ms=NaN;
+            st.rt_spike_geometry_ms=NaN;
+            st.rt_spike_state_handle_ms=NaN;
+            st.rt_spike_write_active_output_ms=NaN;
+            st.rt_spike_state_basic_ms=NaN;
+            st.rt_spike_state_trigger_scalar_ms=NaN;
+            st.rt_spike_state_trigger_heavy_ms=NaN;
+            st.rt_spike_state_cert_ms=NaN;
+            st.rt_spike_state_meta_ms=NaN;
+            st.rt_spike_active_count=NaN;
+            st.rt_spike_need_replan=NaN;
+            st.rt_live_binding_ms=NaN;
+            st.rt_dependency_ms=NaN;
+            st.rt_cert_guard_ms=NaN;
+            st.rt_geometry_eval_ms=NaN;
+            st.rt_replan_status_ms=NaN;
+            st.rt_output_write_ms=NaN;
+            st.rt_state_trigger_write_ms=NaN;
+            st.rt_state_cert_write_ms=NaN;
+            st.rt_state_meta_write_ms=NaN;
+            st.rt_base_ref_ms=NaN;
+            st.rt_sensor_ms=NaN;
+            st.rt_reference_packet_ms=NaN;
+            st.rt_kernel_ms=NaN;
+            st.rt_trigger_ms=NaN;
+            st.rt_total_ms=NaN;
+
         end
 
 
@@ -3426,12 +3949,31 @@ classdef REPLANNING_SYSTEM < handle
             pLtab=zeros(3,Ntab);
             qtab=zeros(3,Ntab);
 
+            % Evaluate the first point once to determine the exact xd width.
+            % The values come from the same base_ref.do() path used previously.
             tb=tic;
-            for j=1:Ntab
+            [pL1,q1,xd1]=obj.evaluate_nominal_payload_and_q( ...
+                t0,'f',varargin_in,[]);
+            xd1=xd1(:);
+            D=numel(xd1);
+            assert(D>=11 && all(isfinite(xd1)), ...
+                '[REPLANNER ERROR] nominal full-state table received invalid xd.');
+
+            xdtab=zeros(D,Ntab);
+            pLtab(:,1)=pL1;
+            qtab(:,1)=q1;
+            xdtab(:,1)=xd1;
+
+            for j=2:Ntab
                 tq=t0+(j-1)*obj.prediction_dt;
-                [pLtab(:,j),qtab(:,j)]= ...
-                    obj.evaluate_nominal_payload_and_q( ...
-                        tq,'f',varargin_in,[]);
+                [pLj,qj,xdj]=obj.evaluate_nominal_payload_and_q( ...
+                    tq,'f',varargin_in,[]);
+                xdj=xdj(:);
+                assert(numel(xdj)==D && all(isfinite(xdj)), ...
+                    '[REPLANNER ERROR] nominal xd dimension/value changed during table build.');
+                pLtab(:,j)=pLj;
+                qtab(:,j)=qj;
+                xdtab(:,j)=xdj;
             end
 
             obj.base_ref.do(varargin_in{:});
@@ -3441,6 +3983,7 @@ classdef REPLANNING_SYSTEM < handle
             obj.nominal_table_dt=obj.prediction_dt;
             obj.nominal_table_pL=pLtab;
             obj.nominal_table_q=qtab;
+            obj.nominal_table_xd=xdtab;
             obj.nominal_table_eval_count=Ntab;
             obj.nominal_table_build_ms=1e3*toc(tb);
             obj.nominal_table_valid=true;
@@ -3450,6 +3993,29 @@ classdef REPLANNING_SYSTEM < handle
                 fprintf('[REPLANNING_SYSTEM] nominal table ready | %.3f--%.3f s | points=%d | %.3f ms\n', ...
                     obj.nominal_table_t0,obj.nominal_table_tend,Ntab,obj.nominal_table_build_ms);
             end
+        end
+
+
+        function xd = get_nominal_xd_from_table(obj,t_now)
+            % Exact O(1) current-reference lookup on the same dt grid used by
+            % build_nominal_reference_table(). No interpolation is permitted.
+            assert(obj.nominal_table_valid && ~isempty(obj.nominal_table_xd), ...
+                '[REPLANNER ERROR] nominal full-state table unavailable in Flight.');
+            assert(abs(obj.nominal_table_dt-obj.prediction_dt)<=1e-12, ...
+                '[REPLANNER ERROR] nominal full-state table dt is stale.');
+
+            idx=round((double(t_now)-obj.nominal_table_t0)/obj.nominal_table_dt)+1;
+            assert(idx>=1 && idx<=size(obj.nominal_table_xd,2), ...
+                '[REPLANNER ERROR] current Flight time lies outside nominal full-state table.');
+
+            tq=obj.nominal_table_t0+(idx-1)*obj.nominal_table_dt;
+            tol=1e-10*max(1,abs(double(t_now)));
+            assert(abs(tq-double(t_now))<=tol, ...
+                '[REPLANNER ERROR] current Flight time is not on the certified nominal dt grid.');
+
+            xd=obj.nominal_table_xd(:,idx);
+            assert(numel(xd)>=11 && all(isfinite(xd)), ...
+                '[REPLANNER ERROR] nominal full-state table returned invalid xd.');
         end
 
 
@@ -3593,18 +4159,44 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
-            % Exact Flight do() prime: no-hit and hit downstream paths.
+            % =========================================================
+            % Exact Flight do() prime.
+            %
+            % Stage 1: sequential real-time-age prime
+            %   tf, tf+dt, tf+2dt, ...
+            % This reproduces the first protected cycles with changing table
+            % indices before Flight. It moves sequence-dependent MATLAB/JIT/
+            % memory first-use effects out of the runtime control cycle.
+            %
+            % Stage 2: preserve existing forced-hit/no-hit downstream branch
+            % coverage at tf.
+            % =========================================================
             exact_args=varargin_in;
-            exact_args{1}=obj.make_time_query(varargin_in{1},tf);
             exact_args{2}='f';
+
+            replan_request_active_saved=obj.replan_request_active;
+            last_replan_status_saved=obj.last_replan_status;
 
             obj.setup_exact_do_prime_active=true;
             obj.setup_exact_force_hit=false;
             obj.setup_exact_force_hit_calls=0;
 
+            nseq=round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS);
+            nbranch=round(obj.SETUP_EXACT_DO_PRIME_CALLS);
+
             te=tic;
             try
-                for k=1:round(obj.SETUP_EXACT_DO_PRIME_CALLS)
+                % Stage 1: genuine no-forced-hit protected sequence.
+                for k=1:nseq
+                    tq=tf+(k-1)*obj.prediction_dt;
+                    exact_args{1}=obj.make_time_query(varargin_in{1},tq);
+                    obj.setup_exact_force_hit=false;
+                    obj.do(exact_args{:});
+                end
+
+                % Stage 2: existing branch-coverage prime.
+                exact_args{1}=obj.make_time_query(varargin_in{1},tf);
+                for k=1:nbranch
                     obj.setup_exact_force_hit=mod(k,2)==0;
                     if obj.setup_exact_force_hit
                         obj.setup_exact_force_hit_calls= ...
@@ -3612,15 +4204,22 @@ classdef REPLANNING_SYSTEM < handle
                     end
                     obj.do(exact_args{:});
                 end
+
                 obj.setup_exact_force_hit=false;
                 obj.setup_exact_do_prime_runtime_ms=1e3*toc(te);
-                obj.setup_exact_do_prime_calls=round(obj.SETUP_EXACT_DO_PRIME_CALLS);
+                obj.setup_exact_do_prime_calls=nseq+nbranch;
                 obj.setup_exact_do_prime_done=true;
                 obj.setup_exact_do_prime_active=false;
+
+                % Warmup is not allowed to leave request-edge state behind.
+                obj.replan_request_active=replan_request_active_saved;
+                obj.last_replan_status=last_replan_status_saved;
             catch ME
                 obj.setup_exact_force_hit=false;
                 obj.setup_exact_do_prime_active=false;
                 obj.setup_exact_do_prime_done=false;
+                obj.replan_request_active=replan_request_active_saved;
+                obj.last_replan_status=last_replan_status_saved;
                 obj.ENABLE_ALL_LOG=log_master;
                 obj.LOG_SENSOR=log_sensor;
                 obj.LOG_TRIGGER=log_trigger;
@@ -3651,8 +4250,11 @@ classdef REPLANNING_SYSTEM < handle
 
             if obj.ENABLE_ALL_LOG
                 fprintf(['[REPLANNING_SYSTEM] pre-motion prime ready | ' ...
-                    'variants=%d | hitCases=%d | exactDo=%d | forcedHit=%d | %.3f ms\n'], ...
+                    'variants=%d | hitCases=%d | sequentialDo=%d | branchDo=%d | ' ...
+                    'totalExactDo=%d | forcedHit=%d | %.3f ms\n'], ...
                     obj.online_prime_variant_count,obj.online_prime_hit_cases, ...
+                    round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
+                    round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
                     obj.setup_exact_do_prime_calls,obj.setup_exact_force_hit_calls, ...
                     obj.online_prime_runtime_ms);
             end
