@@ -317,6 +317,42 @@ classdef REPLANNING_SYSTEM < handle
         generator_integration_prime_variants = 0;
         generator_context_detected_only    = true;
 
+        % R21D DIAGNOSTIC ONLY:
+        % capture first REAL request CTX for post-flight outlier localization.
+        generator_outlier_ctx_capture_done     = false;
+
+        % -----------------------------------------------------------------
+        % G27-V74R21 fast analytic BEZIER_D15_C7 shadow proposal kernel
+        % -----------------------------------------------------------------
+        generator_backend_kernel_prime_done     = false;
+        generator_backend_kernel_prime_ms       = NaN;
+        generator_backend_kernel_prime_variants = 0;
+
+        generator_shadow_proposal_count       = 0;
+        bezier_shadow_generated_count         = 0;
+        bezier_shadow_peak_safe_count         = 0;
+        bezier_shadow_last_reason_code        = 0;
+        bezier_shadow_last_t0                 = NaN;
+        bezier_shadow_last_tm                 = NaN;
+        bezier_shadow_last_t1                 = NaN;
+        bezier_shadow_last_obstacle_id        = NaN;
+        bezier_shadow_last_component_code     = NaN;
+        bezier_shadow_last_displacement_m     = NaN;
+        bezier_shadow_last_metric_before      = NaN;
+        bezier_shadow_last_metric_after       = NaN;
+        bezier_shadow_last_peak_min_metric    = NaN;
+        bezier_shadow_last_peak_all_safe      = false;
+        bezier_shadow_last_c7_exact           = false;
+        bezier_shadow_last_d1_ub              = NaN;
+        bezier_shadow_last_d2_ub              = NaN;
+        bezier_shadow_last_d3_ub              = NaN;
+        bezier_shadow_last_d4_ub              = NaN;
+        bezier_shadow_last_d5_ub              = NaN;
+        bezier_shadow_last_d6_ub              = NaN;
+        bezier_shadow_last_dx                 = NaN;
+        bezier_shadow_last_dy                 = NaN;
+        bezier_shadow_last_dz                 = NaN;
+
         % Lean request-edge timing. Updated only on a real request edge.
         generator_last_elapsed_before_ms   = NaN;
         generator_last_budget_remaining_ms = NaN;
@@ -1066,6 +1102,33 @@ classdef REPLANNING_SYSTEM < handle
                 "generator_integration_prime_ms", ...
                 "generator_integration_prime_variants", ...
                 "generator_context_detected_only", ...
+                "generator_backend_kernel_prime_done", ...
+                "generator_backend_kernel_prime_ms", ...
+                "generator_backend_kernel_prime_variants", ...
+                "generator_shadow_proposal_count", ...
+                "bezier_shadow_generated_count", ...
+                "bezier_shadow_peak_safe_count", ...
+                "bezier_shadow_last_reason_code", ...
+                "bezier_shadow_last_t0", ...
+                "bezier_shadow_last_tm", ...
+                "bezier_shadow_last_t1", ...
+                "bezier_shadow_last_obstacle_id", ...
+                "bezier_shadow_last_component_code", ...
+                "bezier_shadow_last_displacement_m", ...
+                "bezier_shadow_last_metric_before", ...
+                "bezier_shadow_last_metric_after", ...
+                "bezier_shadow_last_peak_min_metric", ...
+                "bezier_shadow_last_peak_all_safe", ...
+                "bezier_shadow_last_c7_exact", ...
+                "bezier_shadow_last_d1_ub", ...
+                "bezier_shadow_last_d2_ub", ...
+                "bezier_shadow_last_d3_ub", ...
+                "bezier_shadow_last_d4_ub", ...
+                "bezier_shadow_last_d5_ub", ...
+                "bezier_shadow_last_d6_ub", ...
+                "bezier_shadow_last_dx", ...
+                "bezier_shadow_last_dy", ...
+                "bezier_shadow_last_dz", ...
                 "generator_last_elapsed_before_ms", ...
                 "generator_last_budget_remaining_ms", ...
                 "generator_last_context_ms", ...
@@ -1286,7 +1349,8 @@ classdef REPLANNING_SYSTEM < handle
                 assert(obj.nominal_table_valid && obj.online_prime_done && ...
                     obj.setup_exact_do_prime_done && ...
                     obj.generator_backend_configuration_frozen && ...
-                    obj.generator_integration_prime_done, ...
+                    obj.generator_integration_prime_done && ...
+                    obj.generator_backend_kernel_prime_done, ...
                     ['[REPLANNER PREFLIGHT ERROR] Flight reached before pre-motion exact/generator prime completed. ' ...
                      'Prime must finish before vehicle motion.']);
                 assert(~obj.setup_exact_force_hit, ...
@@ -1542,6 +1606,33 @@ classdef REPLANNING_SYSTEM < handle
             st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
             st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
             st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+            st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
+            st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
+            st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
+            st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
+            st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
+            st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
+            st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
+            st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
+            st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
+            st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
+            st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
+            st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
+            st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
+            st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
+            st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
+            st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
+            st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
+            st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
+            st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
+            st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
+            st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
+            st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
+            st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
+            st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
+            st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
+            st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
+            st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
             st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
             st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
             st.generator_last_context_ms=obj.generator_last_context_ms;
@@ -3150,6 +3241,14 @@ classdef REPLANNING_SYSTEM < handle
             if isempty(fn)
                 fn=obj.repaired_candidate_generator_fn;
             end
+
+            if isempty(fn) && double(obj.generator_backend_locked_code)==1
+                assert(exist('G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR','file')==2, ...
+                    ['[REPLANNER ERROR] R21 BEZIER generator file missing: ' ...
+                     'G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR.m']);
+                fn=@G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR;
+            end
+
             if ~isempty(fn)
                 assert(isa(fn,'function_handle'), ...
                     '[REPLANNER ERROR] selected generator callback is invalid.');
@@ -3266,6 +3365,16 @@ classdef REPLANNING_SYSTEM < handle
             cp_context=1e3*toc(ti);
             obj.generator_last_context_ms=cp_context;
 
+            % R21D: exclude both preflight paths; capture real request only.
+            % assignin perturbs this one request cycle, so R21D Flight timing
+            % is diagnostic only at that edge.
+            if ~obj.generator_outlier_ctx_capture_done && ...
+                    ~obj.setup_exact_do_prime_active && ...
+                    ~obj.generator_integration_prime_active
+                assignin('base','G27V74R21D_CAPTURED_REAL_CTX',CTX);
+                obj.generator_outlier_ctx_capture_done=true;
+            end
+
             % Fixed callback contract:
             %   []               -> no candidate
             %   certified struct -> candidate
@@ -3314,6 +3423,28 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
+            % Real trajectory SHADOW proposal: generated shape, but incomplete
+            % production proof stack. It is logged and never committed.
+            if isstruct(candidate) && isscalar(candidate) && ...
+                    isfield(candidate,'shadow_proposal') && ...
+                    logical(candidate.shadow_proposal)
+                obj.record_bezier_shadow_proposal(candidate);
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                    obj.generator_last_status_code=-20;
+                elseif isfield(candidate,'success') && logical(candidate.success)
+                    obj.generator_last_status_code=20;
+                else
+                    obj.generator_last_status_code=21;
+                end
+                return;
+            end
+
             if ~isstruct(candidate) || ~isscalar(candidate) || ...
                     ~isfield(candidate,'certified')
                 obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
@@ -3358,6 +3489,50 @@ classdef REPLANNING_SYSTEM < handle
 
             obj.generator_validation_pass_count=obj.generator_validation_pass_count+1;
             obj.generator_last_status_code=4; % valid candidate, SHADOW only
+        end
+
+
+        function record_bezier_shadow_proposal(obj,P)
+            % Scalar-only hot-path record. The full 3x16 control arrays are
+            % implied by (w,t0,tm,t1) and are not copied into obj/state.
+            obj.generator_shadow_proposal_count=obj.generator_shadow_proposal_count+1;
+
+            if isfield(P,'generated') && logical(P.generated)
+                obj.bezier_shadow_generated_count=obj.bezier_shadow_generated_count+1;
+            end
+            if isfield(P,'peak_all_safe') && logical(P.peak_all_safe)
+                obj.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count+1;
+            end
+
+            if isfield(P,'reason_code'), obj.bezier_shadow_last_reason_code=double(P.reason_code); end
+            if isfield(P,'t0'), obj.bezier_shadow_last_t0=double(P.t0); end
+            if isfield(P,'tm'), obj.bezier_shadow_last_tm=double(P.tm); end
+            if isfield(P,'t1'), obj.bezier_shadow_last_t1=double(P.t1); end
+            if isfield(P,'obstacle_id'), obj.bezier_shadow_last_obstacle_id=double(P.obstacle_id); end
+            if isfield(P,'component_code'), obj.bezier_shadow_last_component_code=double(P.component_code); end
+            if isfield(P,'displacement_norm_m'), obj.bezier_shadow_last_displacement_m=double(P.displacement_norm_m); end
+            if isfield(P,'trigger_metric_before'), obj.bezier_shadow_last_metric_before=double(P.trigger_metric_before); end
+            if isfield(P,'trigger_metric_after'), obj.bezier_shadow_last_metric_after=double(P.trigger_metric_after); end
+            if isfield(P,'peak_min_metric'), obj.bezier_shadow_last_peak_min_metric=double(P.peak_min_metric); end
+            if isfield(P,'peak_all_safe'), obj.bezier_shadow_last_peak_all_safe=logical(P.peak_all_safe); end
+            if isfield(P,'c7_exact'), obj.bezier_shadow_last_c7_exact=logical(P.c7_exact); end
+
+            if isfield(P,'displacement') && isnumeric(P.displacement) && numel(P.displacement)==3
+                w=double(P.displacement(:));
+                obj.bezier_shadow_last_dx=w(1);
+                obj.bezier_shadow_last_dy=w(2);
+                obj.bezier_shadow_last_dz=w(3);
+            end
+
+            if isfield(P,'correction_derivative_ub') && numel(P.correction_derivative_ub)>=6
+                u=double(P.correction_derivative_ub(:));
+                obj.bezier_shadow_last_d1_ub=u(1);
+                obj.bezier_shadow_last_d2_ub=u(2);
+                obj.bezier_shadow_last_d3_ub=u(3);
+                obj.bezier_shadow_last_d4_ub=u(4);
+                obj.bezier_shadow_last_d5_ub=u(5);
+                obj.bezier_shadow_last_d6_ub=u(6);
+            end
         end
 
 
@@ -3521,6 +3696,59 @@ classdef REPLANNING_SYSTEM < handle
             obj.generator_last_validation_ms=saved.val;
             obj.generator_last_critical_ms=saved.critical;
             obj.generator_last_cycle_critical_ms=saved.cycle;
+        end
+
+
+        function prime_locked_backend_kernel_variants(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                all_dists,pL_ref,q_ref,ref_source,masks)
+            if obj.generator_backend_kernel_prime_done
+                return;
+            end
+
+            if isempty(obj.generator_backend_locked_callback)
+                obj.generator_backend_kernel_prime_done=true;
+                obj.generator_backend_kernel_prime_ms=0;
+                obj.generator_backend_kernel_prime_variants=0;
+                return;
+            end
+
+            P=obj.obstacle_packet;
+            tp=tic;
+            nvar=0;
+
+            for rep=1:2
+                for im=1:size(masks,1)
+                    active=masks(im,:);
+                    idx=find(active,1,'first');
+                    if isempty(idx)
+                        continue;
+                    end
+
+                    Robs=reshape(P.R(:,idx),3,3);
+                    axes=P.Apay(:,idx);
+                    xcol=P.C(:,idx)+Robs*[0.5*axes(1);0;0];
+
+                    ttcPrime=0.5*obj.horizon_s;
+                    pLcol=xcol;
+                    qcol=q_cur(:);
+                    pQcol=pLcol-obj.L_cable*qcol;
+
+                    CTX=obj.build_generator_request_context_compact( ...
+                        t_now,0,obj.hard_modify_deadline_s, ...
+                        xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                        active,all_dists,pL_ref,q_ref,ref_source, ...
+                        ttcPrime,t_now+ttcPrime,P.ids(idx),'PAYLOAD',1, ...
+                        pLcol,qcol,pQcol,1);
+
+                    obj.generator_backend_locked_callback(CTX);
+                    nvar=nvar+1;
+                end
+            end
+
+            obj.generator_backend_kernel_prime_ms=1e3*toc(tp);
+            obj.generator_backend_kernel_prime_variants=nvar;
+            obj.generator_backend_kernel_prime_done=true;
         end
 
 
@@ -4350,6 +4578,33 @@ classdef REPLANNING_SYSTEM < handle
             st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
             st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
             st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+            st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
+            st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
+            st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
+            st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
+            st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
+            st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
+            st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
+            st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
+            st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
+            st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
+            st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
+            st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
+            st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
+            st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
+            st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
+            st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
+            st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
+            st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
+            st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
+            st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
+            st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
+            st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
+            st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
+            st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
+            st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
+            st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
+            st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
             st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
             st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
             st.generator_last_context_ms=obj.generator_last_context_ms;
@@ -4782,6 +5037,12 @@ classdef REPLANNING_SYSTEM < handle
                 tf,xd_now,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
                 all_dists,pL_ref,q_ref,'NOMINAL_TABLE',masks);
 
+            % Prime the real selected backend kernel as JIT/first-use prep.
+            % Outputs are discarded; no runtime decision/commit is made.
+            obj.prime_locked_backend_kernel_variants( ...
+                tf,xd_now,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
+                all_dists,pL_ref,q_ref,'NOMINAL_TABLE',masks);
+
             qsyn=repmat([0;0;-1],1,N);
             C1=obj.obstacle_packet.C(:,1);
             far=C1+[1000;1000;1000];
@@ -4924,12 +5185,14 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_ALL_LOG
                 fprintf(['[REPLANNING_SYSTEM] pre-motion prime ready | ' ...
                     'variants=%d | hitCases=%d | sequentialDo=%d | branchDo=%d | ' ...
-                    'totalExactDo=%d | forcedHit=%d | generatorPrime=%.3f ms (%d variants) | %.3f ms\n'], ...
+                    'totalExactDo=%d | forcedHit=%d | generatorPrime=%.3f ms (%d variants) | ' ...
+                    'backendPrime=%.3f ms (%d variants) | %.3f ms\n'], ...
                     obj.online_prime_variant_count,obj.online_prime_hit_cases, ...
                     round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
                     round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
                     obj.setup_exact_do_prime_calls,obj.setup_exact_force_hit_calls, ...
                     obj.generator_integration_prime_ms,obj.generator_integration_prime_variants, ...
+                    obj.generator_backend_kernel_prime_ms,obj.generator_backend_kernel_prime_variants, ...
                     obj.online_prime_runtime_ms);
             end
         end
