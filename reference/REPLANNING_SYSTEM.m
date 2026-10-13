@@ -264,7 +264,76 @@ classdef REPLANNING_SYSTEM < handle
         replan_commit_count          = 0;
         last_replan_commit_time      = NaN;
         last_replan_status           = struct();
-        replan_request_active        = false;  % diagnostic request-edge latch only
+        replan_request_active        = false;  % request-edge latch
+
+        % -----------------------------------------------------------------
+        % 【G27-V74R16 four-backend repaired-candidate generator router】
+        % -----------------------------------------------------------------
+        % Callback contract:
+        %   OUT = repaired_candidate_generator_fn(CTX)
+        %
+        % OUT may be:
+        %   []                              -> no candidate
+        %   candidate struct                -> candidate directly
+        %   struct('candidate',C,...)        -> candidate + diagnostics
+        %
+        % R16 is SHADOW ONLY: candidate is passed through the exact
+        % production validator but is NOT committed.
+        repaired_candidate_generator_fn = []; % legacy/global fallback callback
+        generator_shadow_enabled         = true;
+
+        % -----------------------------------------------------------------
+        % Four-backend router.
+        %
+        % Numeric production flag:
+        %   1 = BEZIER_D15_C7
+        %   2 = POLY_D15_C7
+        %   3 = MINCO_STYLE_D15_C7
+        %   4 = BSPLINE_D8_C7
+        %
+        % Selection is LATCHED ONCE before Flight:
+        %   A) generator_backend_flag
+        %   B) generator_backend_external_flag_fn(), evaluated ONCE in constructor
+        %
+        % Flight-time backend switching is forbidden.
+        % -----------------------------------------------------------------
+        generator_backend_flag             = 1;
+        generator_backend_external_flag_fn = [];
+        generator_backend_callbacks        = struct();
+        generator_backend_locked_code      = 1;
+        generator_backend_locked_name      = 'BEZIER_D15_C7';
+        generator_backend_locked_source_code = 1; % 1=direct initial flag, 2=external initial provider
+        generator_backend_selection_locked = false;
+        generator_backend_locked_callback  = [];
+        generator_backend_configuration_frozen = false;
+        generator_backend_last_code        = 0;
+        generator_backend_last_source_code = 0;
+        generator_backend_last_callback_installed = false;
+
+        % Generator integration helper is primed before Flight.
+        generator_integration_prime_active = false;
+        generator_integration_prime_done   = false;
+        generator_integration_prime_ms     = NaN;
+        generator_integration_prime_variants = 0;
+        generator_context_detected_only    = true;
+
+        % Lean request-edge timing. Updated only on a real request edge.
+        generator_last_elapsed_before_ms   = NaN;
+        generator_last_budget_remaining_ms = NaN;
+        generator_last_context_ms          = NaN;
+        generator_last_callback_ms         = NaN;
+        generator_last_validation_ms       = NaN;
+        generator_last_critical_ms         = NaN;
+        generator_last_cycle_critical_ms   = NaN;
+
+        generator_request_count          = 0;
+        generator_candidate_count        = 0;
+        generator_validation_pass_count  = 0;
+        generator_validation_fail_count  = 0;
+        generator_deadline_fail_count    = 0;
+        generator_last_runtime_ms        = NaN;
+        generator_last_status_code       = 0;
+        generator_last_status            = struct();
 
         % 互換性保持用プレースホルダー
         current_bspline = [];
@@ -801,6 +870,54 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'hard_modify_deadline_s')
                 obj.hard_modify_deadline_s=opts.hard_modify_deadline_s;
             end
+            if isfield(opts,'repaired_candidate_generator_fn')
+                obj.repaired_candidate_generator_fn=opts.repaired_candidate_generator_fn;
+            end
+            if isfield(opts,'generator_shadow_enabled')
+                obj.generator_shadow_enabled=logical(opts.generator_shadow_enabled);
+            end
+            if isfield(opts,'generator_backend_flag')
+                obj.generator_backend_flag=opts.generator_backend_flag;
+            end
+            if isfield(opts,'generator_backend_external_flag_fn')
+                obj.generator_backend_external_flag_fn=opts.generator_backend_external_flag_fn;
+            end
+            if isfield(opts,'generator_backend_callbacks')
+                obj.generator_backend_callbacks=opts.generator_backend_callbacks;
+            end
+
+            if ~isempty(obj.repaired_candidate_generator_fn)
+                assert(isa(obj.repaired_candidate_generator_fn,'function_handle'), ...
+                    '[REPLANNER ERROR] repaired_candidate_generator_fn must be a function handle.');
+            end
+            if ~isempty(obj.generator_backend_external_flag_fn)
+                assert(isa(obj.generator_backend_external_flag_fn,'function_handle'), ...
+                    '[REPLANNER ERROR] generator_backend_external_flag_fn must be a function handle.');
+            end
+
+            % -------------------------------------------------------------
+            % Backend selection is resolved exactly ONCE at construction.
+            % An external provider is therefore only an INITIAL flag source;
+            % it is never called during Flight or on a replan edge.
+            % -------------------------------------------------------------
+            backend_source_code=1;
+            backend_raw=obj.generator_backend_flag;
+            if ~isempty(obj.generator_backend_external_flag_fn)
+                backend_raw=obj.generator_backend_external_flag_fn();
+                backend_source_code=2;
+            end
+            [code0,name0,~]=obj.normalize_generator_backend_flag(backend_raw);
+            obj.generator_backend_flag=code0;
+            obj.generator_backend_locked_code=code0;
+            obj.generator_backend_locked_name=name0;
+            obj.generator_backend_locked_source_code=backend_source_code;
+            obj.generator_backend_selection_locked=true;
+
+            % Do not retain a request-time selector provider.
+            obj.generator_backend_external_flag_fn=[];
+
+            obj.generator_backend_callbacks= ...
+                obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
 
             assert(isnumeric(obj.hard_modify_deadline_s) && ...
                 isscalar(obj.hard_modify_deadline_s) && ...
@@ -928,7 +1045,34 @@ classdef REPLANNING_SYSTEM < handle
                 "dependency_refresh_count", ...
                 "mass_certificate_rebuild_count", ...
                 "replan_commit_count", ...
-                "last_replan_commit_time" ...
+                "last_replan_commit_time", ...
+                "generator_shadow_enabled", ...
+                "generator_callback_installed", ...
+                "generator_request_count", ...
+                "generator_candidate_count", ...
+                "generator_validation_pass_count", ...
+                "generator_validation_fail_count", ...
+                "generator_deadline_fail_count", ...
+                "generator_last_runtime_ms", ...
+                "generator_last_status_code", ...
+                "generator_backend_flag", ...
+                "generator_backend_last_code", ...
+                "generator_backend_last_source_code", ...
+                "generator_backend_last_callback_installed", ...
+                "generator_backend_locked_code", ...
+                "generator_backend_selection_locked", ...
+                "generator_backend_configuration_frozen", ...
+                "generator_integration_prime_done", ...
+                "generator_integration_prime_ms", ...
+                "generator_integration_prime_variants", ...
+                "generator_context_detected_only", ...
+                "generator_last_elapsed_before_ms", ...
+                "generator_last_budget_remaining_ms", ...
+                "generator_last_context_ms", ...
+                "generator_last_callback_ms", ...
+                "generator_last_validation_ms", ...
+                "generator_last_critical_ms", ...
+                "generator_last_cycle_critical_ms" ...
             ];
 
             for p_name=sensor_props
@@ -1140,8 +1284,10 @@ classdef REPLANNING_SYSTEM < handle
 
             if obj.REQUIRE_PRIME_BEFORE_TAKEOFF && ~obj.setup_exact_do_prime_active
                 assert(obj.nominal_table_valid && obj.online_prime_done && ...
-                    obj.setup_exact_do_prime_done, ...
-                    ['[REPLANNER PREFLIGHT ERROR] Flight reached before pre-motion exact prime completed. ' ...
+                    obj.setup_exact_do_prime_done && ...
+                    obj.generator_backend_configuration_frozen && ...
+                    obj.generator_integration_prime_done, ...
+                    ['[REPLANNER PREFLIGHT ERROR] Flight reached before pre-motion exact/generator prime completed. ' ...
                      'Prime must finish before vehicle motion.']);
                 assert(~obj.setup_exact_force_hit, ...
                     '[REPLANNER ERROR] setup-only forced-hit flag leaked into Flight.');
@@ -1150,6 +1296,10 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_flight_guard_ms=1e3*toc(t_light_e2e);
             end
+
+            % Hard real-time accounting for sensor/trigger/generator integration.
+            % This timer is independent of optional profiling/light-audit flags.
+            t_hard_cycle=tic;
 
             if obj.ENABLE_PROFILING
                 t_cert_guard=tic;
@@ -1169,7 +1319,7 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_active_ref_ms=1e3*toc(t_light_e2e);
             end
-            [pQ_cur,~,~,cable_residual]=obj.get_current_physical_geometry(xd_active_now);
+            [pQ_cur,pL_cur,q_cur,cable_residual]=obj.get_current_physical_geometry(xd_active_now);
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_geometry_ms=1e3*toc(t_light_e2e);
@@ -1231,18 +1381,27 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_PROFILING
                 t_replan_status=tic;
             end
-            % Diagnostic status is refreshed only on a new request edge.
-            % Exact per-cycle request data already exists in trigger_* fields.
+            % Replan generator is invoked only on a REAL Flight request edge.
+            % Setup/warmup forced-hit paths never invoke the external generator.
             if need_replan
                 if ~obj.replan_request_active
-                    obj.last_replan_status=struct( ...
-                        'requested',true, ...
-                        'committed',false, ...
-                        'reason','CURRENT primary generator not yet installed', ...
-                        'request_time',double(time.t), ...
-                        'trigger_ttc',double(ttc), ...
-                        'trigger_obstacle_id',double(obs_id), ...
-                        'trigger_component',char(comp_name));
+                    if ~obj.setup_exact_do_prime_active && obj.generator_shadow_enabled
+                        obj.invoke_replan_generator_shadow( ...
+                            t_hard_cycle,time.t,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,pL_ref,q_ref,ref_source, ...
+                            ttc,collision_time,obs_id,comp_name,comp_code, ...
+                            pL_collision,q_collision,pQ_collision,jhit);
+                    else
+                        obj.last_replan_status=struct( ...
+                            'requested',true, ...
+                            'committed',false, ...
+                            'reason','GENERATOR_SKIPPED_DURING_PRIME_OR_DISABLED', ...
+                            'request_time',double(time.t), ...
+                            'trigger_ttc',double(ttc), ...
+                            'trigger_obstacle_id',double(obs_id), ...
+                            'trigger_component',char(comp_name));
+                    end
                     obj.replan_request_active=true;
                 end
             else
@@ -1360,6 +1519,36 @@ classdef REPLANNING_SYSTEM < handle
             st.loadmass=obj.loadmass;
             st.replan_commit_count=obj.replan_commit_count;
             st.last_replan_commit_time=obj.last_replan_commit_time;
+            st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
+            st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+            st.generator_request_count=obj.generator_request_count;
+            st.generator_candidate_count=obj.generator_candidate_count;
+            st.generator_validation_pass_count=obj.generator_validation_pass_count;
+            st.generator_validation_fail_count=obj.generator_validation_fail_count;
+            st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
+            st.generator_last_runtime_ms=obj.generator_last_runtime_ms;
+            st.generator_last_status_code=obj.generator_last_status_code;
+            [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
+            st.generator_backend_flag=double(flagCode);
+            st.generator_backend_last_code=double(obj.generator_backend_last_code);
+            st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
+            st.generator_backend_last_callback_installed= ...
+                logical(obj.generator_backend_last_callback_installed);
+            st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
+            st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
+            st.generator_backend_configuration_frozen= ...
+                logical(obj.generator_backend_configuration_frozen);
+            st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
+            st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
+            st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
+            st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+            st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
+            st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
+            st.generator_last_context_ms=obj.generator_last_context_ms;
+            st.generator_last_callback_ms=obj.generator_last_callback_ms;
+            st.generator_last_validation_ms=obj.generator_last_validation_ms;
+            st.generator_last_critical_ms=obj.generator_last_critical_ms;
+            st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_state_meta_ms=1e3*toc(t_light_e2e);
@@ -2890,6 +3079,451 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function set_generator_backend_flag(obj,flag)
+            %#ok<INUSD>
+            error(['[REPLANNER ERROR] generator backend is immutable after construction. ' ...
+                'Pass generator_backend_flag in opts before Flight.']);
+        end
+
+
+        function set_generator_backend_external_flag_fn(obj,fn)
+            %#ok<INUSD>
+            error(['[REPLANNER ERROR] generator backend provider is constructor-only. ' ...
+                'Pass generator_backend_external_flag_fn in opts; it is sampled once.']);
+        end
+
+
+        function set_generator_backend_callback(obj,flag,fn)
+            % Register/replace one backend callback BEFORE preflight freeze.
+            assert(~obj.generator_backend_configuration_frozen, ...
+                ['[REPLANNER ERROR] generator backend callbacks are frozen before Flight. ' ...
+                 'Register callbacks before simulation/preflight prime.']);
+            [code,name,~]=obj.normalize_generator_backend_flag(flag);
+            if ~isempty(fn)
+                assert(isa(fn,'function_handle'), ...
+                    '[REPLANNER ERROR] backend callback must be a function handle or [].');
+            end
+            C=obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
+            C.(name)=fn;
+            obj.generator_backend_callbacks=C;
+            %#ok<NASGU> code is validation only; locked backend never changes.
+        end
+
+
+        function C = get_generator_backend_catalog(obj)
+            C=struct();
+            C.codes=[1 2 3 4];
+            C.names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+            C.current_internal_flag=double(obj.generator_backend_flag);
+            C.locked_code=double(obj.generator_backend_locked_code);
+            C.locked_name=char(obj.generator_backend_locked_name);
+            C.locked_source_code=double(obj.generator_backend_locked_source_code);
+            C.selection_locked=logical(obj.generator_backend_selection_locked);
+            C.configuration_frozen=logical(obj.generator_backend_configuration_frozen);
+            C.selected_callback_installed=~isempty(obj.generator_backend_locked_callback);
+            C.external_selector_installed=false;
+            C.callbacks=obj.normalize_generator_backend_callbacks( ...
+                obj.generator_backend_callbacks);
+        end
+
+
+        function [code,name,source_code] = resolve_generator_backend_selection(obj)
+            assert(obj.generator_backend_selection_locked, ...
+                '[REPLANNER ERROR] generator backend selection is not locked before Flight.');
+            code=double(obj.generator_backend_locked_code);
+            name=char(obj.generator_backend_locked_name);
+            source_code=double(obj.generator_backend_locked_source_code);
+        end
+
+
+        function freeze_generator_backend_configuration(obj)
+            if obj.generator_backend_configuration_frozen
+                return;
+            end
+            assert(obj.generator_backend_selection_locked, ...
+                '[REPLANNER ERROR] generator backend must be locked before callback freeze.');
+
+            C=obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
+            name=char(obj.generator_backend_locked_name);
+            fn=C.(name);
+            if isempty(fn)
+                fn=obj.repaired_candidate_generator_fn;
+            end
+            if ~isempty(fn)
+                assert(isa(fn,'function_handle'), ...
+                    '[REPLANNER ERROR] selected generator callback is invalid.');
+            end
+
+            obj.generator_backend_locked_callback=fn;
+            obj.generator_backend_configuration_frozen=true;
+            obj.generator_backend_last_callback_installed=~isempty(fn);
+        end
+
+
+        function C = normalize_generator_backend_callbacks(~,C)
+            names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+
+            if isempty(C)
+                C=struct();
+            end
+            assert(isstruct(C) && isscalar(C), ...
+                '[REPLANNER ERROR] generator_backend_callbacks must be a scalar struct.');
+
+            for k=1:numel(names)
+                n=names{k};
+                if ~isfield(C,n)
+                    C.(n)=[];
+                elseif ~isempty(C.(n))
+                    assert(isa(C.(n),'function_handle'), ...
+                        '[REPLANNER ERROR] backend callback %s must be a function handle or [].',n);
+                end
+            end
+        end
+
+
+        function [code,name,canonical] = normalize_generator_backend_flag(~,flag)
+            names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+
+            if isnumeric(flag) || islogical(flag)
+                assert(isscalar(flag) && isfinite(double(flag)) && ...
+                    double(flag)==round(double(flag)) && ...
+                    double(flag)>=1 && double(flag)<=4, ...
+                    '[REPLANNER ERROR] generator backend numeric flag must be integer 1..4.');
+                code=double(flag);
+                name=names{code};
+                canonical=name;
+                return;
+            end
+
+            assert(ischar(flag) || (isstring(flag)&&isscalar(flag)), ...
+                '[REPLANNER ERROR] generator backend flag must be numeric 1..4 or a backend name.');
+
+            s=upper(strtrim(char(flag)));
+            switch s
+                case {'1','BEZIER','BEZIER_D15_C7'}
+                    code=1;
+                case {'2','POLY','POLYNOMIAL','POLY_D15_C7'}
+                    code=2;
+                case {'3','MINCO','MINCO_STYLE','MINCO_STYLE_D15_C7'}
+                    code=3;
+                case {'4','BSPLINE','B-SPLINE','BSPLINE_D8_C7'}
+                    code=4;
+                otherwise
+                    error('[REPLANNER ERROR] unknown generator backend flag/name: %s',s);
+            end
+            name=names{code};
+            canonical=name;
+        end
+
+
+        function invoke_replan_generator_shadow(obj,t_hard_cycle,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit)
+            % =============================================================
+            % R19 compact detected-only request path.
+            %
+            % IMPORTANT SENSOR CONTRACT:
+            %   The generator receives ONLY currently detected obstacles.
+            %   The full simulation obstacle map is never exposed.
+            %
+            % Backend selection/callback are frozen before Flight.
+            % =============================================================
+
+            ti=tic;
+            obj.generator_request_count=obj.generator_request_count+1;
+
+            elapsed_before=toc(t_hard_cycle);
+            budget_remaining=double(obj.hard_modify_deadline_s)-elapsed_before;
+            obj.generator_last_elapsed_before_ms=1e3*elapsed_before;
+            obj.generator_last_budget_remaining_ms=1e3*budget_remaining;
+
+            if budget_remaining<=0
+                obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                obj.generator_last_status_code=-2;
+                obj.generator_last_context_ms=0;
+                obj.generator_last_callback_ms=0;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=1e3*toc(ti);
+                obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
+                return;
+            end
+
+            assert(obj.generator_backend_configuration_frozen, ...
+                '[REPLANNER ERROR] generator backend configuration not frozen before Flight.');
+
+            CTX=obj.build_generator_request_context_compact( ...
+                t_now,elapsed_before,budget_remaining, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit);
+
+            cp_context=1e3*toc(ti);
+            obj.generator_last_context_ms=cp_context;
+
+            % Fixed callback contract:
+            %   []               -> no candidate
+            %   certified struct -> candidate
+            candidate=[];
+            callback_ok=true;
+
+            if isempty(obj.generator_backend_locked_callback)
+                % Exact real no-generator branch. This SAME branch is primed
+                % before Flight for every detected-obstacle count.
+                candidate=[];
+            else
+                try
+                    candidate=obj.generator_backend_locked_callback(CTX);
+                catch
+                    callback_ok=false;
+                end
+            end
+
+            cp_callback=1e3*toc(ti);
+            obj.generator_last_callback_ms=cp_callback-cp_context;
+            obj.generator_last_runtime_ms=obj.generator_last_callback_ms;
+
+            if ~callback_ok
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-1;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                end
+                return;
+            end
+
+            if isempty(candidate)
+                obj.generator_last_status_code=1;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                    obj.generator_last_status_code=-7;
+                end
+                return;
+            end
+
+            if ~isstruct(candidate) || ~isscalar(candidate) || ...
+                    ~isfield(candidate,'certified')
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-3;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                end
+                return;
+            end
+
+            obj.generator_candidate_count=obj.generator_candidate_count+1;
+
+            try
+                obj.validate_repaired_candidate(candidate,double(t_now));
+                validation_ok=true;
+            catch
+                validation_ok=false;
+            end
+
+            cp_validation=1e3*toc(ti);
+            obj.generator_last_validation_ms=cp_validation-cp_callback;
+            obj.generator_last_critical_ms=cp_validation;
+
+            cycle_ms=1e3*toc(t_hard_cycle);
+            obj.generator_last_cycle_critical_ms=cycle_ms;
+
+            if cycle_ms>1e3*obj.hard_modify_deadline_s
+                obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                obj.generator_last_status_code=-6;
+                return;
+            end
+
+            if ~validation_ok
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-5;
+                return;
+            end
+
+            obj.generator_validation_pass_count=obj.generator_validation_pass_count+1;
+            obj.generator_last_status_code=4; % valid candidate, SHADOW only
+        end
+
+
+        function CTX = build_generator_request_context_compact(obj,t_now, ...
+                elapsed_before,budget_remaining, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit)
+            % =============================================================
+            % Compact context:
+            %   STATIC  : small immutable interface/backend facts
+            %   REQUEST : current state/reference/trigger only
+            %   OBS     : DETECTED obstacles only
+            %   LIVE    : compact live physical/dependency values
+            %
+            % Full static_obstacle_map and large certificate structs are
+            % intentionally NOT passed to the generator.
+            % =============================================================
+
+            idx=find(active);
+            P=obj.obstacle_packet;
+
+            OBS=struct( ...
+                'count',double(numel(idx)), ...
+                'ids',P.ids(idx), ...
+                'surface_distances',all_dists(idx), ...
+                'centers',P.C(:,idx), ...
+                'rotations_flat',P.R(:,idx), ...
+                'payload_axes',P.Apay(:,idx), ...
+                'uav_axes',P.Auav(:,idx), ...
+                'cable_axes',P.Acable(:,idx), ...
+                'raw',obj.static_obstacle_map(idx));
+
+            REQ=struct( ...
+                'time',double(t_now), ...
+                'deadline_remaining_s',double(budget_remaining), ...
+                'elapsed_before_generator_s',double(elapsed_before), ...
+                'next_reference_version',double(obj.active_reference_version)+1, ...
+                'active_reference_mode',obj.active_reference_mode, ...
+                'active_reference_version',double(obj.active_reference_version), ...
+                'xd_nominal',xd_nom(:), ...
+                'xd_active',xd_active_now(:), ...
+                'pQ_current',pQ_cur(:), ...
+                'pL_current',pL_cur(:), ...
+                'q_current',q_cur(:), ...
+                'cable_residual',double(cable_residual), ...
+                'future_pL',pL_ref, ...
+                'future_q',q_ref, ...
+                'future_reference_source',ref_source, ...
+                'trigger_ttc',double(ttc), ...
+                'trigger_collision_time',double(collision_time), ...
+                'trigger_obstacle_id',double(obs_id), ...
+                'trigger_component',comp_name, ...
+                'trigger_component_code',double(comp_code), ...
+                'trigger_pL_collision',pL_collision(:), ...
+                'trigger_q_collision',q_collision(:), ...
+                'trigger_pQ_collision',pQ_collision(:), ...
+                'trigger_hit_index',double(jhit));
+
+            D=obj.runtime_dependency_signature;
+            LIVE=struct( ...
+                'dependency_refresh_count',double(obj.dependency_refresh_count), ...
+                'dt',double(D.dt), ...
+                'sensor_range',double(D.sensor_range), ...
+                'horizon',double(D.horizon), ...
+                'r_drone',double(D.r_drone), ...
+                'r_load',double(D.r_load), ...
+                'r_cable',double(D.r_cable), ...
+                'cable_length',double(D.cable_length), ...
+                'gravity',double(D.gravity), ...
+                'mQ',double(D.mQ), ...
+                'jx',double(D.jx), ...
+                'jy',double(D.jy), ...
+                'jz',double(D.jz), ...
+                'mL',double(D.mL_snapshot), ...
+                'hard_modify_deadline_s',double(D.hard_modify_deadline_s), ...
+                'command_limits',obj.command_limit_certificate.limits);
+
+            STATIC=struct( ...
+                'interface_version','G27_V74R19_GENERATOR_CONTEXT_V1', ...
+                'shadow_only',true, ...
+                'backend_code',double(obj.generator_backend_locked_code), ...
+                'backend_name',obj.generator_backend_locked_name, ...
+                'backend_source_code',double(obj.generator_backend_locked_source_code), ...
+                'detected_only_obstacle_contract',true);
+
+            CTX=struct('static',STATIC,'request',REQ,'obstacles',OBS,'live',LIVE);
+        end
+
+
+        function prime_generator_integration_variants(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                all_dists,pL_ref,q_ref,ref_source,masks)
+            if obj.generator_integration_prime_done
+                return;
+            end
+
+            % Save externally visible counters/timing.
+            saved=struct( ...
+                'request_count',obj.generator_request_count, ...
+                'candidate_count',obj.generator_candidate_count, ...
+                'vpass',obj.generator_validation_pass_count, ...
+                'vfail',obj.generator_validation_fail_count, ...
+                'dfail',obj.generator_deadline_fail_count, ...
+                'runtime',obj.generator_last_runtime_ms, ...
+                'scode',obj.generator_last_status_code, ...
+                'before',obj.generator_last_elapsed_before_ms, ...
+                'budget',obj.generator_last_budget_remaining_ms, ...
+                'ctx',obj.generator_last_context_ms, ...
+                'cb',obj.generator_last_callback_ms, ...
+                'val',obj.generator_last_validation_ms, ...
+                'critical',obj.generator_last_critical_ms, ...
+                'cycle',obj.generator_last_cycle_critical_ms, ...
+                'callback',obj.generator_backend_locked_callback);
+
+            % Prime the exact REAL empty-callback branch, not a special probe.
+            obj.generator_backend_locked_callback=[];
+            obj.generator_integration_prime_active=true;
+            tp=tic;
+            nvar=0;
+
+            try
+                for rep=1:2
+                    for im=1:size(masks,1)
+                        active=masks(im,:);
+                        thard=tic;
+                        obj.invoke_replan_generator_shadow( ...
+                            thard,t_now,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,pL_ref,q_ref,ref_source, ...
+                            0,double(t_now),1,'PAYLOAD',1, ...
+                            pL_cur,q_cur,pQ_cur,1);
+                        nvar=nvar+1;
+                    end
+                end
+                obj.generator_integration_prime_ms=1e3*toc(tp);
+                obj.generator_integration_prime_variants=nvar;
+                obj.generator_integration_prime_done=true;
+                obj.generator_integration_prime_active=false;
+            catch ME
+                obj.generator_integration_prime_active=false;
+                obj.generator_backend_locked_callback=saved.callback;
+                rethrow(ME);
+            end
+
+            obj.generator_backend_locked_callback=saved.callback;
+
+            % Restore counters/timing after pure warmup.
+            obj.generator_request_count=saved.request_count;
+            obj.generator_candidate_count=saved.candidate_count;
+            obj.generator_validation_pass_count=saved.vpass;
+            obj.generator_validation_fail_count=saved.vfail;
+            obj.generator_deadline_fail_count=saved.dfail;
+            obj.generator_last_runtime_ms=saved.runtime;
+            obj.generator_last_status_code=saved.scode;
+            obj.generator_last_elapsed_before_ms=saved.before;
+            obj.generator_last_budget_remaining_ms=saved.budget;
+            obj.generator_last_context_ms=saved.ctx;
+            obj.generator_last_callback_ms=saved.cb;
+            obj.generator_last_validation_ms=saved.val;
+            obj.generator_last_critical_ms=saved.critical;
+            obj.generator_last_cycle_critical_ms=saved.cycle;
+        end
+
+
         function [pL_ref,q_ref,source] = repaired_reference_packet(obj,t_now)
             obj.assert_repaired_reference_current();
 
@@ -3693,6 +4327,36 @@ classdef REPLANNING_SYSTEM < handle
             st.loadmass=obj.loadmass;
             st.replan_commit_count=obj.replan_commit_count;
             st.last_replan_commit_time=obj.last_replan_commit_time;
+            st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
+            st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+            st.generator_request_count=obj.generator_request_count;
+            st.generator_candidate_count=obj.generator_candidate_count;
+            st.generator_validation_pass_count=obj.generator_validation_pass_count;
+            st.generator_validation_fail_count=obj.generator_validation_fail_count;
+            st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
+            st.generator_last_runtime_ms=obj.generator_last_runtime_ms;
+            st.generator_last_status_code=obj.generator_last_status_code;
+            [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
+            st.generator_backend_flag=double(flagCode);
+            st.generator_backend_last_code=double(obj.generator_backend_last_code);
+            st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
+            st.generator_backend_last_callback_installed= ...
+                logical(obj.generator_backend_last_callback_installed);
+            st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
+            st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
+            st.generator_backend_configuration_frozen= ...
+                logical(obj.generator_backend_configuration_frozen);
+            st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
+            st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
+            st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
+            st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+            st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
+            st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
+            st.generator_last_context_ms=obj.generator_last_context_ms;
+            st.generator_last_callback_ms=obj.generator_last_callback_ms;
+            st.generator_last_validation_ms=obj.generator_last_validation_ms;
+            st.generator_last_critical_ms=obj.generator_last_critical_ms;
+            st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
 
             % LOGGER-safe direct scalar timing mirrors.
             st.rt_light_e2e_ms=NaN;
@@ -4101,13 +4765,22 @@ classdef REPLANNING_SYSTEM < handle
             [pL_ref,q_ref,~]= ...
                 obj.get_active_reference_packet(tprime,'f',args_prime,xd_now);
 
-            [pQ_cur,~,~,~]=obj.get_current_physical_geometry(xd_now);
-            [~,~,~,all_dists]=obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+            [pQ_cur,pL_cur,q_cur,cable_residual_cur]= ...
+                obj.get_current_physical_geometry(xd_now);
+            [~,~,~,all_dists]= ...
+                obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
 
+            % Freeze selected callback before Flight.
+            obj.freeze_generator_backend_configuration();
+
+            % Prime all detected-obstacle cardinalities: 0,1,...,M.
             masks=false(M+1,M);
             for nactive=1:M
                 masks(nactive+1,1:nactive)=true;
             end
+            obj.prime_generator_integration_variants( ...
+                tf,xd_now,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
+                all_dists,pL_ref,q_ref,'NOMINAL_TABLE',masks);
 
             qsyn=repmat([0;0;-1],1,N);
             C1=obj.obstacle_packet.C(:,1);
@@ -4251,11 +4924,12 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_ALL_LOG
                 fprintf(['[REPLANNING_SYSTEM] pre-motion prime ready | ' ...
                     'variants=%d | hitCases=%d | sequentialDo=%d | branchDo=%d | ' ...
-                    'totalExactDo=%d | forcedHit=%d | %.3f ms\n'], ...
+                    'totalExactDo=%d | forcedHit=%d | generatorPrime=%.3f ms (%d variants) | %.3f ms\n'], ...
                     obj.online_prime_variant_count,obj.online_prime_hit_cases, ...
                     round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
                     round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
                     obj.setup_exact_do_prime_calls,obj.setup_exact_force_hit_calls, ...
+                    obj.generator_integration_prime_ms,obj.generator_integration_prime_variants, ...
                     obj.online_prime_runtime_ms);
             end
         end
