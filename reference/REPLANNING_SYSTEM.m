@@ -1,4 +1,8 @@
 classdef REPLANNING_SYSTEM < handle
+% G27-V74R41R2: caller-compatible initialization order preserved.
+% Constructor MUST NOT require agent.reference.takeoff.
+% Flight time origin is bound later during preflight warmup/table generation.
+% G27-V74R41R1: constructor-safe Flight-reference time-origin binding.
 % =========================================================================
 % REPLANNING_SYSTEM
 %
@@ -137,6 +141,12 @@ classdef REPLANNING_SYSTEM < handle
         REQUIRE_PRIME_BEFORE_TAKEOFF = 1;   % 離陸開始前に完全プライム完了を必須とする安全ガードフラグ
         takeoff_end_s                = NaN; % 離陸完了時刻 [s] (自動解決または手動設定)
 
+        % G27-V74R41 Flight-reference time-origin contract:
+        %   global simulation time tG remains unchanged;
+        %   TIME_VARYING_REFERENCE is evaluated at tau=tG-tFlight0 in Flight.
+        % This prevents Takeoff duration from advancing the Flight reference.
+        flight_reference_time_origin = NaN; % absolute/global Flight start time [s]
+
         % -----------------------------------------------------------------
         % 【基本オブジェクト参照】
         % -----------------------------------------------------------------
@@ -267,6 +277,19 @@ classdef REPLANNING_SYSTEM < handle
         replan_request_active        = false;  % request-edge latch
 
         % -----------------------------------------------------------------
+        % G27-V74R41 actual Flight trigger-event latch
+        % -----------------------------------------------------------------
+        % Captured ONLY on a real Flight request edge.  Setup/prime forced-hit
+        % execution is excluded.  No file I/O / assignin occurs in Flight.
+        % The full event is retrieved after the run by
+        % get_last_trigger_event()/get_first_trigger_event().
+        CAPTURE_REAL_TRIGGER_EVENT   = true;
+        trigger_event_count          = 0;
+        first_trigger_event          = struct();
+        last_trigger_event           = struct();
+        trigger_event_capture_ms     = NaN;
+
+        % -----------------------------------------------------------------
         % 【G27-V74R16 four-backend repaired-candidate generator router】
         % -----------------------------------------------------------------
         % Callback contract:
@@ -317,10 +340,6 @@ classdef REPLANNING_SYSTEM < handle
         generator_integration_prime_variants = 0;
         generator_context_detected_only    = true;
 
-        % R21D DIAGNOSTIC ONLY:
-        % capture first REAL request CTX for post-flight outlier localization.
-        generator_outlier_ctx_capture_done     = false;
-
         % -----------------------------------------------------------------
         % G27-V74R21 fast analytic BEZIER_D15_C7 shadow proposal kernel
         % -----------------------------------------------------------------
@@ -352,6 +371,25 @@ classdef REPLANNING_SYSTEM < handle
         bezier_shadow_last_dx                 = NaN;
         bezier_shadow_last_dy                 = NaN;
         bezier_shadow_last_dz                 = NaN;
+
+        % G27-V74R22 continuous-time whole-body geometry shadow certificate.
+        geometry_shadow_pass                   = false;
+        geometry_shadow_reason_code            = 0;
+        geometry_shadow_continuous_time        = false;
+        geometry_shadow_ieee754_outward_closed = false;
+        geometry_shadow_min_margin_m           = NaN;
+        geometry_shadow_min_payload_margin_m   = NaN;
+        geometry_shadow_min_uav_margin_m       = NaN;
+        geometry_shadow_min_cable_margin_m     = NaN;
+        geometry_shadow_leaf_count             = 0;
+        geometry_shadow_split_count            = 0;
+        geometry_shadow_max_depth              = 0;
+        geometry_shadow_min_alpha_lb           = NaN;
+        geometry_shadow_max_qdot_ub            = NaN;
+        geometry_shadow_max_q_arc_radius       = NaN;
+        geometry_shadow_max_q_arc_inflation_m  = NaN;
+        geometry_shadow_resource_exhausted     = false;
+        geometry_shadow_capture_done           = false;
 
         % Lean request-edge timing. Updated only on a real request edge.
         generator_last_elapsed_before_ms   = NaN;
@@ -500,6 +538,11 @@ classdef REPLANNING_SYSTEM < handle
 
             obj.command_limit_certificate= ...
                 obj.build_active_command_limit_certificate();
+
+            % G27-V74R30D2R41Z actual suspended-load gain binding:
+            % capture the generator packet before binding the live handle.
+            obj.runtime_source_signature= ...
+                obj.capture_runtime_source_signature();
             obj.verify_live_controller_binding(false);
 
             obj.sensor_horizon_certificate= ...
@@ -542,6 +585,16 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function E = get_last_trigger_event(obj)
+            E=obj.last_trigger_event;
+        end
+
+
+        function E = get_first_trigger_event(obj)
+            E=obj.first_trigger_event;
+        end
+
+
         function status = get_runtime_certificate_status(obj)
             status=struct();
             status.signature=obj.runtime_dependency_signature;
@@ -563,6 +616,15 @@ classdef REPLANNING_SYSTEM < handle
             status.dependency_refresh_count=obj.dependency_refresh_count;
             status.mass_certificate_rebuild_count= ...
                 obj.mass_certificate_rebuild_count;
+            status.trigger_event_count=double(obj.trigger_event_count);
+            status.trigger_event_capture_ms=double(obj.trigger_event_capture_ms);
+            status.flight_reference_time_origin=double(obj.flight_reference_time_origin);
+            status.trigger_event_latched=obj.trigger_event_count>0;
+            if obj.trigger_event_count>0
+                status.trigger_event_time=double(obj.last_trigger_event.event_time);
+            else
+                status.trigger_event_time=NaN;
+            end
         end
 
 
@@ -1071,6 +1133,14 @@ classdef REPLANNING_SYSTEM < handle
                 "trigger_raw_distances", ...
                 "trigger_hit_index", ...
                 "trigger_kernel_called", ...
+                "trigger_event_latched", ...
+                "trigger_event_count", ...
+                "trigger_event_time_latched", ...
+                "trigger_event_ttc_latched", ...
+                "trigger_event_collision_time_latched", ...
+                "trigger_event_obstacle_id_latched", ...
+                "trigger_event_component_code_latched", ...
+                "trigger_event_capture_ms", ...
                 "active_reference_mode", ...
                 "active_reference_version", ...
                 "nominal_xd_table_used", ...
@@ -1129,6 +1199,22 @@ classdef REPLANNING_SYSTEM < handle
                 "bezier_shadow_last_dx", ...
                 "bezier_shadow_last_dy", ...
                 "bezier_shadow_last_dz", ...
+                "geometry_shadow_pass", ...
+                "geometry_shadow_reason_code", ...
+                "geometry_shadow_continuous_time", ...
+                "geometry_shadow_ieee754_outward_closed", ...
+                "geometry_shadow_min_margin_m", ...
+                "geometry_shadow_min_payload_margin_m", ...
+                "geometry_shadow_min_uav_margin_m", ...
+                "geometry_shadow_min_cable_margin_m", ...
+                "geometry_shadow_leaf_count", ...
+                "geometry_shadow_split_count", ...
+                "geometry_shadow_max_depth", ...
+                "geometry_shadow_min_alpha_lb", ...
+                "geometry_shadow_max_qdot_ub", ...
+                "geometry_shadow_max_q_arc_radius", ...
+                "geometry_shadow_max_q_arc_inflation_m", ...
+                "geometry_shadow_resource_exhausted", ...
                 "generator_last_elapsed_before_ms", ...
                 "generator_last_budget_remaining_ms", ...
                 "generator_last_context_ms", ...
@@ -1449,6 +1535,35 @@ classdef REPLANNING_SYSTEM < handle
             % Setup/warmup forced-hit paths never invoke the external generator.
             if need_replan
                 if ~obj.replan_request_active
+
+                    % -----------------------------------------------------
+                    % G27-V74R41 REAL trigger-event authority.
+                    %
+                    % This is the unique rising edge used by the online
+                    % generator request.  Synthetic setup/prime forced-hit
+                    % executions are forbidden from entering the latch.
+                    % No file I/O / assignin is performed here.
+                    % -----------------------------------------------------
+                    if obj.CAPTURE_REAL_TRIGGER_EVENT && ...
+                            ~obj.setup_exact_do_prime_active && ...
+                            ~obj.generator_integration_prime_active
+                        tevent=tic;
+                        obj.latch_real_trigger_event( ...
+                            time.t,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,ref_source, ...
+                            ttc,collision_time,obs_id,comp_name,comp_code, ...
+                            pL_collision,q_collision,pQ_collision,jhit, ...
+                            effective_horizon,N);
+                        obj.trigger_event_capture_ms=1e3*toc(tevent);
+                        obj.last_trigger_event.capture_runtime_ms= ...
+                            double(obj.trigger_event_capture_ms);
+                        if obj.trigger_event_count==1
+                            obj.first_trigger_event.capture_runtime_ms= ...
+                                double(obj.trigger_event_capture_ms);
+                        end
+                    end
+
                     if ~obj.setup_exact_do_prime_active && obj.generator_shadow_enabled
                         obj.invoke_replan_generator_shadow( ...
                             t_hard_cycle,time.t,xd_nom,xd_active_now, ...
@@ -1633,6 +1748,22 @@ classdef REPLANNING_SYSTEM < handle
             st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
             st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
             st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+            st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
+            st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
+            st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
+            st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
+            st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
+            st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
+            st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
+            st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
+            st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
+            st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
+            st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
+            st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
+            st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
+            st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
+            st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
+            st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
             st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
             st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
             st.generator_last_context_ms=obj.generator_last_context_ms;
@@ -2290,6 +2421,7 @@ classdef REPLANNING_SYSTEM < handle
             sig.r_drone=double(obj.r_drone);
             sig.r_load=double(obj.r_load);
             sig.r_cable=double(obj.r_cable);
+            sig.d_margin=double(obj.d_margin);
             sig.cable_length=double(obj.L_cable);
             sig.gravity=double(obj.gravity);
             sig.mQ=obj.get_vehicle_mass();
@@ -2321,6 +2453,11 @@ classdef REPLANNING_SYSTEM < handle
             % Build from the authoritative class source first.
             obj.command_limit_certificate= ...
                 obj.build_active_command_limit_certificate();
+
+            % G27-V74R30D2R41Z actual suspended-load gain binding:
+            % capture the generator packet before binding the live handle.
+            obj.runtime_source_signature= ...
+                obj.capture_runtime_source_signature();
             obj.verify_live_controller_binding(false);
 
             obj.sensor_horizon_certificate= ...
@@ -2383,6 +2520,20 @@ classdef REPLANNING_SYSTEM < handle
             sig.reference_mode=char(obj.active_reference_mode);
             sig.reference_version=double(obj.active_reference_version);
 
+            % Flight-reference time origin is part of the reference authority,
+            % but it is NOT constructor-mandatory.  In the existing system
+            % run_flight_headless may bind takeoff_end_s only after the
+            % REPLANNING_SYSTEM object is constructed.  Therefore construction
+            % must tolerate an unresolved origin and bind it later, before the
+            % Flight nominal table is generated.
+            [tf0,tf0ok]=obj.try_resolve_takeoff_end_time_nonfatal();
+            if tf0ok
+                obj.flight_reference_time_origin=double(tf0);
+                sig.flight_reference_time_origin=double(tf0);
+            else
+                sig.flight_reference_time_origin=NaN;
+            end
+
             if isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
                     isprop(obj.base_ref,'func') && ...
                     isa(obj.base_ref.func,'function_handle')
@@ -2399,6 +2550,7 @@ classdef REPLANNING_SYSTEM < handle
             sig.r_drone=double(obj.r_drone);
             sig.r_load=double(obj.r_load);
             sig.r_cable=double(obj.r_cable);
+            sig.d_margin=double(obj.d_margin);
             sig.cable_length=double(obj.L_cable);
             sig.gravity=double(obj.gravity);
             sig.mQ=obj.get_vehicle_mass();
@@ -2412,14 +2564,34 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function sig = capture_runtime_source_signature(obj)
+            % G27-V74R30D2R41Z actual suspended-load gain binding.
             sig=struct();
             sig.command_limit_source_signature= ...
                 obj.command_limit_certificate.source_line_signature;
             sig.command_limits=obj.command_limit_certificate.limits;
 
-            S=Controller_HL(obj.prediction_dt);
-            sig.hlc_source=which('Controller_HL');
+            gainName='Controller_HL_Suspended_Load';
+            gainSource=which(gainName);
+            assert(~isempty(gainSource) && isfile(gainSource), ...
+                '[REPLANNER ERROR] suspended-load HLC gain generator source unresolved.');
+
+            % run_flight_headless constructs HLC_SUSPENDED_LOAD from exactly
+            % this function before attaching the controller to agent.  It is
+            % therefore constructor-safe to evaluate here as well.
+            evalc('S=Controller_HL_Suspended_Load(obj.prediction_dt,obj.self);');
+            P=obj.extract_hlc_gain_packet(S);
+
+            % Preserve legacy field names used by dependency certificates,
+            % but bind them to the ACTUAL suspended-load gain authority.
+            sig.hlc_source=gainSource;
             sig.hlc_settings_signature=obj.serialize_numeric_struct(S);
+
+            sig.hlc_gain_generator=gainName;
+            sig.hlc_gain_generator_source=gainSource;
+            sig.hlc_gain_packet=P;
+            sig.hlc_gain_packet_signature=obj.serialize_numeric_struct(P);
+            sig.hlc_controller_source=which('HLC_SUSPENDED_LOAD');
+            sig.hlc_binding_schema='R41Z_ACTUAL_SUSPENDED_LOAD_GAIN_BINDING_V1';
         end
 
 
@@ -2448,6 +2620,25 @@ classdef REPLANNING_SYSTEM < handle
             refChanged = ...
                 ~strcmp(char(old.reference_mode),char(obj.active_reference_mode)) || ...
                 double(old.reference_version)~=double(obj.active_reference_version);
+
+            [tfNow,tfNowOk]=obj.try_resolve_takeoff_end_time_nonfatal();
+            if tfNowOk
+                obj.flight_reference_time_origin=double(tfNow);
+            end
+
+            oldOrigin=NaN;
+            if isfield(old,'flight_reference_time_origin')
+                oldOrigin=double(old.flight_reference_time_origin);
+            end
+
+            if tfNowOk
+                timeOriginChanged = ...
+                    ~isfinite(oldOrigin) || oldOrigin~=double(tfNow);
+            else
+                % Unresolved-at-construction is a legitimate preflight state.
+                % NaN->NaN is NOT a dependency change.
+                timeOriginChanged=false;
+            end
 
             % Avoid func2str in the common cycle. Only stringify a newly
             % installed function handle, preserving the previous textual
@@ -2480,6 +2671,8 @@ classdef REPLANNING_SYSTEM < handle
                 double(old.r_drone)~=double(obj.r_drone) || ...
                 double(old.r_load)~=double(obj.r_load) || ...
                 double(old.r_cable)~=double(obj.r_cable) || ...
+                ~isfield(old,'d_margin') || ...
+                double(old.d_margin)~=double(obj.d_margin) || ...
                 double(old.cable_length)~=double(obj.L_cable);
 
             gravityChanged=double(old.gravity)~=double(obj.gravity);
@@ -2498,7 +2691,8 @@ classdef REPLANNING_SYSTEM < handle
                 double(old.jy)~=JNow(2) || ...
                 double(old.jz)~=JNow(3);
 
-            anyChanged=refChanged || dtChanged || sensorGeomChanged || ...
+            anyChanged=refChanged || timeOriginChanged || ...
+                dtChanged || sensorGeomChanged || ...
                 gravityChanged || deadlineChanged || massChanged || inertiaChanged;
 
             if anyChanged
@@ -2508,6 +2702,23 @@ classdef REPLANNING_SYSTEM < handle
                     obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
                     obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
                     obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if timeOriginChanged
+                    % Time-origin binding changes only the mapping
+                    % t_global -> tau_reference.  It does NOT change the
+                    % nominal law, speed bound, obstacle geometry, dynamics,
+                    % or command limits.  Rebuild only cached reference data
+                    % and preflight prime state.
+                    obj.nominal_table_valid=false;
+                    obj.nominal_table_t0=NaN;
+                    obj.nominal_table_tend=NaN;
+                    obj.nominal_table_xd=[];
+                    obj.nominal_table_pL=[];
+                    obj.nominal_table_q=[];
+                    obj.reference_cache_valid=false;
+                    obj.online_prime_done=false;
+                    obj.setup_exact_do_prime_done=false;
                 end
 
                 if dtChanged
@@ -2773,13 +2984,12 @@ classdef REPLANNING_SYSTEM < handle
 
         function verify_live_controller_binding(obj,required_now)
             % =============================================================
-            % Verify the runtime controller handle WITHOUT reparsing source.
+            % G27-V74R30D2R41Z actual suspended-load controller binding.
             %
-            % During constructor / early setup the controller may legitimately
-            % not exist yet.  This is not a safety failure.
-            %
-            % Before Flight, however, the live controller MUST exist and MUST
-            % match the class/source used by command_limit_certificate.
+            % Initial binding checks class/source + cached generator F1..F4.
+            % Once verified, the hot path re-checks only the small cached
+            % gain packet.  Controller_HL_Suspended_Load/lqrd is NOT rerun
+            % every control cycle.
             % =============================================================
             if nargin<2
                 required_now=false;
@@ -2790,14 +3000,8 @@ classdef REPLANNING_SYSTEM < handle
                 logical(cert.certified), ...
                 '[REPLANNER ERROR] command-limit source certificate unavailable.');
 
-            if isfield(cert,'live_controller_verified') && ...
-                    logical(cert.live_controller_verified)
-                return;
-            end
-
             available=false;
             ctrl=[];
-
             if obj.has_prop_or_field(obj.self,'controller') && ...
                     ~isempty(obj.self.controller) && ...
                     obj.has_prop_or_field(obj.self.controller,'hlc_suspended') && ...
@@ -2817,18 +3021,65 @@ classdef REPLANNING_SYSTEM < handle
             assert(isa(ctrl,cert.controller_class), ...
                 '[REPLANNER ERROR] live controller class differs from command-limit certificate.');
 
+            % Source signature must have been built before live binding.
+            assert(isstruct(obj.runtime_source_signature) && ...
+                isfield(obj.runtime_source_signature,'hlc_gain_packet') && ...
+                isfield(obj.runtime_source_signature,'hlc_gain_generator') && ...
+                strcmp(obj.runtime_source_signature.hlc_gain_generator, ...
+                       'Controller_HL_Suspended_Load'), ...
+                ['[REPLANNER ERROR] actual suspended-load HLC source signature ' ...
+                 'is unavailable/stale; refresh outside Flight.']);
+
+            assert(isprop(ctrl,'param') && isstruct(ctrl.param), ...
+                '[REPLANNER ERROR] live HLC parameter packet is unavailable.');
+
+            expected=obj.runtime_source_signature.hlc_gain_packet;
+            gainOK=obj.hlc_gain_packets_fp_equal(ctrl.param,expected);
+
+            if ~gainOK
+                cert.live_controller_verified=false;
+                cert.live_gain_verified=false;
+                cert.live_binding_reason='LIVE_HLC_GAIN_PACKET_DIFFERS_FROM_CAPTURED_SUSPENDED_LOAD_GENERATOR';
+                obj.command_limit_certificate=cert;
+                if isstruct(obj.certificate_stale) && ...
+                        isfield(obj.certificate_stale,'HLC_ROBUST_CERT')
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+                error(['[REPLANNER ERROR] live HLC F1/F2/F3/F4 differs from ' ...
+                    'Controller_HL_Suspended_Load source-bound packet.']);
+            end
+
+            % If already fully verified, the cheap gain comparison above is
+            % the complete hot-path revalidation.
+            if isfield(cert,'live_controller_verified') && ...
+                    logical(cert.live_controller_verified) && ...
+                    isfield(cert,'live_gain_verified') && ...
+                    logical(cert.live_gain_verified)
+                return;
+            end
+
+            % One-time full class/source check at initial live binding.
             live_source=which(class(ctrl));
             assert(~isempty(live_source) && isfile(live_source), ...
                 '[REPLANNER ERROR] live controller source file unresolved.');
-
             assert(strcmp(live_source,cert.controller_source), ...
                 ['[REPLANNER ERROR] live HLC controller source differs from ' ...
                  'the source used for command-limit certification.']);
 
+            gain_source=which('Controller_HL_Suspended_Load');
+            assert(strcmp(gain_source,obj.runtime_source_signature.hlc_gain_generator_source), ...
+                '[REPLANNER ERROR] suspended-load gain-generator source path changed; refresh required.');
+
             cert.live_controller_verified=true;
+            cert.live_gain_verified=true;
             cert.live_controller_path='self.controller.hlc_suspended';
             cert.live_controller_class=class(ctrl);
             cert.live_controller_source=live_source;
+            cert.live_gain_generator='Controller_HL_Suspended_Load';
+            cert.live_gain_generator_source=gain_source;
+            cert.live_gain_signature= ...
+                obj.serialize_numeric_struct(obj.extract_hlc_gain_packet(ctrl.param));
+            cert.live_binding_reason='CLASS_SOURCE_AND_ACTUAL_SUSPENDED_LOAD_GAIN_PACKET_MATCH';
             obj.command_limit_certificate=cert;
         end
 
@@ -2935,7 +3186,15 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
-        function sig = serialize_numeric_struct(~,S)
+        function P = extract_hlc_gain_packet(~,S)
+            req={'F1','F2','F3','F4'};
+            assert(isstruct(S) && all(isfield(S,req)), ...
+                '[REPLANNER ERROR] suspended-load HLC gain packet is incomplete.');
+            P=struct();
+            for kk=1:numel(req)
+                v=double(S.(req{kk}));
+                assert(isnumeric(v) && ~isempty(v) && all(isfinite(v(:))), ...
+                    '[REPLANNER ERROR] suspended-load HLC gain         function sig = serialize_numeric_struct(~,S)
             fn=sort(fieldnames(S));
             parts={};
 
@@ -3243,10 +3502,10 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             if isempty(fn) && double(obj.generator_backend_locked_code)==1
-                assert(exist('G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR','file')==2, ...
-                    ['[REPLANNER ERROR] R21 BEZIER generator file missing: ' ...
-                     'G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR.m']);
-                fn=@G27V74R21_BEZIER_D15_C7_FAST_SHADOW_GENERATOR;
+                assert(exist('G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR','file')==2, ...
+                    ['[REPLANNER ERROR] R22 BEZIER+CT geometry generator file missing: ' ...
+                     'G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR.m']);
+                fn=@G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR;
             end
 
             if ~isempty(fn)
@@ -3365,16 +3624,6 @@ classdef REPLANNING_SYSTEM < handle
             cp_context=1e3*toc(ti);
             obj.generator_last_context_ms=cp_context;
 
-            % R21D: exclude both preflight paths; capture real request only.
-            % assignin perturbs this one request cycle, so R21D Flight timing
-            % is diagnostic only at that edge.
-            if ~obj.generator_outlier_ctx_capture_done && ...
-                    ~obj.setup_exact_do_prime_active && ...
-                    ~obj.generator_integration_prime_active
-                assignin('base','G27V74R21D_CAPTURED_REAL_CTX',CTX);
-                obj.generator_outlier_ctx_capture_done=true;
-            end
-
             % Fixed callback contract:
             %   []               -> no candidate
             %   certified struct -> candidate
@@ -3428,6 +3677,18 @@ classdef REPLANNING_SYSTEM < handle
             if isstruct(candidate) && isscalar(candidate) && ...
                     isfield(candidate,'shadow_proposal') && ...
                     logical(candidate.shadow_proposal)
+                % R22 diagnostic capture for isolated repeated certificate
+                % timing. Exclude both preflight prime paths. This assignin
+                % perturbs the real request cycle, so R22 request timing is
+                % NOT used as the production timing result.
+                if ~obj.geometry_shadow_capture_done && ...
+                        ~obj.setup_exact_do_prime_active && ...
+                        ~obj.generator_integration_prime_active
+                    assignin('base','G27V74R23_CAPTURED_CTX',CTX);
+                    assignin('base','G27V74R23_CAPTURED_PROPOSAL',candidate);
+                    obj.geometry_shadow_capture_done=true;
+                end
+
                 obj.record_bezier_shadow_proposal(candidate);
                 obj.generator_last_validation_ms=0;
                 obj.generator_last_critical_ms=cp_callback;
@@ -3533,6 +3794,137 @@ classdef REPLANNING_SYSTEM < handle
                 obj.bezier_shadow_last_d5_ub=u(5);
                 obj.bezier_shadow_last_d6_ub=u(6);
             end
+
+            if isfield(P,'geometry_shadow_certificate') && ...
+                    isstruct(P.geometry_shadow_certificate)
+                G=P.geometry_shadow_certificate;
+                if isfield(G,'mathematical_pass'), obj.geometry_shadow_pass=logical(G.mathematical_pass); end
+                if isfield(G,'reason_code'), obj.geometry_shadow_reason_code=double(G.reason_code); end
+                if isfield(G,'continuous_time'), obj.geometry_shadow_continuous_time=logical(G.continuous_time); end
+                if isfield(G,'ieee754_outward_closed'), obj.geometry_shadow_ieee754_outward_closed=logical(G.ieee754_outward_closed); end
+                if isfield(G,'min_margin_m'), obj.geometry_shadow_min_margin_m=double(G.min_margin_m); end
+                if isfield(G,'min_payload_margin_m'), obj.geometry_shadow_min_payload_margin_m=double(G.min_payload_margin_m); end
+                if isfield(G,'min_uav_margin_m'), obj.geometry_shadow_min_uav_margin_m=double(G.min_uav_margin_m); end
+                if isfield(G,'min_cable_margin_m'), obj.geometry_shadow_min_cable_margin_m=double(G.min_cable_margin_m); end
+                if isfield(G,'leaf_count'), obj.geometry_shadow_leaf_count=double(G.leaf_count); end
+                if isfield(G,'split_count'), obj.geometry_shadow_split_count=double(G.split_count); end
+                if isfield(G,'max_depth_used'), obj.geometry_shadow_max_depth=double(G.max_depth_used); end
+                if isfield(G,'min_alpha_lb'), obj.geometry_shadow_min_alpha_lb=double(G.min_alpha_lb); end
+                if isfield(G,'max_qdot_ub'), obj.geometry_shadow_max_qdot_ub=double(G.max_qdot_ub); end
+                if isfield(G,'max_q_arc_radius'), obj.geometry_shadow_max_q_arc_radius=double(G.max_q_arc_radius); end
+                if isfield(G,'max_q_arc_inflation_m'), obj.geometry_shadow_max_q_arc_inflation_m=double(G.max_q_arc_inflation_m); end
+                if isfield(G,'resource_exhausted'), obj.geometry_shadow_resource_exhausted=logical(G.resource_exhausted); end
+            end
+        end
+
+
+        function latch_real_trigger_event(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit, ...
+                effective_horizon,N)
+            % =============================================================
+            % Persistent authority snapshot of the ACTUAL Flight request edge.
+            %
+            % Important:
+            %   - called only from do() when need_replan rises false->true,
+            %   - setup/prime paths are excluded by the caller,
+            %   - only currently DETECTED obstacles are copied,
+            %   - no file I/O, no base-workspace mutation,
+            %   - no trigger time is inferred; event_time=t_now exactly.
+            % =============================================================
+
+            assert(~obj.setup_exact_do_prime_active, ...
+                '[REPLANNER ERROR] prime path attempted to latch a real trigger event.');
+            assert(~obj.generator_integration_prime_active, ...
+                '[REPLANNER ERROR] generator prime attempted to latch a real trigger event.');
+
+            idx=find(active);
+            P=obj.obstacle_packet;
+
+            OBS=struct( ...
+                'count',double(numel(idx)), ...
+                'ids',P.ids(idx), ...
+                'surface_distances',all_dists(idx), ...
+                'centers',P.C(:,idx), ...
+                'rotations_flat',P.R(:,idx), ...
+                'base_axes',P.Araw(:,idx), ...
+                'payload_axes',P.Apay(:,idx), ...
+                'uav_axes',P.Auav(:,idx), ...
+                'cable_axes',P.Acable(:,idx));
+
+            STATE=struct( ...
+                'pQ_current',pQ_cur(:), ...
+                'pL_current',pL_cur(:), ...
+                'q_current',q_cur(:), ...
+                'cable_residual',double(cable_residual), ...
+                'xd_nominal',xd_nom(:), ...
+                'xd_active',xd_active_now(:));
+
+            TRIG=struct( ...
+                'ttc',double(ttc), ...
+                'collision_time',double(collision_time), ...
+                'obstacle_id',double(obs_id), ...
+                'component',char(comp_name), ...
+                'component_code',double(comp_code), ...
+                'pL_collision',pL_collision(:), ...
+                'q_collision',q_collision(:), ...
+                'pQ_collision',pQ_collision(:), ...
+                'hit_index',double(jhit), ...
+                'effective_horizon',double(effective_horizon), ...
+                'reference_points',double(N));
+
+            tf0=obj.flight_reference_time_origin;
+            if ~(isnumeric(tf0)&&isscalar(tf0)&&isfinite(tf0))
+                tf0=obj.resolve_takeoff_end_time();
+                obj.flight_reference_time_origin=double(tf0);
+            end
+
+            REF=struct( ...
+                'mode',char(obj.active_reference_mode), ...
+                'version',double(obj.active_reference_version), ...
+                'source',char(ref_source), ...
+                'global_time',double(t_now), ...
+                'flight_time_origin',double(tf0), ...
+                'reference_time',double(t_now)-double(tf0));
+
+            E=struct();
+            E.schema='G27V74_REAL_TRIGGER_EVENT_V2_TIME_ORIGIN_BOUND';
+            E.valid=true;
+            E.need_replan=true;
+            E.real_flight_request_edge=true;
+            E.event_time=double(t_now);
+            E.phase='FLIGHT';
+            E.setup_prime=false;
+            E.generator_prime=false;
+            E.state=STATE;
+            E.trigger=TRIG;
+            E.detected_obstacles=OBS;
+            E.reference=REF;
+            E.dependency_signature=obj.runtime_dependency_signature;
+            E.speed_certificate=obj.active_speed_certificate;
+            E.sensor_horizon_certificate=obj.sensor_horizon_certificate;
+            E.capture_runtime_ms=NaN;
+
+            obj.trigger_event_count=obj.trigger_event_count+1;
+            obj.last_trigger_event=E;
+
+            if obj.trigger_event_count==1
+                obj.first_trigger_event=E;
+            end
+
+            % LOGGER-safe persistent summary.  This is written once per real
+            % request edge, not every control cycle.
+            st=obj.result.state;
+            st.trigger_event_latched=true;
+            st.trigger_event_count=double(obj.trigger_event_count);
+            st.trigger_event_time_latched=double(t_now);
+            st.trigger_event_ttc_latched=double(ttc);
+            st.trigger_event_collision_time_latched=double(collision_time);
+            st.trigger_event_obstacle_id_latched=double(obs_id);
+            st.trigger_event_component_code_latched=double(comp_code);
+            st.trigger_event_capture_ms=NaN;
         end
 
 
@@ -3562,6 +3954,7 @@ classdef REPLANNING_SYSTEM < handle
                 'surface_distances',all_dists(idx), ...
                 'centers',P.C(:,idx), ...
                 'rotations_flat',P.R(:,idx), ...
+                'base_axes',P.Araw(:,idx), ...
                 'payload_axes',P.Apay(:,idx), ...
                 'uav_axes',P.Auav(:,idx), ...
                 'cable_axes',P.Acable(:,idx), ...
@@ -3594,6 +3987,24 @@ classdef REPLANNING_SYSTEM < handle
                 'trigger_hit_index',double(jhit));
 
             D=obj.runtime_dependency_signature;
+
+            % Exact ACTIVE-reference facts already certified by the current
+            % production speed certificate. R22 supports the current
+            % NOMINAL theorem class (constant vL, aL identically zero) and
+            % fails closed for unsupported ACTIVE classes.
+            SC=obj.active_speed_certificate;
+            vNom=[NaN;NaN;NaN];
+            nomA0=false;
+            if isstruct(SC) && isfield(SC,'payload_velocity_vector_m_s')
+                vv=double(SC.payload_velocity_vector_m_s(:));
+                if numel(vv)==3 && all(isfinite(vv))
+                    vNom=vv;
+                end
+            end
+            if isstruct(SC) && isfield(SC,'nominal_acceleration_zero')
+                nomA0=logical(SC.nominal_acceleration_zero);
+            end
+
             LIVE=struct( ...
                 'dependency_refresh_count',double(obj.dependency_refresh_count), ...
                 'dt',double(D.dt), ...
@@ -3602,6 +4013,7 @@ classdef REPLANNING_SYSTEM < handle
                 'r_drone',double(D.r_drone), ...
                 'r_load',double(D.r_load), ...
                 'r_cable',double(D.r_cable), ...
+                'd_margin',double(D.d_margin), ...
                 'cable_length',double(D.cable_length), ...
                 'gravity',double(D.gravity), ...
                 'mQ',double(D.mQ), ...
@@ -3609,6 +4021,12 @@ classdef REPLANNING_SYSTEM < handle
                 'jy',double(D.jy), ...
                 'jz',double(D.jz), ...
                 'mL',double(D.mL_snapshot), ...
+                'active_speed_certified', ...
+                    isstruct(SC) && isfield(SC,'certified') && logical(SC.certified), ...
+                'active_payload_speed_ub_m_s',double(SC.payload_speed_UB_m_s), ...
+                'active_uav_speed_ub_m_s',double(SC.uav_speed_UB_m_s), ...
+                'active_payload_velocity_vector_m_s',vNom, ...
+                'active_nominal_acceleration_zero',nomA0, ...
                 'hard_modify_deadline_s',double(D.hard_modify_deadline_s), ...
                 'command_limits',obj.command_limit_certificate.limits);
 
@@ -4044,29 +4462,86 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function [pL,q,xd_eval] = evaluate_nominal_payload_and_q( ...
-                obj,t_query,cha,varargin_in,~)
+                obj,t_query_global,cha,varargin_in,~)
             args = varargin_in;
             time_orig = args{1};
-            % time は TIME < handle の場合があるため、本体の time.t を絶対に破壊しないよう
-            % 独立した時間クエリ用オブジェクトまたは構造体を生成して渡す
+
+            % -------------------------------------------------------------
+            % G27-V74R41 Flight-reference time-origin correction.
+            %
+            % Simulation/controller time remains absolute/global.
+            % Only the base Flight reference is evaluated in Flight-relative
+            % time:
+            %       tau = t_global - t_flight_start.
+            %
+            % This is intentionally applied at the unique base_ref future
+            % evaluation boundary so trigger TTC/collision_time, logs, commit
+            % validity, and the control-cycle clock stay in global time.
+            % -------------------------------------------------------------
+            t_eval=double(t_query_global);
+            te_eval=[];
+
+            if isequal(cha,'f')
+                tf0=obj.flight_reference_time_origin;
+                if ~(isnumeric(tf0)&&isscalar(tf0)&&isfinite(tf0))
+                    tf0=obj.resolve_takeoff_end_time();
+                    obj.flight_reference_time_origin=double(tf0);
+                end
+
+                t_eval=double(t_query_global)-double(tf0);
+                tol=1e-10*max(1,abs(double(t_query_global)));
+                assert(t_eval>=-tol, ...
+                    '[REPLANNER ERROR] Flight reference queried before Flight time origin.');
+                if t_eval<0
+                    t_eval=0;
+                end
+
+                try
+                    if isstruct(time_orig) && isfield(time_orig,'te')
+                        te_eval=double(time_orig.te)-double(tf0);
+                    elseif isobject(time_orig) && isprop(time_orig,'te')
+                        te_eval=double(time_orig.te)-double(tf0);
+                    end
+                catch
+                    te_eval=[];
+                end
+            end
+
+            % time may be TIME < handle; never mutate the main simulation
+            % clock. Construct an independent query object/struct.
             if isa(time_orig, 'TIME')
-                tlocal = TIME(t_query, time_orig.dt, time_orig.te);
+                if isempty(te_eval) || ~isfinite(te_eval)
+                    te_local=time_orig.te;
+                else
+                    te_local=te_eval;
+                end
+                tlocal = TIME(t_eval, time_orig.dt, te_local);
                 if isprop(time_orig, 'k') || isfield(time_orig, 'k')
                     tlocal.k = time_orig.k;
                 end
             elseif isobject(time_orig)
                 try
                     tlocal = copy(time_orig);
-                    tlocal.t = t_query;
+                    tlocal.t = t_eval;
+                    if ~isempty(te_eval) && isfinite(te_eval) && isprop(tlocal,'te')
+                        tlocal.te=te_eval;
+                    end
                 catch
-                    tlocal = struct('t', t_query, 'dt', obj.prediction_dt);
+                    tlocal = struct('t', t_eval, 'dt', obj.prediction_dt);
+                    if ~isempty(te_eval) && isfinite(te_eval)
+                        tlocal.te=te_eval;
+                    end
                 end
             elseif isstruct(time_orig)
                 tlocal = time_orig;
-                tlocal.t = t_query;
+                tlocal.t = t_eval;
+                if ~isempty(te_eval) && isfinite(te_eval) && isfield(tlocal,'te')
+                    tlocal.te=te_eval;
+                end
             else
-                tlocal = struct('t', t_query, 'dt', obj.prediction_dt);
+                tlocal = struct('t', t_eval, 'dt', obj.prediction_dt);
             end
+
             args{1} = tlocal;
             args{2} = cha;
             r = obj.base_ref.do(args{:});
@@ -4344,6 +4819,7 @@ classdef REPLANNING_SYSTEM < handle
             pack.Apay=zeros(3,M);
             pack.Auav=zeros(3,M);
             pack.Acable=zeros(3,M);
+            pack.Araw=zeros(3,M);
             pack.ids=zeros(1,M);
             pack.types=cell(1,M);
 
@@ -4369,6 +4845,7 @@ classdef REPLANNING_SYSTEM < handle
                 pack.C(:,i)=o.p_center(:);
                 pack.R(:,i)=o.R_obs(:);
                 pack.types{i}=lower(o.type);
+                pack.Araw(:,i)=obj.raw_enclosing_ellipsoid_axes(o);
                 [Ap,Aq,Ac]=obj.component_outer_ellipsoids(o);
                 pack.Apay(:,i)=Ap;
                 pack.Auav(:,i)=Aq;
@@ -4534,6 +5011,33 @@ classdef REPLANNING_SYSTEM < handle
             st.trigger_raw_distances=inf(1,numel(obj.static_obstacle_map));
             st.trigger_hit_index=NaN;
             st.trigger_kernel_called=0;
+
+            % Persistent real-event summary.  During ordinary preflight this
+            % is zero/NaN.  Once a real Flight request edge is latched, the
+            % helper writes these fields and clear_state_sensor_values() mirrors
+            % (rather than erases) that persistent object state.
+            st.trigger_event_latched=obj.trigger_event_count>0;
+            st.trigger_event_count=double(obj.trigger_event_count);
+            if obj.trigger_event_count>0 && isstruct(obj.last_trigger_event) && ...
+                    isfield(obj.last_trigger_event,'event_time')
+                st.trigger_event_time_latched=double(obj.last_trigger_event.event_time);
+                st.trigger_event_ttc_latched=double(obj.last_trigger_event.trigger.ttc);
+                st.trigger_event_collision_time_latched= ...
+                    double(obj.last_trigger_event.trigger.collision_time);
+                st.trigger_event_obstacle_id_latched= ...
+                    double(obj.last_trigger_event.trigger.obstacle_id);
+                st.trigger_event_component_code_latched= ...
+                    double(obj.last_trigger_event.trigger.component_code);
+                st.trigger_event_capture_ms=double(obj.trigger_event_capture_ms);
+            else
+                st.trigger_event_time_latched=NaN;
+                st.trigger_event_ttc_latched=NaN;
+                st.trigger_event_collision_time_latched=NaN;
+                st.trigger_event_obstacle_id_latched=NaN;
+                st.trigger_event_component_code_latched=NaN;
+                st.trigger_event_capture_ms=NaN;
+            end
+
             st.active_reference_mode=obj.active_reference_mode;
             st.active_reference_version=obj.active_reference_version;
             st.nominal_xd_table_used=false;
@@ -4605,6 +5109,22 @@ classdef REPLANNING_SYSTEM < handle
             st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
             st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
             st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+            st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
+            st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
+            st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
+            st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
+            st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
+            st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
+            st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
+            st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
+            st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
+            st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
+            st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
+            st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
+            st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
+            st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
+            st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
+            st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
             st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
             st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
             st.generator_last_context_ms=obj.generator_last_context_ms;
@@ -4755,63 +5275,99 @@ classdef REPLANNING_SYSTEM < handle
             ref = R.(ref_name);
         end
 
-        function te = resolve_takeoff_end_time(obj)
-            if isfinite(obj.takeoff_end_s) && obj.takeoff_end_s>0
-                te=obj.takeoff_end_s;
+        function [te,ok] = try_resolve_takeoff_end_time_nonfatal(obj)
+            % Constructor-safe takeoff-end lookup.
+            %
+            % The legacy run sequence may set obj.takeoff_end_s AFTER the
+            % REPLANNING_SYSTEM constructor returns.  Therefore absence of
+            % reference.takeoff during construction is not an error.
+            %
+            % No guessed/default time is introduced.
+            te=NaN;
+            ok=false;
+
+            if isnumeric(obj.takeoff_end_s) && isscalar(obj.takeoff_end_s) && ...
+                    isfinite(obj.takeoff_end_s) && obj.takeoff_end_s>0
+                te=double(obj.takeoff_end_s);
+                ok=true;
                 return;
             end
 
-            ref=obj.get_reference_object('takeoff');
-            te=NaN;
+            % Optional legacy source: agent.reference.takeoff.
+            try
+                if ~obj.has_prop_or_field(obj.self,'reference')
+                    return;
+                end
+                R=obj.self.reference;
+                if ~obj.has_prop_or_field(R,'takeoff')
+                    return;
+                end
+                ref=R.takeoff;
+            catch
+                return;
+            end
 
             candidates={'te','t_end','tend','duration','T'};
+
             for k=1:numel(candidates)
                 nm=candidates{k};
                 try
-                    if isprop(ref,nm)
+                    if isobject(ref) && isprop(ref,nm)
                         v=ref.(nm);
-                        if isnumeric(v) && isscalar(v) && isfinite(v) && v>0
-                            te=double(v);
-                            break;
-                        end
                     elseif isstruct(ref) && isfield(ref,nm)
                         v=ref.(nm);
-                        if isnumeric(v) && isscalar(v) && isfinite(v) && v>0
-                            te=double(v);
-                            break;
-                        end
+                    else
+                        continue;
+                    end
+
+                    if isnumeric(v) && isscalar(v) && isfinite(v) && v>0
+                        te=double(v);
+                        ok=true;
+                        obj.takeoff_end_s=te;
+                        return;
                     end
                 catch
                 end
             end
 
-            if ~isfinite(te)
-                for holder={'param','parameter','params','option','opts'}
-                    hn=holder{1};
-                    try
-                        if obj.has_prop_or_field(ref,hn)
-                            H=ref.(hn);
-                            for k=1:numel(candidates)
-                                nm=candidates{k};
-                                if isstruct(H) && isfield(H,nm)
-                                    v=H.(nm);
-                                    if isnumeric(v) && isscalar(v) && isfinite(v) && v>0
-                                        te=double(v);
-                                        break;
-                                    end
-                                end
+            for holder={'param','parameter','params','option','opts'}
+                hn=holder{1};
+                try
+                    if ~obj.has_prop_or_field(ref,hn)
+                        continue;
+                    end
+                    H=ref.(hn);
+
+                    for k=1:numel(candidates)
+                        nm=candidates{k};
+                        if isstruct(H) && isfield(H,nm)
+                            v=H.(nm);
+                            if isnumeric(v) && isscalar(v) && ...
+                                    isfinite(v) && v>0
+                                te=double(v);
+                                ok=true;
+                                obj.takeoff_end_s=te;
+                                return;
                             end
                         end
-                    catch
                     end
-                    if isfinite(te), break; end
+                catch
                 end
             end
+        end
 
-            assert(isfinite(te) && te>0, ...
-                ['[REPLANNER ERROR] TAKEOFF_REFERENCE の終了時刻 te を取得できません。' ...
-                 ' opts.takeoff_end_s に run と同一の値を明示してください。']);
-            obj.takeoff_end_s=te;
+
+        function te = resolve_takeoff_end_time(obj)
+            [te,ok]=obj.try_resolve_takeoff_end_time_nonfatal();
+
+            assert(ok && isfinite(te) && te>0, ...
+                ['[REPLANNER ERROR] Flight reference time origin is still unresolved. ' ...
+                 'The existing run must bind replanner_instance.takeoff_end_s ' ...
+                 '(or opts.takeoff_end_s) before nominal-table generation. ' ...
+                 'reference.takeoff is optional and is not required by construction.']);
+
+            obj.takeoff_end_s=double(te);
+            obj.flight_reference_time_origin=double(te);
         end
 
         function tf = is_flight_warmup_context(obj)
@@ -4856,7 +5412,10 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            t0=time.t;
+            % Global table index starts at actual Flight start.  The table
+            % values themselves are evaluated at tau=t_global-t0.
+            t0=obj.resolve_takeoff_end_time();
+            obj.flight_reference_time_origin=double(t0);
             tend=te+obj.horizon_s;
             if tend<t0
                 return;
@@ -4909,8 +5468,11 @@ classdef REPLANNING_SYSTEM < handle
             obj.profiling.t_nominal_table_build_ms=obj.nominal_table_build_ms;
 
             if obj.ENABLE_ALL_LOG
-                fprintf('[REPLANNING_SYSTEM] nominal table ready | %.3f--%.3f s | points=%d | %.3f ms\n', ...
-                    obj.nominal_table_t0,obj.nominal_table_tend,Ntab,obj.nominal_table_build_ms);
+                fprintf(['[REPLANNING_SYSTEM] nominal table ready | global %.3f--%.3f s | ' ...
+                    'reference tau %.3f--%.3f s | points=%d | %.3f ms\n'], ...
+                    obj.nominal_table_t0,obj.nominal_table_tend, ...
+                    0.0,obj.nominal_table_tend-obj.flight_reference_time_origin, ...
+                    Ntab,obj.nominal_table_build_ms);
             end
         end
 
