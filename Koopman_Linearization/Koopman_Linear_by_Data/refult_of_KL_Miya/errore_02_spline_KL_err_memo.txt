@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/14 17:34:05
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+Error02_spline_001_Log(14-Oct-2026_17_23_25).mat
+Error02_spline_002_Log(14-Oct-2026_17_24_10).mat
+Error02_spline_003_Log(14-Oct-2026_17_24_56).mat
+Error02_spline_004_Log(14-Oct-2026_17_25_42).mat
+Error02_spline_005_Log(14-Oct-2026_17_26_27).mat
+Error02_spline_006_Log(14-Oct-2026_17_27_11).mat
+Error02_spline_007_Log(14-Oct-2026_17_27_54).mat
+Error02_spline_008_Log(14-Oct-2026_17_28_41).mat
+Error02_spline_009_Log(14-Oct-2026_17_29_23).mat
+Error02_spline_010_Log(14-Oct-2026_17_30_11).mat
+KLでした

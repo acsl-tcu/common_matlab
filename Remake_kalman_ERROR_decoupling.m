@@ -1,7 +1,7 @@
 %% Koopmanモデル: カルマン正準分解 -> 可制御部分だけにdlqr
 
-% 固定ゼロ・定数特徴を手動で除去せず、全状態を可制御性で分解する。
-% 保存したK_fullを用いて、元の状態座標で u(k)=-K_full*x(k) とする。
+% 固定ゼロ・定数特徴を手動で除去しないで，全状態を分解して，可制御部分のみに対してdlqr
+
 
 clear;
 clc;
@@ -50,7 +50,7 @@ if ~isreal(A) || ~isreal(B) || ~isreal(C) || ...
 end
 
 %% 2. 重みと可制御性判定の許容誤差
-% 元の状態座標での重み。変更する場合はここを編集する。
+% 元の状態座標での重みで重み変えたかったらここで
 Qfull = eye(n);
 if m == 4
     R = diag([1, 0.1, 0.1, 1]);
@@ -58,19 +58,30 @@ else
     R = eye(m);
 end
 
-% ctrbfのtolは絶対閾値なので、行列の大きさに合わせて設定する。
-% 推定モデルのスケールや誤差に応じてrelTolを調整する。
-% この閾値以下の弱い可制御性は、数値的に不可制御と判定される。
-relTol = 1e-5;
-tol = relTol * max(1, norm([A, B], 1));
+% ctrbfのtolは行列の大きさに合わせて設定する必要あり
+% 推定モデルのスケールや誤差に応じてrelTolを調整する
+% この閾値以下の弱い可制御性に対しては、数値的に不可制御と判定される
+% relTol = 1e-10;
+% tol = relTol * max(1, norm([A, B], 1));
+
+%% 可制御性判定の許容誤差
+
+relTol = 1e-12;
+
+% A,Bの大きさからスケールを取得
+modelScale = max(norm(A,1), norm(B,1));
+
+% 相対許容誤差から絶対許容誤差を計算
+tol = relTol * max(modelScale, realmin);
+
+fprintf('モデルスケール: %.3e\n', modelScale);
+fprintf('可制御性判定tol: %.3e\n', tol);
 
 %% 3. 可制御性に関するカルマン正準分解
-% z=T*x, x=S*z。Tは直交行列なのでS=T'。
-% ctrbfの出力順は [不可制御; 可制御]。
-% F=[Auc, 0; A21, Ac], G=[0; Bc], H=C*S。
-% 可観測性による4分類は、今回の可制御部分へのLQR設計には不要。
-% [F, G, H, T, kSteps] = ctrbf(A, B, C, tol);
-[F, G, H, T, kSteps] = ctrbf(A, B, C);
+% 可観測性による4分類って，結局可制御部分しか使ってないなら，
+% LQR設計には不要な気がして，分類してない
+[F, G, H, T, kSteps] = ctrbf(A, B, C, tol);
+% [F, G, H, T, kSteps] = ctrbf(A, B, C);
 nCont = sum(kSteps);
 fprintf('既定閾値での可制御次元: %d / %d\n', nCont, n);
 
@@ -102,8 +113,7 @@ fprintf('||F(不可制御行,可制御列)||F = %.3e\n', ...
     residuals.controllableToUncontrollable);
 
 %% 4. 可制御部分だけにdlqrを適用
-% x=S*zより Qz=S'*Qfull*S。
-% Qcはその可制御ブロック。これはz_uc=0に制限した系の重み。
+
 Qc = Tc * Qfull * Tc';
 Qc = (Qc + Qc') / 2;
 [Kc, Pc, eigControlledClosed] = dlqr(Ac, Bc, Qc, R);
@@ -130,7 +140,6 @@ if ~isempty(eigUncontrolled)
 end
 % z_ucが非零の場合は、Acの状態方程式にF(cIdx,ucIdx)*z_ucが入る。
 % このゲインは可制御部分のLQR解であり、全系のLQR最適解ではない。
-% このゲインは可制御部分のLQR解であり、全系のLQR最適解とは一般に異なる。
 
 %% 5. ゲインと分解結果の保存
 saveFolder = fullfile(pwd, 'kalman_gainたち');
@@ -155,10 +164,9 @@ fprintf('\nゲインと分解結果を保存しました。\n%s\n', saveFileName
 eigA = eig(A);
 
 % 閉ループ行列 A-BK_full の固有値
-% ※ eigClosedはセクション4ですでに計算済み
 eigABK = eigClosed;
 
-% 単位円
+
 theta = linspace(0, 2*pi, 500);
 unitX = cos(theta);
 unitY = sin(theta);

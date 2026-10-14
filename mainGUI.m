@@ -50,4 +50,4 @@ else
 end
 
 app = SimExp(Setting);
-app.run_auto_trials(1, "");%自動くりかえし
+app.run_auto_trials(1, "hovering_check_ME0185_OnMEC");%自動くりかえし
