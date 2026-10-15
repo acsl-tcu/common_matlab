@@ -20,6 +20,30 @@ dt = 0.025;      % sampling period
 te = 50;         % terminal time
 time = TIME(ts,dt,te);
 
+% -------------------------------------------------------------------------
+% Avoidance certificate / commit switches.
+%
+% Both certificate layers can be evaluated on the SAME generated candidate.
+% This makes the comparison scientifically meaningful.
+%
+% REFERENCE_ONLY:
+%   reference C7/flatness + continuous static-ellipsoid geometry.
+%   Comparison/research authority only; never full-system safety authority.
+%
+% EXECUTION_AWARE:
+%   additionally requires observer hard set -> HLC tracking tube ->
+%   actuator reserve -> tracking-inflated geometry -> numerical authority.
+%
+% AVOIDANCE_COMMIT_POLICY decides which layer is allowed to mutate the
+% active reference.  For the first trajectory-avoidance visualization run,
+% REFERENCE_ONLY is useful because the execution-aware fixed-point theorem
+% is still fail-closed.  Switch to EXECUTION_AWARE for the final system.
+% -------------------------------------------------------------------------
+ENABLE_REFERENCE_ONLY_CERTIFICATE = true;
+ENABLE_EXECUTION_AWARE_CERTIFICATE = true;
+AVOIDANCE_COMMIT_POLICY = "REFERENCE_ONLY";   % "REFERENCE_ONLY" or "EXECUTION_AWARE"
+ENABLE_AUTO_REPLAN_COMMIT = true;
+
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
 logger.display_on = true;
@@ -100,7 +124,23 @@ replan_opts.ENABLE_OBSERVER_HARD_SUPPORT = true;
 replan_opts.OBSERVER_HARD_SUPPORT_MODE = "SIM_NUMERIC_TRUTH";
 replan_opts.OBSERVER_SIM_TRUE_ML = plant_loadmass;
 
+% Avoidance certificate/commit switches.
+replan_opts.ENABLE_REFERENCE_ONLY_CERTIFICATE = ...
+    ENABLE_REFERENCE_ONLY_CERTIFICATE;
+replan_opts.ENABLE_EXECUTION_AWARE_CERTIFICATE = ...
+    ENABLE_EXECUTION_AWARE_CERTIFICATE;
+replan_opts.AVOIDANCE_COMMIT_POLICY = AVOIDANCE_COMMIT_POLICY;
+replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
+
 replanner_instance = REPLANNING_SYSTEM(agent,nominal_ref,replan_opts);
+
+avoidance_status = replanner_instance.get_avoidance_mode_status();
+fprintf(['[AVOIDANCE] commit=%s | ref-cert=%d | exec-cert=%d | ' ...
+    'auto-commit=%d\n'], ...
+    avoidance_status.commit_policy, ...
+    avoidance_status.reference_only_evaluation_enabled, ...
+    avoidance_status.execution_aware_evaluation_enabled, ...
+    avoidance_status.auto_commit);
 
 agent.reference.set_function_class("timevarying",replanner_instance);
 agent.reference.set_function_class("sload",SUSPENDED_LOAD_REF_ADJUST(agent));
