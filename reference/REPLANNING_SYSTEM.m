@@ -1,5 +1,9 @@
 classdef REPLANNING_SYSTEM < handle
 
+% AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.
+
+% AF7R33-R13C: repeat-safe active-flat batch + all-obstacle episode + exact-QP + batched whole-body.
+
 % AF7R27-R10: adaptive interval cover + projected corridor hull + active-set QP.
 % AF7R29-R11: noncommittable proposal diagnostics deferred from production hot path.
 % AF7R30-R12: native exact-support/hull helpers + last-takeoff hot-path prime.% AF7R21-R9: two-stage global-triangle -> local-vector continuous speed certificate.
@@ -4213,9 +4217,12 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             if isempty(fn) && double(obj.generator_backend_locked_code)==1
-                % Self-contained default backend.  Production runtime must
-                % not depend on G27/Rxx audit/test files.
-                fn=@(CTX)obj.builtin_bezier_d15_c7_proposal(CTX);
+                % AF7R37-R14D default production backend.
+                % Compile/source-check the native flat AST during setup;
+                % prime_locked_backend_kernel_variants() then warms the
+                % exact selected callback before Flight.
+                af7r36_runtime_prime(obj);
+                fn=@(CTX)af7r36_single_core_proposal(obj,CTX);
             end
 
             if ~isempty(fn)
@@ -4870,8 +4877,8 @@ classdef REPLANNING_SYSTEM < handle
             r9TotalTic=tic;
             r9StageTic=tic;
             r25ep0=af7r25_stamp_mex();
-            [EPI,okEpi]=obj.build_bezier_nominal_unsafe_episode_components( ...
-                OUT,CTX,searchEnd);
+            [EPI,okEpi]=af7r33_episode_batch_allobs( ...
+                obj,OUT,CTX,searchEnd);
             r25ep1=af7r25_stamp_mex();
             obj.r9_hr_episode_wall_ms=1e3*double(r25ep1(1)-r25ep0(1))/double(r25ep0(2));
             obj.r9_hr_episode_thread_cycles=double(r25ep1(3)-r25ep0(3));
@@ -5463,10 +5470,10 @@ classdef REPLANNING_SYSTEM < handle
                 end
                 n0=n0/norm(n0);
 
-                [Ap,bp,okp]=obj.bezier_piecewise_episode_corridor_rows( ...
-                    P,CTX,EPI,ie,n0,nvar);
-                [Am,bm,okm]=obj.bezier_piecewise_episode_corridor_rows( ...
-                    P,CTX,EPI,ie,-n0,nvar);
+                [Ap,bp,okp]=af7r33_corridor_batch( ...
+                    obj,P,CTX,EPI,ie,n0,nvar);
+                [Am,bm,okm]=af7r33_corridor_batch( ...
+                    obj,P,CTX,EPI,ie,-n0,nvar);
                 if ~(okp&&okm)
                     return;
                 end
@@ -5810,6 +5817,27 @@ classdef REPLANNING_SYSTEM < handle
             hs=max(abs(H(:)));
             if ~(isfinite(hs)&&hs>0)
                 return;
+            end
+
+            if exist('af7r32_exact_qp_mex','file')==3
+                try
+                    [zn,cn,sn,on,~,~,spd]=af7r32_exact_qp_mex( ...
+                        H,double(A),double(b(:)));
+                    if logical(spd)&&logical(on)&&numel(zn)==size(H,1)&&all(isfinite(zn))
+                        AzN=double(A)*double(zn(:));
+                        slackN=AzN-double(b(:));
+                        tolN=512*eps(max([ones(size(slackN)),abs(double(b(:))),abs(AzN)],[],2));
+                        if all(slackN>=-tolN)&&isfinite(double(cn))&&isfinite(double(sn))
+                            z=double(zn(:));
+                            cost=0.5*z.'*H*z;
+                            minSlack=min(slackN);
+                            ok=isfinite(cost);
+                            if ok, return; end
+                        end
+                    end
+                catch
+                    % Fall through to unchanged quadprog synthesis.
+                end
             end
 
             Hsolve=H/hs;
@@ -6835,39 +6863,16 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function n = bezier_lateral_separator_normal(~,R,a,progress)
-            % Axis-free deterministic lateral separator.
-            %
-            % Q=R diag(a^-2) R' is the ellipsoid metric.  For nonzero path
-            % progress v, solve exactly
-            %
-            %   max n'Qn  s.t. ||n||=1, n'v=0,
-            %
-            % by the principal eigenvector of P Q P on v^perp.  This gives
-            % the lateral direction with maximum normalized ellipsoid metric
-            % gain per unit Euclidean translation.  If progress vanishes,
-            % the unconstrained principal metric eigenvector is used.
-            R=double(R); a=double(a(:)); progress=double(progress(:));
-            Q=R*diag(1./(a.^2))*R.';
-            Q=0.5*(Q+Q.');
-
-            if numel(progress)==3 && all(isfinite(progress)) && ...
-                    norm(progress)>128*eps(max(1,norm(progress)))
-                v=progress/norm(progress);
-                Pm=eye(3)-v*v.';
-                Qp=0.5*(Pm*Q*Pm + (Pm*Q*Pm).');
-                [V,D]=eig(Qp,'vector');
-                [~,ix]=max(real(D));
-                n=Pm*real(V(:,ix));
-                if norm(n)<=128*eps(max(1,norm(Qp,'fro')))
-                    [V,D]=eig(Q,'vector');
-                    [~,ix]=max(real(D));
-                    n=real(V(:,ix));
-                end
-            else
-                [V,D]=eig(Q,'vector');
-                [~,ix]=max(real(D));
-                n=real(V(:,ix));
-            end
+            % AF7R37-R14D canonical separator authority.
+            % The old eig() rule was set-valued when the principal lateral
+            % eigenspace was degenerate. This helper preserves the same
+            % maximization problem and adds an explicit deterministic
+            % tie-break inside a numerically indistinguishable top
+            % eigenspace. +/- corridor disjunction remains fully enumerated.
+            [n,~]=af7r36_canonical_separator_normal(R,a,progress);
+            n=double(n(:));
+            assert(numel(n)==3&&all(isfinite(n))&&norm(n)>0, ...
+                '[REPLANNER ERROR] canonical lateral separator invalid.');
             n=n/norm(n);
         end
 
@@ -7213,6 +7218,19 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function G = build_static_continuous_wholebody_shadow_certificate(obj,CTX,P)
+            if exist('af7r33_wholebody_batch_certified','file')==2
+                try
+                    Gfast=af7r33_wholebody_batch_certified(obj,CTX,P);
+                    if isstruct(Gfast)&&isfield(Gfast,'mathematical_pass')&& ...
+                            isfield(Gfast,'continuous_time')&&logical(Gfast.continuous_time)&& ...
+                            isfield(Gfast,'sampled_acceptance')&&~logical(Gfast.sampled_acceptance)
+                        G=Gfast;
+                        return;
+                    end
+                catch
+                    %% Fall through to the unchanged legacy theorem.
+                end
+            end
             % =============================================================
             % STATIC ELLIPSOID CONTINUOUS-TIME WHOLE-BODY CERTIFICATE
             %
@@ -8462,6 +8480,8 @@ classdef REPLANNING_SYSTEM < handle
                     'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
                     't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
                     'displacement',double(P.displacement(:)));
+                R.batch_flat_model=af7r33_make_batch_model_from_proposal( ...
+                    obj,P,targetVersion);
                 R.authority_split=struct( ...
                     'controller_packet','eval_fn', ...
                     'mathematical_flat_jet','flat_eval_fn', ...
@@ -11611,6 +11631,7 @@ classdef REPLANNING_SYSTEM < handle
             tp=tic;
             try
                 obj.assert_runtime_core_certificates_current();
+                af7r33_active_flat_jet_batch(obj,[double(tf) double(tf)+double(obj.prediction_dt)]);
                 xdP=obj.evaluate_active_reference_xd(double(tf),xd_nom);
                 [pQ,pL,~,~]=obj.get_current_physical_geometry(xdP);
                 [active,~,~,~]=obj.raw_sensor_gate(pQ,obj.static_obstacle_map);

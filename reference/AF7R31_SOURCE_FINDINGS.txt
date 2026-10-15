@@ -1,0 +1,19 @@
+AF7R31 source findings
+
+Latest source inspected: REPLANNING_SYSTEM(20261015-191130).m
+
+1. AF7R27-R10, AF7R29-R11 and AF7R30-R12 are all present.
+2. hard_modify_deadline_s remains fail-closed at <= 4 ms.
+3. R10A is a continuous interval-support cover; unresolved leaves at <= live
+   dt are conservatively UNSAFE.
+4. R10B keeps only the certified projected upper envelope.
+5. The QP still goes through MATLAB quadprog(active-set).
+6. Candidate acceptance still uses R9 Stage-A/Stage-B speed, rejoin, then the
+   independent continuous whole-body certificate.
+7. The nominal flat hot path still calls rawfh plus seven scalar derivative
+   handles for every queried time. This is a remaining dispatch boundary.
+8. R12 tail-prime warms support/hull but does not eliminate that evaluator
+   architecture.
+
+Therefore R13A attacks the evaluator + geometry batching boundary first and
+requires a same-trigger dual audit before any production promotion.

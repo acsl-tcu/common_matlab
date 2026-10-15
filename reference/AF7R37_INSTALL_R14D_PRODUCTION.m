@@ -1,0 +1,156 @@
+function OUT = AF7R37_INSTALL_R14D_PRODUCTION()
+clc;
+fprintf('\n====================================================================================================\n');
+fprintf(' AF7R37 | INSTALL R14D SINGLE-CALL CANONICAL PRODUCTION BACKEND\n');
+fprintf('====================================================================================================\n');
+fprintf('[AUTHORITY] fullCoreDualClosed=1 | canonicalDegeneracyRule=1 | hard4msUnchanged=1 | sampledAcceptance=0\n');
+
+src=which('REPLANNING_SYSTEM');
+assert(~isempty(src)&&isfile(src),'[AF7R37] REPLANNING_SYSTEM unresolved.');
+root=fileparts(src);
+here=fileparts(mfilename('fullpath'));
+
+% -------------------------------------------------------------------------
+% Gate: R14D full dual equivalence must already have closed.
+% -------------------------------------------------------------------------
+tokPath=fullfile(root,'AF7R36_CANONICAL_CORE_TOKEN.mat');
+assert(isfile(tokPath), ...
+    '[AF7R37] AF7R36 canonical full-core token missing. Run A36 first.');
+Q=load(tokPath,'token');
+assert(isfield(Q,'token')&&isstruct(Q.token)&& ...
+    isfield(Q.token,'closed')&&logical(Q.token.closed), ...
+    '[AF7R37] AF7R36 canonical core token is not closed.');
+
+assert(exist('af7r36_single_core_mex','file')==3, ...
+    '[AF7R37] af7r36_single_core_mex is missing.');
+
+% Copy runtime helpers next to production source.
+req={ ...
+    'af7r36_single_core_proposal.m', ...
+    'af7r36_canonical_separator_normal.m', ...
+    'af7r36_runtime_prime.m', ...
+    'af7r34_make_core_packet.m'};
+for k=1:numel(req)
+    a=fullfile(here,req{k});
+    b=fullfile(root,req{k});
+    assert(isfile(a),'[AF7R37] package helper missing: %s',req{k});
+    if ~strcmpi(a,b)
+        [ok,msg]=copyfile(a,b,'f');
+        assert(ok,'[AF7R37] copy failed for %s: %s',req{k},msg);
+    end
+end
+
+raw=fileread(src);
+
+assert(contains(raw,'AF7R33-R13C'), ...
+    '[AF7R37] R13C production authority not present.');
+assert(~contains(raw,'AF7R37-R14D-PRODUCTION'), ...
+    '[AF7R37] R14D production marker already present; refusing duplicate install.');
+assert(contains(raw,'hard_modify_deadline_s<=4.0e-3'), ...
+    '[AF7R37] hard 4 ms source contract missing.');
+
+stamp=datestr(now,'yyyymmdd_HHMMSS');
+bak=fullfile(root,['REPLANNING_SYSTEM_pre_R14D_' stamp '.m']);
+[ok,msg]=copyfile(src,bak,'f');
+assert(ok,'[AF7R37] backup failed: %s',msg);
+
+% -------------------------------------------------------------------------
+% 1) Source marker.
+% -------------------------------------------------------------------------
+old='classdef REPLANNING_SYSTEM < handle';
+new=sprintf(['classdef REPLANNING_SYSTEM < handle\n\n' ...
+    '%% AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.']);
+assert(count(raw,old)==1,'[AF7R37] classdef anchor count mismatch.');
+raw=strrep(raw,old,new);
+
+% -------------------------------------------------------------------------
+% 2) Default BEZIER backend becomes R14D native. User-supplied registered
+%    callbacks are not overridden. Prime happens before callback freeze.
+% -------------------------------------------------------------------------
+old=sprintf(['            if isempty(fn) && double(obj.generator_backend_locked_code)==1\n' ...
+    '                %% Self-contained default backend.  Production runtime must\n' ...
+    '                %% not depend on G27/Rxx audit/test files.\n' ...
+    '                fn=@(CTX)obj.builtin_bezier_d15_c7_proposal(CTX);\n' ...
+    '            end']);
+
+new=sprintf(['            if isempty(fn) && double(obj.generator_backend_locked_code)==1\n' ...
+    '                %% AF7R37-R14D default production backend.\n' ...
+    '                %% Compile/source-check the native flat AST during setup;\n' ...
+    '                %% prime_locked_backend_kernel_variants() then warms the\n' ...
+    '                %% exact selected callback before Flight.\n' ...
+    '                af7r36_runtime_prime(obj);\n' ...
+    '                fn=@(CTX)af7r36_single_core_proposal(obj,CTX);\n' ...
+    '            end']);
+
+assert(count(raw,old)==1, ...
+    '[AF7R37] default BEZIER backend anchor mismatch. Source may have changed.');
+raw=strrep(raw,old,new);
+
+% -------------------------------------------------------------------------
+% 3) Make canonical degenerate-eigenspace separator the MATLAB authority too.
+%    Keep method interface so all legacy/audit/fallback callers remain valid.
+% -------------------------------------------------------------------------
+startAnchor='        function n = bezier_lateral_separator_normal(~,R,a,progress)';
+nextAnchor='        function [breq,ok] = bezier_corridor_required_projection( ...';
+i0=strfind(raw,startAnchor);
+i1=strfind(raw,nextAnchor);
+assert(numel(i0)==1&&numel(i1)==1&&i1>i0, ...
+    '[AF7R37] separator method anchors unresolved.');
+
+canonMethod=sprintf([ ...
+'        function n = bezier_lateral_separator_normal(~,R,a,progress)\n' ...
+'            %% AF7R37-R14D canonical separator authority.\n' ...
+'            %% The old eig() rule was set-valued when the principal lateral\n' ...
+'            %% eigenspace was degenerate. This helper preserves the same\n' ...
+'            %% maximization problem and adds an explicit deterministic\n' ...
+'            %% tie-break inside a numerically indistinguishable top\n' ...
+'            %% eigenspace. +/- corridor disjunction remains fully enumerated.\n' ...
+'            [n,~]=af7r36_canonical_separator_normal(R,a,progress);\n' ...
+'            n=double(n(:));\n' ...
+'            assert(numel(n)==3&&all(isfinite(n))&&norm(n)>0, ...\n' ...
+'                ''[REPLANNER ERROR] canonical lateral separator invalid.'');\n' ...
+'            n=n/norm(n);\n' ...
+'        end\n\n\n']);
+
+raw=[raw(1:i0-1) canonMethod raw(i1:end)];
+
+% -------------------------------------------------------------------------
+% 4) No safety/deadline weakening.
+% -------------------------------------------------------------------------
+compact=regexprep(raw,'\s+','');
+needle=[char(39) 'sampled_acceptance' char(39) ',true'];
+assert(~contains(compact,needle), ...
+    '[AF7R37] sampled_acceptance=true detected after patch.');
+assert(contains(raw,'hard_modify_deadline_s<=4.0e-3'), ...
+    '[AF7R37] hard 4 ms assertion disappeared.');
+assert(contains(raw,'MIDPOINT_STATIC_SUPPORT_MINUS_SPEED_TIMES_HALFWIDTH'), ...
+    '[AF7R37] continuous whole-body theorem marker disappeared.');
+assert(contains(raw,'R9_LOCAL_VECTOR_COUPLED_ADAPTIVE_BERNSTEIN_FLATNESS_SPEED'), ...
+    '[AF7R37] R9 local-vector theorem marker disappeared.');
+
+fid=fopen(src,'w');
+assert(fid>=0,'[AF7R37] cannot open production source for writing.');
+cc=onCleanup(@()fclose(fid));
+fwrite(fid,raw,'char');
+clear cc;
+rehash;
+
+OUT=struct('schema','AF7R37_INSTALL_R14D_PRODUCTION_V1', ...
+    'installed',true,'source',src,'backup',bak, ...
+    'hard_deadline_modified',false, ...
+    'sampled_acceptance_modified',false, ...
+    'wholebody_theorem_modified',false, ...
+    'default_backend','AF7R36_SINGLE_CALL_NATIVE_CANONICAL');
+assignin('base','AF7R37_INSTALL_R14D_PRODUCTION_OUT',OUT);
+
+fprintf(' source                                  = %s\n',src);
+fprintf(' backup                                  = %s\n',bak);
+fprintf(' default BEZIER callback -> R14D core    = 1\n');
+fprintf(' pre-Flight AST prime                    = 1\n');
+fprintf(' canonical separator MATLAB authority    = 1\n');
+fprintf(' custom registered callbacks preserved   = 1\n');
+fprintf(' legacy builtin MATLAB planner retained  = 1\n');
+fprintf(' hard deadline modified                  = 0\n');
+fprintf(' safety theorem modified                 = 0\n');
+fprintf('====================================================================================================\n');
+end
