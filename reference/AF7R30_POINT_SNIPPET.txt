@@ -1,0 +1,32 @@
+        function [margin,ok] = best_point_support_margin(obj,x,c,R,a,rho)
+            % AF7R30-R12 native equivalent fast path. Same two-normal theorem.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        0,double(x(:)),double(c(:)),double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            y=R.'*(x-c);
+            normals=[R*(y./(a.^2)),(x-c)];
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_point(x,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+

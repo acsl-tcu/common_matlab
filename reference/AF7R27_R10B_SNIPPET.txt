@@ -1,0 +1,193 @@
+        function [A,b,ok] = bezier_piecewise_episode_corridor_rows( ...
+                obj,P,CTX,EPI,episodeIndex,n,nvar)
+            % =============================================================
+            % AF7R27-R10B CERTIFIED PROJECTED CORRIDOR COMPRESSION
+            %
+            % For fixed n, every raw row is
+            %   n'*a_j + s_i n'*v_j >= r_i.
+            % With u=n'*a_j, w=n'*v_j:
+            %   u >= r_i - s_i*w.
+            %
+            % Duplicate s values are merged by max(r). A middle row is
+            % removed only when it is strictly below the upper hull by more
+            % than a floating arithmetic guard. Ambiguous rows are retained.
+            % =============================================================
+            ep=EPI.episodes(episodeIndex);
+            jj=double(ep.component_index);
+            tComp=double(EPI.components(jj).start_s);
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            A=zeros(0,nvar);
+            b=zeros(0,1);
+            ok=false;
+            n=double(n(:));
+            nn=norm(n);
+            if ~(numel(n)==3&&all(isfinite(n))&&isfinite(nn)&&nn>0)
+                return;
+            end
+            n=n/nn;
+
+            ii=double(ep.obstacle_index);
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+            hObs=dot(n,c)+norm(a.*(R.'*n));
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            pidx=(2*jj-2)*3+(1:3);
+            vidx=(2*jj-1)*3+(1:3);
+            dt=double(LIV.dt);
+            ta=double(ep.start_s);
+            te=double(ep.end_s);
+
+            ncell=max(1,ceil((te-ta)/dt));
+            S=zeros(2*ncell+2,1);
+            B=zeros(2*ncell+2,1);
+            nr=0;
+
+            while ta<te-8*eps(max(1,abs(te)))
+                tb=min(te,ta+dt);
+                tc=0.5*(ta+tb);
+                half=0.5*(tb-ta);
+                xd=double(P.base_flat_eval_fn(tc)); xd=xd(:);
+                if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                    return;
+                end
+
+                pL=xd(1:3);
+                sf=xd(9:11)+[0;0;double(LIV.gravity)];
+                ns=norm(sf);
+                if ~(isfinite(ns)&&ns>0)
+                    return;
+                end
+                q=-sf/ns;
+                pQ=pL-double(LIV.cable_length)*q;
+
+                rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*half;
+                rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*half;
+                rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*half;
+
+                req=max([ ...
+                    hObs+rhoL-dot(n,pL), ...
+                    hObs+rhoQ-dot(n,pQ), ...
+                    hObs+rhoC-min(dot(n,pQ),dot(n,pL))]);
+                if ~isfinite(req)
+                    return;
+                end
+                req=req+64*eps(max(1,abs(req)));
+
+                nr=nr+1;
+                S(nr)=ta-tComp;
+                B(nr)=req;
+                nr=nr+1;
+                S(nr)=tb-tComp;
+                B(nr)=req;
+                ta=tb;
+            end
+
+            S=S(1:nr);
+            B=B(1:nr);
+            if isempty(S)
+                return;
+            end
+
+            keep=obj.r10_upper_envelope_row_indices(S,B);
+            if isempty(keep)
+                return;
+            end
+
+            S=S(keep);
+            B=B(keep);
+            nk=numel(S);
+            A=zeros(nk,nvar);
+            b=B(:);
+            A(:,pidx)=repmat(n.',nk,1);
+            A(:,vidx)=S(:)*n.';
+            ok=all(isfinite(A(:)))&&all(isfinite(b));
+        end
+
+
+        function keep = r10_upper_envelope_row_indices(~,S,B)
+            S=double(S(:));
+            B=double(B(:));
+            keep=zeros(0,1);
+            if numel(S)~=numel(B)||isempty(S)|| ...
+                    any(~isfinite(S))||any(~isfinite(B))
+                return;
+            end
+
+            [S,ord]=sort(S);
+            B=B(ord);
+
+            Su=zeros(numel(S),1);
+            Bu=zeros(numel(S),1);
+            Iu=zeros(numel(S),1);
+            nu=0;
+            k=1;
+            while k<=numel(S)
+                nu=nu+1;
+                ss=S(k);
+                j=k;
+                bb=B(k);
+                src=k;
+                while j<numel(S)&&S(j+1)==ss
+                    j=j+1;
+                    if B(j)>bb
+                        bb=B(j);
+                        src=j;
+                    end
+                end
+                Su(nu)=ss;
+                Bu(nu)=bb;
+                Iu(nu)=ord(src);
+                k=j+1;
+            end
+            Su=Su(1:nu);
+            Bu=Bu(1:nu);
+            Iu=Iu(1:nu);
+
+            H=zeros(nu,1);
+            nh=0;
+            for k=1:nu
+                while nh>=2
+                    i1=H(nh-1);
+                    i2=H(nh);
+                    i3=k;
+                    dx1=Su(i2)-Su(i1);
+                    dy1=Bu(i2)-Bu(i1);
+                    dx2=Su(i3)-Su(i2);
+                    dy2=Bu(i3)-Bu(i2);
+                    t1=dx1*dy2;
+                    t2=dy1*dx2;
+                    cr=t1-t2;
+                    scale=max([1,abs(t1),abs(t2),abs(dx1),abs(dx2),abs(dy1),abs(dy2)]);
+                    guard=128*eps(scale);
+
+                    if cr>guard
+                        nh=nh-1;
+                    elseif cr==0
+                        nh=nh-1;
+                    else
+                        break;
+                    end
+                end
+                nh=nh+1;
+                H(nh)=k;
+            end
+
+            H=H(1:nh);
+            keep=sort(Iu(H));
+        end
+
+

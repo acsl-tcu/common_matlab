@@ -1,0 +1,71 @@
+        function [z,cost,minSlack,ok] = solve_piecewise_fixed_sign_qp( ...
+                ~,H,A,b)
+            % =============================================================
+            % AF7R27-R10C SMALL CONVEX QP
+            %
+            % Same QP as R8/R9. R10-B reduces only projected corridor rows.
+            % active-set is appropriate for the small dense online QP and is
+            % the algorithm supported by quadprog code generation.
+            % =============================================================
+            z=nan(size(H,1),1);
+            cost=NaN;
+            minSlack=NaN;
+            ok=false;
+
+            if exist('quadprog','file')~=2 || isempty(A) || ...
+                    size(H,1)~=size(H,2) || size(A,2)~=size(H,1) || ...
+                    numel(b)~=size(A,1) || any(~isfinite([H(:);A(:);b(:)]))
+                return;
+            end
+
+            H=0.5*(double(H)+double(H).');
+            hs=max(abs(H(:)));
+            if ~(isfinite(hs)&&hs>0)
+                return;
+            end
+
+            Hsolve=H/hs;
+            f=zeros(size(H,1),1);
+            x0=zeros(size(H,1),1);
+
+            persistent QPOPT QPOPT_READY
+            if isempty(QPOPT_READY)
+                QPOPT_READY=true;
+                try
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set', ...
+                        'UseCodegenSolver',true);
+                catch
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set');
+                end
+            end
+
+            try
+                [zc,~,exitflag]=quadprog( ...
+                    Hsolve,f,-double(A),-double(b(:)), ...
+                    [],[],[],[],x0,QPOPT);
+            catch
+                return;
+            end
+
+            if ~(exitflag>0&&numel(zc)==size(H,1)&&all(isfinite(zc)))
+                return;
+            end
+
+            Az=double(A)*double(zc(:));
+            slack=Az-double(b(:));
+            tol=512*eps(max([ones(size(slack)),abs(double(b(:))),abs(Az)],[],2));
+            if any(slack < -tol)
+                return;
+            end
+
+            z=double(zc(:));
+            cost=0.5*z.'*H*z;
+            minSlack=min(slack);
+            ok=isfinite(cost);
+        end
+
+

@@ -1,0 +1,230 @@
+        function [EPI,ok] = build_bezier_nominal_unsafe_episode_components( ...
+                obj,P,CTX,searchEnd)
+            % =============================================================
+            % AF7R27-R10A ADAPTIVE CONTINUOUS SUPPORT COVER
+            %
+            % A leaf is accepted SAFE only when the same continuous
+            % midpoint+speed support theorem certifies payload/UAV/cable
+            % throughout the whole leaf. Otherwise it is subdivided.
+            %
+            % There is no fixed depth authority. If an unresolved leaf
+            % reaches width <= live dt, it is conservatively UNSAFE.
+            % Binary64 non-splittability is also fail-closed UNSAFE.
+            % =============================================================
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            dt=double(LIV.dt);
+            t0=double(P.t0);
+            M=double(O.count);
+
+            EPI=struct();
+            EPI.certified=false;
+            EPI.continuous_time=true;
+            EPI.sampled_acceptance=false;
+            EPI.t0=t0;
+            EPI.search_end_s=double(searchEnd);
+            EPI.obstacle_count=M;
+            EPI.episodes=struct('obstacle_index',{},'obstacle_id',{}, ...
+                'start_s',{},'end_s',{},'component_index',{});
+            EPI.components=struct('start_s',{},'end_s',{}, ...
+                'duration_s',{},'episode_indices',{});
+            EPI.episode_count=0;
+            EPI.component_count=0;
+            EPI.adaptive_leaf_count=0;
+            EPI.adaptive_safe_leaf_count=0;
+            EPI.adaptive_unsafe_leaf_count=0;
+            EPI.adaptive_split_count=0;
+            EPI.representability_fail_closed_count=0;
+            EPI.theorem=[ ...
+                'ADAPTIVE_CONTINUOUS_SUPPORT_INTERVAL_COVER__' ...
+                'SAFE_ONLY_BY_WHOLE_LEAF_CERTIFICATE__' ...
+                'UNRESOLVED_LEQ_LIVE_DT_IS_UNSAFE'];
+            ok=false;
+
+            if ~(isfinite(t0)&&isfinite(searchEnd)&&searchEnd>t0&& ...
+                    isfinite(dt)&&dt>0&&M>=1)
+                return;
+            end
+
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            episodes=EPI.episodes;
+            tolMerge=64*eps(max([1,abs(t0),abs(searchEnd),abs(dt)]));
+
+            for ii=1:M
+                stackA=t0;
+                stackB=double(searchEnd);
+                unsafeA=zeros(0,1);
+                unsafeB=zeros(0,1);
+
+                while ~isempty(stackA)
+                    ta=stackA(end); stackA(end)=[];
+                    tb=stackB(end); stackB(end)=[];
+                    if ~(isfinite(ta)&&isfinite(tb)&&tb>ta)
+                        continue;
+                    end
+
+                    EPI.adaptive_leaf_count=EPI.adaptive_leaf_count+1;
+                    safe=obj.r10_nominal_interval_continuously_safe_one_obstacle( ...
+                        P,ta,tb,CTX,ii,SC);
+
+                    if safe
+                        EPI.adaptive_safe_leaf_count= ...
+                            EPI.adaptive_safe_leaf_count+1;
+                        continue;
+                    end
+
+                    width=tb-ta;
+                    if width<=dt+tolMerge
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        continue;
+                    end
+
+                    tm=0.5*(ta+tb);
+                    if ~(isfinite(tm)&&tm>ta&&tm<tb)
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        EPI.representability_fail_closed_count= ...
+                            EPI.representability_fail_closed_count+1;
+                        continue;
+                    end
+
+                    stackA(end+1)=tm; %#ok<AGROW>
+                    stackB(end+1)=tb; %#ok<AGROW>
+                    stackA(end+1)=ta; %#ok<AGROW>
+                    stackB(end+1)=tm; %#ok<AGROW>
+                    EPI.adaptive_split_count=EPI.adaptive_split_count+1;
+                end
+
+                if isempty(unsafeA)
+                    continue;
+                end
+
+                [unsafeA,ord]=sort(unsafeA);
+                unsafeB=unsafeB(ord);
+                es=unsafeA(1);
+                ee=unsafeB(1);
+                for ku=2:numel(unsafeA)
+                    if unsafeA(ku)<=ee+tolMerge
+                        ee=max(ee,unsafeB(ku));
+                    else
+                        episodes(end+1)=struct( ... %#ok<AGROW>
+                            'obstacle_index',ii, ...
+                            'obstacle_id',double(O.ids(ii)), ...
+                            'start_s',double(es), ...
+                            'end_s',double(ee), ...
+                            'component_index',0);
+                        es=unsafeA(ku);
+                        ee=unsafeB(ku);
+                    end
+                end
+                episodes(end+1)=struct( ... %#ok<AGROW>
+                    'obstacle_index',ii, ...
+                    'obstacle_id',double(O.ids(ii)), ...
+                    'start_s',double(es), ...
+                    'end_s',double(ee), ...
+                    'component_index',0);
+            end
+
+            if isempty(episodes)
+                EPI.episodes=episodes;
+                EPI.certified=true;
+                ok=true;
+                return;
+            end
+
+            [~,ord]=sort([episodes.start_s]);
+            episodes=episodes(ord);
+            tolT=64*eps(max([1,abs(t0),abs(searchEnd)]));
+            comps=EPI.components;
+            cc=0;
+            for ie=1:numel(episodes)
+                es=double(episodes(ie).start_s);
+                ee=double(episodes(ie).end_s);
+                if cc==0 || es>double(comps(cc).end_s)+tolT
+                    cc=cc+1;
+                    comps(cc)=struct('start_s',es,'end_s',ee, ...
+                        'duration_s',ee-es,'episode_indices',ie); %#ok<AGROW>
+                else
+                    comps(cc).end_s=max(double(comps(cc).end_s),ee);
+                    comps(cc).duration_s=double(comps(cc).end_s)- ...
+                        double(comps(cc).start_s);
+                    comps(cc).episode_indices(end+1)=ie;
+                end
+                episodes(ie).component_index=cc;
+            end
+
+            EPI.episodes=episodes;
+            EPI.components=comps;
+            EPI.episode_count=numel(episodes);
+            EPI.component_count=numel(comps);
+            EPI.certified=true;
+            ok=true;
+        end
+
+
+        function tf = r10_nominal_interval_continuously_safe_one_obstacle( ...
+                obj,P,ta,tb,CTX,ii,SC)
+            % Same continuous theorem as the old cell routine. SC was
+            % validated once by the caller, avoiding repeated validation.
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            tf=false;
+
+            if ii<1 || ii>double(O.count)
+                return;
+            end
+
+            tc=0.5*(double(ta)+double(tb));
+            h=0.5*(double(tb)-double(ta));
+            if ~(isfinite(tc)&&isfinite(h)&&h>0)
+                return;
+            end
+
+            xd=double(P.base_flat_eval_fn(tc));
+            xd=xd(:);
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*h;
+
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+
+            [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+            if ~okL, return; end
+            [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+            if ~okQ, return; end
+            [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+            tf=okC;
+        end
+
+

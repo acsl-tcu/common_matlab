@@ -1,0 +1,42 @@
+        function [margin,ok] = best_segment_support_margin(obj,p0,p1,c,R,a,rho)
+            % AF7R30-R12 native equivalent fast path. Same closest-segment
+            % seed and same six support normals as the MATLAB fallback.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        1,double(p0(:)),double(p1(:)),double(c(:)), ...
+                        double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            [~,~,xstar]=obj.bezier_segment_metric(p0,p1,c,R,a);
+            Y=[xstar,p0,p1];
+            normals=zeros(3,0);
+            for kk=1:size(Y,2)
+                y=R.'*(Y(:,kk)-c);
+                normals(:,end+1)=R*(y./(a.^2)); %#ok<AGROW>
+                normals(:,end+1)=Y(:,kk)-c; %#ok<AGROW>
+            end
+
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_segment( ...
+                    p0,p1,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+

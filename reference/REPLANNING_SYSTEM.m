@@ -1,5 +1,11 @@
 classdef REPLANNING_SYSTEM < handle
-% AF7R21-R9: two-stage global-triangle -> local-vector continuous speed certificate.
+
+% AF7R27-R10: adaptive interval cover + projected corridor hull + active-set QP.
+% AF7R29-R11: noncommittable proposal diagnostics deferred from production hot path.
+% AF7R30-R12: native exact-support/hull helpers + last-takeoff hot-path prime.% AF7R21-R9: two-stage global-triangle -> local-vector continuous speed certificate.
+% AF7R23_STAGE_TIMING: diagnostic-only top-level R9 timing instrumentation.
+% AF7R24_SYNTHESIS_TIMING: diagnostic-only synthesis substage timing.
+% AF7R25_HIGHRES_TIMING: QPC wall + thread/process cycle diagnostic timing.
 % R9 keeps sampled acceptance forbidden and retains independent whole-body certification.
 % G27-V74R41R2: caller-compatible initialization order preserved.
 % R7 exact disjunctive corridor: globally joint +/- separator choice + 3-D min-norm translation.
@@ -135,6 +141,10 @@ classdef REPLANNING_SYSTEM < handle
         LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
         ENABLE_LIGHT_RUNTIME_AUDIT = 1; % 外側1個の軽量 wall timer のみ有効
+        ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
+        r12_tail_prime_done = false;
+        r12_tail_prime_ms = NaN;
+
         SPIKE_CAPTURE_THRESHOLD_MS = 2.0; % rare-stage snapshot threshold [ms]
 
         % -----------------------------------------------------------------
@@ -448,6 +458,34 @@ classdef REPLANNING_SYSTEM < handle
         bezier_shadow_last_dx                 = NaN;
         bezier_shadow_last_dy                 = NaN;
         bezier_shadow_last_dz                 = NaN;
+        % AF7R23_STAGE_TIMING diagnostic-only scalar mirrors
+        r9_stage_episode_ms                    = NaN;
+        r9_stage_synthesis_ms                  = NaN;
+        r9_stage_candidate_loop_ms             = NaN;
+        r9_stage_total_internal_ms              = NaN;
+        % AF7R24_SYNTHESIS_TIMING diagnostic-only mirrors
+        r9_synth_hessian_ms                    = NaN;
+        r9_synth_corridor_ms                   = NaN;
+        r9_synth_qp_ms                         = NaN;
+        r9_synth_candidate_build_ms            = NaN;
+        r9_synth_row_count                     = NaN;
+        r9_synth_episode_count                 = NaN;
+        r9_synth_component_count               = NaN;
+        r9_synth_sign_count                    = NaN;
+        % AF7R25_HIGHRES_TIMING diagnostic-only QPC/cycle counters
+        r9_hr_request_seq                      = NaN;
+        r9_hr_callback_wall_ms                 = NaN;
+        r9_hr_callback_thread_cycles           = NaN;
+        r9_hr_callback_process_cycles          = NaN;
+        r9_hr_episode_wall_ms                  = NaN;
+        r9_hr_episode_thread_cycles            = NaN;
+        r9_hr_episode_process_cycles           = NaN;
+        r9_hr_synthesis_wall_ms                = NaN;
+        r9_hr_synthesis_thread_cycles          = NaN;
+        r9_hr_synthesis_process_cycles         = NaN;
+        r9_hr_qp_wall_ms                       = NaN;
+        r9_hr_qp_thread_cycles                 = NaN;
+        r9_hr_qp_process_cycles                = NaN;
 
         % G27-V74R22 continuous-time whole-body geometry shadow certificate.
         geometry_shadow_pass                   = false;
@@ -1231,6 +1269,9 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'ENABLE_LIGHT_RUNTIME_AUDIT')
                 obj.ENABLE_LIGHT_RUNTIME_AUDIT=logical(opts.ENABLE_LIGHT_RUNTIME_AUDIT);
             end
+            if isfield(opts,'ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL')
+                obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL=logical(opts.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL);
+            end
             if isfield(opts,'SPIKE_CAPTURE_THRESHOLD_MS')
                 obj.SPIKE_CAPTURE_THRESHOLD_MS=double(opts.SPIKE_CAPTURE_THRESHOLD_MS);
             end
@@ -1555,6 +1596,31 @@ classdef REPLANNING_SYSTEM < handle
                 "bezier_shadow_last_dx", ...
                 "bezier_shadow_last_dy", ...
                 "bezier_shadow_last_dz", ...
+                "r9_stage_episode_ms", ...
+                "r9_stage_synthesis_ms", ...
+                "r9_stage_candidate_loop_ms", ...
+                "r9_stage_total_internal_ms", ...
+                "r9_synth_hessian_ms", ...
+                "r9_synth_corridor_ms", ...
+                "r9_synth_qp_ms", ...
+                "r9_synth_candidate_build_ms", ...
+                "r9_synth_row_count", ...
+                "r9_synth_episode_count", ...
+                "r9_synth_component_count", ...
+                "r9_synth_sign_count", ...
+                "r9_hr_request_seq", ...
+                "r9_hr_callback_wall_ms", ...
+                "r9_hr_callback_thread_cycles", ...
+                "r9_hr_callback_process_cycles", ...
+                "r9_hr_episode_wall_ms", ...
+                "r9_hr_episode_thread_cycles", ...
+                "r9_hr_episode_process_cycles", ...
+                "r9_hr_synthesis_wall_ms", ...
+                "r9_hr_synthesis_thread_cycles", ...
+                "r9_hr_synthesis_process_cycles", ...
+                "r9_hr_qp_wall_ms", ...
+                "r9_hr_qp_thread_cycles", ...
+                "r9_hr_qp_process_cycles", ...
                 "geometry_shadow_pass", ...
                 "geometry_shadow_reason_code", ...
                 "geometry_shadow_continuous_time", ...
@@ -1813,6 +1879,14 @@ classdef REPLANNING_SYSTEM < handle
                     end
                 end
 
+                if isequal(cha,'t') && ~obj.r12_tail_prime_done
+                    [tf12,ok12]=obj.try_resolve_takeoff_end_time_nonfatal();
+                    t12=double(time.t);
+                    if ok12 && isfinite(tf12) && isfinite(t12) && t12<tf12 && ...
+                            (tf12-t12)<=2.5*double(obj.prediction_dt)
+                        obj.r12_tail_prime_hot_path(time,varargin,xd_nom,tf12);
+                    end
+                end
                 obj.write_nominal_output(xd_nom);
                 result_out=obj.result;
                 return;
@@ -2171,6 +2245,31 @@ classdef REPLANNING_SYSTEM < handle
             st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
             st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
             st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+            st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
+            st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
+            st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
+            st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
+            st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
+            st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
+            st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
+            st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+            st.r9_synth_row_count=obj.r9_synth_row_count;
+            st.r9_synth_episode_count=obj.r9_synth_episode_count;
+            st.r9_synth_component_count=obj.r9_synth_component_count;
+            st.r9_synth_sign_count=obj.r9_synth_sign_count;
+            st.r9_hr_request_seq=obj.r9_hr_request_seq;
+            st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
+            st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
+            st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
+            st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
+            st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
+            st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
+            st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
+            st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
+            st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
+            st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
+            st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
+            st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
             st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
             st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
             st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
@@ -4205,6 +4304,19 @@ classdef REPLANNING_SYSTEM < handle
 
             ti=tic;
             obj.generator_request_count=obj.generator_request_count+1;
+            obj.r9_hr_request_seq=double(obj.generator_request_count);
+            obj.r9_hr_callback_wall_ms=NaN;
+            obj.r9_hr_callback_thread_cycles=NaN;
+            obj.r9_hr_callback_process_cycles=NaN;
+            obj.r9_hr_episode_wall_ms=NaN;
+            obj.r9_hr_episode_thread_cycles=NaN;
+            obj.r9_hr_episode_process_cycles=NaN;
+            obj.r9_hr_synthesis_wall_ms=NaN;
+            obj.r9_hr_synthesis_thread_cycles=NaN;
+            obj.r9_hr_synthesis_process_cycles=NaN;
+            obj.r9_hr_qp_wall_ms=NaN;
+            obj.r9_hr_qp_thread_cycles=NaN;
+            obj.r9_hr_qp_process_cycles=NaN;
 
             elapsed_before=toc(t_hard_cycle);
             budget_remaining=double(obj.hard_modify_deadline_s)-elapsed_before;
@@ -4256,7 +4368,12 @@ classdef REPLANNING_SYSTEM < handle
                 candidate=[];
             else
                 try
+                    r25cb0=af7r25_stamp_mex();
                     candidate=obj.generator_backend_locked_callback(CTX);
+                    r25cb1=af7r25_stamp_mex();
+                    obj.r9_hr_callback_wall_ms=1e3*double(r25cb1(1)-r25cb0(1))/double(r25cb0(2));
+                    obj.r9_hr_callback_thread_cycles=double(r25cb1(3)-r25cb0(3));
+                    obj.r9_hr_callback_process_cycles=double(r25cb1(4)-r25cb0(4));
                 catch
                     callback_ok=false;
                 end
@@ -4315,6 +4432,37 @@ classdef REPLANNING_SYSTEM < handle
                 if deadlineExceeded
                     obj.generator_deadline_fail_count= ...
                         obj.generator_deadline_fail_count+1;
+                end
+
+                if ~(isfield(candidate,'success') && logical(candidate.success)) && ...
+                        ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
+                    obj.last_reference_only_evaluation=struct( ...
+                        'certified',false, ...
+                        'full_system_authority',false, ...
+                        'sampled_acceptance',false, ...
+                        'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                    obj.last_execution_aware_evaluation=struct( ...
+                        'certified',false, ...
+                        'full_system_authority',false, ...
+                        'sampled_acceptance',false, ...
+                        'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                    obj.generator_last_status_code=21;
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','REFERENCE_PROPOSAL_NOT_CERTIFIED', ...
+                        'proposal_reason_code',double(candidate.reason_code), ...
+                        'proposal_reason',obj.bezier_proposal_reason_text(candidate.reason_code), ...
+                        'proposal_generated',obj.logical_struct_field(candidate,'generated'), ...
+                        'proposal_t0',double(candidate.t0), ...
+                        'proposal_tm',double(candidate.tm), ...
+                        'proposal_t1',double(candidate.t1), ...
+                        'reference_certified',false, ...
+                        'execution_certified',false, ...
+                        'noncommit_diagnostics_deferred',true, ...
+                        'cycle_ms',cycle_ms, ...
+                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
+                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    return;
                 end
 
                 if ~(isfield(candidate,'success') && logical(candidate.success))
@@ -4381,6 +4529,30 @@ classdef REPLANNING_SYSTEM < handle
                         'cycle_ms',cycle_ms, ...
                         'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
                         'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    return;
+                end
+
+                if deadlineExceeded && ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
+                    obj.last_reference_only_evaluation=struct( ...
+                        'certified',false, ...
+                        'full_system_authority',false, ...
+                        'sampled_acceptance',false, ...
+                        'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                    obj.last_execution_aware_evaluation=struct( ...
+                        'certified',false, ...
+                        'full_system_authority',false, ...
+                        'sampled_acceptance',false, ...
+                        'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                    obj.generator_last_status_code=-20;
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','GENERATOR_DEADLINE_EXCEEDED__DIAGNOSTICS_DEFERRED', ...
+                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
+                        'reference_certified',false, ...
+                        'execution_certified',false, ...
+                        'noncommit_diagnostics_deferred',true, ...
+                        'cycle_ms',cycle_ms, ...
+                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s));
                     return;
                 end
 
@@ -4695,8 +4867,16 @@ classdef REPLANNING_SYSTEM < handle
             % -------------------------------------------------------------
             % CONTINUOUS NOMINAL UNSAFE EPISODES / OVERLAP COMPONENTS
             % -------------------------------------------------------------
+            r9TotalTic=tic;
+            r9StageTic=tic;
+            r25ep0=af7r25_stamp_mex();
             [EPI,okEpi]=obj.build_bezier_nominal_unsafe_episode_components( ...
                 OUT,CTX,searchEnd);
+            r25ep1=af7r25_stamp_mex();
+            obj.r9_hr_episode_wall_ms=1e3*double(r25ep1(1)-r25ep0(1))/double(r25ep0(2));
+            obj.r9_hr_episode_thread_cycles=double(r25ep1(3)-r25ep0(3));
+            obj.r9_hr_episode_process_cycles=double(r25ep1(4)-r25ep0(4));
+            OUT.r9_stage_timing.episode_ms=1e3*toc(r9StageTic);
             OUT.unsafe_episode_certificate=EPI;
             if ~okEpi || ~isstruct(EPI) || ~isfield(EPI,'component_count') || ...
                     double(EPI.component_count)<1
@@ -4720,8 +4900,15 @@ classdef REPLANNING_SYSTEM < handle
             % -------------------------------------------------------------
             % PIECEWISE MINIMUM-SNAP CORRIDOR SYNTHESIS
             % -------------------------------------------------------------
+            r9StageTic=tic;
+            r25sy0=af7r25_stamp_mex();
             [CANDS,SYN]=obj.build_bezier_piecewise_towing_candidates( ...
                 OUT,CTX,EPI,OUT.t1);
+            r25sy1=af7r25_stamp_mex();
+            obj.r9_hr_synthesis_wall_ms=1e3*double(r25sy1(1)-r25sy0(1))/double(r25sy0(2));
+            obj.r9_hr_synthesis_thread_cycles=double(r25sy1(3)-r25sy0(3));
+            obj.r9_hr_synthesis_process_cycles=double(r25sy1(4)-r25sy0(4));
+            OUT.r9_stage_timing.synthesis_ms=1e3*toc(r9StageTic);
             OUT.piecewise_synthesis_certificate=SYN;
             OUT.corridor_certificate=SYN;
             if isempty(CANDS)
@@ -4754,6 +4941,7 @@ classdef REPLANNING_SYSTEM < handle
             % QP objective.  The first independently certified candidate is
             % therefore the minimum-QP-cost member among the sign choices
             % that survive the hard reference-layer certificates.
+            r9StageTic=tic;
             for ic=1:numel(CANDS)
                 Q=CANDS(ic);
                 Ptry=OUT;
@@ -4852,6 +5040,8 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
+            OUT.r9_stage_timing.candidate_loop_ms=1e3*toc(r9StageTic);
+            OUT.r9_stage_timing.total_internal_ms=1e3*toc(r9TotalTic);
             OUT.piecewise_speed_pass_count=speedPass;
             OUT.piecewise_rejoin_pass_count=rejoinPass;
             OUT.piecewise_geometry_test_count=geomTests;
@@ -4904,12 +5094,17 @@ classdef REPLANNING_SYSTEM < handle
 
         function [EPI,ok] = build_bezier_nominal_unsafe_episode_components( ...
                 obj,P,CTX,searchEnd)
-            % Continuous nominal unsafe episodes, per detected obstacle.
-            % A dt cell is called safe only when the midpoint support margin
-            % dominates the certified nominal motion V*h for payload/UAV/
-            % cable.  Therefore episode boundaries are derived from a
-            % continuous-time sufficient certificate, not sampled collision
-            % acceptance.
+            % =============================================================
+            % AF7R27-R10A ADAPTIVE CONTINUOUS SUPPORT COVER
+            %
+            % A leaf is accepted SAFE only when the same continuous
+            % midpoint+speed support theorem certifies payload/UAV/cable
+            % throughout the whole leaf. Otherwise it is subdivided.
+            %
+            % There is no fixed depth authority. If an unresolved leaf
+            % reaches width <= live dt, it is conservatively UNSAFE.
+            % Binary64 non-splittability is also fail-closed UNSAFE.
+            % =============================================================
             LIV=CTX.live;
             O=CTX.obstacles;
             dt=double(LIV.dt);
@@ -4929,7 +5124,15 @@ classdef REPLANNING_SYSTEM < handle
                 'duration_s',{},'episode_indices',{});
             EPI.episode_count=0;
             EPI.component_count=0;
-            EPI.theorem='PER_OBSTACLE_CONTINUOUS_SUPPORT_CELL_UNSAFE_EPISODES';
+            EPI.adaptive_leaf_count=0;
+            EPI.adaptive_safe_leaf_count=0;
+            EPI.adaptive_unsafe_leaf_count=0;
+            EPI.adaptive_split_count=0;
+            EPI.representability_fail_closed_count=0;
+            EPI.theorem=[ ...
+                'ADAPTIVE_CONTINUOUS_SUPPORT_INTERVAL_COVER__' ...
+                'SAFE_ONLY_BY_WHOLE_LEAF_CERTIFICATE__' ...
+                'UNRESOLVED_LEQ_LIVE_DT_IS_UNSAFE'];
             ok=false;
 
             if ~(isfinite(t0)&&isfinite(searchEnd)&&searchEnd>t0&& ...
@@ -4937,41 +5140,90 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
             episodes=EPI.episodes;
+            tolMerge=64*eps(max([1,abs(t0),abs(searchEnd),abs(dt)]));
+
             for ii=1:M
-                ta=t0;
-                inUnsafe=false;
-                eStart=NaN;
-                while ta<searchEnd-8*eps(max(1,abs(searchEnd)))
-                    tb=min(searchEnd,ta+dt);
-                    if ~(tb>ta)
-                        break;
+                stackA=t0;
+                stackB=double(searchEnd);
+                unsafeA=zeros(0,1);
+                unsafeB=zeros(0,1);
+
+                while ~isempty(stackA)
+                    ta=stackA(end); stackA(end)=[];
+                    tb=stackB(end); stackB(end)=[];
+                    if ~(isfinite(ta)&&isfinite(tb)&&tb>ta)
+                        continue;
                     end
-                    safe=obj.nominal_reference_cell_continuously_safe_one_obstacle( ...
-                        P,ta,tb,CTX,ii);
-                    if ~safe && ~inUnsafe
-                        inUnsafe=true;
-                        eStart=ta;
-                    elseif safe && inUnsafe
-                        ee=struct('obstacle_index',ii, ...
+
+                    EPI.adaptive_leaf_count=EPI.adaptive_leaf_count+1;
+                    safe=obj.r10_nominal_interval_continuously_safe_one_obstacle( ...
+                        P,ta,tb,CTX,ii,SC);
+
+                    if safe
+                        EPI.adaptive_safe_leaf_count= ...
+                            EPI.adaptive_safe_leaf_count+1;
+                        continue;
+                    end
+
+                    width=tb-ta;
+                    if width<=dt+tolMerge
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        continue;
+                    end
+
+                    tm=0.5*(ta+tb);
+                    if ~(isfinite(tm)&&tm>ta&&tm<tb)
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        EPI.representability_fail_closed_count= ...
+                            EPI.representability_fail_closed_count+1;
+                        continue;
+                    end
+
+                    stackA(end+1)=tm; %#ok<AGROW>
+                    stackB(end+1)=tb; %#ok<AGROW>
+                    stackA(end+1)=ta; %#ok<AGROW>
+                    stackB(end+1)=tm; %#ok<AGROW>
+                    EPI.adaptive_split_count=EPI.adaptive_split_count+1;
+                end
+
+                if isempty(unsafeA)
+                    continue;
+                end
+
+                [unsafeA,ord]=sort(unsafeA);
+                unsafeB=unsafeB(ord);
+                es=unsafeA(1);
+                ee=unsafeB(1);
+                for ku=2:numel(unsafeA)
+                    if unsafeA(ku)<=ee+tolMerge
+                        ee=max(ee,unsafeB(ku));
+                    else
+                        episodes(end+1)=struct( ... %#ok<AGROW>
+                            'obstacle_index',ii, ...
                             'obstacle_id',double(O.ids(ii)), ...
-                            'start_s',double(eStart), ...
-                            'end_s',double(ta), ...
+                            'start_s',double(es), ...
+                            'end_s',double(ee), ...
                             'component_index',0);
-                        episodes(end+1)=ee; %#ok<AGROW>
-                        inUnsafe=false;
-                        eStart=NaN;
+                        es=unsafeA(ku);
+                        ee=unsafeB(ku);
                     end
-                    ta=tb;
                 end
-                if inUnsafe
-                    ee=struct('obstacle_index',ii, ...
-                        'obstacle_id',double(O.ids(ii)), ...
-                        'start_s',double(eStart), ...
-                        'end_s',double(searchEnd), ...
-                        'component_index',0);
-                    episodes(end+1)=ee; %#ok<AGROW>
-                end
+                episodes(end+1)=struct( ... %#ok<AGROW>
+                    'obstacle_index',ii, ...
+                    'obstacle_id',double(O.ids(ii)), ...
+                    'start_s',double(es), ...
+                    'end_s',double(ee), ...
+                    'component_index',0);
             end
 
             if isempty(episodes)
@@ -5008,6 +5260,65 @@ classdef REPLANNING_SYSTEM < handle
             EPI.component_count=numel(comps);
             EPI.certified=true;
             ok=true;
+        end
+
+
+        function tf = r10_nominal_interval_continuously_safe_one_obstacle( ...
+                obj,P,ta,tb,CTX,ii,SC)
+            % Same continuous theorem as the old cell routine. SC was
+            % validated once by the caller, avoiding repeated validation.
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            tf=false;
+
+            if ii<1 || ii>double(O.count)
+                return;
+            end
+
+            tc=0.5*(double(ta)+double(tb));
+            h=0.5*(double(tb)-double(ta));
+            if ~(isfinite(tc)&&isfinite(h)&&h>0)
+                return;
+            end
+
+            xd=double(P.base_flat_eval_fn(tc));
+            xd=xd(:);
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*h;
+
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+
+            [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+            if ~okL, return; end
+            [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+            if ~okQ, return; end
+            [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+            tf=okC;
         end
 
 
@@ -5080,6 +5391,14 @@ classdef REPLANNING_SYSTEM < handle
             E=numel(EPI.episodes);
             nslot=2*C;
             nvar=3*nslot;
+            obj.r9_synth_hessian_ms=NaN;
+            obj.r9_synth_corridor_ms=NaN;
+            obj.r9_synth_qp_ms=NaN;
+            obj.r9_synth_candidate_build_ms=NaN;
+            obj.r9_synth_row_count=NaN;
+            obj.r9_synth_episode_count=E;
+            obj.r9_synth_component_count=C;
+            obj.r9_synth_sign_count=2^E;
             SYN=struct('certified',false,'continuous_time',true, ...
                 'sampled_acceptance',false, ...
                 'representation','PIECEWISE_DEGREE15_C7_WITH_AFFINE_UNSAFE_COMPONENTS', ...
@@ -5102,6 +5421,7 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
+            r24tic=tic;
             Hs=obj.piecewise_minimum_snap_hessian(EPI.components, ...
                 double(P.t0),double(t1));
             if ~isequal(size(Hs),[nslot nslot]) || any(~isfinite(Hs(:)))
@@ -5109,11 +5429,13 @@ classdef REPLANNING_SYSTEM < handle
             end
             H=kron(Hs,eye(3));
             H=0.5*(H+H.');
+            obj.r9_synth_hessian_ms=1e3*toc(r24tic);
 
             OR=struct('rows_plus',{},'b_plus',{}, ...
                 'rows_minus',{},'b_minus',{},'normal',{}, ...
                 'episode_index',{},'obstacle_index',{},'component_index',{});
 
+            r24tic=tic;
             for ie=1:E
                 ep=EPI.episodes(ie);
                 jj=double(ep.component_index);
@@ -5154,18 +5476,32 @@ classdef REPLANNING_SYSTEM < handle
                     'component_index',jj); %#ok<AGROW>
             end
 
+            obj.r9_synth_corridor_ms=1e3*toc(r24tic);
+            rows24=0;
+            for ie24=1:numel(OR)
+                rows24=rows24+size(OR(ie24).rows_plus,1)+size(OR(ie24).rows_minus,1);
+            end
+            obj.r9_synth_row_count=rows24;
             BASE=struct('z',{},'qp_cost',{},'corridor_signs',{}, ...
                 'min_slack',{});
+            r24tic=tic;
+            r25qp0=af7r25_stamp_mex();
             BASE=obj.enumerate_piecewise_sign_qp_recursive( ...
                 H,OR,1,zeros(E,1),BASE);
+            r25qp1=af7r25_stamp_mex();
+            obj.r9_hr_qp_wall_ms=1e3*double(r25qp1(1)-r25qp0(1))/double(r25qp0(2));
+            obj.r9_hr_qp_thread_cycles=double(r25qp1(3)-r25qp0(3));
+            obj.r9_hr_qp_process_cycles=double(r25qp1(4)-r25qp0(4));
             SYN.sign_assignments_solved=2^E;
             SYN.fixed_sign_qp_feasible_count=numel(BASE);
+            obj.r9_synth_qp_ms=1e3*toc(r24tic);
             if isempty(BASE)
                 return;
             end
 
             [~,ord]=sort([BASE.qp_cost]);
             BASE=BASE(ord);
+            r24tic=tic;
             for ib=1:numel(BASE)
                 z=double(BASE(ib).z(:));
                 [seg0,seg1,kind,CP,pPos,pVel,okCP]= ...
@@ -5211,19 +5547,25 @@ classdef REPLANNING_SYSTEM < handle
                     'first_component_position',pPos(:,1), ...
                     'towing_structure_certificate',TOW);
             end
+            obj.r9_synth_candidate_build_ms=1e3*toc(r24tic);
             SYN.certified=~isempty(CANDS);
         end
 
 
         function [A,b,ok] = bezier_piecewise_episode_corridor_rows( ...
                 obj,P,CTX,EPI,episodeIndex,n,nvar)
-            % Whole-body continuous corridor rows for ONE unsafe episode and
-            % ONE fixed separator orientation n.
+            % =============================================================
+            % AF7R27-R10B CERTIFIED PROJECTED CORRIDOR COMPRESSION
             %
-            % On component j, d(t)=a_j+v_j(t-t_j^-).  For each nominal dt
-            % cell, midpoint support is inflated by nominal V*h.  Because
-            % n'd(t) is affine, enforcing the correction requirement at BOTH
-            % cell endpoints proves it for the entire cell without sampling.
+            % For fixed n, every raw row is
+            %   n'*a_j + s_i n'*v_j >= r_i.
+            % With u=n'*a_j, w=n'*v_j:
+            %   u >= r_i - s_i*w.
+            %
+            % Duplicate s values are merged by max(r). A middle row is
+            % removed only when it is strictly below the upper hull by more
+            % than a floating arithmetic guard. Ambiguous rows are retained.
+            % =============================================================
             ep=EPI.episodes(episodeIndex);
             jj=double(ep.component_index);
             tComp=double(EPI.components(jj).start_s);
@@ -5262,6 +5604,12 @@ classdef REPLANNING_SYSTEM < handle
             dt=double(LIV.dt);
             ta=double(ep.start_s);
             te=double(ep.end_s);
+
+            ncell=max(1,ceil((te-ta)/dt));
+            S=zeros(2*ncell+2,1);
+            B=zeros(2*ncell+2,1);
+            nr=0;
+
             while ta<te-8*eps(max(1,abs(te)))
                 tb=min(te,ta+dt);
                 tc=0.5*(ta+tb);
@@ -5270,6 +5618,7 @@ classdef REPLANNING_SYSTEM < handle
                 if numel(xd)<11 || any(~isfinite(xd(1:11)))
                     return;
                 end
+
                 pL=xd(1:3);
                 sf=xd(9:11)+[0;0;double(LIV.gravity)];
                 ns=norm(sf);
@@ -5282,6 +5631,7 @@ classdef REPLANNING_SYSTEM < handle
                 rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*half;
                 rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*half;
                 rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*half;
+
                 req=max([ ...
                     hObs+rhoL-dot(n,pL), ...
                     hObs+rhoQ-dot(n,pQ), ...
@@ -5291,21 +5641,111 @@ classdef REPLANNING_SYSTEM < handle
                 end
                 req=req+64*eps(max(1,abs(req)));
 
-                s0=ta-tComp;
-                s1=tb-tComp;
-                row0=zeros(1,nvar);
-                row1=zeros(1,nvar);
-                row0(pidx)=n.';
-                row1(pidx)=n.';
-                row0(vidx)=s0*n.';
-                row1(vidx)=s1*n.';
-                A(end+1,:)=row0; %#ok<AGROW>
-                b(end+1,1)=req; %#ok<AGROW>
-                A(end+1,:)=row1; %#ok<AGROW>
-                b(end+1,1)=req; %#ok<AGROW>
+                nr=nr+1;
+                S(nr)=ta-tComp;
+                B(nr)=req;
+                nr=nr+1;
+                S(nr)=tb-tComp;
+                B(nr)=req;
                 ta=tb;
             end
-            ok=~isempty(b) && all(isfinite(A(:))) && all(isfinite(b));
+
+            S=S(1:nr);
+            B=B(1:nr);
+            if isempty(S)
+                return;
+            end
+
+            keep=obj.r10_upper_envelope_row_indices(S,B);
+            if isempty(keep)
+                return;
+            end
+
+            S=S(keep);
+            B=B(keep);
+            nk=numel(S);
+            A=zeros(nk,nvar);
+            b=B(:);
+            A(:,pidx)=repmat(n.',nk,1);
+            A(:,vidx)=S(:)*n.';
+            ok=all(isfinite(A(:)))&&all(isfinite(b));
+        end
+
+
+        function keep = r10_upper_envelope_row_indices(~,S,B)
+            % AF7R30-R12 native equivalent fast path for same upper hull.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    keep=af7r30_support_hull_mex(2,double(S(:)),double(B(:)));
+                    keep=double(keep(:));
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            S=double(S(:));
+            B=double(B(:));
+            keep=zeros(0,1);
+            if numel(S)~=numel(B)||isempty(S)|| ...
+                    any(~isfinite(S))||any(~isfinite(B))
+                return;
+            end
+            [S,ord]=sort(S);
+            B=B(ord);
+
+            Su=zeros(numel(S),1);
+            Bu=zeros(numel(S),1);
+            Iu=zeros(numel(S),1);
+            nu=0;
+            k=1;
+            while k<=numel(S)
+                nu=nu+1;
+                ss=S(k);
+                j=k;
+                bb=B(k);
+                src=k;
+                while j<numel(S)&&S(j+1)==ss
+                    j=j+1;
+                    if B(j)>bb
+                        bb=B(j);
+                        src=j;
+                    end
+                end
+                Su(nu)=ss;
+                Bu(nu)=bb;
+                Iu(nu)=ord(src);
+                k=j+1;
+            end
+            Su=Su(1:nu); Bu=Bu(1:nu); Iu=Iu(1:nu);
+
+            H=zeros(nu,1);
+            nh=0;
+            for k=1:nu
+                while nh>=2
+                    i1=H(nh-1); i2=H(nh); i3=k;
+                    dx1=Su(i2)-Su(i1); dy1=Bu(i2)-Bu(i1);
+                    dx2=Su(i3)-Su(i2); dy2=Bu(i3)-Bu(i2);
+                    t1=dx1*dy2; t2=dy1*dx2; cr=t1-t2;
+                    scale=max([1,abs(t1),abs(t2),abs(dx1),abs(dx2),abs(dy1),abs(dy2)]);
+                    guard=128*eps(scale);
+                    if cr>guard
+                        nh=nh-1;
+                    elseif cr==0
+                        nh=nh-1;
+                    else
+                        break;
+                    end
+                end
+                nh=nh+1;
+                H(nh)=k;
+            end
+            H=H(1:nh);
+            keep=sort(Iu(H));
         end
 
 
@@ -5348,10 +5788,18 @@ classdef REPLANNING_SYSTEM < handle
 
         function [z,cost,minSlack,ok] = solve_piecewise_fixed_sign_qp( ...
                 ~,H,A,b)
+            % =============================================================
+            % AF7R27-R10C SMALL CONVEX QP
+            %
+            % Same QP as R8/R9. R10-B reduces only projected corridor rows.
+            % active-set is appropriate for the small dense online QP and is
+            % the algorithm supported by quadprog code generation.
+            % =============================================================
             z=nan(size(H,1),1);
             cost=NaN;
             minSlack=NaN;
             ok=false;
+
             if exist('quadprog','file')~=2 || isempty(A) || ...
                     size(H,1)~=size(H,2) || size(A,2)~=size(H,1) || ...
                     numel(b)~=size(A,1) || any(~isfinite([H(:);A(:);b(:)]))
@@ -5363,28 +5811,45 @@ classdef REPLANNING_SYSTEM < handle
             if ~(isfinite(hs)&&hs>0)
                 return;
             end
-            Hsolve=H/hs; % positive scalar scaling preserves the exact argmin
+
+            Hsolve=H/hs;
             f=zeros(size(H,1),1);
-            persistent QPOPT
-            if isempty(QPOPT)
-                QPOPT=optimoptions('quadprog','Display','off');
+            x0=zeros(size(H,1),1);
+
+            persistent QPOPT QPOPT_READY
+            if isempty(QPOPT_READY)
+                QPOPT_READY=true;
+                try
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set', ...
+                        'UseCodegenSolver',true);
+                catch
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set');
+                end
             end
+
             try
                 [zc,~,exitflag]=quadprog( ...
                     Hsolve,f,-double(A),-double(b(:)), ...
-                    [],[],[],[],[],QPOPT);
+                    [],[],[],[],x0,QPOPT);
             catch
                 return;
             end
-            if ~(exitflag>0 && numel(zc)==size(H,1) && all(isfinite(zc)))
+
+            if ~(exitflag>0&&numel(zc)==size(H,1)&&all(isfinite(zc)))
                 return;
             end
-            slack=double(A)*double(zc(:))-double(b(:));
-            tol=512*eps(max([ones(size(slack)),abs(double(b(:))), ...
-                abs(double(A)*double(zc(:)))],[],2));
+
+            Az=double(A)*double(zc(:));
+            slack=Az-double(b(:));
+            tol=512*eps(max([ones(size(slack)),abs(double(b(:))),abs(Az)],[],2));
             if any(slack < -tol)
                 return;
             end
+
             z=double(zc(:));
             cost=0.5*z.'*H*z;
             minSlack=min(slack);
@@ -7156,17 +7621,28 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function [margin,ok] = best_point_support_margin(obj,x,c,R,a,rho)
-            y=R.'*(x-c);
-            normals=[ ...
-                R*(y./(a.^2)), ...
-                (x-c) ...
-                ];
+            % AF7R30-R12 native equivalent fast path. Same two-normal theorem.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        0,double(x(:)),double(c(:)),double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
 
+            y=R.'*(x-c);
+            normals=[R*(y./(a.^2)),(x-c)];
             margin=-inf;
             ok=false;
             for kk=1:size(normals,2)
-                [m,v]=obj.support_margin_point( ...
-                    x,c,R,a,rho,normals(:,kk));
+                [m,v]=obj.support_margin_point(x,c,R,a,rho,normals(:,kk));
                 if v && m>margin
                     margin=m;
                     ok=true;
@@ -7177,8 +7653,25 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function [margin,ok] = best_segment_support_margin(obj,p0,p1,c,R,a,rho)
-            [~,~,xstar]=obj.bezier_segment_metric(p0,p1,c,R,a);
+            % AF7R30-R12 native equivalent fast path. Same closest-segment
+            % seed and same six support normals as the MATLAB fallback.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        1,double(p0(:)),double(p1(:)),double(c(:)), ...
+                        double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
 
+            [~,~,xstar]=obj.bezier_segment_metric(p0,p1,c,R,a);
             Y=[xstar,p0,p1];
             normals=zeros(3,0);
             for kk=1:size(Y,2)
@@ -8480,6 +8973,9 @@ classdef REPLANNING_SYSTEM < handle
                 'towing_structure_certificate',struct(), ...
                 'derivative_bound_certificate',struct(), ...
                 'local_vector_speed_certificate',struct(), ...
+                'r9_stage_timing',struct('episode_ms',NaN, ...
+                    'synthesis_ms',NaN,'candidate_loop_ms',NaN, ...
+                    'total_internal_ms',NaN), ...
                 'piecewise_segment_t0',[], ...
                 'piecewise_segment_t1',[], ...
                 'piecewise_segment_kind',{{}}, ...
@@ -8738,6 +9234,14 @@ classdef REPLANNING_SYSTEM < handle
                 obj.bezier_shadow_last_d4_ub=u(4);
                 obj.bezier_shadow_last_d5_ub=u(5);
                 obj.bezier_shadow_last_d6_ub=u(6);
+            end
+
+            if isfield(P,'r9_stage_timing') && isstruct(P.r9_stage_timing)
+                T9=P.r9_stage_timing;
+                if isfield(T9,'episode_ms'), obj.r9_stage_episode_ms=double(T9.episode_ms); end
+                if isfield(T9,'synthesis_ms'), obj.r9_stage_synthesis_ms=double(T9.synthesis_ms); end
+                if isfield(T9,'candidate_loop_ms'), obj.r9_stage_candidate_loop_ms=double(T9.candidate_loop_ms); end
+                if isfield(T9,'total_internal_ms'), obj.r9_stage_total_internal_ms=double(T9.total_internal_ms); end
             end
 
             if isfield(P,'geometry_shadow_certificate') && ...
@@ -10178,6 +10682,31 @@ classdef REPLANNING_SYSTEM < handle
             st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
             st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
             st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+            st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
+            st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
+            st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
+            st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
+            st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
+            st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
+            st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
+            st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+            st.r9_synth_row_count=obj.r9_synth_row_count;
+            st.r9_synth_episode_count=obj.r9_synth_episode_count;
+            st.r9_synth_component_count=obj.r9_synth_component_count;
+            st.r9_synth_sign_count=obj.r9_synth_sign_count;
+            st.r9_hr_request_seq=obj.r9_hr_request_seq;
+            st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
+            st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
+            st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
+            st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
+            st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
+            st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
+            st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
+            st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
+            st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
+            st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
+            st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
+            st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
             st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
             st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
             st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
@@ -11070,6 +11599,45 @@ classdef REPLANNING_SYSTEM < handle
                 end
             else
                 tq=struct('t',t_query,'dt',obj.prediction_dt);
+            end
+        end
+
+
+        function r12_tail_prime_hot_path(obj,time,varargin_in,xd_nom,tf)
+            % AF7R30-R12 tail-prime immediately before Flight.
+            if obj.r12_tail_prime_done
+                return;
+            end
+            tp=tic;
+            try
+                obj.assert_runtime_core_certificates_current();
+                xdP=obj.evaluate_active_reference_xd(double(tf),xd_nom);
+                [pQ,pL,~,~]=obj.get_current_physical_geometry(xdP);
+                [active,~,~,~]=obj.raw_sensor_gate(pQ,obj.static_obstacle_map);
+
+                args=varargin_in;
+                args{1}=obj.make_time_query(time,double(tf));
+                args{2}='f';
+                [pLref,qref,~]=obj.get_active_reference_packet( ...
+                    args{1},'f',args,xdP);
+                obj.trigger_core(active,pLref,qref,double(tf));
+
+                if isstruct(obj.obstacle_packet) && ...
+                        isfield(obj.obstacle_packet,'count') && ...
+                        double(obj.obstacle_packet.count)>=1
+                    P=obj.obstacle_packet;
+                    c=double(P.C(:,1));
+                    R=reshape(double(P.R(:,1)),3,3);
+                    a=double(P.Apay(:,1));
+                    obj.best_point_support_margin(pL,c,R,a,double(obj.r_load));
+                    obj.best_segment_support_margin(pQ,pL,c,R,a,double(obj.r_cable));
+                end
+                obj.r10_upper_envelope_row_indices([0;1;2],[1;0;1]);
+                obj.r12_tail_prime_done=true;
+                obj.r12_tail_prime_ms=1e3*toc(tp);
+            catch
+                obj.r12_tail_prime_done=false;
+                obj.r12_tail_prime_ms=NaN;
             end
         end
 
