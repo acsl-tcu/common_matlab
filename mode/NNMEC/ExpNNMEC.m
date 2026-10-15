@@ -40,7 +40,6 @@ agent.sensor.set_function_class("motive", MOTIVE(agent,motive, dt));
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 % ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 takeoff_zd = 1.0; % だいたい1m
-center = [base';takeoff_zd]; % base基準
 center = [0;0;takeoff_zd]; % 原点
 
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",center, "radius",[0,0,0]}, 4}); % center_hover
@@ -65,15 +64,18 @@ ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",ce
 agent.reference.set_function_class("time_varying", ref) % 最終的なset
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
+agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENCE(agent, "te",10))
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 
 
 agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
 % agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
+agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
 % Learn Exp
 ptName = "2026-7-23_11_28_41__DNN12__Exp_random__Euler__Activation=ReLU__100000epoch_model.pt";
+ptName = "2026-10-12_11_52_37__DNN12__Exp_random__Euler__Step=1__100000epoch_model.pt"; % 1個上の1step発展ver.
 
 agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
@@ -83,7 +85,7 @@ agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 % cha_allocation ==============================================
 agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.a.reference = "takeoff";
-agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.l.reference = "landing";
 
 agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
@@ -95,16 +97,17 @@ FS = 16; %FontSize
 LW = 1.5;%LineWidth
 app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
 
-% app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "q", "es"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p", "er"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "q", "e"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "inner_input", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 
+% app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",52, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % show_cooperative_animation(app);
 
 plot_calc_time(app.logger, app.time);

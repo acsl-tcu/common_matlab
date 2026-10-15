@@ -43,6 +43,7 @@ methods
 
         if cha == 't' || cha == 'f' || cha == 'l'
             wh = obj.self.estimator.result.state.w; % estimated state
+            varargin{1}.dt = 0.025;
             obj.self.estimator.(obj.self.estimator.name(1)).model.do(varargin{:}); % one step prediction using current input
             whn = obj.self.estimator.(obj.self.estimator.name(1)).model.state.w; % predicted state
             obj.self.estimator.(obj.self.estimator.name(1)).model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model

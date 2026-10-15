@@ -38,7 +38,7 @@ Setting.mode = SimBaseMode(15); % SimNNMEC PR時は消す
 % Setting.mode = ExpBaseMode(1); % ExpSuspendedLoad
 % Setting.mode = ExpBaseMode(4); % ExpTestMotiveConnection
 % Setting.mode = ExpBaseMode(5); % ExpHL
-% Setting.mode = ExpBaseMode(11);% ExpNNMEC
+Setting.mode = ExpBaseMode(11);% ExpNNMEC
 if contains(Setting.mode, "Exp")
     Setting.fExp = 1;
 else
