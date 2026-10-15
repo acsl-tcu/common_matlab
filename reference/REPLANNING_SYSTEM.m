@@ -1,5 +1,7 @@
 classdef REPLANNING_SYSTEM < handle
 % G27-V74R41R2: caller-compatible initialization order preserved.
+% G27-V74R30D2R41Z-DIRECT: suspended-load HLC gain authority is
+% Controller_HL_Suspended_Load(dt,agent); live F1..F4 are source-bound.
 % Constructor MUST NOT require agent.reference.takeoff.
 % Flight time origin is bound later during preflight warmup/table generation.
 % G27-V74R41R1: constructor-safe Flight-reference time-origin binding.
@@ -539,8 +541,8 @@ classdef REPLANNING_SYSTEM < handle
             obj.command_limit_certificate= ...
                 obj.build_active_command_limit_certificate();
 
-            % G27-V74R30D2R41Z actual suspended-load gain binding:
-            % capture the generator packet before binding the live handle.
+            % R41Z-DIRECT: bind the actual suspended-load gain generator before
+            % the live HLC handle is verified.  This remains setup/refresh only.
             obj.runtime_source_signature= ...
                 obj.capture_runtime_source_signature();
             obj.verify_live_controller_binding(false);
@@ -574,8 +576,6 @@ classdef REPLANNING_SYSTEM < handle
                     obj.prepare_obstacle_packet(obj.static_obstacle_map);
             end
 
-            obj.runtime_source_signature= ...
-                obj.capture_runtime_source_signature();
             obj.runtime_dependency_signature= ...
                 obj.capture_runtime_dependency_signature_fast();
 
@@ -610,6 +610,12 @@ classdef REPLANNING_SYSTEM < handle
                     logical(obj.command_limit_certificate.live_controller_verified);
             else
                 status.live_controller_verified=false;
+            end
+            if isfield(obj.command_limit_certificate,'live_gain_verified')
+                status.live_gain_verified= ...
+                    logical(obj.command_limit_certificate.live_gain_verified);
+            else
+                status.live_gain_verified=false;
             end
             status.actuator_dynamics=obj.actuator_dynamics_certificate;
             status.hlc_robust=obj.hlc_robust_certificate;
@@ -2434,6 +2440,14 @@ classdef REPLANNING_SYSTEM < handle
             sig.hlc_source=obj.runtime_source_signature.hlc_source;
             sig.hlc_settings_signature= ...
                 obj.runtime_source_signature.hlc_settings_signature;
+            sig.hlc_gain_generator= ...
+                obj.runtime_source_signature.hlc_gain_generator;
+            sig.hlc_gain_generator_source= ...
+                obj.runtime_source_signature.hlc_gain_generator_source;
+            sig.hlc_gain_packet_signature= ...
+                obj.runtime_source_signature.hlc_gain_packet_signature;
+            sig.hlc_binding_schema= ...
+                obj.runtime_source_signature.hlc_binding_schema;
         end
 
 
@@ -2454,8 +2468,8 @@ classdef REPLANNING_SYSTEM < handle
             obj.command_limit_certificate= ...
                 obj.build_active_command_limit_certificate();
 
-            % G27-V74R30D2R41Z actual suspended-load gain binding:
-            % capture the generator packet before binding the live handle.
+            % R41Z-DIRECT: bind the actual suspended-load gain generator before
+            % the live HLC handle is verified.  This remains setup/refresh only.
             obj.runtime_source_signature= ...
                 obj.capture_runtime_source_signature();
             obj.verify_live_controller_binding(false);
@@ -2474,8 +2488,6 @@ classdef REPLANNING_SYSTEM < handle
                 'stale',true, ...
                 'reason','HLC robust tracking-error certificate not installed yet');
 
-            obj.runtime_source_signature= ...
-                obj.capture_runtime_source_signature();
             obj.runtime_dependency_signature= ...
                 obj.capture_runtime_dependency_signature_fast();
 
@@ -2564,7 +2576,14 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function sig = capture_runtime_source_signature(obj)
-            % G27-V74R30D2R41Z actual suspended-load gain binding.
+            % =============================================================
+            % R41Z-DIRECT actual suspended-load HLC gain authority.
+            %
+            % run_flight_headless constructs the live controller as
+            %   HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent))
+            % so Controller_HL(dt) is NOT the gain authority for this controller.
+            % This heavy/source-bound capture is setup/refresh only.
+            % =============================================================
             sig=struct();
             sig.command_limit_source_signature= ...
                 obj.command_limit_certificate.source_line_signature;
@@ -2575,14 +2594,13 @@ classdef REPLANNING_SYSTEM < handle
             assert(~isempty(gainSource) && isfile(gainSource), ...
                 '[REPLANNER ERROR] suspended-load HLC gain generator source unresolved.');
 
-            % run_flight_headless constructs HLC_SUSPENDED_LOAD from exactly
-            % this function before attaching the controller to agent.  It is
-            % therefore constructor-safe to evaluate here as well.
+            % Suppress diagnostic console output produced inside the current
+            % gain generator while preserving its exact numerical result.
             evalc('S=Controller_HL_Suspended_Load(obj.prediction_dt,obj.self);');
             P=obj.extract_hlc_gain_packet(S);
 
-            % Preserve legacy field names used by dependency certificates,
-            % but bind them to the ACTUAL suspended-load gain authority.
+            % Preserve legacy dependency-field names, but bind them to the
+            % ACTUAL suspended-load gain authority.
             sig.hlc_source=gainSource;
             sig.hlc_settings_signature=obj.serialize_numeric_struct(S);
 
@@ -2591,9 +2609,8 @@ classdef REPLANNING_SYSTEM < handle
             sig.hlc_gain_packet=P;
             sig.hlc_gain_packet_signature=obj.serialize_numeric_struct(P);
             sig.hlc_controller_source=which('HLC_SUSPENDED_LOAD');
-            sig.hlc_binding_schema='R41Z_ACTUAL_SUSPENDED_LOAD_GAIN_BINDING_V1';
+            sig.hlc_binding_schema='R41Z_DIRECT_ACTUAL_SUSPENDED_LOAD_GAIN_BINDING_V1';
         end
-
 
         function update_runtime_dependency_state_fast(obj,cha)
             % =============================================================
@@ -2977,6 +2994,7 @@ classdef REPLANNING_SYSTEM < handle
             cert.limits=LIM;
             cert.source='HLC_COMMAND_CLAMP_SOURCE_TRUTH';
             cert.live_controller_verified=false;
+            cert.live_gain_verified=false;
             cert.live_controller_path='';
             cert.initialization_binding='CLASS_SOURCE_BEFORE_LIVE_CONTROLLER';
         end
@@ -2984,12 +3002,12 @@ classdef REPLANNING_SYSTEM < handle
 
         function verify_live_controller_binding(obj,required_now)
             % =============================================================
-            % G27-V74R30D2R41Z actual suspended-load controller binding.
+            % R41Z-DIRECT live suspended-load HLC binding.
             %
-            % Initial binding checks class/source + cached generator F1..F4.
-            % Once verified, the hot path re-checks only the small cached
-            % gain packet.  Controller_HL_Suspended_Load/lqrd is NOT rerun
-            % every control cycle.
+            % One-time binding verifies class/source + actual F1..F4 against
+            % Controller_HL_Suspended_Load(dt,agent).  After binding, each call
+            % performs only an exact comparison of the small cached F1..F4
+            % packet; the gain generator/lqrd is never rerun in the hot loop.
             % =============================================================
             if nargin<2
                 required_now=false;
@@ -3018,28 +3036,26 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            assert(isa(ctrl,cert.controller_class), ...
-                '[REPLANNER ERROR] live controller class differs from command-limit certificate.');
-
-            % Source signature must have been built before live binding.
             assert(isstruct(obj.runtime_source_signature) && ...
                 isfield(obj.runtime_source_signature,'hlc_gain_packet') && ...
                 isfield(obj.runtime_source_signature,'hlc_gain_generator') && ...
-                strcmp(obj.runtime_source_signature.hlc_gain_generator, ...
-                       'Controller_HL_Suspended_Load'), ...
+                strcmp(char(obj.runtime_source_signature.hlc_gain_generator), ...
+                    'Controller_HL_Suspended_Load'), ...
                 ['[REPLANNER ERROR] actual suspended-load HLC source signature ' ...
                  'is unavailable/stale; refresh outside Flight.']);
 
+            assert(isa(ctrl,cert.controller_class), ...
+                '[REPLANNER ERROR] live controller class differs from command-limit certificate.');
             assert(isprop(ctrl,'param') && isstruct(ctrl.param), ...
                 '[REPLANNER ERROR] live HLC parameter packet is unavailable.');
 
             expected=obj.runtime_source_signature.hlc_gain_packet;
-            gainOK=obj.hlc_gain_packets_fp_equal(ctrl.param,expected);
-
+            gainOK=obj.hlc_gain_packets_exact_equal(ctrl.param,expected);
             if ~gainOK
                 cert.live_controller_verified=false;
                 cert.live_gain_verified=false;
-                cert.live_binding_reason='LIVE_HLC_GAIN_PACKET_DIFFERS_FROM_CAPTURED_SUSPENDED_LOAD_GENERATOR';
+                cert.live_binding_reason= ...
+                    'LIVE_HLC_GAIN_PACKET_DIFFERS_FROM_SUSPENDED_LOAD_GENERATOR';
                 obj.command_limit_certificate=cert;
                 if isstruct(obj.certificate_stale) && ...
                         isfield(obj.certificate_stale,'HLC_ROBUST_CERT')
@@ -3049,8 +3065,9 @@ classdef REPLANNING_SYSTEM < handle
                     'Controller_HL_Suspended_Load source-bound packet.']);
             end
 
-            % If already fully verified, the cheap gain comparison above is
-            % the complete hot-path revalidation.
+            % Cheap steady-state path: exact gain equality above is the only
+            % recurring check.  No which(), fileread(), lqrd(), or generator
+            % reevaluation occurs after the one-time source binding.
             if isfield(cert,'live_controller_verified') && ...
                     logical(cert.live_controller_verified) && ...
                     isfield(cert,'live_gain_verified') && ...
@@ -3058,7 +3075,6 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            % One-time full class/source check at initial live binding.
             live_source=which(class(ctrl));
             assert(~isempty(live_source) && isfile(live_source), ...
                 '[REPLANNER ERROR] live controller source file unresolved.');
@@ -3067,8 +3083,12 @@ classdef REPLANNING_SYSTEM < handle
                  'the source used for command-limit certification.']);
 
             gain_source=which('Controller_HL_Suspended_Load');
-            assert(strcmp(gain_source,obj.runtime_source_signature.hlc_gain_generator_source), ...
-                '[REPLANNER ERROR] suspended-load gain-generator source path changed; refresh required.');
+            assert(~isempty(gain_source) && isfile(gain_source), ...
+                '[REPLANNER ERROR] suspended-load gain generator source unresolved.');
+            assert(strcmp(gain_source, ...
+                    obj.runtime_source_signature.hlc_gain_generator_source), ...
+                ['[REPLANNER ERROR] suspended-load gain-generator source path ' ...
+                 'changed; refresh certificates outside Flight.']);
 
             cert.live_controller_verified=true;
             cert.live_gain_verified=true;
@@ -3077,12 +3097,12 @@ classdef REPLANNING_SYSTEM < handle
             cert.live_controller_source=live_source;
             cert.live_gain_generator='Controller_HL_Suspended_Load';
             cert.live_gain_generator_source=gain_source;
-            cert.live_gain_signature= ...
-                obj.serialize_numeric_struct(obj.extract_hlc_gain_packet(ctrl.param));
-            cert.live_binding_reason='CLASS_SOURCE_AND_ACTUAL_SUSPENDED_LOAD_GAIN_PACKET_MATCH';
+            cert.live_gain_signature=obj.serialize_numeric_struct( ...
+                obj.extract_hlc_gain_packet(ctrl.param));
+            cert.live_binding_reason= ...
+                'CLASS_SOURCE_AND_ACTUAL_SUSPENDED_LOAD_GAIN_PACKET_MATCH';
             obj.command_limit_certificate=cert;
         end
-
 
         function cert = build_current_actuator_dynamics_certificate(obj)
             cmd=obj.command_limit_certificate;
@@ -3190,11 +3210,49 @@ classdef REPLANNING_SYSTEM < handle
             req={'F1','F2','F3','F4'};
             assert(isstruct(S) && all(isfield(S,req)), ...
                 '[REPLANNER ERROR] suspended-load HLC gain packet is incomplete.');
+
             P=struct();
             for kk=1:numel(req)
-                v=double(S.(req{kk}));
+                v=S.(req{kk});
                 assert(isnumeric(v) && ~isempty(v) && all(isfinite(v(:))), ...
-                    '[REPLANNER ERROR] suspended-load HLC gain         function sig = serialize_numeric_struct(~,S)
+                    '[REPLANNER ERROR] suspended-load HLC gain %s is invalid.',req{kk});
+                P.(req{kk})=double(v);
+            end
+            if isfield(S,'dt')
+                vdt=double(S.dt);
+                assert(isscalar(vdt) && isfinite(vdt) && vdt>0, ...
+                    '[REPLANNER ERROR] suspended-load HLC gain-packet dt is invalid.');
+                P.dt=vdt;
+            end
+        end
+
+
+        function tf = hlc_gain_packets_exact_equal(~,A,B)
+            % Exact equality is intentional: the live controller and cached
+            % packet are created from the same deterministic generator call.
+            % No empirical/tuned tolerance is introduced into authority.
+            req={'F1','F2','F3','F4'};
+            tf=isstruct(A) && isstruct(B) && ...
+                all(isfield(A,req)) && all(isfield(B,req));
+            if ~tf
+                return;
+            end
+
+            for kk=1:numel(req)
+                a=A.(req{kk});
+                b=B.(req{kk});
+                if ~isnumeric(a) || ~isnumeric(b) || ...
+                        ~isequal(size(a),size(b)) || ...
+                        any(~isfinite(a(:))) || any(~isfinite(b(:))) || ...
+                        ~isequaln(double(a),double(b))
+                    tf=false;
+                    return;
+                end
+            end
+        end
+
+
+        function sig = serialize_numeric_struct(~,S)
             fn=sort(fieldnames(S));
             parts={};
 

@@ -44,7 +44,7 @@ motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}});
 motive.getData(agent);
 
 % drone setting
-agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p"],"p"}));
+agent.sensor.set_function_class("motive", MOTIVE(agent, motive,"output_func",@motive_output,"rigid_id",[1,2],"state_list",{["p","q"],"p"}));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad(agent,dt,...
     MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state, 1,agent,"Load_mL_HL")),...
     ["p", "q","pL","pT"])));
