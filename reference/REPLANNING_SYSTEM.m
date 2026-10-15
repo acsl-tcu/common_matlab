@@ -203,6 +203,7 @@ classdef REPLANNING_SYSTEM < handle
         nominal_table_pL         = [];     % 事前計算済み荷物位置行列 (3×K)
         nominal_table_q          = [];     % 事前計算済み索姿勢ベクトル行列 (3×K)
         nominal_table_xd         = [];     % 同じ base_ref.do() で事前計算した完全 xd 行列 (D×K)
+        nominal_acceleration_fn  = [];     % exact d^2/dt^2 of base_ref position law
         nominal_table_build_ms   = NaN;    % テーブル事前生成所要時間 [ms]
         nominal_table_eval_count = 0;      % 飛行中のテーブル参照カウント
 
@@ -245,6 +246,23 @@ classdef REPLANNING_SYSTEM < handle
         % MEX 用外接楕円体の intersample sweep inflation のみに使用する。
         active_speed_certificate = struct();
         trigger_sweep_inflation  = struct();
+
+        % Optional GENERAL continuous-time bound provider for a NOMINAL
+        % reference whose speed/acceleration/jerk norms are not provably
+        % constant from the symbolic source.
+        %
+        % Contract:
+        %   B = fn(CTX)
+        % where B must contain certified=true, continuous_time=true,
+        % sampled_acceptance=false and hard upper bounds
+        %   payload_speed_UB_m_s
+        %   payload_accel_UB_m_s2
+        %   payload_jerk_UB_m_s3
+        % Optional:
+        %   specific_force_norm_LB_m_s2
+        %
+        % This is a proof-interface, not a trajectory-specific threshold.
+        NOMINAL_DERIVATIVE_BOUND_FN = [];
 
         % -----------------------------------------------------------------
         % 【G27-V38 dependency-aware runtime certificate manager】
@@ -1075,6 +1093,9 @@ classdef REPLANNING_SYSTEM < handle
             end
             if isfield(opts,'takeoff_end_s'), obj.takeoff_end_s=opts.takeoff_end_s; end
             if isfield(opts,'reference_packet_fn'), obj.reference_packet_fn=opts.reference_packet_fn; end
+            if isfield(opts,'NOMINAL_DERIVATIVE_BOUND_FN')
+                obj.NOMINAL_DERIVATIVE_BOUND_FN=opts.NOMINAL_DERIVATIVE_BOUND_FN;
+            end
             if isfield(opts,'hard_modify_deadline_s')
                 obj.hard_modify_deadline_s=opts.hard_modify_deadline_s;
             end
@@ -1347,6 +1368,7 @@ classdef REPLANNING_SYSTEM < handle
             % -------------------------------------------------------------
             timing_props=[ ...
                 "rt_light_e2e_ms", ...
+                "rt_observer_ms", ...
                 "rt_spike_capture_time", ...
                 "rt_spike_total_ms", ...
                 "rt_spike_stage_front_ms", ...
@@ -1468,6 +1490,7 @@ classdef REPLANNING_SYSTEM < handle
             % controller+plant. Constructor/startup order is untouched.
             % Existing rt_light_e2e_ms automatically includes this cost.
             % -------------------------------------------------------------
+            dt_observer_ms=NaN;
             if obj.ENABLE_OBSERVER_HARD_SUPPORT && ...
                     obj.observer_is_real_control_event(cha)
                 t_observer_addon=tic;
@@ -1945,6 +1968,7 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_output_state_ms=1e3*toc(t_light_e2e);
                 st.rt_light_e2e_ms=cp_output_state_ms;
+                st.rt_observer_ms=dt_observer_ms;
 
                 % Capture only rare slow cycles. The production total above is
                 % measured before these diagnostic writes.
@@ -2029,37 +2053,36 @@ classdef REPLANNING_SYSTEM < handle
 
         function cert = build_nominal_active_speed_certificate(obj)
             % =============================================================
-            % Exact nominal continuous-time speed certificate derived from
-            % the CURRENT TIME_VARYING_REFERENCE position law itself.
+            % GENERAL continuous-time NOMINAL kinematic bound certificate.
             %
-            % IMPORTANT:
-            %   Do NOT assume xd(9:11) is d/dt xd(5:7).
-            %   Some legacy Sim reference generators provide a position/
-            %   velocity-consistent packet but leave higher derivative
-            %   slots non-geometric.  The existing Sim/HLC accepts that
-            %   packet, so the replanner must not add a new incompatibility.
+            % The theorem does NOT require constant speed.
             %
-            % Authority used here:
-            %   pL(t)       = xd(1:3)
-            %   vL_packet   = xd(5:7), checked against d/dt pL(t)
-            %   vL(t)       = d/dt pL(t)
-            %   aL(t)       = d^2/dt^2 pL(t)
-            %   jL(t)       = d^3/dt^3 pL(t)
+            % From the exact position law pL(t):
+            %   vL = pLdot, aL = pLddot, jL = pLdddot.
             %
-            % Suspended-load nominal cable direction:
-            %   s(t)        = aL(t) + g e3
-            %   pT*(t)      = -s/||s||
+            % Let hard continuous-time bounds be
+            %   ||vL|| <= V_L,
+            %   ||aL|| <= A_L,
+            %   ||jL|| <= J_L.
             %
-            % because pT points from UAV to payload and pT*=-e3 at hover.
+            % Define s = aL + g e3 and pT* = -s/||s||.  If
+            %   sigma = inf_t ||s(t)|| > 0,
+            % then
+            %   ||pTdot|| <= J_L / sigma
+            % because
+            %   pTdot = -(I-pT pT') jL / ||s||.
             %
-            % Then
-            %   pQ*(t)      = pL(t) - L pT*(t)
-            %   vQ*(t)      = vL(t) - L d/dt pT*(t)
+            % Hence for pQ = pL - L pT,
+            %   ||vQ|| <= V_L + L J_L/sigma.
             %
-            % Current exact auto-certificate closes references for which
-            % ||vL|| and ||vQ|| are time-invariant after symbolic
-            % simplification.  If not, fail closed and require a separate
-            % theorem-backed global bound; never use sampled maxima.
+            % Automatic setup prover:
+            %   If the relevant squared norm is symbolically constant, use
+            %   its exact value.  Otherwise use the GENERAL certified bound
+            %   provider NOMINAL_DERIVATIVE_BOUND_FN.  Therefore
+            %   time-invariant speed/acceleration/jerk is NOT a production
+            %   requirement.
+            %
+            % No sampled maxima are accepted.
             % =============================================================
 
             assert(strcmpi(char(obj.active_reference_mode),'NOMINAL'), ...
@@ -2067,8 +2090,8 @@ classdef REPLANNING_SYSTEM < handle
                  'while active_reference_mode is not NOMINAL.']);
 
             assert(isa(obj.base_ref,'TIME_VARYING_REFERENCE'), ...
-                ['[REPLANNER ERROR] exact nominal speed certificate requires ' ...
-                 'TIME_VARYING_REFERENCE base_ref.']);
+                ['[REPLANNER ERROR] exact nominal kinematic certificate ' ...
+                 'requires TIME_VARYING_REFERENCE base_ref.']);
 
             assert(isprop(obj.base_ref,'func') && ...
                 isa(obj.base_ref.func,'function_handle'), ...
@@ -2083,9 +2106,6 @@ classdef REPLANNING_SYSTEM < handle
             pL=simplify(xd_sym(1:3));
             vL_packet=simplify(xd_sym(5:7));
 
-            % Only the position/velocity relation is required from the
-            % legacy reference packet.  Higher derivatives are generated
-            % directly from the exact position law below.
             vL=simplify(diff(pL,t));
             assert(obj.symbolic_vector_equal(vL,vL_packet), ...
                 '[REPLANNER ERROR] nominal xd(5:7) is not d/dt xd(1:3).');
@@ -2093,108 +2113,160 @@ classdef REPLANNING_SYSTEM < handle
             aL=simplify(diff(vL,t));
             jL=simplify(diff(aL,t));
 
+            % Setup-only exact acceleration evaluator used by future
+            % reference packet construction.  This removes legacy reliance
+            % on xd(9:11), which is not guaranteed to be the true second
+            % derivative for every TIME_VARYING_REFERENCE generator.
+            obj.nominal_acceleration_fn=matlabFunction(aL,'Vars',t);
+
+            [VL,vConst]=obj.exact_constant_vector_norm_ub(vL,t);
+            [AL,aConst]=obj.exact_constant_vector_norm_ub(aL,t);
+            [JL,jConst]=obj.exact_constant_vector_norm_ub(jL,t);
+
+            providerUsed=false;
+            provider=struct();
+
+            needProvider=~isfinite(VL) || ~isfinite(AL) || ~isfinite(JL);
+            if needProvider
+                fn=obj.NOMINAL_DERIVATIVE_BOUND_FN;
+                assert(isa(fn,'function_handle'), ...
+                    ['[REPLANNER ERROR] current NOMINAL reference has a ' ...
+                     'nonconstant derivative norm. Install the GENERAL ' ...
+                     'continuous-time NOMINAL_DERIVATIVE_BOUND_FN; sampled ' ...
+                     'maxima are forbidden.']);
+
+                CTX=struct();
+                CTX.schema='REPLANNING_NOMINAL_DERIVATIVE_BOUND_REQUEST_V1';
+                CTX.reference_class=class(obj.base_ref);
+                CTX.func_text=fstr;
+                CTX.symbolic_time=t;
+                CTX.symbolic_position=pL;
+                CTX.symbolic_velocity=vL;
+                CTX.symbolic_acceleration=aL;
+                CTX.symbolic_jerk=jL;
+                CTX.gravity=double(obj.gravity);
+                CTX.cable_length=double(obj.L_cable);
+                CTX.required_continuous_time=true;
+                CTX.sampled_acceptance_forbidden=true;
+
+                provider=fn(CTX);
+                obj.validate_nominal_derivative_bound_provider(provider);
+
+                if ~isfinite(VL)
+                    VL=double(provider.payload_speed_UB_m_s);
+                end
+                if ~isfinite(AL)
+                    AL=double(provider.payload_accel_UB_m_s2);
+                end
+                if ~isfinite(JL)
+                    JL=double(provider.payload_jerk_UB_m_s3);
+                end
+                providerUsed=true;
+            end
+
+            assert(all(isfinite([VL AL JL])) && all([VL AL JL]>=0), ...
+                '[REPLANNER ERROR] nominal continuous derivative bounds invalid.');
+
             % -------------------------------------------------------------
-            % Payload nominal speed: exact global constant-norm closure.
+            % General cable-direction lower bound.
             % -------------------------------------------------------------
-            speedL2=simplify(vL.'*vL);
-            assert(obj.symbolic_zero(simplify(diff(speedL2,t))), ...
-                ['[REPLANNER ERROR] current nominal payload speed norm is ' ...
-                 'not time-invariant. Install a theorem-backed global speed ' ...
-                 'bound instead of using a sampled maximum.']);
+            % Default theorem:
+            %   ||aL + g e3|| >= g - ||aL|| >= g - A_L.
+            % A certified provider may supply a tighter direct lower bound.
+            g=double(obj.gravity);
+            sigmaLB=g-AL;
 
-            VL2=double(simplify(speedL2));
-            assert(isscalar(VL2)&&isfinite(VL2)&&VL2>=0, ...
-                '[REPLANNER ERROR] exact nominal payload speed^2 invalid.');
-            VL=sqrt(max(0,VL2));
+            if providerUsed && isfield(provider,'specific_force_norm_LB_m_s2')
+                q=double(provider.specific_force_norm_LB_m_s2);
+                if isscalar(q) && isfinite(q) && q>0
+                    sigmaLB=max(sigmaLB,q);
+                end
+            end
 
-            % -------------------------------------------------------------
-            % Exact nominal suspended-load cable geometry.
-            % -------------------------------------------------------------
-            g=sym(double(obj.gravity));
-            L=sym(double(obj.L_cable));
-            e3=sym([0;0;1]);
+            assert(isfinite(sigmaLB) && sigmaLB>0, ...
+                ['[REPLANNER ERROR] cannot certify ||aL+g e3|| away from zero. ' ...
+                 'Provide a certified positive specific_force_norm_LB_m_s2 ' ...
+                 'or a tighter continuous acceleration bound.']);
 
-            svec=simplify(aL + g*e3);
-            sNorm2=simplify(svec.'*svec);
+            qdotUB=JL/sigmaLB;
+            VQ=VL+double(obj.L_cable)*qdotUB;
 
-            % The normalization must be nonsingular for all time.  The
-            % present automatic proof closes the common constant-norm case
-            % exactly (including horizontal circular/saddle references).
-            assert(obj.symbolic_zero(simplify(diff(sNorm2,t))), ...
-                ['[REPLANNER ERROR] ||aL+g e3|| is not time-invariant. ' ...
-                 'Install a theorem-backed positive lower bound before ' ...
-                 'normalizing the nominal cable direction.']);
-
-            sNorm2Num=double(simplify(sNorm2));
-            assert(isscalar(sNorm2Num)&&isfinite(sNorm2Num)&&sNorm2Num>0, ...
-                ['[REPLANNER ERROR] nominal cable-direction normalization ' ...
-                 'is singular or non-positive.']);
-
-            pTdes=simplify(-svec/sqrt(sNorm2));
-            pTdot=simplify(diff(pTdes,t));
-
-            % Exact unit/tangent theorem:
-            % pT=-s/sqrt(s'*s), with s'*s>0 already certified above.
-            % Therefore pT'*pT=1 identically by construction and
-            % differentiation gives pT'*pTdot=0.  Do not make production
-            % correctness depend on CAS simplification of sqrt(g^2).
-            pT_unit_by_normalization=true;
-            pT_tangent_by_unit_identity=true;
-
-            % -------------------------------------------------------------
-            % UAV nominal speed from pQ = pL - L pT.
-            % -------------------------------------------------------------
-            vQ=simplify(vL - L*pTdot);
-            speedQ2=simplify(vQ.'*vQ);
-
-            assert(obj.symbolic_zero(simplify(diff(speedQ2,t))), ...
-                ['[REPLANNER ERROR] current nominal UAV speed norm is not ' ...
-                 'time-invariant. Install a theorem-backed global UAV speed ' ...
-                 'bound instead of using a sampled maximum.']);
-
-            VQ2=double(simplify(speedQ2));
-            assert(isscalar(VQ2)&&isfinite(VQ2)&&VQ2>=0, ...
-                '[REPLANNER ERROR] exact nominal UAV speed^2 invalid.');
-            VQ=sqrt(max(0,VQ2));
-
-            qdot2=simplify(pTdot.'*pTdot);
-            assert(obj.symbolic_zero(simplify(diff(qdot2,t))), ...
-                ['[REPLANNER ERROR] current nominal cable angular-rate norm ' ...
-                 'is not time-invariant. Install a theorem-backed global ' ...
-                 'qdot bound instead of using a sampled maximum.']);
-
-            qdot2Num=double(simplify(qdot2));
-            assert(isscalar(qdot2Num)&&isfinite(qdot2Num)&&qdot2Num>=0, ...
-                '[REPLANNER ERROR] exact nominal qdot^2 invalid.');
-            qdotUB=sqrt(max(0,qdot2Num));
+            assert(isfinite(qdotUB)&&qdotUB>=0&&isfinite(VQ)&&VQ>=0, ...
+                '[REPLANNER ERROR] derived cable/UAV speed bound invalid.');
 
             cert=struct();
             cert.certified=true;
+            cert.continuous_time=true;
+            cert.sampled_acceptance=false;
             cert.reference_mode='NOMINAL';
             cert.reference_version=double(obj.active_reference_version);
             cert.reference_class=class(obj.base_ref);
             cert.func_text=fstr;
 
             cert.payload_speed_UB_m_s=VL;
-            cert.uav_speed_UB_m_s=VQ;
+            cert.payload_accel_UB_m_s2=AL;
+            cert.payload_jerk_UB_m_s3=JL;
+            cert.specific_force_norm_LB_m_s2=sigmaLB;
             cert.qdot_UB_rad_s=qdotUB;
+            cert.uav_speed_UB_m_s=VQ;
 
-            cert.payload_speed_constant=true;
-            cert.uav_speed_constant=true;
-            cert.cable_rate_constant=true;
-            cert.pT_unit_by_normalization=pT_unit_by_normalization;
-            cert.pT_tangent_by_unit_identity=pT_tangent_by_unit_identity;
+            cert.payload_speed_constant=logical(vConst);
+            cert.payload_accel_norm_constant=logical(aConst);
+            cert.payload_jerk_norm_constant=logical(jConst);
+            cert.constant_norm_required=false;
+            cert.general_bound_provider_used=logical(providerUsed);
 
-            % Legacy higher-derivative packet fields are deliberately not
-            % promoted to authority here.
+            % Compatibility diagnostics only.  They are NOT prerequisites
+            % for any final/general theorem.
+            aL_zero=obj.symbolic_vector_equal(aL,sym(zeros(3,1)));
+            cert.nominal_acceleration_zero=logical(aL_zero);
+            if aL_zero
+                vL_const=double(simplify(vL));
+                if numel(vL_const)==3 && all(isfinite(vL_const(:)))
+                    cert.payload_velocity_vector_m_s=vL_const(:);
+                end
+            end
+
             cert.xd_9_11_promoted=false;
-            cert.sampled_maximum_used=false;
             cert.source= ...
-                'EXACT_CURRENT_NOMINAL_POSITION_LAW_DERIVATIVES_AND_CABLE_GEOMETRY';
-
-            % Symbolic objects are intentionally NOT retained in the
-            % production certificate.  They are setup-only proof machinery.
+                'GENERAL_CONTINUOUS_REFERENCE_DERIVATIVE_BOUNDS_AND_CABLE_KINEMATICS';
             cert.symbolic_objects_retained=false;
+        end
+
+
+        function [ub,isConst] = exact_constant_vector_norm_ub(obj,v,t)
+            q=simplify(v.'*v);
+            isConst=obj.symbolic_zero(simplify(diff(q,t)));
+            ub=NaN;
+            if ~isConst
+                return;
+            end
+            qn=double(simplify(q));
+            assert(isscalar(qn)&&isfinite(qn)&&qn>=0, ...
+                '[REPLANNER ERROR] exact constant vector norm is invalid.');
+            ub=sqrt(max(0,qn));
+        end
+
+
+        function validate_nominal_derivative_bound_provider(~,B)
+            assert(isstruct(B) && isscalar(B), ...
+                '[REPLANNER ERROR] nominal derivative-bound provider must return a scalar struct.');
+            req={'certified','continuous_time','sampled_acceptance', ...
+                'payload_speed_UB_m_s','payload_accel_UB_m_s2', ...
+                'payload_jerk_UB_m_s3'};
+            for k=1:numel(req)
+                assert(isfield(B,req{k}), ...
+                    '[REPLANNER ERROR] nominal derivative-bound provider missing %s.',req{k});
+            end
+            assert(logical(B.certified) && logical(B.continuous_time) && ...
+                ~logical(B.sampled_acceptance), ...
+                ['[REPLANNER ERROR] nominal derivative-bound provider is ' ...
+                 'not a continuous-time non-sampled certificate.']);
+            z=[double(B.payload_speed_UB_m_s), ...
+               double(B.payload_accel_UB_m_s2), ...
+               double(B.payload_jerk_UB_m_s3)];
+            assert(all(isfinite(z)) && all(z>=0), ...
+                '[REPLANNER ERROR] nominal derivative-bound provider returned invalid bounds.');
         end
 
 
@@ -2233,7 +2305,7 @@ classdef REPLANNING_SYSTEM < handle
                 '[REPLANNER ERROR] active speed certificate is not certified.');
 
             req={'reference_mode','reference_version', ...
-                 'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+                 'payload_speed_UB_m_s','uav_speed_UB_m_s','qdot_UB_rad_s'};
             for k=1:numel(req)
                 assert(isfield(cert,req{k}), ...
                     '[REPLANNER ERROR] speed certificate missing field %s.', ...
@@ -2261,8 +2333,10 @@ classdef REPLANNING_SYSTEM < handle
 
             VL=cert.payload_speed_UB_m_s;
             VQ=cert.uav_speed_UB_m_s;
+            WQ=cert.qdot_UB_rad_s;
             assert(isnumeric(VL)&&isscalar(VL)&&isfinite(VL)&&VL>=0);
             assert(isnumeric(VQ)&&isscalar(VQ)&&isfinite(VQ)&&VQ>=0);
+            assert(isnumeric(WQ)&&isscalar(WQ)&&isfinite(WQ)&&WQ>=0);
         end
 
 
@@ -2475,7 +2549,12 @@ classdef REPLANNING_SYSTEM < handle
                 isnumeric(sp.uav_speed_UB_m_s) && ...
                 isscalar(sp.uav_speed_UB_m_s) && ...
                 isfinite(sp.uav_speed_UB_m_s) && ...
-                double(sp.uav_speed_UB_m_s)>=0, ...
+                double(sp.uav_speed_UB_m_s)>=0 && ...
+                isfield(sp,'qdot_UB_rad_s') && ...
+                isnumeric(sp.qdot_UB_rad_s) && ...
+                isscalar(sp.qdot_UB_rad_s) && ...
+                isfinite(sp.qdot_UB_rad_s) && ...
+                double(sp.qdot_UB_rad_s)>=0, ...
                 '[REPLANNER ERROR] repaired speed certificate is invalid/stale.');
 
             % -------------------------------------------------------------
@@ -3338,16 +3417,31 @@ classdef REPLANNING_SYSTEM < handle
         end
 
         function cert = build_current_actuator_dynamics_certificate(obj)
+            % =============================================================
+            % GENERAL actuator/dynamics certificate entry point.
+            %
+            % The old positive-vertical constant-velocity theorem is
+            % deliberately disabled as production authority.  General
+            % authority must be generated from the SAME active-reference
+            % state/reference uncertainty image, HLC map, actuator limits
+            % and tracking fixed point used for the final repaired
+            % trajectory.
+            %
+            % Until that interval-HLC theorem is installed this certificate
+            % fails closed.  No trajectory-specific fallback is allowed.
+            % =============================================================
             cmd=obj.command_limit_certificate;
             assert(isstruct(cmd) && isfield(cmd,'certified') && ...
                 logical(cmd.certified), ...
                 '[REPLANNER ERROR] command limit certificate unavailable.');
 
-            sp=obj.active_speed_certificate;
-            obj.validate_active_speed_certificate(sp);
+            obj.validate_active_speed_certificate(obj.active_speed_certificate);
 
             cert=struct();
             cert.certified=false;
+            cert.general_reference_required=true;
+            cert.trajectory_specific_fallback_allowed=false;
+            cert.legacy_positive_vertical_theorem_enabled=false;
             cert.reference_mode=char(obj.active_reference_mode);
             cert.reference_version=double(obj.active_reference_version);
             cert.mQ=obj.get_vehicle_mass();
@@ -3355,70 +3449,8 @@ classdef REPLANNING_SYSTEM < handle
             cert.invalidate_on_mL_change=true;
             cert.command_limit_source_signature=cmd.source_line_signature;
             cert.command_limits=cmd.limits;
-            cert.production_T_selected=false;
-
-            if ~strcmpi(char(obj.active_reference_mode),'NOMINAL') || ...
-                    ~isfield(sp,'payload_velocity_vector_m_s') || ...
-                    ~isfield(sp,'nominal_acceleration_zero') || ...
-                    ~logical(sp.nominal_acceleration_zero)
-                cert.reason='current exact vertical NOMINAL stop theorem not applicable';
-                return;
-            end
-
-            vv=double(sp.payload_velocity_vector_m_s(:));
-            if numel(vv)~=3 || vv(1)~=0 || vv(2)~=0 || vv(3)<=0
-                cert.reason='current reference is not the certified positive-vertical constant-velocity case';
-                return;
-            end
-
-            g=double(obj.gravity);
-            v=norm(vv);
-            C1=3003/1024;
-            k=v*C1;
-            mt=cert.mQ+cert.mL_snapshot;
-
-            fmin=cmd.limits(1,1);
-            fmax=cmd.limits(1,2);
-            fReqMax=mt*g;
-
-            den=g-fmin/mt;
-            if den>0
-                Tthrust=k/den;
-            else
-                Tthrust=Inf;
-            end
-
-            Tflat=k/g;
-            Tlower=max(Tflat,Tthrust);
-
-            zeroMomentOK= ...
-                cmd.limits(2,1)<=0 && 0<=cmd.limits(2,2) && ...
-                cmd.limits(3,1)<=0 && 0<=cmd.limits(3,2) && ...
-                cmd.limits(4,1)<=0 && 0<=cmd.limits(4,2);
-
-            cert.total_mass=mt;
-            cert.hover_thrust=fReqMax;
-            cert.upper_thrust_feasible=fReqMax<=fmax;
-            cert.zero_moment_feasible=zeroMomentOK;
-            cert.C1=C1;
-            cert.T_flat=Tflat;
-            cert.T_thrust_lower=Tthrust;
-            cert.T_actuator_theorem_lower=Tlower;
-
-            % This certificate is deliberately independent of sensor range,
-            % horizon, radii and the 4-ms geometric clearance.  The
-            % intersection with STOP_GEOMETRY_4MS_CERT belongs to the later
-            % backup/HLC certificate.
-            cert.certified= ...
-                cert.upper_thrust_feasible && ...
-                cert.zero_moment_feasible && isfinite(Tlower);
-            cert.source='CURRENT_MASS_ACTIVE_CLAMP_VERTICAL_STOP_DYNAMICS';
-
-            if cert.certified
-                cert.reason='';
-            else
-                cert.reason='current mass/command limits do not admit the certified vertical-stop dynamics';
-            end
+            cert.reason= ...
+                'GENERAL_HLC_TRACKING_AND_ACTUATOR_INTERVAL_CERTIFICATE_NOT_YET_INSTALLED';
         end
 
 
@@ -4065,7 +4097,7 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             OUT.t0=double(RQ.time);
-            OUT.tm=double(RQ.trigger_collision_time);
+            OUT.trigger_collision_time=double(RQ.trigger_collision_time);
             OUT.t1=double(RQ.time)+double(CTX.live.horizon);
             OUT.obstacle_id=double(RQ.trigger_obstacle_id);
             OUT.component_code=double(RQ.trigger_component_code);
@@ -4074,11 +4106,38 @@ classdef REPLANNING_SYSTEM < handle
                 OUT.reason_code=1;
                 return;
             end
-            if ~isfinite(double(RQ.trigger_ttc)) || double(RQ.trigger_ttc)<=0
+            if ~isfinite(double(RQ.trigger_ttc)) || double(RQ.trigger_ttc)<0
                 OUT.reason_code=2;
                 return;
             end
-            if ~isfinite(OUT.tm) || ~(OUT.tm>OUT.t0) || ~(OUT.t1>OUT.tm)
+
+            % Trigger witness time and BEZIER peak time are different
+            % concepts.  A first/last prediction-grid hit gives
+            % collision_time==t0/t1 and must not collapse a C7 segment.
+            %
+            % Proposal timing is projected to the interior control-grid
+            % interval [t0+dt,t1-dt].  This timing choice is NOT a safety
+            % certificate; the continuous whole-body certificate below is
+            % the authority.  No obstacle/trajectory-specific threshold is
+            % used.
+            dtLive=double(CTX.live.dt);
+            assert(isfinite(dtLive)&&dtLive>0, ...
+                '[REPLANNER ERROR] live dt invalid in BEZIER proposal.');
+            left=OUT.t0+dtLive;
+            right=OUT.t1-dtLive;
+            if ~(right>left)
+                OUT.reason_code=3;
+                return;
+            end
+            tc=OUT.trigger_collision_time;
+            if ~isfinite(tc)
+                OUT.reason_code=3;
+                return;
+            end
+            OUT.tm=min(max(tc,left),right);
+            OUT.timing_projected=(OUT.tm~=tc);
+
+            if ~(OUT.tm>OUT.t0) || ~(OUT.t1>OUT.tm)
                 OUT.reason_code=3;
                 return;
             end
@@ -4203,14 +4262,295 @@ classdef REPLANNING_SYSTEM < handle
             OUT.representation_code=1;
             OUT.degree=15;
 
-            if OUT.c7_exact && after>1 && OUT.peak_all_safe
+            % Continuous-time static-obstacle whole-body theorem.
+            G=obj.build_static_continuous_wholebody_shadow_certificate(CTX,OUT);
+            OUT.geometry_shadow_certificate=G;
+
+            if OUT.c7_exact && logical(G.mathematical_pass)
                 OUT.success=true;
                 OUT.reason_code=0;
-            elseif ~(after>1)
-                OUT.reason_code=11;
-            else
+            elseif ~OUT.peak_all_safe
+                % Peak-only failure is retained as a useful diagnostic, but
+                % the continuous certificate is the actual geometry gate.
                 OUT.reason_code=12;
+            else
+                OUT.reason_code=13; % continuous support-tube certificate failed
             end
+        end
+
+
+        function G = build_static_continuous_wholebody_shadow_certificate(obj,CTX,P)
+            % =============================================================
+            % STATIC ELLIPSOID CONTINUOUS-TIME WHOLE-BODY CERTIFICATE
+            %
+            % Obstacles:
+            %   E_i = { c_i + R_i diag(a_i) u : ||u||_2 <= 1 }.
+            %
+            % Candidate:
+            %   The degree-15 C7 correction translates pL and pQ by the
+            %   same w*b(t), so cable direction q is unchanged by the
+            %   correction itself.
+            %
+            % Finite-cover theorem:
+            %   If ||xdot|| <= V on every time cell and samples are spaced
+            %   h, any continuous point in the cell lies inside a Euclidean
+            %   ball of radius V*h/2 around its nearest sample.
+            %
+            % For ANY nonzero separating normal n, positivity of
+            %
+            %   n'x - [n'c + ||diag(a) R'n||] - rho||n||
+            %
+            % proves separation of point x from E_i (+) B_rho.
+            %
+            % For a cable segment conv{pQ,pL}, replace n'x by
+            % min(n'pQ,n'pL).  This proves the WHOLE segment is on the safe
+            % side of the support plane.
+            %
+            % Therefore checking every grid center with
+            %   rho = body_radius + d_margin + V*h/2
+            % proves the complete continuous-time interval, not merely the
+            % sampled instants.
+            %
+            % The normal-search affects completeness only.  Any positive
+            % returned support margin is a valid mathematical certificate.
+            %
+            % NOTE: binary64 directed-rounding closure is deliberately kept
+            % false here until the fixed-dimension MEX/outward kernel is
+            % installed.  Thus this is a mathematical continuous-time
+            % geometry certificate, not yet final numerical authority.
+            % =============================================================
+
+            G=struct( ...
+                'mathematical_pass',false, ...
+                'certified',false, ...
+                'continuous_time',true, ...
+                'whole_body',true, ...
+                'all_detected_obstacles',true, ...
+                'static_obstacles_only',true, ...
+                'sampled_acceptance',false, ...
+                'finite_cover_speed_tube',true, ...
+                'support_function_separation',true, ...
+                'ieee754_outward_closed',false, ...
+                'reason_code',0, ...
+                'min_margin_m',NaN, ...
+                'min_payload_margin_m',NaN, ...
+                'min_uav_margin_m',NaN, ...
+                'min_cable_margin_m',NaN, ...
+                'leaf_count',0, ...
+                'accepted_leaf_count',0, ...
+                'split_count',0, ...
+                'max_depth_used',0, ...
+                'max_depth_cap',0, ...
+                'min_alpha_lb',NaN, ...
+                'max_qdot_ub',NaN, ...
+                'max_q_arc_radius',NaN, ...
+                'max_q_arc_inflation_m',NaN, ...
+                'resource_exhausted',false, ...
+                'tracking_inflation_m',0, ...
+                'final_system_authority',false);
+
+            try
+                RQ=CTX.request;
+                O=CTX.obstacles;
+                LIV=CTX.live;
+
+                pL0=double(RQ.future_pL);
+                q0=double(RQ.future_q);
+                N=size(pL0,2);
+
+                if N<2 || size(q0,2)~=N || double(O.count)<1
+                    G.reason_code=101;
+                    return;
+                end
+
+                dt=double(LIV.dt);
+                VL0=double(LIV.active_payload_speed_ub_m_s);
+                VQ0=double(LIV.active_uav_speed_ub_m_s);
+                qdot0=double(LIV.active_qdot_ub_rad_s);
+                vcorr=double(P.correction_derivative_ub(1));
+
+                if any(~isfinite([dt VL0 VQ0 qdot0 vcorr])) || ...
+                        dt<=0 || min([VL0 VQ0 qdot0 vcorr])<0
+                    G.reason_code=102;
+                    return;
+                end
+
+                VL=VL0+vcorr;
+                VQ=VQ0+vcorr;
+                VC=max(VL,VQ);
+
+                % Static whole-body radii plus continuous-time temporal tube.
+                rhoL=double(LIV.r_load)+double(LIV.d_margin)+VL*dt/2;
+                rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+VQ*dt/2;
+                rhoC=double(LIV.r_cable)+double(LIV.d_margin)+VC*dt/2;
+
+                tgrid=double(RQ.time)+(0:N-1)*dt;
+                corr=zeros(3,N);
+                for jj=1:N
+                    b=obj.bezier_c7_bump_scalar( ...
+                        tgrid(jj),double(P.t0),double(P.tm),double(P.t1));
+                    corr(:,jj)=double(P.displacement(:))*b;
+                end
+
+                pL=pL0+corr;
+                pQ=pL0-double(LIV.cable_length)*q0+corr;
+
+                minL=inf;
+                minQ=inf;
+                minC=inf;
+                checks=0;
+
+                for jj=1:N
+                    for ii=1:double(O.count)
+                        c=double(O.centers(:,ii));
+                        R=reshape(double(O.rotations_flat(:,ii)),3,3);
+                        a=double(O.base_axes(:,ii));
+
+                        if any(~isfinite([c;R(:);a])) || any(a<=0)
+                            G.reason_code=103;
+                            return;
+                        end
+
+                        [mL,okL]=obj.best_point_support_margin( ...
+                            pL(:,jj),c,R,a,rhoL);
+                        [mQ,okQ]=obj.best_point_support_margin( ...
+                            pQ(:,jj),c,R,a,rhoQ);
+                        [mC,okC]=obj.best_segment_support_margin( ...
+                            pQ(:,jj),pL(:,jj),c,R,a,rhoC);
+
+                        checks=checks+3;
+                        if ~(okL && okQ && okC)
+                            G.reason_code=104;
+                            G.leaf_count=checks;
+                            return;
+                        end
+
+                        minL=min(minL,mL);
+                        minQ=min(minQ,mQ);
+                        minC=min(minC,mC);
+                    end
+                end
+
+                G.min_payload_margin_m=minL;
+                G.min_uav_margin_m=minQ;
+                G.min_cable_margin_m=minC;
+                G.min_margin_m=min([minL,minQ,minC]);
+                G.leaf_count=checks;
+                G.accepted_leaf_count=checks;
+                G.max_qdot_ub=qdot0;
+                G.max_q_arc_radius=qdot0*dt/2;
+                G.max_q_arc_inflation_m=double(LIV.cable_length)*qdot0*dt/2;
+
+                if isfinite(G.min_margin_m) && G.min_margin_m>0
+                    G.mathematical_pass=true;
+                    G.certified=true;
+                    G.reason_code=0;
+                else
+                    G.reason_code=105;
+                end
+            catch
+                G.reason_code=199;
+                G.mathematical_pass=false;
+                G.certified=false;
+            end
+        end
+
+
+        function b = bezier_c7_bump_scalar(obj,t,t0,tm,t1)
+            if t<=t0 || t>=t1
+                b=0;
+                return;
+            end
+
+            if t<=tm
+                u=(t-t0)/(tm-t0);
+                c=[zeros(1,8),ones(1,8)];
+            else
+                u=(t-tm)/(t1-tm);
+                c=[ones(1,8),zeros(1,8)];
+            end
+
+            u=max(0,min(1,u));
+            b=obj.decasteljau_scalar_local(c,u);
+        end
+
+
+        function [margin,ok] = best_point_support_margin(obj,x,c,R,a,rho)
+            y=R.'*(x-c);
+            normals=[ ...
+                R*(y./(a.^2)), ...
+                (x-c) ...
+                ];
+
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_point( ...
+                    x,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+
+        function [margin,ok] = best_segment_support_margin(obj,p0,p1,c,R,a,rho)
+            [~,~,xstar]=obj.bezier_segment_metric(p0,p1,c,R,a);
+
+            Y=[xstar,p0,p1];
+            normals=zeros(3,0);
+            for kk=1:size(Y,2)
+                y=R.'*(Y(:,kk)-c);
+                normals(:,end+1)=R*(y./(a.^2)); %#ok<AGROW>
+                normals(:,end+1)=Y(:,kk)-c; %#ok<AGROW>
+            end
+
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_segment( ...
+                    p0,p1,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+
+        function [margin_m,ok] = support_margin_point(~,x,c,R,a,rho,n)
+            n=double(n(:));
+            nn=norm(n);
+            if ~(isfinite(nn)&&nn>0)
+                margin_m=-inf;
+                ok=false;
+                return;
+            end
+
+            h=dot(n,c)+norm(a.*(R.'*n));
+            raw=dot(n,x)-h-rho*nn;
+            margin_m=raw/nn;
+            ok=isfinite(margin_m);
+        end
+
+
+        function [margin_m,ok] = support_margin_segment(~,p0,p1,c,R,a,rho,n)
+            n=double(n(:));
+            nn=norm(n);
+            if ~(isfinite(nn)&&nn>0)
+                margin_m=-inf;
+                ok=false;
+                return;
+            end
+
+            h=dot(n,c)+norm(a.*(R.'*n));
+            proj=min(dot(n,p0),dot(n,p1));
+            raw=proj-h-rho*nn;
+            margin_m=raw/nn;
+            ok=isfinite(margin_m);
         end
 
 
@@ -4222,6 +4562,8 @@ classdef REPLANNING_SYSTEM < handle
                 'success',false, ...
                 'reason_code',0, ...
                 't0',NaN,'tm',NaN,'t1',NaN, ...
+                'trigger_collision_time',NaN, ...
+                'timing_projected',false, ...
                 'obstacle_id',NaN,'component_code',NaN, ...
                 'displacement',nan(3,1), ...
                 'displacement_norm_m',NaN, ...
@@ -4234,6 +4576,7 @@ classdef REPLANNING_SYSTEM < handle
                 'correction_derivative_ub',nan(6,1), ...
                 'representation_code',1, ...
                 'degree',15, ...
+                'geometry_shadow_certificate',struct(), ...
                 'external_test_dependency',false);
         end
 
@@ -4374,6 +4717,17 @@ classdef REPLANNING_SYSTEM < handle
                 alpha=NaN;
                 ok=false;
             end
+        end
+
+
+        function b = decasteljau_scalar_local(~,c,u)
+            q=double(c(:).');
+            u=double(u);
+            n=numel(q)-1;
+            for r=1:n
+                q(1:n-r+1)=(1-u).*q(1:n-r+1)+u.*q(2:n-r+2);
+            end
+            b=q(1);
         end
 
 
@@ -4656,22 +5010,9 @@ classdef REPLANNING_SYSTEM < handle
 
             D=obj.runtime_dependency_signature;
 
-            % Exact ACTIVE-reference facts already certified by the current
-            % production speed certificate. R22 supports the current
-            % NOMINAL theorem class (constant vL, aL identically zero) and
-            % fails closed for unsupported ACTIVE classes.
+            % General ACTIVE-reference kinematic bounds.
             SC=obj.active_speed_certificate;
-            vNom=[NaN;NaN;NaN];
-            nomA0=false;
-            if isstruct(SC) && isfield(SC,'payload_velocity_vector_m_s')
-                vv=double(SC.payload_velocity_vector_m_s(:));
-                if numel(vv)==3 && all(isfinite(vv))
-                    vNom=vv;
-                end
-            end
-            if isstruct(SC) && isfield(SC,'nominal_acceleration_zero')
-                nomA0=logical(SC.nominal_acceleration_zero);
-            end
+            obj.validate_active_speed_certificate(SC);
 
             LIVE=struct( ...
                 'dependency_refresh_count',double(obj.dependency_refresh_count), ...
@@ -4693,8 +5034,8 @@ classdef REPLANNING_SYSTEM < handle
                     isstruct(SC) && isfield(SC,'certified') && logical(SC.certified), ...
                 'active_payload_speed_ub_m_s',double(SC.payload_speed_UB_m_s), ...
                 'active_uav_speed_ub_m_s',double(SC.uav_speed_UB_m_s), ...
-                'active_payload_velocity_vector_m_s',vNom, ...
-                'active_nominal_acceleration_zero',nomA0, ...
+                'active_qdot_ub_rad_s',double(SC.qdot_UB_rad_s), ...
+                'active_constant_speed_required',false, ...
                 'hard_modify_deadline_s',double(D.hard_modify_deadline_s), ...
                 'command_limits',obj.command_limit_certificate.limits);
 
@@ -4999,14 +5340,10 @@ classdef REPLANNING_SYSTEM < handle
                     '[REPLANNER ERROR] estimated cable direction pT has zero norm.');
                 q_cur=q_cur/nq;
             else
-                assert(numel(xd_nom)>=11, ...
-                    '[REPLANNER ERROR] pT unavailable and nominal acceleration is insufficient.');
-                aL=xd_nom(9:11);
-                r=aL+[0;0;obj.gravity];
-                nr=norm(r);
-                assert(nr>1e-12, ...
-                    '[REPLANNER ERROR] nominal cable direction reconstruction is invalid.');
-                q_cur=-r/nr;
+                error(['[REPLANNER ERROR] estimator pT is unavailable. ' ...
+                    'Do not reconstruct current physical cable direction ' ...
+                    'from legacy xd(9:11); current geometry must come from ' ...
+                    'the live state estimator/sensor path.']);
             end
 
             if isempty(pL_cur)
@@ -5038,7 +5375,8 @@ classdef REPLANNING_SYSTEM < handle
             if use_nominal_table
                 pL_ref=obj.nominal_table_pL(:,idx0:idx1);
                 q_ref=obj.nominal_table_q(:,idx0:idx1);
-                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now);
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
                 pL_ref(:,1)=pL0;
                 q_ref(:,1)=q0;
                 source='precomputed_nominal_table';
@@ -5092,14 +5430,16 @@ classdef REPLANNING_SYSTEM < handle
                 pL_ref(:,end)=pL_new;
                 q_ref(:,end)=q_new;
 
-                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now);
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
                 pL_ref(:,1)=pL0;
                 q_ref(:,1)=q0;
                 source='rolling_base_ref_do_1_new_endpoint';
             else
                 pL_ref=zeros(3,N);
                 q_ref=zeros(3,N);
-                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now);
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
                 pL_ref(:,1)=pL0;
                 q_ref(:,1)=q0;
 
@@ -5214,20 +5554,45 @@ classdef REPLANNING_SYSTEM < handle
             args{2} = cha;
             r = obj.base_ref.do(args{:});
             xd_eval = r.state.xd;
-            [pL,q] = obj.nominal_payload_and_q_from_xd(xd_eval);
+            [pL,q] = obj.nominal_payload_and_q_from_xd(xd_eval,t_eval);
         end
 
-        function [pL,q] = nominal_payload_and_q_from_xd(obj,xd)
-            assert(numel(xd)>=11, ...
-                ['[REPLANNER ERROR] 公称軌道フォールバックは xd(1:3)=pL および ' ...
-                 'xd(9:11)=ddot(pL) を仮定しています。それ以外の場合は opts.reference_packet_fn を指定してください。']);
-            pL = xd(1:3);
-            aL = xd(9:11);
-            r = aL + [0;0;obj.gravity];
-            nr = norm(r);
-            assert(nr>1e-12, ...
-                '[REPLANNER ERROR] 将来の索姿勢 q の再構成計算が無効です。');
-            q = -r/nr;
+        function [pL,q] = nominal_payload_and_q_from_xd(obj,xd,tau)
+            assert(numel(xd)>=3, ...
+                '[REPLANNER ERROR] nominal reference packet lacks position.');
+            assert(nargin>=3 && isnumeric(tau) && isscalar(tau) && isfinite(tau), ...
+                '[REPLANNER ERROR] exact nominal reference time tau is required.');
+            assert(isa(obj.nominal_acceleration_fn,'function_handle'), ...
+                ['[REPLANNER ERROR] exact nominal acceleration function is ' ...
+                 'not initialized. Refresh the nominal kinematic certificate.']);
+
+            pL=double(xd(1:3));
+            aL=double(obj.nominal_acceleration_fn(double(tau)));
+            aL=aL(:);
+            assert(numel(aL)==3 && all(isfinite(aL)), ...
+                '[REPLANNER ERROR] exact nominal acceleration evaluation failed.');
+
+            specific=aL+[0;0;obj.gravity];
+            ns=norm(specific);
+            assert(isfinite(ns)&&ns>0, ...
+                '[REPLANNER ERROR] nominal specific-force vector is singular.');
+            q=-specific/ns;
+        end
+
+
+        function tau = global_to_nominal_tau(obj,t_global)
+            tf0=double(obj.flight_reference_time_origin);
+            if ~(isfinite(tf0))
+                tf0=double(obj.resolve_takeoff_end_time());
+                obj.flight_reference_time_origin=tf0;
+            end
+            tau=double(t_global)-tf0;
+            tol=1e-10*max(1,abs(double(t_global)));
+            assert(tau>=-tol, ...
+                '[REPLANNER ERROR] nominal reference queried before Flight origin.');
+            if tau<0
+                tau=0;
+            end
         end
 
         function validate_reference_packet(~,pL,q,N)

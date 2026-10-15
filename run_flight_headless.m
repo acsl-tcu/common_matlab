@@ -119,6 +119,20 @@ agent.cha_allocation.l.reference = ["landing","sload"];
 
 env = [];
 
+% -------------------------------------------------------------------------
+% Runtime profile kept OUTSIDE LOGGER so logger's own cost can be measured.
+% These arrays are diagnostic only and do not feed safety decisions.
+% -------------------------------------------------------------------------
+runtime_profile = struct();
+runtime_profile.t = nan(size(ts:dt:te));
+runtime_profile.phase = repmat(' ',size(ts:dt:te));
+runtime_profile.sensor_acquisition_s = nan(size(ts:dt:te));
+runtime_profile.online_before_plant_s = nan(size(ts:dt:te));
+runtime_profile.simulation_plant_s = nan(size(ts:dt:te));
+runtime_profile.logger_s = nan(size(ts:dt:te));
+runtime_profile.full_iteration_s = nan(size(ts:dt:te));
+runtime_profile.k = 0;
+
 %% 6. Headless初期化
 % GUIの代わりに各phaseの関数を一度通す。
 % plantはここでは進めない。
@@ -145,23 +159,47 @@ time.t = 0;
 cha = 'a';
 agent.cha = cha;
 
+tIteration=tic;
+
+tAcquire=tic;
 if ~isempty(motive)
     motive.getData(agent);
 end
-
-tStartTotal = tic;
+sensor_acquisition_s=toc(tAcquire);
 
 do_prop_local(time,cha,cha,logger,env,agent,"sensor",1,true);
 do_prop_local(time,cha,cha,logger,env,agent,"estimator",1,true);
 do_prop_local(time,cha,cha,logger,env,agent,"reference",1,true);
 do_prop_local(time,cha,cha,logger,env,agent,"controller",1,true);
 do_prop_local(time,cha,cha,logger,env,agent,"input_transform",1,true);
+
+online_before_plant_s=toc(tIteration);
+
+tPlantOnly=tic;
 do_prop_local(time,cha,cha,logger,env,agent,"plant",1,true);
+simulation_plant_s=toc(tPlantOnly);
+control_plus_sim_plant_s=toc(tIteration);
 
-agent.controller.result.controllertime_total = toc(tStartTotal);
+agent.controller.result.sensor_acquisition_total=sensor_acquisition_s;
+agent.controller.result.online_compute_total=online_before_plant_s;
+agent.controller.result.simulation_plant_total=simulation_plant_s;
+agent.controller.result.controllertime_total=control_plus_sim_plant_s;
 
+tLogger=tic;
 logger.logging(time,cha,agent,[]);
+logger_s=toc(tLogger);
+full_iteration_s=toc(tIteration);
 time.k = logger.k;
+
+runtime_profile.k=runtime_profile.k+1;
+rk=runtime_profile.k;
+runtime_profile.t(rk)=time.t;
+runtime_profile.phase(rk)=cha;
+runtime_profile.sensor_acquisition_s(rk)=sensor_acquisition_s;
+runtime_profile.online_before_plant_s(rk)=online_before_plant_s;
+runtime_profile.simulation_plant_s(rk)=simulation_plant_s;
+runtime_profile.logger_s(rk)=logger_s;
+runtime_profile.full_iteration_s(rk)=full_iteration_s;
 
 %% 8. Headless simulation loop
 % GUI版ではphase切替はGUI側が担当する。
@@ -181,29 +219,73 @@ while time.t <= time.te
 
     agent.cha = cha;
 
+    tIteration=tic;
+
+    % Include sensor acquisition/connector update in the online deadline.
+    tAcquire=tic;
     if ~isempty(motive)
         motive.getData(agent);
     end
-
-    tStartTotal = tic;
+    sensor_acquisition_s=toc(tAcquire);
 
     do_prop_local(time,cha,cha,logger,env,agent,"sensor",1,true);
     do_prop_local(time,cha,cha,logger,env,agent,"estimator",1,true);
     do_prop_local(time,cha,cha,logger,env,agent,"reference",1,true);
     do_prop_local(time,cha,cha,logger,env,agent,"controller",1,true);
     do_prop_local(time,cha,cha,logger,env,agent,"input_transform",1,true);
+
+    % Onboard-compute proxy:
+    % connector acquisition + sensor + estimator + reference/replanner
+    % + controller + input_transform.  Numerical plant is excluded.
+    online_before_plant_s=toc(tIteration);
+
+    tPlantOnly=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"plant",1,true);
+    simulation_plant_s=toc(tPlantOnly);
+    control_plus_sim_plant_s=toc(tIteration);
 
-    agent.controller.result.controllertime_total = toc(tStartTotal);
+    agent.controller.result.sensor_acquisition_total=sensor_acquisition_s;
+    agent.controller.result.online_compute_total=online_before_plant_s;
+    agent.controller.result.simulation_plant_total=simulation_plant_s;
 
+    % Compatibility plot: simulation control path through numerical plant.
+    agent.controller.result.controllertime_total=control_plus_sim_plant_s;
+
+    % LOGGER is simulation/diagnostic infrastructure. Measure separately
+    % instead of silently including or excluding it from the 4 ms claim.
+    tLogger=tic;
     logger.logging(time,cha,agent,[]);
+    logger_s=toc(tLogger);
+    full_iteration_s=toc(tIteration);
+
     time.k = logger.k;
+
+    runtime_profile.k=runtime_profile.k+1;
+    rk=runtime_profile.k;
+    runtime_profile.t(rk)=time.t;
+    runtime_profile.phase(rk)=cha;
+    runtime_profile.sensor_acquisition_s(rk)=sensor_acquisition_s;
+    runtime_profile.online_before_plant_s(rk)=online_before_plant_s;
+    runtime_profile.simulation_plant_s(rk)=simulation_plant_s;
+    runtime_profile.logger_s(rk)=logger_s;
+    runtime_profile.full_iteration_s(rk)=full_iteration_s;
+
     time.t = time.t + dt;
 
     if mod(time.t,5.0) < dt
         fprintf('Time: %.1f / %.1f sec (Phase: %s)\n',time.t,time.te,cha);
     end
 end
+
+% Trim preallocated timing arrays to actual logged length.
+Krt=runtime_profile.k;
+runtime_profile.t=runtime_profile.t(1:Krt);
+runtime_profile.phase=runtime_profile.phase(1:Krt);
+runtime_profile.sensor_acquisition_s=runtime_profile.sensor_acquisition_s(1:Krt);
+runtime_profile.online_before_plant_s=runtime_profile.online_before_plant_s(1:Krt);
+runtime_profile.simulation_plant_s=runtime_profile.simulation_plant_s(1:Krt);
+runtime_profile.logger_s=runtime_profile.logger_s(1:Krt);
+runtime_profile.full_iteration_s=runtime_profile.full_iteration_s(1:Krt);
 
 disp("Simulation complete! Drawing plots...");
 
@@ -226,6 +308,22 @@ logger.plot({{1,"v1:2","er"},{1,"estimator.result.state.vL1:2",""}});
 figure(4);
 logger.plot({1,"controller.result.controllertime_total",""}, ...
     "phase","f");
+
+% Figure 8: 実機オンライン側の処理時間
+% sensor + estimator + reference/replanner + controller + input_transform
+% （Simだけの数値plant積分は含めない）
+figure(8);
+logger.plot({1,"controller.result.online_compute_total",""}, ...
+    "phase","f");
+
+% Figure 9: Simだけの数値plant積分時間
+figure(9);
+logger.plot({1,"controller.result.simulation_plant_total",""}, ...
+    "phase","f");
+
+% Figure 10/11: runtime_profile is outside LOGGER, so it can include
+% LOGGER's own cost without self-measurement ambiguity.
+plot_runtime_profile(runtime_profile,10,11);
 
 %% 10. 追加可視化 — 機体・吊り荷・参照軌道
 % Figure 5: 全区間3D軌道
@@ -320,6 +418,41 @@ u = agent(idx).controller.result.input;
 v = sprintf( ...
     "%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : mL %7.3f", ...
     agent(idx).cha,time.t,xd(1:3)',p',u',mL);
+end
+
+
+function plot_runtime_profile(P,figOnline,figFull)
+if ~isstruct(P) || ~isfield(P,'k') || P.k<1
+    return;
+end
+
+mask=(P.phase=='f');
+
+figure(figOnline); clf;
+hold on; grid on; box on;
+plot(P.t(mask),1e3*P.sensor_acquisition_s(mask), ...
+    'LineWidth',1.2,'DisplayName','sensor acquisition');
+plot(P.t(mask),1e3*P.online_before_plant_s(mask), ...
+    'LineWidth',1.4,'DisplayName','online before plant');
+plot(P.t(mask),1e3*P.simulation_plant_s(mask), ...
+    'LineWidth',1.2,'DisplayName','simulation plant');
+xlabel('time [s]');
+ylabel('runtime [ms]');
+title('Runtime decomposition — Flight');
+legend('Location','best');
+hold off;
+
+figure(figFull); clf;
+hold on; grid on; box on;
+plot(P.t(mask),1e3*P.online_before_plant_s(mask), ...
+    'LineWidth',1.4,'DisplayName','online before plant');
+plot(P.t(mask),1e3*P.full_iteration_s(mask), ...
+    'LineWidth',1.4,'DisplayName','full simulation iteration incl. logger');
+xlabel('time [s]');
+ylabel('runtime [ms]');
+title('Online vs full simulation iteration — Flight');
+legend('Location','best');
+hold off;
 end
 
 function plot_suspended_load_trajectory(logger,dt,varargin)
