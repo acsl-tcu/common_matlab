@@ -415,6 +415,26 @@ classdef REPLANNING_SYSTEM < handle
         current_bspline = [];
 
         % -----------------------------------------------------------------
+        % AF7R7 observer hard-support add-on (production, self-contained)
+        % -----------------------------------------------------------------
+        % Default ON.  Set false to bypass the add-on completely without
+        % changing the existing estimator/reference/controller/plant path.
+        ENABLE_OBSERVER_HARD_SUPPORT = true;
+        OBSERVER_HARD_SUPPORT_MODE = 'SIM_NUMERIC_TRUTH';
+        % Simulation-only hard authority for the TRUE plant payload mass.
+        % Must be passed explicitly by the simulation setup because the
+        % live agent.parameter.loadmass is later overwritten with the EKF
+        % initial guess and is therefore not true-plant authority.
+        OBSERVER_SIM_TRUE_ML = NaN;
+        OBSERVER_REAL_NU_ABS_UB = [];
+        OBSERVER_REAL_SOURCE_TAG = '';
+        OBSERVER_REAL_INITIAL_SUPPORT = struct();
+
+        % All add-on runtime state is kept in one internal struct.
+        % No observer diagnostic fields are appended to result.state.
+        observer_hard_support_internal = struct();
+
+        % -----------------------------------------------------------------
         % 【最小プロファイリング情報構造体 (ENABLE_PROFILING=1 時のみ更新)】
         % -----------------------------------------------------------------
         profiling = struct( ...
@@ -582,6 +602,65 @@ classdef REPLANNING_SYSTEM < handle
             obj.certificate_stale=obj.empty_certificate_stale_state();
             obj.certificate_stale.HLC_ROBUST_CERT=true;
             obj.dependency_refresh_count=obj.dependency_refresh_count+1;
+        end
+
+
+        function set_observer_hard_support_enabled(obj,enabled)
+            % Runtime switch. Default ON. OFF is a pure add-on bypass.
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER OBSERVER ERROR] enabled must be a finite logical scalar.');
+            obj.ENABLE_OBSERVER_HARD_SUPPORT=logical(enabled);
+            obj.observer_hard_support_internal=struct();
+        end
+
+
+        function enabled = get_observer_hard_support_enabled(obj)
+            enabled=logical(obj.ENABLE_OBSERVER_HARD_SUPPORT);
+        end
+
+
+        function S = get_observer_hard_support_status(obj)
+            % Read-only diagnostic/status accessor. Not used by safety logic.
+            I=obj.observer_hard_support_internal;
+            S=struct();
+            S.schema='REPLANNING_SYSTEM_OBSERVER_HARD_SUPPORT_STATUS_V2';
+            S.enabled=logical(obj.ENABLE_OBSERVER_HARD_SUPPORT);
+            S.mode=char(obj.OBSERVER_HARD_SUPPORT_MODE);
+            S.sim_true_mL_configured=double(obj.OBSERVER_SIM_TRUE_ML);
+            S.initialized=false;
+            S.selector_verified=false;
+            S.last_event_time=NaN;
+            S.last_phase='';
+            S.phase_transition_count=0;
+            S.update_count=0;
+            S.fail_count=0;
+            S.observer_support=struct();
+            S.hlc_state_mass_bridge=struct();
+            S.runtime_last_ms=NaN;
+            S.runtime_max_ms=NaN;
+            S.runtime_mean_ms=NaN;
+            S.current_saturation_closed=false;
+            S.fixed_phase_switch_time_required=false;
+            S.realized_error_comparison_required=false;
+            S.Q_R_covariance_are_not_hard_authority=true;
+            S.external_AF7R7_runtime_dependency=false;
+
+            if isempty(I) || ~isstruct(I)
+                return;
+            end
+            names={'initialized','selector_verified','last_event_time','last_phase', ...
+                'phase_transition_count','update_count','fail_count','observer_support', ...
+                'hlc_state_mass_bridge','runtime_last_ms','runtime_max_ms'};
+            for kk=1:numel(names)
+                if isfield(I,names{kk})
+                    S.(names{kk})=I.(names{kk});
+                end
+            end
+            if isfield(I,'runtime_count') && I.runtime_count>0 && ...
+                    isfield(I,'runtime_sum_ms')
+                S.runtime_mean_ms=I.runtime_sum_ms/I.runtime_count;
+            end
         end
 
 
@@ -945,6 +1024,31 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'SPIKE_CAPTURE_THRESHOLD_MS')
                 obj.SPIKE_CAPTURE_THRESHOLD_MS=double(opts.SPIKE_CAPTURE_THRESHOLD_MS);
             end
+
+            if isfield(opts,'ENABLE_OBSERVER_HARD_SUPPORT')
+                obj.ENABLE_OBSERVER_HARD_SUPPORT=logical(opts.ENABLE_OBSERVER_HARD_SUPPORT);
+            end
+            if isfield(opts,'OBSERVER_HARD_SUPPORT_MODE')
+                obj.OBSERVER_HARD_SUPPORT_MODE=char(string(opts.OBSERVER_HARD_SUPPORT_MODE));
+            end
+            if isfield(opts,'OBSERVER_SIM_TRUE_ML')
+                obj.OBSERVER_SIM_TRUE_ML=double(opts.OBSERVER_SIM_TRUE_ML);
+            end
+            if isfield(opts,'OBSERVER_REAL_NU_ABS_UB')
+                obj.OBSERVER_REAL_NU_ABS_UB=double(opts.OBSERVER_REAL_NU_ABS_UB(:));
+            end
+            if isfield(opts,'OBSERVER_REAL_SOURCE_TAG')
+                obj.OBSERVER_REAL_SOURCE_TAG=char(string(opts.OBSERVER_REAL_SOURCE_TAG));
+            end
+            if isfield(opts,'OBSERVER_REAL_INITIAL_SUPPORT')
+                obj.OBSERVER_REAL_INITIAL_SUPPORT=opts.OBSERVER_REAL_INITIAL_SUPPORT;
+            end
+
+            % IMPORTANT: do not initialize the add-on in the constructor.
+            % Existing MOTIVE / estimator / reference initialization order is
+            % preserved exactly. Lazy initialization occurs only when this
+            % reference object receives the first real a/t/f control event.
+            obj.observer_hard_support_internal=struct();
 
             if isfield(opts,'sensor_range_m'), obj.trigger_dist=opts.sensor_range_m; end
             if isfield(opts,'trigger_dist'), obj.trigger_dist=opts.trigger_dist; end
@@ -1356,6 +1460,35 @@ classdef REPLANNING_SYSTEM < handle
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_loadmass_ms=1e3*toc(t_light_e2e);
+            end
+
+            % -------------------------------------------------------------
+            % AF7R7 observer hard-support add-on.
+            % This REPLANNING_SYSTEM call occurs after sensor+EKF and before
+            % controller+plant. Constructor/startup order is untouched.
+            % Existing rt_light_e2e_ms automatically includes this cost.
+            % -------------------------------------------------------------
+            if obj.ENABLE_OBSERVER_HARD_SUPPORT && ...
+                    obj.observer_is_real_control_event(cha)
+                t_observer_addon=tic;
+                obj.observer_update_same_event(time,cha);
+                dt_observer_ms=1e3*toc(t_observer_addon);
+                I=obj.observer_hard_support_internal;
+                I.runtime_last_ms=dt_observer_ms;
+                if ~isfield(I,'runtime_max_ms') || ~isfinite(I.runtime_max_ms)
+                    I.runtime_max_ms=dt_observer_ms;
+                else
+                    I.runtime_max_ms=max(I.runtime_max_ms,dt_observer_ms);
+                end
+                if ~isfield(I,'runtime_sum_ms') || ~isfinite(I.runtime_sum_ms)
+                    I.runtime_sum_ms=0;
+                end
+                if ~isfield(I,'runtime_count') || ~isfinite(I.runtime_count)
+                    I.runtime_count=0;
+                end
+                I.runtime_sum_ms=I.runtime_sum_ms+dt_observer_ms;
+                I.runtime_count=I.runtime_count+1;
+                obj.observer_hard_support_internal=I;
             end
 
             % The replanner is constructed before the live HLC controller
@@ -1896,18 +2029,47 @@ classdef REPLANNING_SYSTEM < handle
 
         function cert = build_nominal_active_speed_certificate(obj)
             % =============================================================
-            % Current TIME_VARYING_REFERENCE.func から exact nominal
-            % continuous-time V_L, V_Q を導出する。
+            % Exact nominal continuous-time speed certificate derived from
+            % the CURRENT TIME_VARYING_REFERENCE position law itself.
             %
-            % 現段階では速度ノルムが時間一定、かつ aL==0 のケースを
-            % 厳密に閉じる。一般化できない reference では推測せず停止。
+            % IMPORTANT:
+            %   Do NOT assume xd(9:11) is d/dt xd(5:7).
+            %   Some legacy Sim reference generators provide a position/
+            %   velocity-consistent packet but leave higher derivative
+            %   slots non-geometric.  The existing Sim/HLC accepts that
+            %   packet, so the replanner must not add a new incompatibility.
+            %
+            % Authority used here:
+            %   pL(t)       = xd(1:3)
+            %   vL_packet   = xd(5:7), checked against d/dt pL(t)
+            %   vL(t)       = d/dt pL(t)
+            %   aL(t)       = d^2/dt^2 pL(t)
+            %   jL(t)       = d^3/dt^3 pL(t)
+            %
+            % Suspended-load nominal cable direction:
+            %   s(t)        = aL(t) + g e3
+            %   pT*(t)      = -s/||s||
+            %
+            % because pT points from UAV to payload and pT*=-e3 at hover.
+            %
+            % Then
+            %   pQ*(t)      = pL(t) - L pT*(t)
+            %   vQ*(t)      = vL(t) - L d/dt pT*(t)
+            %
+            % Current exact auto-certificate closes references for which
+            % ||vL|| and ||vQ|| are time-invariant after symbolic
+            % simplification.  If not, fail closed and require a separate
+            % theorem-backed global bound; never use sampled maxima.
             % =============================================================
+
             assert(strcmpi(char(obj.active_reference_mode),'NOMINAL'), ...
                 ['[REPLANNER ERROR] nominal speed certificate requested ' ...
                  'while active_reference_mode is not NOMINAL.']);
+
             assert(isa(obj.base_ref,'TIME_VARYING_REFERENCE'), ...
                 ['[REPLANNER ERROR] exact nominal speed certificate requires ' ...
                  'TIME_VARYING_REFERENCE base_ref.']);
+
             assert(isprop(obj.base_ref,'func') && ...
                 isa(obj.base_ref.func,'function_handle'), ...
                 '[REPLANNER ERROR] nominal base_ref.func is unavailable.');
@@ -1915,40 +2077,96 @@ classdef REPLANNING_SYSTEM < handle
             fstr=func2str(obj.base_ref.func);
             [xd_sym,t]=obj.function_handle_to_symbolic_vector(fstr);
 
-            assert(numel(xd_sym)>=11, ...
-                '[REPLANNER ERROR] nominal xd must contain at least 11 states.');
+            assert(numel(xd_sym)>=7, ...
+                '[REPLANNER ERROR] nominal xd must contain at least 7 states.');
 
             pL=simplify(xd_sym(1:3));
-            vL=simplify(xd_sym(5:7));
-            aL=simplify(xd_sym(9:11));
+            vL_packet=simplify(xd_sym(5:7));
 
-            assert(obj.symbolic_vector_equal(simplify(diff(pL,t)),vL), ...
+            % Only the position/velocity relation is required from the
+            % legacy reference packet.  Higher derivatives are generated
+            % directly from the exact position law below.
+            vL=simplify(diff(pL,t));
+            assert(obj.symbolic_vector_equal(vL,vL_packet), ...
                 '[REPLANNER ERROR] nominal xd(5:7) is not d/dt xd(1:3).');
-            assert(obj.symbolic_vector_equal(simplify(diff(vL,t)),aL), ...
-                '[REPLANNER ERROR] nominal xd(9:11) is not d/dt xd(5:7).');
 
-            speed2=simplify(vL.'*vL);
-            assert(obj.symbolic_zero(simplify(diff(speed2,t))), ...
-                ['[REPLANNER ERROR] current nominal speed is not constant. ' ...
-                 'Install a theorem-backed global speed bound instead of ' ...
-                 'using a sampled maximum.']);
+            aL=simplify(diff(vL,t));
+            jL=simplify(diff(aL,t));
 
-            VL=double(simplify(sqrt(speed2)));
-            assert(isscalar(VL) && isfinite(VL) && VL>=0);
+            % -------------------------------------------------------------
+            % Payload nominal speed: exact global constant-norm closure.
+            % -------------------------------------------------------------
+            speedL2=simplify(vL.'*vL);
+            assert(obj.symbolic_zero(simplify(diff(speedL2,t))), ...
+                ['[REPLANNER ERROR] current nominal payload speed norm is ' ...
+                 'not time-invariant. Install a theorem-backed global speed ' ...
+                 'bound instead of using a sampled maximum.']);
 
-            aZero=true;
-            for k=1:numel(aL)
-                if ~obj.symbolic_zero(aL(k))
-                    aZero=false;
-                    break;
-                end
-            end
-            assert(aZero, ...
-                ['[REPLANNER ERROR] current nominal aL is not identically zero. ' ...
-                 'General qdot certification is required before trigger use.']);
+            VL2=double(simplify(speedL2));
+            assert(isscalar(VL2)&&isfinite(VL2)&&VL2>=0, ...
+                '[REPLANNER ERROR] exact nominal payload speed^2 invalid.');
+            VL=sqrt(max(0,VL2));
 
-            % aL==0 => q=-e3, qdot=0 => vQ=vL exactly.
-            VQ=VL;
+            % -------------------------------------------------------------
+            % Exact nominal suspended-load cable geometry.
+            % -------------------------------------------------------------
+            g=sym(double(obj.gravity));
+            L=sym(double(obj.L_cable));
+            e3=sym([0;0;1]);
+
+            svec=simplify(aL + g*e3);
+            sNorm2=simplify(svec.'*svec);
+
+            % The normalization must be nonsingular for all time.  The
+            % present automatic proof closes the common constant-norm case
+            % exactly (including horizontal circular/saddle references).
+            assert(obj.symbolic_zero(simplify(diff(sNorm2,t))), ...
+                ['[REPLANNER ERROR] ||aL+g e3|| is not time-invariant. ' ...
+                 'Install a theorem-backed positive lower bound before ' ...
+                 'normalizing the nominal cable direction.']);
+
+            sNorm2Num=double(simplify(sNorm2));
+            assert(isscalar(sNorm2Num)&&isfinite(sNorm2Num)&&sNorm2Num>0, ...
+                ['[REPLANNER ERROR] nominal cable-direction normalization ' ...
+                 'is singular or non-positive.']);
+
+            pTdes=simplify(-svec/sqrt(sNorm2));
+            pTdot=simplify(diff(pTdes,t));
+
+            % Exact unit/tangent theorem:
+            % pT=-s/sqrt(s'*s), with s'*s>0 already certified above.
+            % Therefore pT'*pT=1 identically by construction and
+            % differentiation gives pT'*pTdot=0.  Do not make production
+            % correctness depend on CAS simplification of sqrt(g^2).
+            pT_unit_by_normalization=true;
+            pT_tangent_by_unit_identity=true;
+
+            % -------------------------------------------------------------
+            % UAV nominal speed from pQ = pL - L pT.
+            % -------------------------------------------------------------
+            vQ=simplify(vL - L*pTdot);
+            speedQ2=simplify(vQ.'*vQ);
+
+            assert(obj.symbolic_zero(simplify(diff(speedQ2,t))), ...
+                ['[REPLANNER ERROR] current nominal UAV speed norm is not ' ...
+                 'time-invariant. Install a theorem-backed global UAV speed ' ...
+                 'bound instead of using a sampled maximum.']);
+
+            VQ2=double(simplify(speedQ2));
+            assert(isscalar(VQ2)&&isfinite(VQ2)&&VQ2>=0, ...
+                '[REPLANNER ERROR] exact nominal UAV speed^2 invalid.');
+            VQ=sqrt(max(0,VQ2));
+
+            qdot2=simplify(pTdot.'*pTdot);
+            assert(obj.symbolic_zero(simplify(diff(qdot2,t))), ...
+                ['[REPLANNER ERROR] current nominal cable angular-rate norm ' ...
+                 'is not time-invariant. Install a theorem-backed global ' ...
+                 'qdot bound instead of using a sampled maximum.']);
+
+            qdot2Num=double(simplify(qdot2));
+            assert(isscalar(qdot2Num)&&isfinite(qdot2Num)&&qdot2Num>=0, ...
+                '[REPLANNER ERROR] exact nominal qdot^2 invalid.');
+            qdotUB=sqrt(max(0,qdot2Num));
 
             cert=struct();
             cert.certified=true;
@@ -1956,12 +2174,27 @@ classdef REPLANNING_SYSTEM < handle
             cert.reference_version=double(obj.active_reference_version);
             cert.reference_class=class(obj.base_ref);
             cert.func_text=fstr;
+
             cert.payload_speed_UB_m_s=VL;
             cert.uav_speed_UB_m_s=VQ;
-            cert.payload_velocity_vector_m_s=double(vL(:));
-            cert.nominal_acceleration_zero=true;
-            cert.qdot_UB_rad_s=0;
-            cert.source='EXACT_CURRENT_NOMINAL_FUNC';
+            cert.qdot_UB_rad_s=qdotUB;
+
+            cert.payload_speed_constant=true;
+            cert.uav_speed_constant=true;
+            cert.cable_rate_constant=true;
+            cert.pT_unit_by_normalization=pT_unit_by_normalization;
+            cert.pT_tangent_by_unit_identity=pT_tangent_by_unit_identity;
+
+            % Legacy higher-derivative packet fields are deliberately not
+            % promoted to authority here.
+            cert.xd_9_11_promoted=false;
+            cert.sampled_maximum_used=false;
+            cert.source= ...
+                'EXACT_CURRENT_NOMINAL_POSITION_LAW_DERIVATIVES_AND_CABLE_GEOMETRY';
+
+            % Symbolic objects are intentionally NOT retained in the
+            % production certificate.  They are setup-only proof machinery.
+            cert.symbolic_objects_retained=false;
         end
 
 
@@ -3560,10 +3793,9 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             if isempty(fn) && double(obj.generator_backend_locked_code)==1
-                assert(exist('G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR','file')==2, ...
-                    ['[REPLANNER ERROR] R22 BEZIER+CT geometry generator file missing: ' ...
-                     'G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR.m']);
-                fn=@G27V74R23_BEZIER_QARC_CTGEO_SHADOW_GENERATOR;
+                % Self-contained default backend.  Production runtime must
+                % not depend on G27/Rxx audit/test files.
+                fn=@(CTX)obj.builtin_bezier_d15_c7_proposal(CTX);
             end
 
             if ~isempty(fn)
@@ -3735,18 +3967,6 @@ classdef REPLANNING_SYSTEM < handle
             if isstruct(candidate) && isscalar(candidate) && ...
                     isfield(candidate,'shadow_proposal') && ...
                     logical(candidate.shadow_proposal)
-                % R22 diagnostic capture for isolated repeated certificate
-                % timing. Exclude both preflight prime paths. This assignin
-                % perturbs the real request cycle, so R22 request timing is
-                % NOT used as the production timing result.
-                if ~obj.geometry_shadow_capture_done && ...
-                        ~obj.setup_exact_do_prime_active && ...
-                        ~obj.generator_integration_prime_active
-                    assignin('base','G27V74R23_CAPTURED_CTX',CTX);
-                    assignin('base','G27V74R23_CAPTURED_PROPOSAL',candidate);
-                    obj.geometry_shadow_capture_done=true;
-                end
-
                 obj.record_bezier_shadow_proposal(candidate);
                 obj.generator_last_validation_ms=0;
                 obj.generator_last_critical_ms=cp_callback;
@@ -3808,6 +4028,396 @@ classdef REPLANNING_SYSTEM < handle
 
             obj.generator_validation_pass_count=obj.generator_validation_pass_count+1;
             obj.generator_last_status_code=4; % valid candidate, SHADOW only
+        end
+
+
+        function OUT = builtin_bezier_d15_c7_proposal(obj,CTX)
+            % =============================================================
+            % Self-contained degree-15 C7 endpoint-repeated BEZIER proposal.
+            %
+            % This is the in-class production copy of the formerly external
+            % fast proposal logic.  It computes an outward displacement w
+            % that clears all currently DETECTED conservative payload/UAV/
+            % cable ellipsoids at the correction peak.
+            %
+            % This function is a proposal generator only.  Continuous
+            % all-span/whole-body certification remains a separate authority
+            % before any repaired reference is committed.
+            % =============================================================
+            OUT=obj.empty_bezier_d15_c7_proposal();
+
+            if ~isstruct(CTX) || ~isfield(CTX,'static') || ...
+                    ~isfield(CTX,'request') || ...
+                    ~isfield(CTX,'obstacles') || ...
+                    ~isfield(CTX,'live')
+                OUT.reason_code=-100;
+                return;
+            end
+
+            S=CTX.static;
+            RQ=CTX.request;
+            O=CTX.obstacles;
+
+            if double(S.backend_code)~=1 || ...
+                    ~strcmpi(char(S.backend_name),'BEZIER_D15_C7')
+                OUT.reason_code=-101;
+                return;
+            end
+
+            OUT.t0=double(RQ.time);
+            OUT.tm=double(RQ.trigger_collision_time);
+            OUT.t1=double(RQ.time)+double(CTX.live.horizon);
+            OUT.obstacle_id=double(RQ.trigger_obstacle_id);
+            OUT.component_code=double(RQ.trigger_component_code);
+
+            if O.count<1
+                OUT.reason_code=1;
+                return;
+            end
+            if ~isfinite(double(RQ.trigger_ttc)) || double(RQ.trigger_ttc)<=0
+                OUT.reason_code=2;
+                return;
+            end
+            if ~isfinite(OUT.tm) || ~(OUT.tm>OUT.t0) || ~(OUT.t1>OUT.tm)
+                OUT.reason_code=3;
+                return;
+            end
+
+            kt=find(double(O.ids)==OUT.obstacle_id,1,'first');
+            if isempty(kt)
+                OUT.reason_code=4;
+                return;
+            end
+
+            Rt=reshape(double(O.rotations_flat(:,kt)),3,3);
+            ct=double(O.centers(:,kt));
+
+            switch round(OUT.component_code)
+                case 1
+                    at=double(O.payload_axes(:,kt));
+                    xw=double(RQ.trigger_pL_collision(:));
+                    before=obj.bezier_point_metric(xw,ct,Rt,at);
+                case 2
+                    at=double(O.uav_axes(:,kt));
+                    xw=double(RQ.trigger_pQ_collision(:));
+                    before=obj.bezier_point_metric(xw,ct,Rt,at);
+                case 3
+                    at=double(O.cable_axes(:,kt));
+                    pQ0=double(RQ.trigger_pQ_collision(:));
+                    pL0=double(RQ.trigger_pL_collision(:));
+                    [before,~,xw]=obj.bezier_segment_metric( ...
+                        pQ0,pL0,ct,Rt,at);
+                otherwise
+                    OUT.reason_code=5;
+                    return;
+            end
+
+            if any(~isfinite(at)) || any(at<=0) || ...
+                    any(~isfinite(Rt(:))) || any(~isfinite(xw))
+                OUT.reason_code=6;
+                return;
+            end
+            OUT.trigger_metric_before=before;
+
+            yl=Rt.'*(xw-ct);
+            gw=Rt*(yl./(at.^2));
+            ng=norm(gw);
+            if ~isfinite(ng) || ng<=0
+                OUT.reason_code=7;
+                return;
+            end
+            dir=gw/ng;
+
+            % Numerical strictness only; not a physical margin.
+            target=1+32*eps(1);
+
+            pLbase=double(RQ.trigger_pL_collision(:));
+            pQbase=double(RQ.trigger_pQ_collision(:));
+
+            alphaReq=0;
+            for j=1:double(O.count)
+                Rj=reshape(double(O.rotations_flat(:,j)),3,3);
+                cj=double(O.centers(:,j));
+
+                [ap,okp]=obj.bezier_point_last_exit_alpha( ...
+                    pLbase,cj,Rj,double(O.payload_axes(:,j)),dir,target);
+                [aq,okq]=obj.bezier_point_last_exit_alpha( ...
+                    pQbase,cj,Rj,double(O.uav_axes(:,j)),dir,target);
+                [ac,okc]=obj.bezier_segment_last_exit_alpha( ...
+                    pQbase,pLbase,cj,Rj,double(O.cable_axes(:,j)),dir,target);
+
+                if ~(okp && okq && okc)
+                    OUT.reason_code=8;
+                    return;
+                end
+                alphaReq=max([alphaReq,ap,aq,ac]);
+            end
+
+            alpha=alphaReq + 64*eps(max(1,alphaReq));
+            w=alpha*dir;
+
+            Tup=OUT.tm-OUT.t0;
+            Tdn=OUT.t1-OUT.tm;
+            if ~(Tup>0) || ~(Tdn>0)
+                OUT.reason_code=9;
+                return;
+            end
+
+            K=obj.bezier_c7_basis_derivative_constants();
+            dub=norm(w)*K(:).*max(Tup.^-(1:6)',Tdn.^-(1:6)');
+
+            pLpeak=pLbase+w;
+            pQpeak=pQbase+w;
+
+            switch round(OUT.component_code)
+                case 1
+                    after=obj.bezier_point_metric(pLpeak,ct,Rt,at);
+                case 2
+                    after=obj.bezier_point_metric(pQpeak,ct,Rt,at);
+                case 3
+                    after=obj.bezier_segment_metric(pQpeak,pLpeak,ct,Rt,at);
+            end
+
+            minPeak=inf;
+            for j=1:double(O.count)
+                Rj=reshape(double(O.rotations_flat(:,j)),3,3);
+                cj=double(O.centers(:,j));
+                mp=obj.bezier_point_metric( ...
+                    pLpeak,cj,Rj,double(O.payload_axes(:,j)));
+                mq=obj.bezier_point_metric( ...
+                    pQpeak,cj,Rj,double(O.uav_axes(:,j)));
+                mc=obj.bezier_segment_metric( ...
+                    pQpeak,pLpeak,cj,Rj,double(O.cable_axes(:,j)));
+                minPeak=min([minPeak,mp,mq,mc]);
+            end
+
+            OUT.generated=true;
+            OUT.c7_exact=true;
+            OUT.displacement=w;
+            OUT.displacement_norm_m=norm(w);
+            OUT.direction=dir;
+            OUT.trigger_metric_after=after;
+            OUT.peak_min_metric=minPeak;
+            OUT.peak_all_safe=isfinite(minPeak) && minPeak>1;
+            OUT.correction_derivative_ub=dub;
+            OUT.representation_code=1;
+            OUT.degree=15;
+
+            if OUT.c7_exact && after>1 && OUT.peak_all_safe
+                OUT.success=true;
+                OUT.reason_code=0;
+            elseif ~(after>1)
+                OUT.reason_code=11;
+            else
+                OUT.reason_code=12;
+            end
+        end
+
+
+        function OUT = empty_bezier_d15_c7_proposal(~)
+            OUT=struct( ...
+                'shadow_proposal',true, ...
+                'backend','BEZIER_D15_C7', ...
+                'generated',false, ...
+                'success',false, ...
+                'reason_code',0, ...
+                't0',NaN,'tm',NaN,'t1',NaN, ...
+                'obstacle_id',NaN,'component_code',NaN, ...
+                'displacement',nan(3,1), ...
+                'displacement_norm_m',NaN, ...
+                'direction',nan(3,1), ...
+                'trigger_metric_before',NaN, ...
+                'trigger_metric_after',NaN, ...
+                'peak_min_metric',NaN, ...
+                'peak_all_safe',false, ...
+                'c7_exact',false, ...
+                'correction_derivative_ub',nan(6,1), ...
+                'representation_code',1, ...
+                'degree',15, ...
+                'external_test_dependency',false);
+        end
+
+
+        function K = bezier_c7_basis_derivative_constants(~)
+            persistent KK
+            if isempty(KK)
+                c=[zeros(1,8),ones(1,8)];
+                D=c;
+                KK=zeros(6,1);
+                for r=1:6
+                    D=(numel(D)-1)*diff(D);
+                    KK(r)=max(abs(D));
+                end
+            end
+            K=KK;
+        end
+
+
+        function m = bezier_point_metric(~,x,c,R,a)
+            z=(R.'*(x-c))./a;
+            m=norm(z);
+        end
+
+
+        function [m,lambda,xstar] = bezier_segment_metric(~,p0,p1,c,R,a)
+            z0=(R.'*(p0-c))./a;
+            z1=(R.'*(p1-c))./a;
+            sv=z1-z0;
+            ss=dot(sv,sv);
+            if ss<=0
+                lambda=0;
+            else
+                lambda=max(0,min(1,-dot(z0,sv)/ss));
+            end
+            z=z0+lambda*sv;
+            m=norm(z);
+            xstar=p0+lambda*(p1-p0);
+        end
+
+
+        function [alpha,ok] = bezier_point_last_exit_alpha(obj,x,c,R,a,d,target)
+            y=(R.'*(x-c))./a;
+            v=(R.'*d)./a;
+
+            A=dot(v,v);
+            B=2*dot(y,v);
+            C=dot(y,y)-target^2;
+
+            if ~(A>0) || any(~isfinite([A B C]))
+                alpha=NaN;
+                ok=false;
+                return;
+            end
+
+            rr=obj.bezier_quad_roots_nonnegative(A,B,C);
+            if isempty(rr)
+                if C>0
+                    alpha=0;
+                    ok=true;
+                else
+                    alpha=NaN;
+                    ok=false;
+                end
+            else
+                alpha=max(rr);
+                ok=true;
+            end
+        end
+
+
+        function [alpha,ok] = bezier_segment_last_exit_alpha(obj,p0,p1,c,R,a,d,target)
+            z0=(R.'*(p0-c))./a;
+            z1=(R.'*(p1-c))./a;
+            sv=z1-z0;
+            v=(R.'*d)./a;
+            ss=dot(sv,sv);
+
+            if any(~isfinite([z0;z1;v])) || dot(v,v)<=0
+                alpha=NaN;
+                ok=false;
+                return;
+            end
+
+            if ss<=0
+                [alpha,ok]=obj.bezier_point_last_exit_alpha( ...
+                    p0,c,R,a,d,target);
+                return;
+            end
+
+            cand=zeros(1,6);
+            nc=0;
+
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(v,v),2*dot(z0,v),dot(z0,z0)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                if lam<=64*eps(max(1,abs(lam)))
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(v,v),2*dot(z1,v),dot(z1,z1)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                if lam>=1-64*eps(max(1,abs(lam)))
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            Pz=z0-sv*(dot(sv,z0)/ss);
+            Pv=v-sv*(dot(sv,v)/ss);
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(Pv,Pv),2*dot(Pz,Pv),dot(Pz,Pz)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                tol=64*eps(max(1,abs(lam)));
+                if lam>=-tol && lam<=1+tol
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            if nc>0
+                alpha=max(cand(1:nc));
+                ok=isfinite(alpha) && alpha>=0;
+                return;
+            end
+
+            m0=obj.bezier_segment_metric(p0,p1,c,R,a);
+            if isfinite(m0) && m0>target
+                alpha=0;
+                ok=true;
+            else
+                alpha=NaN;
+                ok=false;
+            end
+        end
+
+
+        function rr = bezier_quad_roots_nonnegative(~,A,B,C)
+            rr=zeros(1,0);
+            if ~(isfinite(A)&&isfinite(B)&&isfinite(C))
+                return;
+            end
+
+            if abs(A)<=eps(max(1,abs(B)))
+                if abs(B)<=eps(max(1,abs(C)))
+                    return;
+                end
+                r=-C/B;
+                if isfinite(r) && r>=0
+                    rr=r;
+                end
+                return;
+            end
+
+            disc=B*B-4*A*C;
+            tol=128*eps(max(1,max(abs([B*B,4*A*C]))));
+            if disc < -tol
+                return;
+            end
+            disc=max(0,disc);
+            sd=sqrt(disc);
+
+            if B>=0
+                q=-0.5*(B+sd);
+            else
+                q=-0.5*(B-sd);
+            end
+
+            if q==0
+                roots=[-B/(2*A),-B/(2*A)];
+            else
+                roots=[q/A,C/q];
+            end
+
+            roots=roots(isfinite(roots) & roots>=0);
+            if ~isempty(roots)
+                rr=unique(roots);
+            end
         end
 
 
@@ -3948,7 +4558,7 @@ classdef REPLANNING_SYSTEM < handle
                 'reference_time',double(t_now)-double(tf0));
 
             E=struct();
-            E.schema='G27V74_REAL_TRIGGER_EVENT_V2_TIME_ORIGIN_BOUND';
+            E.schema='REPLANNING_TRIGGER_EVENT_V1_TIME_ORIGIN_BOUND';
             E.valid=true;
             E.need_replan=true;
             E.real_flight_request_edge=true;
@@ -4089,7 +4699,7 @@ classdef REPLANNING_SYSTEM < handle
                 'command_limits',obj.command_limit_certificate.limits);
 
             STATIC=struct( ...
-                'interface_version','G27_V74R19_GENERATOR_CONTEXT_V1', ...
+                'interface_version','REPLANNING_GENERATOR_CONTEXT_V1', ...
                 'shadow_only',true, ...
                 'backend_code',double(obj.generator_backend_locked_code), ...
                 'backend_name',obj.generator_backend_locked_name, ...
@@ -5231,6 +5841,479 @@ classdef REPLANNING_SYSTEM < handle
             st.rt_trigger_ms=NaN;
             st.rt_total_ms=NaN;
 
+        end
+
+
+        function tf = observer_is_real_control_event(obj,cha)
+            %#ok<INUSD>
+            % Only actual a/t/f calls delivered to THIS reference object
+            % advance the certifier. In the current allocation the replanner
+            % is normally dispatched only in Flight, so SIM mode initializes
+            % exactly at the observed Flight-entry event. Synthetic prime
+            % calls are excluded.
+            if obj.setup_exact_do_prime_active || obj.generator_integration_prime_active
+                tf=false;
+                return;
+            end
+            ph=char(string(cha));
+            tf=any(strcmp(ph,{'a','t','f'}));
+        end
+
+
+        function observer_initialize_lazy(obj,t,phase)
+            % Lazy initialization intentionally occurs after MOTIVE and EKF
+            % have already executed for a real control event.
+            I=struct();
+            I.initialized=false;
+            I.selector_verified=false;
+            I.measured_scalar_indices=[];
+            I.previous_measurement=struct();
+            I.observer_support=struct();
+            I.hlc_state_mass_bridge=struct();
+            I.last_event_time=NaN;
+            I.last_phase='';
+            I.phase_transition_count=0;
+            I.update_count=0;
+            I.fail_count=0;
+            I.runtime_last_ms=NaN;
+            I.runtime_max_ms=NaN;
+            I.runtime_sum_ms=0;
+            I.runtime_count=0;
+
+            [selectorOK,expected]=obj.observer_validate_measurement_selector();
+            assert(selectorOK, ...
+                '[REPLANNER OBSERVER ERROR] EKF selector is not certified p,q,pL,pT order.');
+            I.selector_verified=true;
+            I.measured_scalar_indices=expected;
+
+            mode=upper(strtrim(char(obj.OBSERVER_HARD_SUPPORT_MODE)));
+            if strcmp(mode,'SIM_NUMERIC_TRUTH')
+                st=obj.self.plant.state;
+                wc=double(st.w(:));
+                vc=double(st.vL(:));
+                lc=double(st.wL(:));
+                qe=double(st.q(:));
+                pT=double(st.pT(:));
+                assert(numel(wc)==3&&numel(vc)==3&&numel(lc)==3&& ...
+                    numel(qe)==3&&numel(pT)==3&& ...
+                    all(isfinite([wc;vc;lc;qe;pT])), ...
+                    '[REPLANNER OBSERVER ERROR] SIM initial hidden state invalid.');
+                pn=norm(pT);
+                assert(abs(pn-1)<=16*eps(max(1,pn)), ...
+                    '[REPLANNER OBSERVER ERROR] SIM pT is not unit.');
+                mL0=double(obj.OBSERVER_SIM_TRUE_ML);
+                assert(isscalar(mL0)&&isfinite(mL0)&&mL0>=0, ...
+                    ['[REPLANNER OBSERVER ERROR] SIM true payload mass authority is missing. ' ...
+                     'Pass opts.OBSERVER_SIM_TRUE_ML from the value used BEFORE plant construction.']);
+
+                I.hidden=struct( ...
+                    'w_center',wc,'w_radius',0,'w_norm_ub',norm(wc), ...
+                    'vL_center',vc,'vL_radius',0,'vL_norm_ub',norm(vc), ...
+                    'wL_center',lc,'wL_radius',0,'wL_norm_ub',norm(lc));
+                I.true_mL_interval=[mL0 mL0];
+                I.q_abs_ub_current=abs(qe);
+                I.pT_norm_ub=1;
+
+            elseif strcmp(mode,'REAL_HARD_BOUNDS')
+                B0=obj.OBSERVER_REAL_INITIAL_SUPPORT;
+                req={'w_center','w_radius','vL_center','vL_radius', ...
+                    'wL_center','wL_radius','mL_interval','q_abs_ub','pT_norm_ub'};
+                assert(isstruct(B0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL initial support must be a struct.');
+                for kk=1:numel(req)
+                    assert(isfield(B0,req{kk}), ...
+                        '[REPLANNER OBSERVER ERROR] REAL initial support missing %s.',req{kk});
+                end
+                wc=double(B0.w_center(:)); vc=double(B0.vL_center(:));
+                lc=double(B0.wL_center(:));
+                wr=double(B0.w_radius); vr=double(B0.vL_radius); lr=double(B0.wL_radius);
+                mi=double(B0.mL_interval(:)).'; qa=double(B0.q_abs_ub(:));
+                pn=double(B0.pT_norm_ub);
+                assert(numel(wc)==3&&numel(vc)==3&&numel(lc)==3&& ...
+                    all(isfinite([wc;vc;lc;wr;vr;lr]))&&all([wr;vr;lr]>=0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL hidden initial support invalid.');
+                assert(numel(mi)==2&&all(isfinite(mi))&&mi(1)>=0&&mi(2)>=mi(1), ...
+                    '[REPLANNER OBSERVER ERROR] REAL mL interval invalid.');
+                assert(numel(qa)==3&&all(isfinite(qa))&&all(qa>=0)&& ...
+                    isscalar(pn)&&isfinite(pn)&&pn>0, ...
+                    '[REPLANNER OBSERVER ERROR] REAL q/pT support invalid.');
+                nu=double(obj.OBSERVER_REAL_NU_ABS_UB(:));
+                assert(numel(nu)==12&&all(isfinite(nu))&&all(nu>=0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL 12-D measurement hard bounds invalid.');
+                assert(~isempty(strtrim(char(obj.OBSERVER_REAL_SOURCE_TAG))), ...
+                    '[REPLANNER OBSERVER ERROR] REAL hard-bound source tag required.');
+
+                I.hidden=struct( ...
+                    'w_center',wc,'w_radius',wr,'w_norm_ub',norm(wc)+wr, ...
+                    'vL_center',vc,'vL_radius',vr,'vL_norm_ub',norm(vc)+vr, ...
+                    'wL_center',lc,'wL_radius',lr,'wL_norm_ub',norm(lc)+lr);
+                I.true_mL_interval=mi;
+                I.q_abs_ub_current=qa;
+                I.pT_norm_ub=pn;
+            else
+                error('[REPLANNER OBSERVER ERROR] unsupported mode: %s',mode);
+            end
+
+            I.initialized=true;
+            I.initialized_at_time=double(t);
+            I.initialized_at_phase=char(phase);
+            obj.observer_hard_support_internal=I;
+        end
+
+
+        function observer_update_same_event(obj,time,cha)
+            t=double(time.t);
+            phase=char(string(cha));
+
+            I=obj.observer_hard_support_internal;
+            if isempty(I)||~isstruct(I)||~isfield(I,'initialized')||~I.initialized
+                obj.observer_initialize_lazy(t,phase);
+                I=obj.observer_hard_support_internal;
+            end
+
+            if isfinite(I.last_event_time)
+                if t==I.last_event_time
+                    return;
+                end
+                assert(t>I.last_event_time, ...
+                    '[REPLANNER OBSERVER ERROR] control-event time moved backwards.');
+            end
+
+            if ~isempty(I.last_phase)&&~strcmp(I.last_phase,phase)
+                I.phase_transition_count=I.phase_transition_count+1;
+            end
+
+            C=obj.observer_build_measurement_event(t,phase,I.selector_verified);
+            if ~C.closed
+                I.fail_count=I.fail_count+1;
+                obj.observer_hard_support_internal=I;
+                error('[REPLANNER OBSERVER ERROR] measurement hard box failed: %s',C.reason);
+            end
+
+            xhat=obj.self.estimator.result.state;
+            hasPrev=isstruct(I.previous_measurement)&& ...
+                isfield(I.previous_measurement,'closed')&&logical(I.previous_measurement.closed);
+
+            if hasPrev
+                h=t-double(I.previous_measurement.event_time);
+                assert(isfinite(h)&&h>0, ...
+                    '[REPLANNER OBSERVER ERROR] consecutive event interval is not positive.');
+                uPrev=obj.observer_get_previous_held_input();
+                F=obj.observer_one_step_support(h,uPrev,I);
+                assert(F.closed, ...
+                    '[REPLANNER OBSERVER ERROR] continuous hidden-state support left certified chart.');
+                K=obj.observer_contract_two_events(I.previous_measurement,C,F,xhat);
+
+                I.hidden.w_center=K.w.center;
+                I.hidden.w_radius=K.w.radius;
+                I.hidden.w_norm_ub=K.w.true_norm_ub;
+                I.hidden.vL_center=K.vL.center;
+                I.hidden.vL_radius=K.vL.radius;
+                I.hidden.vL_norm_ub=K.vL.true_norm_ub;
+                I.hidden.wL_center=K.wL.center;
+                I.hidden.wL_radius=K.wL.radius;
+                I.hidden.wL_norm_ub=K.wL.true_norm_ub;
+                measured=K.measured_error;
+                ew=K.w.observer_error_norm_ub;
+                evL=K.vL.observer_error_norm_ub;
+                ewL=K.wL.observer_error_norm_ub;
+                contractionUsed=true;
+                I.last_forward_support=F;
+            else
+                measured=obj.observer_measured_error_box(xhat,C);
+                ew=norm(double(xhat.w(:))-I.hidden.w_center)+I.hidden.w_radius;
+                evL=norm(double(xhat.vL(:))-I.hidden.vL_center)+I.hidden.vL_radius;
+                ewL=norm(double(xhat.wL(:))-I.hidden.wL_center)+I.hidden.wL_radius;
+                contractionUsed=false;
+                I.last_forward_support=struct();
+            end
+
+            mi=I.true_mL_interval;
+            hm=double(xhat.mL);
+            emL=max(abs(hm-mi(1)),abs(hm-mi(2)));
+
+            B=struct();
+            B.schema='REPLANNING_SYSTEM_OBSERVER_HARD_SUPPORT_EVENT_V2';
+            B.closed=true;
+            B.event_time=t;
+            B.phase=phase;
+            B.protection_eligible=strcmp(phase,'f');
+            B.measured=measured;
+            B.w_error_norm_ub=ew;
+            B.vL_error_norm_ub=evL;
+            B.wL_error_norm_ub=ewL;
+            B.mL_error_abs_ub=emL;
+            B.true_mL_interval=mi;
+            B.hidden_true_support=I.hidden;
+            B.consecutive_measurement_contraction_used=contractionUsed;
+            B.numeric_plant_to_continuous_authority=false;
+            B.realized_error_compared=false;
+            B.Q_promoted=false;
+            B.R_promoted=false;
+            B.covariance_promoted=false;
+            B.sampled_acceptance=false;
+
+            I.q_abs_ub_current=abs(C.y(4:6))+C.nu_abs_ub(4:6);
+            I.previous_measurement=C;
+            I.observer_support=B;
+            I.hlc_state_mass_bridge=obj.observer_build_state_mass_bridge(B);
+            I.last_event_time=t;
+            I.last_phase=phase;
+            I.update_count=I.update_count+1;
+            obj.observer_hard_support_internal=I;
+        end
+
+
+        function C = observer_build_measurement_event(obj,t,phase,selectorVerified)
+            C=struct('schema','REPLANNING_SYSTEM_OBSERVER_MEASUREMENT_EVENT_V2', ...
+                'closed',false,'event_time',t,'phase',phase,'y',[], ...
+                'nu_abs_ub',[],'reason','UNINITIALIZED');
+            assert(selectorVerified, ...
+                '[REPLANNER OBSERVER ERROR] measurement selector not verified.');
+
+            y=double(obj.self.sensor.result.output(:));
+            if numel(y)~=12||any(~isfinite(y))
+                C.reason='MEASUREMENT_NOT_FINITE_12D';
+                return;
+            end
+
+            mode=upper(strtrim(char(obj.OBSERVER_HARD_SUPPORT_MODE)));
+            if strcmp(mode,'SIM_NUMERIC_TRUTH')
+                st=obj.self.plant.state;
+                x=[double(st.p(:));double(st.q(:));double(st.pL(:));double(st.pT(:))];
+                if numel(x)~=12||any(~isfinite(x))
+                    C.reason='SIM_NUMERIC_TRUTH_NOT_FINITE_12D';
+                    return;
+                end
+                ur=eps(1)/2;
+                d=double(y-x);
+                rho=(ur/(1-ur))*(abs(y)+abs(x));
+                raw=abs(d)+rho;
+                nu=zeros(12,1);
+                for ii=1:12
+                    nu(ii)=obj.observer_nextfloat_up(raw(ii));
+                end
+                C.y=y; C.nu_abs_ub=nu; C.raw_difference=d;
+                C.relative_to='CURRENT_NUMERICAL_PLANT_STATE';
+                C.numeric_plant_to_continuous_authority=false;
+                C.closed=all(isfinite(nu))&&all(nu>=0);
+                C.reason='SIM_SAME_EVENT_HARD_BOX_CLOSED';
+            elseif strcmp(mode,'REAL_HARD_BOUNDS')
+                nu=double(obj.OBSERVER_REAL_NU_ABS_UB(:));
+                tag=strtrim(char(obj.OBSERVER_REAL_SOURCE_TAG));
+                if numel(nu)~=12||any(~isfinite(nu))||any(nu<0)||isempty(tag)
+                    C.reason='REAL_HARD_BOUND_AUTHORITY_INVALID';
+                    return;
+                end
+                C.y=y; C.nu_abs_ub=nu; C.source_tag=tag;
+                C.relative_to='PHYSICAL_TRUE_MEASURED_COORDINATES';
+                C.numeric_plant_to_continuous_authority=false;
+                C.closed=true;
+                C.reason='REAL_HARD_BOX_CLOSED';
+            else
+                C.reason='UNSUPPORTED_OBSERVER_MODE';
+            end
+            C.Q_promoted=false; C.R_promoted=false;
+            C.covariance_promoted=false; C.logged_max_promoted=false;
+            C.sampled_acceptance=false; C.realized_error_compared=false;
+        end
+
+
+        function [ok,expected] = observer_validate_measurement_selector(obj)
+            ok=false; expected=[];
+            ekf=obj.self.estimator.ekf;
+            Csel=double(ekf.output_param);
+            stlist=string(ekf.model.state.list(:)).';
+            nlist=double(ekf.model.state.num_list(:)).';
+            IDX=struct(); p0=1;
+            for ii=1:numel(stlist)
+                n=nlist(ii); IDX.(char(stlist(ii)))=p0:(p0+n-1); p0=p0+n;
+            end
+            req={'p','q','pL','pT'};
+            if ~all(isfield(IDX,req)),return;end
+            expected=[IDX.p IDX.q IDX.pL IDX.pT];
+            ok=size(Csel,1)==12&&size(Csel,2)==sum(nlist)&& ...
+                all(sum(Csel~=0,2)==1)&&all(Csel(:)==0|Csel(:)==1);
+            if ok
+                [rr,cc]=find(Csel==1); [rr,ord]=sort(rr); cc=cc(ord);
+                ok=isequal(rr(:).',(1:12))&&isequal(cc(:).',expected);
+            end
+        end
+
+
+        function M = observer_measured_error_box(~,xhat,C)
+            y=double(C.y(:)); nu=double(C.nu_abs_ub(:)); M=struct();
+            M.p=struct('center',double(xhat.p(:))-y(1:3),'radius',nu(1:3),'abs_ub',abs(double(xhat.p(:))-y(1:3))+nu(1:3));
+            M.q=struct('center',double(xhat.q(:))-y(4:6),'radius',nu(4:6),'abs_ub',abs(double(xhat.q(:))-y(4:6))+nu(4:6));
+            M.pL=struct('center',double(xhat.pL(:))-y(7:9),'radius',nu(7:9),'abs_ub',abs(double(xhat.pL(:))-y(7:9))+nu(7:9));
+            M.pT=struct('center',double(xhat.pT(:))-y(10:12),'radius',nu(10:12),'abs_ub',abs(double(xhat.pT(:))-y(10:12))+nu(10:12));
+        end
+
+
+        function u = observer_get_previous_held_input(obj)
+            u=double(obj.self.controller.result.input(:));
+            assert(numel(u)==4&&all(isfinite(u)), ...
+                '[REPLANNER OBSERVER ERROR] previous held controller input invalid.');
+        end
+
+
+        function S = observer_one_step_support(obj,h,u,I)
+            H=I.hidden;
+            Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
+            m=double(obj.self.parameter.get("mass"));
+            g=double(obj.self.parameter.get("gravity"));
+            L=double(obj.self.parameter.get("cableL"));
+            assert(numel(Jd)==3&&all(isfinite(Jd))&&all(Jd>0)&& ...
+                isfinite(m)&&m>0&&isfinite(g)&&g>=0&&isfinite(L)&&L>0, ...
+                '[REPLANNER OBSERVER ERROR] physical parameter domain invalid.');
+
+            Jmin=min(Jd); Jmax=max(Jd);
+            tauNorm=norm(u(2:4)); u1abs=abs(u(1));
+            W0=double(H.w_norm_ub); WL0=double(H.wL_norm_ub);
+            VL0=double(H.vL_norm_ub); q0=double(I.q_abs_ub_current(:));
+            Pnorm=double(I.pT_norm_ub); mLint=double(I.true_mL_interval(:));
+            mLlb=mLint(1);
+
+            V0=0.5*Jmax*W0^2;
+            sqrtVend=sqrt(V0)+tauNorm*h/sqrt(2*Jmin);
+            VwEnd=sqrtVend^2;
+            Wabs0=sqrt(2*V0/Jmin); WabsEnd=sqrt(2*VwEnd/Jmin);
+            Iw=Wabs0*h+tauNorm*h^2/(2*Jmin);
+
+            Theta=q0(2)+Iw;
+            pitchClosed=Theta<pi/2;
+            qAbs=[Inf;Theta;Inf]; fullClosed=false;
+            if pitchClosed
+                qAbs(1)=q0(1)+(1+tan(Theta))*Iw;
+                qAbs(3)=q0(3)+(1/cos(Theta))*Iw;
+                fullClosed=qAbs(1)<pi&&qAbs(3)<pi;
+            end
+
+            aWL=Pnorm*u1abs/(m*L);
+            WLEnd=WL0+aWL*h;
+            IWL=WL0*h+0.5*aWL*h^2;
+            pTSpan=Pnorm*IWL;
+            den=m+mLlb;
+            assert(den>0,'[REPLANNER OBSERVER ERROR] total mass lower bound invalid.');
+            Aconst=g+(Pnorm^2*u1abs)/den;
+            Aquad=(Pnorm^3)*m*L/den;
+            intWL2=WL0^2*h+WL0*aWL*h^2+(aWL^2*h^3)/3;
+            VLEnd=VL0+Aconst*h+Aquad*intWL2;
+            ALmax=Aconst+Aquad*(WLEnd^2);
+
+            S=struct();
+            S.closed=pitchClosed&&fullClosed; S.h=h; S.held_input=u;
+            S.Jdiag=Jd; S.w_norm_ub_end=WabsEnd;
+            S.q_abs_ub_interval=qAbs;
+            S.wL_accel_norm_ub=aWL; S.wL_norm_ub_end=WLEnd;
+            S.vL_accel_norm_ub=ALmax; S.vL_norm_ub_end=VLEnd; S.pT_norm_ub=Pnorm;
+            S.sampled_acceptance=false; S.guessed_bound=false;
+        end
+
+
+        function O = observer_contract_two_events(obj,C0,C1,F,xhat)
+            y0=double(C0.y(:)); y1=double(C1.y(:));
+            n0=double(C0.nu_abs_ub(:)); n1=double(C1.nu_abs_ub(:));
+            h=double(C1.event_time-C0.event_time);
+            assert(h>0&&isfinite(h),'[REPLANNER OBSERVER ERROR] contraction h invalid.');
+            iq=4:6; ipL=7:9; ipT=10:12;
+            MEAS=obj.observer_measured_error_box(xhat,C1);
+
+            VLF=double(F.vL_norm_ub_end);
+            ALmax=double(F.vL_accel_norm_ub);
+            dPL=(y1(ipL)-y0(ipL))/h;
+            rVL=0.5*ALmax*h+(norm(n0(ipL))+norm(n1(ipL)))/h;
+            cVL=dPL;
+            VLtrue=min(VLF,norm(cVL)+rVL);
+            eVL=min(norm(double(xhat.vL(:)))+VLF, ...
+                norm(double(xhat.vL(:))-cVL)+rVL);
+
+            WLF=double(F.wL_norm_ub_end); Pbar=double(F.pT_norm_ub);
+            aWL=double(F.wL_accel_norm_ub);
+            pTddot=Pbar*(aWL+WLF^2);
+            dPT=(y1(ipT)-y0(ipT))/h;
+            rPTdot=0.5*pTddot*h+(norm(n0(ipT))+norm(n1(ipT)))/h;
+            cWL=cross(y1(ipT),dPT);
+            pTdotUb=Pbar*WLF;
+            rWL=norm(n1(ipT))*pTdotUb+norm(y1(ipT))*rPTdot;
+            WLtrue=min(WLF,norm(cWL)+rWL);
+            eWL=min(norm(double(xhat.wL(:)))+WLF, ...
+                norm(double(xhat.wL(:))-cWL)+rWL);
+
+            Wf=double(F.w_norm_ub_end); Jd=double(F.Jdiag(:));
+            Jmin=min(Jd); Jmax=max(Jd); tauNorm=norm(double(F.held_input(2:4)));
+            Theta=double(F.q_abs_ub_interval(2));
+            assert(isfinite(Theta)&&Theta<pi/2, ...
+                '[REPLANNER OBSERVER ERROR] Euler chart is not closed.');
+            tanT=tan(Theta); secT=1/cos(Theta); Kphi=1+tanT;
+            Aomega=tauNorm/Jmin+(Jmax/Jmin)*Wf^2;
+            adot=Aomega+Kphi*Wf^2;
+            qddotUb=norm([Aomega+secT^2*Wf^2+tanT*adot; ...
+                Aomega+Kphi*Wf^2; secT*(tanT*Wf^2+adot)]);
+            dq=(y1(iq)-y0(iq))/h;
+            rQdot=0.5*qddotUb*h+(norm(n0(iq))+norm(n1(iq)))/h;
+            lim=[pi;pi/2;pi];
+            assert(all(abs(y0(iq))+n0(iq)<lim)&&all(abs(y1(iq))+n1(iq)<lim), ...
+                '[REPLANNER OBSERVER ERROR] measured Euler box reaches chart boundary.');
+            Ey=obj.observer_euler_rate_inverse_ZYX(y1(iq));
+            cW=Ey*dq;
+            dphi=n1(4); dtheta=n1(5);
+            LE=sqrt(dtheta^2+2*dphi^2+2*(dphi+dtheta)^2);
+            Kq=sqrt(Kphi^2+1+secT^2); qdotUb=Kq*Wf;
+            rW=LE*qdotUb+norm(Ey,2)*rQdot;
+            Wtrue=min(Wf,norm(cW)+rW);
+            eW=min(norm(double(xhat.w(:)))+Wf,norm(double(xhat.w(:))-cW)+rW);
+
+            O=struct(); O.closed=true; O.h=h; O.measured_error=MEAS;
+            O.vL=struct('center',cVL,'radius',rVL,'true_norm_ub',VLtrue, ...
+                'observer_error_norm_ub',eVL);
+            O.wL=struct('center',cWL,'radius',rWL,'true_norm_ub',WLtrue, ...
+                'observer_error_norm_ub',eWL);
+            O.w=struct('center',cW,'radius',rW,'true_norm_ub',Wtrue, ...
+                'observer_error_norm_ub',eW);
+        end
+
+
+        function E = observer_euler_rate_inverse_ZYX(~,q)
+            phi=q(1); theta=q(2);
+            E=[1,0,-sin(theta);0,cos(phi),sin(phi)*cos(theta); ...
+                0,-sin(phi),cos(phi)*cos(theta)];
+        end
+
+
+        function R = observer_build_state_mass_bridge(~,B)
+            M=B.measured;
+            eq=double(M.q.abs_ub(:));
+            thetaRelUb=min(pi,sum(eq));
+            R=struct();
+            R.schema='REPLANNING_SYSTEM_OBSERVER_TO_HLC_STATE_MASS_BRIDGE_V2';
+            R.closed=true;
+            R.event_time=B.event_time;
+            R.phase=B.phase;
+            R.model_state=struct( ...
+                'euler_abs_ub',eq, ...
+                'compact_quaternion_chord_norm_ub',2*sin(thetaRelUb/4), ...
+                'w_norm_ub',double(B.w_error_norm_ub), ...
+                'pL_abs_ub',double(M.pL.abs_ub(:)), ...
+                'vL_norm_ub',double(B.vL_error_norm_ub), ...
+                'pT_abs_ub',double(M.pT.abs_ub(:)), ...
+                'wL_norm_ub',double(B.wL_error_norm_ub));
+            R.live_mL=struct('error_abs_ub',double(B.mL_error_abs_ub), ...
+                'true_interval',double(B.true_mL_interval(:)).');
+            % Current controller command has not executed yet at reference stage.
+            R.current_saturation_closed=false;
+            R.total_virtual_disturbance_closed=false;
+            R.phi_fixed_point_closed=false;
+            R.realized_error_compared=false;
+        end
+
+
+        function y = observer_nextfloat_up(~,x)
+            x=double(x);
+            if isnan(x)||x==Inf,y=x;return;end
+            assert(x>=0,'[REPLANNER OBSERVER ERROR] nextfloat input must be nonnegative.');
+            if x==0,y=realmin*eps(1);return;end
+            u=typecast(x,'uint64'); u=u+uint64(1); y=typecast(u,'double');
         end
 
 
