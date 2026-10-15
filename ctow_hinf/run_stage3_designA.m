@@ -1,5 +1,6 @@
 %RUN_STAGE3_DESIGNA  段階3：設計A（静的重みの連続時間 状態フィードバック H∞）
 P = ctow_params();
+% opt = struct('alpha',0.01, 'q_th',0, 'b_int',0.3, 'rho_v',0.003);   % 事前検討の初期値
 opt = struct('alpha',0.01, 'q_th',0, 'b_int',0.3, 'rho_v',0.003);   % 事前検討の初期値
 G = ctow_genplant_A(P, opt);
 gopt = ctow_hinf_gamma_opt(G.A, G.B1, G.B2, G.C1, G.rho_v);

@@ -51,3 +51,9 @@ for i = 1:numel(res)
     plot(res(i).s2.t, rad2deg(res(i).s2.theta), 'DisplayName', sprintf('Hinf B k_{th}=%g', res(i).k_th));
 end
 grid on; legend; xlabel('t [s]'); ylabel('swing angle [deg]'); title('S2: step force 0.5 @1s');
+figure; hold on;
+plot(sG1.t, sG1.p, 'k--', 'DisplayName', 'G1');
+for i = 1:numel(res)
+    plot(res(i).s2.t, res(i).s2.p, 'DisplayName', sprintf('Hinf B k_{th}=%g', res(i).k_th));
+end
+grid on; legend; xlabel('t [s]'); ylabel('position [m]'); title('S2: step force 0.5 @1s');
