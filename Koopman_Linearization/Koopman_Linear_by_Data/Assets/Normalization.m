@@ -1,5 +1,5 @@
 %正規化を行うための関数
-
+%なんで平均値引いてるんだろう？
 function  data = Normalization(Data)
 % 正規化(平均:0,標準偏差:1)
 

@@ -29,16 +29,30 @@ elseif all(isfield(loaded, {'A', 'B', 'C'}))
 else
     error('MATファイルに est または A,B,C がありません。');
 end
-if ~all(isfield(est, {'A', 'B', 'C'}))
-    error('estにA,B,Cがありません。');
+
+%% 元の26状態・4入力のモデルを使用
+
+if ~all(isfield(est, {'A_original', 'B_original'}))
+    error('estにA_originalまたはB_originalがありません。');
 end
 
-A = double(est.A);
-B = double(est.B);
-C = double(est.C);
+A = double(est.A_original);
+B = double(est.B_original);
+
 n = size(A, 1);
 m = size(B, 2);
 
+% 全誤差状態を出力として扱う
+C = eye(n);
+
+%% サイズ確認
+fprintf('\n===== モデルのサイズ =====\n');
+fprintf('A : %d x %d\n', size(A));
+fprintf('B : %d x %d\n', size(B));
+fprintf('C : %d x %d\n', size(C));
+
+assert(n == 26 && m == 4, ...
+    '元の26状態・4入力に復元されていません');
 %%
 if n == 0 || size(A, 2) ~= n || size(B, 1) ~= n || ...
         size(C, 2) ~= n || m == 0

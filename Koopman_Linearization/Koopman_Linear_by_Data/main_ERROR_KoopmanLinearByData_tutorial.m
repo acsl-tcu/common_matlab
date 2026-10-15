@@ -62,8 +62,8 @@ renamedFilePaths  = cell(nFiles, 1);
 % loading_filename = input('\n統一するファイル名を入力してください(※ .matは含まない):','s');
 
 % FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
-loading_filename = FileName;
-
+% loading_filename = FileName;
+loading_filename = baseName;
 % for i = 1:length(fileList)
 %     oldFileName = fullfile(folderPath,fileList(i).name);
 %     newFileName = fullfile(folderPath,[append(loading_filename,'_',num2str(i),'.mat')]);
@@ -165,6 +165,7 @@ try
             Data.E = [Dataset.E]; %追加
             Data.E_next = [Dataset.E_next];
             Data.dU = Dataset.dU;
+            % data.dU = Data.dU ./ scaleU;    %こういうこと？ではないらしい
         else
             Data.X = [Data.X, Dataset.X];
             Data.U = [Data.U, Dataset.U];
@@ -179,15 +180,151 @@ try
 
     fprintf('\n＜データセットの結合が完了しました＞\n')
 
-    flg.normalize = input('\n＜正規化を行います＞\n はい:1，いいえ:0：','s');
-    % if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
-    Ndata = Normalization(Data);
-    Data.X = Ndata.x;
-    Data.Y = Ndata.y;
-    Data.U = Ndata.u;
-    disp('正規化が完了しました')
-    % end
-%あー正規化してないや，Eを．これったほうがよきかもしれん
+
+%% 誤差系の定数ゼロ成分を除去
+
+% 元の誤差状態の次元
+n_full = size(Data.E,1);
+
+% 常に0となる成分
+remove_idx = 16;
+
+% EとE_nextの両方が0であることを確認
+tol = 1e-12;
+
+assert(all(abs(Data.E(remove_idx,:)) < tol), ...
+    'Eの16行目が0ではありません');
+
+assert(all(abs(Data.E_next(remove_idx,:)) < tol), ...
+    'E_nextの16行目が0ではありません');
+
+% 残す状態のインデックス
+keep_idx = setdiff(1:n_full, remove_idx);
+
+% 元の座標へ戻すために保存
+Data.n_full = n_full;
+Data.keep_idx = keep_idx;
+Data.remove_idx = remove_idx;
+
+% 誤差状態を26次元から25次元へ
+Data.E = Data.E(keep_idx,:);
+Data.E_next = Data.E_next(keep_idx,:);
+
+% 入力dUは変更しない
+
+fprintf('誤差状態を %d 次元から %d 次元へ削減しました\n', ...
+    n_full, size(Data.E,1));
+
+
+%% 入力の有効成分を自動判定
+
+% 元の入力次元を保存
+Data.n_u_full = size(Data.dU,1);
+
+% 有効な入力成分の判定
+tol_u = 1e-12;
+
+Data.keep_u_idx = find( ...
+    max(abs(Data.dU),[],2) > tol_u);
+
+% 有効入力がない場合
+assert(~isempty(Data.keep_u_idx), ...
+    '有効な入力成分がありません');
+
+% 有効な入力成分のみ取り出す
+Data.dU = Data.dU(Data.keep_u_idx,:);
+
+fprintf('\n===== Input diagnostics =====\n');
+
+fprintf('有効な入力番号:\n');
+disp(Data.keep_u_idx');
+
+fprintf('入力次元: %d → %d\n', ...
+    Data.n_u_full, size(Data.dU,1));
+
+% 回帰行列のランク確認
+Psi = [Data.E; Data.dU];
+
+fprintf('rank(Psi) = %d / %d\n', ...
+    rank(Psi), size(Psi,1));
+
+assert(rank(Psi) == size(Psi,1), ...
+    '有効入力の抽出後も回帰行列がランク不足です');
+
+    
+flg.normalize = str2double(input( ...
+    '\n＜正規化を行います＞\n はい:1，いいえ:0：','s'));
+
+if ~ismember(flg.normalize, [0, 1])
+    error('正規化の選択は0または1にしてください');
+end
+
+%% 正規化前の条件数
+W_before = [Data.E; Data.dU];
+
+if flg.normalize == 1
+
+    %% 正規化
+    Ndata = Remake_Normalization(Data);
+
+    Data.E      = Ndata.E;
+    Data.E_next = Ndata.E_next;
+    Data.dU     = Ndata.dU;
+
+    % 座標変換情報を保存
+    Data.normalization.stdValue = Ndata.stdValue;
+    Data.normalization.Se = Ndata.Se;
+    Data.normalization.Su = Ndata.Su;
+
+    %% 正規化後の条件数
+    W_after = [Data.E; Data.dU];
+
+    fprintf('正規化前の条件数: %.3e\n', cond(W_before));
+    fprintf('正規化後の条件数: %.3e\n', cond(W_after));
+
+    disp('正規化が完了しました');
+
+
+else
+
+    disp('正規化を行わずに続行します');
+
+end
+
+%% 正規化後のランク診断
+
+Psi = [Data.E; Data.dU];
+
+fprintf('\n===== ランク診断 =====\n');
+
+fprintf('rank(E)   = %d / %d\n', ...
+    rank(Data.E), size(Data.E,1));
+
+fprintf('rank(dU)  = %d / %d\n', ...
+    rank(Data.dU), size(Data.dU,1));
+
+fprintf('rank(Psi) = %d / %d\n', ...
+    rank(Psi), size(Psi,1));
+
+fprintf('データ数 N = %d\n', size(Psi,2));
+
+%% 特異値を確認
+s = svd(Psi,'econ');
+
+fprintf('\n最大特異値 = %.6e\n', max(s));
+fprintf('最小特異値 = %.6e\n', min(s));
+
+%% ゼロ行の検出
+zeroE = find(all(abs(Data.E) < 1e-12, 2));
+zeroU = find(all(abs(Data.dU) < 1e-12, 2));
+
+fprintf('\nEのゼロ行:\n');
+disp(zeroE');
+
+fprintf('dUのゼロ行:\n');
+disp(zeroU');
+
+
 
 
     %% クォータニオンのノルムをチェック(クォータニオンのノルムは1にならなければいけないという制約がある)
@@ -227,7 +364,8 @@ try
             % LYKLの場合の処理
             disp('LYKL_err');
             tic
-            [~, ~, ~, ~, est] = rensyuuKLLY_err(Data.X,Data.U,Data.Y,F,flg); %クープマン線形化の具体的な計算をしてる部分
+            [~, ~, ~, ~, est] = rensyuuLYKL_error(Data.E,Data.dU,Data.E_next,flg);
+
             calT = toc;
 
         end
@@ -246,6 +384,78 @@ try
     % fprintf('\n＜クープマン線形化が完了しました＞\n')
 
     fprintf('\n＜クープマン線形化が完了しました＞\n')
+
+    %% 元の誤差座標で使用するA,B   ここは追加
+%   からさらに変更して，25*25の0を抜いた所のデータセットでの同定で
+%   出たものを26次元に合わせる
+
+% if flg.normalize == 1
+%     Se = Data.normalization.Se;
+%     Su = Data.normalization.Su;
+% 
+%     est.A_original = Se * est.A / Se;
+%     est.B_original = Se * est.B / Su;
+% else
+%     est.A_original = est.A;
+%     est.B_original = est.B;
+% end
+
+%% 元の誤差座標へ戻す
+
+if flg.normalize == 1
+
+    Se = Data.normalization.Se;
+    Su = Data.normalization.Su;
+
+    % 25次元の正規化を解除
+    A_reduced = Se * est.A / Se;
+    B_reduced = Se * est.B / Su;
+
+else
+
+    A_reduced = est.A;
+    B_reduced = est.B;
+
+end
+
+% 25次元のモデルを保存
+est.A_reduced = A_reduced;
+est.B_reduced = B_reduced;
+
+
+%% 元の26状態・4入力に戻す
+
+keep_idx = Data.keep_idx;
+keep_u_idx = Data.keep_u_idx;
+
+n_full = Data.n_full;
+n_u_full = Data.n_u_full;
+
+%% A行列の復元
+
+% 元の状態次元のA行列を作成
+est.A_original = zeros(n_full, n_full);
+
+% 同定した25次元のAを埋め戻す
+est.A_original(keep_idx, keep_idx) = A_reduced;
+
+%% B行列の復元
+
+% 元の入力次元のB行列を作成
+est.B_original = zeros(n_full, n_u_full);
+
+% 同定した入力成分のみ埋め戻す
+est.B_original(keep_idx, keep_u_idx) = B_reduced;
+
+%% 同定情報の保存
+est.identified_input_idx = keep_u_idx;
+
+%% サイズ確認
+fprintf('\n===== 復元後の行列サイズ =====\n');
+fprintf('A_original : %d x %d\n', size(est.A_original));
+fprintf('B_original : %d x %d\n', size(est.B_original));
+
+
 
 catch ME
 
@@ -274,9 +484,16 @@ fprintf('\n＜ファイル名を元に戻しました＞\n');
 %% Simulation by Estimated model
 % 誤差モデルの1ステップ予測精度検証
 
-if ~strcmpi(method, 'KL') || flg.bilinear == 1
-    error('この精度検証処理は現在KL_error専用です');
-end
+% if ~strcmpi(method, 'KL') || flg.bilinear == 1
+%     error('この精度検証処理は現在KL_error専用です');
+% end
+
+%% 1ステップ予測（元の誤差座標）
+
+
+
+assert(isfield(est,'A') && isfield(est,'B'), ...
+    '同定結果にAまたはBがありません');
 
 fprintf('\n＜誤差モデルの推定精度検証＞\n');
 
@@ -289,8 +506,7 @@ end
 
 verification_data = fullfile(filePath, fileName);
 
-simResult.reference = ...
-    ImportFromExpData_ERROR_estimation_tutorial(verification_data);
+simResult.reference = ImportFromExpData_ERROR_estimation_tutorial(verification_data);
 
 %% 検証用データ
 
@@ -301,30 +517,28 @@ dU     = simResult.reference.dU;
 N = size(E,2);
 
 % データ数と次元を確認
-assert(isequal(size(E),size(E_next)), ...
-    'EとE_nextのサイズが一致しません');
+assert(isequal(size(E),size(E_next)), 'EとE_nextのサイズが一致しません');
 
-assert(size(dU,2) == N, ...
-    'EとdUのデータ数が一致しません');
+assert(size(dU,2) == N, 'EとdUのデータ数が一致しません');
 
-assert(size(E,1) == size(est.A,2), ...
-    'EとAの次元が一致しません');
+assert(size(E,1) == size(est.A_original,2),  'EとA_originalの次元が一致しません');
 
-assert(size(E_next,1) == size(est.A,1), ...
-    'E_nextとAの次元が一致しません');
+assert(size(E_next,1) == size(est.A_original,1), ...
+    'E_nextとA_originalの次元が一致しません');
 
-assert(size(dU,1) == size(est.B,2), ...
-    'dUとBの次元が一致しません');
+assert(size(dU,1) == size(est.B_original,2), ...
+    'dUとB_originalの次元が一致しません');
 
 %% 1ステップ予測
 
-if flg.weight
-    % 重み付き同定時は元の誤差座標に戻す
-    simResult.Ehat_next = est.Q \ ...
-        (est.A * (est.Q * E) + est.B * dU);
-else
-    simResult.Ehat_next = est.A * E + est.B * dU;
-end
+% if flg.weight
+%     % 重み付き同定時は元の誤差座標に戻す
+%     simResult.Ehat_next = est.Q \ (est.A * (est.Q * E) + est.B * dU);
+% else
+%     simResult.Ehat_next = est.A * E + est.B * dU;
+% end
+%% 1ステップ予測
+simResult.Ehat_next = est.A_original * E + est.B_original * dU;
 
 % 実際の次時刻の誤差
 simResult.Etrue_next = E_next;
@@ -347,7 +561,7 @@ fprintf('Data : %d samples\n',N);
 fprintf('RMSE : %.6g\n',simResult.RMSE);
 
 fprintf('\n＜推定精度検証が完了しました＞\n');
-% 
+%
 
 
 if strcmp(method, 'KL')
@@ -441,6 +655,3 @@ disp(targetPath)
 % end
 %
 % fprintf('\n＜ファイルの移動が完了しました＞\n')
-
-
-

@@ -60,7 +60,8 @@ classdef MECKC < handle
             % K_full=[zeros(4,24)];
             % load('koopman_common_z__gain_KD.mat','K_full');
             % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
-            load('errore_02_spline_KL_err_gain_controllable_dlqr_20261014_175934_757.mat','K_full')
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');errorKLMEC
+            load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
             % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
             % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散

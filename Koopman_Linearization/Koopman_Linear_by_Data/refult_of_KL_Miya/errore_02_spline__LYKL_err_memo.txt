@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/15 17:28:19
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+errore_02_spline_1.mat
+errore_02_spline_10.mat
+errore_02_spline_2.mat
+errore_02_spline_3.mat
+errore_02_spline_4.mat
+errore_02_spline_5.mat
+errore_02_spline_6.mat
+errore_02_spline_7.mat
+errore_02_spline_8.mat
+errore_02_spline_9.mat
+LYKL回数 : 14
