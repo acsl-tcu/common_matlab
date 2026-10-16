@@ -1,5 +1,12 @@
 classdef REPLANNING_SYSTEM < handle
 
+% AF7R38-PREFLIGHT-POLICY-HOTPATH: dry-run observer/full-do cold paths before Flight; defer non-authoritative execution diagnostics under REFERENCE_ONLY.
+% AF7R39-EXACT-R38-PROPERTY-REPAIR: declares every R38 state used by preflight/QPC/postcallback paths.
+% AF7R40-REPAIRED-PACKET-BATCH: future trigger packet uses committed AF7R33 exact batch flat model.
+% AF7R41-REPAIRED-ROLLING-CACHE: exact shifted horizon + one-tail evaluation; pre-Flight primed.
+% AF7R43-HARDPATH-CLEANUP: defer non-authoritative copies and cache nominal AF7R33 model.
+% AF7R44-SENSOR-MEMORY: simulation starts unknown; detected static obstacles are retained through certified rejoin.
+
 % AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.
 
 % AF7R33-R13C: repeat-safe active-flat batch + all-obstacle episode + exact-QP + batched whole-body.
@@ -201,12 +208,29 @@ classdef REPLANNING_SYSTEM < handle
         static_obstacle_map = [];  % ENVIRONMENT から取得した静的障害物配列
         obstacle_packet     = [];  % MEX 用に事前計算された保守的外接楕円体パラメータパケット
 
+        % AF7R44 simulation-only sensing memory.
+        % The private simulation truth map remains hidden from the planner
+        % until raw_sensor_gate reports a detection. Once detected, a static
+        % obstacle is retained until the certified repaired-reference rejoin
+        % has completed and it is no longer currently sensed.
+        simulated_sensor_memory_mask          = false(1,0);
+        simulated_sensor_first_seen_s         = nan(1,0);
+        simulated_sensor_last_seen_s          = nan(1,0);
+        simulated_sensor_release_after_s      = inf(1,0);
+        simulated_sensor_memory_release_count = 0;
+
         % -----------------------------------------------------------------
         % 【将来参照軌道パケット・ローリングキャッシュ】
         % -----------------------------------------------------------------
         reference_packet_fn   = [];      % 外部指定の将来軌道関数 @(tvec)
         reference_cache       = struct(); % フォールバック用ローリングキャッシュ
         reference_cache_valid = false;   % キャッシュ有効フラグ
+        % AF7R41 exact version-bound rolling cache for REPAIRED future packets.
+        repaired_reference_cache       = struct();
+        repaired_reference_cache_valid = false;
+        % AF7R43 immutable pre-Flight nominal flat-model cache.
+        nominal_batch_model_cache       = struct();
+        nominal_batch_model_cache_valid = false;
 
         % -----------------------------------------------------------------
         % 【公称軌道事前計算テーブル (Precomputed Nominal Table)】
@@ -249,8 +273,18 @@ classdef REPLANNING_SYSTEM < handle
         setup_exact_do_prime_runtime_ms = NaN;    % do() 事前プライム所要時間 [ms]
         setup_exact_do_prime_calls      = 0;      % do() 事前呼び出し実行回数
         setup_exact_force_hit           = false;  % プライム用強制衝突テストフラグ
-        setup_exact_force_hit_calls     = 0;      % プライム用強制衝突テスト実行回数
+        setup_exact_force_hit_calls     = 0;      
 
+        % AF7R39 exact repair of the partially-installed R38 preflight layer.
+        % These are implementation/warmup diagnostics only; none are safety
+        % acceptance conditions.
+        observer_preflight_prime_active = false;
+        observer_preflight_prime_done   = false;
+        observer_preflight_prime_ms     = NaN;
+        qpc_stamp_prime_done             = false;
+        postcallback_prime_candidate_found = false;
+        postcallback_prime_done          = false;
+        postcallback_prime_ms            = NaN;
         % -----------------------------------------------------------------
         % 【将来 C6 軌道修復連携用フック】
         % -----------------------------------------------------------------
@@ -811,6 +845,22 @@ classdef REPLANNING_SYSTEM < handle
             S.last_execution_aware_evaluation=obj.last_execution_aware_evaluation;
             S.reference_only_is_full_system_authority=false;
             S.execution_aware_requires_tracking_and_actuator=true;
+        end
+
+
+        function S = get_simulated_sensor_memory_status(obj)
+            S=struct();
+            S.schema='REPLANNING_SYSTEM_SIM_SENSOR_MEMORY_STATUS_V1';
+            S.currently_known_mask=logical(obj.simulated_sensor_memory_mask);
+            S.known_count=double(nnz(obj.simulated_sensor_memory_mask));
+            S.first_seen_s=double(obj.simulated_sensor_first_seen_s);
+            S.last_seen_s=double(obj.simulated_sensor_last_seen_s);
+            S.release_after_s=double(obj.simulated_sensor_release_after_s);
+            S.release_count=double(obj.simulated_sensor_memory_release_count);
+            S.initially_unknown_contract=true;
+            S.generator_receives_private_truth_before_detection=false;
+            S.release_policy='AFTER_CERTIFIED_REJOIN_AND_NOT_CURRENTLY_SENSED';
+            S.simulation_truth_used_only_by_sensor_emulator=true;
         end
 
 
@@ -1498,6 +1548,13 @@ classdef REPLANNING_SYSTEM < handle
             obj.static_obstacle_map=raw_obs;
             obj.obstacle_packet=obj.prepare_obstacle_packet(raw_obs);
 
+            Mobs=numel(raw_obs);
+            obj.simulated_sensor_memory_mask=false(1,Mobs);
+            obj.simulated_sensor_first_seen_s=nan(1,Mobs);
+            obj.simulated_sensor_last_seen_s=nan(1,Mobs);
+            obj.simulated_sensor_release_after_s=inf(1,Mobs);
+            obj.simulated_sensor_memory_release_count=0;
+
             % Dependency-aware theorem certificates are built from CURRENT
             % live/source-truth values.  No observed numeric configuration
             % is copied into the implementation as a fixed assumption.
@@ -1516,6 +1573,10 @@ classdef REPLANNING_SYSTEM < handle
                 "min_obstacle_id_point", ...
                 "min_dist_point", ...
                 "detected_obstacle_count_point", ...
+                "sensor_current_active_mask", ...
+                "sensor_known_active_mask", ...
+                "sensor_known_obstacle_count", ...
+                "sensor_memory_release_count", ...
                 "loadmass", ...
                 "trigger_ttc", ...
                 "trigger_collision_time", ...
@@ -1902,6 +1963,7 @@ classdef REPLANNING_SYSTEM < handle
                     obj.generator_backend_configuration_frozen && ...
                     obj.generator_integration_prime_done && ...
                     obj.generator_backend_kernel_prime_done && ...
+                    obj.observer_preflight_prime_done && ...
                     obj.trigger_event_capture_prime_done, ...
                     ['[REPLANNER PREFLIGHT ERROR] Flight reached before pre-motion exact/generator prime completed. ' ...
                      'Prime must finish before vehicle motion.']);
@@ -1946,14 +2008,28 @@ classdef REPLANNING_SYSTEM < handle
                 obj.profiling.t_geometry_eval_ms=1e3*toc(t_geometry_eval);
                 ts=tic;
             end
-            [active,min_dist,min_id,all_dists]= ...
+            [sensor_active,min_dist,min_id,all_dists]= ...
                 obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+
+            % Initialization and synthetic Flight-prime calls may exercise
+            % the sensor branch but are forbidden from teaching the simulated
+            % replanner any obstacle. Real memory begins only at the bound
+            % Flight time origin.
+            tf_mem=double(obj.flight_reference_time_origin);
+            real_sensor_memory_event = ~obj.setup_exact_do_prime_active && ...
+                ~obj.generator_integration_prime_active && ...
+                isfinite(tf_mem) && ...
+                double(time.t)>=tf_mem-1e-10*max(1,abs(tf_mem));
+            active=obj.apply_simulated_sensor_memory( ...
+                sensor_active,double(time.t),real_sensor_memory_event);
+
             if obj.ENABLE_PROFILING
                 obj.profiling.t_sensor_ms=1e3*toc(ts);
                 tr=tic;
             end
 
-            vis_count=nnz(active);
+            vis_count=nnz(sensor_active);
+            known_count=nnz(active);
 
             [pL_ref,q_ref,ref_source]= ...
                 obj.get_active_reference_packet(time,cha,varargin,xd_nom);
@@ -2031,27 +2107,24 @@ classdef REPLANNING_SYSTEM < handle
 
                 if requestIdentityChanged
 
-                    % Do not duplicate the same diagnostic event snapshot on
-                    % a deadline retry.
-                    if obj.CAPTURE_REAL_TRIGGER_EVENT && ...
-                            ~retryableDeadlineMiss && ...
-                            ~obj.setup_exact_do_prime_active && ...
-                            ~obj.generator_integration_prime_active
-                        tevent=tic;
-                        obj.latch_real_trigger_event( ...
-                            time.t,xd_nom,xd_active_now, ...
-                            pQ_cur,pL_cur,q_cur,cable_residual, ...
-                            active,all_dists,ref_source, ...
-                            ttc,collision_time,obs_id,comp_name,comp_code, ...
-                            pL_collision,q_collision,pQ_collision,jhit, ...
-                            effective_horizon,N);
-                        obj.trigger_event_capture_ms=1e3*toc(tevent);
-                        obj.last_trigger_event.capture_runtime_ms= ...
-                            double(obj.trigger_event_capture_ms);
-                        if obj.trigger_event_count==1
-                            obj.first_trigger_event.capture_runtime_ms= ...
-                                double(obj.trigger_event_capture_ms);
-                        end
+                    % AF7R43: replay-event materialization is diagnostic.
+                    % Preserve PRE-COMMIT authorities by copy-on-write now,
+                    % but build the large event only after the hard
+                    % generator/commit decision.
+                    deferTriggerCapture = obj.CAPTURE_REAL_TRIGGER_EVENT && ...
+                        ~retryableDeadlineMiss && ...
+                        ~obj.setup_exact_do_prime_active && ...
+                        ~obj.generator_integration_prime_active;
+                    triggerAuthoritySnapshot=struct();
+                    if deferTriggerCapture
+                        triggerAuthoritySnapshot=struct( ...
+                            'packet',obj.obstacle_packet, ...
+                            'dependency_signature',obj.runtime_dependency_signature, ...
+                            'speed_certificate',obj.active_speed_certificate, ...
+                            'sensor_horizon_certificate',obj.sensor_horizon_certificate, ...
+                            'reference_mode',char(obj.active_reference_mode), ...
+                            'reference_version',double(obj.active_reference_version), ...
+                            'flight_reference_time_origin',double(obj.flight_reference_time_origin));
                     end
 
                     if ~obj.setup_exact_do_prime_active && obj.generator_shadow_enabled
@@ -2070,6 +2143,24 @@ classdef REPLANNING_SYSTEM < handle
                             'trigger_ttc',double(ttc), ...
                             'trigger_obstacle_id',double(obs_id), ...
                             'trigger_component',char(comp_name));
+                    end
+
+                    if deferTriggerCapture
+                        tevent=tic;
+                        obj.latch_real_trigger_event( ...
+                            time.t,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,ref_source, ...
+                            ttc,collision_time,obs_id,comp_name,comp_code, ...
+                            pL_collision,q_collision,pQ_collision,jhit, ...
+                            effective_horizon,N,triggerAuthoritySnapshot);
+                        obj.trigger_event_capture_ms=1e3*toc(tevent);
+                        obj.last_trigger_event.capture_runtime_ms= ...
+                            double(obj.trigger_event_capture_ms);
+                        if obj.trigger_event_count==1
+                            obj.first_trigger_event.capture_runtime_ms= ...
+                                double(obj.trigger_event_capture_ms);
+                        end
                     end
 
                     % Store the VERSION THAT WAS REQUESTED.  If a commit
@@ -2123,6 +2214,10 @@ classdef REPLANNING_SYSTEM < handle
             st.min_obstacle_id_point=min_id;
             st.min_dist_point=min_dist;
             st.detected_obstacle_count_point=vis_count;
+            st.sensor_current_active_mask=double(sensor_active);
+            st.sensor_known_active_mask=double(active);
+            st.sensor_known_obstacle_count=double(known_count);
+            st.sensor_memory_release_count=double(obj.simulated_sensor_memory_release_count);
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_state_basic_ms=1e3*toc(t_light_e2e);
@@ -4236,6 +4331,64 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function safe_record_bezier_shadow_proposal(obj,P)
+            try
+                obj.record_bezier_shadow_proposal(P);
+            catch
+                % Diagnostic mirroring never creates/revokes safety authority.
+            end
+        end
+
+
+        function model = make_batch_model_from_proposal_cached(obj,P,targetVersion)
+            assert(isstruct(P)&&isfield(P,'representation_code')&& ...
+                double(P.representation_code)==2, ...
+                '[REPLANNER ERROR] cached batch commit requires piecewise representation_code=2.');
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                assert(obj.nominal_batch_model_cache_valid && ...
+                    isstruct(obj.nominal_batch_model_cache) && ...
+                    isfield(obj.nominal_batch_model_cache,'certified') && ...
+                    logical(obj.nominal_batch_model_cache.certified) && ...
+                    double(obj.nominal_batch_model_cache.reference_version)== ...
+                        double(obj.active_reference_version), ...
+                    '[REPLANNER ERROR] nominal AF7R33 batch cache is stale.');
+                model=obj.nominal_batch_model_cache;
+            elseif strcmpi(char(obj.active_reference_mode),'REPAIRED')
+                R=obj.active_repaired_reference;
+                assert(isstruct(R)&&isfield(R,'batch_flat_model')&& ...
+                    isstruct(R.batch_flat_model)&& ...
+                    isfield(R.batch_flat_model,'certified')&& ...
+                    logical(R.batch_flat_model.certified), ...
+                    '[REPLANNER ERROR] previous repaired reference lacks batch model.');
+                model=R.batch_flat_model;
+            else
+                error('[REPLANNER ERROR] unsupported active reference mode.');
+            end
+
+            C=struct();
+            C.t0=double(P.t0);
+            C.t1=double(P.t1);
+            C.segment_t0=double(P.piecewise_segment_t0(:).');
+            C.segment_t1=double(P.piecewise_segment_t1(:).');
+            C.control_points=P.piecewise_control_points;
+
+            assert(isfinite(C.t0)&&isfinite(C.t1)&&C.t1>C.t0);
+            assert(numel(C.segment_t0)==numel(C.segment_t1)&& ...
+                numel(C.control_points)==numel(C.segment_t0)&& ...
+                ~isempty(C.control_points));
+            for k=1:numel(C.control_points)
+                cp=double(C.control_points{k});
+                assert(isequal(size(cp),[3 16])&&all(isfinite(cp),'all'));
+            end
+
+            model.corrections(end+1)=C;
+            model.reference_version=double(targetVersion);
+            model.certified=true;
+            model.schema='AF7R33_BATCH_FLAT_MODEL_V1';
+        end
+
+
         function C = normalize_generator_backend_callbacks(~,C)
             names={'BEZIER_D15_C7','POLY_D15_C7', ...
                 'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
@@ -4303,8 +4456,10 @@ classdef REPLANNING_SYSTEM < handle
             % R19 compact detected-only request path.
             %
             % IMPORTANT SENSOR CONTRACT:
-            %   The generator receives ONLY currently detected obstacles.
-            %   The full simulation obstacle map is never exposed.
+            %   The generator receives ONLY sensor-known obstacles:
+            %   current detections plus previously detected static obstacles
+            %   retained through certified rejoin. The full simulation map is
+            %   never exposed before first detection.
             %
             % Backend selection/callback are frozen before Flight.
             % =============================================================
@@ -4422,7 +4577,10 @@ classdef REPLANNING_SYSTEM < handle
             if isstruct(candidate) && isscalar(candidate) && ...
                     isfield(candidate,'shadow_proposal') && ...
                     logical(candidate.shadow_proposal)
-                obj.record_bezier_shadow_proposal(candidate);
+                % AF7R43: shadow mirroring is diagnostic only; perform it
+                % when invoke_replan_generator_shadow exits, after every hard
+                % deadline / atomic-commit decision.
+                record_guard=onCleanup(@()obj.safe_record_bezier_shadow_proposal(candidate)); %#ok<NASGU>
                 obj.generator_last_validation_ms=0;
                 obj.generator_last_critical_ms=cp_callback;
 
@@ -4564,27 +4722,43 @@ classdef REPLANNING_SYSTEM < handle
                 end
 
                 % -----------------------------------------------------
-                % Evaluate BOTH safety layers on the SAME candidate.
-                % These evaluations are read-only; only the commit policy
-                % below is allowed to mutate active_reference_mode/version.
+                % AF7R38 policy-authority hot path.
+                % REFERENCE_ONLY commits depend only on the already-closed
+                % reference certificate. Execution-aware evaluation is a
+                % non-authoritative diagnostic in this policy and is
+                % deferred from the <=4 ms modification path. No safety
+                % condition used by REFERENCE_ONLY is removed or relaxed.
+                % EXECUTION_AWARE retains both evaluations exactly.
                 % -----------------------------------------------------
                 Rref=struct('certified',false,'reason','REFERENCE_LAYER_DISABLED');
-                if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
-                    Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
-                    obj.reference_only_evaluation_count= ...
-                        obj.reference_only_evaluation_count+1;
-                end
-                obj.last_reference_only_evaluation=Rref;
-
                 Xexec=struct( ...
                     'certified',false, ...
-                    'reason','EXECUTION_AWARE_LAYER_DISABLED', ...
-                    'full_system_authority',false);
-                if obj.ENABLE_EXECUTION_AWARE_CERTIFICATE
-                    Xexec=obj.build_execution_aware_proposal_certificate(candidate,CTX);
-                    obj.execution_aware_evaluation_count= ...
-                        obj.execution_aware_evaluation_count+1;
+                    'reason','EXECUTION_AWARE_DEFERRED_IN_REFERENCE_ONLY_HOTPATH', ...
+                    'full_system_authority',false, ...
+                    'sampled_acceptance',false);
+                policyNow=upper(char(obj.AVOIDANCE_COMMIT_POLICY));
+                switch policyNow
+                    case 'REFERENCE_ONLY'
+                        if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                            Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
+                            obj.reference_only_evaluation_count= ...
+                                obj.reference_only_evaluation_count+1;
+                        end
+                    case 'EXECUTION_AWARE'
+                        if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                            Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
+                            obj.reference_only_evaluation_count= ...
+                                obj.reference_only_evaluation_count+1;
+                        end
+                        if obj.ENABLE_EXECUTION_AWARE_CERTIFICATE
+                            Xexec=obj.build_execution_aware_proposal_certificate(candidate,CTX);
+                            obj.execution_aware_evaluation_count= ...
+                                obj.execution_aware_evaluation_count+1;
+                        end
+                    otherwise
+                        error('[REPLANNER ERROR] unknown avoidance commit policy.');
                 end
+                obj.last_reference_only_evaluation=Rref;
                 obj.last_execution_aware_evaluation=Xexec;
 
                 if deadlineExceeded
@@ -8480,8 +8654,8 @@ classdef REPLANNING_SYSTEM < handle
                     'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
                     't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
                     'displacement',double(P.displacement(:)));
-                R.batch_flat_model=af7r33_make_batch_model_from_proposal( ...
-                    obj,P,targetVersion);
+                R.batch_flat_model=obj.make_batch_model_from_proposal_cached( ...
+                    P,targetVersion);
                 R.authority_split=struct( ...
                     'controller_packet','eval_fn', ...
                     'mathematical_flat_jet','flat_eval_fn', ...
@@ -9363,7 +9537,7 @@ classdef REPLANNING_SYSTEM < handle
                 active,all_dists,ref_source, ...
                 ttc,collision_time,obs_id,comp_name,comp_code, ...
                 pL_collision,q_collision,pQ_collision,jhit, ...
-                effective_horizon,N)
+                effective_horizon,N,varargin)
             % =============================================================
             % Persistent authority snapshot of the ACTUAL Flight request edge.
             %
@@ -9381,7 +9555,32 @@ classdef REPLANNING_SYSTEM < handle
                 '[REPLANNER ERROR] generator prime attempted to latch a real trigger event.');
 
             idx=find(active);
-            P=obj.obstacle_packet;
+            if ~isempty(varargin)
+                AUTH=varargin{1};
+                assert(isstruct(AUTH) && isfield(AUTH,'packet') && ...
+                    isfield(AUTH,'dependency_signature') && ...
+                    isfield(AUTH,'speed_certificate') && ...
+                    isfield(AUTH,'sensor_horizon_certificate') && ...
+                    isfield(AUTH,'reference_mode') && ...
+                    isfield(AUTH,'reference_version') && ...
+                    isfield(AUTH,'flight_reference_time_origin'), ...
+                    '[REPLANNER ERROR] deferred trigger authority snapshot invalid.');
+                P=AUTH.packet;
+                depSnapshot=AUTH.dependency_signature;
+                speedSnapshot=AUTH.speed_certificate;
+                sensorSnapshot=AUTH.sensor_horizon_certificate;
+                refModeSnapshot=char(AUTH.reference_mode);
+                refVersionSnapshot=double(AUTH.reference_version);
+                tf0Snapshot=double(AUTH.flight_reference_time_origin);
+            else
+                P=obj.obstacle_packet;
+                depSnapshot=obj.runtime_dependency_signature;
+                speedSnapshot=obj.active_speed_certificate;
+                sensorSnapshot=obj.sensor_horizon_certificate;
+                refModeSnapshot=char(obj.active_reference_mode);
+                refVersionSnapshot=double(obj.active_reference_version);
+                tf0Snapshot=double(obj.flight_reference_time_origin);
+            end
 
             OBS=struct( ...
                 'count',double(numel(idx)), ...
@@ -9415,15 +9614,14 @@ classdef REPLANNING_SYSTEM < handle
                 'effective_horizon',double(effective_horizon), ...
                 'reference_points',double(N));
 
-            tf0=obj.flight_reference_time_origin;
+            tf0=tf0Snapshot;
             if ~(isnumeric(tf0)&&isscalar(tf0)&&isfinite(tf0))
                 tf0=obj.resolve_takeoff_end_time();
-                obj.flight_reference_time_origin=double(tf0);
             end
 
             REF=struct( ...
-                'mode',char(obj.active_reference_mode), ...
-                'version',double(obj.active_reference_version), ...
+                'mode',refModeSnapshot, ...
+                'version',refVersionSnapshot, ...
                 'source',char(ref_source), ...
                 'global_time',double(t_now), ...
                 'flight_time_origin',double(tf0), ...
@@ -9442,9 +9640,9 @@ classdef REPLANNING_SYSTEM < handle
             E.trigger=TRIG;
             E.detected_obstacles=OBS;
             E.reference=REF;
-            E.dependency_signature=obj.runtime_dependency_signature;
-            E.speed_certificate=obj.active_speed_certificate;
-            E.sensor_horizon_certificate=obj.sensor_horizon_certificate;
+            E.dependency_signature=depSnapshot;
+            E.speed_certificate=speedSnapshot;
+            E.sensor_horizon_certificate=sensorSnapshot;
             E.capture_runtime_ms=NaN;
 
             obj.trigger_event_count=obj.trigger_event_count+1;
@@ -9478,11 +9676,13 @@ classdef REPLANNING_SYSTEM < handle
             % Compact context:
             %   STATIC  : small immutable interface/backend facts
             %   REQUEST : current state/reference/trigger only
-            %   OBS     : DETECTED obstacles only
+            %   OBS     : sensor-known obstacles only (current detections
+            %             plus retained memory through certified rejoin)
             %   LIVE    : compact live physical/dependency values
             %
             % Full static_obstacle_map and large certificate structs are
-            % intentionally NOT passed to the generator.
+            % intentionally NOT passed to the generator. The active mask
+            % contains only obstacles first admitted by the sensor emulator.
             % =============================================================
 
             idx=find(active);
@@ -9563,7 +9763,8 @@ classdef REPLANNING_SYSTEM < handle
                 'backend_code',double(obj.generator_backend_locked_code), ...
                 'backend_name',obj.generator_backend_locked_name, ...
                 'backend_source_code',double(obj.generator_backend_locked_source_code), ...
-                'detected_only_obstacle_contract',true);
+                'detected_only_obstacle_contract',true, ...
+                'retained_sensor_memory_through_rejoin',true);
 
             CTX=struct('static',STATIC,'request',REQ,'obstacles',OBS,'live',LIVE);
         end
@@ -9661,6 +9862,27 @@ classdef REPLANNING_SYSTEM < handle
             P=obj.obstacle_packet;
             tp=tic;
             nvar=0;
+            primeCandidate=[];
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                obj.nominal_batch_model_cache=af7r33_nominal_batch_model(obj);
+                obj.nominal_batch_model_cache_valid= ...
+                    isstruct(obj.nominal_batch_model_cache) && ...
+                    isfield(obj.nominal_batch_model_cache,'certified') && ...
+                    logical(obj.nominal_batch_model_cache.certified) && ...
+                    double(obj.nominal_batch_model_cache.reference_version)== ...
+                        double(obj.active_reference_version);
+                assert(obj.nominal_batch_model_cache_valid, ...
+                    '[REPLANNER PRIME ERROR] nominal AF7R33 batch cache failed.');
+            end
+
+            % AF7R38: burn the exact QPC stamp MEX path before any Flight
+            % request edge. This removes first-use stamp cost from ticCB.
+            if exist('af7r25_stamp_mex','file')==3
+                af7r25_stamp_mex();
+                af7r25_stamp_mex();
+                obj.qpc_stamp_prime_done=true;
+            end
 
             for rep=1:2
                 for im=1:size(masks,1)
@@ -9686,9 +9908,108 @@ classdef REPLANNING_SYSTEM < handle
                         ttcPrime,t_now+ttcPrime,P.ids(idx),'PAYLOAD',1, ...
                         pLcol,qcol,pQcol,1);
 
-                    obj.generator_backend_locked_callback(CTX);
+                    candPrime=obj.generator_backend_locked_callback(CTX);
+                    if isempty(primeCandidate) && isstruct(candPrime) && isscalar(candPrime) && ...
+                            isfield(candPrime,'success') && logical(candPrime.success)
+                        primeCandidate=candPrime;
+                    end
                     nvar=nvar+1;
                 end
+            end
+
+            % AF7R38: warm the REAL successful-candidate post-callback
+            % reference-only path without allowing synthetic setup state to
+            % survive. This is implementation/JIT priming only; no setup
+            % candidate becomes safety authority.
+            obj.postcallback_prime_candidate_found=~isempty(primeCandidate);
+            if ~isempty(primeCandidate) && ...
+                    strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                    obj.ENABLE_REFERENCE_ONLY_CERTIFICATE && obj.ENABLE_AUTO_REPLAN_COMMIT
+                sp=struct( ...
+                    'mode',obj.active_reference_mode, ...
+                    'version',obj.active_reference_version, ...
+                    'ref',obj.active_repaired_reference, ...
+                    'cert',obj.active_repaired_certificates, ...
+                    'speed',obj.active_speed_certificate, ...
+                    'sweep',obj.trigger_sweep_inflation, ...
+                    'packet',obj.obstacle_packet, ...
+                    'sensor',obj.sensor_horizon_certificate, ...
+                    'dep',obj.runtime_dependency_signature, ...
+                    'stale',obj.certificate_stale, ...
+                    'level',obj.active_repaired_safety_level, ...
+                    'count',obj.replan_commit_count, ...
+                    'rocount',obj.reference_only_commit_count, ...
+                    'time',obj.last_replan_commit_time, ...
+                    'status',obj.last_replan_status, ...
+                    'reqActive',obj.replan_request_active, ...
+                    'reqVer',obj.replan_request_reference_version, ...
+                    'reqObs',obj.replan_request_obstacle_id, ...
+                    'reqComp',obj.replan_request_component_code, ...
+                    'repairedCache',obj.repaired_reference_cache, ...
+                    'repairedCacheValid',obj.repaired_reference_cache_valid);
+                tpost=tic;
+                try
+                    Rprime=obj.evaluate_reference_only_proposal_certificate(primeCandidate);
+                    assert(isstruct(Rprime)&&isfield(Rprime,'certified')&&logical(Rprime.certified), ...
+                        '[REPLANNER PRIME ERROR] successful native prime candidate failed reference-only certificate.');
+                    [okPrime,reasonPrime]=obj.try_commit_reference_only_proposal( ...
+                        primeCandidate,double(t_now),[]);
+                    assert(okPrime, ...
+                        '[REPLANNER PRIME ERROR] reference-only atomic plumbing prime failed: %s',reasonPrime);
+                    % AF7R41: burn repaired future-packet full build, same-time
+                    % cache hit, and normal one-dt rolling shift before Flight.
+                    obj.repaired_reference_cache=struct();
+                    obj.repaired_reference_cache_valid=false;
+                    obj.repaired_reference_packet(double(t_now));
+                    obj.repaired_reference_packet(double(t_now));
+                    obj.repaired_reference_packet(double(t_now)+double(obj.prediction_dt));
+                    obj.postcallback_prime_ms=1e3*toc(tpost);
+                    obj.postcallback_prime_done=true;
+                catch MEpost
+                    obj.active_reference_mode=sp.mode;
+                    obj.active_reference_version=sp.version;
+                    obj.active_repaired_reference=sp.ref;
+                    obj.active_repaired_certificates=sp.cert;
+                    obj.active_speed_certificate=sp.speed;
+                    obj.trigger_sweep_inflation=sp.sweep;
+                    obj.obstacle_packet=sp.packet;
+                    obj.sensor_horizon_certificate=sp.sensor;
+                    obj.runtime_dependency_signature=sp.dep;
+                    obj.certificate_stale=sp.stale;
+                    obj.active_repaired_safety_level=sp.level;
+                    obj.replan_commit_count=sp.count;
+                    obj.reference_only_commit_count=sp.rocount;
+                    obj.last_replan_commit_time=sp.time;
+                    obj.last_replan_status=sp.status;
+                    obj.replan_request_active=sp.reqActive;
+                    obj.replan_request_reference_version=sp.reqVer;
+                    obj.replan_request_obstacle_id=sp.reqObs;
+                    obj.replan_request_component_code=sp.reqComp;
+                    obj.repaired_reference_cache=sp.repairedCache;
+                    obj.repaired_reference_cache_valid=sp.repairedCacheValid;
+                    rethrow(MEpost);
+                end
+                obj.active_reference_mode=sp.mode;
+                obj.active_reference_version=sp.version;
+                obj.active_repaired_reference=sp.ref;
+                obj.active_repaired_certificates=sp.cert;
+                obj.active_speed_certificate=sp.speed;
+                obj.trigger_sweep_inflation=sp.sweep;
+                obj.obstacle_packet=sp.packet;
+                obj.sensor_horizon_certificate=sp.sensor;
+                obj.runtime_dependency_signature=sp.dep;
+                obj.certificate_stale=sp.stale;
+                obj.active_repaired_safety_level=sp.level;
+                obj.replan_commit_count=sp.count;
+                obj.reference_only_commit_count=sp.rocount;
+                obj.last_replan_commit_time=sp.time;
+                obj.last_replan_status=sp.status;
+                obj.replan_request_active=sp.reqActive;
+                obj.replan_request_reference_version=sp.reqVer;
+                obj.replan_request_obstacle_id=sp.reqObs;
+                obj.replan_request_component_code=sp.reqComp;
+                obj.repaired_reference_cache=sp.repairedCache;
+                obj.repaired_reference_cache_valid=sp.repairedCacheValid;
             end
 
             obj.generator_backend_kernel_prime_ms=1e3*toc(tp);
@@ -9698,43 +10019,115 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function [pL_ref,q_ref,source] = repaired_reference_packet(obj,t_now)
+            % AF7R41 exact rolling REPAIRED future-reference packet.
+            % Full rebuild uses the AF7R33 batch flat model.  On the normal
+            % one-dt live path, N-1 exact columns are reused and only the new
+            % tail point is evaluated.  No interpolation is used.
             obj.assert_repaired_reference_current();
 
             N=round(obj.horizon_s/obj.prediction_dt)+1;
-            tq=double(t_now)+(0:N-1)*double(obj.prediction_dt);
+            dt=double(obj.prediction_dt);
+            H=double(obj.horizon_s);
+            t0=double(t_now);
+            R=obj.active_repaired_reference;
 
-            pL_ref=zeros(3,N);
-            q_ref=zeros(3,N);
+            assert(isfinite(dt)&&dt>0 && isfinite(H)&&H>=0, ...
+                '[REPLANNER ERROR] invalid repaired packet timing parameters.');
+            assert(isfield(R,'batch_flat_model') && isstruct(R.batch_flat_model) && ...
+                isfield(R.batch_flat_model,'certified') && logical(R.batch_flat_model.certified), ...
+                '[REPLANNER ERROR] repaired batch flat model unavailable.');
+            assert(isfield(R,'flat_eval_fn') && isa(R.flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] repaired flat evaluator unavailable.');
 
-            assert(isfield(obj.active_repaired_reference,'flat_eval_fn') && ...
-                isa(obj.active_repaired_reference.flat_eval_fn,'function_handle'), ...
-                '[REPLANNER ERROR] repaired flat-jet evaluator unavailable.');
+            C=obj.repaired_reference_cache;
+            canReuse=obj.repaired_reference_cache_valid && isstruct(C) && ...
+                isfield(C,'reference_version') && ...
+                double(C.reference_version)==double(obj.active_reference_version) && ...
+                isfield(C,'dt') && isequal(double(C.dt),dt) && ...
+                isfield(C,'H') && isequal(double(C.H),H) && ...
+                isfield(C,'t0') && isfinite(double(C.t0)) && ...
+                isfield(C,'pL') && isequal(size(C.pL),[3 N]) && ...
+                isfield(C,'q') && isequal(size(C.q),[3 N]);
 
-            for k=1:N
-                % pL position coincides in both packets.  q must be rebuilt
-                % from the MATHEMATICAL flat jet, not legacy HLC high-order
-                % slots, so geometry authority remains source-correct.
-                xd=obj.active_repaired_reference.eval_fn(tq(k));
-                xf=obj.active_repaired_reference.flat_eval_fn(tq(k));
-                xd=double(xd(:));
-                xf=double(xf(:));
-                assert(numel(xd)>=3 && all(isfinite(xd(1:3))) && ...
-                    numel(xf)>=11 && all(isfinite(xf(1:11))), ...
-                    '[REPLANNER ERROR] repaired reference packet returned invalid xd.');
+            shiftCount=NaN;
+            if canReuse
+                d=(t0-double(C.t0))/dt;
+                if isfinite(d)
+                    shiftCount=round(d);
+                    talign=double(C.t0)+double(shiftCount)*dt;
+                    scale=max([1,abs(t0),abs(double(C.t0)),abs(double(shiftCount)*dt)]);
+                    guard=64*eps(scale);
+                    if shiftCount<0 || abs(t0-talign)>guard
+                        shiftCount=NaN;
+                    end
+                end
+            end
 
-                pL_ref(:,k)=xd(1:3);
-                aL=xf(9:11);
-                r=aL+[0;0;obj.gravity];
-                nr=norm(r);
-                assert(nr>0, ...
-                    '[REPLANNER ERROR] repaired reference has zero flatness vector.');
-                q_ref(:,k)=-r/nr;
+            if canReuse && isfinite(shiftCount) && shiftCount==0
+                pL_ref=C.pL;
+                q_ref=C.q;
+                source=sprintf('REPAIRED_ROLLING_CACHE_HIT:v%d:%s', ...
+                    obj.active_reference_version,char(R.backend));
+                obj.validate_reference_packet(pL_ref,q_ref,N);
+                return;
+            end
+
+            if canReuse && isfinite(shiftCount) && shiftCount>=1 && shiftCount<N
+                m=double(shiftCount);
+                pL_ref=[C.pL(:,m+1:end),zeros(3,m)];
+                q_ref=[C.q(:,m+1:end),zeros(3,m)];
+
+                if m==1
+                    xf=double(R.flat_eval_fn(t0+(N-1)*dt));
+                    xf=xf(:);
+                    assert(numel(xf)>=11 && all(isfinite(xf(1:11))), ...
+                        '[REPLANNER ERROR] repaired rolling tail evaluator invalid.');
+                    pL_ref(:,end)=xf(1:3);
+                    sf=xf(9:11)+[0;0;double(obj.gravity)];
+                    ns=norm(sf);
+                    assert(isfinite(ns)&&ns>0, ...
+                        '[REPLANNER ERROR] repaired rolling tail flatness singular.');
+                    q_ref(:,end)=-sf/ns;
+                    source=sprintf('REPAIRED_ROLLING_SHIFT1:v%d:%s', ...
+                        obj.active_reference_version,char(R.backend));
+                else
+                    tq=t0+(N-m:N-1)*dt;
+                    [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                    Y=double(Y);
+                    assert(isequal(size(Y),[21 m]) && numel(valid)==m && ...
+                        all(logical(valid(:))) && all(isfinite(Y),'all'), ...
+                        '[REPLANNER ERROR] repaired rolling tail batch invalid.');
+                    pL_ref(:,end-m+1:end)=Y(1:3,:);
+                    sf=Y(7:9,:)+[0;0;double(obj.gravity)];
+                    ns=sqrt(sum(sf.^2,1));
+                    assert(all(isfinite(ns))&&all(ns>0), ...
+                        '[REPLANNER ERROR] repaired rolling tail batch flatness singular.');
+                    q_ref(:,end-m+1:end)=-sf./ns;
+                    source=sprintf('REPAIRED_ROLLING_SHIFTM:v%d:%s', ...
+                        obj.active_reference_version,char(R.backend));
+                end
+            else
+                tq=t0+(0:N-1)*dt;
+                [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                Y=double(Y);
+                assert(isequal(size(Y),[21 N]) && numel(valid)==N && ...
+                    all(logical(valid(:))) && all(isfinite(Y),'all'), ...
+                    '[REPLANNER ERROR] repaired full batch packet invalid.');
+                pL_ref=Y(1:3,:);
+                sf=Y(7:9,:)+[0;0;double(obj.gravity)];
+                ns=sqrt(sum(sf.^2,1));
+                assert(all(isfinite(ns))&&all(ns>0), ...
+                    '[REPLANNER ERROR] repaired full batch flatness singular.');
+                q_ref=-sf./ns;
+                source=sprintf('REPAIRED_FULL_BATCH:v%d:%s', ...
+                    obj.active_reference_version,char(R.backend));
             end
 
             obj.validate_reference_packet(pL_ref,q_ref,N);
-            source=sprintf('REPAIRED:v%d:%s', ...
-                obj.active_reference_version, ...
-                char(obj.active_repaired_reference.backend));
+            obj.repaired_reference_cache=struct( ...
+                'reference_version',double(obj.active_reference_version), ...
+                't0',t0,'dt',dt,'H',H,'pL',pL_ref,'q',q_ref);
+            obj.repaired_reference_cache_valid=true;
         end
 
 
@@ -10167,6 +10560,95 @@ classdef REPLANNING_SYSTEM < handle
                 '[REPLANNER ERROR] 将来 q パケットに単位ベクトルでないものが含まれています。');
         end
 
+        function known = apply_simulated_sensor_memory(obj,current_active,t_now,real_event)
+            % AF7R44 simulation-only sensor-memory contract.
+            %
+            % - Initial known set is empty.
+            % - raw_sensor_gate alone may admit a previously unknown obstacle.
+            % - Once admitted, the static obstacle is retained through
+            %   deadline retries and through the certified repaired interval.
+            % - It may be released only after the certified rejoin has passed,
+            %   it is not currently sensed, and no request identity is latched.
+            % - No arbitrary retention time constant is introduced.
+
+            current_active=logical(current_active(:).');
+            M=numel(current_active);
+            assert(M==numel(obj.static_obstacle_map), ...
+                '[REPLANNER ERROR] sensor-memory/static-map size mismatch.');
+
+            if numel(obj.simulated_sensor_memory_mask)~=M
+                obj.simulated_sensor_memory_mask=false(1,M);
+                obj.simulated_sensor_first_seen_s=nan(1,M);
+                obj.simulated_sensor_last_seen_s=nan(1,M);
+                obj.simulated_sensor_release_after_s=inf(1,M);
+                obj.simulated_sensor_memory_release_count=0;
+            end
+
+            if ~real_event
+                % Setup/warmup must never create persistent knowledge.
+                known=current_active;
+                return;
+            end
+
+            t_now=double(t_now);
+            assert(isfinite(t_now), ...
+                '[REPLANNER ERROR] invalid simulated sensor-memory time.');
+
+            mem=logical(obj.simulated_sensor_memory_mask);
+            rel=double(obj.simulated_sensor_release_after_s);
+
+            % Bind every already-known obstacle to the currently executing
+            % future certified rejoin. This also covers obstacles detected
+            % before the successful commit.
+            rejoinFuture=NaN;
+            if strcmpi(char(obj.active_reference_mode),'REPAIRED') && ...
+                    isstruct(obj.active_repaired_reference) && ...
+                    isfield(obj.active_repaired_reference,'rejoin_time')
+                tr=double(obj.active_repaired_reference.rejoin_time);
+                if isfinite(tr) && tr>t_now
+                    rejoinFuture=tr;
+                    ii=find(mem);
+                    for k=1:numel(ii)
+                        j=ii(k);
+                        if ~isfinite(rel(j)) || rel(j)<tr
+                            rel(j)=tr;
+                        end
+                    end
+                end
+            end
+
+            releasable = mem & ~current_active & isfinite(rel) & ...
+                (t_now>=rel) & ~logical(obj.replan_request_active);
+            if any(releasable)
+                obj.simulated_sensor_memory_release_count= ...
+                    obj.simulated_sensor_memory_release_count+nnz(releasable);
+                mem(releasable)=false;
+                rel(releasable)=inf;
+                obj.simulated_sensor_first_seen_s(releasable)=NaN;
+                obj.simulated_sensor_last_seen_s(releasable)=NaN;
+            end
+
+            newly=current_active & ~mem;
+            if any(newly)
+                obj.simulated_sensor_first_seen_s(newly)=t_now;
+                if isfinite(rejoinFuture)
+                    rel(newly)=rejoinFuture;
+                else
+                    % Detected before any successful repaired commit: keep it
+                    % until a later repaired reference supplies a rejoin.
+                    rel(newly)=inf;
+                end
+            end
+
+            mem = mem | current_active;
+            obj.simulated_sensor_last_seen_s(current_active)=t_now;
+
+            obj.simulated_sensor_memory_mask=mem;
+            obj.simulated_sensor_release_after_s=rel;
+            known=mem;
+        end
+
+
         function [active,min_dist,min_id,dists] = raw_sensor_gate(obj,pQ,OBS)
             M=numel(OBS);
             active=false(1,M);
@@ -10586,6 +11068,10 @@ classdef REPLANNING_SYSTEM < handle
             st.min_obstacle_id_point=NaN;
             st.min_dist_point=inf;
             st.detected_obstacle_count_point=0;
+            st.sensor_current_active_mask=zeros(1,numel(obj.static_obstacle_map));
+            st.sensor_known_active_mask=double(obj.simulated_sensor_memory_mask);
+            st.sensor_known_obstacle_count=double(nnz(obj.simulated_sensor_memory_mask));
+            st.sensor_memory_release_count=double(obj.simulated_sensor_memory_release_count);
 
             st.trigger_ttc=NaN;
             st.trigger_collision_time=NaN;
@@ -10801,10 +11287,16 @@ classdef REPLANNING_SYSTEM < handle
             % is normally dispatched only in Flight, so SIM mode initializes
             % exactly at the observed Flight-entry event. Synthetic prime
             % calls are excluded.
-            if obj.setup_exact_do_prime_active || obj.generator_integration_prime_active
+            if obj.generator_integration_prime_active
                 tf=false;
                 return;
             end
+            if obj.setup_exact_do_prime_active && ~obj.observer_preflight_prime_active
+                tf=false;
+                return;
+            end
+            % AF7R38: observer_preflight_prime_active executes the exact
+            % observer branch only as a state-restored setup dry run.
             ph=char(string(cha));
             tf=any(strcmp(ph,{'a','t','f'}));
         end
@@ -11817,6 +12309,30 @@ classdef REPLANNING_SYSTEM < handle
             obj.setup_exact_force_hit=false;
             obj.setup_exact_force_hit_calls=0;
 
+            % AF7R38 setup-only observer/full-do dry-run prime.
+            % Two structural cases are exercised: first measurement event
+            % (hasPrev=false) and consecutive contraction (hasPrev=true).
+            % No arbitrary timing repetition/count is used as authority.
+            observer_prime_saved=obj.observer_hard_support_internal;
+            obj.observer_preflight_prime_active=true;
+            tobs=tic;
+            try
+                for kop=1:2
+                    tq=tf+(kop-1)*obj.prediction_dt;
+                    exact_args{1}=obj.make_time_query(varargin_in{1},tq);
+                    obj.setup_exact_force_hit=false;
+                    obj.do(exact_args{:});
+                end
+                obj.observer_preflight_prime_ms=1e3*toc(tobs);
+                obj.observer_preflight_prime_done=true;
+            catch MEobs
+                obj.observer_preflight_prime_active=false;
+                obj.observer_hard_support_internal=observer_prime_saved;
+                rethrow(MEobs);
+            end
+            obj.observer_preflight_prime_active=false;
+            obj.observer_hard_support_internal=observer_prime_saved;
+
             nseq=round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS);
             nbranch=round(obj.SETUP_EXACT_DO_PRIME_CALLS);
 
@@ -11855,6 +12371,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.last_replan_status=last_replan_status_saved;
             catch ME
                 obj.setup_exact_force_hit=false;
+                obj.observer_preflight_prime_active=false;
                 obj.setup_exact_do_prime_active=false;
                 obj.setup_exact_do_prime_done=false;
                 obj.replan_request_active=replan_request_active_saved;
