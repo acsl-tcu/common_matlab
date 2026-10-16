@@ -88,8 +88,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"v
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 
 
-% agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
-agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
+agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
+% agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
 
 % Learn Sim
 onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Activation=ReLU__1000000epoch.onnx";
@@ -112,7 +112,7 @@ ptName = "2026-8-3_22_32_41__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__dt=20ms__
 %  =====================================================================================
 
 ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model.pt"; % Middle48 24 12, step4, 25ms
-ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
+% ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
 
 % Learn Exp
 % onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__1000000epoch";
