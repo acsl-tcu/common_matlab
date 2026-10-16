@@ -11,8 +11,23 @@
 %
 % MOTIVE / EKF / HLC / state_list / plant設定はSim準拠。
 % =========================================================================
+%% Initialize settings
+% set path
+clear all
+cf = pwd;
 
-clearvars; close all; clc;
+if contains(mfilename('fullpath'), "mainGUI")
+    cd(fileparts(mfilename('fullpath')));
+else
+    tmp = matlab.desktop.editor.getActive;
+    cd(fileparts(tmp.Filename));
+end
+
+[~, tmp] = regexp(genpath('.'), '\.\\\.git.*?;', 'match', 'split');
+cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
+close all hidden; clear; clc;
+userpath('clear');
+% clearvars; close all; clc;
 
 %% 1. SIMと同じ基本設定
 ts = 0;          % initial time

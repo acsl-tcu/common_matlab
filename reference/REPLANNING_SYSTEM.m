@@ -6,6 +6,8 @@ classdef REPLANNING_SYSTEM < handle
 % AF7R41-REPAIRED-ROLLING-CACHE: exact shifted horizon + one-tail evaluation; pre-Flight primed.
 % AF7R43-HARDPATH-CLEANUP: defer non-authoritative copies and cache nominal AF7R33 model.
 % AF7R44-SENSOR-MEMORY: simulation starts unknown; detected static obstacles are retained through certified rejoin.
+% AF7R45-TWO-TRACK-RT: REFERENCE_ONLY exec-dependency fast path + exact commit packet reuse.
+% AF7R46-COMPACT-COMMIT: compact native proposal + pure fast commit packet + observer static setup cache.
 
 % AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.
 
@@ -334,6 +336,12 @@ classdef REPLANNING_SYSTEM < handle
         certificate_stale            = struct();
         dependency_refresh_count      = 0;
         mass_certificate_rebuild_count = 0;
+        % AF7R45 counters: performance diagnostics only.
+        reference_only_exec_dependency_fast_count = 0;
+        reference_only_runtime_packet_reuse_count = 0;
+        reference_only_runtime_packet_rebuild_count = 0;
+        reference_only_fast_packet_rebuild_count = 0;
+        compact_native_proposal_count = 0;
 
         % -----------------------------------------------------------------
         % 【G27-V39R1 current repaired-reference backend】
@@ -584,6 +592,9 @@ classdef REPLANNING_SYSTEM < handle
         % All add-on runtime state is kept in one internal struct.
         % No observer diagnostic fields are appended to result.state.
         observer_hard_support_internal = struct();
+        % AF7R46 state-independent observer setup cache.
+        observer_static_setup_cache = struct();
+        observer_static_setup_cache_valid = false;
 
         % -----------------------------------------------------------------
         % 【最小プロファイリング情報構造体 (ENABLE_PROFILING=1 時のみ更新)】
@@ -3501,6 +3512,37 @@ classdef REPLANNING_SYSTEM < handle
                 dtChanged || sensorGeomChanged || ...
                 gravityChanged || deadlineChanged || massChanged || inertiaChanged;
 
+            % AF7R45 REFERENCE_ONLY dependency fast path.
+            %
+            % Vehicle/payload mass and inertia are not dependencies of the
+            % REFERENCE_ONLY trigger/sensor/geometry theorem.  They belong to
+            % the execution-aware actuator/HLC layer.  When those are the
+            % ONLY changed dependencies, do not rebuild any execution-aware
+            % certificate or recapture the whole signature in the Flight
+            % cycle.  Mark that layer stale (fail-closed for any later
+            % EXECUTION_AWARE use) and advance only the exact live scalar
+            % snapshot.  No tolerance or guessed bound is introduced.
+            execOnlyChange = ...
+                strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                ~refChanged && ~timeOriginChanged && ~dtChanged && ...
+                ~sensorGeomChanged && ~gravityChanged && ~deadlineChanged && ...
+                (massChanged || inertiaChanged);
+
+            if execOnlyChange
+                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                obj.certificate_stale.HLC_ROBUST_CERT=true;
+
+                old.mQ=double(mQNow);
+                old.mL_snapshot=double(obj.loadmass);
+                old.jx=double(JNow(1));
+                old.jy=double(JNow(2));
+                old.jz=double(JNow(3));
+                obj.runtime_dependency_signature=old;
+                obj.reference_only_exec_dependency_fast_count= ...
+                    obj.reference_only_exec_dependency_fast_count+1;
+                anyChanged=false;
+            end
+
             if anyChanged
                 if refChanged
                     obj.certificate_stale.SPEED_TRIGGER_CERT=true;
@@ -4317,7 +4359,7 @@ classdef REPLANNING_SYSTEM < handle
                 % prime_locked_backend_kernel_variants() then warms the
                 % exact selected callback before Flight.
                 af7r36_runtime_prime(obj);
-                fn=@(CTX)af7r36_single_core_proposal(obj,CTX);
+                fn=@(CTX)obj.af7r46_single_core_proposal_compact(CTX);
             end
 
             if ~isempty(fn)
@@ -4331,11 +4373,184 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function P = af7r46_single_core_proposal_compact(obj,CTX)
+            assert(exist('af7r36_single_core_mex','file')==3, ...
+                '[AF7R46] AF7R36 native core MEX missing.');
+
+            pkt=af7r34_make_core_packet(obj,CTX,[]);
+            RAW=af7r36_single_core_mex(1,pkt);
+
+            P=struct();
+            P.shadow_proposal=true;
+            P.af7r46_compact_native=true;
+            P.generated=logical(RAW.success);
+            P.success=logical(RAW.success);
+            P.reason_code=double(RAW.reason_code);
+            P.backend='BEZIER_D15_C7';
+            P.t0=double(RAW.t0);
+            P.tm=double(RAW.tm);
+            P.trigger_collision_time=double(RAW.tm);
+            P.hold_end=double(RAW.hold_end);
+            P.t1=double(RAW.t1);
+            P.obstacle_id=double(CTX.request.trigger_obstacle_id);
+            P.component_code=double(CTX.request.trigger_component_code);
+            P.execution_tracking_inflation_m=0;
+            P.r9_stage_timing=struct( ...
+                'episode_ms',double(RAW.episode_ms), ...
+                'synthesis_ms',double(RAW.synthesis_ms), ...
+                'candidate_loop_ms',double(RAW.candidate_ms), ...
+                'total_internal_ms',double(RAW.total_ms));
+            P.native_raw=RAW;
+
+            if ~P.success
+                return;
+            end
+
+            P.c7_exact=true;
+            P.representation_code=2;
+            P.degree=15;
+            P.piecewise_segment_t0=double(RAW.segment_t0(:).');
+            P.piecewise_segment_t1=double(RAW.segment_t1(:).');
+            P.piecewise_control_points=RAW.control_points;
+            P.displacement_norm_m=double(RAW.max_control_norm_m);
+            P.displacement=double(RAW.displacement(:));
+            P.direction=double(RAW.direction(:));
+
+            targetVersion=double(CTX.request.next_reference_version);
+            SC=struct();
+            SC.certified=true;
+            SC.continuous_time=true;
+            SC.sampled_acceptance=false;
+            SC.reference_mode='REPAIRED';
+            SC.reference_version=targetVersion;
+            SC.payload_speed_UB_m_s=double(RAW.speed_payload);
+            SC.payload_accel_UB_m_s2=double(RAW.speed_accel);
+            SC.payload_jerk_UB_m_s3=double(RAW.speed_jerk);
+            SC.specific_force_norm_LB_m_s2=double(RAW.speed_sigma);
+            SC.qdot_UB_rad_s=double(RAW.speed_qdot);
+            SC.uav_speed_UB_m_s=double(RAW.speed_uav);
+            SC.base_reference_mode=char(obj.active_reference_mode);
+            SC.base_reference_version=double(obj.active_reference_version);
+            if logical(RAW.speed_stageA)
+                SC.source='TRIANGLE_BOUNDED_C7_REPAIRED_FLATNESS_KINEMATICS';
+                SC.certificate_stage='R9_STAGE_A_GLOBAL_TRIANGLE';
+            else
+                SC.source='R9_LOCAL_VECTOR_COUPLED_ADAPTIVE_BERNSTEIN_FLATNESS_SPEED';
+                SC.certificate_stage='R9_STAGE_B_LOCAL_VECTOR';
+                SC.local_leaf_count=double(RAW.speed_leaf_count);
+                SC.local_split_count=double(RAW.speed_split_count);
+                SC.vector_coupled_payload_velocity=true;
+                SC.suspended_load_flatness=true;
+                SC.fixed_depth_cap=false;
+            end
+            P.reference_speed_certificate=SC;
+
+            G=struct();
+            G.mathematical_pass=logical(RAW.geometry_pass);
+            G.certified=logical(RAW.geometry_pass);
+            G.continuous_time=true;
+            G.whole_body=true;
+            G.all_detected_obstacles=true;
+            G.static_obstacles_only=true;
+            G.sampled_acceptance=false;
+            G.finite_cover_speed_tube=true;
+            G.support_function_separation=true;
+            G.corrected_flatness_cable_direction=true;
+            G.ieee754_outward_closed=false;
+            G.reason_code=double(RAW.geometry_reason);
+            G.min_payload_margin_m=double(RAW.geometry_min_payload_margin);
+            G.min_uav_margin_m=double(RAW.geometry_min_uav_margin);
+            G.min_cable_margin_m=double(RAW.geometry_min_cable_margin);
+            G.min_margin_m=double(RAW.geometry_min_margin);
+            G.leaf_count=double(RAW.geometry_leaf_count);
+            G.accepted_leaf_count=double(RAW.geometry_accepted_leaf_count);
+            G.split_count=double(RAW.geometry_split_count);
+            G.max_depth_used=double(RAW.geometry_max_depth);
+            G.max_depth_cap=Inf;
+            G.resource_exhausted=false;
+            G.static_separation_open=G.reason_code==111;
+            G.representability_open=G.reason_code==112;
+            G.cover_theorem='MIDPOINT_STATIC_SUPPORT_MINUS_SPEED_TIMES_HALFWIDTH';
+            G.min_specific_force_norm_lb=double(RAW.speed_sigma);
+            G.max_qdot_ub=double(RAW.speed_qdot);
+            G.max_q_arc_radius=double(RAW.speed_qdot)*double(CTX.live.dt)/2;
+            G.max_q_arc_inflation_m=double(CTX.live.cable_length)*G.max_q_arc_radius;
+            G.tracking_inflation_m=0;
+            G.reference_only_authority=true;
+            G.final_system_authority=false;
+            P.geometry_shadow_certificate=G;
+
+            obj.compact_native_proposal_count=obj.compact_native_proposal_count+1;
+        end
+
+
+        function P = af7r46_materialize_candidate_evaluators(obj,P)
+            if ~isfield(P,'base_eval_fn') || ~isa(P.base_eval_fn,'function_handle')
+                P.base_eval_fn=obj.snapshot_active_reference_eval_fn();
+            end
+            if ~isfield(P,'base_flat_eval_fn') || ...
+                    ~isa(P.base_flat_eval_fn,'function_handle')
+                P.base_flat_eval_fn=obj.snapshot_active_reference_flat_eval_fn();
+            end
+        end
+
+
         function safe_record_bezier_shadow_proposal(obj,P)
             try
-                obj.record_bezier_shadow_proposal(P);
+                if isstruct(P) && isfield(P,'af7r46_compact_native') && ...
+                        logical(P.af7r46_compact_native)
+                    obj.record_af7r46_compact_native_proposal(P);
+                else
+                    obj.record_bezier_shadow_proposal(P);
+                end
             catch
                 % Diagnostic mirroring never creates/revokes safety authority.
+            end
+        end
+
+
+        function record_af7r46_compact_native_proposal(obj,P)
+            obj.generator_shadow_proposal_count=obj.generator_shadow_proposal_count+1;
+            obj.bezier_shadow_generated_count=obj.bezier_shadow_generated_count+1;
+            obj.bezier_shadow_last_reason_code=double(P.reason_code);
+            obj.bezier_shadow_last_t0=double(P.t0);
+            obj.bezier_shadow_last_tm=double(P.tm);
+            obj.bezier_shadow_last_t1=double(P.t1);
+            obj.bezier_shadow_last_obstacle_id=double(P.obstacle_id);
+            obj.bezier_shadow_last_component_code=double(P.component_code);
+            if isfield(P,'r9_stage_timing')
+                T=P.r9_stage_timing;
+                obj.r9_stage_episode_ms=double(T.episode_ms);
+                obj.r9_stage_synthesis_ms=double(T.synthesis_ms);
+                obj.r9_stage_candidate_loop_ms=double(T.candidate_loop_ms);
+                obj.r9_stage_total_internal_ms=double(T.total_internal_ms);
+            end
+            if isfield(P,'success') && logical(P.success)
+                obj.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count+1;
+                obj.bezier_shadow_last_c7_exact=logical(P.c7_exact);
+                obj.bezier_shadow_last_displacement_m=double(P.displacement_norm_m);
+                d=double(P.displacement(:));
+                if numel(d)==3
+                    obj.bezier_shadow_last_dx=d(1);
+                    obj.bezier_shadow_last_dy=d(2);
+                    obj.bezier_shadow_last_dz=d(3);
+                end
+                G=P.geometry_shadow_certificate;
+                obj.geometry_shadow_pass=logical(G.certified);
+                obj.geometry_shadow_reason_code=double(G.reason_code);
+                obj.geometry_shadow_continuous_time=logical(G.continuous_time);
+                obj.geometry_shadow_ieee754_outward_closed=logical(G.ieee754_outward_closed);
+                obj.geometry_shadow_min_margin_m=double(G.min_margin_m);
+                obj.geometry_shadow_min_payload_margin_m=double(G.min_payload_margin_m);
+                obj.geometry_shadow_min_uav_margin_m=double(G.min_uav_margin_m);
+                obj.geometry_shadow_min_cable_margin_m=double(G.min_cable_margin_m);
+                obj.geometry_shadow_leaf_count=double(G.leaf_count);
+                obj.geometry_shadow_split_count=double(G.split_count);
+                obj.geometry_shadow_max_depth=double(G.max_depth_used);
+                obj.geometry_shadow_max_qdot_ub=double(G.max_qdot_ub);
+                obj.geometry_shadow_max_q_arc_radius=double(G.max_q_arc_radius);
+                obj.geometry_shadow_max_q_arc_inflation_m=double(G.max_q_arc_inflation_m);
+                obj.geometry_shadow_resource_exhausted=logical(G.resource_exhausted);
             end
         end
 
@@ -4386,6 +4601,245 @@ classdef REPLANNING_SYSTEM < handle
             model.reference_version=double(targetVersion);
             model.certified=true;
             model.schema='AF7R33_BATCH_FLAT_MODEL_V1';
+        end
+
+
+        function sweep = build_trigger_sweep_for_target(obj,SC,targetVersion)
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            assert(isstruct(SC)&&isfield(SC,'certified')&&logical(SC.certified));
+            assert(all(isfield(SC,req)));
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            dt=double(obj.prediction_dt);
+            assert(all(isfinite([VL VQ dt]))&&VL>=0&&VQ>=0&&dt>0);
+            sweep=struct('certified',true,'reference_mode','REPAIRED', ...
+                'reference_version',double(targetVersion), ...
+                'payload_m',VL*dt/2,'uav_m',VQ*dt/2, ...
+                'cable_m',max(VL,VQ)*dt/2,'sensor_one_period_m',VQ*dt, ...
+                'dt',dt,'source','VERSION_BOUND_ACTIVE_SPEED_CERTIFICATE');
+        end
+
+
+        function pack = prepare_obstacle_packet_fast_target(obj,oldPacket,sweep,targetVersion)
+            M=numel(obj.static_obstacle_map);
+            assert(isstruct(oldPacket)&&double(oldPacket.count)==M);
+            assert(isstruct(sweep)&&isfield(sweep,'certified')&&logical(sweep.certified));
+            pack=oldPacket;
+            pack.reference_mode='REPAIRED';
+            pack.reference_version=double(targetVersion);
+            pack.sweep_certified=true;
+            pack.sweep_dt=double(sweep.dt);
+            pack.delta_payload_m=double(sweep.payload_m);
+            pack.delta_uav_m=double(sweep.uav_m);
+            pack.delta_cable_m=double(sweep.cable_m);
+            Dp=double(obj.r_load)+double(obj.d_margin)+double(sweep.payload_m);
+            Dq=double(obj.r_drone)+double(obj.d_margin)+double(sweep.uav_m);
+            Dc=double(obj.r_cable)+double(obj.d_margin)+double(sweep.cable_m);
+            for i=1:M
+                o=obj.static_obstacle_map(i);
+                assert(isequal(double(pack.ids(i)),double(o.id)) && ...
+                    isequal(double(pack.C(:,i)),double(o.p_center(:))) && ...
+                    isequal(double(pack.R(:,i)),double(o.R_obs(:))) && ...
+                    strcmpi(char(pack.types{i}),char(o.type)), ...
+                    '[REPLANNER ERROR] static obstacle authority changed during fast packet rebuild.');
+                ar=double(pack.Araw(:,i));
+                assert(isequal(ar,double(obj.raw_enclosing_ellipsoid_axes(o))), ...
+                    '[REPLANNER ERROR] raw obstacle ellipsoid changed during fast packet rebuild.');
+                pack.Apay(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dp);
+                pack.Auav(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dq);
+                pack.Acable(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dc);
+                if isfield(o,'v_center') && norm(o.v_center(:))>0
+                    error('[REPLANNER ERROR] moving obstacle entered static fast packet path.');
+                end
+            end
+        end
+
+
+        function A = outer_ellipsoid_from_raw_cached(~,o,base,D)
+            type=lower(o.type);
+            if strcmp(type,'cylinder')
+                r=double(o.raw_param(1)); h=double(o.raw_param(2));
+                A=[sqrt(3/2)*(r+D);sqrt(3/2)*(r+D);sqrt(3)*(h/2+D)]; return;
+            end
+            if strcmp(type,'sphere')
+                r=double(o.raw_param(1)); A=(r+D)*ones(3,1); return;
+            end
+            amin=min(base); assert(isfinite(amin)&&amin>0);
+            A=(1+D/amin)*base;
+        end
+
+
+        function cert = build_sensor_horizon_for_target(obj,SC,targetVersion)
+            VL=double(SC.payload_speed_UB_m_s); VQ=double(SC.uav_speed_UB_m_s);
+            dt=double(obj.prediction_dt); H=double(obj.horizon_s); Rs=double(obj.trigger_dist);
+            rho=max([double(obj.r_drone),double(obj.L_cable)+double(obj.r_load), ...
+                     double(obj.L_cable)+double(obj.r_cable)]);
+            horizonMargin=Rs-(rho+VQ*H); dDetLB=Rs-VQ*dt; safeClear=dDetLB-rho;
+            if VQ>0, collisionLead=safeClear/VQ; beforeHorizon=collisionLead-H;
+            else, collisionLead=Inf; beforeHorizon=Inf; end
+            cert=struct('certified',horizonMargin>0&&safeClear>0&&beforeHorizon>0, ...
+                'reference_mode','REPAIRED','reference_version',double(targetVersion), ...
+                'VL',VL,'VQ',VQ,'dt',dt,'sensor_range',Rs,'horizon',H,'rho_body',rho, ...
+                'sensor_horizon_margin_m',horizonMargin, ...
+                'first_detection_distance_LB_m',dDetLB, ...
+                'first_collision_lead_LB_s',collisionLead, ...
+                'before_horizon_entry_LB_s',beforeHorizon, ...
+                'source','LIVE_SPEED_SENSOR_GEOMETRY_THEOREM');
+        end
+
+
+        function tf = can_reuse_reference_only_runtime_packet_exact( ...
+                obj,oldSC,newSC,oldSweep,oldPacket,oldSensor,oldDep)
+            % Exact theorem for REFERENCE_ONLY packet reuse.
+            %
+            % trigger sweep depends only on {VL,VQ,dt}.
+            % obstacle packet geometry depends on the static map, radii /
+            % d_margin, and that sweep.
+            % sensor horizon depends only on {VL,VQ,dt,H,range,radii,L}.
+            %
+            % Therefore exact equality of the two speed bounds plus exact
+            % validation of the current immutable/static inputs makes every
+            % numerical value unchanged.  Only reference metadata/version
+            % must advance.
+
+            tf=false;
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                return;
+            end
+            if ~(isstruct(oldSC)&&isstruct(newSC)&& ...
+                    isfield(oldSC,'certified')&&logical(oldSC.certified)&& ...
+                    isfield(newSC,'certified')&&logical(newSC.certified))
+                return;
+            end
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            if ~all(isfield(oldSC,req)) || ~all(isfield(newSC,req))
+                return;
+            end
+
+            VL=double(newSC.payload_speed_UB_m_s);
+            VQ=double(newSC.uav_speed_UB_m_s);
+            if ~(isequal(double(oldSC.payload_speed_UB_m_s),VL) && ...
+                    isequal(double(oldSC.uav_speed_UB_m_s),VQ))
+                return;
+            end
+
+            dt=double(obj.prediction_dt);
+            pay=VL*dt/2;
+            uav=VQ*dt/2;
+            cab=max(VL,VQ)*dt/2;
+
+            if ~(isstruct(oldSweep)&&isfield(oldSweep,'certified')&& ...
+                    logical(oldSweep.certified)&& ...
+                    isfield(oldSweep,'dt')&&isequal(double(oldSweep.dt),dt)&& ...
+                    isfield(oldSweep,'payload_m')&&isequal(double(oldSweep.payload_m),pay)&& ...
+                    isfield(oldSweep,'uav_m')&&isequal(double(oldSweep.uav_m),uav)&& ...
+                    isfield(oldSweep,'cable_m')&&isequal(double(oldSweep.cable_m),cab))
+                return;
+            end
+
+            if ~(isstruct(oldPacket)&&isfield(oldPacket,'count')&& ...
+                    double(oldPacket.count)==numel(obj.static_obstacle_map) && ...
+                    isfield(oldPacket,'sweep_certified')&&logical(oldPacket.sweep_certified)&& ...
+                    isfield(oldPacket,'delta_payload_m')&& ...
+                    isequal(double(oldPacket.delta_payload_m),pay)&& ...
+                    isfield(oldPacket,'delta_uav_m')&& ...
+                    isequal(double(oldPacket.delta_uav_m),uav)&& ...
+                    isfield(oldPacket,'delta_cable_m')&& ...
+                    isequal(double(oldPacket.delta_cable_m),cab))
+                return;
+            end
+
+            % Exact current static-map identity against the packet.  This is
+            % intentionally not a sampled geometric acceptance condition.
+            M=numel(obj.static_obstacle_map);
+            for ii=1:M
+                o=obj.static_obstacle_map(ii);
+                if ~(isequal(double(oldPacket.ids(ii)),double(o.id)) && ...
+                        isequal(double(oldPacket.C(:,ii)),double(o.p_center(:))) && ...
+                        isequal(double(oldPacket.R(:,ii)),double(o.R_obs(:))) && ...
+                        strcmpi(char(oldPacket.types{ii}),char(o.type)))
+                    return;
+                end
+                ar=obj.raw_enclosing_ellipsoid_axes(o);
+                if ~isequal(double(oldPacket.Araw(:,ii)),double(ar(:)))
+                    return;
+                end
+            end
+
+            rho=max([double(obj.r_drone), ...
+                     double(obj.L_cable)+double(obj.r_load), ...
+                     double(obj.L_cable)+double(obj.r_cable)]);
+            H=double(obj.horizon_s);
+            Rs=double(obj.trigger_dist);
+
+            if ~(isstruct(oldSensor)&&isfield(oldSensor,'certified')&& ...
+                    logical(oldSensor.certified)&& ...
+                    isfield(oldSensor,'VL')&&isequal(double(oldSensor.VL),VL)&& ...
+                    isfield(oldSensor,'VQ')&&isequal(double(oldSensor.VQ),VQ)&& ...
+                    isfield(oldSensor,'dt')&&isequal(double(oldSensor.dt),dt)&& ...
+                    isfield(oldSensor,'horizon')&&isequal(double(oldSensor.horizon),H)&& ...
+                    isfield(oldSensor,'sensor_range')&&isequal(double(oldSensor.sensor_range),Rs)&& ...
+                    isfield(oldSensor,'rho_body')&&isequal(double(oldSensor.rho_body),rho))
+                return;
+            end
+
+            if ~(isstruct(oldDep)&&isfield(oldDep,'dt')&& ...
+                    isequal(double(oldDep.dt),dt)&& ...
+                    isfield(oldDep,'sensor_range')&& ...
+                    isequal(double(oldDep.sensor_range),Rs)&& ...
+                    isfield(oldDep,'horizon')&&isequal(double(oldDep.horizon),H)&& ...
+                    isfield(oldDep,'r_drone')&& ...
+                    isequal(double(oldDep.r_drone),double(obj.r_drone))&& ...
+                    isfield(oldDep,'r_load')&& ...
+                    isequal(double(oldDep.r_load),double(obj.r_load))&& ...
+                    isfield(oldDep,'r_cable')&& ...
+                    isequal(double(oldDep.r_cable),double(obj.r_cable))&& ...
+                    isfield(oldDep,'d_margin')&& ...
+                    isequal(double(oldDep.d_margin),double(obj.d_margin))&& ...
+                    isfield(oldDep,'cable_length')&& ...
+                    isequal(double(oldDep.cable_length),double(obj.L_cable))&& ...
+                    isfield(oldDep,'gravity')&& ...
+                    isequal(double(oldDep.gravity),double(obj.gravity))&& ...
+                    isfield(oldDep,'hard_modify_deadline_s')&& ...
+                    isequal(double(oldDep.hard_modify_deadline_s), ...
+                        double(obj.hard_modify_deadline_s)))
+                return;
+            end
+
+            tf=true;
+        end
+
+
+        function [sweep,packet,sensor,dep] = ...
+                reuse_reference_only_runtime_packet_exact( ...
+                    obj,oldSweep,oldPacket,oldSensor,oldDep,SC,targetVersion)
+            sweep=oldSweep;
+            sweep.reference_mode='REPAIRED';
+            sweep.reference_version=double(targetVersion);
+
+            packet=oldPacket;
+            packet.reference_mode='REPAIRED';
+            packet.reference_version=double(targetVersion);
+            packet.sweep_certified=true;
+            packet.sweep_dt=sweep.dt;
+            packet.delta_payload_m=sweep.payload_m;
+            packet.delta_uav_m=sweep.uav_m;
+            packet.delta_cable_m=sweep.cable_m;
+
+            sensor=oldSensor;
+            sensor.reference_mode='REPAIRED';
+            sensor.reference_version=double(targetVersion);
+            sensor.VL=double(SC.payload_speed_UB_m_s);
+            sensor.VQ=double(SC.uav_speed_UB_m_s);
+
+            dep=oldDep;
+            dep.reference_mode='REPAIRED';
+            dep.reference_version=double(targetVersion);
+
+            assert(isfield(sensor,'certified')&&logical(sensor.certified), ...
+                '[REPLANNER ERROR] reused sensor horizon is not certified.');
+            assert(isfield(sweep,'certified')&&logical(sweep.certified), ...
+                '[REPLANNER ERROR] reused trigger sweep is not certified.');
         end
 
 
@@ -8552,6 +9006,8 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
+            P=obj.af7r46_materialize_candidate_evaluators(P);
+
             G=P.geometry_shadow_certificate;
             SC=P.reference_speed_certificate;
             if ~(isstruct(G)&&isfield(G,'certified')&&logical(G.certified) && ...
@@ -8634,6 +9090,31 @@ classdef REPLANNING_SYSTEM < handle
                 'rocount',obj.reference_only_commit_count, ...
                 'time',obj.last_replan_commit_time);
 
+            reuseRuntimePacket= ...
+                obj.can_reuse_reference_only_runtime_packet_exact( ...
+                    old.speed,SC,old.sweep,old.packet,old.sensor,old.dep);
+
+            if reuseRuntimePacket
+                [sweepNew,packetNew,sensorNew,depNew]= ...
+                    obj.reuse_reference_only_runtime_packet_exact( ...
+                        old.sweep,old.packet,old.sensor,old.dep,SC,targetVersion);
+            else
+                sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
+                packetNew=obj.prepare_obstacle_packet_fast_target(old.packet,sweepNew,targetVersion);
+                sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+                assert(isfield(sensorNew,'certified')&&logical(sensorNew.certified), ...
+                    '[REPLANNER ERROR] fast target sensor horizon is not closed.');
+                depNew=old.dep;
+                depNew.reference_mode='REPAIRED';
+                depNew.reference_version=double(targetVersion);
+            end
+
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>double(obj.hard_modify_deadline_s)
+                reason='REFERENCE_ONLY_COMMIT_PREPARATION_DEADLINE_EXCEEDED';
+                return;
+            end
+
             try
                 R=struct();
                 R.valid=true;
@@ -8671,20 +9152,19 @@ classdef REPLANNING_SYSTEM < handle
                 obj.active_repaired_safety_level='REFERENCE_ONLY';
                 obj.active_speed_certificate=SC;
                 obj.validate_active_speed_certificate(SC);
-                obj.trigger_sweep_inflation= ...
-                    obj.build_trigger_sweep_inflation(SC);
-
-                if ~isempty(obj.static_obstacle_map)
-                    obj.obstacle_packet=obj.prepare_obstacle_packet(obj.static_obstacle_map);
+                obj.trigger_sweep_inflation=sweepNew;
+                obj.obstacle_packet=packetNew;
+                obj.sensor_horizon_certificate=sensorNew;
+                obj.runtime_dependency_signature=depNew;
+                if reuseRuntimePacket
+                    obj.reference_only_runtime_packet_reuse_count= ...
+                        obj.reference_only_runtime_packet_reuse_count+1;
+                else
+                    obj.reference_only_runtime_packet_rebuild_count= ...
+                        obj.reference_only_runtime_packet_rebuild_count+1;
+                    obj.reference_only_fast_packet_rebuild_count= ...
+                        obj.reference_only_fast_packet_rebuild_count+1;
                 end
-                obj.sensor_horizon_certificate=obj.build_sensor_horizon_certificate();
-                if ~(isfield(obj.sensor_horizon_certificate,'certified') && ...
-                        logical(obj.sensor_horizon_certificate.certified))
-                    error('[REPLANNER ERROR] reference-only repaired sensor horizon is not closed.');
-                end
-
-                obj.runtime_dependency_signature= ...
-                    obj.capture_runtime_dependency_signature_fast();
                 obj.certificate_stale=obj.empty_certificate_stale_state();
                 % Execution-aware certificates are deliberately not promoted.
                 obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
@@ -9914,6 +10394,38 @@ classdef REPLANNING_SYSTEM < handle
                         primeCandidate=candPrime;
                     end
                     nvar=nvar+1;
+                end
+            end
+
+            % AF7R46: pre-motion prime of changed-speed fast packet builder.
+            if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                SCp=obj.active_speed_certificate;
+                SCp.reference_mode='REPAIRED';
+                SCp.reference_version=double(obj.active_reference_version)+1;
+                SCp.payload_speed_UB_m_s=double(SCp.payload_speed_UB_m_s)+ ...
+                    eps(max(1,double(SCp.payload_speed_UB_m_s)));
+                SCp.uav_speed_UB_m_s=double(SCp.uav_speed_UB_m_s)+ ...
+                    eps(max(1,double(SCp.uav_speed_UB_m_s)));
+                SWp=obj.build_trigger_sweep_for_target(SCp,SCp.reference_version);
+                PKp=obj.prepare_obstacle_packet_fast_target( ...
+                    obj.obstacle_packet,SWp,SCp.reference_version); %#ok<NASGU>
+                SHp=obj.build_sensor_horizon_for_target(SCp,SCp.reference_version); %#ok<NASGU>
+            end
+
+            % AF7R45: pre-motion prime of the exact packet-reuse branch.
+            % Local outputs only; no runtime authority is modified.
+            if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                reusePrime=obj.can_reuse_reference_only_runtime_packet_exact( ...
+                    obj.active_speed_certificate,obj.active_speed_certificate, ...
+                    obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                    obj.sensor_horizon_certificate,obj.runtime_dependency_signature);
+                if reusePrime
+                    [sweepPrime,packetPrime,sensorPrime,depPrime]= ...
+                        obj.reuse_reference_only_runtime_packet_exact( ...
+                            obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                            obj.sensor_horizon_certificate,obj.runtime_dependency_signature, ...
+                            obj.active_speed_certificate, ...
+                            double(obj.active_reference_version)+1); %#ok<NASGU,ASGLU>
                 end
             end
 
@@ -11280,6 +11792,23 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function observer_prepare_static_setup_cache(obj)
+            [ok,expected]=obj.observer_validate_measurement_selector();
+            assert(ok,'[REPLANNER OBSERVER ERROR] pre-motion selector cache could not close.');
+            Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
+            m=double(obj.self.parameter.get("mass"));
+            g=double(obj.self.parameter.get("gravity"));
+            L=double(obj.self.parameter.get("cableL"));
+            assert(numel(Jd)==3&&all(isfinite(Jd))&&all(Jd>0)&& ...
+                isfinite(m)&&m>0&&isfinite(g)&&g>=0&&isfinite(L)&&L>0, ...
+                '[REPLANNER OBSERVER ERROR] pre-motion physical cache invalid.');
+            obj.observer_static_setup_cache=struct( ...
+                'selector_verified',true,'measured_scalar_indices',double(expected(:).'), ...
+                'Jdiag',Jd,'mass',m,'gravity',g,'cableL',L);
+            obj.observer_static_setup_cache_valid=true;
+        end
+
+
         function tf = observer_is_real_control_event(obj,cha)
             %#ok<INUSD>
             % Only actual a/t/f calls delivered to THIS reference object
@@ -11322,7 +11851,13 @@ classdef REPLANNING_SYSTEM < handle
             I.runtime_sum_ms=0;
             I.runtime_count=0;
 
-            [selectorOK,expected]=obj.observer_validate_measurement_selector();
+            if obj.observer_static_setup_cache_valid
+                K0=obj.observer_static_setup_cache;
+                selectorOK=logical(K0.selector_verified);
+                expected=double(K0.measured_scalar_indices(:).');
+            else
+                [selectorOK,expected]=obj.observer_validate_measurement_selector();
+            end
             assert(selectorOK, ...
                 '[REPLANNER OBSERVER ERROR] EKF selector is not certified p,q,pL,pT order.');
             I.selector_verified=true;
@@ -11601,10 +12136,18 @@ classdef REPLANNING_SYSTEM < handle
 
         function S = observer_one_step_support(obj,h,u,I)
             H=I.hidden;
-            Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
-            m=double(obj.self.parameter.get("mass"));
-            g=double(obj.self.parameter.get("gravity"));
-            L=double(obj.self.parameter.get("cableL"));
+            if obj.observer_static_setup_cache_valid
+                K0=obj.observer_static_setup_cache;
+                Jd=double(K0.Jdiag(:));
+                m=double(K0.mass);
+                g=double(K0.gravity);
+                L=double(K0.cableL);
+            else
+                Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
+                m=double(obj.self.parameter.get("mass"));
+                g=double(obj.self.parameter.get("gravity"));
+                L=double(obj.self.parameter.get("cableL"));
+            end
             assert(numel(Jd)==3&&all(isfinite(Jd))&&all(Jd>0)&& ...
                 isfinite(m)&&m>0&&isfinite(g)&&g>=0&&isfinite(L)&&L>0, ...
                 '[REPLANNER OBSERVER ERROR] physical parameter domain invalid.');
@@ -12308,6 +12851,11 @@ classdef REPLANNING_SYSTEM < handle
             obj.setup_exact_do_prime_active=true;
             obj.setup_exact_force_hit=false;
             obj.setup_exact_force_hit_calls=0;
+
+            % AF7R46: cache only state-independent observer setup before
+            % motion. Actual measurement/hidden support still initializes
+            % from the real Flight-entry event.
+            obj.observer_prepare_static_setup_cache();
 
             % AF7R38 setup-only observer/full-do dry-run prime.
             % Two structural cases are exercised: first measurement event
