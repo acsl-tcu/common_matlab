@@ -1,0 +1,11 @@
+AF7R57A V6 generation/design audit
+======================================
+source lines = 1214
+multiline declaration parser = 1
+replanner_instance alias = 1
+missing-input fail closed = 1
+append-only trace capture = 1
+append-only KKT capture = 1
+shadow interface gate = 1
+production SHA gate = 1
+production t1 remains unselected = 1

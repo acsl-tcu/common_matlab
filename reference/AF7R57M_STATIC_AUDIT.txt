@@ -1,0 +1,14 @@
+AF7R57M static design audit
+============================
+current packet timing generalized by linear extrapolation = 0
+exact sign-recursion source checked                       = 1
+2^E sign branch growth stated                             = 1
+2*C+1 segment structure checked                           = 1
+active-set subset combinatorial structure checked         = 1
+whole-body obstacle loop checked                          = 1
+3 body primitive tests per obstacle checked               = 1
+live obstacle count hardcoded                             = 0
+live component count hardcoded                            = 0
+unbounded-config 4 ms claimed                             = 0
+resource caps audited explicitly                          = 1
+production source modified                                = 0

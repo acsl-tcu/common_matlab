@@ -8,6 +8,7 @@ classdef REPLANNING_SYSTEM < handle
 % AF7R44-SENSOR-MEMORY: simulation starts unknown; detected static obstacles are retained through certified rejoin.
 % AF7R45-TWO-TRACK-RT: REFERENCE_ONLY exec-dependency fast path + exact commit packet reuse.
 % AF7R46-COMPACT-COMMIT: compact native proposal + pure fast commit packet + observer static setup cache.
+% AF7R50C-CLEAN-TIMING: disable non-authoritative in-run timing/replay/proposal diagnostics only.
 
 % AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.
 
@@ -153,7 +154,7 @@ classdef REPLANNING_SYSTEM < handle
         LOG_SENSOR       = 0;  % 球状センサ障害物捕捉ログの個別スイッチ (20m内に障害物検知時)
         LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
-        ENABLE_LIGHT_RUNTIME_AUDIT = 1; % 外側1個の軽量 wall timer のみ有効
+        ENABLE_LIGHT_RUNTIME_AUDIT = 0; % AF7R50C clean production-timing run: no in-run light audit
         ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
         r12_tail_prime_done = false;
         r12_tail_prime_ms = NaN;
@@ -411,7 +412,8 @@ classdef REPLANNING_SYSTEM < handle
         % execution is excluded.  No file I/O / assignin occurs in Flight.
         % The full event is retrieved after the run by
         % get_last_trigger_event()/get_first_trigger_event().
-        CAPTURE_REAL_TRIGGER_EVENT   = true;
+        CAPTURE_REAL_TRIGGER_EVENT   = false; % AF7R50C: offline replay capture disabled for clean timing
+        ENABLE_PROPOSAL_DIAGNOSTIC_MIRROR = false; % no post-decision proposal mirroring in online cycle
         trigger_event_count          = 0;
         first_trigger_event          = struct();
         last_trigger_event           = struct();
@@ -5034,7 +5036,9 @@ classdef REPLANNING_SYSTEM < handle
                 % AF7R43: shadow mirroring is diagnostic only; perform it
                 % when invoke_replan_generator_shadow exits, after every hard
                 % deadline / atomic-commit decision.
-                record_guard=onCleanup(@()obj.safe_record_bezier_shadow_proposal(candidate)); %#ok<NASGU>
+                if obj.ENABLE_PROPOSAL_DIAGNOSTIC_MIRROR
+                    record_guard=onCleanup(@()obj.safe_record_bezier_shadow_proposal(candidate)); %#ok<NASGU>
+                end
                 obj.generator_last_validation_ms=0;
                 obj.generator_last_critical_ms=cp_callback;
 

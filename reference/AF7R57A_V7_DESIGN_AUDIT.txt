@@ -1,0 +1,13 @@
+AF7R57A V7 design audit
+========================
+actual AF7R56B formal count preserved       = 1
+canonical B49 alias source-bound             = 1
+canonical R50A alias source-bound            = 1
+B49 schema validation                         = 1
+R50A schema validation                        = 1
+predecessor cross-consistency gate            = 1
+replanner_instance alias preserved            = 1
+missing predecessor remains fail-closed        = 1
+production source modification                = 0
+production t1 selection                       = 0
+sampled acceptance                            = 0

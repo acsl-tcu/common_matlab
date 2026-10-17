@@ -1,0 +1,22 @@
+AF7R57A V5 static generation audit
+==================================
+source lines                           = 796
+heuristic unclosed-string lines        = [370, 411]
+coarse final parentheses balance       = 1
+coarse final square-bracket balance    = 3
+coarse final brace balance             = 0
+escape-quote helper present            = 0
+V3/V4 split-fprintf pattern present    = 0
+
+Design gates present:
+  source formal-input parser            = 1
+  explicit argument forwarding          = 1
+  conservative base auto-binding        = 1
+  replanner exact-class gate            = 1
+  CRLF-independent declaration rename   = 1
+  shadow interface equality gate        = 1
+  trace/KKT append-only capture         = 1
+  exact injection count gate            = 1
+  production SHA before/after gate      = 1
+  production t1 selected                = 0
+  terminal-boundary proof claimed       = 0

@@ -1,0 +1,16 @@
+AF7R57F V3 correction audit
+===============================
+V2 Inf mechanism identified                     = 1
+common tree unchanged                           = 1
+tolerance/snapping introduced                   = 0
+segment derivative before restriction           = 1
+Bezier derivative/restriction exact identity    = 1
+orders 1/2/3 stabilized                         = 1
+leaf physical half-width still used in Stage-B  = 1
+std::nextafter outward rounding retained        = 1
+KKT z interval retained                         = 1
+full t1 bracket retained                        = 1
+sampled acceptance                              = 0
+inconclusive fail-closed                        = 1
+production source modified                      = 0
+production t1 selected                          = 0

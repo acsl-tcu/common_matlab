@@ -1,0 +1,20 @@
+AF7R57J static design audit
+============================
+t1 hardcoded                                      = 0
+t1 search/minimization                            = 0
+source-derived captured tU                        = 1
+old R36 Stage-B used as final PASS authority      = 0
+corrected derivative-first Stage-B                = 1
+outward point KKT                                 = 1
+strict finite-sensing VQ condition                = 1
+continuous payload geometry                       = 1
+continuous UAV geometry                           = 1
+continuous complete-cable geometry                = 1
+oriented ellipsoid support                        = 1
+rejoin half-dt speed inflation                    = 1
+sampled acceptance                                = 0
+unresolved policy                                 = FAIL CLOSED
+C7 endpoint structural condition                  = 1
+production source modified                        = 0
+production t1 selected                            = 0
+hard 4 ms claimed                                 = 0

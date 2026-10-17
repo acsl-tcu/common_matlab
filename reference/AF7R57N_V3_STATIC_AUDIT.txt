@@ -1,0 +1,14 @@
+AF7R57N V3 generator audit
+============================
+V2 mathematical/resource semantics changed      = 0
+single row-char source invariant                 = 1
+resourceBlock normalized before insertion        = 1
+token_count canonicalizes source/token           = 1
+replace_all_count canonicalizes all operands     = 1
+replace_first_count canonicalizes all operands   = 1
+serializer patches canonicalized                 = 1
+status/op9 insertion canonicalized               = 1
+normalize_lf canonicalized                       = 1
+file write canonicalized                         = 1
+production cap values selected                   = 0
+production source modified                       = 0

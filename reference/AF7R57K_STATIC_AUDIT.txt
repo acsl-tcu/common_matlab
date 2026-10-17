@@ -1,0 +1,22 @@
+AF7R57K static package audit
+=============================
+production source patch                         = 0
+shadow source generation only                   = 1
+bound core SHA required                         = 1
+bound serializer SHA required                   = 1
+bound REPLANNING_SYSTEM SHA required            = 1
+old split-then-differentiate Stage-B retained   = 0 in shadow Stage-B
+parent derivative control polygons              = 1
+derivative polygons split directly              = 1
+Bezier derivative/restriction identity basis    = 1
+candidate/QP source altered                     = 0
+whole-body geometry source altered              = 0
+rejoin source altered                           = 0
+C7 candidate source altered                     = 0
+candidate synthesis identity audit              = 1
+corrected speed strict limit audit              = 1
+positive L/Q/cable geometry margins required    = 1
+rejoin required                                 = 1
+200-run warm benchmark                          = 1
+hard QPC WCET claimed                           = 0
+production t1 selected                          = 0

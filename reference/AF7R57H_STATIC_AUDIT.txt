@@ -1,0 +1,16 @@
+AF7R57H static design audit
+=============================
+R57G artifact closure required                 = 1
+AF7R52 snapshot/B49 source used                = 1
+B49 success/failure used as authority          = 0
+B49 t1 values used only as search coordinates  = 1
+native all_diag candidate replay               = 1
+stable derivative-before-restriction speed     = 1
+split-then-differentiate                        = 0
+strict VQ < limit                              = 1
+specific-force sigma > 0                       = 1
+unresolved policy fail closed                  = 1
+old rejoin/geometry diagnostic only            = 1
+full production boundary claimed               = 0
+production source modified                     = 0
+production t1 selected                         = 0

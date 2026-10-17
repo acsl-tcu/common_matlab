@@ -1,0 +1,25 @@
+AF7R57F package static design audit
+====================================
+AF7R57C closed authority required             = 1
+AF7R57E V4 closed authority required          = 1
+same-run nominal signature rechecked          = 1
+KKT z interval used                           = 1
+full t1 interval used                         = 1
+exact common endpoint-union tree rebuilt      = 1
+candidate/component count runtime-derived     = 1
+std::nextafter outward rounding               = 1
+interval Bezier endpoint-jet map              = 1
+interval candidate construction               = 1
+interval leaf de Casteljau restriction        = 1
+interval derivative polygons orders 1..3      = 1
+interval VL/JL/sigma/qdot/VQ                  = 1
+strict sign classification                    = 1
+inconclusive policy fail closed                = 1
+sampled acceptance                            = 0
+production source modified                    = 0
+production t1 selected                        = 0
+V4 exact source SHA rechecked               = 1
+V4 OUT.mat filesystem dependency removed      = 1
+V4 source identity reconstructed by SHA       = 1
+AF7R57C numerical authority still required    = 1
+authority loader independent of current pwd   = 1

@@ -1,0 +1,7 @@
+single_initial_cover = 1
+no_seed_loop = 1
+front_bisection = 1
+geom_cap_512 = 1
+speed_cap_2048 = 1
+no_partition_function = 1
+fail_closed_node_budget = 1

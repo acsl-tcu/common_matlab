@@ -1,0 +1,18 @@
+AF7R57G V3 static design audit
+===============================
+failed selected-candidate fields not used     = 1
+native all_diag candidate used                = 1
+shadow serializer only                        = 1
+production source SHA before/after            = 1
+shadow nominal AST separately primed          = 1
+candidate z/KKT containment                   = 1
+sign/active/lambda branch identity            = 1
+native parent control polygon exported        = 1
+native split-leaf reproduction                = 1
+original parent direct witness                = 1
+stable derivative-first bound                 = 1
+R57F V3 point-candidate outward containment   = 1
+sampled acceptance                            = 0
+production source modified                    = 0
+production t1 selected                        = 0
+terminal theorem claimed                      = 0

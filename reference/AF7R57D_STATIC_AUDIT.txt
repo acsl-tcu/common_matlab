@@ -1,0 +1,14 @@
+AF7R57D package design audit
+==============================
+AF7R57C authority required                = 1
+exact lower/upper partition cover         = 1
+exact common refinement                   = 1
+no tolerance merge                        = 1
+returned qdot identity audit              = 1
+returned VQ identity audit                = 1
+native/build source recursive binding     = 1
+source SHA binding                        = 1
+sampled acceptance                        = 0
+production source modified                = 0
+production t1 selected                    = 0
+terminal-boundary proof claimed           = 0

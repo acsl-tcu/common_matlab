@@ -1,0 +1,21 @@
+AF7R57I V3 performance/theorem audit
+=====================================
+R57H lattice used as repeated proof units        = 0
+safe cover starts from one [right0,tU] box       = 1
+unresolved t1 box recursively bisected           = 1
+candidate-1 evaluated first                      = 1
+candidate-2 evaluated only when needed           = 1
+geometry local split budget                      = 512
+geometry budget exhaustion -> PASS               = 0
+geometry budget exhaustion -> outer refinement   = 1
+Stage-B local split budget                       = 2048
+Stage-B budget exhaustion -> PASS                = 0
+exhaustive unresolved-left binary64 partition    = 0
+certification front interval bisection           = 1
+failed front proof interpreted as unsafe         = 0
+right-side SAFE invariant maintained             = 1
+progress reporting added                         = 1
+interval KKT acceptance unchanged                = 1
+whole-body payload/UAV/cable acceptance unchanged= 1
+production source modified                       = 0
+production t1 selected                           = 0

@@ -58,6 +58,7 @@ ENABLE_REFERENCE_ONLY_CERTIFICATE = true;
 ENABLE_EXECUTION_AWARE_CERTIFICATE = true;
 AVOIDANCE_COMMIT_POLICY = "REFERENCE_ONLY";   % "REFERENCE_ONLY" or "EXECUTION_AWARE"
 ENABLE_AUTO_REPLAN_COMMIT = true;
+ENABLE_AF7R53_PREPARED_COMMIT = true; % AF7R53 explicit A/B switch
 
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]);
 logger.display_func = @(agent, time) build_display_vector(agent, time);
@@ -146,6 +147,7 @@ replan_opts.ENABLE_EXECUTION_AWARE_CERTIFICATE = ...
     ENABLE_EXECUTION_AWARE_CERTIFICATE;
 replan_opts.AVOIDANCE_COMMIT_POLICY = AVOIDANCE_COMMIT_POLICY;
 replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
+replan_opts.ENABLE_AF7R53_PREPARED_COMMIT = ENABLE_AF7R53_PREPARED_COMMIT;
 
 replanner_instance = REPLANNING_SYSTEM(agent,nominal_ref,replan_opts);
 
@@ -344,60 +346,10 @@ runtime_profile.full_iteration_s=runtime_profile.full_iteration_s(1:Krt);
 
 disp("Simulation complete! Drawing plots...");
 
-%% 9. Simと同じ確認用plot
-% Figure 1: 機体位置と吊り荷位置 — 全phase
-figure(1);
-logger.plot({{1,"p","er"},{1,"estimator.result.state.pL","e"}}, ...
-    "phase","tfl");
-
-% Figure 2: 機体位置と吊り荷位置 — Flightのみ
-figure(2);
-logger.plot({{1,"p","er"},{1,"estimator.result.state.pL","e"}}, ...
-    "phase","f");
-
-% Figure 3: 水平速度
-figure(3);
-logger.plot({{1,"v1:2","er"},{1,"estimator.result.state.vL1:2",""}});
-
-% Figure 4: 1周期全体の計算時間
-figure(4);
-logger.plot({1,"controller.result.controllertime_total",""}, ...
-    "phase","f");
-
-% Figure 8: 実機オンライン側の処理時間
-% sensor + estimator + reference/replanner + controller + input_transform
-% （Simだけの数値plant積分は含めない）
-figure(8);
-logger.plot({1,"controller.result.online_compute_total",""}, ...
-    "phase","f");
-
-% Figure 9: Simだけの数値plant積分時間
-figure(9);
-logger.plot({1,"controller.result.simulation_plant_total",""}, ...
-    "phase","f");
-
-% Figure 10/11: runtime_profile is outside LOGGER, so it can include
-% LOGGER's own cost without self-measurement ambiguity.
-plot_runtime_profile(runtime_profile,10,11);
-
-%% 10. 追加可視化 — 機体・吊り荷・参照軌道
-% Figure 5: 全区間3D軌道
-plot_suspended_load_trajectory(logger,dt, ...
-    "figure_number",5, ...
-    "phase","tfl", ...
-    "title_text","UAV / Suspended Load / Reference Trajectory — All Phases");
-
-% Figure 6: Flight区間3D軌道
-plot_suspended_load_trajectory(logger,dt, ...
-    "figure_number",6, ...
-    "phase","f", ...
-    "title_text","UAV / Suspended Load / Reference Trajectory — Flight");
-
-% Figure 7: Flight区間の各軸位置を同一図で比較
-plot_position_components(logger,dt, ...
-    "figure_number",7, ...
-    "phase","f");
-
+%% AF7R51 single post-run dashboard -- replaces fragmented Figures 1--11.
+assert(exist('replanner_instance','var')==1, ...
+    '[AF7R51P] replanner_instance is unavailable after the run.');
+AF7R51_POSTRUN_DASHBOARD(logger,runtime_profile,dt,replanner_instance);
 drawnow;
 
 %% LOCAL FUNCTIONS

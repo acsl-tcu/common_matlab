@@ -1,0 +1,12 @@
+AF7R57K V2 correction audit
+=============================
+V1 failure classified as audit serializer-type bug = 1
+control_points documented as cell [1xN]             = 1
+cell elements compared as exact numeric matrices    = 1
+identity Boolean uses exact isequaln                 = 1
+control-point max absolute error reported            = 1
+tolerance-based candidate identity                   = 0
+corrected C++ Stage-B changed from V1                = 0
+production source modified                           = 0
+write shadow source only if content changed          = 1
+unnecessary rebuild on unchanged rerun               = 0

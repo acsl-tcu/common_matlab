@@ -1,0 +1,16 @@
+AF7R57H V2 static correction audit
+====================================
+V1 coarse-parent aggregate contamination identified = 1
+terminal accepted leaves only in maxVQ aggregate     = 1
+terminal accepted leaves only in minSigma aggregate  = 1
+coarse inconclusive leaves counted separately        = 1
+coarse inconclusive bounds excluded from margin      = 1
+final certification requires finite maxVQ            = 1
+final certification requires sigma > 0               = 1
+final certification requires strict positive margin  = 1
+boundary-neighborhood per-candidate detail added     = 1
+B49 pass/fail used as authority                      = 0
+sampled acceptance                                   = 0
+production source modified                           = 0
+production t1 selected                               = 0
+continuous terminal-boundary proof claimed           = 0

@@ -1,0 +1,12 @@
+AF7R57N V4 static correction audit
+===================================
+V3 safety/resource semantics changed             = 0
+resource block built from physical source lines  = 1
+literal backslash-n in resource block allowed    = 0
+physical newline count preflight                  = 1
+SpeedCert line-boundary preflight                 = 1
+resource comment termination preflight            = 1
+resource brace-balance preflight                  = 1
+compiler-failure source excerpt dump              = 1
+production cap values selected                    = 0
+production source modified                        = 0

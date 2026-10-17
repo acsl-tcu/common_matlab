@@ -1,0 +1,12 @@
+AF7R57G V4 correction audit
+==============================
+V3 failure classified as build-only          = 1
+MSVC /std:c++17 explicitly requested         = 1
+non-Windows -std=c++17 explicitly requested  = 1
+shadow serializer logic unchanged            = 1
+native planner/QP/Stage-B unchanged           = 1
+production source modified                    = 0
+production source SHA checks retained         = 1
+sampled acceptance                            = 0
+production t1 selected                        = 0
+terminal theorem claimed                      = 0

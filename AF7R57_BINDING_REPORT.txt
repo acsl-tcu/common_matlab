@@ -1,0 +1,40 @@
+AF7R57 exact source binding
+source=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R56B_STAGEB_BOUNDARY_TRACE.m
+sha256=893459a6cd34ddfcdb5b527a4fc56c80aa9ca293f1d14f84ade61bb17c1aac28
+trace_calls=9
+
+[TRACE 1]
+assert(exist('af7r56_trace_mex','file')==3);
+
+[TRACE 2]
+F=af7r56_trace_mex(3,pkt,tU);
+
+[TRACE 3]
+U=af7r56_trace_mex(4,pkt,tU,tU);
+
+[TRACE 4]
+R=af7r56_trace_mex(4,pkt,tU,t(use(ii)));
+
+[TRACE 5]
+R=af7r56_trace_mex(4,pkt,tU,mid);
+
+[TRACE 6]
+RL=af7r56_trace_mex(4,pkt,tU,lo);
+
+[TRACE 7]
+RU=af7r56_trace_mex(4,pkt,tU,hi);
+
+[TRACE 8]
+TL{c}=af7r56_trace_mex(5,pkt,tU,lo,c);
+
+[TRACE 9]
+TU{c}=af7r56_trace_mex(5,pkt,tU,hi,c);
+interval_kkt_calls=2
+
+[KKT 1]
+assert(exist('af7r56_interval_kkt_mex','file')==3);
+
+[KKT 2]
+K{c}=af7r56_interval_kkt_mex( ...
+            lo,hi,double(U.t0),double(U.component_start(1)), ...
+            double(U.component_end(1)),A,b,ac0(1)+1,signTag,c);

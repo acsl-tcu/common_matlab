@@ -1,0 +1,19 @@
+AF7R57E V2 correction audit
+=============================
+V1 native make_vleaf capture preserved       = 1
+multiline MATLAB declaration support         = 1
+nonexistent pkt.component_start removed      = 1
+nonexistent pkt.component_end removed        = 1
+nonexistent pkt.VQ_limit removed             = 1
+trace limit used as runtime authority        = 1
+candidate segment boundaries retained        = 1
+deriv_poly exact body requested              = 1
+vector_control_from_jets body requested      = 1
+build_candidate exact body requested         = 1
+candidate_eval exact body requested          = 1
+ActiveReference/ref.eval contexts requested  = 1
+algebraic guessing                           = 0
+sampled acceptance                           = 0
+production source modified                   = 0
+production t1 selected                       = 0
+terminal-boundary proof claimed              = 0

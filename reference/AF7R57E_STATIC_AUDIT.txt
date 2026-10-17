@@ -1,0 +1,15 @@
+AF7R57E package design audit
+==============================
+read-only exact source capture           = 1
+KKT z-interval printed                   = 1
+make_vleaf exact body capture            = 1
+stageB exact body capture                = 1
+split_half exact body capture            = 1
+candidate/derivative token contexts      = 1
+active MATLAB control-map body capture   = 1
+source SHA before/after                  = 1
+algebraic guessing                       = 0
+sampled acceptance                       = 0
+production source modified               = 0
+production t1 selected                   = 0
+terminal-boundary proof claimed          = 0

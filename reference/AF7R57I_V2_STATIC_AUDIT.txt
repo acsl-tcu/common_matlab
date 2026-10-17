@@ -1,0 +1,22 @@
+AF7R57I V2 static theorem audit
+================================
+R57C schema A/b/ac0/signTag from KKT record       = 1
+exact captured ac0(1)+1 convention preserved     = 1
+trace/KKT candidate identity cross-check          = 1
+grid PASS/FAIL used as acceptance                 = 0
+interval KKT acceptance                           = 1
+stable derivative-first Stage-B                   = 1
+class +1 used as candidate rejection              = 0
+class +1 refined                                  = 1
+class 0 refined                                   = 1
+unsplittable leaf -> INCONCLUSIVE                 = 1
+sufficient-certificate failure -> physical unsafe = 0
+continuous whole-body payload/UAV/cable proof     = 1
+oriented ellipsoid exact support                  = 1
+rejoin interval proof                             = 1
+tracking/dmargin inflation retained               = 1
+safe component theorem can close                  = 1
+physical minimal boundary overclaimed             = 0
+production t1 selected                            = 0
+production source modified                        = 0
+4 ms runtime gate claimed                         = 0

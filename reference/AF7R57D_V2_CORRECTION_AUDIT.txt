@@ -1,0 +1,14 @@
+AF7R57D V2 correction audit
+=============================
+invalid f*2^52 predicate removed         = 1
+exact endpoint-union identity gate       = 1
+no tolerance/snapping                    = 1
+common exact cover preserved             = 1
+lower/upper exact refinement preserved   = 1
+dyadic provenance source-bound only      = 1
+Stage-B source search preserved          = 1
+KKT gate preserved                       = 1
+sampled acceptance                       = 0
+production source modified               = 0
+production t1 selected                   = 0
+terminal-boundary proof claimed          = 0

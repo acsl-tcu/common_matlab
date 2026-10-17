@@ -1,0 +1,18 @@
+AF7R57L static timing-audit design
+==================================
+QPC raw wall used for acceptance                 = 1
+stamp overhead subtracted for PASS               = 0
+thread cycles reported as work-only              = 1
+process cycles reported as work-only             = 1
+explicit pre-Flight warmup                       = 1
+first post-warmup included in hard gate          = 1
+timed population                                 = 2000
+acceptance uses maximum/all trials               = 1
+p50/p95 relaxation                               = 0
+>=4 ms spike tolerated                           = 0
+certificate outputs checked every trial          = 1
+runtime obstacle count hardcoded                 = 0
+runtime component count hardcoded                = 0
+arbitrary-obstacle-count WCET claimed            = 0
+current-live-packet hard gate can close          = 1
+production source modified                       = 0

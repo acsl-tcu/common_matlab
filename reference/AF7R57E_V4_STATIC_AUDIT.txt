@@ -1,0 +1,14 @@
+AF7R57E V4 correction audit
+==============================
+V3 false-negative identified             = 1
+literal deriv_poly requirement removed   = 1
+inline derivative recursion required     = 1
+de Casteljau required                    = 1
+local-u clamp required                   = 1
+strict repair window required            = 1
+nominal eval required                    = 1
+repair traversal required                = 1
+sampled acceptance                       = 0
+production source modified               = 0
+production t1 selected                    = 0
+terminal theorem claimed                 = 0

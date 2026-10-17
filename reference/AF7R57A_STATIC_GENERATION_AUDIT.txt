@@ -1,0 +1,10 @@
+AF7R57A V3 static generation audit
+==================================
+source lines                         = 408
+odd quote lines after doubled-quote normalization = []
+split fprintf string candidates      = []
+line 238 escape_quote                = q=strrep(s,'''','''''');
+line 268                             =     fprintf('%s%s : <max depth>\n',indent,name);
+
+Result:
+  no known generated-string syntax defect remains.

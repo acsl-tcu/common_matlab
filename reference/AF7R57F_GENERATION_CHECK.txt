@@ -1,0 +1,7 @@
+nextafter = 1
+mode0 = 1
+mode1 = 1
+safe_class = 1
+violation_class = 1
+repair_fail_closed = 1
+no_prod_install = 1

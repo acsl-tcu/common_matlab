@@ -1,0 +1,15 @@
+AF7R57E V3 package audit
+==========================
+strict logical MATLAB declarations        = 1
+call-site false positive forbidden        = 1
+scalar_control_from_jets requested        = 1
+ActiveReference full struct requested     = 1
+prime source exact capture                = 1
+prime trace-MEX call-site capture         = 1
+current nominal identity capture          = 1
+source SHA before/after                   = 1
+algebraic guessing                        = 0
+sampled acceptance                        = 0
+production source modified                = 0
+production t1 selected                    = 0
+terminal theorem claimed                  = 0

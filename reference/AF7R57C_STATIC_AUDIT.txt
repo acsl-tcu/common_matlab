@@ -1,0 +1,12 @@
+AF7R57C static design audit
+============================
+uses AF7R52 existing authority loader        = 1
+passes B49/R50A as [] to source fallback     = 1
+recomputes AF7R49B                           = 0
+recomputes AF7R50A                           = 0
+requires loader == snapshot E/M/B49/R50A     = 1
+trace capture append-only                    = 1
+KKT capture append-only                      = 1
+production source mutation                   = 0
+production t1 selection                      = 0
+sampled acceptance                           = 0

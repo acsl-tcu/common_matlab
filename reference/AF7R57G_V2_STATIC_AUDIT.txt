@@ -1,0 +1,14 @@
+AF7R57G V2 correction audit
+==============================
+V1 dimension mismatch identified             = 1
+zL/zU shape printed                          = 1
+raw z_interval shape printed                 = 1
+Nx2 interval orientation accepted            = 1
+2xN interval orientation accepted            = 1
+arbitrary vectorized packing rejected        = 1
+reversed intervals rejected                  = 1
+witness consistency logic unchanged          = 1
+sampled acceptance                           = 0
+production source modified                   = 0
+production t1 selected                       = 0
+terminal theorem claimed                     = 0

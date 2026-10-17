@@ -1,0 +1,12 @@
+AF7R57N V5 static correction audit
+===================================
+V4 safety/resource semantics changed             = 0
+fault injection catches MEX exceptions           = 1
+arbitrary exception alone accepted as closed     = 0
+exact expected op9 resource code required        = 1
+returned rejection requires success=false        = 1
+exception identifier/message recorded            = 1
+exception-free transport reported separately     = 1
+exception transport accepted for production      = 0
+production cap values selected                    = 0
+production source modified                        = 0

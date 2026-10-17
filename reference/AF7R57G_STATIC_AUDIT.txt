@@ -1,0 +1,16 @@
+AF7R57G static design audit
+==============================
+same-run AF7R57C authority required          = 1
+AF7R52 snapshot authority used               = 1
+native trace MEX re-primed                   = 1
+lower/upper native endpoint core replay      = 1
+candidate-1 KKT branch identity check        = 1
+native split-leaf arithmetic reproduction    = 1
+original parent candidate direct evaluation  = 1
+stable derivative-first leaf bound           = 1
+R57F V3 outward single-leaf containment      = 1
+candidate-2 control reported                 = 1
+sampled acceptance                           = 0
+production source modified                   = 0
+production t1 selected                       = 0
+terminal theorem claimed                     = 0

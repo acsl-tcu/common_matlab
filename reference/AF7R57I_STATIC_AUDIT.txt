@@ -1,0 +1,25 @@
+AF7R57I static theorem-design audit
+=====================================
+R57H grid used only as partition/search coordinates = 1
+grid PASS/FAIL used as theorem acceptance            = 0
+arbitrary t1 interval KKT call                       = 1
+old-bracket KKT runtime self-validation              = 1
+stable derivative-before-restriction Stage-B         = 1
+std::nextafter outward rounding                      = 1
+continuous physical-time geometry boxes              = 1
+payload geometry                                     = 1
+UAV geometry                                         = 1
+complete cable-segment geometry                      = 1
+runtime obstacle count hardcoded                     = 0
+ellipsoid orientation respected                      = 1
+ellipsoid exact support function                     = 1
+tracking + dmargin included                          = 1
+rejoin half-dt speed inflation included              = 1
+terminal jets 0..7 structural zero                   = 1
+position C6 preserved                                = 1
+yaw modified by avoidance                            = 0
+unresolved policy                                    = FAIL CLOSED
+subdivision budget can create PASS                   = 0
+production source modified                           = 0
+production t1 selected                               = 0
+4 ms runtime gate claimed                            = 0

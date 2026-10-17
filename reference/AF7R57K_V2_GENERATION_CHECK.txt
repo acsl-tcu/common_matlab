@@ -1,0 +1,5 @@
+cell_helper = 1
+exact_isequaln = 1
+cp_error_output = 1
+write_if_changed = 1
+no_direct_double_cell = 1

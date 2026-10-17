@@ -1,0 +1,53 @@
+AF7R57A V5 final static audit
+================================
+
+Confirmed defects in older versions
+-----------------------------------
+V3:
+- shadow was executed with zero inputs although AF7R56B requires at least
+  the formal input "replanner".
+- generated fprintf character vectors had physical line breaks in quoted text.
+
+V4:
+- argument-forwarding design was improved, but a generated quote corruption
+  remained in af7r57a_escape_quote.
+- declaration replacement could fail on CRLF source because a normalized
+  declaration string was searched inside the original source.
+
+V5 corrections verified
+------------------------
+1. The real AF7R56B declaration is parsed before execution.
+2. Formal inputs are forwarded unchanged.
+3. No-input invocation resolves only:
+   - exact formal variable names from the base workspace;
+   - for formal "replanner", a unique REPLANNING_SYSTEM object;
+   - BASE.replanner_instance only when it is exactly REPLANNING_SYSTEM.
+4. The shadow declaration is checked for identical formal inputs/outputs.
+5. Declaration rename uses source character positions; it is CRLF/LF independent.
+6. Mode-5 and interval-KKT injection sites must each occur exactly once.
+7. Trace/KKT captures are append-only over candidate iterations.
+8. Capture helpers derive their output directory from mfilename('fullpath');
+   no generated absolute-path quote escaping is used.
+9. Production-source SHA-256 is checked before and after execution.
+10. No production t1 is selected and no terminal-boundary theorem is claimed.
+
+Generated-source checks
+-----------------------
+- old broken pattern "q=strrep(s,,...)" present: NO
+- V3 split fprintf pattern present: NO
+- generated absolute-path escape helper present: NO
+- physical CR characters in generated file: 0
+- heuristic warnings at source lines 370 and 411 were manually inspected:
+  both are valid MATLAB regex-construction lines, not unterminated strings.
+- coarse bracket counts are intentionally not used as a validity test because
+  regex character classes such as [^\r\n] contain literal square brackets.
+
+Recommended run
+---------------
+First try:
+    R57A = AF7R57A_STAGEB_SCHEMA_CAPTURE();
+
+Most explicit:
+    R57A = AF7R57A_STAGEB_SCHEMA_CAPTURE(replanner);
+
+Do not use V3 or V4.

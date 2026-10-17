@@ -1,0 +1,14 @@
+AF7R57B package static design audit
+====================================
+read-only recovery only                 = 1
+same-run-only policy                    = 1
+rerun flight from audit                 = 0
+B49 recompute from stale replanner      = 0
+R50A recompute from stale replanner     = 0
+base recursive schema scan              = 1
+snapshot recursive schema scan          = 1
+AF7R56B source dependency line audit    = 1
+source SHA before/after                 = 1
+snapshot SHA before/after               = 1
+production modification                 = 0
+production t1 selection                 = 0

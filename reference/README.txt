@@ -1,23 +1,37 @@
-AF7R46 — current final two realtime bottlenecks
+AF7R57N V6 — sticky resource abort for Stage-A / Stage-B
+===========================================================
 
-Targets only: Flight-entry 5 s and replan/commit 9.85--10.1 s.
+V5 found three real guard defects:
+- Stage-A leaf cap set resource code 209 but planner could later succeed.
+- Stage-B leaf cap was misreported as 212 because the split path used one
+  combined reason for leaf and split exhaustion.
+- Stage-B split cap set 212 but planner could continue to another candidate
+  and later succeed.
 
-10 s: identical AF7R36 MEX core; compact MATLAB candidate; evaluator handles deferred until after generator gate; changed-speed packet rebuilt with exact existing formulas from certified raw geometry; packet/sensor prepared before active authority mutation so a preparation deadline miss needs no rollback.
+V6 fixes those defects in the generated guarded shadow core:
 
-5 s: observer equations are unchanged. Only state-independent selector and physical constants are cached in existing pre-motion setup. Actual hidden support starts from the real Flight-entry event.
+1. Immediately after `tighten_stageA(...)`, if any resource code is set:
+       R.success = false;
+       R.reason  = resource_reason();
+       return R;
+   This is inserted in both native planner paths.
 
-Current avoidance: after status 30, active_reference_mode is REPAIRED and write_active_output feeds repaired xd downstream. Before status 30 it is NOMINAL. Full execution-aware authority is still not active under REFERENCE_ONLY.
+2. Stage-B split accounting is separated:
+       leaf cap  -> 211
+       split cap -> 212
 
-Run:
-  addpath('AF7R46 package folder','-begin');
-  I46=AF7R46_INSTALL_LAST_TWO_REALTIME();
-  dbclear all; clear classes; clear functions; rehash
-  A46=AF7R46_PRE_RUN_AUDIT(); A46.closed
-  run_flight_headless
-  B46=AF7R46B_LAST_TWO_POSTRUN_AUDIT(logger,replanner_instance);
-  T25=AF7R25A_HIGHRES_TIMING_AUDIT(logger);
-  R28=AF7R28_BLUE_SPIKE_ATTRIBUTION(runtime_profile,logger);
-  T23=AF7R23A_R9_STAGE_TIMING_AUDIT(logger);
+3. Immediately after `stageB_speed(...)`, any resource code causes the same
+   top-level sticky reject. No next-candidate fallback is allowed.
 
-AF7R45 ded3e68fb1b7da5187985e1f171dc970afeb82d9ba09fecacbc4f07f553936d9
-AF7R46 890876116b4782725d8c337e53923a14892a9b5f4f00a0e7de030b9d4433c446
+The episode 202/203 behavior is intentionally not hidden:
+the existing op=4 fixed-episode wrapper may still transport those two resource
+rejections as `fixed episode unavailable` exceptions. V6 continues to audit
+them as fail-closed with exact op=9 reason codes, but production transport is
+not closed until they are normalized to ordinary reject results.
+
+Expected focused V6 result:
+    209 -> got 209, transport RETURN, closed 1
+    211 -> got 211, transport RETURN, closed 1
+    212 -> got 212, transport RETURN, closed 1
+
+If those close, only episode exception transport should remain open.

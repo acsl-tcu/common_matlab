@@ -1,0 +1,7 @@
+new_mex_name = 1
+derivative_first_cpp = 1
+restriction_after_derivative = 1
+no_unstable_restrict_then_deriv = 1
+nextafter_retained = 1
+strict_safe_sign = 1
+strict_violation_sign = 1
