@@ -18,13 +18,13 @@ function OUT = AF7R57N_LIVE_RESOURCE_GUARDED_SHADOW_AUDIT()
 
 clc;
 fprintf('\n====================================================================================================\n');
-fprintf(' AF7R57N V6 | STICKY RESOURCE ABORT + STAGEB REASON SEPARATION\n');
+fprintf(' AF7R57N V8 | BRANCH-LOCAL EXCEPTION-FREE EPISODE RETURN\n');
 fprintf('====================================================================================================\n');
 fprintf(['[AUTHORITY] correctedParent=R57K | liveCaps=1 | failClosed=1 | ' ...
          'capValuesNotProductionSelected=1 | productionModified=0\n']);
 
 OUT=struct();
-OUT.schema='AF7R57N_LIVE_RESOURCE_GUARDED_SHADOW_AUDIT_V6';
+OUT.schema='AF7R57N_LIVE_RESOURCE_GUARDED_SHADOW_AUDIT_V8';
 OUT.closed=false;
 OUT.production_resource_contract_selected=false;
 OUT.production_modified=false;
@@ -421,6 +421,10 @@ op9 = [newline ...
 op9=text_scalar(op9);
 cpp=text_scalar([cpp(1:ob) text_scalar(op9) cpp(ob+1:end)]);
 
+[cpp,episodeTransportPatch]=patch_episode_resource_transport(cpp);
+assert(episodeTransportPatch.closed, ...
+    '[AF7R57N] episode resource transport patch did not close.');
+
 cppChanged=write_if_changed(guardCpp,cpp);
 
 fprintf(' guarded header content changed           = %d\n',headerChanged);
@@ -435,6 +439,11 @@ fprintf(' Stage-B init/split patches               = %d / %d\n',nSBTail,nSBSplit
 fprintf(' geometry leaf/split patches              = %d / %d\n',nGeomLeaf,nGeomSplit);
 fprintf(' Stage-A sticky-abort patches             = %d\n',nStageASticky);
 fprintf(' Stage-B sticky-abort patches             = %d\n',nStageBSticky);
+fprintf(' fixed-episode exception token count      = %d\n',episodeTransportPatch.exception_token_count);
+fprintf(' exact throw-shape candidate count        = %d\n',episodeTransportPatch.throw_shape_count);
+fprintf(' branch-local serializer match count      = %d\n',episodeTransportPatch.serializer_match_count);
+fprintf(' patched fixed-episode branch count       = %d\n',episodeTransportPatch.patched_throw_count);
+fprintf(' episode 202/203 return normalization     = %d\n',episodeTransportPatch.closed);
 
 %% D. Build guarded MEX
 fprintf('\n[D. BUILD GUARDED SHADOW MEX]\n');
@@ -593,6 +602,8 @@ fprintf(' dedicated-return rejections             = %d\n',nReturn);
 fprintf(' exception-transport rejections          = %d\n',nException);
 fprintf(' all exercised resource reasons matched  = %d\n',nFaultClosed==nFaultExercised);
 fprintf(' exception-free production transport      = %d\n',nException==0);
+assert(nException==0, ...
+    '[AF7R57N] V7 requires every exercised resource cap to use ordinary RETURN transport.');
 
 focusCodes=[209 211 212];
 focusClosed=true;
@@ -640,28 +651,78 @@ fprintf(' guarded min / median / p95 / max [ms]    = %.6f / %.6f / %.6f / %.6f\n
 fprintf(' guarded >=4 ms spike count               = %d\n',nnz(wall>=4));
 fprintf(' EVERY guarded-current trial <4 ms        = %d\n',hardPass);
 
+%% I2. Episode-resource rejection QPC
+fprintf('\n[I2. EPISODE 202/203 ORDINARY-REJECT QPC]\n');
+
+episodeCodes=[202 203];
+episodeFields={'max_episode_leaves','max_episode_splits'};
+episodeUseFields={'episode_leaves','episode_splits'};
+Nreject=1000;
+rejectWorst=zeros(1,2);
+rejectAllFast=true;
+rejectAllClosed=true;
+
+for jj=1:2
+    RCj=RCcur;
+    usej=double(Udisc.(episodeUseFields{jj}));
+    assert(usej>0);
+    RCj.(episodeFields{jj})=usej-1;
+    Pj=apply_contract(pkt,RCj);
+
+    for kk=1:20
+        af7r57n_guarded_core_mex(4,Pj,tU,tU);
+    end
+
+    tw=zeros(Nreject,1);
+    okj=false(Nreject,1);
+    for kk=1:Nreject
+        a=af7r57l_qpc_stamp_mex();
+        Rj=af7r57n_guarded_core_mex(4,Pj,tU,tU);
+        b=af7r57l_qpc_stamp_mex();
+        tw(kk)=1000*(double(b.qpc_ticks)-double(a.qpc_ticks))/double(a.qpc_frequency);
+        Uj=af7r57n_guarded_core_mex(9);
+        rcode=NaN;
+        if isfield(Rj,'reason_code'),rcode=double(Rj.reason_code);end
+        okj(kk)=~logical(Rj.success) && ...
+            double(Uj.exceeded_code)==episodeCodes(jj) && ...
+            (isnan(rcode)||rcode==episodeCodes(jj));
+    end
+
+    assert(all(okj));
+    rejectWorst(jj)=max(tw);
+    fastj=all(tw<4);
+    rejectAllFast=rejectAllFast&&fastj;
+    rejectAllClosed=rejectAllClosed&&all(okj);
+
+    fprintf(' reason %d | trials=%d | min/med/p95/max [ms] = %.6f / %.6f / %.6f / %.6f | all<4=%d\n', ...
+        episodeCodes(jj),Nreject,min(tw),median(tw),prctile(tw,95),max(tw),fastj);
+end
+
+fprintf(' episode reject transport closed          = %d\n',rejectAllClosed);
+fprintf(' episode reject EVERY trial <4 ms         = %d\n',rejectAllFast);
+
 %% J. Formal guard gate
 fprintf('\n[J. FORMAL RESOURCE-GUARD GATE]\n');
 
 mechanismClosed=contractPass&&allClosed&&focusClosed&&focusReturn&&all(valid);
 exceptionFree=(nException==0);
-currentGuardedClosed=mechanismClosed&&hardPass;
+transportClosed=mechanismClosed&&exceptionFree&&rejectAllClosed;
+currentGuardedClosed=transportClosed&&hardPass&&rejectAllFast;
 
 fprintf(' corrected parent theorem preserved       = %d\n',contractPass);
 fprintf(' all exercised cap fault tests closed     = %d\n',allClosed);
 fprintf(' guard mechanism closed                   = %d\n',mechanismClosed);
 fprintf(' exception-free resource transport        = %d\n',exceptionFree);
-fprintf(' current exact-usage guarded <4 ms        = %d\n',currentGuardedClosed);
+fprintf(' complete resource transport gate         = %d\n',transportClosed);
+fprintf(' current success + episode reject <4 ms   = %d\n',currentGuardedClosed);
 fprintf(' production resource caps selected        = 0\n');
 fprintf(' production-general <=4 ms proved         = 0\n');
 fprintf(' production source modified               = 0\n');
 
-if currentGuardedClosed && exceptionFree
-    next='CALIBRATE_ADMISSIBLE_RESOURCE_CONTRACT_WITH_QPC_STRESS_ENVELOPE';
-elseif currentGuardedClosed
-    next='NORMALIZE_EPISODE_RESOURCE_EXCEPTIONS_202_203_TO_ORDINARY_REJECT__THEN_QPC_STRESS_ENVELOPE';
+if currentGuardedClosed
+    next='BUILD_QPC_STRESS_RESOURCE_ENVELOPE_FOR_ADMISSIBLE_CAPS';
 else
-    next='FAIL_CLOSED__PROFILE_GUARD_OVERHEAD_OR_RESOURCE_REASON';
+    next='FAIL_CLOSED__PROFILE_TRANSPORT_OR_REJECTION_TIMING';
 end
 fprintf(' next action                              = %s\n',next);
 fprintf('====================================================================================================\n');
@@ -674,7 +735,10 @@ OUT.discovery_usage=Udisc;
 OUT.current_contract=RCcur;
 OUT.fault_injection=FI;
 OUT.exception_free_resource_transport=exceptionFree;
+OUT.complete_resource_transport_gate=transportClosed;
 OUT.exception_transport_count=nException;
+OUT.episode_reject_worst_ms=rejectWorst;
+OUT.episode_reject_all_fast=rejectAllFast;
 OUT.wall_ms=wall;
 OUT.worst_ms=max(wall);
 OUT.production_modified=false;
@@ -818,6 +882,123 @@ for r=1:7
     sv=symvar(z);for j=1:numel(sv),assert(strcmp(char(sv(j)),'t'));end
     for j=1:3,kk=kk+1;expr{kk}=char(z(j));end
 end
+end
+
+
+function [cpp,A]=patch_episode_resource_transport(cpp)
+% Branch-local normalization of pre-existing fixed-episode exceptions.
+%
+% V7 incorrectly assumed that the phrase "fixed episode unavailable" occurs
+% exactly once in the serializer source.  V8 makes no global-count assumption.
+% Every exact throw-shaped candidate is examined independently.  A candidate
+% is patchable only when one UNIQUE nearest ordinary
+%     plhs[0]=result_struct(...)
+% serializer call exists in its local source window.  This preserves the
+% branch's existing output schema/context instead of inventing a new one.
+%
+% Runtime fault injection remains the final authority: reasons 202 and 203
+% must both return normally with success=false and the exact resource code.
+
+cpp=text_scalar(normalize_lf(cpp));
+A=struct('closed',false,'exception_token_count',0, ...
+    'throw_shape_count',0,'serializer_match_count',0, ...
+    'patched_throw_count',0,'patched_lines',[], ...
+    'throw_lines',{{}},'result_lines',{{}});
+
+L=regexp(cpp,'\n','split');
+hit=find(contains(L,'fixed episode unavailable'));
+A.exception_token_count=numel(hit);
+assert(~isempty(hit), ...
+    '[AF7R57N] no fixed-episode exception token found.');
+
+P=struct('line',{},'indent',{},'cond',{},'result_line',{},'args',{});
+for hh=1:numel(hit)
+    i=hit(hh);
+    throwLine=L{i};
+    tok=regexp(throwLine, ...
+        '^(\s*)if\s*\((.+)\)\s*throw\s+std::runtime_error\("fixed episode unavailable"\);\s*$', ...
+        'tokens','once');
+    if isempty(tok) || numel(tok)~=3
+        continue;
+    end
+    A.throw_shape_count=A.throw_shape_count+1;
+
+    % Search only a local branch window.  If several serializer calls exist,
+    % the uniquely nearest one is the only admissible source binding.
+    lo=max(1,i-80); hi=min(numel(L),i+80);
+    cand=[]; caps={};
+    for k=lo:hi
+        if contains(L{k},'result_struct(') && contains(L{k},'plhs[0]')
+            t=regexp(L{k}, ...
+                'result_struct\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\)', ...
+                'tokens','once');
+            if ~isempty(t)
+                cand(end+1)=k; %#ok<AGROW>
+                caps{end+1}=t; %#ok<AGROW>
+            end
+        end
+    end
+    if isempty(cand)
+        continue;
+    end
+
+    d=abs(cand-i);
+    dm=min(d);
+    jj=find(d==dm);
+    if numel(jj)~=1
+        continue;
+    end
+    j=jj(1);
+    A.serializer_match_count=A.serializer_match_count+1;
+
+    q=numel(P)+1;
+    P(q).line=i;
+    P(q).indent=tok{1};
+    P(q).cond=strtrim(tok{2});
+    P(q).result_line=L{cand(j)};
+    P(q).args=caps{j};
+end
+
+assert(~isempty(P), ...
+    '[AF7R57N] no branch-local fixed-episode throw could be bound to result_struct.');
+
+% Patch bottom-to-top so original line indices remain valid while replacing a
+% single line by a multi-line block.
+[~,ord]=sort([P.line],'descend');
+for qq=ord
+    i=P(qq).line;
+    indent=P(qq).indent;
+    cond=P(qq).cond;
+    t=P(qq).args;
+    arg2=strtrim(t{2}); arg3=strtrim(t{3});
+    arg4=strtrim(t{4}); arg5=strtrim(t{5});
+
+    R={
+        [indent 'if(' cond '){']
+        [indent '    if(resource_exceeded() && (resource_reason()==202 || resource_reason()==203)){']
+        [indent '        PlanResult AF7R57N_EPISODE_REJECT;']
+        [indent '        AF7R57N_EPISODE_REJECT.success=false;']
+        [indent '        AF7R57N_EPISODE_REJECT.reason=resource_reason();']
+        [indent '        if(nlhs>0)plhs[0]=result_struct(AF7R57N_EPISODE_REJECT,' ...
+            arg2 ',' arg3 ',' arg4 ',' arg5 ');']
+        [indent '        return;']
+        [indent '    }']
+        [indent '    throw std::runtime_error("fixed episode unavailable");']
+        [indent '}']
+        };
+
+    L{i}=strjoin(R,newline);
+    A.patched_throw_count=A.patched_throw_count+1;
+    A.patched_lines(end+1)=i; %#ok<AGROW>
+    A.throw_lines{end+1}=strjoin(R,newline); %#ok<AGROW>
+    A.result_lines{end+1}=P(qq).result_line; %#ok<AGROW>
+end
+
+cpp=text_scalar(strjoin(L,newline));
+assert(A.patched_throw_count>=1, ...
+    '[AF7R57N] no fixed-episode branch was patched.');
+assert(token_count(cpp,'AF7R57N_EPISODE_REJECT')>=4*A.patched_throw_count);
+A.closed=true;
 end
 
 

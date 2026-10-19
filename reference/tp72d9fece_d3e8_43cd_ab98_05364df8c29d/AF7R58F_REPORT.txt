@@ -1,0 +1,53 @@
+====================================================================================================
+ AF7R58F | LIVE AUTHORITY + COMMIT/LIFETIME + FP-ENV FORENSIC CAPTURE
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noFlight=1 | noSimulation=1 | sampledSafetyAcceptance=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+ repo = C:\Users\student\Documents\GitHub\common_matlab
+
+[A. RUNTIME PARAMETER AUTHORITY CONTRACT -- DECLARED / NOT YET SOURCE-CLOSED]
+ preflight tunables supplied externally       = 1
+ actuator/input limits supplied externally    = 1
+ payload mass mL uses live estimator authority= 1
+ this audit freezes no mL value               = 1
+ numeric thrust/moment limits selected here   = 0
+ numeric vehicle parameters selected here     = 0
+
+[B. AF7R58E CORE RE-BINDING]
+ af7r36_core.hpp present                   = 1
+ reviewed SHA-256 match                    = 1
+ expected SHA-256                          = ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+ current  SHA-256                          = ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+
+[C. CURRENT SOURCE INVENTORY]
+ scanned code files                        = 1464
+ skipped files                             = 1
+ anchor af7r36_core.hpp              count=1 unique=1
+   [1] C:\Users\student\Documents\GitHub\common_matlab\reference\af7r36_core.hpp | SHA-256=ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+ anchor REPLANNING_SYSTEM.m          count=1 unique=1
+   [1] C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m | SHA-256=223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+ authority-source snapshots captured        = 24
+   SNAPSHOT[1] reference/af7r36_build_canonical_piecewise_candidates.m | SHA-256=6613feddb770378cdf756d12cafd5a8c16477e779d1ac0120ce919523a23c3ac
+   SNAPSHOT[2] reference/AF7R36_BUILD_CANONICAL_SINGLE_CORE_MEX.m | SHA-256=34009659420ce6f5b3be30926528de5405c77e48bc82abf3b0134817daee6b9d
+   SNAPSHOT[3] reference/af7r36_canonical_matlab_proposal.m | SHA-256=75b99e3bc94079873e1e9f77fd24e1852278c83d730e61beb665c18ab4b8a629
+   SNAPSHOT[4] reference/af7r36_canonical_separator_normal.m | SHA-256=5ba5334c0bb6f1424022a83093354b9c90111980e7680383f7d166af3957adc4
+   SNAPSHOT[5] reference/af7r36_core.hpp | SHA-256=ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+   SNAPSHOT[6] reference/AF7R36_PRIME_CANONICAL_SINGLE_CORE_REFERENCE.m | SHA-256=199d955181aac44dec60908d695fb087a3003a601937a11456e7fc97ff5c517f
+   SNAPSHOT[7] reference/af7r36_runtime_prime.m | SHA-256=300adebef4140d68cfc393f43472f378bfe0ebf6fa00fcea6f0e386f76ae9cb4
+   SNAPSHOT[8] reference/af7r36_single_core_mex.cpp | SHA-256=4f9778723aa3aa339d5167b90845fcfcaa8564cae68326ff1e4ed504c7e6daea
+   SNAPSHOT[9] reference/af7r36_single_core_proposal.m | SHA-256=d7bbe05efd268743e7307bcf3291f8f0e7777ab126432abc190ac60c999cc7ac
+   SNAPSHOT[10] reference/AF7R36A_CANONICAL_SINGLE_CORE_DUAL_AUDIT.m | SHA-256=d7576324fbcb18d153cfd9ca82a5081b6b60e8fdd82129007843c025cf807d17
+   SNAPSHOT[11] reference/REPLANNING_SYSTEM.m | SHA-256=223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+   SNAPSHOT[12] reference/REPLANNING_SYSTEM_AF7R51_regression_20261016_150520.m | SHA-256=8f9aa73bdb2780f1041eac24e69251f501914326dae62705e1fd14154f2d82a7
+   SNAPSHOT[13] reference/REPLANNING_SYSTEM_broken_R38_20261016_055833.m | SHA-256=e531366ce0245097a28b5bfc3c57c8fd56ba657f8778ed311050a4744e482e88
+   SNAPSHOT[14] reference/REPLANNING_SYSTEM_pre_AF7R39_20261016_061715.m | SHA-256=c9e6157cb7d1243a600042640dbd5b927ce07cdd54ace34557eafe7d001de3c5
+   SNAPSHOT[15] reference/REPLANNING_SYSTEM_pre_AF7R40_20261016_062757.m | SHA-256=880cd6a3f9ec0c6d7a54445091becf776e0d766e8327aff7f2e899ac5ff41682
+   SNAPSHOT[16] reference/REPLANNING_SYSTEM_pre_AF7R41_20261016_100526.m | SHA-256=721fdc7cb5b771299215ebb69ec76fdbe6c1ec65554eaf1576c788e303491c71
+   SNAPSHOT[17] reference/REPLANNING_SYSTEM_pre_AF7R42_20261016_102036.m | SHA-256=ffce61f125c0d2a8f1f216396344817e32ddfd0d24794842adeee47742d7f762
+   SNAPSHOT[18] reference/REPLANNING_SYSTEM_pre_AF7R43_20261016_113052.m | SHA-256=794bd628763d620a0d0cb4be0fb497aed9c0b4d9e1fb05e629c7e83a7e456aef
+   SNAPSHOT[19] reference/REPLANNING_SYSTEM_pre_AF7R44_20261016_115915.m | SHA-256=52f2e46a73c5e35aec5e436a4484dd7663564e867374a017869e604ae04842c1
+   SNAPSHOT[20] reference/REPLANNING_SYSTEM_pre_AF7R45_20261016_121230.m | SHA-256=67c026dd021e26f7fcd7eefb9c1ffa9aa9023b77dd64525ae674fdaae83011d9
+   SNAPSHOT[21] reference/REPLANNING_SYSTEM_pre_AF7R46_20261016_123225.m | SHA-256=ded3e68fb1b7da5187985e1f171dc970afeb82d9ba09fecacbc4f07f553936d9
+   SNAPSHOT[22] reference/REPLANNING_SYSTEM_pre_AF7R50C_20261016_143346.m | SHA-256=890876116b4782725d8c337e53923a14892a9b5f4f00a0e7de030b9d4433c446
+   SNAPSHOT[23] reference/REPLANNING_SYSTEM_pre_AF7R51_20261016_145041.m | SHA-256=223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+   SNAPSHOT[24] reference/REPLANNING_SYSTEM_pre_AF7R53_20261016_161238.m | SHA-256=223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9

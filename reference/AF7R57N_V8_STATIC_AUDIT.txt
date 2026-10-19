@@ -1,0 +1,13 @@
+AF7R57N V8 static correction audit
+===================================
+V6 safety/resource theorem changed                 = 0
+V7 unique-message-count assumption removed         = 1
+all fixed-episode tokens enumerated                 = 1
+only exact throw-shaped candidates considered       = 1
+branch-local result_struct serializer required      = 1
+unique nearest serializer binding required          = 1
+202/203 only normalized to ordinary reject          = 1
+other fixed-episode failures remain exceptions      = 1
+runtime 202/203 fault injection still authoritative = 1
+production cap values selected                      = 0
+production source modified                          = 0

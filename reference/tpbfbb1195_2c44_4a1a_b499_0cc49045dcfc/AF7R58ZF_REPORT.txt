@@ -1,0 +1,50 @@
+====================================================================================================
+ AF7R58ZF | DISABLE LEGACY AF7R58 TIMING INSTRUMENTATION
+====================================================================================================
+[AUTHORITY] propertyDefaultsOnly=1 | allMethodBodiesUnchanged=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | cacheLogicChanged=0 | commitLogicChanged=0
+
+[A. CURRENT PRODUCTION SOURCE]
+ pre-write SHA = 092af1855aebd4b688d0d031629f84bee28126750f9d2484f223d7ccebb301b3
+
+[B. ZD SEMANTIC SOURCE BINDING]
+ zd_comment                       = 1
+ payload_dominance                = 1
+ uav_dominance                    = 1
+ zb_schema                        = 1
+ all                              = 1
+
+[C. TARGET PROPERTY DEFAULTS -- BEFORE]
+ ENABLE_AF7R58M_TIMING_RING               = true
+ ENABLE_AF7R58Q_MIN_TIMING                = true
+ ENABLE_AF7R58T_OTHER_TIMING              = true
+ ENABLE_AF7R58V_R4_PRETRY_TIMING          = true
+
+[D. TARGET PROPERTY DEFAULTS -- PATCHED]
+ ENABLE_AF7R58M_TIMING_RING               = false
+ ENABLE_AF7R58Q_MIN_TIMING                = false
+ ENABLE_AF7R58T_OTHER_TIMING              = false
+ ENABLE_AF7R58V_R4_PRETRY_TIMING          = false
+
+[E. METHOD-BODY PRESERVATION]
+ discovered function/method bodies       = 224
+ all function/method bodies unchanged    = 1
+
+[F. PREFLIGHT BEFORE WRITE]
+ ZD semantic source binding             = 1
+ exactly four defaults patched          = 1
+ all method bodies unchanged            = 1
+ patched full class parse               = 1
+ production writes                      = 0
+
+[G. INSTALL RESULT]
+ production modified                    = 1
+ rollback performed                     = 0
+ legacy timing defaults disabled        = 4 / 4
+ method bodies changed                  = 0
+ trajectory/certificate/cache math      = unchanged
+ new REPLANNING_SYSTEM SHA              = 6e5de01fa28bc09940aa75d7daf2b0095e5c08c553075394c1ce8ea205f74e25
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbfbb1195_2c44_4a1a_b499_0cc49045dcfc\AF7R58ZF_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbfbb1195_2c44_4a1a_b499_0cc49045dcfc\AF7R58ZF_OUT.mat
+status = LEGACY_TIMING_DEFAULTS_DISABLED__CLEAN_RERUN_REQUIRED

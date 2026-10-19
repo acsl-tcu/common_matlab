@@ -1,0 +1,6 @@
+real_newline_builder = 1
+literal_backslash_n_guard = 1
+speedcert_line_boundary = 1
+comment_termination_guard = 1
+brace_balance_guard = 1
+compiler_excerpt_dump = 1

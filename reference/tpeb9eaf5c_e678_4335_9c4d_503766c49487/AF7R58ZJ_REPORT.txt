@@ -1,0 +1,30 @@
+====================================================================================================
+ AF7R58ZJ | DETACH DIAGNOSTIC-ONLY WORK FROM REFERENCE HOT PATH
+====================================================================================================
+[AUTHORITY] sourceSemanticBound=1 | parseBeforeWrite=1 | rollbackOnFailure=1
+[SAFETY] triggerMathChanged=0 | certificateMathChanged=0 | commitMathChanged=0 | cacheMathChanged=0
+
+[A. CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = 6e5de01fa28bc09940aa75d7daf2b0095e5c08c553075394c1ce8ea205f74e25
+
+[B. CURRENT-LINEAGE SEMANTIC BINDING]
+ zd_monotone                            = 1
+ cache_v2                               = 1
+ payload_dominance                      = 1
+ uav_dominance                          = 1
+ old_diag_switch_absent                 = 1
+ record_call_once                       = 0
+ light_audit_default_one                = 0
+ legacy58_defaults_off                  = 1
+ all                                    = 0
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58ZJ] current source does not match expected ZD/ZF lineage.
+ rollback performed  = 0
+ production modified = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpeb9eaf5c_e678_4335_9c4d_503766c49487\AF7R58ZJ_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpeb9eaf5c_e678_4335_9c4d_503766c49487\AF7R58ZJ_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_COMPLETE

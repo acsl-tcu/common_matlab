@@ -1,0 +1,37 @@
+====================================================================================================
+ AF7R58O | INTERNAL TIMING-RING WRITER TRANSACTIONAL FIX
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | productionModifiedInitially=0 | rollbackOnFailure=1
+[SAFETY] trajectoryMathChanged=0 | certificateChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-FIX SOURCE BINDING]
+ REPLANNING_SYSTEM AF7R58M SHA exact = 1 | 96670bd3763f1902426ad8a1e82f995850f9b42670c9a3a9d2b5bee0375cf363
+
+[B. PREWRITE SOURCE INVARIANTS]
+ internal capture method inserted       = 1
+ cleanup calls internal method          = 1
+ external writer callback removed       = 1
+ fixed bounded schema retained          = 1
+ invariant conjunction                  = 1
+
+[C. PREFLIGHT PARSE -- PRODUCTION WRITES STILL ZERO]
+ patched REPLANNING_SYSTEM class PASS=1
+
+[D. INSTALL RESULT]
+ internal class writer installed        = 1
+ external helper no longer writes ring  = 1
+ ring capacity/width unchanged           = 64 / 32
+ safety/trajectory logic changed         = 0
+ production modified                     = 1
+ new REPLANNING_SYSTEM SHA               = 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+
+[E. NEXT STEP]
+ Recreate REPLANNING_SYSTEM from a clean run.
+ Run the same scenario until the real generator requests occur.
+ Then run AF7R58N_ONEFILE_TIMING_RING_ANALYSIS on that SAME live object.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbe42b754_6072_4e47_92d4_d8d52ecad09e\AF7R58O_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbe42b754_6072_4e47_92d4_d8d52ecad09e\AF7R58O_OUT.mat
+ status = INTERNAL_TIMING_RING_FIX_COMPLETE__CLEAN_RERUN_REQUIRED

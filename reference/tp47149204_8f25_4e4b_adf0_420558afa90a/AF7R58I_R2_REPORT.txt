@@ -1,0 +1,54 @@
+====================================================================================================
+ AF7R58I-R2 | PREFLIGHT-PARSED TRANSACTIONAL CANONICAL RESOURCE INSTALL
+====================================================================================================
+[AUTHORITY] transactional=1 | rollbackOnFailure=1 | noFlight=1 | noSimulation=1 | noMexChange=1
+[SAFETY] sampledSafetyAcceptance=0 | theoryWeakening=0 | hardcodedPhysicalParams=0 | mLFrozen=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM exact reviewed source = 1 | 223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+ AF7R33 builder exact reviewed source    = 1 | f0e9f487cd270430d191871366c84595be586b6da0fb7b93eb98f4dfc25b46fd
+
+[B. PRE-INSTALL THEORY / SOURCE FACTS]
+ request.time = t_now                              = 1
+ reference-only commit receives same t_now         = 1
+ packet t0 = request.time                          = 1
+ native correction support is strict t0<t<t1      = 1
+ MATLAB correction support is strict t0<t<t1      = 1
+ recursive active-evaluator capture is present     = 1
+ prior AF7R58I spacing install absent              = 1
+ prior AF7R58I canonical install absent            = 1
+
+[C. PRE-FLIGHT MATLAB PARSE -- PRODUCTION WRITES STILL ZERO]
+ parsing helper af7r58i_nextup_nonnegative             | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_nextup_nonnegative.m
+   PASS = 1
+ parsing helper af7r58i_nextdown_positive              | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_nextdown_positive.m
+   PASS = 1
+ parsing helper af7r58i_resource_contract              | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_resource_contract.m
+   PASS = 1
+ parsing helper af7r58i_commit_spacing_guard           | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_commit_spacing_guard.m
+   PASS = 1
+ parsing helper af7r58i_prune_batch_model_exact        | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_prune_batch_model_exact.m
+   PASS = 1
+ parsing helper af7r58i_prepare_batch_model            | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_prepare_batch_model.m
+   PASS = 1
+ parsing helper af7r58i_make_canonical_eval_handles    | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_make_canonical_eval_handles.m
+   PASS = 1
+ parsing helper af7r58i_decasteljau                    | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_decasteljau.m
+   PASS = 1
+ parsing helper af7r58i_correction_derivatives         | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_correction_derivatives.m
+   PASS = 1
+ parsing helper af7r58i_eval_canonical_reference       | C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_eval_canonical_reference.m
+   PASS = 1
+ parsing AF7R33 patched copy                  | C:\Users\student\Documents\GitHub\common_matlab\reference\af7r33_make_batch_model_from_proposal.m
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58I-R2] AF7R33 preflight shadowing.
+ rollback performed  = 0
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_OUT.mat
+ status = R2_INSTALL_FAILED__ROLLBACK_COMPLETE

@@ -1,0 +1,78 @@
+====================================================================================================
+ AF7R58N | REQUEST-BY-REQUEST 4-MS TIMING-RING ANALYSIS
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. POST-AF7R58M SOURCE BINDING]
+ REPLANNING_SYSTEM.m               = 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+ af7r58m_capture_timing_ring.m      = 8a0194054093ef43272e8ee3b16b02cedc7c285d89312a177232b919e0d2bea4
+ af7r58m_timing_ring_labels.m       = 2a7ceb8d3970ff13a092b222bb80207ee6c39b8e45a26dc54b92ce77fb94f824
+
+[B. LIVE RING READINESS]
+ generator request count                 = 9
+ deadline fail count                     = 8
+ hard deadline [ms]                      = 4
+ ring capacity / width                   = 64 / 32
+ ring count / head                       = 17 / 17
+ max capture overhead [us]               = 5007.6000000000004
+ last capture overhead [us]              = 26.599999999999998
+
+[C. REQUEST-BY-REQUEST TIMING]
+ rows retained = 17
+ Columns: seq | fail | cleanup-cycle | elapsed-before | context | callback | validation | residual-after-known | status
+    1 | 0 |   4.2397 |   1.7080 |  2.8907 |   0.0912 |   0.0000 |    -0.4502 | 1
+    2 | 0 |   2.4668 |   0.5684 |  1.8269 |   0.0675 |   0.0000 |     0.0040 | 1
+    3 | 0 |   1.8442 |   0.5502 |  1.2742 |   0.0751 |   0.0000 |    -0.0553 | 1
+    4 | 0 |   1.6124 |   0.4666 |  1.1149 |   0.0547 |   0.0000 |    -0.0238 | 1
+    5 | 1 |   9.5256 |   1.8803 |  6.3398 |   0.3521 |   0.0000 |     0.9534 | -7
+    6 | 0 |   2.1160 |   0.0576 |  1.9192 |   0.0314 |   0.0000 |     0.1078 | 1
+    7 | 0 |   1.8604 |   0.0299 |  1.8353 |   0.0018 |   0.0000 |    -0.0066 | 1
+    8 | 0 |   0.1575 |   0.0232 |  0.1439 |   0.0008 |   0.0000 |    -0.0104 | 1
+    1 | 0 |   4.7085 |   0.8999 |  0.2365 |   2.6814 |   0.0000 |     0.8907 | -20
+    2 | 1 |  12.6185 |   1.3140 |  0.2055 |   1.9351 |   0.0000 |     9.1639 | -30
+    3 | 1 |  10.9758 |   1.1447 |  0.2389 |   1.9940 |   0.0000 |     7.5982 | -30
+    4 | 1 |  13.3415 |   0.7489 |  0.2511 |   2.3035 |   0.0000 |    10.0380 | -30
+    5 | 1 |   8.6746 |   1.7927 |  0.2026 |   3.0514 |   0.0000 |     3.6279 | -20
+    6 | 1 |  23.5022 |   1.6163 |  0.2103 |   1.7041 |   0.0000 |    19.9715 | -30
+    7 | 1 |   6.7316 |   0.5633 |  0.2826 |   1.7846 |   0.0000 |     4.1011 | -30
+    8 | 1 |  13.8884 |   0.3102 |  0.2154 |   2.2721 |   0.0000 |    11.0907 | -30
+    9 | 0 |   4.2118 |   0.3637 |  0.1989 |   1.8565 |   0.0000 |     1.7927 | 30
+
+[D. MISS/PASS AGGREGATES]
+ miss / pass rows                       = 11 / 6
+ cycle max / min [ms]                   = 23.502200000000002 / 0.1575
+ miss/pass elapsed-before mean [ms]     = 1.1220000000000001 / 0.28265000000000001
+ miss/pass context mean [ms]            = 1.0247545454545455 / 1.3524
+ miss/pass callback mean [ms]           = 1.8205454545454549 / 0.038550000000000022
+ miss/pass validation mean [ms]         = 0 / 0
+ miss/pass post residual mean [ms]      = 6.2525363636363638 / 0.0026166666666665958
+ max capture overhead [us]              = 5007.6000000000004
+ rows with native stage timing          = 0
+
+[E. NATIVE STAGE MAXIMA WHERE AVAILABLE]
+ episode / hessian / corridor [ms]      = NaN / NaN / NaN
+ qp / candidate-build [ms]              = NaN / NaN
+ synthesis / candidate-loop / total [ms]= NaN / NaN / NaN
+ callback QPC max [ms]                  = 2.1478000000000002
+
+[F. CONSERVATIVE ATTRIBUTION]
+ cause closed                           = 1
+ dominant timing bucket                 = POST_CALLBACK_OR_COMMIT_RESIDUAL
+ reason                                 = REQUEST_LEVEL_BUCKET_SEPARATION
+ largest miss-pass mean delta [ms]      = 6.2499196969696973
+ packet rebuild events miss/pass        = 3 / 0
+ fast rebuild events miss/pass          = 3 / 0
+ compact native proposal events miss/pass= 15 / 0
+ commit events miss/pass                = 1 / 0
+ validation-fail events miss/pass       = 6 / 0
+ NOTE: no optimization is authorized solely from correlation; source path must be proven next.
+
+[G. STATUS]
+ status = 4MS_DOMINANT_BUCKET_IDENTIFIED__POST_CALLBACK_OR_COMMIT_RESIDUAL__SOURCE_PATH_OPTIMIZATION_NEXT
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9986ab5d_4163_4ab9_b338_eeef0ff61c67\AF7R58N_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9986ab5d_4163_4ab9_b338_eeef0ff61c67\AF7R58N_OUT.mat
+ status = 4MS_DOMINANT_BUCKET_IDENTIFIED__POST_CALLBACK_OR_COMMIT_RESIDUAL__SOURCE_PATH_OPTIMIZATION_NEXT

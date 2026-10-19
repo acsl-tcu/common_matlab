@@ -1,0 +1,6 @@
+status=ZZF_FAILFAST_ACTIVE__4MS_STILL_OPEN
+hardMaxMs=13.436399999999999
+hardOver4=19
+fails=18
+commits=1
+referenceMaxMs=18.909300000000002

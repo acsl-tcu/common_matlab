@@ -1,0 +1,44 @@
+====================================================================================================
+ AF7R58Q-R5 | MINIMAL SOURCE-PROVEN REFERENCE-ONLY COMMIT TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT CURRENT SOURCE BINDING]
+ AF7R58O source SHA exact = 1 | 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+
+[B. CURRENT COMMIT FUNCTION -- PROVEN ANCHORS ONLY]
+ reason initialization                 source L9040
+ commit-spacing guard                 source L9056
+ canonical resource prepare           source L9082
+ canonical evaluator handles          source L9089
+ canonical model store                source L9196
+ optional sensor/packet stage assumed = 0
+ anchor conjunction/order closed       = 1
+
+[C. PREFLIGHT -- BEFORE FIRST PRODUCTION WRITE]
+ minimal source invariants              = 1
+ patched full class parse               = 1
+ production writes                      = 0
+
+[D. INSTALL RESULT]
+ bounded timing ring                   = 64 x 9
+ measured explicit stages              = 3
+ total commit function measured        = 1
+ residual other_commit measured        = total - known stages
+ optional source stage assumptions     = 0
+ trajectory/certificate logic changed = 0
+ commit decision changed               = 0
+ production modified                   = 1
+ new REPLANNING_SYSTEM SHA             = 1474c591fe2227f461eb43c2853d61909e63e9bef9bf6a40a851956c1c02e440
+
+[E. NEXT STEP]
+ NOW perform one clean run_flight_headless run.
+ Keep the live REPLANNING_SYSTEM object after the run.
+ Instrumented timing is diagnostic only; final 4-ms proof comes after removal.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9206f438_ecfc_4b45_a0a1_a808dc0779d3\AF7R58Q_R5_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9206f438_ecfc_4b45_a0a1_a808dc0779d3\AF7R58Q_R5_OUT.mat
+ status = MINIMAL_COMMIT_TIMING_R5_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

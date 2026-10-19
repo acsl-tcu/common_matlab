@@ -1,0 +1,103 @@
+====================================================================================================
+ AF7R58Z-R5 | ONE-ENTRY NON-AUTHORITY PREPARED-PACKET CACHE INSTALL
+====================================================================================================
+[AUTHORITY] sourceBound=1 | oneEntry=1 | overwriteOnly=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] activeAuthorityUnchangedUntilTry=1 | exactReuseGatePreserved=1 | finalAssertionsPreserved=1
+[MATH] trajectoryMathChanged=0 | collisionCertificateChanged=0 | builderMathChanged=0 | mLTouched=0
+
+[A. EXACT CURRENT SOURCE BINDING]
+ source SHA exact = 1 | cfa7e053e86aec9879eef0fb3c6d28e55fd33c8b1e76c09c77bdd83e1f170f79
+
+[B. PROTECTED FUNCTION HASHES -- BEFORE PATCH]
+ can_reuse_reference_only_runtime_packet_exact    L4703:L4824 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        L4825:L4857 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   L4619:L4634 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              L4635:L4669 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  L4684:L4702 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[C. CURRENT COMMIT SOURCE TOPOLOGY]
+ old_struct                 source L9312
+ active_reuse_call          source L9332
+ first_if_reuse             source L9337
+ reuse_operation            source L9341
+ rebuild_sweep              source L9348
+ rebuild_packet             source L9352
+ rebuild_sensor             source L9356
+ dep_version                source L9361
+ predeadline                source L9369
+ try_line                   source L9380
+ active_dep_assign          source L9426
+ counter_if                 source L9427
+ final_assert_1             source L9460
+ final_assert_2             source L9461
+ source order closed = 1
+
+[D. STATIC PREFLIGHT INVARIANTS -- INDIVIDUAL]
+ one_entry_props                            = 1
+ cache_gate_calls                           = 1
+ cache_reuse_branch                         = 1
+ cache_store                                = 1
+ cache_single_use                           = 1
+ no_append_tokens                           = 1
+ orientation_safe_patch_helpers             = 1
+ final_asserts_preserved                    = 1
+ deadline_reason_preserved                  = 1
+ target_method_scope_preserved              = 1
+ all                                        = 1
+ commit assert trigger before/after       = 1 / 1
+ commit assert repaired before/after      = 1 / 1
+ commit deadline reason before/after      = 1 / 1
+ patch-helper exact definition counts:
+   replace_line_with_lines                = 1
+   replace_range_with_lines               = 1
+   insert_before                          = 1
+   insert_after                           = 1
+
+[E. PROTECTED FUNCTION HASHES -- PATCHED PREFLIGHT]
+ can_reuse_reference_only_runtime_packet_exact    unchanged=1 | L4711:L4832 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        unchanged=1 | L4833:L4865 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   unchanged=1 | L4627:L4642 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              unchanged=1 | L4643:L4677 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  unchanged=1 | L4692:L4710 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[F. PATCHED SAFETY TOPOLOGY]
+ cache gate                       L9336
+ cache reuse branch               L9380
+ rebuild-ready local flag          L9409
+ pretransaction deadline IF        L9415
+ reject-only cache store           L9419
+ predeadline reject reason         L9430
+ cache consume after gate pass     L9443
+ transactional try                 L9445
+ active packet assignment         L9489
+ final assertion 1                L9528
+ final assertion 2                L9529
+ topology closed                  = 1
+
+[G. PREFLIGHT BEFORE PRODUCTION WRITE]
+ static invariants                       = 1
+ orientation-safe patch helpers         = 1
+ protected exact functions unchanged     = 1
+ patched safety topology                 = 1
+ full patched class parse                = 1
+ production writes                       = 0
+
+[H. INSTALL RESULT]
+ production modified                    = 1
+ rollback performed                     = 0
+ one-entry cache                        = 1
+ cache store only on predeadline reject = 1
+ cache consumed before transactional try = 1
+ append/list growth                     = 0
+ active authority write before try      = 0
+ exact reuse gate preserved             = 1
+ exact reuse rebinding preserved        = 1
+ builder math preserved                 = 1
+ final assertions preserved             = 1
+ new REPLANNING_SYSTEM SHA              = 3e1cd5df64bf893c0d9c4d4fd6502d8a26f395ada08b8ad32abd12d076c9f901
+ NOTE: final 4-ms validation remains OPEN until clean rerun and diagnostic removal.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpaff3e3a7_021a_4ceb_8ad2_70961edbcdd9\AF7R58Z_R5_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpaff3e3a7_021a_4ceb_8ad2_70961edbcdd9\AF7R58Z_R5_OUT.mat
+ status = ONE_ENTRY_PREPARED_PACKET_CACHE_R5_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

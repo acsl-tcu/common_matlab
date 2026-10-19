@@ -1,0 +1,322 @@
+====================================================================================================
+ AF7R58L | 4-MS DEADLINE-MISS FORENSIC AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1 | sampledSafetyAcceptance=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM.m                    present=1 | 503c4146f10892fdb45004c986bd6359f63e6ce5c59bf3f2ef61de971585badc
+ af7r36_core.hpp                        present=1 | ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+ af7r36_single_core_mex.cpp             present=1 | 4f9778723aa3aa339d5167b90845fcfcaa8564cae68326ff1e4ed504c7e6daea
+ af7r36_single_core_proposal.m          present=1 | d7bbe05efd268743e7307bcf3291f8f0e7777ab126432abc190ac60c999cc7ac
+ af7r34_make_core_packet.m              present=1 | ce1f98dac7b49ec8510c09d5c89b7edd4aea64a6c6320e7d2752431528cf22f8
+ af7r58i_resource_contract.m            present=1 | 772e49a8007bd955cb262b1db513f65c1270f87384b5f12694ee8774ae458392
+ af7r58i_commit_spacing_guard.m         present=1 | ba92a9bb05e5cea6916f904646ff416a8379ff5ed9ed4424baf362eacb43054e
+ af7r58i_prepare_batch_model.m          present=1 | 92f093168f1df95661c5e7f2e75005fe439406eb3ec22e53fd1f25d6bdfb8a15
+
+[B. LIVE 4-MS LEDGER]
+ active mode/version             = REPAIRED / 1
+ prediction dt [s]              = 0.025000000000000001
+ request count                  = 10
+ deadline fail count            = 9
+ deadline fail fraction         = 0.90000000000000002
+ last critical cycle [ms]       = 3.5703
+ hard deadline [ms]             = 4
+ last commit time [s]           = 10.075000000000076
+
+[C. LIVE TIMING/REPLAN PROPERTY CAPTURE]
+ selected properties = 118
+ ENABLE_LIGHT_RUNTIME_AUDIT                     = 0
+ r12_tail_prime_ms                              = NaN
+ SPIKE_CAPTURE_THRESHOLD_MS                     = 2
+ flight_reference_time_origin                   = 5
+ simulated_sensor_memory_release_count          = 0
+ reference_cache                                = <struct fields=>
+ reference_cache_valid                          = 0
+ repaired_reference_cache                       = <struct fields=reference_version,t0,dt,H,pL,q>
+ repaired_reference_cache_valid                 = 1
+ nominal_batch_model_cache                      = <struct fields=schema,certified,root,nominal_signature,flight_reference_time_origin,corrections,reference_version>
+ nominal_batch_model_cache_valid                = 1
+ nominal_table_build_ms                         = 136.42060000000001
+ nominal_table_eval_count                       = 1961
+ warmup_calls                                   = 10
+ warmup_done                                    = 1
+ warmup_runtime_ms                              = 36.810900000000004
+ online_prime_runtime_ms                        = 167.02100000000002
+ online_prime_variant_count                     = 12
+ setup_exact_do_prime_runtime_ms                = 93.073400000000007
+ observer_preflight_prime_ms                    = 46.478899999999996
+ qpc_stamp_prime_done                           = 1
+ postcallback_prime_ms                          = 99.086400000000012
+ hard_modify_deadline_s                         = 0.0040000000000000001
+ stop_geometry_4ms_certificate                  = <struct fields=certified,reference_mode,reference_version,C1,VQ,VL,dt,hard_modify_deadline_s,rho_body,first_detection_distance_LB_m,clearance_after_deadline_m,T_flat,INTERVALS,source>
+ runtime_dependency_signature                   = <struct fields=reference_mode,reference_version,flight_reference_time_origin,reference_func_signature,dt,sensor_range,horizon,r_drone,r_load,r_cable,d_margin,cable_length,gravity,mQ,jx,jy,jz,mL_snapshot,hard_modify_deadline_s>
+ runtime_reference_func_handle                  = <function_handle>
+ runtime_source_signature                       = <struct fields=command_limit_source_signature,command_limits,hlc_source,hlc_settings_signature,hlc_gain_generator,hlc_gain_generator_source,hlc_gain_packet,hlc_gain_packet_signature,hlc_controller_source,hlc_binding_schema>
+ dependency_refresh_count                       = 1
+ mass_certificate_rebuild_count                 = 0
+ reference_only_exec_dependency_fast_count      = 1474
+ reference_only_runtime_packet_reuse_count      = 0
+ reference_only_runtime_packet_rebuild_count    = 3
+ reference_only_fast_packet_rebuild_count       = 3
+ compact_native_proposal_count                  = 16
+ replan_commit_count                            = 1
+ last_replan_commit_time                        = 10.075000000000076
+ last_replan_status                             = <struct fields=requested,committed,safety_mode,safety_level,full_system_authority,reference_version,backend,commit_time,rejoin_time>
+ replan_request_active                          = 0
+ replan_request_reference_version               = -1
+ replan_request_obstacle_id                     = NaN
+ replan_request_component_code                  = NaN
+ ENABLE_AUTO_REPLAN_COMMIT                      = 1
+ reference_only_evaluation_count                = 7
+ execution_aware_evaluation_count               = 0
+ reference_only_commit_count                    = 1
+ execution_aware_commit_count                   = 0
+ trigger_event_count                            = 0
+ trigger_event_capture_ms                       = NaN
+ repaired_candidate_generator_fn                = []
+ generator_shadow_enabled                       = 1
+ generator_backend_flag                         = 1
+ generator_backend_external_flag_fn             = []
+ generator_backend_callbacks                    = <struct fields=BEZIER_D15_C7,POLY_D15_C7,MINCO_STYLE_D15_C7,BSPLINE_D8_C7>
+ generator_backend_locked_code                  = 1
+ generator_backend_locked_name                  = BEZIER_D15_C7
+ generator_backend_locked_source_code           = 1
+ generator_backend_selection_locked             = 1
+ generator_backend_locked_callback              = <function_handle>
+ generator_backend_configuration_frozen         = 1
+ generator_backend_last_code                    = 0
+ generator_backend_last_source_code             = 0
+ generator_backend_last_callback_installed      = 1
+ generator_integration_prime_active             = 0
+ generator_integration_prime_done               = 1
+ generator_integration_prime_ms                 = 22.166
+ generator_integration_prime_variants           = 8
+ generator_context_detected_only                = 1
+ generator_backend_kernel_prime_done            = 1
+ generator_backend_kernel_prime_ms              = 154.56270000000001
+ generator_backend_kernel_prime_variants        = 6
+ trigger_event_capture_prime_ms                 = 2.1235999999999997
+ generator_shadow_proposal_count                = 0
+ bezier_shadow_generated_count                  = 0
+ bezier_shadow_peak_safe_count                  = 0
+ r9_stage_episode_ms                            = NaN
+ r9_stage_synthesis_ms                          = NaN
+ r9_stage_candidate_loop_ms                     = NaN
+ r9_stage_total_internal_ms                     = NaN
+ r9_synth_hessian_ms                            = NaN
+ r9_synth_corridor_ms                           = NaN
+ r9_synth_qp_ms                                 = NaN
+ r9_synth_candidate_build_ms                    = NaN
+ r9_synth_row_count                             = NaN
+ r9_synth_episode_count                         = NaN
+ r9_synth_component_count                       = NaN
+ r9_synth_sign_count                            = NaN
+ r9_hr_callback_wall_ms                         = 1.4579
+ r9_hr_callback_thread_cycles                   = 3078029
+ r9_hr_callback_process_cycles                  = 3598001
+ r9_hr_episode_wall_ms                          = NaN
+ r9_hr_episode_thread_cycles                    = NaN
+ r9_hr_episode_process_cycles                   = NaN
+ r9_hr_synthesis_wall_ms                        = NaN
+ r9_hr_synthesis_thread_cycles                  = NaN
+ r9_hr_synthesis_process_cycles                 = NaN
+ r9_hr_qp_wall_ms                               = NaN
+ r9_hr_qp_thread_cycles                         = NaN
+ r9_hr_qp_process_cycles                        = NaN
+ geometry_shadow_continuous_time                = 0
+ geometry_shadow_leaf_count                     = 0
+ geometry_shadow_split_count                    = 0
+ generator_last_elapsed_before_ms               = 0.31669999999999998
+ generator_last_budget_remaining_ms             = 3.6833
+ generator_last_context_ms                      = 0.1636
+ generator_last_callback_ms                     = 1.6856
+ generator_last_validation_ms                   = 0
+ generator_last_critical_ms                     = 1.8492
+ generator_last_cycle_critical_ms               = 3.5703
+ generator_request_count                        = 10
+ generator_candidate_count                      = 0
+ generator_validation_pass_count                = 1
+ generator_validation_fail_count                = 6
+ generator_deadline_fail_count                  = 9
+ generator_last_runtime_ms                      = 1.6856
+ generator_last_status_code                     = 30
+ generator_last_status                          = <struct fields=>
+ observer_static_setup_cache                    = <struct fields=selector_verified,measured_scalar_indices,Jdiag,mass,gravity,cableL>
+ observer_static_setup_cache_valid              = 1
+
+[D. LAST STATUS / GETTER INVENTORY]
+ last_replan_status fields=9
+    requested                                   = 1
+    committed                                   = 1
+    safety_mode                                 = REFERENCE_ONLY
+    safety_level                                = REFERENCE_ONLY
+    full_system_authority                       = 0
+    reference_version                           = 1
+    backend                                     = BEZIER_D15_C7
+    commit_time                                 = 10.075000000000076
+    rejoin_time                                 = 54
+ relevant getter methods = 7
+   get_auto_replan_commit_enabled
+   get_avoidance_mode_status
+   get_generator_backend_catalog
+   get_last_replan_status
+   get_observer_hard_support_status
+   get_runtime_certificate_status
+   get_simulated_sensor_memory_status
+
+[E. SOURCE-BOUND TIMING/DEADLINE EXCERPTS]
+ REPLANNING_SYSTEM.m:566 | [generator_request_count] generator_request_count          = 0;
+ REPLANNING_SYSTEM.m:1637 | [generator_request_count] "generator_request_count", ...
+ REPLANNING_SYSTEM.m:2317 | [generator_request_count] st.generator_request_count=obj.generator_request_count;
+ REPLANNING_SYSTEM.m:4889 | [generator_request_count] obj.generator_request_count=obj.generator_request_count+1;
+ REPLANNING_SYSTEM.m:4890 | [generator_request_count] obj.r9_hr_request_seq=double(obj.generator_request_count);
+ REPLANNING_SYSTEM.m:10244 | [generator_request_count] 'request_count',obj.generator_request_count, ...
+ REPLANNING_SYSTEM.m:10293 | [generator_request_count] obj.generator_request_count=saved.request_count;
+ REPLANNING_SYSTEM.m:11637 | [generator_request_count] st.generator_request_count=obj.generator_request_count;
+ REPLANNING_SYSTEM.m:570 | [generator_deadline_fail_count] generator_deadline_fail_count    = 0;
+ REPLANNING_SYSTEM.m:1641 | [generator_deadline_fail_count] "generator_deadline_fail_count", ...
+ REPLANNING_SYSTEM.m:2321 | [generator_deadline_fail_count] st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
+ REPLANNING_SYSTEM.m:4910 | [generator_deadline_fail_count] obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:4977 | [generator_deadline_fail_count] obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:4989 | [generator_deadline_fail_count] obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:5021 | [generator_deadline_fail_count] obj.generator_deadline_fail_count= ...
+ REPLANNING_SYSTEM.m:5022 | [generator_deadline_fail_count] obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:5243 | [generator_deadline_fail_count] obj.generator_deadline_fail_count= ...
+ REPLANNING_SYSTEM.m:5244 | [generator_deadline_fail_count] obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:5307 | [generator_deadline_fail_count] obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+ REPLANNING_SYSTEM.m:5329 | [generator_deadline_fail_count] obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+   ... 3 more hits retained in MAT
+ REPLANNING_SYSTEM.m:564 | [generator_last_cycle_critical_ms] generator_last_cycle_critical_ms   = NaN;
+ REPLANNING_SYSTEM.m:1729 | [generator_last_cycle_critical_ms] "generator_last_cycle_critical_ms" ...
+ REPLANNING_SYSTEM.m:2412 | [generator_last_cycle_critical_ms] st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
+ REPLANNING_SYSTEM.m:4916 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4975 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:4987 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:5011 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:5234 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:5305 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:5326 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:10257 | [generator_last_cycle_critical_ms] 'cycle',obj.generator_last_cycle_critical_ms, ...
+ REPLANNING_SYSTEM.m:10306 | [generator_last_cycle_critical_ms] obj.generator_last_cycle_critical_ms=saved.cycle;
+   ... 1 more hits retained in MAT
+ REPLANNING_SYSTEM.m:68 | [hard_modify_deadline_s] %   - hard_modify_deadline_s is fail-closed at <= 4 ms.
+ REPLANNING_SYSTEM.m:326 | [hard_modify_deadline_s] hard_modify_deadline_s      = 4.0e-3;
+ REPLANNING_SYSTEM.m:1437 | [hard_modify_deadline_s] if isfield(opts,'hard_modify_deadline_s')
+ REPLANNING_SYSTEM.m:1438 | [hard_modify_deadline_s] obj.hard_modify_deadline_s=opts.hard_modify_deadline_s;
+ REPLANNING_SYSTEM.m:1489 | [hard_modify_deadline_s] assert(isnumeric(obj.hard_modify_deadline_s) && ...
+ REPLANNING_SYSTEM.m:1490 | [hard_modify_deadline_s] isscalar(obj.hard_modify_deadline_s) && ...
+ REPLANNING_SYSTEM.m:1491 | [hard_modify_deadline_s] isfinite(obj.hard_modify_deadline_s) && ...
+ REPLANNING_SYSTEM.m:1492 | [hard_modify_deadline_s] obj.hard_modify_deadline_s>0 && ...
+ REPLANNING_SYSTEM.m:1493 | [hard_modify_deadline_s] obj.hard_modify_deadline_s<=4.0e-3, ...
+ REPLANNING_SYSTEM.m:1494 | [hard_modify_deadline_s] ['[REPLANNER ERROR] hard_modify_deadline_s must be a positive ' ...
+ REPLANNING_SYSTEM.m:3012 | [hard_modify_deadline_s] isfield(FS,'hard_modify_deadline_s') && ...
+ REPLANNING_SYSTEM.m:3013 | [hard_modify_deadline_s] double(FS.hard_modify_deadline_s)== ...
+   ... 33 more hits retained in MAT
+ REPLANNING_SYSTEM.m:4974 | [cycle_ms] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4975 | [cycle_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:4976 | [cycle_ms] if cycle_ms>1e3*obj.hard_modify_deadline_s
+ REPLANNING_SYSTEM.m:4986 | [cycle_ms] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4987 | [cycle_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:4988 | [cycle_ms] if cycle_ms>1e3*obj.hard_modify_deadline_s
+ REPLANNING_SYSTEM.m:5010 | [cycle_ms] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:5011 | [cycle_ms] obj.generator_last_cycle_critical_ms=cycle_ms;
+ REPLANNING_SYSTEM.m:5019 | [cycle_ms] deadlineExceeded=cycle_ms>1e3*obj.hard_modify_deadline_s;
+ REPLANNING_SYSTEM.m:5050 | [cycle_ms] 'cycle_ms',cycle_ms, ...
+ REPLANNING_SYSTEM.m:5117 | [cycle_ms] 'cycle_ms',cycle_ms, ...
+ REPLANNING_SYSTEM.m:5142 | [cycle_ms] 'cycle_ms',cycle_ms, ...
+   ... 10 more hits retained in MAT
+ REPLANNING_SYSTEM.m:1998 | [t_hard_cycle] t_hard_cycle=tic;
+ REPLANNING_SYSTEM.m:2150 | [t_hard_cycle] t_hard_cycle,time.t,xd_nom,xd_active_now, ...
+ REPLANNING_SYSTEM.m:4871 | [t_hard_cycle] function invoke_replan_generator_shadow(obj,t_hard_cycle,t_now, ...
+ REPLANNING_SYSTEM.m:4904 | [t_hard_cycle] elapsed_before=toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4916 | [t_hard_cycle] obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4974 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:4986 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:5010 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:5232 | [t_hard_cycle] candidate,double(t_now),t_hard_cycle);
+ REPLANNING_SYSTEM.m:5233 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:5304 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+ REPLANNING_SYSTEM.m:5325 | [t_hard_cycle] cycle_ms=1e3*toc(t_hard_cycle);
+   ... 5 more hits retained in MAT
+ REPLANNING_SYSTEM.m:68 | [deadline] %   - hard_modify_deadline_s is fail-closed at <= 4 ms.
+ REPLANNING_SYSTEM.m:86 | [deadline] %     4-ms deadline/dependency binding を fail-closed に検証し、原子的 commit を担当します。
+ REPLANNING_SYSTEM.m:158 | [deadline] ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
+ REPLANNING_SYSTEM.m:326 | [deadline] hard_modify_deadline_s      = 4.0e-3;
+ REPLANNING_SYSTEM.m:570 | [deadline] generator_deadline_fail_count    = 0;
+ REPLANNING_SYSTEM.m:1111 | [deadline] obj.assert_hard_modify_deadline_limit();
+ REPLANNING_SYSTEM.m:1143 | [deadline] %   compute_deadline_certificate,
+ REPLANNING_SYSTEM.m:1154 | [deadline] obj.assert_hard_modify_deadline_limit();
+ REPLANNING_SYSTEM.m:1226 | [deadline] 'compute_deadline',candidate.compute_deadline_certificate, ...
+ REPLANNING_SYSTEM.m:1437 | [deadline] if isfield(opts,'hard_modify_deadline_s')
+ REPLANNING_SYSTEM.m:1438 | [deadline] obj.hard_modify_deadline_s=opts.hard_modify_deadline_s;
+ REPLANNING_SYSTEM.m:1489 | [deadline] assert(isnumeric(obj.hard_modify_deadline_s) && ...
+   ... 104 more hits retained in MAT
+ REPLANNING_SYSTEM.m:4954 | [af7r25_stamp_mex] r25cb0=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:4956 | [af7r25_stamp_mex] r25cb1=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:5476 | [af7r25_stamp_mex] r25ep0=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:5479 | [af7r25_stamp_mex] r25ep1=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:5508 | [af7r25_stamp_mex] r25sy0=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:5511 | [af7r25_stamp_mex] r25sy1=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:6092 | [af7r25_stamp_mex] r25qp0=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:6095 | [af7r25_stamp_mex] r25qp1=af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:10343 | [af7r25_stamp_mex] if exist('af7r25_stamp_mex','file')==3
+ REPLANNING_SYSTEM.m:10344 | [af7r25_stamp_mex] af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:10345 | [af7r25_stamp_mex] af7r25_stamp_mex();
+ REPLANNING_SYSTEM.m:518 | [candidate_build] r9_synth_candidate_build_ms            = NaN;
+ REPLANNING_SYSTEM.m:1689 | [candidate_build] "r9_synth_candidate_build_ms", ...
+ REPLANNING_SYSTEM.m:2372 | [candidate_build] st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+ REPLANNING_SYSTEM.m:6001 | [candidate_build] obj.r9_synth_candidate_build_ms=NaN;
+ REPLANNING_SYSTEM.m:6154 | [candidate_build] obj.r9_synth_candidate_build_ms=1e3*toc(r24tic);
+ REPLANNING_SYSTEM.m:11692 | [candidate_build] st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+ af7r36_core.hpp:424 | [candidate_build] struct Tim {double episode=0,hessian=0,corridor=0,qp=0,candidate_build=0,synthesis=0,candidate=0,total=0;} tim;
+ af7r36_core.hpp:992 | [candidate_build] R.tim.candidate_build=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+ af7r36_core.hpp:947 | [tim.total] if(!R.episode.ok||R.episode.comp.empty()||R.episode.ep.empty()){R.reason=22;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;}
+ af7r36_core.hpp:949 | [tim.total] R.reason=14;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;
+ af7r36_core.hpp:952 | [tim.total] R.reason=17;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;
+ af7r36_core.hpp:994 | [tim.total] if(candidates.empty()){R.reason=23;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;}
+ af7r36_core.hpp:997 | [tim.total] if(!(fin(lim)&&lim>0)){R.reason=16;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;}
+ af7r36_core.hpp:1014 | [tim.total] R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;
+ af7r36_core.hpp:946 | [tim.episode] auto a=clk::now();R.episode=build_episode(ref,L,base,obs,t0,t1);R.tim.episode=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+ af7r36_core.hpp:969 | [tim.hessian] R.tim.hessian=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+ af7r36_core.hpp:966 | [tim.corridor] R.tim.corridor=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+ af7r36_core.hpp:978 | [tim.qp] R.tim.qp=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+ af7r36_core.hpp:993 | [tim.synthesis] R.tim.synthesis=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+ af7r36_core.hpp:992 | [tim.candidate] R.tim.candidate_build=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+ af7r36_core.hpp:1012 | [tim.candidate] R.tim.candidate=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+ af7r36_single_core_mex.cpp:135 | [candidate_build] "episode_ms","hessian_ms","corridor_ms","qp_ms","candidate_build_ms","synthesis_ms","candidate_ms","total_ms"};
+ af7r36_single_core_mex.cpp:166 | [candidate_build] set("candidate_build_ms",dscalar(R.tim.candidate_build));set("synthesis_ms",dscalar(R.tim.synthesis));
+ af7r36_single_core_mex.cpp:167 | [tim.total] set("candidate_ms",dscalar(R.tim.candidate));set("total_ms",dscalar(R.tim.total));
+ af7r36_single_core_mex.cpp:164 | [tim.episode] set("episode_ms",dscalar(R.tim.episode));set("hessian_ms",dscalar(R.tim.hessian));
+ af7r36_single_core_mex.cpp:164 | [tim.hessian] set("episode_ms",dscalar(R.tim.episode));set("hessian_ms",dscalar(R.tim.hessian));
+ af7r36_single_core_mex.cpp:165 | [tim.corridor] set("corridor_ms",dscalar(R.tim.corridor));set("qp_ms",dscalar(R.tim.qp));
+ af7r36_single_core_mex.cpp:165 | [tim.qp] set("corridor_ms",dscalar(R.tim.corridor));set("qp_ms",dscalar(R.tim.qp));
+ af7r36_single_core_mex.cpp:166 | [tim.synthesis] set("candidate_build_ms",dscalar(R.tim.candidate_build));set("synthesis_ms",dscalar(R.tim.synthesis));
+ af7r36_single_core_mex.cpp:166 | [tim.candidate] set("candidate_build_ms",dscalar(R.tim.candidate_build));set("synthesis_ms",dscalar(R.tim.synthesis));
+ af7r36_single_core_mex.cpp:167 | [tim.candidate] set("candidate_ms",dscalar(R.tim.candidate));set("total_ms",dscalar(R.tim.total));
+
+[F. HISTORICAL TIMING EVIDENCE AVAILABILITY]
+ history-like live properties              = 0
+ vector timing live properties             = 0
+ retained per-request history already found= 0
+ native AF7R36 per-stage timing fields exist= 1
+ native fields: episode=1 hessian=1 corridor=1 qp=1 candidate_build=1 synthesis=1 candidate=1 total=1
+
+[G. CONSERVATIVE INTERPRETATION]
+ resource/canonical issue implicated        = 0
+ real deadline issue exists                 = 1
+ last observed cycle currently <=4ms        = 1
+ existing retained history can attribute 9 misses = 0
+ low-overhead bounded timing ring needed if history absent = 1
+ NOTE: the last 3.5703-ms cycle is not evidence that the previous 9 misses were warmup.
+       Cause remains OPEN until request-by-request stage timing is available.
+
+[H. STATUS]
+ status = 4MS_CAUSE_OPEN__INSTALL_BOUNDED_LOW_OVERHEAD_STAGE_TIMING_RING_NEXT
+ production modified = 0
+ next action must preserve all existing continuous-time safety/resource certificates.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9633d550_ccf3_479d_9618_51b458a3bca5\AF7R58L_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9633d550_ccf3_479d_9618_51b458a3bca5\AF7R58L_OUT.mat
+ status = 4MS_CAUSE_OPEN__INSTALL_BOUNDED_LOW_OVERHEAD_STAGE_TIMING_RING_NEXT

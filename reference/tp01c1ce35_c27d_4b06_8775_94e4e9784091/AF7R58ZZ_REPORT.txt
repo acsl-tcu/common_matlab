@@ -1,0 +1,32 @@
+====================================================================================================
+ AF7R58ZZ | CONTINUOUS-CERTIFICATE COMMIT HOT-PATH INSTALL
+====================================================================================================
+[AUTHORITY] exactCurrentSHA=1 | exactHelperSHA=1 | parseBeforeWrite=1 | rollback=1
+[THEORY] sampledAcceptanceAdded=0 | continuousCertificateRequired=1 | finalAtomicGuardsRetained=1
+
+[A. CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA = c7baa3c7dda80bbacb412443a035fd7c5ae7afbc6c95a46eddc4d82b69d88289
+
+[B. HELPER BINDING]
+ af7r58i_prepare_batch_model.m              SHA-match=1 | 92f093168f1df95661c5e7f2e75005fe439406eb3ec22e53fd1f25d6bdfb8a15
+ af7r58i_resource_contract.m                SHA-match=1 | 772e49a8007bd955cb262b1db513f65c1270f87384b5f12694ee8774ae458392
+ af7r58i_make_canonical_eval_handles.m      SHA-match=1 | 1c9bf7407b9c2482c5f6d2676479966b808995c4d10ee2871a620faba55a82f8
+ af7r58i_eval_canonical_reference.m         SHA-match=1 | 4f8ecd8576983d638b5fbbc71384d333fc90d4d9e4787c6ea694e94dc2d0ca39
+
+[C. PATCH PREFLIGHT]
+ payload SHA = 59e24920394b53faf2d832d6b84dead3e94e9728ea767cf7dca1ef3a1a5f19fb
+ full MATLAB class parse = 1
+ production writes = 0
+
+[D. INSTALL RESULT]
+ production modified = 1
+ sampled evaluator probes removed = 1
+ continuous sigma guard required = 1
+ C7 guard required = 1
+ resource/currentness/deadline guards retained = 1
+ post SHA = 59e24920394b53faf2d832d6b84dead3e94e9728ea767cf7dca1ef3a1a5f19fb
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp01c1ce35_c27d_4b06_8775_94e4e9784091\AF7R58ZZ_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp01c1ce35_c27d_4b06_8775_94e4e9784091\AF7R58ZZ_OUT.mat
+status = CONTINUOUS_CERT_COMMIT_HOTPATH_INSTALLED__CLEAN_RERUN_REQUIRED

@@ -1,0 +1,97 @@
+====================================================================================================
+ AF7R58Y-R3 | FINAL ONE-ENTRY CACHE KEY / INVALIDATION PROOF
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | cacheInstalled=0 | activeAuthorityChanged=0
+[K6] occurrenceLocal=1 | structKeyAware=1 | lhsAware=1 | functionHeaderExcluded=1
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM SHA exact = 1 | cfa7e053e86aec9879eef0fb3c6d28e55fd33c8b1e76c09c77bdd83e1f170f79
+
+[B. SOURCE-BOUND FUNCTION INVENTORY]
+ commit      L9171:L9492 | SHA=00f81e2e493ae59347f78c0153234aefaf2df6a8821a1704d56ed65c6a8013e4
+ canReuse    L4703:L4824 | SHA=fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse       L4825:L4857 | SHA=2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ sweep       L4619:L4634 | SHA=4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ packet      L4635:L4669 | SHA=3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ sensor      L4684:L4702 | SHA=b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+ depCapture  L3381:L3429 | SHA=c699fb5ca8cead0173a8f1bc27573c470787c3dc7b70798183739a57f56ae2d4
+
+[C. K1 -- NON-AUTHORITY FAILED PREPARATION]
+ predeadline reject precedes transactional try              = 1
+ all active packet writes occur only after try              = 1
+ predeadline reject is ordinary return                      = 1
+ K1 CLOSED                                                  = 1
+
+[D. K2 -- SPEED-CERTIFICATE KEY COVERAGE]
+ numeric builder SC fields            = {payload_speed_UB_m_s, uav_speed_UB_m_s}
+ missing oldSC coverage               = []
+ missing newSC coverage               = []
+ reuse gate contains exact isequal checks                   = 1
+ K2 CLOSED                                                  = 1
+
+[E. K3 -- PROPERTY-ONLY LIVE DEPENDENCY COVERAGE]
+ builder properties                   = {prediction_dt, static_obstacle_map, r_load, d_margin, r_drone, r_cable, horizon_s, trigger_dist, L_cable}
+ builder method calls                 = {static_obstacle_map, raw_enclosing_ellipsoid_axes, outer_ellipsoid_from_raw_cached}
+ uncovered live properties            = []
+ K3 CLOSED                                                  = 1
+
+[F. K4 -- CURRENT OBSTACLE/SOURCE FRESHNESS]
+ cached oldPacket checked structurally                      = 1
+ explicit CURRENT obstacle/source binding                   = 1
+ K4 CLOSED                                                  = 1
+
+[G. K5 -- RELEVANT DEPENDENCY-SIGNATURE COVERAGE]
+ packet-preparation relevant dep fields = {dt, r_load, d_margin, r_drone, r_cable, horizon, sensor_range, cable_length}
+ missing relevant oldDep guards         = []
+ excluded unrelated full-system fields  = {flight_reference_time_origin, reference_func_signature, gravity, mQ, jx, jy, jz, mL_snapshot, hard_modify_deadline_s}
+ K5 CLOSED                                                  = 1
+
+[H. K6 -- OCCURRENCE-LOCAL targetVersion METADATA-ONLY PROOF]
+ sweep builder                  occurrences=1 nonMetadata=0 closed=1
+   class=STRUCT_REFERENCE_VERSION_VALUE | key=reference_version | closed=1
+   stmt=sweep=struct('certified',true,'reference_mode','REPAIRED',  'reference_version',double(targetVersion),  'payload_m',VL*dt/2,'uav_m',VQ*dt/2,  'cable_m',max(VL,VQ)*dt/2,'sensor_one_period_m',VQ*dt,  'dt',dt,'source','VERSION_BOUND_ACTIVE_SPEED_CERTIFICATE');
+ packet builder                 occurrences=1 nonMetadata=0 closed=1
+   class=DIRECT_REFERENCE_VERSION_ASSIGNMENT | key=reference_version | closed=1
+   stmt=pack.reference_version=double(targetVersion);
+ sensor builder                 occurrences=1 nonMetadata=0 closed=1
+   class=STRUCT_REFERENCE_VERSION_VALUE | key=reference_version | closed=1
+   stmt=cert=struct('certified',horizonMargin>0&&safeClear>0&&beforeHorizon>0,  'reference_mode','REPAIRED','reference_version',double(targetVersion),  'VL',VL,'VQ',VQ,'dt',dt,'sensor_range',Rs,'horizon',H,'rho_body',rho,  'sensor_horizon_margin_m',horizonMargin,  'first_detection_distance_LB_m',dDetLB,  'first_collision_lead_LB_s',collisionLead,  'before_horizon_entry_LB_s',beforeHorizon,  'source','LIVE_SPEED_SENSOR_GEOMETRY_THEOREM');
+ reuse operation                occurrences=4 nonMetadata=0 closed=1
+   class=DIRECT_REFERENCE_VERSION_ASSIGNMENT | key=reference_version | closed=1
+   stmt=sweep.reference_version=double(targetVersion);
+   class=DIRECT_REFERENCE_VERSION_ASSIGNMENT | key=reference_version | closed=1
+   stmt=packet.reference_version=double(targetVersion);
+   class=DIRECT_REFERENCE_VERSION_ASSIGNMENT | key=reference_version | closed=1
+   stmt=sensor.reference_version=double(targetVersion);
+   class=DIRECT_REFERENCE_VERSION_ASSIGNMENT | key=reference_version | closed=1
+   stmt=dep.reference_version=double(targetVersion);
+ K6 CLOSED                                                  = 1
+
+[I. K7 -- FINITE ONE-ENTRY RESOURCE CONTRACT]
+ maximum cache entries                = 1
+ append/list growth forbidden                               = 1
+ overwrite-only replacement                                 = 1
+ K7 CLOSED                                                  = 1
+
+[J. LIVE READ-ONLY EVIDENCE]
+ request / deadline-fail              = 9 / 8
+ runtime reuse / rebuild               = 0 / 3
+ successful commit count               = 1
+ active mode/version                   = REPAIRED / 1
+
+[K. FINAL CACHE-KEY / INVALIDATION THEOREM]
+ K1 non-authority lifecycle                                 = 1
+ K2 speed-certificate coverage                              = 1
+ K3 property-only live dependency coverage                  = 1
+ K4 current obstacle/source freshness                       = 1
+ K5 relevant dependency-signature coverage                  = 1
+ K6 targetVersion occurrence-local metadata-only            = 1
+ K7 finite one-entry resource contract                      = 1
+ ALL CACHE SAFETY OBLIGATIONS CLOSED                        = 1
+ production cache installed                                 = 0
+ status = CACHE_KEY_INVALIDATION_R3_CLOSED__ONE_ENTRY_INSTALL_NEXT
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp2f15b2af_7a3d_4920_82b3_6b326bc4c273\AF7R58Y_R3_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp2f15b2af_7a3d_4920_82b3_6b326bc4c273\AF7R58Y_R3_OUT.mat
+ status = CACHE_KEY_INVALIDATION_R3_CLOSED__ONE_ENTRY_INSTALL_NEXT

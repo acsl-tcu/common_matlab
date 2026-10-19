@@ -1,0 +1,54 @@
+====================================================================================================
+ AF7R58V-R4 | ROBUST PRE-TRANSACTION COMMIT TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58T-R2 SOURCE BINDING]
+ source SHA exact = 1 | 72b3b05880362d2bfa4bb81eb61eb04bf69bd38eccf796d860a43b156c4d32ea
+
+[B. CURRENT PRE-TRY SOURCE ANCHORS]
+ handles_start                source L9194
+ handles_call                 source L9195
+ smooth_initial               source L9201
+ geom_assign                  source L9216
+ tq                           source L9225
+ eval_call                    source L9227
+ flat_call                    source L9228
+ old_start                    source L9243
+ old_end                      source L9257
+ reuse_test_start             source L9259
+ reuse_test_call              source L9260
+ reuse_op_start               source L9264
+ reuse_op_call                source L9265
+ rebuild_sweep                source L9268
+ rebuild_packet               source L9269
+ rebuild_sensor               source L9270
+ dep_version                  source L9275
+ predeadline_if               source L9278
+ predeadline_reason           source L9280
+ try_line                     source L9285
+ all anchors assigned before validation = 1
+ all required source orders closed       = 1
+ branch-condition text used as anchor    = 0
+
+[C. PREFLIGHT -- BEFORE FIRST PRODUCTION WRITE]
+ static instrumentation invariants       = 1
+ patched full class parse                = 1
+ production writes                       = 0
+
+[D. INSTALL RESULT]
+ bounded ring                            = 64 x 15
+ measured pre-try stages                 = 10
+ branch-condition text used as anchor    = 0
+ trajectory/certificate logic changed   = 0
+ commit decision changed                = 0
+ production modified                    = 1
+ new REPLANNING_SYSTEM SHA              = cfa7e053e86aec9879eef0fb3c6d28e55fd33c8b1e76c09c77bdd83e1f170f79
+ NOTE: diagnostic timing only; final 4-ms proof remains open.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp759c544e_34c5_4682_a58b_a8f8390a7fd5\AF7R58V_R4_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp759c544e_34c5_4682_a58b_a8f8390a7fd5\AF7R58V_R4_OUT.mat
+ status = PRETRY_SPLIT_R4_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

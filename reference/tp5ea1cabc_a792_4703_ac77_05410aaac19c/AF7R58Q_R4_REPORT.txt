@@ -1,0 +1,29 @@
+====================================================================================================
+ AF7R58Q-R4 | MINIMAL SOURCE-PROVEN REFERENCE-ONLY COMMIT TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT CURRENT SOURCE BINDING]
+ AF7R58O source SHA exact = 1 | 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+
+[B. CURRENT COMMIT FUNCTION -- PROVEN ANCHORS ONLY]
+ reason initialization                 source L9040
+ commit-spacing guard                 source L9056
+ canonical resource prepare           source L9082
+ canonical evaluator handles          source L9089
+ canonical model store                source L9196
+ optional sensor/packet stage assumed = 0
+ anchor conjunction/order closed       = 1
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58Q-R4] AF7R58M property anchor count=3.
+ rollback performed  = 0
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp5ea1cabc_a792_4703_ac77_05410aaac19c\AF7R58Q_R4_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp5ea1cabc_a792_4703_ac77_05410aaac19c\AF7R58Q_R4_OUT.mat
+ status = INSTALL_FAILED__ROLLBACK_COMPLETE

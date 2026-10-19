@@ -1,0 +1,15 @@
+====================================================================================================
+ AF7R58ZM | REFERENCE/REPLANNER-ONLY POST-ZL TIMING AUDIT
+====================================================================================================
+status = CURRENT_SPEED_RETARGET_ACTIVE__HARD_4MS_STILL_OPEN
+source SHA = 8ce3089c8a1baddd448d3896f7146d810527efc344f504d2da751d4a5bf53f73
+generator requests = 11
+deadline failures = 10
+replan commits = 1
+cache stores/gate/hits/retarget/invalidates = 7 / 7 / 7 / 7 / 0
+max reference stage ms = 29.9259
+max request reference ms = 28.6076
+max request hard-cycle ms = 24.0606
+max nonrequest reference ms = 29.9259
+reference >25ms = 4
+empirical timing is not formal WCET.

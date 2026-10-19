@@ -1,0 +1,67 @@
+====================================================================================================
+ AF7R58ZL | SOURCE-BOUND REFERENCE HOT-PATH FINAL INSTALL
+====================================================================================================
+[AUTHORITY] exactCurrentSHA=1 | embeddedAuditedPayload=1 | parseBeforeWrite=1 | rollback=1
+[SAFETY] triggerMathChanged=0 | geometryCertificateChanged=0 | referenceCertificateChanged=0
+[SAFETY] actuator/observer/HLC mathematical methods changed=0 | failClosedDeadlinePreserved=1
+
+[A. EXACT CURRENT PRODUCTION BINDING]
+ production path       = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ current SHA           = 6e5de01fa28bc09940aa75d7daf2b0095e5c08c553075394c1ce8ea205f74e25
+ exact expected source = 1
+
+[B. EMBEDDED PAYLOAD BINDING]
+ decoded payload SHA   = 8ce3089c8a1baddd448d3896f7146d810527efc344f504d2da751d4a5bf53f73
+ exact expected patch  = 1
+
+[C. METHOD-BODY PRESERVATION]
+ current methods/functions                = 224
+ patched methods/functions                = 225
+ intentionally changed existing methods   = 5
+ new exact-retarget method                = 1
+ all other method bodies unchanged        = 219
+ protected safety/certificate methods     = unchanged
+
+[D. STATIC HOT-PATH / CACHE INVARIANTS]
+ light_runtime_audit_off                        = 1
+ hotpath_diagnostic_mirror_off                  = 1
+ old_timing_flags_still_off                     = 1
+ state_meta_mirror_gated                        = 1
+ small_generator_scalar_interface_retained      = 1
+ observer_update_preserved                      = 1
+ request_ring_cleanup_flag_gated                = 1
+ qpc_callback_profiling_only                    = 1
+ commit_qtv_diagnostics_removed                 = 1
+ commit_deadline_checks_retained                = 1
+ final_assertions_retained                      = 1
+ speed_dominance_rejection_removed              = 1
+ cache_still_exact_static_key                   = 1
+ current_speed_retarget_exact                   = 1
+ current_runtime_dep_used                       = 1
+ retarget_counter_present                       = 1
+ success_status_after_deadline_check            = 1
+ all                                            = 1
+
+[E. PREFLIGHT BEFORE PRODUCTION WRITE]
+ payload hash exact                       = 1
+ unauthorized method-body changes         = 0
+ protected mathematical methods unchanged = 1
+ full decoded MATLAB class parse           = 1
+ production writes so far                 = 0
+
+[F. INSTALL RESULT]
+ production modified                         = 1
+ rollback performed                          = 0
+ current source -> exact audited payload     = 1
+ Q/T/V disabled diagnostics removed hotpath = 1
+ request QPC/ring diagnostics flag-gated     = 1
+ per-cycle large diagnostic mirror gated     = 1
+ current-speed exact cache retarget          = 1
+ old under-inflated packet promoted          = 0
+ safety/certificate protected methods changed= 0
+ post SHA                                    = 8ce3089c8a1baddd448d3896f7146d810527efc344f504d2da751d4a5bf53f73
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp96f331cc_3c97_465e_8882_7a9597d5cd10\AF7R58ZL_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp96f331cc_3c97_465e_8882_7a9597d5cd10\AF7R58ZL_OUT.mat
+ status = REFERENCE_HOTPATH_FINAL_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

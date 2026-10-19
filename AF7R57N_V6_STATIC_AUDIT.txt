@@ -1,0 +1,12 @@
+AF7R57N V6 static correction audit
+===================================
+Stage-A resource code sticky to top-level reject    = 1
+Stage-B resource code sticky to top-level reject    = 1
+Stage-B leaf exhaustion reason                      = 211
+Stage-B split exhaustion reason                     = 212
+next-candidate success after 209/211/212 allowed    = 0
+episode 202/203 exception transport hidden          = 0
+episode exception transport accepted for production = 0
+safety theorem changed                              = 0
+production cap values selected                      = 0
+production source modified                          = 0

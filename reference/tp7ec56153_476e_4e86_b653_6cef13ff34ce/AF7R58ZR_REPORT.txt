@@ -1,0 +1,31 @@
+====================================================================================================
+ AF7R58ZR | WRITE_ACTIVE_OUTPUT ONE-LINE HOTFIX
+====================================================================================================
+[AUTHORITY] exactPostZPSHA=1 | oneExactReplacement=1 | parseBeforeWrite=1 | rollback=1
+[MATH] trajectoryChanged=0 | certificateChanged=0 | triggerChanged=0 | cacheChanged=0
+
+[A. CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = afdab70a7a68f545dac3dede9814c95b703cb7823b9da5374ed05004735a1c11
+ exact AF7R58ZP source = 1
+
+[B. EXACT BUG BINDING]
+ buggy expression count = 1
+
+[C. PREFLIGHT BEFORE WRITE]
+ exact one-line replacement = 1
+ reversible source check     = 1
+ full MATLAB class parse     = 1
+ payload SHA                 = c7baa3c7dda80bbacb412443a035fd7c5ae7afbc6c95a46eddc4d82b69d88289
+ expected post SHA           = c7baa3c7dda80bbacb412443a035fd7c5ae7afbc6c95a46eddc4d82b69d88289
+ production writes           = 0
+
+[D. INSTALL RESULT]
+ production modified = 1
+ rollback performed   = 0
+ corrected line       = xd=double(varargin_xd(:));
+ post SHA             = c7baa3c7dda80bbacb412443a035fd7c5ae7afbc6c95a46eddc4d82b69d88289
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp7ec56153_476e_4e86_b653_6cef13ff34ce\AF7R58ZR_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp7ec56153_476e_4e86_b653_6cef13ff34ce\AF7R58ZR_OUT.mat
+status = WRITE_ACTIVE_OUTPUT_HOTFIX_INSTALLED__RERUN_NOW

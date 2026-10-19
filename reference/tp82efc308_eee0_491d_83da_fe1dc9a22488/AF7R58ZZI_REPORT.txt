@@ -1,0 +1,13 @@
+status=LATE_RETRY_COMMIT__FIRST_DETECTION_DEADLINE_OPEN
+sourceSHA=2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+requests=20
+fails=19
+commits=1
+firstRequestS=9.8500000000000725
+firstCommitS=10.325000000000079
+firstRequestToCommitMs=475.00000000000676
+hardMaxMs=12.9907
+callbackMaxMs=2.2545999999999995
+referenceMaxMs=18.406400000000001
+proposalEvidence=1
+noSolutionProven=0

@@ -1,0 +1,39 @@
+AF7R58E | OUTWARD SCALAR TREE BOUND - REFERENCE-FIRST WORKFLOW
+ productionModified=0 | noFlight=1 | noMex=1 | sampledSafetyAcceptance=0
+ reviewed core SHA match=1 | ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+P1: Let M=max(1,abs(t0),abs(t1)). Require finite ordered endpoints and M<=realmax/4.
+All strictly interior descendants stay in [-M,M]; their endpoint sums cannot overflow.
+For tc=fl(0.5*fl(a+b)), a conservative absolute midpoint error is eta=2*eps(M).
+This covers sum rounding and multiplication/underflow; M>=1 dominates subnormal error.
+If exact width b-a<=W, either child exact width is <=W/2+eta.
+up(x) is the next larger binary64 number, implemented by a positive bit increment.
+W0=up(fl(t1-t0)); Wnext=up(fl(up(fl(W/2))+eta)) are upper bounds by induction.
+For any node with width<=W, its computed subtraction is <=up(W).
+tau is computed as in production: dt+64*eps(1)*max(1,abs(t0),abs(t1),abs(dt)).
+Once up(W)<=tau, every such node terminates; a nonsplittable midpoint terminates earlier.
+Let K be the first certified depth. The full tree has at most 2^K terminal cells.
+All obstacles use the same scalar tree. Safe early exits remove unsafe cells only.
+The union of unsafe cells has at most ceil(2^K/2) connected runs (1 when K=0).
+Thus C<=2^(max(K-1,0)), and S_group<=2*C+1 for production build_candidate.
+The bounds are independent of obstacle centers, poses, axes and finite obstacle count.
+M_obstacles still affects episode count and work: E<=M_obstacles*C_bound; branches=2^E.
+No obstacle is ignored or accepted safe by this resource bound.
+If arithmetic stagnates, overflows or cannot certify a bound, status is OPEN, never SAFE.
+The formula is conditional on the stated floating-point environment and reviewed source.
+Compiler flags / rounding-mode authority are not verified by this MATLAB-only audit.
+Source-bound and numeric-computed do not mean production-admitted or final safety closed.
+[ARITHMETIC IMPLEMENTATION REGRESSIONS - NOT PRODUCTION INPUTS]
+ case=1 | depth=3<=3 | leaves=8<=8 | pass=1
+ case=2 | depth=3<=3 | leaves=8<=8 | pass=1
+ case=3 | depth=3<=3 | leaves=8<=8 | pass=1
+ case=4 | depth=4<=4 | leaves=16<=16 | pass=1
+ case=5 | depth=0<=0 | leaves=1<=1 | pass=1
+ case=6 | depth=6<=6 | leaves=64<=64 | pass=1
+ explicit runtime packet not supplied; current production numeric cap is NOT selected.
+ status=CONDITIONAL_TREE_BOUND_IMPLEMENTED__LIVE_BINDING_AND_ENVIRONMENT_OPEN
+ Gmax/Smax NOT derived: commit/lifetime contract remains separate.
+ nominal tracking assumed for reference path; certified inflation is optional add-on.
+ tension/thrust/moments remain REQUIRED reference feasibility obligations.
+ failure backup deferred; no final system safety completion is claimed.
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd4472916_674f_4c53_8261_864888d0a124\AF7R58E_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd4472916_674f_4c53_8261_864888d0a124\AF7R58E_OUT.mat

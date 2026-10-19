@@ -1,0 +1,13740 @@
+classdef REPLANNING_SYSTEM < handle
+
+% AF7R38-PREFLIGHT-POLICY-HOTPATH: dry-run observer/full-do cold paths before Flight; defer non-authoritative execution diagnostics under REFERENCE_ONLY.
+% AF7R39-EXACT-R38-PROPERTY-REPAIR: declares every R38 state used by preflight/QPC/postcallback paths.
+% AF7R40-REPAIRED-PACKET-BATCH: future trigger packet uses committed AF7R33 exact batch flat model.
+% AF7R41-REPAIRED-ROLLING-CACHE: exact shifted horizon + one-tail evaluation; pre-Flight primed.
+% AF7R43-HARDPATH-CLEANUP: defer non-authoritative copies and cache nominal AF7R33 model.
+% AF7R44-SENSOR-MEMORY: simulation starts unknown; detected static obstacles are retained through certified rejoin.
+% AF7R45-TWO-TRACK-RT: REFERENCE_ONLY exec-dependency fast path + exact commit packet reuse.
+% AF7R46-COMPACT-COMMIT: compact native proposal + pure fast commit packet + observer static setup cache.
+% AF7R50C-CLEAN-TIMING: disable non-authoritative in-run timing/replay/proposal diagnostics only.
+
+% AF7R37-R14D-PRODUCTION: canonical degenerate separator + one-call native heavy replanning core.
+
+% AF7R33-R13C: repeat-safe active-flat batch + all-obstacle episode + exact-QP + batched whole-body.
+
+% AF7R27-R10: adaptive interval cover + projected corridor hull + active-set QP.
+% AF7R29-R11: noncommittable proposal diagnostics deferred from production hot path.
+% AF7R30-R12: native exact-support/hull helpers + last-takeoff hot-path prime.% AF7R21-R9: two-stage global-triangle -> local-vector continuous speed certificate.
+% AF7R23_STAGE_TIMING: diagnostic-only top-level R9 timing instrumentation.
+% AF7R24_SYNTHESIS_TIMING: diagnostic-only synthesis substage timing.
+% AF7R25_HIGHRES_TIMING: QPC wall + thread/process cycle diagnostic timing.
+% R9 keeps sampled acceptance forbidden and retains independent whole-body certification.
+% G27-V74R41R2: caller-compatible initialization order preserved.
+% R7 exact disjunctive corridor: globally joint +/- separator choice + 3-D min-norm translation.
+% G27-V74R30D2R41Z-DIRECT: suspended-load HLC gain authority is
+% Controller_HL_Suspended_Load(dt,agent); live F1..F4 are source-bound.
+% Constructor MUST NOT require agent.reference.takeoff.
+% Flight time origin is bound later during preflight warmup/table generation.
+% G27-V74R41R1: constructor-safe Flight-reference time-origin binding.
+% =========================================================================
+% REPLANNING_SYSTEM
+%
+% 【概要】
+%   索吊り下げ型ドローン (Quadrotor with Suspended Load) 向け
+%   G26 将来予測衝突回避トリガー統合クラス（本番運用最適化版・完全解説付き）。
+%
+% 【システム構成・運動学モデル】
+%   - 状態定義:
+%       pL : 牽引荷物 (Payload) の位置ベクトル [x; y; z] (3×1)
+%       pQ : ドローン機体 (UAV Quadrotor) の位置ベクトル [x; y; z] (3×1)
+%       q  : 機体から荷物への索姿勢単位ベクトル (UAV -> Load, ||q|| = 1)
+%       L  : 索長 (cableL)
+%     幾何学的拘束関係:
+%       pQ = pL - L * q
+%
+% 【G27-V54 fail-closed GENERAL C6 POSITION + INDEPENDENT C6 YAW contract】
+%   - External output requirement remains position C6 + yaw C6.
+%   - Position safety is certified independently by the unchanged continuous
+%     geometry / dynamics / HLC / backup / finite-sensing authorities.
+%   - Yaw is an independent C6 reference.  Exact horizontal travel-direction
+%     alignment is NOT a production safety gate.
+%   - The generator may prefer forward-looking yaw through a mathematical
+%     optimization objective, but that preference cannot create or revoke a
+%     safety certificate.
+%   - Zero horizontal speed requires no atan2(0,0), speed epsilon, or
+%     yaw-freeze safety branch because yaw C6 exists independently.
+%   - path_position_c7 remains an internal generator/representation
+%     regularity contract.
+%   - Sensor-direction/FoV certification is NOT a mandatory yaw certificate.
+%     The existing simulated-sensor finite-sensing certificate remains
+%     separate and unchanged.
+%   - Time law must be C6, nondecreasing, and join a constant terminal hold
+%     with derivatives 1..6 equal to zero.
+%   - Every production candidate certificate is bound to the next REPAIRED
+%     reference version and the current live dependency/source signature.
+%   - Test-only certificate tokens are explicitly rejected.
+%   - hard_modify_deadline_s is fail-closed at <= 4 ms.
+%   - MEX is an acceleration mechanism only; no MEX result bypasses the
+%     certificate/backup/atomic-commit authority.
+%
+% 【G27-V39R2 initialization-order correction】
+%   REPLANNING_SYSTEM is instantiated before agent.controller.hlc_suspended
+%   exists in run_flight_headless.  Command limits are therefore certified
+%   from HLC_SUSPENDED_LOAD.m source during construction, then the actual
+%   live controller handle is bound/verified later and is mandatory by Flight.
+%
+% 【役割と責務】
+%   - 本クラスは制御周期 (dt) ごとに「球状センサによる障害物検知」および
+%     「将来予測ホライズン H [s] 内の衝突予測トリガー判定」を担当します。
+%   - 将来衝突が予測された場合、need_replan = true とし、
+%     衝突余裕時間 TTC (Time-To-Collision)、衝突予測時刻、衝突障害物ID、
+%     接触予測部位 (PAYLOAD / UAV / CABLE) を特定して制御器・リプランナーへ通知します。
+%   - 本クラス自身は軌道候補を生成しません。後続 generator が作る候補に対し、
+%     G27-V54 以降は position C6 + independent yaw C6/連続時間安全/動力学/backup/
+%     4-ms deadline/dependency binding を fail-closed に検証し、原子的 commit を担当します。
+%
+% =========================================================================
+% 【極めて重要な設計思想：実行時間スパイク（Latency Spike）の完全排除】
+% =========================================================================
+% 実機ドローン制御やミリ秒単位のリアルタイムシミュレーションにおいて、
+% 制御ループ内の実行時間ピーク（スパイク）は制御破綻や通信タイムアウトの原因となります。
+% 本クラスでは、以下の5大最適化手法によりスパイクを原理的に根絶しています：
+%
+% 1. 公称軌道テーブルの一括事前生成 (Precomputed Nominal Table)
+%    - 飛行開始前（Setup / Armingフェーズ）に、飛行全区間 [t0, te + H] の
+%      公称荷物位置 pL(t) および公称索姿勢 q(t) を一括計算して行列テーブルへ展開。
+%    - 飛行中 (Flightフェーズ) は、時刻 t_now に対応する配列インデックスを O(1) で
+%      算出し、連続メモリブロックをスライス参照するのみ。
+%    - これにより、定常制御ループ内での微分方程式反復評価や関数呼び出しオーバーヘッド、
+%      一時メモリ割り当てを完全にゼロ化。
+%
+% 2. 離陸前コールドパス完全事前燃焼 (Pre-motion Prime)
+%    - 機体が動く前の静止段階で、オンライン判定ルーチン (warmup_online_path) を実行。
+%    - 障害物マスクの全組み合わせ (0個〜M個)、強制衝突パス (現在接触 j=1、将来衝突 j=2)、
+%      全衝突部位コード (1: PAYLOAD, 2: UAV, 3: CABLE) のデコード処理、
+%      さらに本番と同一引数による do() の実呼び出しを 12 回反復実行 (setup_exact_do_prime)。
+%    - これにより、MATLAB JIT コンパイラの初回コンパイル、動的メソッドディスパッチ、
+%      CPU命令キャッシュミス、OSメモリページフォールトを離陸前に全て消化。
+%
+% 3. 状態ロガーの固定長・直接上書き (Fixed-field In-place Logging)
+%    - 毎周期の clear -> reallocate や、可変長 struct 配列 (detected_obstacles 等) の
+%      動的生成をホットループから完全撤廃。
+%    - 事前定義済みの固定長スカラーおよび固定長ベクトルフィールド (min_dist_point,
+%      trigger_ttc, trigger_pL_collision 等) に対し、インプレース代入で直接更新。
+%    - MATLAB のガベージコレクション (GC) 誘発とヒープ断片化を防止。
+%
+% 4. 時間クエリの非破壊メモリ保護 (Memory-Isolated Time Query)
+%    - time が TIME < handle の場合、参照クラス呼び出し時に本体の time.t を破壊しないよう
+%      独立した軽量時間構造体・オブジェクトを生成して引数渡し。
+%    - 意図しないシミュレーション時刻ジャンプやメモリ再割り当てを防止。
+%
+% 5. C++ MEX 高速カーネルによる SIMD 級判定 (C++ MEX Kernel)
+%    - 将来区間の全 N サンプリング点および全アクティブ障害物に対する楕円体包囲レベルセット計算を、
+%      C++ MEX (g26_future_trigger_kernel_mex) により一括並列実行。
+%    - 起動時にソースコード改変を検知して自動コンパイルし、10 回の実パラメータウォームアップを実施。
+%
+% =========================================================================
+% 【コンソールログの意味と表示切り替え】
+% =========================================================================
+%   ENABLE_ALL_LOG : ログ表示マスタースイッチ (0: SILENT, 1: 全ログ表示)
+%   LOG_SENSOR     : センサ検知ログ表示スイッチ (20m球内に障害物を捕捉した周期で表示)
+%   LOG_TRIGGER    : 将来衝突検知ログ表示スイッチ (将来ホライズン内で衝突を予測した周期で表示)
+%
+%   各ログの意味:
+%   - [REPLANNING_SYSTEM] initialized
+%       初期化完了ログ。センサ検知範囲、予測ホライズン H、周期 dt、安全マージン、初期ウォームアップ時間を表示。
+%   - [REPLANNING_SYSTEM] nominal table ready
+%       公称軌道事前計算テーブル生成完了ログ。生成区間 [t0, tend]、サンプリング点数、生成所要時間を表示。
+%   - [REPLANNING_SYSTEM] pre-motion prime ready
+%       離陸前 JIT プライム完了ログ。網羅テストしたマスク数、強制衝突ケース数、事前 do() 実行回数、所要時間を表示。
+%   - [SENSOR RAW 20.0m] t=... | count=... | nearest=... | d=...
+%       球状センサ検知ログ。現在時刻 t、検知範囲内の障害物数 count、最寄障害物 ID、最寄真形状表面距離 d [m] を表示。
+%   - [FUTURE HIT] t=... | TTC=... | obs=... | comp=...
+%       将来衝突予測検知ログ。現在時刻 t、衝突までの余裕時間 TTC [s]、衝突障害物 ID、接触予測部位 comp を表示。
+% =========================================================================
+
+
+    properties (Access = public)
+        % -----------------------------------------------------------------
+        % 【コンソールログ表示・プロファイリング制御スイッチ】
+        % -----------------------------------------------------------------
+        ENABLE_ALL_LOG   = 1;  % ログ表示マスタースイッチ (1: 有効, 0: 無効)
+        LOG_SENSOR       = 0;  % 球状センサ障害物捕捉ログの個別スイッチ (20m内に障害物検知時)
+        LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
+        ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
+        ENABLE_LIGHT_RUNTIME_AUDIT = 0; % AF7R50C clean production-timing run: no in-run light audit
+        ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
+        r12_tail_prime_done = false;
+        r12_tail_prime_ms = NaN;
+
+        SPIKE_CAPTURE_THRESHOLD_MS = 2.0; % rare-stage snapshot threshold [ms]
+
+        % -----------------------------------------------------------------
+        % 【離陸前コールドパス完全事前燃焼 (Pre-motion Prime) 設定】
+        % -----------------------------------------------------------------
+        ONLINE_PRIME_CALLS           = 3;   % 各合成テストケース (マスク・衝突パターン) の反復実行回数
+        SETUP_EXACT_DO_PRIME_CALLS   = 12;  % 本番引数による do() の事前呼び出し回数 (JIT・キャッシュ完全温め)
+        SEQUENTIAL_FLIGHT_PRIME_CALLS = 8;   % tf,tf+dt,... 本番同順序の protected-path 事前プライム
+        REQUIRE_PRIME_BEFORE_TAKEOFF = 1;   % 離陸開始前に完全プライム完了を必須とする安全ガードフラグ
+        takeoff_end_s                = NaN; % 離陸完了時刻 [s] (自動解決または手動設定)
+
+        % G27-V74R41 Flight-reference time-origin contract:
+        %   global simulation time tG remains unchanged;
+        %   TIME_VARYING_REFERENCE is evaluated at tau=tG-tFlight0 in Flight.
+        % This prevents Takeoff duration from advancing the Flight reference.
+        flight_reference_time_origin = NaN; % absolute/global Flight start time [s]
+
+        % -----------------------------------------------------------------
+        % 【基本オブジェクト参照】
+        % -----------------------------------------------------------------
+        self       % 所属エージェント本体 (agent)
+        base_ref   % ベース公称軌道オブジェクト
+        result     % 出力結果構造体 (result.state に固定長フィールドを格納)
+
+        % -----------------------------------------------------------------
+        % 【トリガー判定幾何パラメータ】
+        % -----------------------------------------------------------------
+        trigger_dist  = 20.0;   % 球状センサ検知半径 [m] (raw-shape 表面距離ゲート)
+        horizon_s     = 4.0;    % 衝突予測ホライズン H [s]
+        prediction_dt = 0.025;  % 予測および制御周期 dt [s] (本体 plant/time から厳格取得)
+        d_margin      = 0.0;    % 追加システム安全マージン [m] (物理保護半径とは独立、デフォルト 0.0)
+
+        % -----------------------------------------------------------------
+        % 【物理保護半径 [m]】
+        % -----------------------------------------------------------------
+        r_drone = 0.5;  % ドローン機体の等価保護球半径
+        r_load  = 0.5;  % 牽引荷物の等価保護球半径
+        r_cable = 0.5;  % 索セグメントの等価保護球半径 (r_cable_sphere と同等)
+
+        % -----------------------------------------------------------------
+        % 【物理定数・状態推定パラメータ】
+        % -----------------------------------------------------------------
+        gravity  = 9.81;  % 重力加速度 [m/s^2]
+        L_cable  = 2.0;   % 索長 [m]
+        loadmass = 0.0;   % 牽引物質量 [kg] (推定器 self.estimator.result.state.mL から必須取得)
+
+        % -----------------------------------------------------------------
+        % 【環境障害物データ・楕円パケット】
+        % -----------------------------------------------------------------
+        static_obstacle_map = [];  % ENVIRONMENT から取得した静的障害物配列
+        obstacle_packet     = [];  % MEX 用に事前計算された保守的外接楕円体パラメータパケット
+
+        % AF7R44 simulation-only sensing memory.
+        % The private simulation truth map remains hidden from the planner
+        % until raw_sensor_gate reports a detection. Once detected, a static
+        % obstacle is retained until the certified repaired-reference rejoin
+        % has completed and it is no longer currently sensed.
+        simulated_sensor_memory_mask          = false(1,0);
+        simulated_sensor_first_seen_s         = nan(1,0);
+        simulated_sensor_last_seen_s          = nan(1,0);
+        simulated_sensor_release_after_s      = inf(1,0);
+        simulated_sensor_memory_release_count = 0;
+
+        % -----------------------------------------------------------------
+        % 【将来参照軌道パケット・ローリングキャッシュ】
+        % -----------------------------------------------------------------
+        reference_packet_fn   = [];      % 外部指定の将来軌道関数 @(tvec)
+        reference_cache       = struct(); % フォールバック用ローリングキャッシュ
+        reference_cache_valid = false;   % キャッシュ有効フラグ
+        % AF7R41 exact version-bound rolling cache for REPAIRED future packets.
+        repaired_reference_cache       = struct();
+        repaired_reference_cache_valid = false;
+        % AF7R43 immutable pre-Flight nominal flat-model cache.
+        nominal_batch_model_cache       = struct();
+        nominal_batch_model_cache_valid = false;
+
+        % -----------------------------------------------------------------
+        % 【公称軌道事前計算テーブル (Precomputed Nominal Table)】
+        % -----------------------------------------------------------------
+        % ※ 飛行全区間の pL(t), q(t) を離陸前に一括生成して保持。定常周期では
+        %    O(1) の直接スライス参照のみを行うため、計算スパイクが原理的に発生しません。
+        nominal_table_valid      = false;  % テーブル有効フラグ
+        nominal_table_t0         = NaN;    % テーブル開始時刻 [s]
+        nominal_table_tend       = NaN;    % テーブル終了時刻 [s]
+        nominal_table_dt         = NaN;    % テーブル時間刻み [s]
+        nominal_table_pL         = [];     % 事前計算済み荷物位置行列 (3×K)
+        nominal_table_q          = [];     % 事前計算済み索姿勢ベクトル行列 (3×K)
+        nominal_table_xd         = [];     % 同じ base_ref.do() で事前計算した完全 xd 行列 (D×K)
+        nominal_acceleration_fn  = [];     % exact d^2/dt^2 of base_ref position law
+        nominal_flat_derivative_fn = {};   % {d^0 p/dt^0,...,d^6 p/dt^6}, setup-only authority
+        nominal_table_build_ms   = NaN;    % テーブル事前生成所要時間 [ms]
+        nominal_table_eval_count = 0;      % 飛行中のテーブル参照カウント
+
+        % -----------------------------------------------------------------
+        % 【C++ MEX 高速カーネル設定】
+        % -----------------------------------------------------------------
+        mex_name            = 'g26_future_trigger_kernel_mex'; % MEX 関数名
+        mex_ready           = false;                           % コンパイル済みフラグ
+        mex_source_revision = 'G26_FUTURE_TRIGGER_R2_20261012'; % ソースコードリビジョン識別子
+
+        % -----------------------------------------------------------------
+        % 【初期ウォームアップ・事前プライム実行状態】
+        % -----------------------------------------------------------------
+        warmup_calls      = 10;     % 起動時 MEX ウォームアップ試行回数
+        warmup_done       = false;  % 初期ウォームアップ完了フラグ
+        warmup_runtime_ms = NaN;    % 初期ウォームアップ所要時間 [ms]
+
+        online_prime_done          = false;  % オンラインパステスト完了フラグ
+        online_prime_runtime_ms    = NaN;    % オンラインパステスト所要時間 [ms]
+        online_prime_variant_count = 0;      % テストしたマスク組み合わせ総数
+        online_prime_hit_cases     = 0;      % テストした強制衝突ケース総数
+
+        setup_exact_do_prime_active     = false;  % do() 事前プライム実行中フラグ
+        setup_exact_do_prime_done       = false;  % do() 事前プライム完了フラグ
+        setup_exact_do_prime_runtime_ms = NaN;    % do() 事前プライム所要時間 [ms]
+        setup_exact_do_prime_calls      = 0;      % do() 事前呼び出し実行回数
+        setup_exact_force_hit           = false;  % プライム用強制衝突テストフラグ
+        setup_exact_force_hit_calls     = 0;      
+
+        % AF7R39 exact repair of the partially-installed R38 preflight layer.
+        % These are implementation/warmup diagnostics only; none are safety
+        % acceptance conditions.
+        observer_preflight_prime_active = false;
+        observer_preflight_prime_done   = false;
+        observer_preflight_prime_ms     = NaN;
+        qpc_stamp_prime_done             = false;
+        postcallback_prime_candidate_found = false;
+        postcallback_prime_done          = false;
+        postcallback_prime_ms            = NaN;
+        % -----------------------------------------------------------------
+        % 【将来 C6 軌道修復連携用フック】
+        % -----------------------------------------------------------------
+        active_reference_mode    = 'NOMINAL';  % 参照モード ('NOMINAL' または 'REPAIRED')
+        active_reference_version = 0;          % 軌道バージョン番号
+
+        % -----------------------------------------------------------------
+        % 【連続時間 future-trigger 用 version-bound 速度証明】
+        % -----------------------------------------------------------------
+        % センサ raw_surface_distance には使用しない。
+        % MEX 用外接楕円体の intersample sweep inflation のみに使用する。
+        active_speed_certificate = struct();
+        trigger_sweep_inflation  = struct();
+
+        % Optional GENERAL continuous-time bound provider for a NOMINAL
+        % reference whose speed/acceleration/jerk norms are not provably
+        % constant from the symbolic source.
+        %
+        % Contract:
+        %   B = fn(CTX)
+        % where B must contain certified=true, continuous_time=true,
+        % sampled_acceptance=false and hard upper bounds
+        %   payload_speed_UB_m_s
+        %   payload_accel_UB_m_s2
+        %   payload_jerk_UB_m_s3
+        % Optional:
+        %   specific_force_norm_LB_m_s2
+        %
+        % This is a proof-interface, not a trajectory-specific threshold.
+        NOMINAL_DERIVATIVE_BOUND_FN = [];
+
+        % -----------------------------------------------------------------
+        % 【G27-V38 dependency-aware runtime certificate manager】
+        % -----------------------------------------------------------------
+        % 4 ms is a design requirement and remains externally configurable.
+        hard_modify_deadline_s      = 4.0e-3;
+
+        sensor_horizon_certificate  = struct();
+        stop_geometry_4ms_certificate = struct();
+        command_limit_certificate   = struct();
+        actuator_dynamics_certificate = struct();
+        hlc_robust_certificate      = struct();
+
+        runtime_dependency_signature = struct();
+        runtime_reference_func_handle = []; % cached handle for allocation-free dependency fast path
+        runtime_source_signature     = struct();
+        certificate_stale            = struct();
+        dependency_refresh_count      = 0;
+        mass_certificate_rebuild_count = 0;
+        % AF7R45 counters: performance diagnostics only.
+        reference_only_exec_dependency_fast_count = 0;
+        reference_only_runtime_packet_reuse_count = 0;
+        reference_only_runtime_packet_rebuild_count = 0;
+        reference_only_fast_packet_rebuild_count = 0;
+
+        % AF7R58Z: one-entry NON-AUTHORITY prepared runtime-packet cache.
+        reference_only_prepared_packet_cache_valid = false;
+        reference_only_prepared_packet_cache = struct();
+        reference_only_prepared_packet_cache_hit_count = 0;
+        reference_only_prepared_packet_cache_store_count = 0;
+        reference_only_prepared_packet_cache_invalidate_count = 0;
+        reference_only_prepared_packet_cache_commit_count = 0;
+        reference_only_prepared_packet_cache_retarget_count = 0;
+        reference_only_prepared_packet_cache_gate_pass_count = 0;
+        reference_only_prepared_packet_cache_last_reason_code = 0;
+        reference_only_prepared_packet_cache_miss_reason_count = zeros(1,16);
+        compact_native_proposal_count = 0;
+
+        % -----------------------------------------------------------------
+        % 【G27-V39R1 current repaired-reference backend】
+        % -----------------------------------------------------------------
+        % Old reference-folder planners are NOT used here.  A repaired
+        % trajectory is accepted only through commit_repaired_reference()
+        % after all required certificates are already closed.
+        active_repaired_reference   = struct();
+        active_repaired_certificates = struct();
+        replan_commit_count          = 0;
+        last_replan_commit_time      = NaN;
+        last_replan_status           = struct();
+        replan_request_active        = false;  % request identity latch
+        replan_request_reference_version = -1;
+        replan_request_obstacle_id   = NaN;
+        replan_request_component_code = NaN;
+
+        % -----------------------------------------------------------------
+        % Avoidance certification / commit policy.
+        %
+        % REFERENCE_ONLY:
+        %   Commit only the mathematically certified repaired reference
+        %   geometry/flatness/smoothness.  This is a research comparison
+        %   mode and is NEVER promoted as full system safety authority.
+        %
+        % EXECUTION_AWARE:
+        %   In addition to reference geometry, require the unchanged
+        %   baseline observer/HLC tracking tube, actuator reserve, tracking
+        %   inflation, and numerical authority before commit.
+        % -----------------------------------------------------------------
+        % Backward-compatible alias of AVOIDANCE_COMMIT_POLICY.
+        % New code should use AVOIDANCE_COMMIT_POLICY.
+        AVOIDANCE_CERTIFICATE_MODE   = 'EXECUTION_AWARE';
+
+        % Evaluate both layers independently so the SAME candidate can be
+        % compared without rerunning the trajectory generator.
+        ENABLE_REFERENCE_ONLY_CERTIFICATE = true;
+        ENABLE_EXECUTION_AWARE_CERTIFICATE = true;
+
+        % Only this policy is allowed to mutate the active reference.
+        %   'REFERENCE_ONLY' : research/comparison commit; never promoted
+        %                      as full-system safety authority.
+        %   'EXECUTION_AWARE': final-system path; fail closed until tracking,
+        %                      actuator, numerical and backup layers close.
+        AVOIDANCE_COMMIT_POLICY      = 'EXECUTION_AWARE';
+        ENABLE_AUTO_REPLAN_COMMIT    = true;
+
+        reference_only_evaluation_count = 0;
+        execution_aware_evaluation_count = 0;
+        last_reference_only_evaluation = struct();
+        last_execution_aware_evaluation = struct();
+
+        % Optional source-specific execution-aware fixed-point provider.
+        % Contract is validated by validate_execution_aware_certificate().
+        % Empty => EXECUTION_AWARE mode fails closed (never silently falls
+        % back to reference-only).
+        EXECUTION_AWARE_CERTIFICATE_FN = [];
+
+        active_repaired_safety_level = 'NONE';
+        reference_only_commit_count  = 0;
+        execution_aware_commit_count = 0;
+
+        % -----------------------------------------------------------------
+        % G27-V74R41 actual Flight trigger-event latch
+        % -----------------------------------------------------------------
+        % Captured ONLY on a real Flight request edge.  Setup/prime forced-hit
+        % execution is excluded.  No file I/O / assignin occurs in Flight.
+        % The full event is retrieved after the run by
+        % get_last_trigger_event()/get_first_trigger_event().
+        CAPTURE_REAL_TRIGGER_EVENT   = false; % AF7R50C: offline replay capture disabled for clean timing
+        ENABLE_PROPOSAL_DIAGNOSTIC_MIRROR = false; % no post-decision proposal mirroring in online cycle
+        ENABLE_HOTPATH_DIAGNOSTIC_MIRROR = false; % non-authoritative per-cycle/request state mirrors; OFF in production
+        trigger_event_count          = 0;
+        first_trigger_event          = struct();
+        last_trigger_event           = struct();
+        trigger_event_capture_ms     = NaN;
+
+        % -----------------------------------------------------------------
+        % 【G27-V74R16 four-backend repaired-candidate generator router】
+        % -----------------------------------------------------------------
+        % Callback contract:
+        %   OUT = repaired_candidate_generator_fn(CTX)
+        %
+        % OUT may be:
+        %   []                              -> no candidate
+        %   candidate struct                -> candidate directly
+        %   struct('candidate',C,...)        -> candidate + diagnostics
+        %
+        % R16 is SHADOW ONLY: candidate is passed through the exact
+        % production validator but is NOT committed.
+        repaired_candidate_generator_fn = []; % legacy/global fallback callback
+        generator_shadow_enabled         = true;
+
+        % -----------------------------------------------------------------
+        % Four-backend router.
+        %
+        % Numeric production flag:
+        %   1 = BEZIER_D15_C7
+        %   2 = POLY_D15_C7
+        %   3 = MINCO_STYLE_D15_C7
+        %   4 = BSPLINE_D8_C7
+        %
+        % Selection is LATCHED ONCE before Flight:
+        %   A) generator_backend_flag
+        %   B) generator_backend_external_flag_fn(), evaluated ONCE in constructor
+        %
+        % Flight-time backend switching is forbidden.
+        % -----------------------------------------------------------------
+        generator_backend_flag             = 1;
+        generator_backend_external_flag_fn = [];
+        generator_backend_callbacks        = struct();
+        generator_backend_locked_code      = 1;
+        generator_backend_locked_name      = 'BEZIER_D15_C7';
+        generator_backend_locked_source_code = 1; % 1=direct initial flag, 2=external initial provider
+        generator_backend_selection_locked = false;
+        generator_backend_locked_callback  = [];
+        generator_backend_configuration_frozen = false;
+        generator_backend_last_code        = 0;
+        generator_backend_last_source_code = 0;
+        generator_backend_last_callback_installed = false;
+
+        % Generator integration helper is primed before Flight.
+        generator_integration_prime_active = false;
+        generator_integration_prime_done   = false;
+        generator_integration_prime_ms     = NaN;
+        generator_integration_prime_variants = 0;
+        generator_context_detected_only    = true;
+
+        % -----------------------------------------------------------------
+        % G27-V74R21 fast analytic BEZIER_D15_C7 shadow proposal kernel
+        % -----------------------------------------------------------------
+        generator_backend_kernel_prime_done     = false;
+        generator_backend_kernel_prime_ms       = NaN;
+        generator_backend_kernel_prime_variants = 0;
+
+        % Real request-edge snapshot path is a separate cold branch from
+        % trigger_core and the backend kernel. Prime it before Flight.
+        trigger_event_capture_prime_done        = false;
+        trigger_event_capture_prime_ms          = NaN;
+
+        generator_shadow_proposal_count       = 0;
+        bezier_shadow_generated_count         = 0;
+        bezier_shadow_peak_safe_count         = 0;
+        bezier_shadow_last_reason_code        = 0;
+        bezier_shadow_last_t0                 = NaN;
+        bezier_shadow_last_tm                 = NaN;
+        bezier_shadow_last_t1                 = NaN;
+        bezier_shadow_last_obstacle_id        = NaN;
+        bezier_shadow_last_component_code     = NaN;
+        bezier_shadow_last_displacement_m     = NaN;
+        bezier_shadow_last_metric_before      = NaN;
+        bezier_shadow_last_metric_after       = NaN;
+        bezier_shadow_last_peak_min_metric    = NaN;
+        bezier_shadow_last_peak_all_safe      = false;
+        bezier_shadow_last_c7_exact           = false;
+        bezier_shadow_last_d1_ub              = NaN;
+        bezier_shadow_last_d2_ub              = NaN;
+        bezier_shadow_last_d3_ub              = NaN;
+        bezier_shadow_last_d4_ub              = NaN;
+        bezier_shadow_last_d5_ub              = NaN;
+        bezier_shadow_last_d6_ub              = NaN;
+        bezier_shadow_last_dx                 = NaN;
+        bezier_shadow_last_dy                 = NaN;
+        bezier_shadow_last_dz                 = NaN;
+        % AF7R23_STAGE_TIMING diagnostic-only scalar mirrors
+        r9_stage_episode_ms                    = NaN;
+        r9_stage_synthesis_ms                  = NaN;
+        r9_stage_candidate_loop_ms             = NaN;
+        r9_stage_total_internal_ms              = NaN;
+        % AF7R24_SYNTHESIS_TIMING diagnostic-only mirrors
+        r9_synth_hessian_ms                    = NaN;
+        r9_synth_corridor_ms                   = NaN;
+        r9_synth_qp_ms                         = NaN;
+        r9_synth_candidate_build_ms            = NaN;
+        r9_synth_row_count                     = NaN;
+        r9_synth_episode_count                 = NaN;
+        r9_synth_component_count               = NaN;
+        r9_synth_sign_count                    = NaN;
+        % AF7R25_HIGHRES_TIMING diagnostic-only QPC/cycle counters
+        r9_hr_request_seq                      = NaN;
+        r9_hr_callback_wall_ms                 = NaN;
+        r9_hr_callback_thread_cycles           = NaN;
+        r9_hr_callback_process_cycles          = NaN;
+        r9_hr_episode_wall_ms                  = NaN;
+        r9_hr_episode_thread_cycles            = NaN;
+        r9_hr_episode_process_cycles           = NaN;
+        r9_hr_synthesis_wall_ms                = NaN;
+        r9_hr_synthesis_thread_cycles          = NaN;
+        r9_hr_synthesis_process_cycles         = NaN;
+        r9_hr_qp_wall_ms                       = NaN;
+        r9_hr_qp_thread_cycles                 = NaN;
+        r9_hr_qp_process_cycles                = NaN;
+
+        % G27-V74R22 continuous-time whole-body geometry shadow certificate.
+        geometry_shadow_pass                   = false;
+        geometry_shadow_reason_code            = 0;
+        geometry_shadow_continuous_time        = false;
+        geometry_shadow_ieee754_outward_closed = false;
+        geometry_shadow_min_margin_m           = NaN;
+        geometry_shadow_min_payload_margin_m   = NaN;
+        geometry_shadow_min_uav_margin_m       = NaN;
+        geometry_shadow_min_cable_margin_m     = NaN;
+        geometry_shadow_leaf_count             = 0;
+        geometry_shadow_split_count            = 0;
+        geometry_shadow_max_depth              = 0;
+        geometry_shadow_min_alpha_lb           = NaN;
+        geometry_shadow_max_qdot_ub            = NaN;
+        geometry_shadow_max_q_arc_radius       = NaN;
+        geometry_shadow_max_q_arc_inflation_m  = NaN;
+        geometry_shadow_resource_exhausted     = false;
+        geometry_shadow_capture_done           = false;
+
+        % Lean request-edge timing. Updated only on a real request edge.
+        generator_last_elapsed_before_ms   = NaN;
+        generator_last_budget_remaining_ms = NaN;
+        generator_last_context_ms          = NaN;
+        generator_last_callback_ms         = NaN;
+        generator_last_validation_ms       = NaN;
+        generator_last_critical_ms         = NaN;
+        generator_last_cycle_critical_ms   = NaN;
+
+        % AF7R58M bounded request-only timing ring (diagnostic only).
+        ENABLE_AF7R58M_TIMING_RING          = false;
+        af7r58m_timing_ring_capacity        = 64;
+        af7r58m_timing_ring_width           = 32;
+        af7r58m_timing_ring                  = nan(64,32);
+        af7r58m_timing_ring_head             = 0;
+        af7r58m_timing_ring_count            = 0;
+        af7r58m_last_capture_overhead_us     = NaN;
+        af7r58m_max_capture_overhead_us      = 0;
+
+        % AF7R58Q-R5 minimal commit timing diagnostics.
+        ENABLE_AF7R58Q_MIN_TIMING             = false;
+        af7r58q_min_ring_capacity             = 64;
+        af7r58q_min_ring_width                = 9;
+        af7r58q_min_ring                      = nan(64,9);
+        af7r58q_min_ring_head                 = 0;
+        af7r58q_min_ring_count                = 0;
+        af7r58q_min_stage_ms                  = nan(1,3);
+        af7r58q_min_last_capture_overhead_us  = NaN;
+        af7r58q_min_max_capture_overhead_us   = 0;
+
+        % AF7R58T OTHER_COMMIT substage diagnostics.
+        ENABLE_AF7R58T_OTHER_TIMING           = false;
+        af7r58t_ring_capacity                 = 64;
+        af7r58t_ring_width                    = 15;
+        af7r58t_ring                          = nan(64,15);
+        af7r58t_ring_head                     = 0;
+        af7r58t_ring_count                    = 0;
+        af7r58t_stage_ms                      = nan(1,11);
+        af7r58t_last_capture_overhead_us      = NaN;
+        af7r58t_max_capture_overhead_us       = 0;
+
+        % AF7R58V-R4 robust pre-transaction diagnostics.
+        ENABLE_AF7R58V_R4_PRETRY_TIMING       = false;
+        af7r58v_r4_ring_capacity              = 64;
+        af7r58v_r4_ring_width                 = 15;
+        af7r58v_r4_ring                       = nan(64,15);
+        af7r58v_r4_ring_head                  = 0;
+        af7r58v_r4_ring_count                 = 0;
+        af7r58v_r4_stage_ms                   = nan(1,10);
+        af7r58v_r4_progress_code              = 0;
+        af7r58v_r4_branch_code                = 0;
+        af7r58v_r4_last_capture_overhead_us   = NaN;
+        af7r58v_r4_max_capture_overhead_us    = 0;
+
+        generator_request_count          = 0;
+        generator_candidate_count        = 0;
+        generator_validation_pass_count  = 0;
+        generator_validation_fail_count  = 0;
+        generator_deadline_fail_count    = 0;
+        generator_last_runtime_ms        = NaN;
+        generator_last_status_code       = 0;
+        generator_last_status            = struct();
+
+        % 互換性保持用プレースホルダー
+        current_bspline = [];
+
+        % -----------------------------------------------------------------
+        % AF7R7 observer hard-support add-on (production, self-contained)
+        % -----------------------------------------------------------------
+        % Default ON.  Set false to bypass the add-on completely without
+        % changing the existing estimator/reference/controller/plant path.
+        ENABLE_OBSERVER_HARD_SUPPORT = true;
+        OBSERVER_HARD_SUPPORT_MODE = 'SIM_NUMERIC_TRUTH';
+        % Simulation-only hard authority for the TRUE plant payload mass.
+        % Must be passed explicitly by the simulation setup because the
+        % live agent.parameter.loadmass is later overwritten with the EKF
+        % initial guess and is therefore not true-plant authority.
+        OBSERVER_SIM_TRUE_ML = NaN;
+        OBSERVER_REAL_NU_ABS_UB = [];
+        OBSERVER_REAL_SOURCE_TAG = '';
+        OBSERVER_REAL_INITIAL_SUPPORT = struct();
+
+        % All add-on runtime state is kept in one internal struct.
+        % No observer diagnostic fields are appended to result.state.
+        observer_hard_support_internal = struct();
+        % AF7R46 state-independent observer setup cache.
+        observer_static_setup_cache = struct();
+        observer_static_setup_cache_valid = false;
+
+        % -----------------------------------------------------------------
+        % 【最小プロファイリング情報構造体 (ENABLE_PROFILING=1 時のみ更新)】
+        % -----------------------------------------------------------------
+        profiling = struct( ...
+            't_live_binding_ms',        NaN, ... % live HLC binding check [ms]
+            't_dependency_ms',          NaN, ... % runtime dependency check [ms]
+            't_cert_guard_ms',          NaN, ... % runtime certificate guard [ms]
+            't_geometry_eval_ms',       NaN, ... % active-reference/current-geometry eval [ms]
+            't_replan_status_ms',       NaN, ... % last_replan_status update [ms]
+            't_output_write_ms',        NaN, ... % write_active_output [ms]
+            't_state_trigger_write_ms', NaN, ... % scalar/vector trigger state write [ms]
+            't_state_cert_write_ms',    NaN, ... % certificate/dependency state write [ms]
+            't_state_meta_write_ms',    NaN, ... % repaired/meta state write [ms]
+            't_base_ref_ms',            NaN, ... % 公称軌道計算時間 [ms]
+            't_sensor_ms',              NaN, ... % センサ検知ゲート時間 [ms]
+            't_reference_packet_ms',    NaN, ... % 将来参照パケット取得時間 [ms]
+            't_kernel_ms',              NaN, ... % C++ MEX カーネル実行時間 [ms]
+            't_trigger_ms',             NaN, ... % トリガー判定全体時間 [ms]
+            't_total_ms',               NaN, ... % 周期内総処理時間 [ms]
+            't_startup_warmup_ms',      NaN, ... % 初期ウォームアップ時間 [ms]
+            't_nominal_table_build_ms', NaN, ... % 公称テーブル生成時間 [ms]
+            't_setup_prime_ms',         NaN);    % 離陸前プライム時間 [ms]
+    end
+
+    properties (Dependent)
+        r_cable_sphere
+    end
+
+
+    methods
+        function val = get.r_cable_sphere(obj)
+            val = obj.r_cable;
+        end
+
+        function obj = set.r_cable_sphere(obj,val)
+            obj.r_cable = val;
+        end
+
+        function obj = set.horizon_s(obj,val)
+            assert(isnumeric(val) && isscalar(val) && isfinite(val) && val>0, ...
+                '[REPLANNER ERROR] horizon_s must be a finite positive scalar.');
+            if ~isempty(obj.prediction_dt) && obj.prediction_dt>0
+                ratio=val/obj.prediction_dt;
+                assert(abs(ratio-round(ratio)) <= 1e-9*max(1,abs(ratio)), ...
+                    '[REPLANNER ERROR] horizon_s/prediction_dt must be integer.');
+            end
+            obj.horizon_s=val;
+            obj.reference_cache_valid=false;
+            obj.nominal_table_valid=false;
+            obj.online_prime_done=false;
+            obj.setup_exact_do_prime_done=false;
+        end
+    end
+
+
+
+    methods (Access = public)
+
+
+        function set_horizon(obj,H)
+            obj.horizon_s=H;
+        end
+
+
+        function install_active_speed_certificate(obj,cert)
+            % =============================================================
+            % 将来 REPAIRED 軌道 commit 用の共通インターフェース。
+            %
+            % current active_reference_mode/version と完全一致する
+            % certified speed certificate だけを受理し、future-trigger
+            % obstacle packet を同じ version で原子的に再構築する。
+            %
+            % raw sensor geometry は変更しない。
+            % =============================================================
+            obj.validate_active_speed_certificate(cert);
+            obj.active_speed_certificate=cert;
+            obj.trigger_sweep_inflation= ...
+                obj.build_trigger_sweep_inflation(cert);
+
+            if ~isempty(obj.static_obstacle_map)
+                obj.obstacle_packet= ...
+                    obj.prepare_obstacle_packet(obj.static_obstacle_map);
+            end
+
+            obj.sensor_horizon_certificate= ...
+                obj.build_sensor_horizon_certificate();
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                obj.stop_geometry_4ms_certificate= ...
+                    obj.build_stop_geometry_4ms_certificate();
+                obj.actuator_dynamics_certificate= ...
+                    obj.build_current_actuator_dynamics_certificate();
+            else
+                obj.stop_geometry_4ms_certificate=struct( ...
+                    'certified',false, ...
+                    'reason','REPAIRED stop geometry certificate not installed');
+                obj.actuator_dynamics_certificate=struct( ...
+                    'certified',false, ...
+                    'reason','REPAIRED actuator dynamics certificate not installed');
+            end
+
+            obj.runtime_dependency_signature= ...
+                obj.capture_runtime_dependency_signature_fast();
+        end
+
+
+
+        function refresh_runtime_certificates(obj)
+            % =============================================================
+            % Explicit heavy/source-bound refresh entry point.
+            %
+            % Intended for setup / configuration change / trajectory commit.
+            % It is NOT called every Flight cycle.
+            % =============================================================
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                obj.active_speed_certificate= ...
+                    obj.build_nominal_active_speed_certificate();
+            else
+                obj.validate_active_speed_certificate(obj.active_speed_certificate);
+            end
+
+            obj.trigger_sweep_inflation= ...
+                obj.build_trigger_sweep_inflation(obj.active_speed_certificate);
+
+            obj.command_limit_certificate= ...
+                obj.build_active_command_limit_certificate();
+
+            % R41Z-DIRECT: bind the actual suspended-load gain generator before
+            % the live HLC handle is verified.  This remains setup/refresh only.
+            obj.runtime_source_signature= ...
+                obj.capture_runtime_source_signature();
+            obj.verify_live_controller_binding(false);
+
+            obj.sensor_horizon_certificate= ...
+                obj.build_sensor_horizon_certificate();
+
+            obj.loadmass=obj.get_load_mass();
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                obj.stop_geometry_4ms_certificate= ...
+                    obj.build_stop_geometry_4ms_certificate();
+                obj.actuator_dynamics_certificate= ...
+                    obj.build_current_actuator_dynamics_certificate();
+            else
+                obj.stop_geometry_4ms_certificate=struct( ...
+                    'certified',false, ...
+                    'reason','REPAIRED stop geometry certificate must be installed at commit');
+                obj.actuator_dynamics_certificate=struct( ...
+                    'certified',false, ...
+                    'reason','REPAIRED actuator dynamics certificate must be installed at commit');
+            end
+
+            obj.hlc_robust_certificate=struct( ...
+                'certified',false, ...
+                'stale',true, ...
+                'reason','HLC robust tracking-error certificate not installed yet');
+
+            if ~isempty(obj.static_obstacle_map)
+                obj.obstacle_packet= ...
+                    obj.prepare_obstacle_packet(obj.static_obstacle_map);
+            end
+
+            obj.runtime_dependency_signature= ...
+                obj.capture_runtime_dependency_signature_fast();
+
+            obj.certificate_stale=obj.empty_certificate_stale_state();
+            obj.certificate_stale.HLC_ROBUST_CERT=true;
+            obj.dependency_refresh_count=obj.dependency_refresh_count+1;
+        end
+
+
+        function set_execution_aware_avoidance_enabled(obj,enabled)
+            % Backward-compatible convenience switch.
+            % It selects the COMMIT authority; it does not disable the other
+            % diagnostic certificate layer.
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER ERROR] execution-aware switch must be a finite logical scalar.');
+            if logical(enabled)
+                obj.set_avoidance_commit_policy('EXECUTION_AWARE');
+            else
+                obj.set_avoidance_commit_policy('REFERENCE_ONLY');
+            end
+        end
+
+
+        function set_reference_only_certificate_enabled(obj,enabled)
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER ERROR] reference-only certificate switch must be scalar logical.');
+            obj.ENABLE_REFERENCE_ONLY_CERTIFICATE=logical(enabled);
+        end
+
+
+        function set_execution_aware_certificate_enabled(obj,enabled)
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER ERROR] execution-aware certificate switch must be scalar logical.');
+            obj.ENABLE_EXECUTION_AWARE_CERTIFICATE=logical(enabled);
+        end
+
+
+        function set_avoidance_commit_policy(obj,mode)
+            mode=obj.normalize_avoidance_certificate_mode(mode);
+            obj.AVOIDANCE_COMMIT_POLICY=mode;
+            % Keep old field synchronized for scripts written before the
+            % evaluation/commit split.
+            obj.AVOIDANCE_CERTIFICATE_MODE=mode;
+        end
+
+
+        function mode = get_avoidance_certificate_mode(obj)
+            % Backward-compatible name: returns COMMIT policy.
+            mode=char(obj.AVOIDANCE_COMMIT_POLICY);
+        end
+
+
+        function mode = get_avoidance_commit_policy(obj)
+            mode=char(obj.AVOIDANCE_COMMIT_POLICY);
+        end
+
+
+        function set_auto_replan_commit_enabled(obj,enabled)
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER ERROR] auto-commit switch must be a finite logical scalar.');
+            obj.ENABLE_AUTO_REPLAN_COMMIT=logical(enabled);
+        end
+
+
+        function enabled = get_auto_replan_commit_enabled(obj)
+            enabled=logical(obj.ENABLE_AUTO_REPLAN_COMMIT);
+        end
+
+
+        function S = get_avoidance_mode_status(obj)
+            S=struct();
+            S.schema='REPLANNING_SYSTEM_AVOIDANCE_MODE_STATUS_V2';
+            S.mode=char(obj.AVOIDANCE_COMMIT_POLICY);
+            S.commit_policy=char(obj.AVOIDANCE_COMMIT_POLICY);
+            S.reference_only_evaluation_enabled= ...
+                logical(obj.ENABLE_REFERENCE_ONLY_CERTIFICATE);
+            S.execution_aware_evaluation_enabled= ...
+                logical(obj.ENABLE_EXECUTION_AWARE_CERTIFICATE);
+            S.auto_commit=logical(obj.ENABLE_AUTO_REPLAN_COMMIT);
+            S.active_repaired_safety_level=char(obj.active_repaired_safety_level);
+            S.reference_only_evaluation_count=double(obj.reference_only_evaluation_count);
+            S.execution_aware_evaluation_count=double(obj.execution_aware_evaluation_count);
+            S.reference_only_commit_count=double(obj.reference_only_commit_count);
+            S.execution_aware_commit_count=double(obj.execution_aware_commit_count);
+            S.execution_provider_installed=true;
+            if isa(obj.EXECUTION_AWARE_CERTIFICATE_FN,'function_handle')
+                S.execution_operator_kind='EXTERNAL_OVERRIDE';
+            else
+                S.execution_operator_kind='BUILTIN_SOURCE_SPECIFIC_V1';
+            end
+            S.last_reference_only_evaluation=obj.last_reference_only_evaluation;
+            S.last_execution_aware_evaluation=obj.last_execution_aware_evaluation;
+            S.reference_only_is_full_system_authority=false;
+            S.execution_aware_requires_tracking_and_actuator=true;
+        end
+
+
+        function S = get_simulated_sensor_memory_status(obj)
+            S=struct();
+            S.schema='REPLANNING_SYSTEM_SIM_SENSOR_MEMORY_STATUS_V1';
+            S.currently_known_mask=logical(obj.simulated_sensor_memory_mask);
+            S.known_count=double(nnz(obj.simulated_sensor_memory_mask));
+            S.first_seen_s=double(obj.simulated_sensor_first_seen_s);
+            S.last_seen_s=double(obj.simulated_sensor_last_seen_s);
+            S.release_after_s=double(obj.simulated_sensor_release_after_s);
+            S.release_count=double(obj.simulated_sensor_memory_release_count);
+            S.initially_unknown_contract=true;
+            S.generator_receives_private_truth_before_detection=false;
+            S.release_policy='AFTER_CERTIFIED_REJOIN_AND_NOT_CURRENTLY_SENSED';
+            S.simulation_truth_used_only_by_sensor_emulator=true;
+        end
+
+
+        function set_observer_hard_support_enabled(obj,enabled)
+            % Runtime switch. Default ON. OFF is a pure add-on bypass.
+            assert((islogical(enabled)||isnumeric(enabled)) && ...
+                isscalar(enabled) && isfinite(double(enabled)), ...
+                '[REPLANNER OBSERVER ERROR] enabled must be a finite logical scalar.');
+            obj.ENABLE_OBSERVER_HARD_SUPPORT=logical(enabled);
+            obj.observer_hard_support_internal=struct();
+        end
+
+
+        function enabled = get_observer_hard_support_enabled(obj)
+            enabled=logical(obj.ENABLE_OBSERVER_HARD_SUPPORT);
+        end
+
+
+        function S = get_observer_hard_support_status(obj)
+            % Read-only diagnostic/status accessor. Not used by safety logic.
+            I=obj.observer_hard_support_internal;
+            S=struct();
+            S.schema='REPLANNING_SYSTEM_OBSERVER_HARD_SUPPORT_STATUS_V2';
+            S.enabled=logical(obj.ENABLE_OBSERVER_HARD_SUPPORT);
+            S.mode=char(obj.OBSERVER_HARD_SUPPORT_MODE);
+            S.sim_true_mL_configured=double(obj.OBSERVER_SIM_TRUE_ML);
+            S.initialized=false;
+            S.selector_verified=false;
+            S.last_event_time=NaN;
+            S.last_phase='';
+            S.phase_transition_count=0;
+            S.update_count=0;
+            S.fail_count=0;
+            S.observer_support=struct();
+            S.hlc_state_mass_bridge=struct();
+            S.runtime_last_ms=NaN;
+            S.runtime_max_ms=NaN;
+            S.runtime_mean_ms=NaN;
+            S.current_saturation_closed=false;
+            S.fixed_phase_switch_time_required=false;
+            S.realized_error_comparison_required=false;
+            S.Q_R_covariance_are_not_hard_authority=true;
+            S.external_AF7R7_runtime_dependency=false;
+
+            if isempty(I) || ~isstruct(I)
+                return;
+            end
+            names={'initialized','selector_verified','last_event_time','last_phase', ...
+                'phase_transition_count','update_count','fail_count','observer_support', ...
+                'hlc_state_mass_bridge','runtime_last_ms','runtime_max_ms'};
+            for kk=1:numel(names)
+                if isfield(I,names{kk})
+                    S.(names{kk})=I.(names{kk});
+                end
+            end
+            if isfield(I,'runtime_count') && I.runtime_count>0 && ...
+                    isfield(I,'runtime_sum_ms')
+                S.runtime_mean_ms=I.runtime_sum_ms/I.runtime_count;
+            end
+        end
+
+
+        function E = get_last_trigger_event(obj)
+            E=obj.last_trigger_event;
+        end
+
+
+        function E = get_first_trigger_event(obj)
+            E=obj.first_trigger_event;
+        end
+
+
+        function S = get_last_replan_status(obj)
+            S=obj.last_replan_status;
+        end
+
+
+        function status = get_runtime_certificate_status(obj)
+            status=struct();
+            status.signature=obj.runtime_dependency_signature;
+            status.source_signature=obj.runtime_source_signature;
+            status.stale=obj.certificate_stale;
+            status.speed_trigger=obj.active_speed_certificate;
+            status.trigger_sweep=obj.trigger_sweep_inflation;
+            status.sensor_horizon=obj.sensor_horizon_certificate;
+            status.stop_geometry_4ms=obj.stop_geometry_4ms_certificate;
+            status.command_limit=obj.command_limit_certificate;
+            if isfield(obj.command_limit_certificate,'live_controller_verified')
+                status.live_controller_verified= ...
+                    logical(obj.command_limit_certificate.live_controller_verified);
+            else
+                status.live_controller_verified=false;
+            end
+            if isfield(obj.command_limit_certificate,'live_gain_verified')
+                status.live_gain_verified= ...
+                    logical(obj.command_limit_certificate.live_gain_verified);
+            else
+                status.live_gain_verified=false;
+            end
+            status.actuator_dynamics=obj.actuator_dynamics_certificate;
+            status.hlc_robust=obj.hlc_robust_certificate;
+            status.avoidance_mode=char(obj.AVOIDANCE_COMMIT_POLICY);
+            status.avoidance_commit_policy=char(obj.AVOIDANCE_COMMIT_POLICY);
+            status.reference_only_evaluation_enabled= ...
+                logical(obj.ENABLE_REFERENCE_ONLY_CERTIFICATE);
+            status.execution_aware_evaluation_enabled= ...
+                logical(obj.ENABLE_EXECUTION_AWARE_CERTIFICATE);
+            status.reference_only_evaluation_count= ...
+                double(obj.reference_only_evaluation_count);
+            status.execution_aware_evaluation_count= ...
+                double(obj.execution_aware_evaluation_count);
+            status.last_reference_only_evaluation= ...
+                obj.last_reference_only_evaluation;
+            status.last_execution_aware_evaluation= ...
+                obj.last_execution_aware_evaluation;
+            status.auto_commit=logical(obj.ENABLE_AUTO_REPLAN_COMMIT);
+            status.active_repaired_safety_level=char(obj.active_repaired_safety_level);
+            status.reference_only_commit_count=double(obj.reference_only_commit_count);
+            status.execution_aware_commit_count=double(obj.execution_aware_commit_count);
+            status.execution_provider_installed=true;
+            if isa(obj.EXECUTION_AWARE_CERTIFICATE_FN,'function_handle')
+                status.execution_operator_kind='EXTERNAL_OVERRIDE';
+            else
+                status.execution_operator_kind='BUILTIN_SOURCE_SPECIFIC_V1';
+            end
+            status.dependency_refresh_count=obj.dependency_refresh_count;
+            status.mass_certificate_rebuild_count= ...
+                obj.mass_certificate_rebuild_count;
+            status.trigger_event_count=double(obj.trigger_event_count);
+            status.trigger_event_capture_ms=double(obj.trigger_event_capture_ms);
+            status.flight_reference_time_origin=double(obj.flight_reference_time_origin);
+            status.trigger_event_latched=obj.trigger_event_count>0;
+            if obj.trigger_event_count>0
+                status.trigger_event_time=double(obj.last_trigger_event.event_time);
+            else
+                status.trigger_event_time=NaN;
+            end
+        end
+
+
+
+        function S = get_nominal_stop_geometry_actuator_T_set(obj)
+            % =============================================================
+            % Read-only certified T-set helper for the CURRENT NOMINAL
+            % backup-stop theorem.
+            %
+            % Scope is deliberately limited to the intersection of:
+            %   - STOP_GEOMETRY_4MS_CERT, and
+            %   - current vertical-stop ACTUATOR_DYNAMICS_CERT.
+            %
+            % It is NOT the general obstacle-replan T optimizer and does not
+            % include general HLC/rejoin/new-obstacle feasibility.
+            % =============================================================
+            assert(strcmpi(char(obj.active_reference_mode),'NOMINAL'), ...
+                '[REPLANNER ERROR] nominal stop T-set requested outside NOMINAL mode.');
+
+            G=obj.stop_geometry_4ms_certificate;
+            A=obj.actuator_dynamics_certificate;
+
+            assert(isstruct(G) && isfield(G,'certified') && logical(G.certified), ...
+                '[REPLANNER ERROR] nominal stop-geometry certificate is unavailable.');
+            assert(isstruct(A) && isfield(A,'certified') && logical(A.certified), ...
+                '[REPLANNER ERROR] nominal stop actuator/dynamics certificate is unavailable.');
+            assert(isfield(A,'T_actuator_theorem_lower') && ...
+                isfinite(A.T_actuator_theorem_lower), ...
+                '[REPLANNER ERROR] actuator T lower bound is unavailable.');
+
+            I=obj.intersect_T_intervals_with_lower( ...
+                G.INTERVALS,double(A.T_actuator_theorem_lower));
+
+            intervals=zeros(0,2);
+            loClosed=false(0,1);
+            hiClosed=false(0,1);
+
+            if ~isempty(I.branch1)
+                intervals=[intervals;I.branch1]; %#ok<AGROW>
+                loClosed=[loClosed;I.branch1_left_closed(:)]; %#ok<AGROW>
+                hiClosed=[hiClosed;I.branch1_right_closed(:)]; %#ok<AGROW>
+            end
+            if ~isempty(I.branch2)
+                intervals=[intervals;I.branch2]; %#ok<AGROW>
+                loClosed=[loClosed;I.branch2_left_closed(:)]; %#ok<AGROW>
+                hiClosed=[hiClosed;I.branch2_right_closed(:)]; %#ok<AGROW>
+            end
+
+            if ~isempty(intervals)
+                [~,ord]=sort(intervals(:,1),'ascend');
+                intervals=intervals(ord,:);
+                loClosed=loClosed(ord);
+                hiClosed=hiClosed(ord);
+            end
+
+            S=struct();
+            S.certified_subset=true;
+            S.scope='NOMINAL_STOP_GEOMETRY_INTERSECT_ACTUATOR_ONLY';
+            S.intervals=intervals;
+            S.lo_closed=loClosed;
+            S.hi_closed=hiClosed;
+            S.nonempty=~isempty(intervals);
+            S.selected_minimum_exists=false;
+            S.T_selected=NaN;
+            S.reason='';
+
+            if ~isempty(intervals)
+                if loClosed(1)
+                    S.selected_minimum_exists=true;
+                    S.T_selected=intervals(1,1);
+                    S.reason='ATTAINED_MINIMUM_OF_CERTIFIED_NOMINAL_STOP_SUBSET';
+                else
+                    S.reason='INFIMUM_NOT_ATTAINED_FAIL_CLOSED';
+                end
+            else
+                S.reason='EMPTY_CERTIFIED_NOMINAL_STOP_SUBSET';
+            end
+        end
+
+
+        function sig = get_next_repaired_dependency_signature(obj,eval_fn,flat_eval_fn)
+            % =============================================================
+            % Public read-only binding helper for external candidate
+            % generators.  No certificate is created here.
+            %
+            % The returned signature is the exact live/source dependency
+            % snapshot that a candidate targeting the NEXT REPAIRED version
+            % must carry.  This prevents generator-side hard-coded physical
+            % parameters and stale certificate reuse.
+            % =============================================================
+            assert(isa(eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] eval_fn must be a function handle.');
+            if nargin<3 || isempty(flat_eval_fn)
+                flat_eval_fn=eval_fn; % legacy external callers only
+            end
+            assert(isa(flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] flat_eval_fn must be a function handle.');
+            obj.assert_hard_modify_deadline_limit();
+            targetVersion=double(obj.active_reference_version)+1;
+            sig=obj.capture_candidate_dependency_signature( ...
+                eval_fn,targetVersion,flat_eval_fn);
+        end
+
+
+        function commit_repaired_reference(obj,candidate,t_commit)
+            % =============================================================
+            % Atomic REPAIRED-reference commit interface.
+            %
+            % This method DOES NOT generate a trajectory.  It only accepts a
+            % candidate already certified by the current planner/theory.
+            % Old reference-folder planners are intentionally not called.
+            %
+            % Required candidate fields:
+            %   certified, backend, eval_fn, flat_eval_fn, valid_from, valid_until,
+            %   speed_certificate,
+            %   smoothness_certificate,
+            %   geometry_certificate,
+            %   dynamics_certificate,
+            %   hlc_robust_certificate,
+            %   backup_certificate,
+            %   position_c6_certificate,
+            %   yaw_c6_certificate,
+            %   yaw_policy='C6_INDEPENDENT',
+            %   path_parameterization,
+            %   path_position_c7_certificate,
+            %   time_law_c6_certificate,
+            %   time_law_monotonic_certificate,
+            %   terminal_time_law_hold_certificate,
+            %   finite_sensing_certificate,
+            %   compute_deadline_certificate,
+            %   dependency_certificate.
+            %
+            % The candidate is rejected unless every certificate is true and
+            % the reference remains valid over the whole future-trigger
+            % horizon from commit.
+            % =============================================================
+            if nargin<3
+                error('[REPLANNER ERROR] commit_repaired_reference requires t_commit.');
+            end
+
+            obj.assert_hard_modify_deadline_limit();
+            [spacingOK,~,~,spacingReason]= ...
+                af7r58i_commit_spacing_guard(obj,double(t_commit));
+            assert(spacingOK, ...
+                '[REPLANNER ERROR] repaired commit spacing rejected: %s', ...
+                spacingReason);
+            obj.validate_repaired_candidate(candidate,double(t_commit));
+
+            newVersion=double(obj.active_reference_version)+1;
+            sp=candidate.speed_certificate;
+
+            assert(strcmpi(char(sp.reference_mode),'REPAIRED') && ...
+                double(sp.reference_version)==newVersion, ...
+                ['[REPLANNER ERROR] repaired speed certificate must already ' ...
+                 'target the next REPAIRED reference version.']);
+
+            % Save complete rollback state first.
+            old=struct();
+            old.mode=obj.active_reference_mode;
+            old.version=obj.active_reference_version;
+            old.reference=obj.active_repaired_reference;
+            old.certs=obj.active_repaired_certificates;
+            old.speed=obj.active_speed_certificate;
+            old.sweep=obj.trigger_sweep_inflation;
+            old.packet=obj.obstacle_packet;
+            old.sensor=obj.sensor_horizon_certificate;
+            old.stop=obj.stop_geometry_4ms_certificate;
+            old.act=obj.actuator_dynamics_certificate;
+            old.hlc=obj.hlc_robust_certificate;
+            old.dep=obj.runtime_dependency_signature;
+            old.stale=obj.certificate_stale;
+            old.bspline=obj.current_bspline;
+            old.count=obj.replan_commit_count;
+            old.level=obj.active_repaired_safety_level;
+            old.exec_count=obj.execution_aware_commit_count;
+            old.time=obj.last_replan_commit_time;
+
+            try
+                R=struct();
+                R.valid=true;
+                R.backend=char(candidate.backend);
+                R.eval_fn=candidate.eval_fn;
+                R.flat_eval_fn=candidate.flat_eval_fn;
+                R.valid_from=double(candidate.valid_from);
+                R.valid_until=double(candidate.valid_until);
+                R.reference_version=newVersion;
+                R.source='CURRENT_REPLANNING_SYSTEM_CERTIFIED_COMMIT';
+                R.yaw_policy=char(candidate.yaw_policy);
+                R.path_parameterization=candidate.path_parameterization;
+                if isfield(candidate,'rejoin_time')
+                    R.rejoin_time=double(candidate.rejoin_time);
+                else
+                    R.rejoin_time=NaN;
+                end
+                if isfield(candidate,'representation')
+                    R.representation=candidate.representation;
+                end
+
+                obj.active_repaired_reference=R;
+                obj.active_repaired_certificates=struct( ...
+                    'smoothness',candidate.smoothness_certificate, ...
+                    'geometry',candidate.geometry_certificate, ...
+                    'dynamics',candidate.dynamics_certificate, ...
+                    'hlc_robust',candidate.hlc_robust_certificate, ...
+                    'backup',candidate.backup_certificate, ...
+                    'position_c6',candidate.position_c6_certificate, ...
+                    'yaw_c6',candidate.yaw_c6_certificate, ...
+                    'path_position_c7',candidate.path_position_c7_certificate, ...
+                    'time_law_c6',candidate.time_law_c6_certificate, ...
+                    'time_law_monotonic',candidate.time_law_monotonic_certificate, ...
+                    'terminal_time_law_hold',candidate.terminal_time_law_hold_certificate, ...
+                    'finite_sensing',candidate.finite_sensing_certificate, ...
+                    'compute_deadline',candidate.compute_deadline_certificate, ...
+                    'dependency',candidate.dependency_certificate);
+
+                obj.active_reference_mode='REPAIRED';
+                obj.active_reference_version=newVersion;
+                obj.active_repaired_safety_level='EXECUTION_AWARE';
+
+                % Version-bound speed/sweep and obstacle packet are rebuilt
+                % only after the trajectory/certificates are staged.
+                obj.active_speed_certificate=sp;
+                obj.validate_active_speed_certificate(obj.active_speed_certificate);
+                obj.trigger_sweep_inflation= ...
+                    obj.build_trigger_sweep_inflation(obj.active_speed_certificate);
+
+                if ~isempty(obj.static_obstacle_map)
+                    obj.obstacle_packet= ...
+                        obj.prepare_obstacle_packet(obj.static_obstacle_map);
+                end
+
+                obj.sensor_horizon_certificate= ...
+                    obj.build_sensor_horizon_certificate();
+
+                % For REPAIRED mode these fields represent the certified
+                % backup attached to this active repaired candidate.
+                B=candidate.backup_certificate;
+                assert(isfield(B,'stop_geometry_certificate') && ...
+                    isfield(B,'actuator_dynamics_certificate') && ...
+                    isstruct(B.stop_geometry_certificate) && ...
+                    isstruct(B.actuator_dynamics_certificate) && ...
+                    isfield(B.stop_geometry_certificate,'certified') && ...
+                    logical(B.stop_geometry_certificate.certified) && ...
+                    isfield(B.actuator_dynamics_certificate,'certified') && ...
+                    logical(B.actuator_dynamics_certificate.certified), ...
+                    '[REPLANNER ERROR] repaired backup certificate is incomplete.');
+
+                obj.stop_geometry_4ms_certificate= ...
+                    B.stop_geometry_certificate;
+                obj.actuator_dynamics_certificate= ...
+                    B.actuator_dynamics_certificate;
+                obj.hlc_robust_certificate= ...
+                    candidate.hlc_robust_certificate;
+
+                obj.certificate_stale=obj.empty_certificate_stale_state();
+                obj.runtime_dependency_signature= ...
+                    obj.capture_runtime_dependency_signature_fast();
+
+                if strcmpi(char(candidate.backend),'BSPLINE_D8_C7') && ...
+                        isfield(candidate,'representation')
+                    obj.current_bspline=candidate.representation;
+                else
+                    obj.current_bspline=[];
+                end
+
+                obj.replan_commit_count=obj.replan_commit_count+1;
+                obj.execution_aware_commit_count=obj.execution_aware_commit_count+1;
+                obj.last_replan_commit_time=double(t_commit);
+                obj.last_replan_status=struct( ...
+                    'requested',true, ...
+                    'committed',true, ...
+                    'safety_level','EXECUTION_AWARE', ...
+                    'full_system_authority',true, ...
+                    'reference_version',newVersion, ...
+                    'backend',char(candidate.backend), ...
+                    'commit_time',double(t_commit));
+                obj.replan_request_active=false;
+
+                % Final fail-closed verification after every field changed.
+                obj.assert_trigger_packet_certificate_current();
+                obj.assert_repaired_reference_current();
+
+            catch ME
+                obj.active_reference_mode=old.mode;
+                obj.active_reference_version=old.version;
+                obj.active_repaired_reference=old.reference;
+                obj.active_repaired_certificates=old.certs;
+                obj.active_speed_certificate=old.speed;
+                obj.trigger_sweep_inflation=old.sweep;
+                obj.obstacle_packet=old.packet;
+                obj.sensor_horizon_certificate=old.sensor;
+                obj.stop_geometry_4ms_certificate=old.stop;
+                obj.actuator_dynamics_certificate=old.act;
+                obj.hlc_robust_certificate=old.hlc;
+                obj.runtime_dependency_signature=old.dep;
+                obj.certificate_stale=old.stale;
+                obj.current_bspline=old.bspline;
+                obj.replan_commit_count=old.count;
+                obj.active_repaired_safety_level=old.level;
+                obj.execution_aware_commit_count=old.exec_count;
+                obj.last_replan_commit_time=old.time;
+
+                obj.last_replan_status=struct( ...
+                    'requested',true, ...
+                    'committed',false, ...
+                    'reason',ME.message, ...
+                    'commit_time',double(t_commit));
+                obj.replan_request_active=false;
+                rethrow(ME);
+            end
+        end
+
+
+        function obj = REPLANNING_SYSTEM(self,base_ref,opts)
+            arguments
+                self
+                base_ref
+                opts = struct()
+            end
+
+            obj.self=self;
+            obj.base_ref=base_ref;
+
+            if isfield(opts,'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG=logical(opts.ENABLE_ALL_LOG); end
+            if isfield(opts,'LOG_SENSOR'), obj.LOG_SENSOR=logical(opts.LOG_SENSOR); end
+            if isfield(opts,'LOG_TRIGGER'), obj.LOG_TRIGGER=logical(opts.LOG_TRIGGER); end
+            if isfield(opts,'ENABLE_PROFILING'), obj.ENABLE_PROFILING=logical(opts.ENABLE_PROFILING); end
+            if isfield(opts,'ENABLE_LIGHT_RUNTIME_AUDIT')
+                obj.ENABLE_LIGHT_RUNTIME_AUDIT=logical(opts.ENABLE_LIGHT_RUNTIME_AUDIT);
+            end
+            if isfield(opts,'ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL')
+                obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL=logical(opts.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL);
+            end
+            if isfield(opts,'ENABLE_HOTPATH_DIAGNOSTIC_MIRROR')
+                obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR=logical(opts.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR);
+            end
+            if isfield(opts,'SPIKE_CAPTURE_THRESHOLD_MS')
+                obj.SPIKE_CAPTURE_THRESHOLD_MS=double(opts.SPIKE_CAPTURE_THRESHOLD_MS);
+            end
+
+            if isfield(opts,'ENABLE_OBSERVER_HARD_SUPPORT')
+                obj.ENABLE_OBSERVER_HARD_SUPPORT=logical(opts.ENABLE_OBSERVER_HARD_SUPPORT);
+            end
+            if isfield(opts,'OBSERVER_HARD_SUPPORT_MODE')
+                obj.OBSERVER_HARD_SUPPORT_MODE=char(string(opts.OBSERVER_HARD_SUPPORT_MODE));
+            end
+            if isfield(opts,'OBSERVER_SIM_TRUE_ML')
+                obj.OBSERVER_SIM_TRUE_ML=double(opts.OBSERVER_SIM_TRUE_ML);
+            end
+            if isfield(opts,'OBSERVER_REAL_NU_ABS_UB')
+                obj.OBSERVER_REAL_NU_ABS_UB=double(opts.OBSERVER_REAL_NU_ABS_UB(:));
+            end
+            if isfield(opts,'OBSERVER_REAL_SOURCE_TAG')
+                obj.OBSERVER_REAL_SOURCE_TAG=char(string(opts.OBSERVER_REAL_SOURCE_TAG));
+            end
+            if isfield(opts,'OBSERVER_REAL_INITIAL_SUPPORT')
+                obj.OBSERVER_REAL_INITIAL_SUPPORT=opts.OBSERVER_REAL_INITIAL_SUPPORT;
+            end
+
+            if isfield(opts,'AVOIDANCE_CERTIFICATE_MODE')
+                obj.set_avoidance_commit_policy(opts.AVOIDANCE_CERTIFICATE_MODE);
+            end
+            if isfield(opts,'AVOIDANCE_COMMIT_POLICY')
+                obj.set_avoidance_commit_policy(opts.AVOIDANCE_COMMIT_POLICY);
+            end
+            if isfield(opts,'ENABLE_REFERENCE_ONLY_CERTIFICATE')
+                obj.ENABLE_REFERENCE_ONLY_CERTIFICATE= ...
+                    logical(opts.ENABLE_REFERENCE_ONLY_CERTIFICATE);
+            end
+            if isfield(opts,'ENABLE_EXECUTION_AWARE_CERTIFICATE')
+                obj.ENABLE_EXECUTION_AWARE_CERTIFICATE= ...
+                    logical(opts.ENABLE_EXECUTION_AWARE_CERTIFICATE);
+            end
+            if isfield(opts,'ENABLE_EXECUTION_AWARE_AVOIDANCE')
+                % Legacy option: select commit policy only.
+                if logical(opts.ENABLE_EXECUTION_AWARE_AVOIDANCE)
+                    obj.set_avoidance_commit_policy('EXECUTION_AWARE');
+                else
+                    obj.set_avoidance_commit_policy('REFERENCE_ONLY');
+                end
+            end
+            if isfield(opts,'ENABLE_AUTO_REPLAN_COMMIT')
+                obj.ENABLE_AUTO_REPLAN_COMMIT= ...
+                    logical(opts.ENABLE_AUTO_REPLAN_COMMIT);
+            end
+            if isfield(opts,'EXECUTION_AWARE_CERTIFICATE_FN')
+                fn=opts.EXECUTION_AWARE_CERTIFICATE_FN;
+                assert(isempty(fn)||isa(fn,'function_handle'), ...
+                    '[REPLANNER ERROR] EXECUTION_AWARE_CERTIFICATE_FN must be [] or a function handle.');
+                obj.EXECUTION_AWARE_CERTIFICATE_FN=fn;
+            end
+
+            % IMPORTANT: do not initialize the add-on in the constructor.
+            % Existing MOTIVE / estimator / reference initialization order is
+            % preserved exactly. Lazy initialization occurs only when this
+            % reference object receives the first real a/t/f control event.
+            obj.observer_hard_support_internal=struct();
+
+            if isfield(opts,'sensor_range_m'), obj.trigger_dist=opts.sensor_range_m; end
+            if isfield(opts,'trigger_dist'), obj.trigger_dist=opts.trigger_dist; end
+            if isfield(opts,'horizon_s'), obj.horizon_s=opts.horizon_s; end
+            if isfield(opts,'d_margin'), obj.d_margin=opts.d_margin; end
+
+            if isfield(opts,'r_drone'), obj.r_drone=opts.r_drone; end
+            if isfield(opts,'r_load'), obj.r_load=opts.r_load; end
+            if isfield(opts,'r_cable'), obj.r_cable=opts.r_cable; end
+            if isfield(opts,'R_cable_m'), obj.r_cable=opts.R_cable_m; end
+            if isfield(opts,'cable'), obj.r_cable=opts.cable; end
+            if isfield(opts,'r_cable_sphere'), obj.r_cable=opts.r_cable_sphere; end
+
+            if isfield(opts,'warmup_calls'), obj.warmup_calls=opts.warmup_calls; end
+            if isfield(opts,'ONLINE_PRIME_CALLS'), obj.ONLINE_PRIME_CALLS=opts.ONLINE_PRIME_CALLS; end
+            if isfield(opts,'SETUP_EXACT_DO_PRIME_CALLS')
+                obj.SETUP_EXACT_DO_PRIME_CALLS=opts.SETUP_EXACT_DO_PRIME_CALLS;
+            end
+            if isfield(opts,'SEQUENTIAL_FLIGHT_PRIME_CALLS')
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS=opts.SEQUENTIAL_FLIGHT_PRIME_CALLS;
+            end
+            if isfield(opts,'REQUIRE_PRIME_BEFORE_TAKEOFF')
+                obj.REQUIRE_PRIME_BEFORE_TAKEOFF=logical(opts.REQUIRE_PRIME_BEFORE_TAKEOFF);
+            end
+            if isfield(opts,'takeoff_end_s'), obj.takeoff_end_s=opts.takeoff_end_s; end
+            if isfield(opts,'reference_packet_fn'), obj.reference_packet_fn=opts.reference_packet_fn; end
+            if isfield(opts,'NOMINAL_DERIVATIVE_BOUND_FN')
+                obj.NOMINAL_DERIVATIVE_BOUND_FN=opts.NOMINAL_DERIVATIVE_BOUND_FN;
+            end
+            if isfield(opts,'hard_modify_deadline_s')
+                obj.hard_modify_deadline_s=opts.hard_modify_deadline_s;
+            end
+            if isfield(opts,'repaired_candidate_generator_fn')
+                obj.repaired_candidate_generator_fn=opts.repaired_candidate_generator_fn;
+            end
+            if isfield(opts,'generator_shadow_enabled')
+                obj.generator_shadow_enabled=logical(opts.generator_shadow_enabled);
+            end
+            if isfield(opts,'generator_backend_flag')
+                obj.generator_backend_flag=opts.generator_backend_flag;
+            end
+            if isfield(opts,'generator_backend_external_flag_fn')
+                obj.generator_backend_external_flag_fn=opts.generator_backend_external_flag_fn;
+            end
+            if isfield(opts,'generator_backend_callbacks')
+                obj.generator_backend_callbacks=opts.generator_backend_callbacks;
+            end
+
+            if ~isempty(obj.repaired_candidate_generator_fn)
+                assert(isa(obj.repaired_candidate_generator_fn,'function_handle'), ...
+                    '[REPLANNER ERROR] repaired_candidate_generator_fn must be a function handle.');
+            end
+            if ~isempty(obj.generator_backend_external_flag_fn)
+                assert(isa(obj.generator_backend_external_flag_fn,'function_handle'), ...
+                    '[REPLANNER ERROR] generator_backend_external_flag_fn must be a function handle.');
+            end
+
+            % -------------------------------------------------------------
+            % Backend selection is resolved exactly ONCE at construction.
+            % An external provider is therefore only an INITIAL flag source;
+            % it is never called during Flight or on a replan edge.
+            % -------------------------------------------------------------
+            backend_source_code=1;
+            backend_raw=obj.generator_backend_flag;
+            if ~isempty(obj.generator_backend_external_flag_fn)
+                backend_raw=obj.generator_backend_external_flag_fn();
+                backend_source_code=2;
+            end
+            [code0,name0,~]=obj.normalize_generator_backend_flag(backend_raw);
+            obj.generator_backend_flag=code0;
+            obj.generator_backend_locked_code=code0;
+            obj.generator_backend_locked_name=name0;
+            obj.generator_backend_locked_source_code=backend_source_code;
+            obj.generator_backend_selection_locked=true;
+
+            % Do not retain a request-time selector provider.
+            obj.generator_backend_external_flag_fn=[];
+
+            obj.generator_backend_callbacks= ...
+                obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
+
+            assert(isnumeric(obj.hard_modify_deadline_s) && ...
+                isscalar(obj.hard_modify_deadline_s) && ...
+                isfinite(obj.hard_modify_deadline_s) && ...
+                obj.hard_modify_deadline_s>0 && ...
+                obj.hard_modify_deadline_s<=4.0e-3, ...
+                ['[REPLANNER ERROR] hard_modify_deadline_s must be a positive ' ...
+                 'finite scalar not exceeding the project hard maximum 4 ms.']);
+
+            assert(isnumeric(obj.SETUP_EXACT_DO_PRIME_CALLS) && ...
+                isscalar(obj.SETUP_EXACT_DO_PRIME_CALLS) && ...
+                isfinite(obj.SETUP_EXACT_DO_PRIME_CALLS) && ...
+                obj.SETUP_EXACT_DO_PRIME_CALLS>=1 && ...
+                obj.SETUP_EXACT_DO_PRIME_CALLS==round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
+                '[REPLANNER ERROR] SETUP_EXACT_DO_PRIME_CALLS must be a positive integer.');
+            assert(isnumeric(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                isscalar(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                isfinite(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS) && ...
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS>=5 && ...
+                obj.SEQUENTIAL_FLIGHT_PRIME_CALLS==round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
+                '[REPLANNER ERROR] SEQUENTIAL_FLIGHT_PRIME_CALLS must be an integer >=5.');
+
+            dt_val=[];
+            if obj.has_prop_or_field(obj.self,'plant') && ~isempty(obj.self.plant)
+                if obj.has_prop_or_field(obj.self.plant,'dt') && ~isempty(obj.self.plant.dt)
+                    dt_val=obj.self.plant.dt;
+                end
+            end
+            if isempty(dt_val) && obj.has_prop_or_field(obj.self,'parameter') && ~isempty(obj.self.parameter)
+                try
+                    dt_val=obj.self.parameter.get("dt");
+                catch
+                end
+            end
+            if isempty(dt_val) && isfield(opts,'dt'), dt_val=opts.dt; end
+
+            assert(~isempty(dt_val) && isnumeric(dt_val) && isscalar(dt_val) && ...
+                isfinite(dt_val) && dt_val>0, ...
+                '[REPLANNER ERROR] control/prediction dt is unavailable.');
+
+            if isfield(opts,'prediction_dt')
+                obj.prediction_dt=opts.prediction_dt;
+            else
+                obj.prediction_dt=dt_val;
+            end
+
+            ratio=obj.horizon_s/obj.prediction_dt;
+            assert(abs(ratio-round(ratio)) <= 1e-9*max(1,abs(ratio)), ...
+                '[REPLANNER ERROR] horizon_s/prediction_dt must be integer.');
+
+            obj.gravity=obj.self.parameter.get("gravity");
+            obj.L_cable=obj.self.parameter.get("cableL");
+
+            assert(isnumeric(obj.gravity) && isscalar(obj.gravity) && isfinite(obj.gravity) && obj.gravity>0, ...
+                '[REPLANNER ERROR] invalid gravity.');
+            assert(isnumeric(obj.L_cable) && isscalar(obj.L_cable) && isfinite(obj.L_cable) && obj.L_cable>0, ...
+                '[REPLANNER ERROR] invalid cableL.');
+            assert(isnumeric(obj.trigger_dist) && isscalar(obj.trigger_dist) && isfinite(obj.trigger_dist) && obj.trigger_dist>0, ...
+                '[REPLANNER ERROR] invalid trigger_dist.');
+            assert(isnumeric(obj.d_margin) && isscalar(obj.d_margin) && isfinite(obj.d_margin) && obj.d_margin>=0, ...
+                '[REPLANNER ERROR] invalid d_margin.');
+            assert(obj.r_drone>0 && obj.r_load>0 && obj.r_cable>0, ...
+                '[REPLANNER ERROR] physical protection radii must be positive.');
+
+            obj.loadmass=obj.get_load_mass();
+            obj.result=base_ref.result;
+
+            % -------------------------------------------------------------
+            % Current NOMINAL/version=0 の連続時間 speed certificate を
+            % base_ref.func から厳密生成する。サンプル max は使わない。
+            % -------------------------------------------------------------
+            obj.active_speed_certificate= ...
+                obj.build_nominal_active_speed_certificate();
+            obj.trigger_sweep_inflation= ...
+                obj.build_trigger_sweep_inflation( ...
+                    obj.active_speed_certificate);
+
+            raw_obs=ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(0.0);
+            obj.static_obstacle_map=raw_obs;
+            obj.obstacle_packet=obj.prepare_obstacle_packet(raw_obs);
+
+            Mobs=numel(raw_obs);
+            obj.simulated_sensor_memory_mask=false(1,Mobs);
+            obj.simulated_sensor_first_seen_s=nan(1,Mobs);
+            obj.simulated_sensor_last_seen_s=nan(1,Mobs);
+            obj.simulated_sensor_release_after_s=inf(1,Mobs);
+            obj.simulated_sensor_memory_release_count=0;
+
+            % Dependency-aware theorem certificates are built from CURRENT
+            % live/source-truth values.  No observed numeric configuration
+            % is copied into the implementation as a fixed assumption.
+            obj.initialize_runtime_certificate_manager();
+
+            obj.ensure_mex_compiled();
+            obj.warmup_runtime();
+
+            sensor_props=[ ...
+                "time", ...
+                "pQ", ...
+                "detected_point", ...
+                "detected_obstacles", ...
+                "need_replan", ...
+                "relevant_obstacles", ...
+                "min_obstacle_id_point", ...
+                "min_dist_point", ...
+                "detected_obstacle_count_point", ...
+                "sensor_current_active_mask", ...
+                "sensor_known_active_mask", ...
+                "sensor_known_obstacle_count", ...
+                "sensor_memory_release_count", ...
+                "loadmass", ...
+                "trigger_ttc", ...
+                "trigger_collision_time", ...
+                "trigger_obstacle_id", ...
+                "trigger_component", ...
+                "trigger_component_code", ...
+                "trigger_pL_collision", ...
+                "trigger_q_collision", ...
+                "trigger_pQ_collision", ...
+                "trigger_effective_horizon", ...
+                "trigger_reference_points", ...
+                "trigger_reference_source", ...
+                "trigger_sensor_origin", ...
+                "trigger_cable_residual", ...
+                "trigger_active_mask", ...
+                "trigger_raw_distances", ...
+                "trigger_hit_index", ...
+                "trigger_kernel_called", ...
+                "trigger_event_latched", ...
+                "trigger_event_count", ...
+                "trigger_event_time_latched", ...
+                "trigger_event_ttc_latched", ...
+                "trigger_event_collision_time_latched", ...
+                "trigger_event_obstacle_id_latched", ...
+                "trigger_event_component_code_latched", ...
+                "trigger_event_capture_ms", ...
+                "active_reference_mode", ...
+                "active_reference_version", ...
+                "nominal_xd_table_used", ...
+                "certificate_guard_passed", ...
+                "certificate_stale_mask", ...
+                "hlc_optional_stale", ...
+                "command_limit_live_verified", ...
+                "dependency_refresh_count", ...
+                "mass_certificate_rebuild_count", ...
+                "replan_commit_count", ...
+                "last_replan_commit_time", ...
+                "generator_shadow_enabled", ...
+                "generator_callback_installed", ...
+                "generator_request_count", ...
+                "generator_candidate_count", ...
+                "generator_validation_pass_count", ...
+                "generator_validation_fail_count", ...
+                "generator_deadline_fail_count", ...
+                "generator_last_runtime_ms", ...
+                "generator_last_status_code", ...
+                "generator_backend_flag", ...
+                "generator_backend_last_code", ...
+                "generator_backend_last_source_code", ...
+                "generator_backend_last_callback_installed", ...
+                "generator_backend_locked_code", ...
+                "generator_backend_selection_locked", ...
+                "generator_backend_configuration_frozen", ...
+                "generator_integration_prime_done", ...
+                "generator_integration_prime_ms", ...
+                "generator_integration_prime_variants", ...
+                "generator_context_detected_only", ...
+                "generator_backend_kernel_prime_done", ...
+                "generator_backend_kernel_prime_ms", ...
+                "generator_backend_kernel_prime_variants", ...
+                "generator_shadow_proposal_count", ...
+                "bezier_shadow_generated_count", ...
+                "bezier_shadow_peak_safe_count", ...
+                "bezier_shadow_last_reason_code", ...
+                "bezier_shadow_last_t0", ...
+                "bezier_shadow_last_tm", ...
+                "bezier_shadow_last_t1", ...
+                "bezier_shadow_last_obstacle_id", ...
+                "bezier_shadow_last_component_code", ...
+                "bezier_shadow_last_displacement_m", ...
+                "bezier_shadow_last_metric_before", ...
+                "bezier_shadow_last_metric_after", ...
+                "bezier_shadow_last_peak_min_metric", ...
+                "bezier_shadow_last_peak_all_safe", ...
+                "bezier_shadow_last_c7_exact", ...
+                "bezier_shadow_last_d1_ub", ...
+                "bezier_shadow_last_d2_ub", ...
+                "bezier_shadow_last_d3_ub", ...
+                "bezier_shadow_last_d4_ub", ...
+                "bezier_shadow_last_d5_ub", ...
+                "bezier_shadow_last_d6_ub", ...
+                "bezier_shadow_last_dx", ...
+                "bezier_shadow_last_dy", ...
+                "bezier_shadow_last_dz", ...
+                "r9_stage_episode_ms", ...
+                "r9_stage_synthesis_ms", ...
+                "r9_stage_candidate_loop_ms", ...
+                "r9_stage_total_internal_ms", ...
+                "r9_synth_hessian_ms", ...
+                "r9_synth_corridor_ms", ...
+                "r9_synth_qp_ms", ...
+                "r9_synth_candidate_build_ms", ...
+                "r9_synth_row_count", ...
+                "r9_synth_episode_count", ...
+                "r9_synth_component_count", ...
+                "r9_synth_sign_count", ...
+                "r9_hr_request_seq", ...
+                "r9_hr_callback_wall_ms", ...
+                "r9_hr_callback_thread_cycles", ...
+                "r9_hr_callback_process_cycles", ...
+                "r9_hr_episode_wall_ms", ...
+                "r9_hr_episode_thread_cycles", ...
+                "r9_hr_episode_process_cycles", ...
+                "r9_hr_synthesis_wall_ms", ...
+                "r9_hr_synthesis_thread_cycles", ...
+                "r9_hr_synthesis_process_cycles", ...
+                "r9_hr_qp_wall_ms", ...
+                "r9_hr_qp_thread_cycles", ...
+                "r9_hr_qp_process_cycles", ...
+                "geometry_shadow_pass", ...
+                "geometry_shadow_reason_code", ...
+                "geometry_shadow_continuous_time", ...
+                "geometry_shadow_ieee754_outward_closed", ...
+                "geometry_shadow_min_margin_m", ...
+                "geometry_shadow_min_payload_margin_m", ...
+                "geometry_shadow_min_uav_margin_m", ...
+                "geometry_shadow_min_cable_margin_m", ...
+                "geometry_shadow_leaf_count", ...
+                "geometry_shadow_split_count", ...
+                "geometry_shadow_max_depth", ...
+                "geometry_shadow_min_alpha_lb", ...
+                "geometry_shadow_max_qdot_ub", ...
+                "geometry_shadow_max_q_arc_radius", ...
+                "geometry_shadow_max_q_arc_inflation_m", ...
+                "geometry_shadow_resource_exhausted", ...
+                "generator_last_elapsed_before_ms", ...
+                "generator_last_budget_remaining_ms", ...
+                "generator_last_context_ms", ...
+                "generator_last_callback_ms", ...
+                "generator_last_validation_ms", ...
+                "generator_last_critical_ms", ...
+                "generator_last_cycle_critical_ms" ...
+            ];
+
+            for p_name=sensor_props
+                if ~isprop(obj.result.state,p_name)
+                    addprop(obj.result.state,p_name);
+                end
+            end
+
+            % -------------------------------------------------------------
+            % LOGGER-safe scalar timing fields.
+            % Keep these separate from sensor_props to avoid changing the
+            % existing production sensor/state interface.
+            % -------------------------------------------------------------
+            timing_props=[ ...
+                "rt_light_e2e_ms", ...
+                "rt_observer_ms", ...
+                "rt_spike_capture_time", ...
+                "rt_spike_total_ms", ...
+                "rt_spike_stage_front_ms", ...
+                "rt_spike_stage_loadmass_ms", ...
+                "rt_spike_stage_dependency_ms", ...
+                "rt_spike_stage_base_cert_geom_ms", ...
+                "rt_spike_stage_sensor_trigger_ms", ...
+                "rt_spike_stage_output_state_ms", ...
+                "rt_spike_base_ref_ms", ...
+                "rt_spike_flight_guard_ms", ...
+                "rt_spike_cert_guard_ms", ...
+                "rt_spike_active_ref_ms", ...
+                "rt_spike_geometry_ms", ...
+                "rt_spike_state_handle_ms", ...
+                "rt_spike_write_active_output_ms", ...
+                "rt_spike_state_basic_ms", ...
+                "rt_spike_state_trigger_scalar_ms", ...
+                "rt_spike_state_trigger_heavy_ms", ...
+                "rt_spike_state_cert_ms", ...
+                "rt_spike_state_meta_ms", ...
+                "rt_spike_active_count", ...
+                "rt_spike_need_replan", ...
+                "rt_live_binding_ms", ...
+                "rt_dependency_ms", ...
+                "rt_cert_guard_ms", ...
+                "rt_geometry_eval_ms", ...
+                "rt_replan_status_ms", ...
+                "rt_output_write_ms", ...
+                "rt_state_trigger_write_ms", ...
+                "rt_state_cert_write_ms", ...
+                "rt_state_meta_write_ms", ...
+                "rt_base_ref_ms", ...
+                "rt_sensor_ms", ...
+                "rt_reference_packet_ms", ...
+                "rt_kernel_ms", ...
+                "rt_trigger_ms", ...
+                "rt_total_ms" ...
+            ];
+
+            for p_name=timing_props
+                if ~isprop(obj.result.state,p_name)
+                    addprop(obj.result.state,p_name);
+                end
+            end
+
+            obj.clear_state_sensor_values(0.0);
+
+            if obj.ENABLE_ALL_LOG
+                fprintf(['[REPLANNING_SYSTEM] initialized | sensor=%.3f m | H=%.3f s | ' ...
+                    'dt=%.6f s | d_margin=%.3f m | warmup=%.3f ms\n'], ...
+                    obj.trigger_dist,obj.horizon_s,obj.prediction_dt,obj.d_margin, ...
+                    obj.warmup_runtime_ms);
+            end
+        end
+
+
+        function result_out = do(obj,varargin)
+            % =================================================================
+            % 【メイン実行エントリーポイント: do】
+            %   制御周期 (dt) ごとに呼び出され、衝突判定および状態出力を実行します。
+            %
+            % 【引数】
+            %   varargin{1} : time (シミュレーション時間構造体またはオブジェクト: t, dt 等)
+            %   varargin{2} : cha  (動作フェーズ文字: 'a'=Arming, 't'=Takeoff, 'f'=Flight 等)
+            %   varargin{3} : state (オプション: 現在の状態量)
+            %
+            % 【スパイク防止処理フロー】
+            %   1. 制御周期 dt の整合性チェック
+            %   2. 牽引物質量推定値 mL の必須検証 (取得不可時は安全のため即座にエラー停止)
+            %   3. ベース公称軌道 base_ref.do() の評価
+            %   4. フェーズ判別:
+            %      - 非保護フェーズ ('a', 't'):
+            %        静止中 (Arming/Takeoff初期) に公称テーブル生成と JIT プライムを一括完遂。
+            %        センサ・トリガー状態をゼロリセットし、公称指令値をパススルー出力。
+            %      - 保護フェーズ ('f'):
+            %        事前プライムの完了を厳格検証。
+            %        機体位置 pQ を中心とする球状センサ (20m) で近接障害物をフィルタリング。
+            %        公称テーブルから将来 H 区間の [pL, q] を O(1) スライス取得。
+            %        C++ MEX カーネルを呼び出し、将来衝突判定を高速実行。
+            %        結果を事前確保済み固定長フィールドへ直接上書き。
+            % =================================================================
+            time=varargin{1};
+            cha=varargin{2};
+
+            % Single lightweight production wall timer for A/B diagnosis.
+            % This remains active while the detailed multi-stage profiling
+            % below is disabled.
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                t_light_e2e=tic;
+            end
+
+            if isfield(time,'dt') && ~isempty(time.dt) && time.dt>0
+                if abs(time.dt-obj.prediction_dt)>1e-12
+                    obj.prediction_dt=time.dt;
+                    ratio=obj.horizon_s/obj.prediction_dt;
+                    assert(abs(ratio-round(ratio)) <= 1e-9*max(1,abs(ratio)), ...
+                        '[REPLANNER ERROR] horizon_s/prediction_dt must be integer.');
+                    obj.reference_cache_valid=false;
+                    obj.nominal_table_valid=false;
+                    obj.nominal_table_xd=[];
+                    obj.online_prime_done=false;
+                    obj.setup_exact_do_prime_done=false;
+                end
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_front_ms=1e3*toc(t_light_e2e);
+            end
+
+            obj.loadmass=obj.get_load_mass();
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_loadmass_ms=1e3*toc(t_light_e2e);
+            end
+
+            % -------------------------------------------------------------
+            % AF7R7 observer hard-support add-on.
+            % This REPLANNING_SYSTEM call occurs after sensor+EKF and before
+            % controller+plant. Constructor/startup order is untouched.
+            % Existing rt_light_e2e_ms automatically includes this cost.
+            % -------------------------------------------------------------
+            dt_observer_ms=NaN;
+            if obj.ENABLE_OBSERVER_HARD_SUPPORT && ...
+                    obj.observer_is_real_control_event(cha)
+                if obj.ENABLE_LIGHT_RUNTIME_AUDIT || obj.ENABLE_PROFILING
+                    t_observer_addon=tic;
+                    obj.observer_update_same_event(time,cha);
+                    dt_observer_ms=1e3*toc(t_observer_addon);
+                    I=obj.observer_hard_support_internal;
+                    I.runtime_last_ms=dt_observer_ms;
+                    if ~isfield(I,'runtime_max_ms') || ~isfinite(I.runtime_max_ms)
+                        I.runtime_max_ms=dt_observer_ms;
+                    else
+                        I.runtime_max_ms=max(I.runtime_max_ms,dt_observer_ms);
+                    end
+                    if ~isfield(I,'runtime_sum_ms') || ~isfinite(I.runtime_sum_ms)
+                        I.runtime_sum_ms=0;
+                    end
+                    if ~isfield(I,'runtime_count') || ~isfinite(I.runtime_count)
+                        I.runtime_count=0;
+                    end
+                    I.runtime_sum_ms=I.runtime_sum_ms+dt_observer_ms;
+                    I.runtime_count=I.runtime_count+1;
+                    obj.observer_hard_support_internal=I;
+                else
+                    % Production: preserve the exact observer update, omit only
+                    % non-authoritative runtime measurement/statistics.
+                    obj.observer_update_same_event(time,cha);
+                end
+            end
+
+            % The replanner is constructed before the live HLC controller
+            % object exists in run_flight_headless.  Command limits are
+            % therefore source-bound in the constructor and the actual live
+            % controller handle is verified lazily once it exists.  Flight
+            % may not proceed without that live verification.
+            if obj.ENABLE_PROFILING
+                t_live_binding=tic;
+            end
+            obj.verify_live_controller_binding(isequal(cha,'f'));
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_live_binding_ms=1e3*toc(t_live_binding);
+                t_dependency=tic;
+            end
+
+            % Fast dependency check: scalar/string comparisons only.
+            % No source-file parsing and no symbolic derivation is performed
+            % in the Flight control cycle.
+            obj.update_runtime_dependency_state_fast(cha);
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_dependency_ms=1e3*toc(t_light_e2e);
+            end
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_dependency_ms=1e3*toc(t_dependency);
+            end
+
+            if obj.ENABLE_PROFILING
+                t_total=tic;
+                t0=tic;
+            end
+
+            protected_phase=isequal(cha,'f');
+
+            if protected_phase
+                % NOMINAL current xd has already been evaluated exactly by
+                % base_ref.do() during preflight table construction.
+                % Reading it here removes repeated Flight-time reference
+                % evaluation without changing the reference mathematics.
+                xd_nom=obj.get_nominal_xd_from_table(time.t);
+            else
+                base_res=obj.base_ref.do(varargin{:});
+                xd_nom=base_res.state.xd;
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_base_ref_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_base_ref_ms=1e3*toc(t0);
+            end
+
+            if ~protected_phase
+                obj.clear_state_sensor_values(time.t);
+
+                preflight_context=obj.is_flight_warmup_context();
+                try
+                    t_now_pre=double(time.t);
+                catch
+                    t_now_pre=NaN;
+                end
+                if isequal(cha,'a') && isfinite(t_now_pre) && ...
+                        abs(t_now_pre)<=0.5*obj.prediction_dt
+                    preflight_context=true;
+                end
+
+                if preflight_context && (~obj.nominal_table_valid || ~obj.online_prime_done)
+                    if ~obj.nominal_table_valid
+                        obj.build_nominal_reference_table(time,varargin,xd_nom);
+                    end
+                    if obj.nominal_table_valid && ~obj.online_prime_done
+                        obj.warmup_online_path(time,varargin,xd_nom);
+                    end
+                end
+
+                if isequal(cha,'t') && ~obj.r12_tail_prime_done
+                    [tf12,ok12]=obj.try_resolve_takeoff_end_time_nonfatal();
+                    t12=double(time.t);
+                    if ok12 && isfinite(tf12) && isfinite(t12) && t12<tf12 && ...
+                            (tf12-t12)<=2.5*double(obj.prediction_dt)
+                        obj.r12_tail_prime_hot_path(time,varargin,xd_nom,tf12);
+                    end
+                end
+                obj.write_nominal_output(xd_nom);
+                result_out=obj.result;
+                return;
+            end
+
+            if obj.REQUIRE_PRIME_BEFORE_TAKEOFF && ~obj.setup_exact_do_prime_active
+                assert(obj.nominal_table_valid && obj.online_prime_done && ...
+                    obj.setup_exact_do_prime_done && ...
+                    obj.generator_backend_configuration_frozen && ...
+                    obj.generator_integration_prime_done && ...
+                    obj.generator_backend_kernel_prime_done && ...
+                    obj.observer_preflight_prime_done && ...
+                    obj.trigger_event_capture_prime_done, ...
+                    ['[REPLANNER PREFLIGHT ERROR] Flight reached before pre-motion exact/generator prime completed. ' ...
+                     'Prime must finish before vehicle motion.']);
+                assert(~obj.setup_exact_force_hit, ...
+                    '[REPLANNER ERROR] setup-only forced-hit flag leaked into Flight.');
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_flight_guard_ms=1e3*toc(t_light_e2e);
+            end
+
+            % Hard real-time accounting for sensor/trigger/generator integration.
+            % This timer is independent of optional profiling/light-audit flags.
+            t_hard_cycle=tic;
+
+            if obj.ENABLE_PROFILING
+                t_cert_guard=tic;
+            end
+            obj.assert_runtime_core_certificates_current();
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_cert_guard_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_cert_guard_ms=1e3*toc(t_cert_guard);
+                t_geometry_eval=tic;
+            end
+
+            xd_active_now=obj.evaluate_active_reference_xd(time.t,xd_nom);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_active_ref_ms=1e3*toc(t_light_e2e);
+            end
+            [pQ_cur,pL_cur,q_cur,cable_residual]=obj.get_current_physical_geometry(xd_active_now);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_geometry_ms=1e3*toc(t_light_e2e);
+                cp_base_cert_geom_ms=cp_geometry_ms;
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_geometry_eval_ms=1e3*toc(t_geometry_eval);
+                ts=tic;
+            end
+            [sensor_active,min_dist,min_id,all_dists]= ...
+                obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+
+            % Initialization and synthetic Flight-prime calls may exercise
+            % the sensor branch but are forbidden from teaching the simulated
+            % replanner any obstacle. Real memory begins only at the bound
+            % Flight time origin.
+            tf_mem=double(obj.flight_reference_time_origin);
+            real_sensor_memory_event = ~obj.setup_exact_do_prime_active && ...
+                ~obj.generator_integration_prime_active && ...
+                isfinite(tf_mem) && ...
+                double(time.t)>=tf_mem-1e-10*max(1,abs(tf_mem));
+            active=obj.apply_simulated_sensor_memory( ...
+                sensor_active,double(time.t),real_sensor_memory_event);
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_sensor_ms=1e3*toc(ts);
+                tr=tic;
+            end
+
+            vis_count=nnz(sensor_active);
+            known_count=nnz(active);
+
+            [pL_ref,q_ref,ref_source]= ...
+                obj.get_active_reference_packet(time,cha,varargin,xd_nom);
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_reference_packet_ms=1e3*toc(tr);
+                tt=tic;
+            end
+
+            N=size(pL_ref,2);
+            effective_horizon=(N-1)*obj.prediction_dt;
+
+            [need_replan,ttc,collision_time,comp_name, ...
+                pL_collision,q_collision,pQ_collision,jhit, ...
+                obs_id,comp_code,kernel_called,kernel_ms] = ...
+                obj.trigger_core(active,pL_ref,q_ref,time.t);
+
+            if obj.setup_exact_do_prime_active && obj.setup_exact_force_hit
+                force_idx=max(1,obj.setup_exact_force_hit_calls);
+                if N>=2
+                    j_force=1+mod(force_idx-1,2);   % current/future-hit downstream paths
+                else
+                    j_force=1;
+                end
+                obs_force=obj.obstacle_packet.ids(1);
+                comp_force=1+mod(force_idx-1,3);   % PAYLOAD/UAV/CABLE result paths
+                [need_replan,ttc,collision_time,comp_name, ...
+                    pL_collision,q_collision,pQ_collision,jhit] = ...
+                    obj.decode_trigger_result( ...
+                        true,j_force,obs_force,comp_force,N,pL_ref,q_ref,time.t);
+                obs_id=obs_force;
+                comp_code=comp_force;
+                kernel_called=true;
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_kernel_ms=kernel_ms;
+                obj.profiling.t_trigger_ms=1e3*toc(tt);
+            end
+
+            if obj.ENABLE_PROFILING
+                t_replan_status=tic;
+            end
+            % Replan generator is invoked only on a REAL Flight request edge.
+            % Setup/warmup forced-hit paths never invoke the external generator.
+            if need_replan
+                % ---------------------------------------------------------
+                % Request identity, not only a boolean rising edge.
+                %
+                % A repaired-reference commit increments reference_version.
+                % Therefore, if the new reference still predicts a collision
+                % on the next cycle, it is a NEW request and is allowed to
+                % replan immediately.  Likewise, a different obstacle or
+                % protected component is a new request even while the
+                % previous need_replan flag remains true.
+                % ---------------------------------------------------------
+                requestVersion=double(obj.active_reference_version);
+
+                sameIdentity = ...
+                    obj.replan_request_active && ...
+                    double(obj.replan_request_reference_version)==requestVersion && ...
+                    isequaln(double(obj.replan_request_obstacle_id),double(obs_id)) && ...
+                    isequaln(double(obj.replan_request_component_code),double(comp_code));
+
+                % A hard-deadline miss is not a completed planning decision.
+                % The same request remains retry-eligible while positive
+                % physical lead remains. Each individual attempt must still
+                % satisfy the <=4 ms deadline before any commit.
+                retryableDeadlineMiss = sameIdentity && ...
+                    any(double(obj.generator_last_status_code)==[-2 -20 -30]) && ...
+                    isfinite(double(ttc)) && ...
+                    double(ttc)>double(obj.prediction_dt);
+
+                requestIdentityChanged = ~sameIdentity || retryableDeadlineMiss;
+
+                if requestIdentityChanged
+
+                    % AF7R43: replay-event materialization is diagnostic.
+                    % Preserve PRE-COMMIT authorities by copy-on-write now,
+                    % but build the large event only after the hard
+                    % generator/commit decision.
+                    deferTriggerCapture = obj.CAPTURE_REAL_TRIGGER_EVENT && ...
+                        ~retryableDeadlineMiss && ...
+                        ~obj.setup_exact_do_prime_active && ...
+                        ~obj.generator_integration_prime_active;
+                    triggerAuthoritySnapshot=struct();
+                    if deferTriggerCapture
+                        triggerAuthoritySnapshot=struct( ...
+                            'packet',obj.obstacle_packet, ...
+                            'dependency_signature',obj.runtime_dependency_signature, ...
+                            'speed_certificate',obj.active_speed_certificate, ...
+                            'sensor_horizon_certificate',obj.sensor_horizon_certificate, ...
+                            'reference_mode',char(obj.active_reference_mode), ...
+                            'reference_version',double(obj.active_reference_version), ...
+                            'flight_reference_time_origin',double(obj.flight_reference_time_origin));
+                    end
+
+                    if ~obj.setup_exact_do_prime_active && obj.generator_shadow_enabled
+                        obj.invoke_replan_generator_shadow( ...
+                            t_hard_cycle,time.t,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,pL_ref,q_ref,ref_source, ...
+                            ttc,collision_time,obs_id,comp_name,comp_code, ...
+                            pL_collision,q_collision,pQ_collision,jhit);
+                    else
+                        obj.last_replan_status=struct( ...
+                            'requested',true, ...
+                            'committed',false, ...
+                            'reason','GENERATOR_SKIPPED_DURING_PRIME_OR_DISABLED', ...
+                            'request_time',double(time.t), ...
+                            'trigger_ttc',double(ttc), ...
+                            'trigger_obstacle_id',double(obs_id), ...
+                            'trigger_component',char(comp_name));
+                    end
+
+                    if deferTriggerCapture
+                        tevent=tic;
+                        obj.latch_real_trigger_event( ...
+                            time.t,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,ref_source, ...
+                            ttc,collision_time,obs_id,comp_name,comp_code, ...
+                            pL_collision,q_collision,pQ_collision,jhit, ...
+                            effective_horizon,N,triggerAuthoritySnapshot);
+                        obj.trigger_event_capture_ms=1e3*toc(tevent);
+                        obj.last_trigger_event.capture_runtime_ms= ...
+                            double(obj.trigger_event_capture_ms);
+                        if obj.trigger_event_count==1
+                            obj.first_trigger_event.capture_runtime_ms= ...
+                                double(obj.trigger_event_capture_ms);
+                        end
+                    end
+
+                    % Store the VERSION THAT WAS REQUESTED.  If a commit
+                    % occurred inside the generator, active_reference_version
+                    % has already changed, so next cycle is intentionally a
+                    % new identity and can replan again if still necessary.
+                    obj.replan_request_active=true;
+                    obj.replan_request_reference_version=requestVersion;
+                    obj.replan_request_obstacle_id=double(obs_id);
+                    obj.replan_request_component_code=double(comp_code);
+                end
+            else
+                obj.replan_request_active=false;
+                obj.replan_request_reference_version=-1;
+                obj.replan_request_obstacle_id=NaN;
+                obj.replan_request_component_code=NaN;
+            end
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_replan_status_ms=1e3*toc(t_replan_status);
+                t_output_write=tic;
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_sensor_trigger_ms=1e3*toc(t_light_e2e);
+            end
+
+            st=obj.result.state;
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_handle_ms=1e3*toc(t_light_e2e);
+            end
+
+            obj.write_active_output(time.t,xd_nom);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_write_active_output_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_output_write_ms=1e3*toc(t_output_write);
+                t_state_trigger_write=tic;
+            end
+
+            st.time=time.t;
+            st.pQ=pQ_cur;
+            st.detected_point=vis_count>0;
+
+            % Variable-size detected/relevant structs are compatibility
+            % placeholders only. Fixed scalar/vector fields below are the
+            % production LOGGER interface.
+            st.min_obstacle_id_point=min_id;
+            st.min_dist_point=min_dist;
+            st.detected_obstacle_count_point=vis_count;
+            st.sensor_current_active_mask=double(sensor_active);
+            st.sensor_known_active_mask=double(active);
+            st.sensor_known_obstacle_count=double(known_count);
+            st.sensor_memory_release_count=double(obj.simulated_sensor_memory_release_count);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_basic_ms=1e3*toc(t_light_e2e);
+            end
+
+            % Fixed scalar trigger fields first.
+            st.need_replan=need_replan;
+            st.trigger_ttc=ttc;
+            st.trigger_collision_time=collision_time;
+            st.trigger_obstacle_id=obs_id;
+            st.trigger_component_code=comp_code;
+            st.trigger_effective_horizon=effective_horizon;
+            st.trigger_reference_points=N;
+            st.trigger_cable_residual=cable_residual;
+            st.trigger_hit_index=jhit;
+            st.trigger_kernel_called=double(kernel_called);
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_trigger_scalar_ms=1e3*toc(t_light_e2e);
+            end
+
+            % Small vectors / strings / mask-distance arrays are separated
+            % because these assignments can create/copy MATLAB data.
+            st.trigger_component=comp_name;
+            st.trigger_pL_collision=pL_collision;
+            st.trigger_q_collision=q_collision;
+            st.trigger_pQ_collision=pQ_collision;
+            st.trigger_reference_source=ref_source;
+            st.trigger_sensor_origin=pQ_cur;
+            st.trigger_active_mask=double(active);
+            st.trigger_raw_distances=all_dists;
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_trigger_heavy_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_state_trigger_write_ms=1e3*toc(t_state_trigger_write);
+                t_state_cert_write=tic;
+            end
+
+            st.active_reference_mode=obj.active_reference_mode;
+            st.active_reference_version=obj.active_reference_version;
+            st.nominal_xd_table_used=protected_phase;
+
+            % Full certificate structs remain authoritative in obj.*.
+            % The fail-closed certificate guard above is unchanged.
+            % LOGGER receives fixed-size summaries only.
+            st.certificate_guard_passed=true;
+            st.certificate_stale_mask = ...
+                double(obj.certificate_stale.SPEED_TRIGGER_CERT) + ...
+                2*double(obj.certificate_stale.SENSOR_HORIZON_CERT) + ...
+                4*double(obj.certificate_stale.STOP_GEOMETRY_4MS_CERT) + ...
+                8*double(obj.certificate_stale.ACTUATOR_DYNAMICS_CERT);
+            st.hlc_optional_stale=logical(obj.certificate_stale.HLC_ROBUST_CERT);
+            if isfield(obj.command_limit_certificate,'live_controller_verified')
+                st.command_limit_live_verified= ...
+                    logical(obj.command_limit_certificate.live_controller_verified);
+            else
+                st.command_limit_live_verified=false;
+            end
+            st.dependency_refresh_count=obj.dependency_refresh_count;
+            st.mass_certificate_rebuild_count=obj.mass_certificate_rebuild_count;
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_cert_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_state_cert_write_ms=1e3*toc(t_state_cert_write);
+                t_state_meta_write=tic;
+            end
+
+            st.loadmass=obj.loadmass;
+            st.replan_commit_count=obj.replan_commit_count;
+            st.last_replan_commit_time=obj.last_replan_commit_time;
+            % Keep only the small scalar generator status interface live.
+            st.generator_request_count=obj.generator_request_count;
+            st.generator_candidate_count=obj.generator_candidate_count;
+            st.generator_validation_pass_count=obj.generator_validation_pass_count;
+            st.generator_validation_fail_count=obj.generator_validation_fail_count;
+            st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
+            st.generator_last_runtime_ms=obj.generator_last_runtime_ms;
+            st.generator_last_status_code=obj.generator_last_status_code;
+            st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
+            if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
+                st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+                [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
+                st.generator_backend_flag=double(flagCode);
+                st.generator_backend_last_code=double(obj.generator_backend_last_code);
+                st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
+                st.generator_backend_last_callback_installed= ...
+                    logical(obj.generator_backend_last_callback_installed);
+                st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
+                st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
+                st.generator_backend_configuration_frozen= ...
+                    logical(obj.generator_backend_configuration_frozen);
+                st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
+                st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
+                st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
+                st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+                st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
+                st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
+                st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
+                st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
+                st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
+                st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
+                st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
+                st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
+                st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
+                st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
+                st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
+                st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
+                st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
+                st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
+                st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
+                st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
+                st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
+                st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
+                st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
+                st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
+                st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
+                st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
+                st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
+                st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
+                st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
+                st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
+                st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+                st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
+                st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
+                st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
+                st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
+                st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
+                st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
+                st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
+                st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+                st.r9_synth_row_count=obj.r9_synth_row_count;
+                st.r9_synth_episode_count=obj.r9_synth_episode_count;
+                st.r9_synth_component_count=obj.r9_synth_component_count;
+                st.r9_synth_sign_count=obj.r9_synth_sign_count;
+                st.r9_hr_request_seq=obj.r9_hr_request_seq;
+                st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
+                st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
+                st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
+                st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
+                st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
+                st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
+                st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
+                st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
+                st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
+                st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
+                st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
+                st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
+                st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
+                st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
+                st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
+                st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
+                st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
+                st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
+                st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
+                st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
+                st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
+                st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
+                st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
+                st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
+                st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
+                st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
+                st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
+                st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
+                st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
+                st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
+                st.generator_last_context_ms=obj.generator_last_context_ms;
+                st.generator_last_callback_ms=obj.generator_last_callback_ms;
+                st.generator_last_validation_ms=obj.generator_last_validation_ms;
+                st.generator_last_critical_ms=obj.generator_last_critical_ms;
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_state_meta_ms=1e3*toc(t_light_e2e);
+            end
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_state_meta_write_ms=1e3*toc(t_state_meta_write);
+                obj.profiling.t_total_ms=1e3*toc(t_total);
+
+                % LOGGER-safe scalar timing mirror.
+                % Diagnostic only: these values do not feed any safety or
+                % replanning decision.
+                st.rt_live_binding_ms=obj.profiling.t_live_binding_ms;
+                st.rt_dependency_ms=obj.profiling.t_dependency_ms;
+                st.rt_cert_guard_ms=obj.profiling.t_cert_guard_ms;
+                st.rt_geometry_eval_ms=obj.profiling.t_geometry_eval_ms;
+                st.rt_replan_status_ms=obj.profiling.t_replan_status_ms;
+                st.rt_output_write_ms=obj.profiling.t_output_write_ms;
+                st.rt_state_trigger_write_ms=obj.profiling.t_state_trigger_write_ms;
+                st.rt_state_cert_write_ms=obj.profiling.t_state_cert_write_ms;
+                st.rt_state_meta_write_ms=obj.profiling.t_state_meta_write_ms;
+                st.rt_base_ref_ms=obj.profiling.t_base_ref_ms;
+                st.rt_sensor_ms=obj.profiling.t_sensor_ms;
+                st.rt_reference_packet_ms=obj.profiling.t_reference_packet_ms;
+                st.rt_kernel_ms=obj.profiling.t_kernel_ms;
+                st.rt_trigger_ms=obj.profiling.t_trigger_ms;
+                st.rt_total_ms=obj.profiling.t_total_ms;
+
+                % Nested profiling is intentionally not attached to result.state.
+                % Direct rt_* scalars are the runtime diagnostic interface.
+            end
+
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                cp_output_state_ms=1e3*toc(t_light_e2e);
+                st.rt_light_e2e_ms=cp_output_state_ms;
+                st.rt_observer_ms=dt_observer_ms;
+
+                % Capture only rare slow cycles. The production total above is
+                % measured before these diagnostic writes.
+                if cp_output_state_ms > obj.SPIKE_CAPTURE_THRESHOLD_MS
+                    st.rt_spike_capture_time=double(time.t);
+                    st.rt_spike_total_ms=cp_output_state_ms;
+                    st.rt_spike_stage_front_ms=cp_front_ms;
+                    st.rt_spike_stage_loadmass_ms=cp_loadmass_ms-cp_front_ms;
+                    st.rt_spike_stage_dependency_ms=cp_dependency_ms-cp_loadmass_ms;
+                    st.rt_spike_stage_base_cert_geom_ms= ...
+                        cp_base_cert_geom_ms-cp_dependency_ms;
+                    st.rt_spike_stage_sensor_trigger_ms= ...
+                        cp_sensor_trigger_ms-cp_base_cert_geom_ms;
+                    st.rt_spike_stage_output_state_ms= ...
+                        cp_output_state_ms-cp_sensor_trigger_ms;
+
+                    % Fine split of BASE_CERT_GEOM.
+                    st.rt_spike_base_ref_ms= ...
+                        cp_base_ref_ms-cp_dependency_ms;
+                    st.rt_spike_flight_guard_ms= ...
+                        cp_flight_guard_ms-cp_base_ref_ms;
+                    st.rt_spike_cert_guard_ms= ...
+                        cp_cert_guard_ms-cp_flight_guard_ms;
+                    st.rt_spike_active_ref_ms= ...
+                        cp_active_ref_ms-cp_cert_guard_ms;
+                    st.rt_spike_geometry_ms= ...
+                        cp_geometry_ms-cp_active_ref_ms;
+
+                    % Fine split of OUTPUT_STATE.
+                    st.rt_spike_state_handle_ms= ...
+                        cp_state_handle_ms-cp_sensor_trigger_ms;
+                    st.rt_spike_write_active_output_ms= ...
+                        cp_write_active_output_ms-cp_state_handle_ms;
+                    st.rt_spike_state_basic_ms= ...
+                        cp_state_basic_ms-cp_write_active_output_ms;
+                    st.rt_spike_state_trigger_scalar_ms= ...
+                        cp_state_trigger_scalar_ms-cp_state_basic_ms;
+                    st.rt_spike_state_trigger_heavy_ms= ...
+                        cp_state_trigger_heavy_ms-cp_state_trigger_scalar_ms;
+                    st.rt_spike_state_cert_ms= ...
+                        cp_state_cert_ms-cp_state_trigger_heavy_ms;
+                    st.rt_spike_state_meta_ms= ...
+                        cp_state_meta_ms-cp_state_cert_ms;
+
+                    st.rt_spike_active_count=double(vis_count);
+                    st.rt_spike_need_replan=double(need_replan);
+                end
+            end
+
+            if obj.ENABLE_ALL_LOG
+                if obj.LOG_SENSOR && vis_count>0
+                    fprintf('[SENSOR RAW %.1fm] t=%.3f | count=%d | nearest=%g | d=%.3f m\n', ...
+                        obj.trigger_dist,time.t,vis_count,min_id,min_dist);
+                end
+                if obj.LOG_TRIGGER && need_replan
+                    fprintf('[FUTURE HIT] t=%.3f | TTC=%.3f | obs=%g | comp=%s\n', ...
+                        time.t,ttc,obs_id,comp_name);
+                end
+            end
+
+            result_out=obj.result;
+        end
+
+
+        function mL = get_load_mass(obj)
+            % Fast fail-closed live mass read.
+            % The estimator schema is fixed after construction; direct access
+            % avoids repeated isprop/isfield traversal in the control cycle.
+            try
+                mL=obj.self.estimator.result.state.mL;
+            catch
+                error(['[REPLANNER ERROR] estimator live mass path ' ...
+                    'self.estimator.result.state.mL is unavailable.']);
+            end
+
+            assert(isnumeric(mL) && isscalar(mL) && isfinite(mL) && mL>0, ...
+                ['[REPLANNER ERROR] live load-mass estimate must be a finite ' ...
+                 'positive scalar.']);
+            mL=double(mL);
+        end
+
+
+        function cert = build_nominal_active_speed_certificate(obj)
+            % =============================================================
+            % GENERAL continuous-time NOMINAL kinematic bound certificate.
+            %
+            % The theorem does NOT require constant speed.
+            %
+            % From the exact position law pL(t):
+            %   vL = pLdot, aL = pLddot, jL = pLdddot.
+            %
+            % Let hard continuous-time bounds be
+            %   ||vL|| <= V_L,
+            %   ||aL|| <= A_L,
+            %   ||jL|| <= J_L.
+            %
+            % Define s = aL + g e3 and pT* = -s/||s||.  If
+            %   sigma = inf_t ||s(t)|| > 0,
+            % then
+            %   ||pTdot|| <= J_L / sigma
+            % because
+            %   pTdot = -(I-pT pT') jL / ||s||.
+            %
+            % Hence for pQ = pL - L pT,
+            %   ||vQ|| <= V_L + L J_L/sigma.
+            %
+            % Automatic setup prover:
+            %   If the relevant squared norm is symbolically constant, use
+            %   its exact value.  Otherwise use the GENERAL certified bound
+            %   provider NOMINAL_DERIVATIVE_BOUND_FN.  Therefore
+            %   time-invariant speed/acceleration/jerk is NOT a production
+            %   requirement.
+            %
+            % No sampled maxima are accepted.
+            % =============================================================
+
+            assert(strcmpi(char(obj.active_reference_mode),'NOMINAL'), ...
+                ['[REPLANNER ERROR] nominal speed certificate requested ' ...
+                 'while active_reference_mode is not NOMINAL.']);
+
+            assert(isa(obj.base_ref,'TIME_VARYING_REFERENCE'), ...
+                ['[REPLANNER ERROR] exact nominal kinematic certificate ' ...
+                 'requires TIME_VARYING_REFERENCE base_ref.']);
+
+            assert(isprop(obj.base_ref,'func') && ...
+                isa(obj.base_ref.func,'function_handle'), ...
+                '[REPLANNER ERROR] nominal base_ref.func is unavailable.');
+
+            fstr=func2str(obj.base_ref.func);
+            [xd_sym,t]=obj.function_handle_to_symbolic_vector(fstr);
+
+            assert(numel(xd_sym)>=7, ...
+                '[REPLANNER ERROR] nominal xd must contain at least 7 states.');
+
+            pL=simplify(xd_sym(1:3));
+            vL_packet=simplify(xd_sym(5:7));
+
+            vL=simplify(diff(pL,t));
+            assert(obj.symbolic_vector_equal(vL,vL_packet), ...
+                '[REPLANNER ERROR] nominal xd(5:7) is not d/dt xd(1:3).');
+
+            aL=simplify(diff(vL,t));
+            jL=simplify(diff(aL,t));
+
+            % Setup-only exact FLAT position jet authority.  Geometry,
+            % cable direction and flatness proofs use these derivatives,
+            % never legacy high-order xd slots.
+            JET=cell(1,7);
+            JET{1}=pL;
+            for rr=1:6
+                JET{rr+1}=simplify(diff(JET{rr},t));
+            end
+            obj.nominal_flat_derivative_fn=cell(1,7);
+            for rr=0:6
+                obj.nominal_flat_derivative_fn{rr+1}= ...
+                    matlabFunction(JET{rr+1},'Vars',t);
+            end
+            obj.nominal_acceleration_fn=obj.nominal_flat_derivative_fn{3};
+
+            [VL,vConst]=obj.exact_constant_vector_norm_ub(vL,t);
+            [AL,aConst]=obj.exact_constant_vector_norm_ub(aL,t);
+            [JL,jConst]=obj.exact_constant_vector_norm_ub(jL,t);
+
+            providerUsed=false;
+            provider=struct();
+
+            needProvider=~isfinite(VL) || ~isfinite(AL) || ~isfinite(JL);
+            if needProvider
+                fn=obj.NOMINAL_DERIVATIVE_BOUND_FN;
+                assert(isa(fn,'function_handle'), ...
+                    ['[REPLANNER ERROR] current NOMINAL reference has a ' ...
+                     'nonconstant derivative norm. Install the GENERAL ' ...
+                     'continuous-time NOMINAL_DERIVATIVE_BOUND_FN; sampled ' ...
+                     'maxima are forbidden.']);
+
+                CTX=struct();
+                CTX.schema='REPLANNING_NOMINAL_DERIVATIVE_BOUND_REQUEST_V1';
+                CTX.reference_class=class(obj.base_ref);
+                CTX.func_text=fstr;
+                CTX.symbolic_time=t;
+                CTX.symbolic_position=pL;
+                CTX.symbolic_velocity=vL;
+                CTX.symbolic_acceleration=aL;
+                CTX.symbolic_jerk=jL;
+                CTX.gravity=double(obj.gravity);
+                CTX.cable_length=double(obj.L_cable);
+                CTX.required_continuous_time=true;
+                CTX.sampled_acceptance_forbidden=true;
+
+                provider=fn(CTX);
+                obj.validate_nominal_derivative_bound_provider(provider);
+
+                if ~isfinite(VL)
+                    VL=double(provider.payload_speed_UB_m_s);
+                end
+                if ~isfinite(AL)
+                    AL=double(provider.payload_accel_UB_m_s2);
+                end
+                if ~isfinite(JL)
+                    JL=double(provider.payload_jerk_UB_m_s3);
+                end
+                providerUsed=true;
+            end
+
+            assert(all(isfinite([VL AL JL])) && all([VL AL JL]>=0), ...
+                '[REPLANNER ERROR] nominal continuous derivative bounds invalid.');
+
+            % -------------------------------------------------------------
+            % General cable-direction lower bound.
+            % -------------------------------------------------------------
+            % Default theorem:
+            %   ||aL + g e3|| >= g - ||aL|| >= g - A_L.
+            % A certified provider may supply a tighter direct lower bound.
+            g=double(obj.gravity);
+            sigmaLB=g-AL;
+
+            if providerUsed && isfield(provider,'specific_force_norm_LB_m_s2')
+                q=double(provider.specific_force_norm_LB_m_s2);
+                if isscalar(q) && isfinite(q) && q>0
+                    sigmaLB=max(sigmaLB,q);
+                end
+            end
+
+            assert(isfinite(sigmaLB) && sigmaLB>0, ...
+                ['[REPLANNER ERROR] cannot certify ||aL+g e3|| away from zero. ' ...
+                 'Provide a certified positive specific_force_norm_LB_m_s2 ' ...
+                 'or a tighter continuous acceleration bound.']);
+
+            qdotUB=JL/sigmaLB;
+            VQ=VL+double(obj.L_cable)*qdotUB;
+
+            assert(isfinite(qdotUB)&&qdotUB>=0&&isfinite(VQ)&&VQ>=0, ...
+                '[REPLANNER ERROR] derived cable/UAV speed bound invalid.');
+
+            cert=struct();
+            cert.certified=true;
+            cert.continuous_time=true;
+            cert.sampled_acceptance=false;
+            cert.reference_mode='NOMINAL';
+            cert.reference_version=double(obj.active_reference_version);
+            cert.reference_class=class(obj.base_ref);
+            cert.func_text=fstr;
+
+            cert.payload_speed_UB_m_s=VL;
+            cert.payload_accel_UB_m_s2=AL;
+            cert.payload_jerk_UB_m_s3=JL;
+            cert.specific_force_norm_LB_m_s2=sigmaLB;
+            cert.qdot_UB_rad_s=qdotUB;
+            cert.uav_speed_UB_m_s=VQ;
+
+            cert.payload_speed_constant=logical(vConst);
+            cert.payload_accel_norm_constant=logical(aConst);
+            cert.payload_jerk_norm_constant=logical(jConst);
+            cert.constant_norm_required=false;
+            cert.general_bound_provider_used=logical(providerUsed);
+
+            % Compatibility diagnostics only.  They are NOT prerequisites
+            % for any final/general theorem.
+            aL_zero=obj.symbolic_vector_equal(aL,sym(zeros(3,1)));
+            cert.nominal_acceleration_zero=logical(aL_zero);
+            if aL_zero
+                vL_const=double(simplify(vL));
+                if numel(vL_const)==3 && all(isfinite(vL_const(:)))
+                    cert.payload_velocity_vector_m_s=vL_const(:);
+                end
+            end
+
+            cert.xd_9_11_promoted=false;
+            cert.source= ...
+                'GENERAL_CONTINUOUS_REFERENCE_DERIVATIVE_BOUNDS_AND_CABLE_KINEMATICS';
+            cert.symbolic_objects_retained=false;
+        end
+
+
+        function [ub,isConst] = exact_constant_vector_norm_ub(obj,v,t)
+            q=simplify(v.'*v);
+            isConst=obj.symbolic_zero(simplify(diff(q,t)));
+            ub=NaN;
+            if ~isConst
+                return;
+            end
+            qn=double(simplify(q));
+            assert(isscalar(qn)&&isfinite(qn)&&qn>=0, ...
+                '[REPLANNER ERROR] exact constant vector norm is invalid.');
+            ub=sqrt(max(0,qn));
+        end
+
+
+        function validate_nominal_derivative_bound_provider(~,B)
+            assert(isstruct(B) && isscalar(B), ...
+                '[REPLANNER ERROR] nominal derivative-bound provider must return a scalar struct.');
+            req={'certified','continuous_time','sampled_acceptance', ...
+                'payload_speed_UB_m_s','payload_accel_UB_m_s2', ...
+                'payload_jerk_UB_m_s3'};
+            for k=1:numel(req)
+                assert(isfield(B,req{k}), ...
+                    '[REPLANNER ERROR] nominal derivative-bound provider missing %s.',req{k});
+            end
+            assert(logical(B.certified) && logical(B.continuous_time) && ...
+                ~logical(B.sampled_acceptance), ...
+                ['[REPLANNER ERROR] nominal derivative-bound provider is ' ...
+                 'not a continuous-time non-sampled certificate.']);
+            z=[double(B.payload_speed_UB_m_s), ...
+               double(B.payload_accel_UB_m_s2), ...
+               double(B.payload_jerk_UB_m_s3)];
+            assert(all(isfinite(z)) && all(z>=0), ...
+                '[REPLANNER ERROR] nominal derivative-bound provider returned invalid bounds.');
+        end
+
+
+        function sweep = build_trigger_sweep_inflation(obj,cert)
+            % =============================================================
+            % Sampled future trigger -> continuous time lift:
+            %
+            % delta_L = V_L*dt/2
+            % delta_Q = V_Q*dt/2
+            % delta_C = max(V_L,V_Q)*dt/2
+            %
+            % Sensor sampling is別問題であり raw sensorには加えない。
+            % =============================================================
+            obj.validate_active_speed_certificate(cert);
+
+            VL=cert.payload_speed_UB_m_s;
+            VQ=cert.uav_speed_UB_m_s;
+            dt=obj.prediction_dt;
+
+            sweep=struct();
+            sweep.certified=true;
+            sweep.reference_mode=char(cert.reference_mode);
+            sweep.reference_version=double(cert.reference_version);
+            sweep.payload_m=VL*dt/2;
+            sweep.uav_m=VQ*dt/2;
+            sweep.cable_m=max(VL,VQ)*dt/2;
+            sweep.sensor_one_period_m=VQ*dt;
+            sweep.dt=dt;
+            sweep.source='VERSION_BOUND_ACTIVE_SPEED_CERTIFICATE';
+        end
+
+
+        function validate_active_speed_certificate(obj,cert)
+            assert(isstruct(cert) && isfield(cert,'certified') && ...
+                logical(cert.certified), ...
+                '[REPLANNER ERROR] active speed certificate is not certified.');
+
+            req={'reference_mode','reference_version', ...
+                 'payload_speed_UB_m_s','uav_speed_UB_m_s','qdot_UB_rad_s'};
+            for k=1:numel(req)
+                assert(isfield(cert,req{k}), ...
+                    '[REPLANNER ERROR] speed certificate missing field %s.', ...
+                    req{k});
+            end
+
+            assert(strcmpi(char(cert.reference_mode), ...
+                char(obj.active_reference_mode)), ...
+                ['[REPLANNER ERROR] speed certificate reference_mode is stale ' ...
+                 'for current active reference.']);
+            assert(double(cert.reference_version)== ...
+                double(obj.active_reference_version), ...
+                ['[REPLANNER ERROR] speed certificate reference_version is stale ' ...
+                 'for current active reference.']);
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                assert(isfield(cert,'func_text') && ...
+                    isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                    isprop(obj.base_ref,'func') && ...
+                    isa(obj.base_ref.func,'function_handle') && ...
+                    strcmp(char(cert.func_text),func2str(obj.base_ref.func)), ...
+                    ['[REPLANNER ERROR] nominal reference function changed ' ...
+                     'without rebuilding its speed certificate.']);
+            end
+
+            VL=cert.payload_speed_UB_m_s;
+            VQ=cert.uav_speed_UB_m_s;
+            WQ=cert.qdot_UB_rad_s;
+            assert(isnumeric(VL)&&isscalar(VL)&&isfinite(VL)&&VL>=0);
+            assert(isnumeric(VQ)&&isscalar(VQ)&&isfinite(VQ)&&VQ>=0);
+            assert(isnumeric(WQ)&&isscalar(WQ)&&isfinite(WQ)&&WQ>=0);
+        end
+
+
+        function assert_trigger_packet_certificate_current(obj)
+            % =============================================================
+            % 古い NOMINAL packet を REPAIRED/version更新後に誤使用する
+            % ことを禁止する fail-closed guard。
+            % =============================================================
+            obj.validate_active_speed_certificate( ...
+                obj.active_speed_certificate);
+
+            s=obj.trigger_sweep_inflation;
+            assert(isstruct(s)&&isfield(s,'certified')&&logical(s.certified), ...
+                '[REPLANNER ERROR] trigger sweep certificate is unavailable.');
+            assert(strcmpi(char(s.reference_mode), ...
+                char(obj.active_reference_mode)) && ...
+                double(s.reference_version)== ...
+                double(obj.active_reference_version), ...
+                '[REPLANNER ERROR] trigger sweep certificate is stale.');
+            assert(isfield(s,'dt') && ...
+                double(s.dt)==double(obj.prediction_dt), ...
+                ['[REPLANNER ERROR] prediction_dt changed without ' ...
+                 'rebuilding trigger sweep certificate.']);
+
+            p=obj.obstacle_packet;
+            assert(isstruct(p) && ...
+                isfield(p,'reference_mode') && ...
+                isfield(p,'reference_version') && ...
+                isfield(p,'sweep_certified'), ...
+                '[REPLANNER ERROR] obstacle packet lacks version-bound sweep metadata.');
+            assert(logical(p.sweep_certified) && ...
+                strcmpi(char(p.reference_mode), ...
+                    char(obj.active_reference_mode)) && ...
+                double(p.reference_version)== ...
+                    double(obj.active_reference_version), ...
+                '[REPLANNER ERROR] obstacle packet sweep certificate is stale.');
+            assert(isfield(p,'sweep_dt') && ...
+                double(p.sweep_dt)==double(obj.prediction_dt), ...
+                '[REPLANNER ERROR] obstacle packet sweep dt is stale.');
+        end
+
+
+
+
+        function validate_repaired_candidate(obj,candidate,t_commit)
+            obj.assert_hard_modify_deadline_limit();
+
+            assert(isstruct(candidate) && ...
+                isfield(candidate,'certified') && ...
+                logical(candidate.certified), ...
+                '[REPLANNER ERROR] repaired candidate is not certified.');
+
+            if isfield(candidate,'test_only')
+                assert(~logical(candidate.test_only), ...
+                    '[REPLANNER ERROR] test-only repaired candidates are forbidden in production commit.');
+            end
+
+            req={'backend','eval_fn','flat_eval_fn','valid_from','valid_until', ...
+                 'speed_certificate','smoothness_certificate', ...
+                 'geometry_certificate','dynamics_certificate', ...
+                 'hlc_robust_certificate','backup_certificate', ...
+                 'position_c6_certificate','yaw_c6_certificate', ...
+                 'yaw_policy','path_parameterization', ...
+                 'path_position_c7_certificate', ...
+                 'time_law_c6_certificate', ...
+                 'time_law_monotonic_certificate', ...
+                 'terminal_time_law_hold_certificate', ...
+                 'finite_sensing_certificate', ...
+                 'compute_deadline_certificate', ...
+                 'dependency_certificate'};
+            for kk=1:numel(req)
+                assert(isfield(candidate,req{kk}), ...
+                    '[REPLANNER ERROR] repaired candidate missing field %s.',req{kk});
+            end
+
+            assert(ischar(candidate.backend) || isstring(candidate.backend), ...
+                '[REPLANNER ERROR] repaired backend name is invalid.');
+            assert(isa(candidate.eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] repaired candidate eval_fn must be a function handle.');
+            assert(isa(candidate.flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] repaired candidate flat_eval_fn must be a function handle.');
+
+            vf=double(candidate.valid_from);
+            vu=double(candidate.valid_until);
+            assert(isscalar(vf) && isfinite(vf) && ...
+                isscalar(vu) && (isfinite(vu)||isinf(vu)) && vu>=vf, ...
+                '[REPLANNER ERROR] repaired candidate validity interval is invalid.');
+            assert(t_commit>=vf && ...
+                t_commit+double(obj.horizon_s)<=vu, ...
+                ['[REPLANNER ERROR] repaired candidate does not cover the ' ...
+                 'full future-trigger horizon from commit.']);
+
+            targetVersion=double(obj.active_reference_version)+1;
+
+            % -------------------------------------------------------------
+            % Version-bound continuous-time production certificates.
+            % -------------------------------------------------------------
+            certNames={ ...
+                'smoothness_certificate', ...
+                'geometry_certificate', ...
+                'dynamics_certificate', ...
+                'hlc_robust_certificate', ...
+                'backup_certificate', ...
+                'position_c6_certificate', ...
+                'yaw_c6_certificate', ...
+                'path_position_c7_certificate', ...
+                'time_law_c6_certificate', ...
+                'time_law_monotonic_certificate', ...
+                'terminal_time_law_hold_certificate', ...
+                'finite_sensing_certificate'};
+            for kk=1:numel(certNames)
+                obj.validate_repaired_bound_certificate( ...
+                    candidate.(certNames{kk}),certNames{kk}, ...
+                    targetVersion,vf,vu);
+            end
+
+            % -------------------------------------------------------------
+            % General independent C6 yaw.
+            %
+            % Yaw may be optimized to look along the travel direction, but
+            % alignment is a generator preference rather than a safety gate.
+            % Production requires only the exact C6 yaw contract here.
+            % -------------------------------------------------------------
+            assert(strcmpi(char(candidate.yaw_policy), ...
+                'C6_INDEPENDENT'), ...
+                ['[REPLANNER ERROR] production yaw_policy must be ' ...
+                 'C6_INDEPENDENT.']);
+
+            P=candidate.path_parameterization;
+            assert(isstruct(P) && ...
+                isfield(P,'kind') && ...
+                strcmpi(char(P.kind),'PATH_TIME_SEPARATED') && ...
+                isfield(P,'path_derivative_order') && ...
+                double(P.path_derivative_order)>=7 && ...
+                isfield(P,'time_derivative_order') && ...
+                double(P.time_derivative_order)>=6, ...
+                ['[REPLANNER ERROR] path_parameterization must be ' ...
+                 'PATH_TIME_SEPARATED with path order >=7 and time order >=6.']);
+
+            PC6=candidate.position_c6_certificate;
+            YC6=candidate.yaw_c6_certificate;
+            PC7=candidate.path_position_c7_certificate;
+            TC6=candidate.time_law_c6_certificate;
+            TM=candidate.time_law_monotonic_certificate;
+            TH=candidate.terminal_time_law_hold_certificate;
+            FS=candidate.finite_sensing_certificate;
+
+            obj.assert_continuous_time_certificate(PC6,'position_c6_certificate');
+            obj.assert_continuous_time_certificate(YC6,'yaw_c6_certificate');
+            obj.assert_continuous_time_certificate(PC7,'path_position_c7_certificate');
+            obj.assert_continuous_time_certificate(TC6,'time_law_c6_certificate');
+            obj.assert_continuous_time_certificate(TM,'time_law_monotonic_certificate');
+            obj.assert_continuous_time_certificate(TH,'terminal_time_law_hold_certificate');
+            obj.assert_continuous_time_certificate(FS,'finite_sensing_certificate');
+
+            assert(isfield(PC6,'continuity_order') && ...
+                double(PC6.continuity_order)>=6, ...
+                '[REPLANNER ERROR] position C6 continuity order is not certified.');
+            assert(isfield(YC6,'continuity_order') && ...
+                double(YC6.continuity_order)>=6, ...
+                '[REPLANNER ERROR] yaw C6 continuity order is not certified.');
+            assert(isfield(PC7,'continuity_order') && ...
+                double(PC7.continuity_order)>=7, ...
+                ['[REPLANNER ERROR] internal path-position continuity ' ...
+                 'order >=7 is required by the retained four-backend generator contract.']);
+
+            assert(isfield(TC6,'continuity_order') && ...
+                double(TC6.continuity_order)>=6, ...
+                '[REPLANNER ERROR] time law C6 continuity order is not certified.');
+
+            assert(isfield(TM,'sdot_lower_bound') && ...
+                isnumeric(TM.sdot_lower_bound) && ...
+                isscalar(TM.sdot_lower_bound) && ...
+                isfinite(TM.sdot_lower_bound) && ...
+                double(TM.sdot_lower_bound)>=0, ...
+                '[REPLANNER ERROR] time law monotonicity certificate is invalid.');
+
+            assert(isfield(TH,'zero_derivative_order') && ...
+                double(TH.zero_derivative_order)>=6 && ...
+                isfield(TH,'constant_hold_after_terminal') && ...
+                logical(TH.constant_hold_after_terminal), ...
+                ['[REPLANNER ERROR] terminal time-law hold must set ' ...
+                 'derivatives 1..6 to zero and continue as a constant hold.']);
+
+            assert(isfield(FS,'sensor_range_m') && ...
+                double(FS.sensor_range_m)==double(obj.trigger_dist) && ...
+                isfield(FS,'hard_modify_deadline_s') && ...
+                double(FS.hard_modify_deadline_s)== ...
+                    double(obj.hard_modify_deadline_s) && ...
+                isfield(FS,'backup_available') && ...
+                logical(FS.backup_available), ...
+                ['[REPLANNER ERROR] finite-sensing certificate is not bound ' ...
+                 'to the live sensor/deadline/backup contract.']);
+
+            % -------------------------------------------------------------
+            % Speed certificate is already version-bound by its own schema.
+            % Validate target version before mutating live reference version.
+            % -------------------------------------------------------------
+            sp=candidate.speed_certificate;
+            assert(isstruct(sp) && isfield(sp,'certified') && ...
+                logical(sp.certified) && ...
+                isfield(sp,'reference_mode') && ...
+                strcmpi(char(sp.reference_mode),'REPAIRED') && ...
+                isfield(sp,'reference_version') && ...
+                double(sp.reference_version)==targetVersion && ...
+                isfield(sp,'payload_speed_UB_m_s') && ...
+                isnumeric(sp.payload_speed_UB_m_s) && ...
+                isscalar(sp.payload_speed_UB_m_s) && ...
+                isfinite(sp.payload_speed_UB_m_s) && ...
+                double(sp.payload_speed_UB_m_s)>=0 && ...
+                isfield(sp,'uav_speed_UB_m_s') && ...
+                isnumeric(sp.uav_speed_UB_m_s) && ...
+                isscalar(sp.uav_speed_UB_m_s) && ...
+                isfinite(sp.uav_speed_UB_m_s) && ...
+                double(sp.uav_speed_UB_m_s)>=0 && ...
+                isfield(sp,'qdot_UB_rad_s') && ...
+                isnumeric(sp.qdot_UB_rad_s) && ...
+                isscalar(sp.qdot_UB_rad_s) && ...
+                isfinite(sp.qdot_UB_rad_s) && ...
+                double(sp.qdot_UB_rad_s)>=0, ...
+                '[REPLANNER ERROR] repaired speed certificate is invalid/stale.');
+
+            % -------------------------------------------------------------
+            % End-to-end compute deadline record.  This is deadline
+            % ENFORCEMENT, not a formal OS/WCET theorem.
+            % -------------------------------------------------------------
+            DC=candidate.compute_deadline_certificate;
+            obj.validate_compute_deadline_certificate( ...
+                DC,targetVersion,double(t_commit));
+
+            % -------------------------------------------------------------
+            % Live/source dependency binding.  This prevents stale candidate
+            % certificates after dt/sensor/radius/mass/HLC/deadline changes.
+            % -------------------------------------------------------------
+            DEP=candidate.dependency_certificate;
+            obj.validate_candidate_dependency_certificate( ...
+                DEP,candidate.eval_fn,targetVersion,candidate.flat_eval_fn);
+
+            % -------------------------------------------------------------
+            % Recursively safe repaired-state backup contract.
+            % No nominal-only vertical-stop certificate can satisfy this
+            % schema unless it has separately proved the general conditions.
+            % -------------------------------------------------------------
+            B=candidate.backup_certificate;
+            assert(isfield(B,'general_repaired_state') && ...
+                logical(B.general_repaired_state) && ...
+                isfield(B,'recursively_safe') && ...
+                logical(B.recursively_safe) && ...
+                isfield(B,'continuous_time') && ...
+                logical(B.continuous_time) && ...
+                isfield(B,'backup_kind') && ...
+                (ischar(B.backup_kind)||isstring(B.backup_kind)), ...
+                ['[REPLANNER ERROR] backup certificate is not a general ' ...
+                 'continuous-time recursively-safe REPAIRED-state backup.']);
+
+            backupReq={'stop_geometry_certificate', ...
+                       'actuator_dynamics_certificate', ...
+                       'hlc_robust_certificate', ...
+                       'terminal_hold_certificate', ...
+                       'finite_sensing_certificate'};
+            for kk=1:numel(backupReq)
+                name=backupReq{kk};
+                assert(isfield(B,name), ...
+                    '[REPLANNER ERROR] repaired backup missing field %s.',name);
+                obj.validate_repaired_bound_certificate( ...
+                    B.(name),['backup.' name],targetVersion,vf,vu);
+            end
+
+            assert(isfield(B.terminal_hold_certificate, ...
+                'constant_hold_after_terminal') && ...
+                logical(B.terminal_hold_certificate.constant_hold_after_terminal), ...
+                '[REPLANNER ERROR] repaired backup terminal hold is not closed.');
+
+            % -------------------------------------------------------------
+            % Evaluate both commit instant and future-trigger horizon end
+            % before any live state is mutated.
+            % -------------------------------------------------------------
+            tcheck=[t_commit, t_commit+double(obj.horizon_s)];
+            for kk=1:numel(tcheck)
+                xd=candidate.eval_fn(tcheck(kk));
+                xf=candidate.flat_eval_fn(tcheck(kk));
+                xd=double(xd(:));
+                xf=double(xf(:));
+                assert(numel(xd)>=28 && all(isfinite(xd(1:28))), ...
+                    ['[REPLANNER ERROR] repaired candidate eval_fn must ' ...
+                     'return a finite HLC d0..d6 28-state reference.']);
+                assert(numel(xf)>=28 && all(isfinite(xf(1:28))), ...
+                    ['[REPLANNER ERROR] repaired candidate flat_eval_fn must ' ...
+                     'return the finite mathematical d0..d6 flat jet.']);
+                aL=xf(9:11);
+                r=aL+[0;0;obj.gravity];
+                assert(norm(r)>0, ...
+                    '[REPLANNER ERROR] repaired candidate violates flatness nonzero-vector condition.');
+            end
+        end
+
+
+        function validate_repaired_bound_certificate(obj,C,name,targetVersion,vf,vu)
+            assert(isstruct(C) && isfield(C,'certified') && ...
+                logical(C.certified), ...
+                '[REPLANNER ERROR] candidate certificate %s is not closed.',name);
+
+            if isfield(C,'test_only')
+                assert(~logical(C.test_only), ...
+                    '[REPLANNER ERROR] test-only certificate %s is forbidden in production.',name);
+            end
+
+            req={'reference_mode','reference_version','valid_from','valid_until'};
+            for kk=1:numel(req)
+                assert(isfield(C,req{kk}), ...
+                    '[REPLANNER ERROR] certificate %s missing field %s.', ...
+                    name,req{kk});
+            end
+
+            assert(strcmpi(char(C.reference_mode),'REPAIRED') && ...
+                double(C.reference_version)==double(targetVersion), ...
+                '[REPLANNER ERROR] certificate %s is bound to a stale reference.',name);
+
+            cvf=double(C.valid_from);
+            cvu=double(C.valid_until);
+            assert(isscalar(cvf)&&isfinite(cvf) && ...
+                isscalar(cvu)&&(isfinite(cvu)||isinf(cvu)) && ...
+                cvf<=vf && cvu>=vu, ...
+                '[REPLANNER ERROR] certificate %s does not cover candidate validity.',name);
+        end
+
+
+        function assert_continuous_time_certificate(~,C,name)
+            assert(isfield(C,'continuous_time') && ...
+                logical(C.continuous_time), ...
+                ['[REPLANNER ERROR] %s must be a continuous-time ' ...
+                 'certificate; sampled-only evidence is insufficient.'],name);
+        end
+
+
+        function validate_compute_deadline_certificate(obj,C,targetVersion,t_commit)
+            assert(isstruct(C) && isfield(C,'certified') && ...
+                logical(C.certified), ...
+                '[REPLANNER ERROR] compute deadline certificate is not closed.');
+
+            if isfield(C,'test_only')
+                assert(~logical(C.test_only), ...
+                    '[REPLANNER ERROR] test-only compute deadline certificate is forbidden.');
+            end
+
+            req={'reference_mode','reference_version','scope', ...
+                 'elapsed_s','hard_limit_s','completed_before_commit', ...
+                 'commit_time'};
+            for kk=1:numel(req)
+                assert(isfield(C,req{kk}), ...
+                    '[REPLANNER ERROR] compute deadline certificate missing field %s.', ...
+                    req{kk});
+            end
+
+            assert(strcmpi(char(C.reference_mode),'REPAIRED') && ...
+                double(C.reference_version)==double(targetVersion), ...
+                '[REPLANNER ERROR] compute deadline certificate is version-stale.');
+            assert(strcmpi(char(C.scope), ...
+                'END_TO_END_ONLINE_TRAJECTORY_MODIFICATION'), ...
+                '[REPLANNER ERROR] compute deadline scope is not end-to-end.');
+            assert(isnumeric(C.elapsed_s)&&isscalar(C.elapsed_s)&& ...
+                isfinite(C.elapsed_s)&&double(C.elapsed_s)>=0, ...
+                '[REPLANNER ERROR] compute elapsed_s is invalid.');
+            assert(isnumeric(C.hard_limit_s)&&isscalar(C.hard_limit_s)&& ...
+                isfinite(C.hard_limit_s)&& ...
+                double(C.hard_limit_s)==double(obj.hard_modify_deadline_s) && ...
+                double(C.hard_limit_s)<=4.0e-3, ...
+                '[REPLANNER ERROR] compute hard limit is not the live <=4 ms limit.');
+            assert(double(C.elapsed_s)<=double(C.hard_limit_s), ...
+                '[REPLANNER ERROR] repaired candidate missed the hard online modification deadline.');
+            assert(logical(C.completed_before_commit), ...
+                '[REPLANNER ERROR] compute deadline measurement did not complete before commit.');
+            assert(double(C.commit_time)==double(t_commit), ...
+                '[REPLANNER ERROR] compute deadline certificate commit_time is stale.');
+        end
+
+
+        function validate_candidate_dependency_certificate(obj,D,eval_fn,targetVersion,flat_eval_fn)
+            assert(isstruct(D) && isfield(D,'certified') && ...
+                logical(D.certified) && isfield(D,'signature'), ...
+                '[REPLANNER ERROR] candidate dependency certificate is unavailable.');
+
+            if isfield(D,'test_only')
+                assert(~logical(D.test_only), ...
+                    '[REPLANNER ERROR] test-only dependency certificate is forbidden.');
+            end
+
+            expected=obj.capture_candidate_dependency_signature( ...
+                eval_fn,targetVersion,flat_eval_fn);
+            assert(isequaln(D.signature,expected), ...
+                ['[REPLANNER ERROR] candidate dependency/source signature ' ...
+                 'does not match current live configuration.']);
+        end
+
+
+        function sig = capture_candidate_dependency_signature(obj,eval_fn,targetVersion,flat_eval_fn)
+            obj.assert_hard_modify_deadline_limit();
+
+            sig=struct();
+            sig.reference_mode='REPAIRED';
+            sig.reference_version=double(targetVersion);
+            sig.reference_eval_signature=func2str(eval_fn);
+            sig.flat_eval_signature=func2str(flat_eval_fn);
+            sig.controller_flatjet_authority_split=true;
+
+            sig.dt=double(obj.prediction_dt);
+            sig.sensor_range=double(obj.trigger_dist);
+            sig.horizon=double(obj.horizon_s);
+            sig.r_drone=double(obj.r_drone);
+            sig.r_load=double(obj.r_load);
+            sig.r_cable=double(obj.r_cable);
+            sig.d_margin=double(obj.d_margin);
+            sig.cable_length=double(obj.L_cable);
+            sig.gravity=double(obj.gravity);
+            sig.mQ=obj.get_vehicle_mass();
+            sig.mL_snapshot=double(obj.loadmass);
+            sig.hard_modify_deadline_s=double(obj.hard_modify_deadline_s);
+
+            sig.command_limit_source_signature= ...
+                obj.runtime_source_signature.command_limit_source_signature;
+            sig.command_limits=obj.runtime_source_signature.command_limits;
+            sig.hlc_source=obj.runtime_source_signature.hlc_source;
+            sig.hlc_settings_signature= ...
+                obj.runtime_source_signature.hlc_settings_signature;
+            sig.hlc_gain_generator= ...
+                obj.runtime_source_signature.hlc_gain_generator;
+            sig.hlc_gain_generator_source= ...
+                obj.runtime_source_signature.hlc_gain_generator_source;
+            sig.hlc_gain_packet_signature= ...
+                obj.runtime_source_signature.hlc_gain_packet_signature;
+            sig.hlc_binding_schema= ...
+                obj.runtime_source_signature.hlc_binding_schema;
+        end
+
+
+        function assert_hard_modify_deadline_limit(obj)
+            assert(isnumeric(obj.hard_modify_deadline_s) && ...
+                isscalar(obj.hard_modify_deadline_s) && ...
+                isfinite(obj.hard_modify_deadline_s) && ...
+                obj.hard_modify_deadline_s>0 && ...
+                obj.hard_modify_deadline_s<=4.0e-3, ...
+                ['[REPLANNER ERROR] hard_modify_deadline_s exceeds the ' ...
+                 'project hard maximum of 4 ms.']);
+        end
+
+
+        function initialize_runtime_certificate_manager(obj)
+            % Constructor-safe: the live HLC object may not exist yet.
+            % Build from the authoritative class source first.
+            obj.command_limit_certificate= ...
+                obj.build_active_command_limit_certificate();
+
+            % R41Z-DIRECT: bind the actual suspended-load gain generator before
+            % the live HLC handle is verified.  This remains setup/refresh only.
+            obj.runtime_source_signature= ...
+                obj.capture_runtime_source_signature();
+            obj.verify_live_controller_binding(false);
+
+            obj.sensor_horizon_certificate= ...
+                obj.build_sensor_horizon_certificate();
+
+            obj.stop_geometry_4ms_certificate= ...
+                obj.build_stop_geometry_4ms_certificate();
+
+            obj.actuator_dynamics_certificate= ...
+                obj.build_current_actuator_dynamics_certificate();
+
+            obj.hlc_robust_certificate=struct( ...
+                'certified',false, ...
+                'stale',true, ...
+                'reason','HLC robust tracking-error certificate not installed yet');
+
+            obj.runtime_dependency_signature= ...
+                obj.capture_runtime_dependency_signature_fast();
+
+            obj.certificate_stale=obj.empty_certificate_stale_state();
+            obj.certificate_stale.HLC_ROBUST_CERT=true;
+            obj.dependency_refresh_count=obj.dependency_refresh_count+1;
+        end
+
+
+        function stale = empty_certificate_stale_state(~)
+            stale=struct();
+            stale.SPEED_TRIGGER_CERT=false;
+            stale.SENSOR_HORIZON_CERT=false;
+            stale.STOP_GEOMETRY_4MS_CERT=false;
+            stale.ACTUATOR_DYNAMICS_CERT=false;
+            stale.HLC_ROBUST_CERT=false;
+        end
+
+
+        function Jdep = get_inertia_dependency_fast(obj)
+            % Read live inertia without constructing a string-array query in
+            % the common path when direct parameter properties are available.
+            P=obj.self.parameter;
+
+            if isobject(P) && isprop(P,'jx') && isprop(P,'jy') && isprop(P,'jz')
+                Jdep=[P.jx;P.jy;P.jz];
+            elseif isstruct(P) && isfield(P,'jx') && isfield(P,'jy') && isfield(P,'jz')
+                Jdep=[P.jx;P.jy;P.jz];
+            else
+                Jdep=P.get(["jx","jy","jz"]);
+            end
+
+            Jdep=double(Jdep(:));
+            assert(numel(Jdep)==3 && all(isfinite(Jdep)) && all(Jdep>0), ...
+                '[REPLANNER ERROR] invalid live inertia parameter dependency.');
+        end
+
+
+        function sig = capture_runtime_dependency_signature_fast(obj)
+            obj.assert_hard_modify_deadline_limit();
+            sig=struct();
+            sig.reference_mode=char(obj.active_reference_mode);
+            sig.reference_version=double(obj.active_reference_version);
+
+            % Flight-reference time origin is part of the reference authority,
+            % but it is NOT constructor-mandatory.  In the existing system
+            % run_flight_headless may bind takeoff_end_s only after the
+            % REPLANNING_SYSTEM object is constructed.  Therefore construction
+            % must tolerate an unresolved origin and bind it later, before the
+            % Flight nominal table is generated.
+            [tf0,tf0ok]=obj.try_resolve_takeoff_end_time_nonfatal();
+            if tf0ok
+                obj.flight_reference_time_origin=double(tf0);
+                sig.flight_reference_time_origin=double(tf0);
+            else
+                sig.flight_reference_time_origin=NaN;
+            end
+
+            if isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                    isprop(obj.base_ref,'func') && ...
+                    isa(obj.base_ref.func,'function_handle')
+                obj.runtime_reference_func_handle=obj.base_ref.func;
+                sig.reference_func_signature=func2str(obj.base_ref.func);
+            else
+                obj.runtime_reference_func_handle=[];
+                sig.reference_func_signature='';
+            end
+
+            sig.dt=double(obj.prediction_dt);
+            sig.sensor_range=double(obj.trigger_dist);
+            sig.horizon=double(obj.horizon_s);
+            sig.r_drone=double(obj.r_drone);
+            sig.r_load=double(obj.r_load);
+            sig.r_cable=double(obj.r_cable);
+            sig.d_margin=double(obj.d_margin);
+            sig.cable_length=double(obj.L_cable);
+            sig.gravity=double(obj.gravity);
+            sig.mQ=obj.get_vehicle_mass();
+            Jdep=obj.get_inertia_dependency_fast();
+            sig.jx=Jdep(1);
+            sig.jy=Jdep(2);
+            sig.jz=Jdep(3);
+            sig.mL_snapshot=double(obj.loadmass);
+            sig.hard_modify_deadline_s=double(obj.hard_modify_deadline_s);
+        end
+
+
+        function sig = capture_runtime_source_signature(obj)
+            % =============================================================
+            % R41Z-DIRECT actual suspended-load HLC gain authority.
+            %
+            % run_flight_headless constructs the live controller as
+            %   HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent))
+            % so Controller_HL(dt) is NOT the gain authority for this controller.
+            % This heavy/source-bound capture is setup/refresh only.
+            % =============================================================
+            sig=struct();
+            sig.command_limit_source_signature= ...
+                obj.command_limit_certificate.source_line_signature;
+            sig.command_limits=obj.command_limit_certificate.limits;
+
+            gainName='Controller_HL_Suspended_Load';
+            gainSource=which(gainName);
+            assert(~isempty(gainSource) && isfile(gainSource), ...
+                '[REPLANNER ERROR] suspended-load HLC gain generator source unresolved.');
+
+            % Suppress diagnostic console output produced inside the current
+            % gain generator while preserving its exact numerical result.
+            evalc('S=Controller_HL_Suspended_Load(obj.prediction_dt,obj.self);');
+            P=obj.extract_hlc_gain_packet(S);
+
+            % Preserve legacy dependency-field names, but bind them to the
+            % ACTUAL suspended-load gain authority.
+            sig.hlc_source=gainSource;
+            sig.hlc_settings_signature=obj.serialize_numeric_struct(S);
+
+            sig.hlc_gain_generator=gainName;
+            sig.hlc_gain_generator_source=gainSource;
+            sig.hlc_gain_packet=P;
+            sig.hlc_gain_packet_signature=obj.serialize_numeric_struct(P);
+            sig.hlc_controller_source=which('HLC_SUSPENDED_LOAD');
+            sig.hlc_binding_schema='R41Z_DIRECT_ACTUAL_SUSPENDED_LOAD_GAIN_BINDING_V1';
+        end
+
+        function update_runtime_dependency_state_fast(obj,cha)
+            % =============================================================
+            % Allocation-light live dependency watcher.
+            %
+            % Common unchanged cycle:
+            %   - NO new dependency struct
+            %   - NO func2str()
+            %   - direct scalar comparisons against the certified snapshot
+            %
+            % Change cycle:
+            %   - preserve the previous fail-closed invalidation/rebuild rules
+            %   - rebuild the snapshot only after the detected change
+            % =============================================================
+            old=obj.runtime_dependency_signature;
+
+            if ~isstruct(old) || ~isfield(old,'dt')
+                obj.runtime_dependency_signature= ...
+                    obj.capture_runtime_dependency_signature_fast();
+                old=obj.runtime_dependency_signature;
+            end
+
+            % Reference mode/version are cheap scalar/string dependencies.
+            refChanged = ...
+                ~strcmp(char(old.reference_mode),char(obj.active_reference_mode)) || ...
+                double(old.reference_version)~=double(obj.active_reference_version);
+
+            [tfNow,tfNowOk]=obj.try_resolve_takeoff_end_time_nonfatal();
+            if tfNowOk
+                obj.flight_reference_time_origin=double(tfNow);
+            end
+
+            oldOrigin=NaN;
+            if isfield(old,'flight_reference_time_origin')
+                oldOrigin=double(old.flight_reference_time_origin);
+            end
+
+            if tfNowOk
+                timeOriginChanged = ...
+                    ~isfinite(oldOrigin) || oldOrigin~=double(tfNow);
+            else
+                % Unresolved-at-construction is a legitimate preflight state.
+                % NaN->NaN is NOT a dependency change.
+                timeOriginChanged=false;
+            end
+
+            % Avoid func2str in the common cycle. Only stringify a newly
+            % installed function handle, preserving the previous textual
+            % signature semantics.
+            funcChanged=false;
+            hasFunc=isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                isprop(obj.base_ref,'func') && ...
+                isa(obj.base_ref.func,'function_handle');
+
+            if hasFunc
+                fh=obj.base_ref.func;
+                if isempty(obj.runtime_reference_func_handle) || ...
+                        ~isequal(fh,obj.runtime_reference_func_handle)
+                    sigNow=func2str(fh);
+                    funcChanged=~strcmp(char(old.reference_func_signature),sigNow);
+                    if ~funcChanged
+                        obj.runtime_reference_func_handle=fh;
+                    end
+                end
+            else
+                funcChanged=~isempty(char(old.reference_func_signature));
+            end
+            refChanged=refChanged || funcChanged;
+
+            dtChanged=double(old.dt)~=double(obj.prediction_dt);
+
+            sensorGeomChanged= ...
+                double(old.sensor_range)~=double(obj.trigger_dist) || ...
+                double(old.horizon)~=double(obj.horizon_s) || ...
+                double(old.r_drone)~=double(obj.r_drone) || ...
+                double(old.r_load)~=double(obj.r_load) || ...
+                double(old.r_cable)~=double(obj.r_cable) || ...
+                ~isfield(old,'d_margin') || ...
+                double(old.d_margin)~=double(obj.d_margin) || ...
+                double(old.cable_length)~=double(obj.L_cable);
+
+            gravityChanged=double(old.gravity)~=double(obj.gravity);
+            deadlineChanged= ...
+                double(old.hard_modify_deadline_s)~= ...
+                double(obj.hard_modify_deadline_s);
+
+            mQNow=obj.get_vehicle_mass();
+            massChanged= ...
+                double(old.mQ)~=double(mQNow) || ...
+                double(old.mL_snapshot)~=double(obj.loadmass);
+
+            JNow=obj.get_inertia_dependency_fast();
+            inertiaChanged= ...
+                double(old.jx)~=JNow(1) || ...
+                double(old.jy)~=JNow(2) || ...
+                double(old.jz)~=JNow(3);
+
+            anyChanged=refChanged || timeOriginChanged || ...
+                dtChanged || sensorGeomChanged || ...
+                gravityChanged || deadlineChanged || massChanged || inertiaChanged;
+
+            % AF7R45 REFERENCE_ONLY dependency fast path.
+            %
+            % Vehicle/payload mass and inertia are not dependencies of the
+            % REFERENCE_ONLY trigger/sensor/geometry theorem.  They belong to
+            % the execution-aware actuator/HLC layer.  When those are the
+            % ONLY changed dependencies, do not rebuild any execution-aware
+            % certificate or recapture the whole signature in the Flight
+            % cycle.  Mark that layer stale (fail-closed for any later
+            % EXECUTION_AWARE use) and advance only the exact live scalar
+            % snapshot.  No tolerance or guessed bound is introduced.
+            execOnlyChange = ...
+                strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                ~refChanged && ~timeOriginChanged && ~dtChanged && ...
+                ~sensorGeomChanged && ~gravityChanged && ~deadlineChanged && ...
+                (massChanged || inertiaChanged);
+
+            if execOnlyChange
+                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                obj.certificate_stale.HLC_ROBUST_CERT=true;
+
+                old.mQ=double(mQNow);
+                old.mL_snapshot=double(obj.loadmass);
+                old.jx=double(JNow(1));
+                old.jy=double(JNow(2));
+                old.jz=double(JNow(3));
+                obj.runtime_dependency_signature=old;
+                obj.reference_only_exec_dependency_fast_count= ...
+                    obj.reference_only_exec_dependency_fast_count+1;
+                anyChanged=false;
+            end
+
+            if anyChanged
+                if refChanged
+                    obj.certificate_stale.SPEED_TRIGGER_CERT=true;
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                    obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if timeOriginChanged
+                    % Time-origin binding changes only the mapping
+                    % t_global -> tau_reference.  It does NOT change the
+                    % nominal law, speed bound, obstacle geometry, dynamics,
+                    % or command limits.  Rebuild only cached reference data
+                    % and preflight prime state.
+                    obj.nominal_table_valid=false;
+                    obj.nominal_table_t0=NaN;
+                    obj.nominal_table_tend=NaN;
+                    obj.nominal_table_xd=[];
+                    obj.nominal_table_pL=[];
+                    obj.nominal_table_q=[];
+                    obj.reference_cache_valid=false;
+                    obj.online_prime_done=false;
+                    obj.setup_exact_do_prime_done=false;
+                end
+
+                if dtChanged
+                    obj.certificate_stale.SPEED_TRIGGER_CERT=true;
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if sensorGeomChanged
+                    obj.certificate_stale.SENSOR_HORIZON_CERT=true;
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                end
+
+                if gravityChanged
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                    obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if deadlineChanged
+                    obj.certificate_stale.STOP_GEOMETRY_4MS_CERT=true;
+                end
+
+                if inertiaChanged
+                    if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                        obj.actuator_dynamics_certificate= ...
+                            obj.build_current_actuator_dynamics_certificate();
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT= ...
+                            ~logical(obj.actuator_dynamics_certificate.certified);
+                    else
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                    end
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+
+                if massChanged && ~refChanged && ~gravityChanged
+                    if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                        obj.actuator_dynamics_certificate= ...
+                            obj.build_current_actuator_dynamics_certificate();
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT= ...
+                            ~logical(obj.actuator_dynamics_certificate.certified);
+                        obj.certificate_stale.HLC_ROBUST_CERT=true;
+                        obj.mass_certificate_rebuild_count= ...
+                            obj.mass_certificate_rebuild_count+1;
+                    else
+                        obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                        obj.certificate_stale.HLC_ROBUST_CERT=true;
+                    end
+                end
+
+                % Build a fresh authoritative snapshot only when a dependency
+                % actually changed.
+                obj.runtime_dependency_signature= ...
+                    obj.capture_runtime_dependency_signature_fast();
+            end
+
+            % Same fail-closed Flight rules as before.
+            if isequal(cha,'f')
+                assert(~obj.certificate_stale.SPEED_TRIGGER_CERT, ...
+                    ['[REPLANNER DEPENDENCY ERROR] speed/trigger certificate ' ...
+                     'became stale during Flight. Rebuild outside the Flight cycle.']);
+                assert(~obj.certificate_stale.SENSOR_HORIZON_CERT, ...
+                    ['[REPLANNER DEPENDENCY ERROR] sensor/horizon certificate ' ...
+                     'became stale during Flight. Rebuild outside the Flight cycle.']);
+                assert(~obj.certificate_stale.STOP_GEOMETRY_4MS_CERT, ...
+                    ['[REPLANNER DEPENDENCY ERROR] 4-ms stop-geometry certificate ' ...
+                     'became stale during Flight. Rebuild outside the Flight cycle.']);
+
+                if strcmpi(char(obj.active_reference_mode),'REPAIRED') && ...
+                        strcmpi(char(obj.active_repaired_safety_level),'EXECUTION_AWARE')
+                    assert(~obj.certificate_stale.ACTUATOR_DYNAMICS_CERT, ...
+                        ['[REPLANNER DEPENDENCY ERROR] execution-aware REPAIRED actuator/dynamics ' ...
+                         'certificate became stale during Flight.']);
+                    assert(~obj.certificate_stale.HLC_ROBUST_CERT, ...
+                        ['[REPLANNER DEPENDENCY ERROR] execution-aware REPAIRED HLC robust ' ...
+                         'certificate became stale during Flight.']);
+                end
+            end
+        end
+
+
+        function assert_runtime_core_certificates_current(obj)
+            obj.assert_trigger_packet_certificate_current();
+
+            assert(isstruct(obj.sensor_horizon_certificate) && ...
+                isfield(obj.sensor_horizon_certificate,'certified') && ...
+                logical(obj.sensor_horizon_certificate.certified) && ...
+                ~obj.certificate_stale.SENSOR_HORIZON_CERT, ...
+                '[REPLANNER ERROR] sensor/horizon certificate is unavailable or stale.');
+
+            switch upper(char(obj.active_reference_mode))
+                case 'NOMINAL'
+                    assert(isstruct(obj.stop_geometry_4ms_certificate) && ...
+                        isfield(obj.stop_geometry_4ms_certificate,'certified') && ...
+                        logical(obj.stop_geometry_4ms_certificate.certified) && ...
+                        ~obj.certificate_stale.STOP_GEOMETRY_4MS_CERT, ...
+                        '[REPLANNER ERROR] NOMINAL 4-ms stop-geometry certificate is unavailable or stale.');
+
+                case 'REPAIRED'
+                    obj.assert_repaired_reference_current();
+                    if strcmpi(char(obj.active_repaired_safety_level),'EXECUTION_AWARE')
+                        assert(~obj.certificate_stale.STOP_GEOMETRY_4MS_CERT && ...
+                            ~obj.certificate_stale.ACTUATOR_DYNAMICS_CERT && ...
+                            ~obj.certificate_stale.HLC_ROBUST_CERT, ...
+                            '[REPLANNER ERROR] active execution-aware REPAIRED safety certificate became stale.');
+                    else
+                        % REFERENCE_ONLY is intentionally not promoted as a
+                        % full-system safety theorem.  Trigger/sensor
+                        % certificates remain version-bound; tracking and
+                        % actuator certificates stay explicitly OPEN.
+                        assert(strcmpi(char(obj.active_repaired_safety_level),'REFERENCE_ONLY'), ...
+                            '[REPLANNER ERROR] unknown repaired safety level.');
+                    end
+
+                otherwise
+                    error('[REPLANNER ERROR] unknown active_reference_mode.');
+            end
+        end
+
+
+        function cert = build_sensor_horizon_certificate(obj)
+            obj.validate_active_speed_certificate(obj.active_speed_certificate);
+
+            VQ=double(obj.active_speed_certificate.uav_speed_UB_m_s);
+            VL=double(obj.active_speed_certificate.payload_speed_UB_m_s);
+            dt=double(obj.prediction_dt);
+            H=double(obj.horizon_s);
+            Rs=double(obj.trigger_dist);
+            rho=max([double(obj.r_drone), ...
+                     double(obj.L_cable)+double(obj.r_load), ...
+                     double(obj.L_cable)+double(obj.r_cable)]);
+
+            horizonMargin=Rs-(rho+VQ*H);
+            dDetLB=Rs-VQ*dt;
+            safeClear=dDetLB-rho;
+
+            if VQ>0
+                collisionLead=safeClear/VQ;
+                beforeHorizon=collisionLead-H;
+            else
+                collisionLead=Inf;
+                beforeHorizon=Inf;
+            end
+
+            cert=struct();
+            cert.certified= ...
+                horizonMargin>0 && safeClear>0 && beforeHorizon>0;
+            cert.reference_mode=char(obj.active_reference_mode);
+            cert.reference_version=double(obj.active_reference_version);
+            cert.VL=VL;
+            cert.VQ=VQ;
+            cert.dt=dt;
+            cert.sensor_range=Rs;
+            cert.horizon=H;
+            cert.rho_body=rho;
+            cert.sensor_horizon_margin_m=horizonMargin;
+            cert.first_detection_distance_LB_m=dDetLB;
+            cert.first_collision_lead_LB_s=collisionLead;
+            cert.before_horizon_entry_LB_s=beforeHorizon;
+            cert.source='LIVE_SPEED_SENSOR_GEOMETRY_THEOREM';
+        end
+
+
+        function cert = build_stop_geometry_4ms_certificate(obj)
+            obj.validate_active_speed_certificate(obj.active_speed_certificate);
+
+            v=double(obj.active_speed_certificate.payload_speed_UB_m_s);
+            VQ=double(obj.active_speed_certificate.uav_speed_UB_m_s);
+            dt=double(obj.prediction_dt);
+            Rs=double(obj.trigger_dist);
+            g=double(obj.gravity);
+            L=double(obj.L_cable);
+            rho=max([double(obj.r_drone), ...
+                     L+double(obj.r_load), ...
+                     L+double(obj.r_cable)]);
+
+            C1=3003/1024;
+            k=v*C1;
+            dDetLB=Rs-VQ*dt;
+            clearanceAfterDeadline= ...
+                dDetLB-rho-VQ*double(obj.hard_modify_deadline_s);
+
+            INT=obj.geometric_stop_T_intervals( ...
+                v,k,g,L,clearanceAfterDeadline);
+
+            cert=struct();
+            cert.certified=clearanceAfterDeadline>0 && INT.nonempty;
+            cert.reference_mode=char(obj.active_reference_mode);
+            cert.reference_version=double(obj.active_reference_version);
+            cert.C1=C1;
+            cert.VQ=VQ;
+            cert.VL=v;
+            cert.dt=dt;
+            cert.hard_modify_deadline_s=double(obj.hard_modify_deadline_s);
+            cert.rho_body=rho;
+            cert.first_detection_distance_LB_m=dDetLB;
+            cert.clearance_after_deadline_m=clearanceAfterDeadline;
+            cert.T_flat=k/g;
+            cert.INTERVALS=INT;
+            cert.source='LIVE_4MS_ORIENTATION_INDEPENDENT_STOP_GEOMETRY';
+        end
+
+
+        function cert = build_active_command_limit_certificate(obj)
+            % =============================================================
+            % Source-truth command-limit certificate.
+            %
+            % IMPORTANT INITIALIZATION ORDER:
+            %   run_flight_headless constructs REPLANNING_SYSTEM before the
+            %   live HLC_SUSPENDED_LOAD object is attached to agent.controller.
+            %   Therefore this constructor-safe builder MUST NOT require the
+            %   live controller object.
+            %
+            %   1) Parse the authoritative HLC_SUSPENDED_LOAD class source.
+            %   2) Later verify that the live controller object is really the
+            %      same class/source via verify_live_controller_binding().
+            % =============================================================
+
+            expected_class='HLC_SUSPENDED_LOAD';
+            fp=which(expected_class);
+
+            assert(~isempty(fp) && isfile(fp), ...
+                '[REPLANNER ERROR] HLC_SUSPENDED_LOAD source file unresolved.');
+
+            txt=fileread(fp);
+            L=regexp(txt,'\r\n|\n|\r','split');
+            hit=[];
+
+            for i=1:numel(L)
+                s=strtrim(L{i});
+                if isempty(s) || startsWith(s,'%')
+                    continue;
+                end
+                if contains(s,'obj.result.input') && ...
+                        contains(s,'tmp(1)') && contains(s,'tmp(2)') && ...
+                        contains(s,'tmp(3)') && contains(s,'tmp(4)')
+                    hit(end+1)=i; %#ok<AGROW>
+                end
+            end
+
+            assert(numel(hit)==1, ...
+                '[REPLANNER ERROR] active command clamp source line is not unique.');
+
+            lineNo=hit(1);
+            lineText=strtrim(L{lineNo});
+            LIM=zeros(4,2);
+
+            for j=1:4
+                num='([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)';
+                pat=['max\(\s*' num '\s*,\s*min\(\s*' num ...
+                     '\s*,\s*tmp\(\s*' num2str(j) '\s*\)\s*\)\s*\)'];
+                tok=regexp(lineText,pat,'tokens','once');
+                assert(~isempty(tok), ...
+                    '[REPLANNER ERROR] cannot parse active clamp tmp(%d).',j);
+                LIM(j,:)=[str2double(tok{1}),str2double(tok{2})];
+            end
+
+            cert=struct();
+            cert.certified=true;
+            cert.controller_class=expected_class;
+            cert.controller_source=fp;
+            cert.source_line_number=lineNo;
+            cert.source_line_signature=lineText;
+            cert.command_order={'F','Mx','My','Mz'};
+            cert.limits=LIM;
+            cert.source='HLC_COMMAND_CLAMP_SOURCE_TRUTH';
+            cert.live_controller_verified=false;
+            cert.live_gain_verified=false;
+            cert.live_controller_path='';
+            cert.initialization_binding='CLASS_SOURCE_BEFORE_LIVE_CONTROLLER';
+        end
+
+
+        function verify_live_controller_binding(obj,required_now)
+            % =============================================================
+            % R41Z-DIRECT live suspended-load HLC binding.
+            %
+            % One-time binding verifies class/source + actual F1..F4 against
+            % Controller_HL_Suspended_Load(dt,agent).  After binding, each call
+            % performs only an exact comparison of the small cached F1..F4
+            % packet; the gain generator/lqrd is never rerun in the hot loop.
+            % =============================================================
+            if nargin<2
+                required_now=false;
+            end
+
+            cert=obj.command_limit_certificate;
+            assert(isstruct(cert) && isfield(cert,'certified') && ...
+                logical(cert.certified), ...
+                '[REPLANNER ERROR] command-limit source certificate unavailable.');
+
+            available=false;
+            ctrl=[];
+            if obj.has_prop_or_field(obj.self,'controller') && ...
+                    ~isempty(obj.self.controller) && ...
+                    obj.has_prop_or_field(obj.self.controller,'hlc_suspended') && ...
+                    ~isempty(obj.self.controller.hlc_suspended)
+                ctrl=obj.self.controller.hlc_suspended;
+                available=true;
+            end
+
+            if ~available
+                if required_now
+                    error(['[REPLANNER ERROR] Flight reached before live ' ...
+                        'HLC_SUSPENDED_LOAD controller binding became available.']);
+                end
+                return;
+            end
+
+            assert(isstruct(obj.runtime_source_signature) && ...
+                isfield(obj.runtime_source_signature,'hlc_gain_packet') && ...
+                isfield(obj.runtime_source_signature,'hlc_gain_generator') && ...
+                strcmp(char(obj.runtime_source_signature.hlc_gain_generator), ...
+                    'Controller_HL_Suspended_Load'), ...
+                ['[REPLANNER ERROR] actual suspended-load HLC source signature ' ...
+                 'is unavailable/stale; refresh outside Flight.']);
+
+            assert(isa(ctrl,cert.controller_class), ...
+                '[REPLANNER ERROR] live controller class differs from command-limit certificate.');
+            assert(isprop(ctrl,'param') && isstruct(ctrl.param), ...
+                '[REPLANNER ERROR] live HLC parameter packet is unavailable.');
+
+            expected=obj.runtime_source_signature.hlc_gain_packet;
+            gainOK=obj.hlc_gain_packets_exact_equal(ctrl.param,expected);
+            if ~gainOK
+                cert.live_controller_verified=false;
+                cert.live_gain_verified=false;
+                cert.live_binding_reason= ...
+                    'LIVE_HLC_GAIN_PACKET_DIFFERS_FROM_SUSPENDED_LOAD_GENERATOR';
+                obj.command_limit_certificate=cert;
+                if isstruct(obj.certificate_stale) && ...
+                        isfield(obj.certificate_stale,'HLC_ROBUST_CERT')
+                    obj.certificate_stale.HLC_ROBUST_CERT=true;
+                end
+                error(['[REPLANNER ERROR] live HLC F1/F2/F3/F4 differs from ' ...
+                    'Controller_HL_Suspended_Load source-bound packet.']);
+            end
+
+            % Cheap steady-state path: exact gain equality above is the only
+            % recurring check.  No which(), fileread(), lqrd(), or generator
+            % reevaluation occurs after the one-time source binding.
+            if isfield(cert,'live_controller_verified') && ...
+                    logical(cert.live_controller_verified) && ...
+                    isfield(cert,'live_gain_verified') && ...
+                    logical(cert.live_gain_verified)
+                return;
+            end
+
+            live_source=which(class(ctrl));
+            assert(~isempty(live_source) && isfile(live_source), ...
+                '[REPLANNER ERROR] live controller source file unresolved.');
+            assert(strcmp(live_source,cert.controller_source), ...
+                ['[REPLANNER ERROR] live HLC controller source differs from ' ...
+                 'the source used for command-limit certification.']);
+
+            gain_source=which('Controller_HL_Suspended_Load');
+            assert(~isempty(gain_source) && isfile(gain_source), ...
+                '[REPLANNER ERROR] suspended-load gain generator source unresolved.');
+            assert(strcmp(gain_source, ...
+                    obj.runtime_source_signature.hlc_gain_generator_source), ...
+                ['[REPLANNER ERROR] suspended-load gain-generator source path ' ...
+                 'changed; refresh certificates outside Flight.']);
+
+            cert.live_controller_verified=true;
+            cert.live_gain_verified=true;
+            cert.live_controller_path='self.controller.hlc_suspended';
+            cert.live_controller_class=class(ctrl);
+            cert.live_controller_source=live_source;
+            cert.live_gain_generator='Controller_HL_Suspended_Load';
+            cert.live_gain_generator_source=gain_source;
+            cert.live_gain_signature=obj.serialize_numeric_struct( ...
+                obj.extract_hlc_gain_packet(ctrl.param));
+            cert.live_binding_reason= ...
+                'CLASS_SOURCE_AND_ACTUAL_SUSPENDED_LOAD_GAIN_PACKET_MATCH';
+            obj.command_limit_certificate=cert;
+        end
+
+        function cert = build_current_actuator_dynamics_certificate(obj)
+            % =============================================================
+            % GENERAL actuator/dynamics certificate entry point.
+            %
+            % The old positive-vertical constant-velocity theorem is
+            % deliberately disabled as production authority.  General
+            % authority must be generated from the SAME active-reference
+            % state/reference uncertainty image, HLC map, actuator limits
+            % and tracking fixed point used for the final repaired
+            % trajectory.
+            %
+            % Until that interval-HLC theorem is installed this certificate
+            % fails closed.  No trajectory-specific fallback is allowed.
+            % =============================================================
+            cmd=obj.command_limit_certificate;
+            assert(isstruct(cmd) && isfield(cmd,'certified') && ...
+                logical(cmd.certified), ...
+                '[REPLANNER ERROR] command limit certificate unavailable.');
+
+            obj.validate_active_speed_certificate(obj.active_speed_certificate);
+
+            cert=struct();
+            cert.certified=false;
+            cert.general_reference_required=true;
+            cert.trajectory_specific_fallback_allowed=false;
+            cert.legacy_positive_vertical_theorem_enabled=false;
+            cert.reference_mode=char(obj.active_reference_mode);
+            cert.reference_version=double(obj.active_reference_version);
+            cert.mQ=obj.get_vehicle_mass();
+            cert.mL_snapshot=double(obj.loadmass);
+            cert.invalidate_on_mL_change=true;
+            cert.command_limit_source_signature=cmd.source_line_signature;
+            cert.command_limits=cmd.limits;
+            cert.reason= ...
+                'GENERAL_HLC_TRACKING_AND_ACTUATOR_INTERVAL_CERTIFICATE_NOT_YET_INSTALLED';
+        end
+
+
+        function mQ = get_vehicle_mass(obj)
+            P=obj.self.parameter;
+            mQ=[];
+
+            if isobject(P) && isprop(P,'mass')
+                mQ=P.mass;
+            elseif isstruct(P) && isfield(P,'mass')
+                mQ=P.mass;
+            end
+
+            assert(isnumeric(mQ) && isscalar(mQ) && ...
+                isfinite(mQ) && mQ>0, ...
+                '[REPLANNER ERROR] fixed vehicle mass parameter is unavailable.');
+            mQ=double(mQ);
+        end
+
+
+        function P = extract_hlc_gain_packet(~,S)
+            req={'F1','F2','F3','F4'};
+            assert(isstruct(S) && all(isfield(S,req)), ...
+                '[REPLANNER ERROR] suspended-load HLC gain packet is incomplete.');
+
+            P=struct();
+            for kk=1:numel(req)
+                v=S.(req{kk});
+                assert(isnumeric(v) && ~isempty(v) && all(isfinite(v(:))), ...
+                    '[REPLANNER ERROR] suspended-load HLC gain %s is invalid.',req{kk});
+                P.(req{kk})=double(v);
+            end
+            if isfield(S,'dt')
+                vdt=double(S.dt);
+                assert(isscalar(vdt) && isfinite(vdt) && vdt>0, ...
+                    '[REPLANNER ERROR] suspended-load HLC gain-packet dt is invalid.');
+                P.dt=vdt;
+            end
+        end
+
+
+        function tf = hlc_gain_packets_exact_equal(~,A,B)
+            % Exact equality is intentional: the live controller and cached
+            % packet are created from the same deterministic generator call.
+            % No empirical/tuned tolerance is introduced into authority.
+            req={'F1','F2','F3','F4'};
+            tf=isstruct(A) && isstruct(B) && ...
+                all(isfield(A,req)) && all(isfield(B,req));
+            if ~tf
+                return;
+            end
+
+            for kk=1:numel(req)
+                a=A.(req{kk});
+                b=B.(req{kk});
+                if ~isnumeric(a) || ~isnumeric(b) || ...
+                        ~isequal(size(a),size(b)) || ...
+                        any(~isfinite(a(:))) || any(~isfinite(b(:))) || ...
+                        ~isequaln(double(a),double(b))
+                    tf=false;
+                    return;
+                end
+            end
+        end
+
+
+        function sig = serialize_numeric_struct(~,S)
+            fn=sort(fieldnames(S));
+            parts={};
+
+            for i=1:numel(fn)
+                n=fn{i};
+                v=S.(n);
+
+                if isnumeric(v) || islogical(v)
+                    parts{end+1}=[n '=' mat2str(v,17)]; %#ok<AGROW>
+                elseif ischar(v) || isstring(v)
+                    parts{end+1}=[n '=' char(string(v))]; %#ok<AGROW>
+                end
+            end
+
+            sig=strjoin(parts,'|');
+        end
+
+
+        function INT = geometric_stop_T_intervals(~,v,k,g,L,S)
+            % =============================================================
+            % Certified stop-geometry T intervals with explicit endpoint
+            % topology.
+            %
+            % branch1:
+            %   lower Tf belongs to the first analytic branch.
+            %   upper Tb is closed only when the strict clearance boundary
+            %   b1upper lies beyond Tb. If b1upper is active (including
+            %   b1upper==Tb), the strict-clearance endpoint is open.
+            %
+            % branch2:
+            %   the quadratic clearance condition is strict between r1,r2.
+            %   Root endpoints are therefore open. If Tb lies strictly
+            %   inside (r1,r2), the branch switch at Tb is closed.
+            %
+            % No epsilon is used to emulate an open boundary.
+            % =============================================================
+            INT=struct();
+            INT.branch1=zeros(0,2);
+            INT.branch1_left_closed=false(0,1);
+            INT.branch1_right_closed=false(0,1);
+            INT.branch2=zeros(0,2);
+            INT.branch2_left_closed=false(0,1);
+            INT.branch2_right_closed=false(0,1);
+            INT.nonempty=false;
+
+            if v==0
+                INT.branch1=[0,Inf];
+                INT.branch1_left_closed=true;
+                INT.branch1_right_closed=false;
+                INT.nonempty=S>0;
+                return;
+            end
+
+            Tf=k/g;
+            Tb=2*Tf;
+
+            b1upper=2*(S-2*L)/v;
+            hi=min(Tb,b1upper);
+            if hi>Tf
+                INT.branch1=[Tf,hi];
+                INT.branch1_left_closed=true;
+                INT.branch1_right_closed=(Tb<b1upper);
+            end
+
+            qa=0.5*v*g;
+            qb=-(0.5*v*k+S*g);
+            qc=S*k+2*L*k;
+            disc=qb^2-4*qa*qc;
+
+            if disc>0
+                r1=(-qb-sqrt(disc))/(2*qa);
+                r2=(-qb+sqrt(disc))/(2*qa);
+                lo=max(Tb,r1);
+                hi=r2;
+
+                if hi>lo
+                    INT.branch2=[lo,hi];
+                    INT.branch2_left_closed=(Tb>r1);
+                    INT.branch2_right_closed=false;
+                end
+            end
+
+            INT.nonempty=~isempty(INT.branch1) || ~isempty(INT.branch2);
+        end
+
+
+        function INT2 = intersect_T_intervals_with_lower(~,INT,Tlo)
+            % Intersect with the closed lower-bound set [Tlo,Inf).
+            INT2=struct();
+            INT2.branch1=zeros(0,2);
+            INT2.branch1_left_closed=false(0,1);
+            INT2.branch1_right_closed=false(0,1);
+            INT2.branch2=zeros(0,2);
+            INT2.branch2_left_closed=false(0,1);
+            INT2.branch2_right_closed=false(0,1);
+            INT2.nonempty=false;
+
+            for i=1:size(INT.branch1,1)
+                oldlo=INT.branch1(i,1);
+                lo=max(oldlo,Tlo);
+                hi=INT.branch1(i,2);
+
+                if lo>oldlo
+                    lclosed=true;
+                else
+                    lclosed=INT.branch1_left_closed(i);
+                end
+                hclosed=INT.branch1_right_closed(i);
+
+                nonempty=(hi>lo) || (hi==lo && lclosed && hclosed);
+                if nonempty
+                    INT2.branch1(end+1,:)=[lo,hi]; %#ok<AGROW>
+                    INT2.branch1_left_closed(end+1,1)=lclosed; %#ok<AGROW>
+                    INT2.branch1_right_closed(end+1,1)=hclosed; %#ok<AGROW>
+                end
+            end
+
+            for i=1:size(INT.branch2,1)
+                oldlo=INT.branch2(i,1);
+                lo=max(oldlo,Tlo);
+                hi=INT.branch2(i,2);
+
+                if lo>oldlo
+                    lclosed=true;
+                else
+                    lclosed=INT.branch2_left_closed(i);
+                end
+                hclosed=INT.branch2_right_closed(i);
+
+                nonempty=(hi>lo) || (hi==lo && lclosed && hclosed);
+                if nonempty
+                    INT2.branch2(end+1,:)=[lo,hi]; %#ok<AGROW>
+                    INT2.branch2_left_closed(end+1,1)=lclosed; %#ok<AGROW>
+                    INT2.branch2_right_closed(end+1,1)=hclosed; %#ok<AGROW>
+                end
+            end
+
+            INT2.nonempty= ...
+                ~isempty(INT2.branch1) || ~isempty(INT2.branch2);
+        end
+
+
+        function [xd,t] = function_handle_to_symbolic_vector(~,fstr)
+            prefix='@(t)';
+            assert(startsWith(strtrim(fstr),prefix), ...
+                ['[REPLANNER ERROR] nominal func must be an anonymous ' ...
+                 'scalar-time function @(t)...']);
+
+            body=strtrim(extractAfter(string(strtrim(fstr)), ...
+                strlength(prefix)));
+            body=strrep(body,'.^','^');
+            body=strrep(body,'.*','*');
+            body=strrep(body,'./','/');
+
+            syms t real
+            xd=str2sym(char(body));
+            xd=xd(:);
+        end
+
+
+        function tf = symbolic_vector_equal(obj,a,b)
+            r=simplify(a-b);
+            tf=true;
+            for k=1:numel(r)
+                if ~obj.symbolic_zero(r(k))
+                    tf=false;
+                    return;
+                end
+            end
+        end
+
+
+        function tf = symbolic_zero(~,x)
+            tf=isAlways(simplify(x)==0,'Unknown','false');
+        end
+
+
+        function tf = has_prop_or_field(~,x,name)
+            tf = false;
+            if isobject(x)
+                tf = isprop(x,name);
+            elseif isstruct(x)
+                tf = isfield(x,name);
+            end
+        end
+
+
+        function xd = evaluate_active_reference_xd(obj,t_now,xd_nom)
+            switch upper(char(obj.active_reference_mode))
+                case 'NOMINAL'
+                    xd=xd_nom(:);
+
+                case 'REPAIRED'
+                    R=obj.active_repaired_reference;
+                    assert(isstruct(R) && isfield(R,'valid') && logical(R.valid), ...
+                        '[REPLANNER ERROR] REPAIRED mode has no valid repaired reference.');
+                    assert(isfield(R,'eval_fn') && isa(R.eval_fn,'function_handle'), ...
+                        '[REPLANNER ERROR] repaired reference eval_fn is unavailable.');
+                    assert(isfield(R,'valid_from') && isfield(R,'valid_until') && ...
+                        isfinite(R.valid_from) && ...
+                        (isfinite(R.valid_until) || isinf(R.valid_until)) && ...
+                        double(t_now)>=double(R.valid_from) && ...
+                        double(t_now)<=double(R.valid_until), ...
+                        '[REPLANNER ERROR] repaired reference queried outside certified validity interval.');
+
+                    xd=R.eval_fn(double(t_now));
+                    xd=xd(:);
+                    assert(numel(xd)>=11 && all(isfinite(xd)), ...
+                        '[REPLANNER ERROR] repaired reference returned invalid xd.');
+
+                otherwise
+                    error('[REPLANNER ERROR] unknown active_reference_mode: %s', ...
+                        char(obj.active_reference_mode));
+            end
+        end
+
+
+        function write_active_output(obj,t_now,xd_nom)
+            xd=obj.evaluate_active_reference_xd(t_now,xd_nom);
+            st=obj.result.state;
+            st.xd=xd;
+
+            if numel(xd)>=3
+                st.p=xd(1:3);
+            end
+            if numel(xd)>=7
+                st.v=xd(5:7);
+            end
+            if numel(xd)>=4
+                st.q=[0;0;xd(4)];
+            end
+        end
+
+
+        function set_generator_backend_flag(obj,flag)
+            %#ok<INUSD>
+            error(['[REPLANNER ERROR] generator backend is immutable after construction. ' ...
+                'Pass generator_backend_flag in opts before Flight.']);
+        end
+
+
+        function set_generator_backend_external_flag_fn(obj,fn)
+            %#ok<INUSD>
+            error(['[REPLANNER ERROR] generator backend provider is constructor-only. ' ...
+                'Pass generator_backend_external_flag_fn in opts; it is sampled once.']);
+        end
+
+
+        function set_generator_backend_callback(obj,flag,fn)
+            % Register/replace one backend callback BEFORE preflight freeze.
+            assert(~obj.generator_backend_configuration_frozen, ...
+                ['[REPLANNER ERROR] generator backend callbacks are frozen before Flight. ' ...
+                 'Register callbacks before simulation/preflight prime.']);
+            [code,name,~]=obj.normalize_generator_backend_flag(flag);
+            if ~isempty(fn)
+                assert(isa(fn,'function_handle'), ...
+                    '[REPLANNER ERROR] backend callback must be a function handle or [].');
+            end
+            C=obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
+            C.(name)=fn;
+            obj.generator_backend_callbacks=C;
+            %#ok<NASGU> code is validation only; locked backend never changes.
+        end
+
+
+        function C = get_generator_backend_catalog(obj)
+            C=struct();
+            C.codes=[1 2 3 4];
+            C.names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+            C.current_internal_flag=double(obj.generator_backend_flag);
+            C.locked_code=double(obj.generator_backend_locked_code);
+            C.locked_name=char(obj.generator_backend_locked_name);
+            C.locked_source_code=double(obj.generator_backend_locked_source_code);
+            C.selection_locked=logical(obj.generator_backend_selection_locked);
+            C.configuration_frozen=logical(obj.generator_backend_configuration_frozen);
+            C.selected_callback_installed=~isempty(obj.generator_backend_locked_callback);
+            C.external_selector_installed=false;
+            C.callbacks=obj.normalize_generator_backend_callbacks( ...
+                obj.generator_backend_callbacks);
+        end
+
+
+        function [code,name,source_code] = resolve_generator_backend_selection(obj)
+            assert(obj.generator_backend_selection_locked, ...
+                '[REPLANNER ERROR] generator backend selection is not locked before Flight.');
+            code=double(obj.generator_backend_locked_code);
+            name=char(obj.generator_backend_locked_name);
+            source_code=double(obj.generator_backend_locked_source_code);
+        end
+
+
+        function freeze_generator_backend_configuration(obj)
+            if obj.generator_backend_configuration_frozen
+                return;
+            end
+            assert(obj.generator_backend_selection_locked, ...
+                '[REPLANNER ERROR] generator backend must be locked before callback freeze.');
+
+            C=obj.normalize_generator_backend_callbacks(obj.generator_backend_callbacks);
+            name=char(obj.generator_backend_locked_name);
+            fn=C.(name);
+            if isempty(fn)
+                fn=obj.repaired_candidate_generator_fn;
+            end
+
+            if isempty(fn) && double(obj.generator_backend_locked_code)==1
+                % AF7R37-R14D default production backend.
+                % Compile/source-check the native flat AST during setup;
+                % prime_locked_backend_kernel_variants() then warms the
+                % exact selected callback before Flight.
+                af7r36_runtime_prime(obj);
+                fn=@(CTX)obj.af7r46_single_core_proposal_compact(CTX);
+            end
+
+            if ~isempty(fn)
+                assert(isa(fn,'function_handle'), ...
+                    '[REPLANNER ERROR] selected generator callback is invalid.');
+            end
+
+            obj.generator_backend_locked_callback=fn;
+            obj.generator_backend_configuration_frozen=true;
+            obj.generator_backend_last_callback_installed=~isempty(fn);
+        end
+
+
+        function P = af7r46_single_core_proposal_compact(obj,CTX)
+            assert(exist('af7r36_single_core_mex','file')==3, ...
+                '[AF7R46] AF7R36 native core MEX missing.');
+
+            pkt=af7r34_make_core_packet(obj,CTX,[]);
+            RAW=af7r36_single_core_mex(1,pkt);
+
+            P=struct();
+            P.shadow_proposal=true;
+            P.af7r46_compact_native=true;
+            P.generated=logical(RAW.success);
+            P.success=logical(RAW.success);
+            P.reason_code=double(RAW.reason_code);
+            P.backend='BEZIER_D15_C7';
+            P.t0=double(RAW.t0);
+            P.tm=double(RAW.tm);
+            P.trigger_collision_time=double(RAW.tm);
+            P.hold_end=double(RAW.hold_end);
+            P.t1=double(RAW.t1);
+            P.obstacle_id=double(CTX.request.trigger_obstacle_id);
+            P.component_code=double(CTX.request.trigger_component_code);
+            P.execution_tracking_inflation_m=0;
+            P.r9_stage_timing=struct( ...
+                'episode_ms',double(RAW.episode_ms), ...
+                'synthesis_ms',double(RAW.synthesis_ms), ...
+                'candidate_loop_ms',double(RAW.candidate_ms), ...
+                'total_internal_ms',double(RAW.total_ms));
+            P.native_raw=RAW;
+
+            if ~P.success
+                return;
+            end
+
+            P.c7_exact=true;
+            P.representation_code=2;
+            P.degree=15;
+            P.piecewise_segment_t0=double(RAW.segment_t0(:).');
+            P.piecewise_segment_t1=double(RAW.segment_t1(:).');
+            P.piecewise_control_points=RAW.control_points;
+            P.displacement_norm_m=double(RAW.max_control_norm_m);
+            P.displacement=double(RAW.displacement(:));
+            P.direction=double(RAW.direction(:));
+
+            targetVersion=double(CTX.request.next_reference_version);
+            SC=struct();
+            SC.certified=true;
+            SC.continuous_time=true;
+            SC.sampled_acceptance=false;
+            SC.reference_mode='REPAIRED';
+            SC.reference_version=targetVersion;
+            SC.payload_speed_UB_m_s=double(RAW.speed_payload);
+            SC.payload_accel_UB_m_s2=double(RAW.speed_accel);
+            SC.payload_jerk_UB_m_s3=double(RAW.speed_jerk);
+            SC.specific_force_norm_LB_m_s2=double(RAW.speed_sigma);
+            SC.qdot_UB_rad_s=double(RAW.speed_qdot);
+            SC.uav_speed_UB_m_s=double(RAW.speed_uav);
+            SC.base_reference_mode=char(obj.active_reference_mode);
+            SC.base_reference_version=double(obj.active_reference_version);
+            if logical(RAW.speed_stageA)
+                SC.source='TRIANGLE_BOUNDED_C7_REPAIRED_FLATNESS_KINEMATICS';
+                SC.certificate_stage='R9_STAGE_A_GLOBAL_TRIANGLE';
+            else
+                SC.source='R9_LOCAL_VECTOR_COUPLED_ADAPTIVE_BERNSTEIN_FLATNESS_SPEED';
+                SC.certificate_stage='R9_STAGE_B_LOCAL_VECTOR';
+                SC.local_leaf_count=double(RAW.speed_leaf_count);
+                SC.local_split_count=double(RAW.speed_split_count);
+                SC.vector_coupled_payload_velocity=true;
+                SC.suspended_load_flatness=true;
+                SC.fixed_depth_cap=false;
+            end
+            P.reference_speed_certificate=SC;
+
+            G=struct();
+            G.mathematical_pass=logical(RAW.geometry_pass);
+            G.certified=logical(RAW.geometry_pass);
+            G.continuous_time=true;
+            G.whole_body=true;
+            G.all_detected_obstacles=true;
+            G.static_obstacles_only=true;
+            G.sampled_acceptance=false;
+            G.finite_cover_speed_tube=true;
+            G.support_function_separation=true;
+            G.corrected_flatness_cable_direction=true;
+            G.ieee754_outward_closed=false;
+            G.reason_code=double(RAW.geometry_reason);
+            G.min_payload_margin_m=double(RAW.geometry_min_payload_margin);
+            G.min_uav_margin_m=double(RAW.geometry_min_uav_margin);
+            G.min_cable_margin_m=double(RAW.geometry_min_cable_margin);
+            G.min_margin_m=double(RAW.geometry_min_margin);
+            G.leaf_count=double(RAW.geometry_leaf_count);
+            G.accepted_leaf_count=double(RAW.geometry_accepted_leaf_count);
+            G.split_count=double(RAW.geometry_split_count);
+            G.max_depth_used=double(RAW.geometry_max_depth);
+            G.max_depth_cap=Inf;
+            G.resource_exhausted=false;
+            G.static_separation_open=G.reason_code==111;
+            G.representability_open=G.reason_code==112;
+            G.cover_theorem='MIDPOINT_STATIC_SUPPORT_MINUS_SPEED_TIMES_HALFWIDTH';
+            G.min_specific_force_norm_lb=double(RAW.speed_sigma);
+            G.max_qdot_ub=double(RAW.speed_qdot);
+            G.max_q_arc_radius=double(RAW.speed_qdot)*double(CTX.live.dt)/2;
+            G.max_q_arc_inflation_m=double(CTX.live.cable_length)*G.max_q_arc_radius;
+            G.tracking_inflation_m=0;
+            G.reference_only_authority=true;
+            G.final_system_authority=false;
+            P.geometry_shadow_certificate=G;
+
+            obj.compact_native_proposal_count=obj.compact_native_proposal_count+1;
+        end
+
+
+        function P = af7r46_materialize_candidate_evaluators(obj,P)
+            if ~isfield(P,'base_eval_fn') || ~isa(P.base_eval_fn,'function_handle')
+                P.base_eval_fn=obj.snapshot_active_reference_eval_fn();
+            end
+            if ~isfield(P,'base_flat_eval_fn') || ...
+                    ~isa(P.base_flat_eval_fn,'function_handle')
+                P.base_flat_eval_fn=obj.snapshot_active_reference_flat_eval_fn();
+            end
+        end
+
+
+        function safe_record_bezier_shadow_proposal(obj,P)
+            try
+                if isstruct(P) && isfield(P,'af7r46_compact_native') && ...
+                        logical(P.af7r46_compact_native)
+                    obj.record_af7r46_compact_native_proposal(P);
+                else
+                    obj.record_bezier_shadow_proposal(P);
+                end
+            catch
+                % Diagnostic mirroring never creates/revokes safety authority.
+            end
+        end
+
+
+        function record_af7r46_compact_native_proposal(obj,P)
+            obj.generator_shadow_proposal_count=obj.generator_shadow_proposal_count+1;
+            obj.bezier_shadow_generated_count=obj.bezier_shadow_generated_count+1;
+            obj.bezier_shadow_last_reason_code=double(P.reason_code);
+            obj.bezier_shadow_last_t0=double(P.t0);
+            obj.bezier_shadow_last_tm=double(P.tm);
+            obj.bezier_shadow_last_t1=double(P.t1);
+            obj.bezier_shadow_last_obstacle_id=double(P.obstacle_id);
+            obj.bezier_shadow_last_component_code=double(P.component_code);
+            if isfield(P,'r9_stage_timing')
+                T=P.r9_stage_timing;
+                obj.r9_stage_episode_ms=double(T.episode_ms);
+                obj.r9_stage_synthesis_ms=double(T.synthesis_ms);
+                obj.r9_stage_candidate_loop_ms=double(T.candidate_loop_ms);
+                obj.r9_stage_total_internal_ms=double(T.total_internal_ms);
+            end
+            if isfield(P,'success') && logical(P.success)
+                obj.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count+1;
+                obj.bezier_shadow_last_c7_exact=logical(P.c7_exact);
+                obj.bezier_shadow_last_displacement_m=double(P.displacement_norm_m);
+                d=double(P.displacement(:));
+                if numel(d)==3
+                    obj.bezier_shadow_last_dx=d(1);
+                    obj.bezier_shadow_last_dy=d(2);
+                    obj.bezier_shadow_last_dz=d(3);
+                end
+                G=P.geometry_shadow_certificate;
+                obj.geometry_shadow_pass=logical(G.certified);
+                obj.geometry_shadow_reason_code=double(G.reason_code);
+                obj.geometry_shadow_continuous_time=logical(G.continuous_time);
+                obj.geometry_shadow_ieee754_outward_closed=logical(G.ieee754_outward_closed);
+                obj.geometry_shadow_min_margin_m=double(G.min_margin_m);
+                obj.geometry_shadow_min_payload_margin_m=double(G.min_payload_margin_m);
+                obj.geometry_shadow_min_uav_margin_m=double(G.min_uav_margin_m);
+                obj.geometry_shadow_min_cable_margin_m=double(G.min_cable_margin_m);
+                obj.geometry_shadow_leaf_count=double(G.leaf_count);
+                obj.geometry_shadow_split_count=double(G.split_count);
+                obj.geometry_shadow_max_depth=double(G.max_depth_used);
+                obj.geometry_shadow_max_qdot_ub=double(G.max_qdot_ub);
+                obj.geometry_shadow_max_q_arc_radius=double(G.max_q_arc_radius);
+                obj.geometry_shadow_max_q_arc_inflation_m=double(G.max_q_arc_inflation_m);
+                obj.geometry_shadow_resource_exhausted=logical(G.resource_exhausted);
+            end
+        end
+
+
+        function model = make_batch_model_from_proposal_cached(obj,P,targetVersion)
+            [ok,reason,model,~]=af7r58i_prepare_batch_model( ...
+                obj,P,targetVersion,double(P.t0));
+            assert(ok, ...
+                '[REPLANNER ERROR] canonical batch resource gate rejected: %s', ...
+                reason);
+        end
+
+
+        function sweep = build_trigger_sweep_for_target(obj,SC,targetVersion)
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            assert(isstruct(SC)&&isfield(SC,'certified')&&logical(SC.certified));
+            assert(all(isfield(SC,req)));
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            dt=double(obj.prediction_dt);
+            assert(all(isfinite([VL VQ dt]))&&VL>=0&&VQ>=0&&dt>0);
+            sweep=struct('certified',true,'reference_mode','REPAIRED', ...
+                'reference_version',double(targetVersion), ...
+                'payload_m',VL*dt/2,'uav_m',VQ*dt/2, ...
+                'cable_m',max(VL,VQ)*dt/2,'sensor_one_period_m',VQ*dt, ...
+                'dt',dt,'source','VERSION_BOUND_ACTIVE_SPEED_CERTIFICATE');
+        end
+
+
+        function pack = prepare_obstacle_packet_fast_target(obj,oldPacket,sweep,targetVersion)
+            M=numel(obj.static_obstacle_map);
+            assert(isstruct(oldPacket)&&double(oldPacket.count)==M);
+            assert(isstruct(sweep)&&isfield(sweep,'certified')&&logical(sweep.certified));
+            pack=oldPacket;
+            pack.reference_mode='REPAIRED';
+            pack.reference_version=double(targetVersion);
+            pack.sweep_certified=true;
+            pack.sweep_dt=double(sweep.dt);
+            pack.delta_payload_m=double(sweep.payload_m);
+            pack.delta_uav_m=double(sweep.uav_m);
+            pack.delta_cable_m=double(sweep.cable_m);
+            Dp=double(obj.r_load)+double(obj.d_margin)+double(sweep.payload_m);
+            Dq=double(obj.r_drone)+double(obj.d_margin)+double(sweep.uav_m);
+            Dc=double(obj.r_cable)+double(obj.d_margin)+double(sweep.cable_m);
+            for i=1:M
+                o=obj.static_obstacle_map(i);
+                assert(isequal(double(pack.ids(i)),double(o.id)) && ...
+                    isequal(double(pack.C(:,i)),double(o.p_center(:))) && ...
+                    isequal(double(pack.R(:,i)),double(o.R_obs(:))) && ...
+                    strcmpi(char(pack.types{i}),char(o.type)), ...
+                    '[REPLANNER ERROR] static obstacle authority changed during fast packet rebuild.');
+                ar=double(pack.Araw(:,i));
+                assert(isequal(ar,double(obj.raw_enclosing_ellipsoid_axes(o))), ...
+                    '[REPLANNER ERROR] raw obstacle ellipsoid changed during fast packet rebuild.');
+                pack.Apay(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dp);
+                pack.Auav(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dq);
+                pack.Acable(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dc);
+                if isfield(o,'v_center') && norm(o.v_center(:))>0
+                    error('[REPLANNER ERROR] moving obstacle entered static fast packet path.');
+                end
+            end
+        end
+
+
+        function A = outer_ellipsoid_from_raw_cached(~,o,base,D)
+            type=lower(o.type);
+            if strcmp(type,'cylinder')
+                r=double(o.raw_param(1)); h=double(o.raw_param(2));
+                A=[sqrt(3/2)*(r+D);sqrt(3/2)*(r+D);sqrt(3)*(h/2+D)]; return;
+            end
+            if strcmp(type,'sphere')
+                r=double(o.raw_param(1)); A=(r+D)*ones(3,1); return;
+            end
+            amin=min(base); assert(isfinite(amin)&&amin>0);
+            A=(1+D/amin)*base;
+        end
+
+
+        function cert = build_sensor_horizon_for_target(obj,SC,targetVersion)
+            VL=double(SC.payload_speed_UB_m_s); VQ=double(SC.uav_speed_UB_m_s);
+            dt=double(obj.prediction_dt); H=double(obj.horizon_s); Rs=double(obj.trigger_dist);
+            rho=max([double(obj.r_drone),double(obj.L_cable)+double(obj.r_load), ...
+                     double(obj.L_cable)+double(obj.r_cable)]);
+            horizonMargin=Rs-(rho+VQ*H); dDetLB=Rs-VQ*dt; safeClear=dDetLB-rho;
+            if VQ>0, collisionLead=safeClear/VQ; beforeHorizon=collisionLead-H;
+            else, collisionLead=Inf; beforeHorizon=Inf; end
+            cert=struct('certified',horizonMargin>0&&safeClear>0&&beforeHorizon>0, ...
+                'reference_mode','REPAIRED','reference_version',double(targetVersion), ...
+                'VL',VL,'VQ',VQ,'dt',dt,'sensor_range',Rs,'horizon',H,'rho_body',rho, ...
+                'sensor_horizon_margin_m',horizonMargin, ...
+                'first_detection_distance_LB_m',dDetLB, ...
+                'first_collision_lead_LB_s',collisionLead, ...
+                'before_horizon_entry_LB_s',beforeHorizon, ...
+                'source','LIVE_SPEED_SENSOR_GEOMETRY_THEOREM');
+        end
+
+
+        function tf = can_reuse_reference_only_runtime_packet_exact( ...
+                obj,oldSC,newSC,oldSweep,oldPacket,oldSensor,oldDep)
+            % Exact theorem for REFERENCE_ONLY packet reuse.
+            %
+            % trigger sweep depends only on {VL,VQ,dt}.
+            % obstacle packet geometry depends on the static map, radii /
+            % d_margin, and that sweep.
+            % sensor horizon depends only on {VL,VQ,dt,H,range,radii,L}.
+            %
+            % Therefore exact equality of the two speed bounds plus exact
+            % validation of the current immutable/static inputs makes every
+            % numerical value unchanged.  Only reference metadata/version
+            % must advance.
+
+            tf=false;
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                return;
+            end
+            if ~(isstruct(oldSC)&&isstruct(newSC)&& ...
+                    isfield(oldSC,'certified')&&logical(oldSC.certified)&& ...
+                    isfield(newSC,'certified')&&logical(newSC.certified))
+                return;
+            end
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            if ~all(isfield(oldSC,req)) || ~all(isfield(newSC,req))
+                return;
+            end
+
+            VL=double(newSC.payload_speed_UB_m_s);
+            VQ=double(newSC.uav_speed_UB_m_s);
+            if ~(isequal(double(oldSC.payload_speed_UB_m_s),VL) && ...
+                    isequal(double(oldSC.uav_speed_UB_m_s),VQ))
+                return;
+            end
+
+            dt=double(obj.prediction_dt);
+            pay=VL*dt/2;
+            uav=VQ*dt/2;
+            cab=max(VL,VQ)*dt/2;
+
+            if ~(isstruct(oldSweep)&&isfield(oldSweep,'certified')&& ...
+                    logical(oldSweep.certified)&& ...
+                    isfield(oldSweep,'dt')&&isequal(double(oldSweep.dt),dt)&& ...
+                    isfield(oldSweep,'payload_m')&&isequal(double(oldSweep.payload_m),pay)&& ...
+                    isfield(oldSweep,'uav_m')&&isequal(double(oldSweep.uav_m),uav)&& ...
+                    isfield(oldSweep,'cable_m')&&isequal(double(oldSweep.cable_m),cab))
+                return;
+            end
+
+            if ~(isstruct(oldPacket)&&isfield(oldPacket,'count')&& ...
+                    double(oldPacket.count)==numel(obj.static_obstacle_map) && ...
+                    isfield(oldPacket,'sweep_certified')&&logical(oldPacket.sweep_certified)&& ...
+                    isfield(oldPacket,'delta_payload_m')&& ...
+                    isequal(double(oldPacket.delta_payload_m),pay)&& ...
+                    isfield(oldPacket,'delta_uav_m')&& ...
+                    isequal(double(oldPacket.delta_uav_m),uav)&& ...
+                    isfield(oldPacket,'delta_cable_m')&& ...
+                    isequal(double(oldPacket.delta_cable_m),cab))
+                return;
+            end
+
+            % Exact current static-map identity against the packet.  This is
+            % intentionally not a sampled geometric acceptance condition.
+            M=numel(obj.static_obstacle_map);
+            for ii=1:M
+                o=obj.static_obstacle_map(ii);
+                if ~(isequal(double(oldPacket.ids(ii)),double(o.id)) && ...
+                        isequal(double(oldPacket.C(:,ii)),double(o.p_center(:))) && ...
+                        isequal(double(oldPacket.R(:,ii)),double(o.R_obs(:))) && ...
+                        strcmpi(char(oldPacket.types{ii}),char(o.type)))
+                    return;
+                end
+                ar=obj.raw_enclosing_ellipsoid_axes(o);
+                if ~isequal(double(oldPacket.Araw(:,ii)),double(ar(:)))
+                    return;
+                end
+            end
+
+            rho=max([double(obj.r_drone), ...
+                     double(obj.L_cable)+double(obj.r_load), ...
+                     double(obj.L_cable)+double(obj.r_cable)]);
+            H=double(obj.horizon_s);
+            Rs=double(obj.trigger_dist);
+
+            if ~(isstruct(oldSensor)&&isfield(oldSensor,'certified')&& ...
+                    logical(oldSensor.certified)&& ...
+                    isfield(oldSensor,'VL')&&isequal(double(oldSensor.VL),VL)&& ...
+                    isfield(oldSensor,'VQ')&&isequal(double(oldSensor.VQ),VQ)&& ...
+                    isfield(oldSensor,'dt')&&isequal(double(oldSensor.dt),dt)&& ...
+                    isfield(oldSensor,'horizon')&&isequal(double(oldSensor.horizon),H)&& ...
+                    isfield(oldSensor,'sensor_range')&&isequal(double(oldSensor.sensor_range),Rs)&& ...
+                    isfield(oldSensor,'rho_body')&&isequal(double(oldSensor.rho_body),rho))
+                return;
+            end
+
+            if ~(isstruct(oldDep)&&isfield(oldDep,'dt')&& ...
+                    isequal(double(oldDep.dt),dt)&& ...
+                    isfield(oldDep,'sensor_range')&& ...
+                    isequal(double(oldDep.sensor_range),Rs)&& ...
+                    isfield(oldDep,'horizon')&&isequal(double(oldDep.horizon),H)&& ...
+                    isfield(oldDep,'r_drone')&& ...
+                    isequal(double(oldDep.r_drone),double(obj.r_drone))&& ...
+                    isfield(oldDep,'r_load')&& ...
+                    isequal(double(oldDep.r_load),double(obj.r_load))&& ...
+                    isfield(oldDep,'r_cable')&& ...
+                    isequal(double(oldDep.r_cable),double(obj.r_cable))&& ...
+                    isfield(oldDep,'d_margin')&& ...
+                    isequal(double(oldDep.d_margin),double(obj.d_margin))&& ...
+                    isfield(oldDep,'cable_length')&& ...
+                    isequal(double(oldDep.cable_length),double(obj.L_cable))&& ...
+                    isfield(oldDep,'gravity')&& ...
+                    isequal(double(oldDep.gravity),double(obj.gravity))&& ...
+                    isfield(oldDep,'hard_modify_deadline_s')&& ...
+                    isequal(double(oldDep.hard_modify_deadline_s), ...
+                        double(obj.hard_modify_deadline_s)))
+                return;
+            end
+
+            tf=true;
+        end
+
+
+        function [tf,reason] = can_reuse_reference_only_prepared_packet_cache_exact(obj,C,newSC)
+            % AF7R58ZL exact NON-AUTHORITY prepared-cache retarget gate.
+            %
+            % A cached entry is NOT accepted as a new safety certificate.
+            % It is accepted only as an exact static-geometry base from which
+            % the current-speed sweep/packet/sensor tuple is recomputed.
+            %
+            % Therefore payload/UAV speed changes do not invalidate the cache:
+            % the current speed certificate is applied exactly by
+            % retarget_reference_only_prepared_packet_cache_exact().
+            %
+            % reason: 0 PASS
+            % 1 policy | 2 cache/schema | 3 newSC | 4 cachedSC
+            % 5 cached payload speed invalid | 6 cached UAV speed invalid
+            % 7 key shape | 8 active authority changed
+            % 9 live numeric dependency changed | 10 obstacle source changed
+            % 11 cached sweep mismatch | 12 cached packet invalid
+            % 13 cached sensor mismatch | 14 cached dep invalid
+            tf=false;
+            reason=1;
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                return;
+            end
+
+            reason=2;
+            if ~(isstruct(C) && isscalar(C) && ...
+                    isfield(C,'schema') && ...
+                    strcmp(char(C.schema),'AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2') && ...
+                    isfield(C,'non_authority') && isscalar(C.non_authority) && logical(C.non_authority) && ...
+                    isfield(C,'speed') && isfield(C,'sweep') && ...
+                    isfield(C,'packet') && isfield(C,'sensor') && ...
+                    isfield(C,'dep') && isfield(C,'key'))
+                return;
+            end
+
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            reason=3;
+            if ~(isstruct(newSC) && isfield(newSC,'certified') && logical(newSC.certified) && ...
+                    all(isfield(newSC,req)))
+                return;
+            end
+            VL=double(newSC.payload_speed_UB_m_s);
+            VQ=double(newSC.uav_speed_UB_m_s);
+            if ~(isfinite(VL)&&VL>=0&&isfinite(VQ)&&VQ>=0)
+                return;
+            end
+
+            reason=4;
+            oldSC=C.speed;
+            if ~(isstruct(oldSC) && isfield(oldSC,'certified') && logical(oldSC.certified) && ...
+                    all(isfield(oldSC,req)))
+                return;
+            end
+            VLcached=double(oldSC.payload_speed_UB_m_s);
+            VQcached=double(oldSC.uav_speed_UB_m_s);
+            reason=5;
+            if ~(isfinite(VLcached)&&VLcached>=0), return; end
+            reason=6;
+            if ~(isfinite(VQcached)&&VQcached>=0), return; end
+
+            reason=7;
+            K=C.key;
+            keyReq={'active_reference_mode','active_reference_version', ...
+                'dt','r_load','d_margin','r_drone','r_cable', ...
+                'horizon','sensor_range','cable_length','static_obstacle_map'};
+            if ~(isstruct(K)&&isscalar(K)&&all(isfield(K,keyReq)))
+                return;
+            end
+
+            reason=8;
+            if ~(strcmpi(char(K.active_reference_mode),char(obj.active_reference_mode)) && ...
+                    isequal(double(K.active_reference_version),double(obj.active_reference_version)))
+                return;
+            end
+
+            reason=9;
+            live=[double(obj.prediction_dt),double(obj.r_load),double(obj.d_margin), ...
+                double(obj.r_drone),double(obj.r_cable),double(obj.horizon_s), ...
+                double(obj.trigger_dist),double(obj.L_cable)];
+            stored=[double(K.dt),double(K.r_load),double(K.d_margin), ...
+                double(K.r_drone),double(K.r_cable),double(K.horizon), ...
+                double(K.sensor_range),double(K.cable_length)];
+            if ~(all(isfinite(live)) && all(isfinite(stored)) && isequal(stored,live))
+                return;
+            end
+
+            reason=10;
+            if ~isequaln(K.static_obstacle_map,obj.static_obstacle_map)
+                return;
+            end
+
+            % Prove the cached entry itself was internally coherent at the
+            % cached speed. It is only a base; current-speed quantities are
+            % recomputed after this gate.
+            dt=live(1);
+            pay=VLcached*dt/2;
+            uav=VQcached*dt/2;
+            cab=max(VLcached,VQcached)*dt/2;
+            S=C.sweep;
+            reason=11;
+            if ~(isstruct(S) && isfield(S,'certified') && logical(S.certified) && ...
+                    isfield(S,'dt') && isequal(double(S.dt),dt) && ...
+                    isfield(S,'payload_m') && isequal(double(S.payload_m),pay) && ...
+                    isfield(S,'uav_m') && isequal(double(S.uav_m),uav) && ...
+                    isfield(S,'cable_m') && isequal(double(S.cable_m),cab) && ...
+                    isfield(S,'sensor_one_period_m') && ...
+                        isequal(double(S.sensor_one_period_m),VQcached*dt))
+                return;
+            end
+
+            reason=12;
+            P=C.packet;
+            M=numel(obj.static_obstacle_map);
+            if ~(isstruct(P) && isscalar(P) && ...
+                    isfield(P,'count') && double(P.count)==M && ...
+                    isfield(P,'ids') && numel(P.ids)==M && ...
+                    isfield(P,'C') && isequal(size(P.C),[3 M]) && ...
+                    isfield(P,'R') && isequal(size(P.R),[9 M]) && ...
+                    isfield(P,'types') && numel(P.types)==M && ...
+                    isfield(P,'Araw') && isequal(size(P.Araw),[3 M]) && ...
+                    isfield(P,'Apay') && isequal(size(P.Apay),[3 M]) && ...
+                    isfield(P,'Auav') && isequal(size(P.Auav),[3 M]) && ...
+                    isfield(P,'Acable') && isequal(size(P.Acable),[3 M]) && ...
+                    isfield(P,'delta_payload_m') && isequal(double(P.delta_payload_m),pay) && ...
+                    isfield(P,'delta_uav_m') && isequal(double(P.delta_uav_m),uav) && ...
+                    isfield(P,'delta_cable_m') && isequal(double(P.delta_cable_m),cab))
+                return;
+            end
+
+            reason=13;
+            H=live(6); Rs=live(7); L=live(8);
+            rho=max([live(4),L+live(2),L+live(5)]);
+            horizonMargin=Rs-(rho+VQcached*H);
+            dDetLB=Rs-VQcached*dt;
+            safeClear=dDetLB-rho;
+            if VQcached>0
+                collisionLead=safeClear/VQcached;
+                beforeHorizon=collisionLead-H;
+            else
+                collisionLead=Inf;
+                beforeHorizon=Inf;
+            end
+            T=C.sensor;
+            if ~(isstruct(T) && isfield(T,'certified') && logical(T.certified) && ...
+                    isfield(T,'VL') && isequal(double(T.VL),VLcached) && ...
+                    isfield(T,'VQ') && isequal(double(T.VQ),VQcached) && ...
+                    isfield(T,'dt') && isequal(double(T.dt),dt) && ...
+                    isfield(T,'sensor_range') && isequal(double(T.sensor_range),Rs) && ...
+                    isfield(T,'horizon') && isequal(double(T.horizon),H) && ...
+                    isfield(T,'rho_body') && isequal(double(T.rho_body),rho) && ...
+                    isfield(T,'sensor_horizon_margin_m') && ...
+                        isequal(double(T.sensor_horizon_margin_m),horizonMargin) && ...
+                    isfield(T,'first_detection_distance_LB_m') && ...
+                        isequal(double(T.first_detection_distance_LB_m),dDetLB) && ...
+                    isfield(T,'first_collision_lead_LB_s') && ...
+                        isequal(double(T.first_collision_lead_LB_s),collisionLead) && ...
+                    isfield(T,'before_horizon_entry_LB_s') && ...
+                        isequal(double(T.before_horizon_entry_LB_s),beforeHorizon))
+                return;
+            end
+
+            reason=14;
+            if ~isstruct(C.dep), return; end
+
+            reason=0;
+            tf=true;
+        end
+
+
+        function [sweep,packet,sensor,dep] = ...
+                retarget_reference_only_prepared_packet_cache_exact( ...
+                    obj,C,SC,targetVersion,currentDep)
+            % Exact current-speed retarget from a validated non-authority cache.
+            %
+            % Static obstacle authority is unchanged by the gate. Araw is the
+            % cached raw enclosing-ellipsoid authority. We recompute every
+            % speed-dependent inflated axis with the SAME production formula
+            % outer_ellipsoid_from_raw_cached(), then rebuild the sensor theorem
+            % from the current speed certificate. No sampled acceptance is used.
+            sweep=obj.build_trigger_sweep_for_target(SC,targetVersion);
+
+            packet=C.packet;
+            packet.reference_mode='REPAIRED';
+            packet.reference_version=double(targetVersion);
+            packet.sweep_certified=true;
+            packet.sweep_dt=double(sweep.dt);
+            packet.delta_payload_m=double(sweep.payload_m);
+            packet.delta_uav_m=double(sweep.uav_m);
+            packet.delta_cable_m=double(sweep.cable_m);
+
+            Dp=double(obj.r_load)+double(obj.d_margin)+double(sweep.payload_m);
+            Dq=double(obj.r_drone)+double(obj.d_margin)+double(sweep.uav_m);
+            Dc=double(obj.r_cable)+double(obj.d_margin)+double(sweep.cable_m);
+            M=numel(obj.static_obstacle_map);
+            assert(double(packet.count)==M, ...
+                '[REPLANNER ERROR] cached packet/static-map count changed during retarget.');
+            for ii=1:M
+                o=obj.static_obstacle_map(ii);
+                assert(isequal(double(packet.ids(ii)),double(o.id)) && ...
+                    isequal(double(packet.C(:,ii)),double(o.p_center(:))) && ...
+                    isequal(double(packet.R(:,ii)),double(o.R_obs(:))) && ...
+                    strcmpi(char(packet.types{ii}),char(o.type)), ...
+                    '[REPLANNER ERROR] cached static obstacle authority changed during retarget.');
+                ar=double(packet.Araw(:,ii));
+                packet.Apay(:,ii)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dp);
+                packet.Auav(:,ii)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dq);
+                packet.Acable(:,ii)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dc);
+                if isfield(o,'v_center') && norm(o.v_center(:))>0
+                    error('[REPLANNER ERROR] moving obstacle entered prepared-cache retarget path.');
+                end
+            end
+
+            sensor=obj.build_sensor_horizon_for_target(SC,targetVersion);
+            assert(isfield(sensor,'certified')&&logical(sensor.certified), ...
+                '[REPLANNER ERROR] retargeted sensor horizon is not closed.');
+
+            dep=currentDep;
+            dep.reference_mode='REPAIRED';
+            dep.reference_version=double(targetVersion);
+        end
+
+
+        function [sweep,packet,sensor,dep] = ...
+                reuse_reference_only_runtime_packet_exact( ...
+                    obj,oldSweep,oldPacket,oldSensor,oldDep,SC,targetVersion)
+            sweep=oldSweep;
+            sweep.reference_mode='REPAIRED';
+            sweep.reference_version=double(targetVersion);
+
+            packet=oldPacket;
+            packet.reference_mode='REPAIRED';
+            packet.reference_version=double(targetVersion);
+            packet.sweep_certified=true;
+            packet.sweep_dt=sweep.dt;
+            packet.delta_payload_m=sweep.payload_m;
+            packet.delta_uav_m=sweep.uav_m;
+            packet.delta_cable_m=sweep.cable_m;
+
+            sensor=oldSensor;
+            sensor.reference_mode='REPAIRED';
+            sensor.reference_version=double(targetVersion);
+            sensor.VL=double(SC.payload_speed_UB_m_s);
+            sensor.VQ=double(SC.uav_speed_UB_m_s);
+
+            dep=oldDep;
+            dep.reference_mode='REPAIRED';
+            dep.reference_version=double(targetVersion);
+
+            assert(isfield(sensor,'certified')&&logical(sensor.certified), ...
+                '[REPLANNER ERROR] reused sensor horizon is not certified.');
+            assert(isfield(sweep,'certified')&&logical(sweep.certified), ...
+                '[REPLANNER ERROR] reused trigger sweep is not certified.');
+        end
+
+
+        function C = normalize_generator_backend_callbacks(~,C)
+            names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+
+            if isempty(C)
+                C=struct();
+            end
+            assert(isstruct(C) && isscalar(C), ...
+                '[REPLANNER ERROR] generator_backend_callbacks must be a scalar struct.');
+
+            for k=1:numel(names)
+                n=names{k};
+                if ~isfield(C,n)
+                    C.(n)=[];
+                elseif ~isempty(C.(n))
+                    assert(isa(C.(n),'function_handle'), ...
+                        '[REPLANNER ERROR] backend callback %s must be a function handle or [].',n);
+                end
+            end
+        end
+
+
+        function [code,name,canonical] = normalize_generator_backend_flag(~,flag)
+            names={'BEZIER_D15_C7','POLY_D15_C7', ...
+                'MINCO_STYLE_D15_C7','BSPLINE_D8_C7'};
+
+            if isnumeric(flag) || islogical(flag)
+                assert(isscalar(flag) && isfinite(double(flag)) && ...
+                    double(flag)==round(double(flag)) && ...
+                    double(flag)>=1 && double(flag)<=4, ...
+                    '[REPLANNER ERROR] generator backend numeric flag must be integer 1..4.');
+                code=double(flag);
+                name=names{code};
+                canonical=name;
+                return;
+            end
+
+            assert(ischar(flag) || (isstring(flag)&&isscalar(flag)), ...
+                '[REPLANNER ERROR] generator backend flag must be numeric 1..4 or a backend name.');
+
+            s=upper(strtrim(char(flag)));
+            switch s
+                case {'1','BEZIER','BEZIER_D15_C7'}
+                    code=1;
+                case {'2','POLY','POLYNOMIAL','POLY_D15_C7'}
+                    code=2;
+                case {'3','MINCO','MINCO_STYLE','MINCO_STYLE_D15_C7'}
+                    code=3;
+                case {'4','BSPLINE','B-SPLINE','BSPLINE_D8_C7'}
+                    code=4;
+                otherwise
+                    error('[REPLANNER ERROR] unknown generator backend flag/name: %s',s);
+            end
+            name=names{code};
+            canonical=name;
+        end
+
+
+        function af7r58m_capture_timing_ring_internal(obj,t_hard_cycle)
+            % AF7R58O bounded request-only diagnostic writer.
+            % Must never throw and must never affect control decisions.
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58M_TIMING_RING)
+                    return;
+                end
+                cap=double(obj.af7r58m_timing_ring_capacity);
+                wid=double(obj.af7r58m_timing_ring_width);
+                if ~(cap==64 && wid==32 && isequal(size(obj.af7r58m_timing_ring),[64 32]))
+                    return;
+                end
+
+                r=nan(1,32);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(t_hard_cycle);
+                r(3)=double(obj.generator_last_cycle_critical_ms);
+                r(4)=double(obj.generator_last_elapsed_before_ms);
+                r(5)=double(obj.generator_last_budget_remaining_ms);
+                r(6)=double(obj.generator_last_context_ms);
+                r(7)=double(obj.generator_last_callback_ms);
+                r(8)=double(obj.generator_last_validation_ms);
+                r(9)=double(obj.generator_last_critical_ms);
+                r(10)=double(obj.generator_last_runtime_ms);
+                r(11)=double(obj.generator_last_status_code);
+                r(12)=double(obj.generator_deadline_fail_count);
+                r(13)=double(obj.generator_candidate_count);
+                r(14)=double(obj.generator_validation_pass_count);
+                r(15)=double(obj.generator_validation_fail_count);
+                r(16)=double(obj.active_reference_version);
+                r(17)=double(obj.replan_commit_count);
+                r(18)=double(obj.reference_only_evaluation_count);
+                r(19)=double(obj.reference_only_commit_count);
+                r(20)=double(obj.reference_only_runtime_packet_reuse_count);
+                r(21)=double(obj.reference_only_runtime_packet_rebuild_count);
+                r(22)=double(obj.reference_only_fast_packet_rebuild_count);
+                r(23)=double(obj.compact_native_proposal_count);
+                r(24)=double(obj.r9_stage_episode_ms);
+                r(25)=double(obj.r9_synth_hessian_ms);
+                r(26)=double(obj.r9_synth_corridor_ms);
+                r(27)=double(obj.r9_synth_qp_ms);
+                r(28)=double(obj.r9_synth_candidate_build_ms);
+                r(29)=double(obj.r9_stage_synthesis_ms);
+                r(30)=double(obj.r9_stage_candidate_loop_ms);
+                r(31)=double(obj.r9_stage_total_internal_ms);
+                r(32)=double(obj.r9_hr_callback_wall_ms);
+
+                head=double(obj.af7r58m_timing_ring_head);
+                idx=mod(head,cap)+1;
+                obj.af7r58m_timing_ring(idx,:)=r;
+                obj.af7r58m_timing_ring_head=idx;
+                obj.af7r58m_timing_ring_count=min(cap,double(obj.af7r58m_timing_ring_count)+1);
+
+                us=1e6*toc(tcap);
+                obj.af7r58m_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58m_max_capture_overhead_us= ...
+                        max(double(obj.af7r58m_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic capture must never alter the control path.
+            end
+        end
+
+        function invoke_replan_generator_shadow(obj,t_hard_cycle,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit)
+            % =============================================================
+            % R19 compact detected-only request path.
+            %
+            % IMPORTANT SENSOR CONTRACT:
+            %   The generator receives ONLY sensor-known obstacles:
+            %   current detections plus previously detected static obstacles
+            %   retained through certified rejoin. The full simulation map is
+            %   never exposed before first detection.
+            %
+            % Backend selection/callback are frozen before Flight.
+            % =============================================================
+
+            ti=tic;
+            obj.generator_request_count=obj.generator_request_count+1;
+            if obj.ENABLE_AF7R58M_TIMING_RING
+                af7r58m_ring_cleanup=onCleanup( ...
+                    @()obj.af7r58m_capture_timing_ring_internal(t_hard_cycle)); %#ok<NASGU>
+            end
+            if obj.ENABLE_PROFILING
+                obj.r9_hr_request_seq=double(obj.generator_request_count);
+                obj.r9_hr_callback_wall_ms=NaN;
+                obj.r9_hr_callback_thread_cycles=NaN;
+                obj.r9_hr_callback_process_cycles=NaN;
+                obj.r9_hr_episode_wall_ms=NaN;
+                obj.r9_hr_episode_thread_cycles=NaN;
+                obj.r9_hr_episode_process_cycles=NaN;
+                obj.r9_hr_synthesis_wall_ms=NaN;
+                obj.r9_hr_synthesis_thread_cycles=NaN;
+                obj.r9_hr_synthesis_process_cycles=NaN;
+                obj.r9_hr_qp_wall_ms=NaN;
+                obj.r9_hr_qp_thread_cycles=NaN;
+                obj.r9_hr_qp_process_cycles=NaN;
+            end
+
+            elapsed_before=toc(t_hard_cycle);
+            budget_remaining=double(obj.hard_modify_deadline_s)-elapsed_before;
+            obj.generator_last_elapsed_before_ms=1e3*elapsed_before;
+            obj.generator_last_budget_remaining_ms=1e3*budget_remaining;
+
+            if budget_remaining<=0
+                obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                obj.generator_last_status_code=-2;
+                obj.generator_last_context_ms=0;
+                obj.generator_last_callback_ms=0;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=1e3*toc(ti);
+                obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
+                if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','PRE_GENERATOR_DEADLINE_EXHAUSTED', ...
+                        'trigger_ttc',double(ttc), ...
+                        'elapsed_before_generator_ms',1e3*elapsed_before, ...
+                        'budget_remaining_ms',1e3*budget_remaining, ...
+                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
+                        'backend_code',double(obj.generator_backend_locked_code), ...
+                        'backend_name',char(obj.generator_backend_locked_name));
+                end
+                return;
+            end
+
+            assert(obj.generator_backend_configuration_frozen, ...
+                '[REPLANNER ERROR] generator backend configuration not frozen before Flight.');
+
+            CTX=obj.build_generator_request_context_compact( ...
+                t_now,elapsed_before,budget_remaining, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit);
+
+            cp_context=1e3*toc(ti);
+            obj.generator_last_context_ms=cp_context;
+
+            % Fixed callback contract:
+            %   []               -> no candidate
+            %   certified struct -> candidate
+            candidate=[];
+            callback_ok=true;
+
+            if isempty(obj.generator_backend_locked_callback)
+                % Exact real no-generator branch. This SAME branch is primed
+                % before Flight for every detected-obstacle count.
+                candidate=[];
+            else
+                try
+                    if obj.ENABLE_PROFILING
+                        r25cb0=af7r25_stamp_mex();
+                        candidate=obj.generator_backend_locked_callback(CTX);
+                        r25cb1=af7r25_stamp_mex();
+                        obj.r9_hr_callback_wall_ms=1e3*double(r25cb1(1)-r25cb0(1))/double(r25cb0(2));
+                        obj.r9_hr_callback_thread_cycles=double(r25cb1(3)-r25cb0(3));
+                        obj.r9_hr_callback_process_cycles=double(r25cb1(4)-r25cb0(4));
+                    else
+                        candidate=obj.generator_backend_locked_callback(CTX);
+                    end
+                catch
+                    callback_ok=false;
+                end
+            end
+
+            cp_callback=1e3*toc(ti);
+            obj.generator_last_callback_ms=cp_callback-cp_context;
+            obj.generator_last_runtime_ms=obj.generator_last_callback_ms;
+
+            if ~callback_ok
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-1;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                end
+                return;
+            end
+
+            if isempty(candidate)
+                obj.generator_last_status_code=1;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                    obj.generator_last_status_code=-7;
+                end
+                return;
+            end
+
+            % Built-in C7 proposal.  Reference-only and execution-aware
+            % commit policies branch HERE, after the common mathematical
+            % reference certificate has been constructed.
+            if isstruct(candidate) && isscalar(candidate) && ...
+                    isfield(candidate,'shadow_proposal') && ...
+                    logical(candidate.shadow_proposal)
+                % AF7R43: shadow mirroring is diagnostic only; perform it
+                % when invoke_replan_generator_shadow exits, after every hard
+                % deadline / atomic-commit decision.
+                if obj.ENABLE_PROPOSAL_DIAGNOSTIC_MIRROR
+                    record_guard=onCleanup(@()obj.safe_record_bezier_shadow_proposal(candidate)); %#ok<NASGU>
+                end
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+
+                % Deadline authority and diagnostic certificate evaluation
+                % are deliberately separated. A deadline miss ALWAYS
+                % forbids commit, but the already-generated candidate is
+                % still evaluated read-only so the same run reveals which
+                % theorem layer is open. This does not weaken the <=4 ms
+                % production rule.
+                deadlineExceeded=cycle_ms>1e3*obj.hard_modify_deadline_s;
+                if deadlineExceeded
+                    obj.generator_deadline_fail_count= ...
+                        obj.generator_deadline_fail_count+1;
+                end
+
+                if ~(isfield(candidate,'success') && logical(candidate.success)) && ...
+                        ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
+                    obj.generator_last_status_code=21;
+                    if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                        obj.last_reference_only_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                        obj.last_execution_aware_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                        obj.last_replan_status=struct( ...
+                            'requested',true,'committed',false, ...
+                            'reason','REFERENCE_PROPOSAL_NOT_CERTIFIED', ...
+                            'proposal_reason_code',double(candidate.reason_code), ...
+                            'proposal_reason',obj.bezier_proposal_reason_text(candidate.reason_code), ...
+                            'proposal_generated',obj.logical_struct_field(candidate,'generated'), ...
+                            'proposal_t0',double(candidate.t0), ...
+                            'proposal_tm',double(candidate.tm), ...
+                            'proposal_t1',double(candidate.t1), ...
+                            'reference_certified',false, ...
+                            'execution_certified',false, ...
+                            'noncommit_diagnostics_deferred',true, ...
+                            'cycle_ms',cycle_ms, ...
+                            'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
+                            'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    end
+                    return;
+                end
+
+                if ~(isfield(candidate,'success') && logical(candidate.success))
+                    % Preserve the failed candidate as a read-only theorem
+                    % diagnostic.  It can NEVER commit, but the execution
+                    % foundation snapshot is still useful because it tells
+                    % us exactly which hard authorities are already closed.
+                    Rref=struct('certified',false,'reason','REFERENCE_LAYER_DISABLED');
+                    if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                        Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
+                        obj.reference_only_evaluation_count= ...
+                            obj.reference_only_evaluation_count+1;
+                    end
+                    obj.last_reference_only_evaluation=Rref;
+
+                    Xexec=struct( ...
+                        'certified',false, ...
+                        'reason','EXECUTION_AWARE_LAYER_DISABLED', ...
+                        'full_system_authority',false);
+                    if obj.ENABLE_EXECUTION_AWARE_CERTIFICATE
+                        OS=obj.get_observer_hard_support_status();
+                        Xexec.foundation= ...
+                            obj.build_execution_aware_foundation_snapshot( ...
+                            candidate,CTX,OS);
+                        Xexec.reason=['REFERENCE_PROPOSAL_NOT_CERTIFIED__' ...
+                            obj.bezier_proposal_reason_text(candidate.reason_code)];
+                        Xexec.sampled_acceptance=false;
+                        Xexec.tracking_actuator_layer_certified=false;
+                        Xexec.reference_geometry_certified=false;
+                        Xexec.reference_geometry_numerically_closed=false;
+                        Xexec.ieee754_outward_closed=false;
+                        Xexec.position_error_ub=[NaN;NaN;NaN];
+                        Xexec.tracking_inflation_m=NaN;
+                        obj.execution_aware_evaluation_count= ...
+                            obj.execution_aware_evaluation_count+1;
+                    end
+                    obj.last_execution_aware_evaluation=Xexec;
+
+                    obj.generator_last_status_code=21;
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','REFERENCE_PROPOSAL_NOT_CERTIFIED', ...
+                        'proposal_reason_code',double(candidate.reason_code), ...
+                        'proposal_reason', ...
+                            obj.bezier_proposal_reason_text(candidate.reason_code), ...
+                        'proposal_generated',obj.logical_struct_field(candidate,'generated'), ...
+                        'proposal_t0',double(candidate.t0), ...
+                        'proposal_tm',double(candidate.tm), ...
+                        'proposal_hold_end',double(candidate.hold_end), ...
+                        'proposal_t1',double(candidate.t1), ...
+                        'proposal_displacement',double(candidate.displacement(:)), ...
+                        'proposal_displacement_norm_m',double(candidate.displacement_norm_m), ...
+                        'nominal_tail_certified', ...
+                            obj.logical_struct_field(candidate.nominal_tail_certificate,'certified'), ...
+                        'corridor_qp_certified', ...
+                            obj.logical_struct_field(candidate.corridor_certificate,'certified'), ...
+                        'rejoin_search_full_certificate_tests', ...
+                            double(candidate.rejoin_search_full_certificate_tests), ...
+                        'rejoin_search_endpoint_safe_count', ...
+                            double(candidate.rejoin_search_endpoint_safe_count), ...
+                        'reference_certified', ...
+                            obj.logical_struct_field(Rref,'certified'), ...
+                        'execution_certified',false, ...
+                        'cycle_ms',cycle_ms, ...
+                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
+                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    return;
+                end
+
+                if deadlineExceeded && ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
+                    obj.generator_last_status_code=-20;
+                    if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                        obj.last_reference_only_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                        obj.last_execution_aware_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                        obj.last_replan_status=struct( ...
+                            'requested',true,'committed',false, ...
+                            'reason','GENERATOR_DEADLINE_EXCEEDED__DIAGNOSTICS_DEFERRED', ...
+                            'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
+                            'reference_certified',false, ...
+                            'execution_certified',false, ...
+                            'noncommit_diagnostics_deferred',true, ...
+                            'cycle_ms',cycle_ms, ...
+                            'deadline_ms',1e3*double(obj.hard_modify_deadline_s));
+                    end
+                    return;
+                end
+
+                % -----------------------------------------------------
+                % AF7R38 policy-authority hot path.
+                % REFERENCE_ONLY commits depend only on the already-closed
+                % reference certificate. Execution-aware evaluation is a
+                % non-authoritative diagnostic in this policy and is
+                % deferred from the <=4 ms modification path. No safety
+                % condition used by REFERENCE_ONLY is removed or relaxed.
+                % EXECUTION_AWARE retains both evaluations exactly.
+                % -----------------------------------------------------
+                Rref=struct('certified',false,'reason','REFERENCE_LAYER_DISABLED');
+                Xexec=struct( ...
+                    'certified',false, ...
+                    'reason','EXECUTION_AWARE_DEFERRED_IN_REFERENCE_ONLY_HOTPATH', ...
+                    'full_system_authority',false, ...
+                    'sampled_acceptance',false);
+                policyNow=upper(char(obj.AVOIDANCE_COMMIT_POLICY));
+                switch policyNow
+                    case 'REFERENCE_ONLY'
+                        if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                            Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
+                            obj.reference_only_evaluation_count= ...
+                                obj.reference_only_evaluation_count+1;
+                        end
+                    case 'EXECUTION_AWARE'
+                        if obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                            Rref=obj.evaluate_reference_only_proposal_certificate(candidate);
+                            obj.reference_only_evaluation_count= ...
+                                obj.reference_only_evaluation_count+1;
+                        end
+                        if obj.ENABLE_EXECUTION_AWARE_CERTIFICATE
+                            Xexec=obj.build_execution_aware_proposal_certificate(candidate,CTX);
+                            obj.execution_aware_evaluation_count= ...
+                                obj.execution_aware_evaluation_count+1;
+                        end
+                    otherwise
+                        error('[REPLANNER ERROR] unknown avoidance commit policy.');
+                end
+                if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                    obj.last_reference_only_evaluation=Rref;
+                    obj.last_execution_aware_evaluation=Xexec;
+                end
+
+                if deadlineExceeded
+                    obj.generator_last_status_code=-20;
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','GENERATOR_DEADLINE_EXCEEDED__CERTIFICATES_EVALUATED_READ_ONLY', ...
+                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
+                        'reference_certified',obj.logical_struct_field(Rref,'certified'), ...
+                        'execution_certified',obj.logical_struct_field(Xexec,'certified'), ...
+                        'cycle_ms',cycle_ms, ...
+                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s));
+                    return;
+                end
+
+                if ~obj.ENABLE_AUTO_REPLAN_COMMIT
+                    obj.generator_last_status_code=20;
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','AUTO_COMMIT_DISABLED', ...
+                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
+                        'reference_certified',obj.logical_struct_field(Rref,'certified'), ...
+                        'execution_certified',obj.logical_struct_field(Xexec,'certified'));
+                    return;
+                end
+
+                switch upper(char(obj.AVOIDANCE_COMMIT_POLICY))
+                    case 'REFERENCE_ONLY'
+                        if ~obj.ENABLE_REFERENCE_ONLY_CERTIFICATE
+                            obj.generator_last_status_code=32;
+                            obj.last_replan_status=struct( ...
+                                'requested',true,'committed',false, ...
+                                'reason','REFERENCE_ONLY_LAYER_DISABLED', ...
+                                'commit_policy','REFERENCE_ONLY');
+                            return;
+                        end
+                        if ~(isfield(Rref,'certified') && logical(Rref.certified))
+                            obj.generator_last_status_code=33;
+                            obj.last_replan_status=struct( ...
+                                'requested',true,'committed',false, ...
+                                'reason',char(Rref.reason), ...
+                                'commit_policy','REFERENCE_ONLY');
+                            return;
+                        end
+
+                        [commit_ok,commit_reason]= ...
+                            obj.try_commit_reference_only_proposal( ...
+                                candidate,double(t_now),t_hard_cycle);
+                        cycle_ms=1e3*toc(t_hard_cycle);
+                        obj.generator_last_cycle_critical_ms=cycle_ms;
+                        if commit_ok
+                            obj.generator_validation_pass_count= ...
+                                obj.generator_validation_pass_count+1;
+                            obj.generator_last_status_code=30;
+                        else
+                            obj.generator_validation_fail_count= ...
+                                obj.generator_validation_fail_count+1;
+                            if cycle_ms>1e3*obj.hard_modify_deadline_s
+                                obj.generator_deadline_fail_count= ...
+                                    obj.generator_deadline_fail_count+1;
+                                obj.generator_last_status_code=-30;
+                            else
+                                obj.generator_last_status_code=31;
+                            end
+                            if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                                obj.last_replan_status=struct( ...
+                                    'requested',true,'committed',false, ...
+                                    'reason',char(commit_reason), ...
+                                    'commit_policy','REFERENCE_ONLY');
+                            end
+                        end
+
+                    case 'EXECUTION_AWARE'
+                        if ~obj.ENABLE_EXECUTION_AWARE_CERTIFICATE
+                            obj.generator_last_status_code=42;
+                            obj.last_replan_status=struct( ...
+                                'requested',true,'committed',false, ...
+                                'reason','EXECUTION_AWARE_LAYER_DISABLED', ...
+                                'commit_policy','EXECUTION_AWARE');
+                            return;
+                        end
+
+                        if isstruct(Xexec) && isfield(Xexec,'certified') && ...
+                                logical(Xexec.certified)
+                            % The tracking/actuator/geometry composition is
+                            % closed.  Full atomic candidate assembly is
+                            % deliberately fail-closed until the recursive
+                            % repaired-state backup certificate is available.
+                            obj.generator_last_status_code=41;
+                            obj.last_replan_status=struct( ...
+                                'requested',true,'committed',false, ...
+                                'reason','EXECUTION_AWARE_CERTIFIED__RECURSIVE_BACKUP_AND_ATOMIC_ASSEMBLY_REQUIRED', ...
+                                'commit_policy','EXECUTION_AWARE', ...
+                                'reference_certified',obj.logical_struct_field(Rref,'certified'), ...
+                                'execution_certified',true);
+                        else
+                            obj.generator_last_status_code=40;
+                            reason='EXECUTION_AWARE_CERTIFICATE_OPEN';
+                            if isstruct(Xexec) && isfield(Xexec,'reason')
+                                reason=char(Xexec.reason);
+                            end
+                            obj.last_replan_status=struct( ...
+                                'requested',true,'committed',false, ...
+                                'reason',reason, ...
+                                'commit_policy','EXECUTION_AWARE', ...
+                                'reference_certified',obj.logical_struct_field(Rref,'certified'), ...
+                                'execution_certified',false);
+                        end
+
+                    otherwise
+                        error('[REPLANNER ERROR] unknown avoidance commit policy.');
+                end
+                return;
+            end
+
+            if ~isstruct(candidate) || ~isscalar(candidate) || ...
+                    ~isfield(candidate,'certified')
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-3;
+                obj.generator_last_validation_ms=0;
+                obj.generator_last_critical_ms=cp_callback;
+                cycle_ms=1e3*toc(t_hard_cycle);
+                obj.generator_last_cycle_critical_ms=cycle_ms;
+                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                    obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                end
+                return;
+            end
+
+            obj.generator_candidate_count=obj.generator_candidate_count+1;
+
+            try
+                obj.validate_repaired_candidate(candidate,double(t_now));
+                validation_ok=true;
+            catch
+                validation_ok=false;
+            end
+
+            cp_validation=1e3*toc(ti);
+            obj.generator_last_validation_ms=cp_validation-cp_callback;
+            obj.generator_last_critical_ms=cp_validation;
+
+            cycle_ms=1e3*toc(t_hard_cycle);
+            obj.generator_last_cycle_critical_ms=cycle_ms;
+
+            if cycle_ms>1e3*obj.hard_modify_deadline_s
+                obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
+                obj.generator_last_status_code=-6;
+                return;
+            end
+
+            if ~validation_ok
+                obj.generator_validation_fail_count=obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=-5;
+                return;
+            end
+
+            obj.generator_validation_pass_count=obj.generator_validation_pass_count+1;
+            obj.generator_last_status_code=4; % valid candidate, SHADOW only
+        end
+
+
+        function OUT = builtin_bezier_d15_c7_proposal(obj,CTX)
+            % =============================================================
+            % BEZIER_D15_C7 / R8 PIECEWISE-C7 SUSPENDED-LOAD PROPOSAL
+            %
+            % R8 replaces the single stopped bump / single constant-w
+            % architecture by a towing-aware piecewise construction:
+            %
+            %   SAFE transition  ->  UNSAFE-component affine corridor
+            %                    ->  SAFE transition -> ... -> rejoin.
+            %
+            % On every nominally unsafe overlap component j,
+            %
+            %       d_j(t) = a_j + v_j (t-t_j^-),
+            %
+            % so d_j''(t)=0 exactly.  Therefore, with suspended-load
+            % differential flatness,
+            %
+            %       q* = -(pL_ddot+g e3)/||pL_ddot+g e3|| = q_base,
+            %       pQ* = pL* - L q* = pQ_base + d_j,
+            %
+            % and payload / UAV / cable all undergo the SAME translation on
+            % the obstacle-critical interval.  This makes the whole-body
+            % corridor constraints linear while retaining the exact towing
+            % geometry on the interval where it matters most.
+            %
+            % Between unsafe components, degree-15 Bezier transitions match
+            % correction derivatives 0..7 exactly.  Internal component
+            % velocity is free; the generator never forces a stop at an
+            % obstacle.  Transition coefficients are chosen by a convex
+            % minimum-snap QP.  Corridor side (+n/-n) is a discrete choice
+            % and is enumerated exactly; each fixed-sign QP is only a
+            % synthesis mechanism.  Final acceptance remains the unchanged
+            % independent continuous whole-body certificate.
+            %
+            % R8 uses the finite source-derived reference domain as the
+            % terminal rejoin horizon.  Segment-time optimization is a later
+            % performance layer; no safety statement depends on this choice.
+            % =============================================================
+            OUT=obj.empty_bezier_d15_c7_proposal();
+
+            if ~isstruct(CTX) || ~isfield(CTX,'static') || ...
+                    ~isfield(CTX,'request') || ...
+                    ~isfield(CTX,'obstacles') || ...
+                    ~isfield(CTX,'live')
+                OUT.reason_code=-100;
+                return;
+            end
+
+            S=CTX.static;
+            RQ=CTX.request;
+            O=CTX.obstacles;
+            LIV=CTX.live;
+
+            if double(S.backend_code)~=1 || ...
+                    ~strcmpi(char(S.backend_name),'BEZIER_D15_C7')
+                OUT.reason_code=-101;
+                return;
+            end
+
+            OUT.t0=double(RQ.time);
+            OUT.tm=double(RQ.trigger_collision_time); % trigger diagnostic only in R8
+            OUT.trigger_collision_time=double(RQ.trigger_collision_time);
+            OUT.obstacle_id=double(RQ.trigger_obstacle_id);
+            OUT.component_code=double(RQ.trigger_component_code);
+
+            if O.count<1
+                OUT.reason_code=1;
+                return;
+            end
+            if ~isfinite(double(RQ.trigger_ttc)) || double(RQ.trigger_ttc)<0
+                OUT.reason_code=2;
+                return;
+            end
+            if ~isfinite(OUT.tm) || ~(OUT.tm>OUT.t0)
+                OUT.reason_code=3;
+                return;
+            end
+
+            dtLive=double(LIV.dt);
+            assert(isfinite(dtLive)&&dtLive>0, ...
+                '[REPLANNER ERROR] live dt invalid in BEZIER proposal.');
+
+            OUT.base_eval_fn=obj.snapshot_active_reference_eval_fn();
+            OUT.base_flat_eval_fn=obj.snapshot_active_reference_flat_eval_fn();
+
+            % Trigger metric remains diagnostic only.
+            kt=find(double(O.ids)==OUT.obstacle_id,1,'first');
+            if isempty(kt)
+                OUT.reason_code=4;
+                return;
+            end
+            Rt=reshape(double(O.rotations_flat(:,kt)),3,3);
+            ct=double(O.centers(:,kt));
+            switch round(OUT.component_code)
+                case 1
+                    at=double(O.payload_axes(:,kt));
+                    xw=double(RQ.trigger_pL_collision(:));
+                    before=obj.bezier_point_metric(xw,ct,Rt,at);
+                case 2
+                    at=double(O.uav_axes(:,kt));
+                    xw=double(RQ.trigger_pQ_collision(:));
+                    before=obj.bezier_point_metric(xw,ct,Rt,at);
+                case 3
+                    at=double(O.cable_axes(:,kt));
+                    [before,~,xw]=obj.bezier_segment_metric( ...
+                        double(RQ.trigger_pQ_collision(:)), ...
+                        double(RQ.trigger_pL_collision(:)),ct,Rt,at);
+                otherwise
+                    OUT.reason_code=5;
+                    return;
+            end
+            if any(~isfinite(at)) || any(at<=0) || ...
+                    any(~isfinite(Rt(:))) || any(~isfinite(xw))
+                OUT.reason_code=6;
+                return;
+            end
+            OUT.trigger_metric_before=before;
+
+            searchEnd=obj.resolve_reference_rejoin_search_end(OUT.tm);
+            if ~(isfinite(searchEnd) && searchEnd>OUT.tm)
+                OUT.reason_code=17;
+                return;
+            end
+            OUT.t1=searchEnd;
+            OUT.timing_projected=false;
+
+            % -------------------------------------------------------------
+            % CONTINUOUS NOMINAL UNSAFE EPISODES / OVERLAP COMPONENTS
+            % -------------------------------------------------------------
+            r9TotalTic=tic;
+            r9StageTic=tic;
+            r25ep0=af7r25_stamp_mex();
+            [EPI,okEpi]=af7r33_episode_batch_allobs( ...
+                obj,OUT,CTX,searchEnd);
+            r25ep1=af7r25_stamp_mex();
+            obj.r9_hr_episode_wall_ms=1e3*double(r25ep1(1)-r25ep0(1))/double(r25ep0(2));
+            obj.r9_hr_episode_thread_cycles=double(r25ep1(3)-r25ep0(3));
+            obj.r9_hr_episode_process_cycles=double(r25ep1(4)-r25ep0(4));
+            OUT.r9_stage_timing.episode_ms=1e3*toc(r9StageTic);
+            OUT.unsafe_episode_certificate=EPI;
+            if ~okEpi || ~isstruct(EPI) || ~isfield(EPI,'component_count') || ...
+                    double(EPI.component_count)<1
+                OUT.reason_code=22;
+                return;
+            end
+
+            Cmp=EPI.components;
+            if double(Cmp(1).start_s)<=OUT.t0+8*eps(max(1,abs(OUT.t0)))
+                % No finite lead time exists to leave the nominal correction
+                % state with C7 continuity before the first unsafe component.
+                OUT.reason_code=14;
+                return;
+            end
+            if double(Cmp(end).end_s)>=OUT.t1-8*eps(max(1,abs(OUT.t1)))
+                OUT.reason_code=17;
+                return;
+            end
+            OUT.hold_end=double(Cmp(end).end_s); % compatibility/logging only
+
+            % -------------------------------------------------------------
+            % PIECEWISE MINIMUM-SNAP CORRIDOR SYNTHESIS
+            % -------------------------------------------------------------
+            r9StageTic=tic;
+            r25sy0=af7r25_stamp_mex();
+            [CANDS,SYN]=obj.build_bezier_piecewise_towing_candidates( ...
+                OUT,CTX,EPI,OUT.t1);
+            r25sy1=af7r25_stamp_mex();
+            obj.r9_hr_synthesis_wall_ms=1e3*double(r25sy1(1)-r25sy0(1))/double(r25sy0(2));
+            obj.r9_hr_synthesis_thread_cycles=double(r25sy1(3)-r25sy0(3));
+            obj.r9_hr_synthesis_process_cycles=double(r25sy1(4)-r25sy0(4));
+            OUT.r9_stage_timing.synthesis_ms=1e3*toc(r9StageTic);
+            OUT.piecewise_synthesis_certificate=SYN;
+            OUT.corridor_certificate=SYN;
+            if isempty(CANDS)
+                OUT.reason_code=23;
+                return;
+            end
+
+            % Current finite-sensing theorem remains authoritative.
+            rhoBody=max([double(LIV.r_drone), ...
+                double(LIV.cable_length)+double(LIV.r_load), ...
+                double(LIV.cable_length)+double(LIV.r_cable)]);
+            VQlimit=(double(LIV.sensor_range)-rhoBody)/ ...
+                (double(LIV.horizon)+dtLive);
+            if ~(isfinite(VQlimit)&&VQlimit>0)
+                OUT.reason_code=16;
+                return;
+            end
+
+            targetVersion=double(RQ.next_reference_version);
+            baseSC=obj.active_speed_certificate;
+            speedPass=0;
+            rejoinPass=0;
+            geomTests=0;
+            lastSC=struct();
+            lastLV=struct();
+            lastG=struct();
+            selected=false;
+
+            % Candidates are sorted by the exact fixed-domain minimum-snap
+            % QP objective.  The first independently certified candidate is
+            % therefore the minimum-QP-cost member among the sign choices
+            % that survive the hard reference-layer certificates.
+            r9StageTic=tic;
+            for ic=1:numel(CANDS)
+                Q=CANDS(ic);
+                Ptry=OUT;
+                Ptry.generated=true;
+                Ptry.c7_exact=true;
+                Ptry.representation_code=2;
+                Ptry.degree=15;
+                Ptry.piecewise_segment_t0=Q.segment_t0;
+                Ptry.piecewise_segment_t1=Q.segment_t1;
+                Ptry.piecewise_segment_kind=Q.segment_kind;
+                Ptry.piecewise_control_points=Q.control_points;
+                Ptry.piecewise_component_start=Q.component_start;
+                Ptry.piecewise_component_end=Q.component_end;
+                Ptry.piecewise_component_position=Q.component_position;
+                Ptry.piecewise_component_velocity=Q.component_velocity;
+                Ptry.piecewise_corridor_signs=Q.corridor_signs;
+                Ptry.piecewise_qp_cost=Q.qp_cost;
+                Ptry.correction_derivative_ub=Q.derivative_ub;
+                Ptry.displacement_norm_m=Q.max_control_norm_m;
+                Ptry.displacement=Q.first_component_position;
+                if norm(Q.first_component_position)>0
+                    Ptry.direction=Q.first_component_position/ ...
+                        norm(Q.first_component_position);
+                else
+                    Ptry.direction=zeros(3,1);
+                end
+                Ptry.towing_structure_certificate=Q.towing_structure_certificate;
+
+                % ---------------------------------------------------------
+                % R9 TWO-STAGE SPEED / FINITE-SENSING CERTIFICATE
+                % ---------------------------------------------------------
+                [dubTight,DB]=obj.tighten_piecewise_derivative_bounds_for_speed( ...
+                    Q.segment_t0,Q.segment_t1,Q.control_points, ...
+                    baseSC,VQlimit,6);
+                Ptry.derivative_bound_certificate=DB;
+
+                speedClosed=false;
+                SCtry=struct('certified',false,'reason','UNINITIALIZED_R9_SPEED_CERT');
+                LV=struct('certified',false,'not_required',false);
+
+                % Stage A: preserve the existing cheap global triangle theorem.
+                if isstruct(DB) && isfield(DB,'certified') && logical(DB.certified)
+                    Ptry.correction_derivative_ub=dubTight;
+                    SCtri=obj.build_bezier_repaired_speed_certificate( ...
+                        Ptry,targetVersion);
+                    if isstruct(SCtri) && isfield(SCtri,'certified') && ...
+                            logical(SCtri.certified) && ...
+                            double(SCtri.uav_speed_UB_m_s)<VQlimit
+                        SCtry=SCtri;
+                        SCtry.certificate_stage='R9_STAGE_A_GLOBAL_TRIANGLE';
+                        speedClosed=true;
+                        LV=struct('certified',false,'not_required',true, ...
+                            'reason','STAGE_A_ALREADY_CERTIFIED');
+                    end
+                end
+
+                % Stage B: local vector-coupled suspended-load theorem.
+                if ~speedClosed
+                    Ptry.correction_derivative_ub=double(Q.derivative_ub(:));
+                    [SClocal,LV]=obj.build_piecewise_local_vector_speed_certificate( ...
+                        Ptry,Q.segment_t0,Q.segment_t1,Q.control_points, ...
+                        CTX,baseSC,VQlimit,targetVersion);
+                    lastLV=LV;
+                    if isstruct(SClocal) && isfield(SClocal,'certified') && ...
+                            logical(SClocal.certified) && ...
+                            double(SClocal.uav_speed_UB_m_s)<VQlimit
+                        SCtry=SClocal;
+                        speedClosed=true;
+                    end
+                end
+
+                Ptry.local_vector_speed_certificate=LV;
+                lastSC=SCtry;
+                if ~speedClosed
+                    continue;
+                end
+                speedPass=speedPass+1;
+                Ptry.reference_speed_certificate=SCtry;
+
+                if ~obj.reference_rejoin_cell_continuously_safe( ...
+                        Ptry,Ptry.t1,CTX)
+                    continue;
+                end
+                rejoinPass=rejoinPass+1;
+
+                geomTests=geomTests+1;
+                Gtry=obj.build_static_continuous_wholebody_shadow_certificate( ...
+                    CTX,Ptry);
+                lastG=Gtry;
+                if isstruct(Gtry) && isfield(Gtry,'mathematical_pass') && ...
+                        logical(Gtry.mathematical_pass)
+                    Ptry.geometry_shadow_certificate=Gtry;
+                    OUT=Ptry;
+                    selected=true;
+                    break;
+                end
+            end
+
+            OUT.r9_stage_timing.candidate_loop_ms=1e3*toc(r9StageTic);
+            OUT.r9_stage_timing.total_internal_ms=1e3*toc(r9TotalTic);
+            OUT.piecewise_speed_pass_count=speedPass;
+            OUT.piecewise_rejoin_pass_count=rejoinPass;
+            OUT.piecewise_geometry_test_count=geomTests;
+
+            if ~selected
+                OUT.reference_speed_certificate=lastSC;
+                OUT.local_vector_speed_certificate=lastLV;
+                OUT.geometry_shadow_certificate=lastG;
+                if speedPass==0
+                    OUT.reason_code=24;
+                else
+                    OUT.reason_code=25;
+                end
+                return;
+            end
+
+            % R8 has no single peak.  Diagnostics are evaluated at the first
+            % unsafe-component midpoint but are not acceptance gates.
+            td=0.5*(double(Cmp(1).start_s)+double(Cmp(1).end_s));
+            xdD=obj.evaluate_bezier_proposal_flat_reference(td,OUT);
+            pLD=xdD(1:3);
+            aLD=xdD(9:11);
+            sfD=aLD+[0;0;double(LIV.gravity)];
+            if norm(sfD)>0
+                qD=-sfD/norm(sfD);
+                pQD=pLD-double(LIV.cable_length)*qD;
+                minD=inf;
+                for j=1:double(O.count)
+                    Rj=reshape(double(O.rotations_flat(:,j)),3,3);
+                    cj=double(O.centers(:,j));
+                    mp=obj.bezier_point_metric(pLD,cj,Rj,double(O.payload_axes(:,j)));
+                    mq=obj.bezier_point_metric(pQD,cj,Rj,double(O.uav_axes(:,j)));
+                    mc=obj.bezier_segment_metric(pQD,pLD,cj,Rj,double(O.cable_axes(:,j)));
+                    minD=min([minD,mp,mq,mc]);
+                end
+                OUT.peak_min_metric=minD;
+                OUT.peak_all_safe=isfinite(minD)&&minD>1;
+            end
+
+            G=OUT.geometry_shadow_certificate;
+            OUT.success=OUT.c7_exact && isstruct(G) && ...
+                isfield(G,'mathematical_pass') && logical(G.mathematical_pass);
+            if OUT.success
+                OUT.reason_code=0;
+            else
+                OUT.reason_code=25;
+            end
+        end
+
+
+        function [EPI,ok] = build_bezier_nominal_unsafe_episode_components( ...
+                obj,P,CTX,searchEnd)
+            % =============================================================
+            % AF7R27-R10A ADAPTIVE CONTINUOUS SUPPORT COVER
+            %
+            % A leaf is accepted SAFE only when the same continuous
+            % midpoint+speed support theorem certifies payload/UAV/cable
+            % throughout the whole leaf. Otherwise it is subdivided.
+            %
+            % There is no fixed depth authority. If an unresolved leaf
+            % reaches width <= live dt, it is conservatively UNSAFE.
+            % Binary64 non-splittability is also fail-closed UNSAFE.
+            % =============================================================
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            dt=double(LIV.dt);
+            t0=double(P.t0);
+            M=double(O.count);
+
+            EPI=struct();
+            EPI.certified=false;
+            EPI.continuous_time=true;
+            EPI.sampled_acceptance=false;
+            EPI.t0=t0;
+            EPI.search_end_s=double(searchEnd);
+            EPI.obstacle_count=M;
+            EPI.episodes=struct('obstacle_index',{},'obstacle_id',{}, ...
+                'start_s',{},'end_s',{},'component_index',{});
+            EPI.components=struct('start_s',{},'end_s',{}, ...
+                'duration_s',{},'episode_indices',{});
+            EPI.episode_count=0;
+            EPI.component_count=0;
+            EPI.adaptive_leaf_count=0;
+            EPI.adaptive_safe_leaf_count=0;
+            EPI.adaptive_unsafe_leaf_count=0;
+            EPI.adaptive_split_count=0;
+            EPI.representability_fail_closed_count=0;
+            EPI.theorem=[ ...
+                'ADAPTIVE_CONTINUOUS_SUPPORT_INTERVAL_COVER__' ...
+                'SAFE_ONLY_BY_WHOLE_LEAF_CERTIFICATE__' ...
+                'UNRESOLVED_LEQ_LIVE_DT_IS_UNSAFE'];
+            ok=false;
+
+            if ~(isfinite(t0)&&isfinite(searchEnd)&&searchEnd>t0&& ...
+                    isfinite(dt)&&dt>0&&M>=1)
+                return;
+            end
+
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            episodes=EPI.episodes;
+            tolMerge=64*eps(max([1,abs(t0),abs(searchEnd),abs(dt)]));
+
+            for ii=1:M
+                stackA=t0;
+                stackB=double(searchEnd);
+                unsafeA=zeros(0,1);
+                unsafeB=zeros(0,1);
+
+                while ~isempty(stackA)
+                    ta=stackA(end); stackA(end)=[];
+                    tb=stackB(end); stackB(end)=[];
+                    if ~(isfinite(ta)&&isfinite(tb)&&tb>ta)
+                        continue;
+                    end
+
+                    EPI.adaptive_leaf_count=EPI.adaptive_leaf_count+1;
+                    safe=obj.r10_nominal_interval_continuously_safe_one_obstacle( ...
+                        P,ta,tb,CTX,ii,SC);
+
+                    if safe
+                        EPI.adaptive_safe_leaf_count= ...
+                            EPI.adaptive_safe_leaf_count+1;
+                        continue;
+                    end
+
+                    width=tb-ta;
+                    if width<=dt+tolMerge
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        continue;
+                    end
+
+                    tm=0.5*(ta+tb);
+                    if ~(isfinite(tm)&&tm>ta&&tm<tb)
+                        unsafeA(end+1,1)=ta; %#ok<AGROW>
+                        unsafeB(end+1,1)=tb; %#ok<AGROW>
+                        EPI.adaptive_unsafe_leaf_count= ...
+                            EPI.adaptive_unsafe_leaf_count+1;
+                        EPI.representability_fail_closed_count= ...
+                            EPI.representability_fail_closed_count+1;
+                        continue;
+                    end
+
+                    stackA(end+1)=tm; %#ok<AGROW>
+                    stackB(end+1)=tb; %#ok<AGROW>
+                    stackA(end+1)=ta; %#ok<AGROW>
+                    stackB(end+1)=tm; %#ok<AGROW>
+                    EPI.adaptive_split_count=EPI.adaptive_split_count+1;
+                end
+
+                if isempty(unsafeA)
+                    continue;
+                end
+
+                [unsafeA,ord]=sort(unsafeA);
+                unsafeB=unsafeB(ord);
+                es=unsafeA(1);
+                ee=unsafeB(1);
+                for ku=2:numel(unsafeA)
+                    if unsafeA(ku)<=ee+tolMerge
+                        ee=max(ee,unsafeB(ku));
+                    else
+                        episodes(end+1)=struct( ... %#ok<AGROW>
+                            'obstacle_index',ii, ...
+                            'obstacle_id',double(O.ids(ii)), ...
+                            'start_s',double(es), ...
+                            'end_s',double(ee), ...
+                            'component_index',0);
+                        es=unsafeA(ku);
+                        ee=unsafeB(ku);
+                    end
+                end
+                episodes(end+1)=struct( ... %#ok<AGROW>
+                    'obstacle_index',ii, ...
+                    'obstacle_id',double(O.ids(ii)), ...
+                    'start_s',double(es), ...
+                    'end_s',double(ee), ...
+                    'component_index',0);
+            end
+
+            if isempty(episodes)
+                EPI.episodes=episodes;
+                EPI.certified=true;
+                ok=true;
+                return;
+            end
+
+            [~,ord]=sort([episodes.start_s]);
+            episodes=episodes(ord);
+            tolT=64*eps(max([1,abs(t0),abs(searchEnd)]));
+            comps=EPI.components;
+            cc=0;
+            for ie=1:numel(episodes)
+                es=double(episodes(ie).start_s);
+                ee=double(episodes(ie).end_s);
+                if cc==0 || es>double(comps(cc).end_s)+tolT
+                    cc=cc+1;
+                    comps(cc)=struct('start_s',es,'end_s',ee, ...
+                        'duration_s',ee-es,'episode_indices',ie); %#ok<AGROW>
+                else
+                    comps(cc).end_s=max(double(comps(cc).end_s),ee);
+                    comps(cc).duration_s=double(comps(cc).end_s)- ...
+                        double(comps(cc).start_s);
+                    comps(cc).episode_indices(end+1)=ie;
+                end
+                episodes(ie).component_index=cc;
+            end
+
+            EPI.episodes=episodes;
+            EPI.components=comps;
+            EPI.episode_count=numel(episodes);
+            EPI.component_count=numel(comps);
+            EPI.certified=true;
+            ok=true;
+        end
+
+
+        function tf = r10_nominal_interval_continuously_safe_one_obstacle( ...
+                obj,P,ta,tb,CTX,ii,SC)
+            % Same continuous theorem as the old cell routine. SC was
+            % validated once by the caller, avoiding repeated validation.
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            tf=false;
+
+            if ii<1 || ii>double(O.count)
+                return;
+            end
+
+            tc=0.5*(double(ta)+double(tb));
+            h=0.5*(double(tb)-double(ta));
+            if ~(isfinite(tc)&&isfinite(h)&&h>0)
+                return;
+            end
+
+            xd=double(P.base_flat_eval_fn(tc));
+            xd=xd(:);
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*h;
+
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+
+            [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+            if ~okL, return; end
+            [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+            if ~okQ, return; end
+            [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+            tf=okC;
+        end
+
+
+        function tf = nominal_reference_cell_continuously_safe_one_obstacle( ...
+                obj,P,ta,tb,CTX,ii)
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+            tf=false;
+
+            if ii<1 || ii>double(O.count)
+                return;
+            end
+            tc=0.5*(double(ta)+double(tb));
+            h=0.5*(double(tb)-double(ta));
+            if ~(isfinite(tc)&&isfinite(h)&&h>0)
+                return;
+            end
+
+            xd=double(P.base_flat_eval_fn(tc));
+            xd=xd(:);
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*h;
+
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+            [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+            [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+            [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+            tf=okL&&okQ&&okC;
+        end
+
+
+        function [CANDS,SYN] = build_bezier_piecewise_towing_candidates( ...
+                obj,P,CTX,EPI,t1)
+            % Build exact-sign candidates for the R8 piecewise-C7 structure.
+            % Unsafe components are affine in correction space, which makes
+            % suspended-load q exactly equal to the frozen base q there.
+            CANDS=struct('z',{},'qp_cost',{},'corridor_signs',{}, ...
+                'segment_t0',{},'segment_t1',{},'segment_kind',{}, ...
+                'control_points',{},'component_start',{},'component_end',{}, ...
+                'component_position',{},'component_velocity',{}, ...
+                'derivative_ub',{},'max_control_norm_m',{}, ...
+                'first_component_position',{},'towing_structure_certificate',{});
+
+            C=double(EPI.component_count);
+            E=numel(EPI.episodes);
+            nslot=2*C;
+            nvar=3*nslot;
+            obj.r9_synth_hessian_ms=NaN;
+            obj.r9_synth_corridor_ms=NaN;
+            obj.r9_synth_qp_ms=NaN;
+            obj.r9_synth_candidate_build_ms=NaN;
+            obj.r9_synth_row_count=NaN;
+            obj.r9_synth_episode_count=E;
+            obj.r9_synth_component_count=C;
+            obj.r9_synth_sign_count=2^E;
+            SYN=struct('certified',false,'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'representation','PIECEWISE_DEGREE15_C7_WITH_AFFINE_UNSAFE_COMPONENTS', ...
+                'component_count',C,'episode_count',E, ...
+                'sign_assignments_solved',0,'fixed_sign_qp_feasible_count',0, ...
+                'qp_solver','MATLAB_QUADPROG_SYNTHESIS_ONLY', ...
+                'objective','EXACT_INTEGRAL_SQUARED_CORRECTION_SNAP_ON_SAFE_TRANSITIONS', ...
+                'terminal_rejoin_source','FINITE_REFERENCE_DOMAIN_END', ...
+                't1',double(t1), ...
+                'towing_theorem', ...
+                ['AFFINE_UNSAFE_CORRECTION_IMPLIES_D2_ZERO__Q_EQUALS_BASE__' ...
+                 'PAYLOAD_UAV_CABLE_COMMON_TRANSLATION'], ...
+                'safety_authority','INDEPENDENT_CONTINUOUS_WHOLE_BODY_CERTIFICATE');
+
+            if C<1 || E<1 || ~(isfinite(t1)&&t1>double(P.t0))
+                return;
+            end
+            if exist('quadprog','file')~=2
+                SYN.qp_solver='QUADPROG_UNAVAILABLE';
+                return;
+            end
+
+            r24tic=tic;
+            Hs=obj.piecewise_minimum_snap_hessian(EPI.components, ...
+                double(P.t0),double(t1));
+            if ~isequal(size(Hs),[nslot nslot]) || any(~isfinite(Hs(:)))
+                return;
+            end
+            H=kron(Hs,eye(3));
+            H=0.5*(H+H.');
+            obj.r9_synth_hessian_ms=1e3*toc(r24tic);
+
+            OR=struct('rows_plus',{},'b_plus',{}, ...
+                'rows_minus',{},'b_minus',{},'normal',{}, ...
+                'episode_index',{},'obstacle_index',{},'component_index',{});
+
+            r24tic=tic;
+            for ie=1:E
+                ep=EPI.episodes(ie);
+                jj=double(ep.component_index);
+                tca=double(ep.start_s);
+                tcb=double(ep.end_s);
+                xa=double(P.base_flat_eval_fn(tca)); xa=xa(:);
+                xb=double(P.base_flat_eval_fn(tcb)); xb=xb(:);
+                if numel(xa)<7 || numel(xb)<7
+                    return;
+                end
+                progress=xb(1:3)-xa(1:3);
+                if norm(progress)<=128*eps(max(1,norm(xa(1:3))))
+                    xm=double(P.base_flat_eval_fn(0.5*(tca+tcb))); xm=xm(:);
+                    if numel(xm)>=7
+                        progress=xm(5:7);
+                    end
+                end
+
+                ii=double(ep.obstacle_index);
+                R=reshape(double(CTX.obstacles.rotations_flat(:,ii)),3,3);
+                a=double(CTX.obstacles.base_axes(:,ii));
+                n0=obj.bezier_lateral_separator_normal(R,a,progress);
+                if any(~isfinite(n0)) || norm(n0)<=0
+                    return;
+                end
+                n0=n0/norm(n0);
+
+                [Ap,bp,okp]=af7r33_corridor_batch( ...
+                    obj,P,CTX,EPI,ie,n0,nvar);
+                [Am,bm,okm]=af7r33_corridor_batch( ...
+                    obj,P,CTX,EPI,ie,-n0,nvar);
+                if ~(okp&&okm)
+                    return;
+                end
+                OR(ie)=struct('rows_plus',Ap,'b_plus',bp, ...
+                    'rows_minus',Am,'b_minus',bm,'normal',n0, ...
+                    'episode_index',ie,'obstacle_index',ii, ...
+                    'component_index',jj); %#ok<AGROW>
+            end
+
+            obj.r9_synth_corridor_ms=1e3*toc(r24tic);
+            rows24=0;
+            for ie24=1:numel(OR)
+                rows24=rows24+size(OR(ie24).rows_plus,1)+size(OR(ie24).rows_minus,1);
+            end
+            obj.r9_synth_row_count=rows24;
+            BASE=struct('z',{},'qp_cost',{},'corridor_signs',{}, ...
+                'min_slack',{});
+            r24tic=tic;
+            r25qp0=af7r25_stamp_mex();
+            BASE=obj.enumerate_piecewise_sign_qp_recursive( ...
+                H,OR,1,zeros(E,1),BASE);
+            r25qp1=af7r25_stamp_mex();
+            obj.r9_hr_qp_wall_ms=1e3*double(r25qp1(1)-r25qp0(1))/double(r25qp0(2));
+            obj.r9_hr_qp_thread_cycles=double(r25qp1(3)-r25qp0(3));
+            obj.r9_hr_qp_process_cycles=double(r25qp1(4)-r25qp0(4));
+            SYN.sign_assignments_solved=2^E;
+            SYN.fixed_sign_qp_feasible_count=numel(BASE);
+            obj.r9_synth_qp_ms=1e3*toc(r24tic);
+            if isempty(BASE)
+                return;
+            end
+
+            [~,ord]=sort([BASE.qp_cost]);
+            BASE=BASE(ord);
+            r24tic=tic;
+            for ib=1:numel(BASE)
+                z=double(BASE(ib).z(:));
+                [seg0,seg1,kind,CP,pPos,pVel,okCP]= ...
+                    obj.build_piecewise_bezier_control_points( ...
+                        EPI.components,double(P.t0),double(t1),z);
+                if ~okCP
+                    continue;
+                end
+                dub=obj.piecewise_bezier_derivative_bounds(seg0,seg1,CP,6);
+                if numel(dub)~=6 || any(~isfinite(dub)) || any(dub<0)
+                    continue;
+                end
+
+                mx=0;
+                for is=1:numel(CP)
+                    cc=double(CP{is});
+                    mx=max(mx,max(sqrt(sum(cc.^2,1))));
+                end
+
+                TOW=struct('certified',true,'continuous_time',true, ...
+                    'sampled_acceptance',false,'continuity_order',7, ...
+                    'unsafe_component_affine_correction',true, ...
+                    'unsafe_component_correction_acceleration_zero',true, ...
+                    'q_equals_base_on_unsafe_components',true, ...
+                    'uav_payload_cable_common_translation_on_unsafe_components',true, ...
+                    'internal_component_velocity_free',true, ...
+                    'endpoint_zero_jet_order',7, ...
+                    'theorem', ...
+                    ['D2_CORRECTION_ZERO_IMPLIES_IDENTICAL_SPECIFIC_FORCE__' ...
+                     'IDENTICAL_Q__COMMON_WHOLE_BODY_TRANSLATION']);
+
+                CANDS(end+1)=struct( ... %#ok<AGROW>
+                    'z',z,'qp_cost',double(BASE(ib).qp_cost), ...
+                    'corridor_signs',double(BASE(ib).corridor_signs(:)), ...
+                    'segment_t0',seg0,'segment_t1',seg1, ...
+                    'segment_kind',{kind},'control_points',{CP}, ...
+                    'component_start',[EPI.components.start_s], ...
+                    'component_end',[EPI.components.end_s], ...
+                    'component_position',pPos, ...
+                    'component_velocity',pVel, ...
+                    'derivative_ub',dub, ...
+                    'max_control_norm_m',mx, ...
+                    'first_component_position',pPos(:,1), ...
+                    'towing_structure_certificate',TOW);
+            end
+            obj.r9_synth_candidate_build_ms=1e3*toc(r24tic);
+            SYN.certified=~isempty(CANDS);
+        end
+
+
+        function [A,b,ok] = bezier_piecewise_episode_corridor_rows( ...
+                obj,P,CTX,EPI,episodeIndex,n,nvar)
+            % =============================================================
+            % AF7R27-R10B CERTIFIED PROJECTED CORRIDOR COMPRESSION
+            %
+            % For fixed n, every raw row is
+            %   n'*a_j + s_i n'*v_j >= r_i.
+            % With u=n'*a_j, w=n'*v_j:
+            %   u >= r_i - s_i*w.
+            %
+            % Duplicate s values are merged by max(r). A middle row is
+            % removed only when it is strictly below the upper hull by more
+            % than a floating arithmetic guard. Ambiguous rows are retained.
+            % =============================================================
+            ep=EPI.episodes(episodeIndex);
+            jj=double(ep.component_index);
+            tComp=double(EPI.components(jj).start_s);
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            A=zeros(0,nvar);
+            b=zeros(0,1);
+            ok=false;
+            n=double(n(:));
+            nn=norm(n);
+            if ~(numel(n)==3&&all(isfinite(n))&&isfinite(nn)&&nn>0)
+                return;
+            end
+            n=n/nn;
+
+            ii=double(ep.obstacle_index);
+            c=double(O.centers(:,ii));
+            R=reshape(double(O.rotations_flat(:,ii)),3,3);
+            a=double(O.base_axes(:,ii));
+            hObs=dot(n,c)+norm(a.*(R.'*n));
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            pidx=(2*jj-2)*3+(1:3);
+            vidx=(2*jj-1)*3+(1:3);
+            dt=double(LIV.dt);
+            ta=double(ep.start_s);
+            te=double(ep.end_s);
+
+            ncell=max(1,ceil((te-ta)/dt));
+            S=zeros(2*ncell+2,1);
+            B=zeros(2*ncell+2,1);
+            nr=0;
+
+            while ta<te-8*eps(max(1,abs(te)))
+                tb=min(te,ta+dt);
+                tc=0.5*(ta+tb);
+                half=0.5*(tb-ta);
+                xd=double(P.base_flat_eval_fn(tc)); xd=xd(:);
+                if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                    return;
+                end
+
+                pL=xd(1:3);
+                sf=xd(9:11)+[0;0;double(LIV.gravity)];
+                ns=norm(sf);
+                if ~(isfinite(ns)&&ns>0)
+                    return;
+                end
+                q=-sf/ns;
+                pQ=pL-double(LIV.cable_length)*q;
+
+                rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*half;
+                rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*half;
+                rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*half;
+
+                req=max([ ...
+                    hObs+rhoL-dot(n,pL), ...
+                    hObs+rhoQ-dot(n,pQ), ...
+                    hObs+rhoC-min(dot(n,pQ),dot(n,pL))]);
+                if ~isfinite(req)
+                    return;
+                end
+                req=req+64*eps(max(1,abs(req)));
+
+                nr=nr+1;
+                S(nr)=ta-tComp;
+                B(nr)=req;
+                nr=nr+1;
+                S(nr)=tb-tComp;
+                B(nr)=req;
+                ta=tb;
+            end
+
+            S=S(1:nr);
+            B=B(1:nr);
+            if isempty(S)
+                return;
+            end
+
+            keep=obj.r10_upper_envelope_row_indices(S,B);
+            if isempty(keep)
+                return;
+            end
+
+            S=S(keep);
+            B=B(keep);
+            nk=numel(S);
+            A=zeros(nk,nvar);
+            b=B(:);
+            A(:,pidx)=repmat(n.',nk,1);
+            A(:,vidx)=S(:)*n.';
+            ok=all(isfinite(A(:)))&&all(isfinite(b));
+        end
+
+
+        function keep = r10_upper_envelope_row_indices(~,S,B)
+            % AF7R30-R12 native equivalent fast path for same upper hull.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    keep=af7r30_support_hull_mex(2,double(S(:)),double(B(:)));
+                    keep=double(keep(:));
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            S=double(S(:));
+            B=double(B(:));
+            keep=zeros(0,1);
+            if numel(S)~=numel(B)||isempty(S)|| ...
+                    any(~isfinite(S))||any(~isfinite(B))
+                return;
+            end
+            [S,ord]=sort(S);
+            B=B(ord);
+
+            Su=zeros(numel(S),1);
+            Bu=zeros(numel(S),1);
+            Iu=zeros(numel(S),1);
+            nu=0;
+            k=1;
+            while k<=numel(S)
+                nu=nu+1;
+                ss=S(k);
+                j=k;
+                bb=B(k);
+                src=k;
+                while j<numel(S)&&S(j+1)==ss
+                    j=j+1;
+                    if B(j)>bb
+                        bb=B(j);
+                        src=j;
+                    end
+                end
+                Su(nu)=ss;
+                Bu(nu)=bb;
+                Iu(nu)=ord(src);
+                k=j+1;
+            end
+            Su=Su(1:nu); Bu=Bu(1:nu); Iu=Iu(1:nu);
+
+            H=zeros(nu,1);
+            nh=0;
+            for k=1:nu
+                while nh>=2
+                    i1=H(nh-1); i2=H(nh); i3=k;
+                    dx1=Su(i2)-Su(i1); dy1=Bu(i2)-Bu(i1);
+                    dx2=Su(i3)-Su(i2); dy2=Bu(i3)-Bu(i2);
+                    t1=dx1*dy2; t2=dy1*dx2; cr=t1-t2;
+                    scale=max([1,abs(t1),abs(t2),abs(dx1),abs(dx2),abs(dy1),abs(dy2)]);
+                    guard=128*eps(scale);
+                    if cr>guard
+                        nh=nh-1;
+                    elseif cr==0
+                        nh=nh-1;
+                    else
+                        break;
+                    end
+                end
+                nh=nh+1;
+                H(nh)=k;
+            end
+            H=H(1:nh);
+            keep=sort(Iu(H));
+        end
+
+
+        function CANDS = enumerate_piecewise_sign_qp_recursive( ...
+                obj,H,OR,idx,signs,CANDS)
+            % Exact enumeration of episode-side disjunctions.  No sign bank,
+            % node cap or heuristic pruning.  This is synthesis only; the
+            % independent continuous certificate remains the authority.
+            E=numel(OR);
+            if idx<=E
+                signs(idx)=1;
+                CANDS=obj.enumerate_piecewise_sign_qp_recursive( ...
+                    H,OR,idx+1,signs,CANDS);
+                signs(idx)=-1;
+                CANDS=obj.enumerate_piecewise_sign_qp_recursive( ...
+                    H,OR,idx+1,signs,CANDS);
+                return;
+            end
+
+            A=zeros(0,size(H,1));
+            b=zeros(0,1);
+            for ie=1:E
+                if signs(ie)>0
+                    A=[A;OR(ie).rows_plus]; %#ok<AGROW>
+                    b=[b;OR(ie).b_plus]; %#ok<AGROW>
+                else
+                    A=[A;OR(ie).rows_minus]; %#ok<AGROW>
+                    b=[b;OR(ie).b_minus]; %#ok<AGROW>
+                end
+            end
+            [z,cost,minSlack,ok]=obj.solve_piecewise_fixed_sign_qp(H,A,b);
+            if ok
+                cc=struct('z',z,'qp_cost',cost, ...
+                    'corridor_signs',double(signs(:)), ...
+                    'min_slack',minSlack);
+                CANDS(end+1)=cc; %#ok<AGROW>
+            end
+        end
+
+
+        function [z,cost,minSlack,ok] = solve_piecewise_fixed_sign_qp( ...
+                ~,H,A,b)
+            % =============================================================
+            % AF7R27-R10C SMALL CONVEX QP
+            %
+            % Same QP as R8/R9. R10-B reduces only projected corridor rows.
+            % active-set is appropriate for the small dense online QP and is
+            % the algorithm supported by quadprog code generation.
+            % =============================================================
+            z=nan(size(H,1),1);
+            cost=NaN;
+            minSlack=NaN;
+            ok=false;
+
+            if exist('quadprog','file')~=2 || isempty(A) || ...
+                    size(H,1)~=size(H,2) || size(A,2)~=size(H,1) || ...
+                    numel(b)~=size(A,1) || any(~isfinite([H(:);A(:);b(:)]))
+                return;
+            end
+
+            H=0.5*(double(H)+double(H).');
+            hs=max(abs(H(:)));
+            if ~(isfinite(hs)&&hs>0)
+                return;
+            end
+
+            if exist('af7r32_exact_qp_mex','file')==3
+                try
+                    [zn,cn,sn,on,~,~,spd]=af7r32_exact_qp_mex( ...
+                        H,double(A),double(b(:)));
+                    if logical(spd)&&logical(on)&&numel(zn)==size(H,1)&&all(isfinite(zn))
+                        AzN=double(A)*double(zn(:));
+                        slackN=AzN-double(b(:));
+                        tolN=512*eps(max([ones(size(slackN)),abs(double(b(:))),abs(AzN)],[],2));
+                        if all(slackN>=-tolN)&&isfinite(double(cn))&&isfinite(double(sn))
+                            z=double(zn(:));
+                            cost=0.5*z.'*H*z;
+                            minSlack=min(slackN);
+                            ok=isfinite(cost);
+                            if ok, return; end
+                        end
+                    end
+                catch
+                    % Fall through to unchanged quadprog synthesis.
+                end
+            end
+
+            Hsolve=H/hs;
+            f=zeros(size(H,1),1);
+            x0=zeros(size(H,1),1);
+
+            persistent QPOPT QPOPT_READY
+            if isempty(QPOPT_READY)
+                QPOPT_READY=true;
+                try
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set', ...
+                        'UseCodegenSolver',true);
+                catch
+                    QPOPT=optimoptions('quadprog', ...
+                        'Display','off', ...
+                        'Algorithm','active-set');
+                end
+            end
+
+            try
+                [zc,~,exitflag]=quadprog( ...
+                    Hsolve,f,-double(A),-double(b(:)), ...
+                    [],[],[],[],x0,QPOPT);
+            catch
+                return;
+            end
+
+            if ~(exitflag>0&&numel(zc)==size(H,1)&&all(isfinite(zc)))
+                return;
+            end
+
+            Az=double(A)*double(zc(:));
+            slack=Az-double(b(:));
+            tol=512*eps(max([ones(size(slack)),abs(double(b(:))),abs(Az)],[],2));
+            if any(slack < -tol)
+                return;
+            end
+
+            z=double(zc(:));
+            cost=0.5*z.'*H*z;
+            minSlack=min(slack);
+            ok=isfinite(cost);
+        end
+
+
+        function H = piecewise_minimum_snap_hessian( ...
+                obj,components,t0,t1)
+            % Exact integral of squared correction snap on SAFE transition
+            % segments.  Unsafe affine components have zero snap exactly.
+            C=numel(components);
+            nslot=2*C; % [a1,v1,a2,v2,...] for one Cartesian coordinate
+            H=zeros(nslot,nslot);
+            if C<1
+                return;
+            end
+
+            % start zero jet -> component 1 entry jet
+            [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                components,0,1,nslot,'START_TO_ENTRY');
+            H=H+obj.piecewise_transition_snap_hessian( ...
+                J0,J1,double(components(1).start_s)-double(t0));
+
+            % component exit jet -> next component entry jet
+            for jj=1:C-1
+                [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                    components,jj,jj+1,nslot,'EXIT_TO_ENTRY');
+                T=double(components(jj+1).start_s)- ...
+                    double(components(jj).end_s);
+                H=H+obj.piecewise_transition_snap_hessian(J0,J1,T);
+            end
+
+            % last component exit jet -> terminal zero jet
+            [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                components,C,0,nslot,'EXIT_TO_END');
+            H=H+obj.piecewise_transition_snap_hessian( ...
+                J0,J1,double(t1)-double(components(C).end_s));
+            H=0.5*(H+H.');
+        end
+
+
+        function [J0,J1] = piecewise_transition_jet_maps( ...
+                ~,components,j0,j1,nslot,mode)
+            J0=zeros(8,nslot);
+            J1=zeros(8,nslot);
+            switch upper(char(mode))
+                case 'START_TO_ENTRY'
+                    ip=2*j1-1; iv=2*j1;
+                    J1(1,ip)=1;
+                    J1(2,iv)=1;
+                case 'EXIT_TO_ENTRY'
+                    ip0=2*j0-1; iv0=2*j0;
+                    D0=double(components(j0).end_s)- ...
+                        double(components(j0).start_s);
+                    J0(1,ip0)=1;
+                    J0(1,iv0)=D0;
+                    J0(2,iv0)=1;
+                    ip1=2*j1-1; iv1=2*j1;
+                    J1(1,ip1)=1;
+                    J1(2,iv1)=1;
+                case 'EXIT_TO_END'
+                    ip=2*j0-1; iv=2*j0;
+                    D0=double(components(j0).end_s)- ...
+                        double(components(j0).start_s);
+                    J0(1,ip)=1;
+                    J0(1,iv)=D0;
+                    J0(2,iv)=1;
+                otherwise
+                    error('[REPLANNER ERROR] unknown R8 transition mode.');
+            end
+        end
+
+
+        function H = piecewise_transition_snap_hessian(obj,J0,J1,T)
+            H=zeros(size(J0,2));
+            if ~(isfinite(T)&&T>0)
+                H(:)=NaN;
+                return;
+            end
+            M=obj.bezier15_control_map_from_jet_maps(J0,J1,T);
+            r=4;
+            D=diff(eye(16),r,1);
+            ff=prod(15:-1:(15-r+1));
+            B=(ff/T^r)*(D*M); % degree 11 snap-control map
+            G=obj.bernstein_gram_matrix(15-r);
+            H=T*(B.'*G*B);
+            H=0.5*(H+H.');
+        end
+
+
+        function M = bezier15_control_map_from_jet_maps(obj,J0,J1,T)
+            nvar=size(J0,2);
+            M=zeros(16,nvar);
+            for k=1:nvar
+                M(:,k)=obj.bezier15_control_from_endpoint_jets_scalar( ...
+                    J0(:,k),J1(:,k),T);
+            end
+        end
+
+
+        function P = bezier15_control_from_endpoint_jets_scalar( ...
+                ~,j0,j1,T)
+            % Degree 15 is exactly determined by endpoint derivatives 0..7.
+            j0=double(j0(:)); j1=double(j1(:));
+            assert(numel(j0)==8&&numel(j1)==8&&isfinite(T)&&T>0);
+            ds=zeros(8,1);
+            de=zeros(8,1);
+            ds(1)=j0(1);
+            de(1)=j1(1);
+            ff=1;
+            for r=1:7
+                ff=ff*(16-r); % 15*14*...*(15-r+1)
+                ds(r+1)=j0(r+1)*T^r/ff;
+                de(r+1)=j1(r+1)*T^r/ff;
+            end
+            P=zeros(16,1);
+            for k=0:7
+                v0=0;
+                v1=0;
+                for r=0:k
+                    bc=nchoosek(k,r);
+                    v0=v0+bc*ds(r+1);
+                    v1=v1+((-1)^r)*bc*de(r+1);
+                end
+                P(k+1)=v0;
+                P(16-k)=v1;
+            end
+        end
+
+
+        function G = bernstein_gram_matrix(~,n)
+            G=zeros(n+1,n+1);
+            for i=0:n
+                for j=0:n
+                    G(i+1,j+1)=nchoosek(n,i)*nchoosek(n,j)/ ...
+                        ((2*n+1)*nchoosek(2*n,i+j));
+                end
+            end
+        end
+
+
+        function [seg0,seg1,kind,CP,pPos,pVel,ok] = ...
+                build_piecewise_bezier_control_points( ...
+                obj,components,t0,t1,z)
+            C=numel(components);
+            nslot=2*C;
+            ok=false;
+            seg0=[]; seg1=[]; kind={}; CP={};
+            pPos=nan(3,C); pVel=nan(3,C);
+            if numel(z)~=3*nslot || any(~isfinite(z))
+                return;
+            end
+            Z=reshape(double(z(:)),3,nslot);
+            for jj=1:C
+                pPos(:,jj)=Z(:,2*jj-1);
+                pVel(:,jj)=Z(:,2*jj);
+            end
+
+            % local helper through exact scalar control maps
+            iseg=0;
+            [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                components,0,1,nslot,'START_TO_ENTRY');
+            ta=double(t0); tb=double(components(1).start_s);
+            [cp,valid]=obj.evaluate_control_map_xyz(J0,J1,tb-ta,Z);
+            if ~valid, return; end
+            iseg=iseg+1;
+            seg0(iseg)=ta;
+            seg1(iseg)=tb;
+            kind{iseg}='SAFE_TRANSITION';
+            CP{iseg}=cp; %#ok<AGROW>
+
+            for jj=1:C
+                ta=double(components(jj).start_s);
+                tb=double(components(jj).end_s);
+                T=tb-ta;
+                if ~(T>0), return; end
+                u=(0:15)/15;
+                cp=pPos(:,jj)+pVel(:,jj)*(T*u);
+                iseg=iseg+1;
+                seg0(iseg)=ta;
+                seg1(iseg)=tb;
+                kind{iseg}='UNSAFE_AFFINE_TOWING_CORRIDOR';
+                CP{iseg}=cp; %#ok<AGROW>
+
+                if jj<C
+                    [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                        components,jj,jj+1,nslot,'EXIT_TO_ENTRY');
+                    ta=double(components(jj).end_s);
+                    tb=double(components(jj+1).start_s);
+                    [cp,valid]=obj.evaluate_control_map_xyz(J0,J1,tb-ta,Z);
+                    if ~valid, return; end
+                    iseg=iseg+1;
+                    seg0(iseg)=ta;
+                    seg1(iseg)=tb;
+                    kind{iseg}='SAFE_TRANSITION';
+                    CP{iseg}=cp; %#ok<AGROW>
+                end
+            end
+
+            [J0,J1]=obj.piecewise_transition_jet_maps( ...
+                components,C,0,nslot,'EXIT_TO_END');
+            ta=double(components(C).end_s); tb=double(t1);
+            [cp,valid]=obj.evaluate_control_map_xyz(J0,J1,tb-ta,Z);
+            if ~valid, return; end
+            iseg=iseg+1;
+            seg0(iseg)=ta;
+            seg1(iseg)=tb;
+            kind{iseg}='SAFE_TRANSITION';
+            CP{iseg}=cp; %#ok<AGROW>
+
+            ok=numel(CP)==2*C+1 && all(isfinite(seg0)) && ...
+                all(isfinite(seg1)) && all(seg1>seg0);
+        end
+
+
+        function [CP,ok] = evaluate_control_map_xyz(obj,J0,J1,T,Z)
+            CP=nan(3,16);
+            ok=false;
+            if ~(isfinite(T)&&T>0)
+                return;
+            end
+            M=obj.bezier15_control_map_from_jet_maps(J0,J1,T);
+            if any(~isfinite(M(:)))
+                return;
+            end
+            for d=1:3
+                CP(d,:)=reshape(M*Z(d,:).',1,16);
+            end
+            ok=all(isfinite(CP(:)));
+        end
+
+
+        function ub = piecewise_bezier_derivative_bounds( ...
+                ~,seg0,seg1,CP,maxOrder)
+            ub=zeros(maxOrder,1);
+            for is=1:numel(CP)
+                T=double(seg1(is))-double(seg0(is));
+                D=double(CP{is});
+                if ~(isfinite(T)&&T>0&&isequal(size(D),[3 16]))
+                    ub(:)=NaN;
+                    return;
+                end
+                deg=15;
+                for r=1:maxOrder
+                    D=(deg/T)*diff(D,1,2);
+                    deg=deg-1;
+                    if isempty(D) || any(~isfinite(D(:)))
+                        ub(:)=NaN;
+                        return;
+                    end
+                    ub(r)=max(ub(r),max(sqrt(sum(D.^2,1))));
+                end
+            end
+        end
+
+
+        function [ub,DB] = tighten_piecewise_derivative_bounds_for_speed( ...
+                obj,seg0,seg1,CP,baseSC,VQlimit,maxOrder)
+            % Margin-driven Bernstein subdivision for correction derivative
+            % sup-norms.  The raw control-polygon hull bound can be very
+            % conservative for degree-15 C7 transitions.  This routine
+            % tightens orders 1..3 only as much as needed to prove the
+            % existing flatness / finite-sensing inequalities.
+            %
+            % Acceptance remains rigorous: every accepted upper bound is a
+            % Bernstein convex-hull bound over a finite cover.  Midpoint /
+            % endpoint evaluations are used only as LOWER witnesses for
+            % rejection, never for safety acceptance.  There is no fixed
+            % subdivision depth; failure occurs only when the certificate is
+            % proved impossible in this triangle-bound model or binary64 can
+            % no longer refine the active Bernstein leaves.
+            ub=obj.piecewise_bezier_derivative_bounds( ...
+                seg0,seg1,CP,maxOrder);
+            DB=struct('certified',false,'continuous_time',true, ...
+                'sampled_acceptance',false,'fixed_depth_cap',false, ...
+                'orders_tightened',[1 2 3], ...
+                'split_count',0,'representability_open',false, ...
+                'triangle_model_impossible',false, ...
+                'd1_ub',NaN,'d2_ub',NaN,'d3_ub',NaN, ...
+                'd1_lb_witness',NaN,'d2_lb_witness',NaN,'d3_lb_witness',NaN, ...
+                'VQ_bound',NaN,'VQ_limit',double(VQlimit), ...
+                'theorem','ADAPTIVE_BERNSTEIN_CONVEX_HULL_SUP_BOUND_NO_FIXED_DEPTH');
+
+            if maxOrder<3 || numel(ub)<maxOrder || any(~isfinite(ub)) || ...
+                    any(ub<0) || ~(isfinite(VQlimit)&&VQlimit>0)
+                return;
+            end
+            req={'payload_speed_UB_m_s','payload_jerk_UB_m_s3', ...
+                'specific_force_norm_LB_m_s2'};
+            for k=1:numel(req)
+                if ~isfield(baseSC,req{k})
+                    return;
+                end
+            end
+            baseVL=double(baseSC.payload_speed_UB_m_s);
+            baseJL=double(baseSC.payload_jerk_UB_m_s3);
+            sigma0=double(baseSC.specific_force_norm_LB_m_s2);
+            if any(~isfinite([baseVL baseJL sigma0])) || ...
+                    min([baseVL baseJL])<0 || sigma0<=0
+                return;
+            end
+
+            LEAF=cell(3,1);
+            for r=1:3
+                LEAF{r}=obj.initialize_piecewise_derivative_bernstein_leaves( ...
+                    seg0,seg1,CP,r);
+                if isempty(LEAF{r})
+                    return;
+                end
+            end
+
+            while true
+                U=zeros(3,1);
+                L=zeros(3,1);
+                for r=1:3
+                    U(r)=max([LEAF{r}.ub]);
+                    L(r)=max([LEAF{r}.lb]);
+                end
+
+                DB.d1_ub=U(1); DB.d2_ub=U(2); DB.d3_ub=U(3);
+                DB.d1_lb_witness=L(1);
+                DB.d2_lb_witness=L(2);
+                DB.d3_lb_witness=L(3);
+
+                sigmaUBcert=sigma0-U(2);
+                if sigmaUBcert>0
+                    vq=baseVL+U(1)+double(obj.L_cable)*(baseJL+U(3))/sigmaUBcert;
+                else
+                    vq=Inf;
+                end
+                DB.VQ_bound=vq;
+                if isfinite(vq) && vq<double(VQlimit)
+                    ub(1:3)=U;
+                    DB.certified=true;
+                    return;
+                end
+
+                % Lower witnesses prove that no further Bernstein refinement
+                % can make the same triangle-bound speed theorem pass.
+                if L(2)>=sigma0
+                    DB.triangle_model_impossible=true;
+                    return;
+                end
+                sigmaLBpossible=sigma0-L(2);
+                vqLower=baseVL+L(1)+double(obj.L_cable)*(baseJL+L(3))/sigmaLBpossible;
+                if isfinite(vqLower) && vqLower>=double(VQlimit)
+                    DB.triangle_model_impossible=true;
+                    return;
+                end
+
+                anySplit=false;
+                for r=1:3
+                    leaves=LEAF{r};
+                    ur=max([leaves.ub]);
+                    scale=max(1,abs(ur));
+                    tol=64*eps(scale);
+                    idx=find([leaves.ub]>=ur-tol);
+                    keep=true(1,numel(leaves));
+                    add=struct('C',{},'u0',{},'u1',{},'ub',{},'lb',{});
+                    for kk=idx
+                        lf=leaves(kk);
+                        um=0.5*(double(lf.u0)+double(lf.u1));
+                        if ~(um>double(lf.u0) && um<double(lf.u1))
+                            continue;
+                        end
+                        [CL,CR]=obj.split_bezier_control_polygon_half(lf.C);
+                        l1=obj.make_derivative_bernstein_leaf(CL,lf.u0,um);
+                        l2=obj.make_derivative_bernstein_leaf(CR,um,lf.u1);
+                        keep(kk)=false;
+                        add(end+1)=l1; %#ok<AGROW>
+                        add(end+1)=l2; %#ok<AGROW>
+                        DB.split_count=DB.split_count+1;
+                        anySplit=true;
+                    end
+                    leaves=leaves(keep);
+                    if ~isempty(add)
+                        leaves=[leaves add]; %#ok<AGROW>
+                    end
+                    LEAF{r}=leaves;
+                end
+
+                if ~anySplit
+                    DB.representability_open=true;
+                    return;
+                end
+            end
+        end
+
+
+        function [SC,CERT] = build_piecewise_local_vector_speed_certificate( ...
+                obj,P,seg0,seg1,CP,CTX,baseSC,VQlimit,targetVersion)
+            % R9 local vector-coupled continuous-time speed certificate.
+            % Acceptance uses continuous upper/lower enclosures only.
+            % Midpoint values are rejection witnesses only.
+            SC=struct('certified',false, ...
+                'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'reference_mode','REPAIRED', ...
+                'reference_version',double(targetVersion), ...
+                'source','R9_LOCAL_VECTOR_COUPLED_ADAPTIVE_BERNSTEIN_FLATNESS_SPEED', ...
+                'ieee754_outward_closed',false);
+
+            CERT=struct( ...
+                'certified',false, ...
+                'mathematical_pass',false, ...
+                'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'fixed_depth_cap',false, ...
+                'vector_coupled_payload_velocity',true, ...
+                'suspended_load_flatness',true, ...
+                'midpoint_used_for_acceptance',false, ...
+                'midpoint_rejection_witness_only',true, ...
+                'finite_sensing_speed_violation_witness',false, ...
+                'representability_open',false, ...
+                'specific_force_open',false, ...
+                'ieee754_outward_closed',false, ...
+                'split_count',0,'leaf_count',0, ...
+                'VQ_UB_m_s',NaN,'VQ_limit_m_s',double(VQlimit), ...
+                'VQ_midpoint_LB_witness_m_s',NaN, ...
+                'payload_speed_UB_m_s',NaN, ...
+                'payload_accel_UB_m_s2',NaN, ...
+                'payload_jerk_UB_m_s3',NaN, ...
+                'specific_force_norm_LB_m_s2',NaN, ...
+                'qdot_UB_rad_s',NaN, ...
+                'reason','UNINITIALIZED', ...
+                'theorem','LOCAL_VECTOR_BERNSTEIN_PLUS_SUSPENDED_LOAD_FLATNESS_QDOT');
+
+            req={'payload_accel_UB_m_s2','payload_jerk_UB_m_s3'};
+            for kk=1:numel(req)
+                if ~isfield(baseSC,req{kk})
+                    CERT.reason=['BASE_SPEED_CERT_MISSING_' req{kk}];
+                    SC.reason=CERT.reason;
+                    return;
+                end
+            end
+
+            if ~(isstruct(P)&&isfield(P,'base_flat_eval_fn')&& ...
+                    isa(P.base_flat_eval_fn,'function_handle'))
+                CERT.reason='BASE_FLAT_EVALUATOR_UNAVAILABLE';
+                SC.reason=CERT.reason;
+                return;
+            end
+
+            s0=double(seg0(:));
+            s1=double(seg1(:));
+            if numel(s0)~=numel(s1)||numel(CP)~=numel(s0)||isempty(CP)
+                CERT.reason='INVALID_PIECEWISE_SEGMENT_SET';
+                SC.reason=CERT.reason;
+                return;
+            end
+
+            A0=double(baseSC.payload_accel_UB_m_s2);
+            J0=double(baseSC.payload_jerk_UB_m_s3);
+            g=double(CTX.live.gravity);
+            L=double(CTX.live.cable_length);
+            lim=double(VQlimit);
+            if any(~isfinite([A0 J0 g L lim]))||A0<0||J0<0||g<=0||L<=0||lim<=0
+                CERT.reason='INVALID_LIVE_OR_BASE_SPEED_DEPENDENCY';
+                SC.reason=CERT.reason;
+                return;
+            end
+
+            LEAF=repmat(obj.empty_piecewise_local_vector_speed_leaf(),1,0);
+            for iseg=1:numel(CP)
+                lf=obj.make_piecewise_local_vector_speed_leaf( ...
+                    double(CP{iseg}),s0(iseg),s1(iseg),iseg, ...
+                    P.base_flat_eval_fn,A0,J0,g,L);
+                LEAF(end+1)=lf; %#ok<AGROW>
+            end
+
+            while true
+                U=[LEAF.vq_ub];
+                W=[LEAF.vq_mid_witness];
+
+                if all(isfinite(U))&&all(U<lim)
+                    CERT.certified=true;
+                    CERT.mathematical_pass=true;
+                    CERT.reason='LOCAL_VECTOR_CONTINUOUS_SPEED_CERTIFIED';
+                    break;
+                end
+
+                if any(isfinite(W)&W>=lim)
+                    CERT.finite_sensing_speed_violation_witness=true;
+                    CERT.reason='FINITE_SENSING_SPEED_POINT_WITNESS';
+                    break;
+                end
+
+                unresolved=find(~isfinite(U)|U>=lim);
+                if isempty(unresolved)
+                    CERT.certified=true;
+                    CERT.mathematical_pass=true;
+                    CERT.reason='LOCAL_VECTOR_CONTINUOUS_SPEED_CERTIFIED';
+                    break;
+                end
+
+                score=U(unresolved)-lim;
+                score(~isfinite(score))=Inf;
+                [~,jj]=max(score);
+                il=unresolved(jj);
+                old=LEAF(il);
+
+                tm=0.5*(double(old.ta)+double(old.tb));
+                if ~(isfinite(tm)&&tm>double(old.ta)&&tm<double(old.tb))
+                    CERT.representability_open=true;
+                    CERT.reason='BINARY64_TIME_SUBDIVISION_REPRESENTABILITY_OPEN';
+                    break;
+                end
+
+                [CL,CR]=obj.split_bezier_control_polygon_half(old.C0);
+                left=obj.make_piecewise_local_vector_speed_leaf( ...
+                    CL,old.ta,tm,old.segment_index,P.base_flat_eval_fn,A0,J0,g,L);
+                right=obj.make_piecewise_local_vector_speed_leaf( ...
+                    CR,tm,old.tb,old.segment_index,P.base_flat_eval_fn,A0,J0,g,L);
+
+                LEAF(il)=left;
+                LEAF(end+1)=right; %#ok<AGROW>
+                CERT.split_count=CERT.split_count+1;
+            end
+
+            CERT.leaf_count=numel(LEAF);
+            CERT.VQ_UB_m_s=obj.finite_max_piecewise_local([LEAF.vq_ub]);
+            CERT.VQ_midpoint_LB_witness_m_s= ...
+                obj.finite_max_piecewise_local([LEAF.vq_mid_witness]);
+            CERT.payload_speed_UB_m_s= ...
+                obj.finite_max_piecewise_local([LEAF.vl_ub]);
+            CERT.payload_accel_UB_m_s2= ...
+                obj.finite_max_piecewise_local([LEAF.al_ub]);
+            CERT.payload_jerk_UB_m_s3= ...
+                obj.finite_max_piecewise_local([LEAF.jl_ub]);
+            CERT.specific_force_norm_LB_m_s2= ...
+                obj.finite_min_piecewise_local([LEAF.sigma_lb]);
+            CERT.qdot_UB_rad_s= ...
+                obj.finite_max_piecewise_local([LEAF.qdot_ub]);
+            CERT.specific_force_open= ...
+                any(~isfinite([LEAF.sigma_lb])|[LEAF.sigma_lb]<=0);
+
+            if ~CERT.certified
+                SC.reason=CERT.reason;
+                return;
+            end
+
+            z=[CERT.VQ_UB_m_s,CERT.payload_speed_UB_m_s, ...
+               CERT.payload_accel_UB_m_s2,CERT.payload_jerk_UB_m_s3, ...
+               CERT.specific_force_norm_LB_m_s2,CERT.qdot_UB_rad_s];
+            if any(~isfinite(z))||min(z)<0|| ...
+                    CERT.specific_force_norm_LB_m_s2<=0||~(CERT.VQ_UB_m_s<lim)
+                CERT.certified=false;
+                CERT.mathematical_pass=false;
+                CERT.reason='LOCAL_VECTOR_AGGREGATE_CERTIFICATE_INVALID';
+                SC.reason=CERT.reason;
+                return;
+            end
+
+            SC.certified=true;
+            SC.reason='LOCAL_VECTOR_CONTINUOUS_SPEED_CERTIFIED';
+            SC.payload_speed_UB_m_s=CERT.payload_speed_UB_m_s;
+            SC.payload_accel_UB_m_s2=CERT.payload_accel_UB_m_s2;
+            SC.payload_jerk_UB_m_s3=CERT.payload_jerk_UB_m_s3;
+            SC.specific_force_norm_LB_m_s2=CERT.specific_force_norm_LB_m_s2;
+            SC.qdot_UB_rad_s=CERT.qdot_UB_rad_s;
+            SC.uav_speed_UB_m_s=CERT.VQ_UB_m_s;
+            SC.base_reference_mode=char(obj.active_reference_mode);
+            SC.base_reference_version=double(obj.active_reference_version);
+            SC.certificate_stage='R9_STAGE_B_LOCAL_VECTOR';
+            SC.local_leaf_count=CERT.leaf_count;
+            SC.local_split_count=CERT.split_count;
+            SC.vector_coupled_payload_velocity=true;
+            SC.suspended_load_flatness=true;
+            SC.fixed_depth_cap=false;
+        end
+
+
+        function lf = empty_piecewise_local_vector_speed_leaf(~)
+            lf=struct('segment_index',NaN,'ta',NaN,'tb',NaN, ...
+                'C0',nan(3,16),'vl_ub',NaN,'al_ub',NaN,'jl_ub',NaN, ...
+                'sigma_lb',NaN,'qdot_ub',NaN,'vq_ub',NaN, ...
+                'vq_mid_witness',NaN);
+        end
+
+
+        function lf = make_piecewise_local_vector_speed_leaf( ...
+                obj,C0,ta,tb,iseg,baseEval,A0,J0,g,L)
+            lf=obj.empty_piecewise_local_vector_speed_leaf();
+            lf.segment_index=double(iseg);
+            lf.ta=double(ta);
+            lf.tb=double(tb);
+            lf.C0=double(C0);
+
+            T=lf.tb-lf.ta;
+            if ~(isfinite(T)&&T>0&&isequal(size(C0),[3 16])&&all(isfinite(C0(:))))
+                lf.vq_ub=Inf;
+                return;
+            end
+
+            C1=(15/T)*diff(double(C0),1,2);
+            C2=(14/T)*diff(C1,1,2);
+            C3=(13/T)*diff(C2,1,2);
+
+            tc=0.5*(lf.ta+lf.tb);
+            h=0.5*T;
+            xd=double(baseEval(tc));
+            xd=xd(:);
+            if numel(xd)<15||any(~isfinite(xd(1:15)))
+                lf.vq_ub=Inf;
+                return;
+            end
+
+            v0=xd(5:7);
+            a0=xd(9:11);
+            j0=xd(13:15);
+
+            Vctrl=C1+v0;
+            lf.vl_ub=max(sqrt(sum(Vctrl.^2,1)))+double(A0)*h;
+
+            Actrl=C2+a0;
+            lf.al_ub=max(sqrt(sum(Actrl.^2,1)))+double(J0)*h;
+
+            d1m=obj.decasteljau_vector_local(C1,0.5);
+            d2m=obj.decasteljau_vector_local(C2,0.5);
+            d3m=obj.decasteljau_vector_local(C3,0.5);
+
+            d3ub=max(sqrt(sum(C3.^2,1)));
+            lf.jl_ub=double(J0)+d3ub;
+
+            sMid=a0+d2m+[0;0;double(g)];
+            lf.sigma_lb=norm(sMid)-lf.jl_ub*h;
+
+            if ~(isfinite(lf.sigma_lb)&&lf.sigma_lb>0)
+                lf.qdot_ub=Inf;
+                lf.vq_ub=Inf;
+            else
+                lf.qdot_ub=lf.jl_ub/lf.sigma_lb;
+                lf.vq_ub=lf.vl_ub+double(L)*lf.qdot_ub;
+            end
+
+            % Rejection witness only; never an acceptance gate.
+            vMid=v0+d1m;
+            aMid=a0+d2m;
+            jMid=j0+d3m;
+            s=aMid+[0;0;double(g)];
+            ns=norm(s);
+            if isfinite(ns)&&ns>0
+                q=-s/ns;
+                qdot=-(eye(3)-q*q.')*jMid/ns;
+                vQ=vMid-double(L)*qdot;
+                lf.vq_mid_witness=norm(vQ);
+            end
+        end
+
+
+        function x = finite_max_piecewise_local(~,v)
+            v=double(v(:));
+            v=v(isfinite(v));
+            if isempty(v)
+                x=NaN;
+            else
+                x=max(v);
+            end
+        end
+
+
+        function x = finite_min_piecewise_local(~,v)
+            v=double(v(:));
+            v=v(isfinite(v));
+            if isempty(v)
+                x=NaN;
+            else
+                x=min(v);
+            end
+        end
+
+        function leaves = initialize_piecewise_derivative_bernstein_leaves( ...
+                obj,seg0,seg1,CP,r)
+            leaves=struct('C',{},'u0',{},'u1',{},'ub',{},'lb',{});
+            for is=1:numel(CP)
+                T=double(seg1(is))-double(seg0(is));
+                D=double(CP{is});
+                if ~(isfinite(T)&&T>0&&isequal(size(D),[3 16]))
+                    leaves=[];
+                    return;
+                end
+                deg=15;
+                for q=1:r
+                    D=(deg/T)*diff(D,1,2);
+                    deg=deg-1;
+                end
+                leaves(end+1)=obj.make_derivative_bernstein_leaf( ...
+                    D,0,1); %#ok<AGROW>
+            end
+        end
+
+
+        function lf = make_derivative_bernstein_leaf(obj,C,u0,u1)
+            C=double(C);
+            ub=max(sqrt(sum(C.^2,1)));
+            vm=obj.decasteljau_vector_local(C,0.5);
+            lb=max([norm(C(:,1)),norm(C(:,end)),norm(vm)]);
+            lf=struct('C',C,'u0',double(u0),'u1',double(u1), ...
+                'ub',double(ub),'lb',double(lb));
+        end
+
+
+        function [L,R] = split_bezier_control_polygon_half(~,C)
+            C=double(C);
+            m=size(C,2);
+            L=zeros(size(C));
+            R=zeros(size(C));
+            T=C;
+            L(:,1)=T(:,1);
+            R(:,m)=T(:,end);
+            for k=1:m-1
+                T=0.5*(T(:,1:end-1)+T(:,2:end));
+                L(:,k+1)=T(:,1);
+                R(:,m-k)=T(:,end);
+            end
+        end
+
+
+        function [holdEnd,D] = find_bezier_nominal_safe_tail_start(obj,P,CTX,searchEnd)
+            % Continuous-time nominal safe-tail certificate.  Each design
+            % cell is accepted only by support separation with V*h inflation.
+            % The hold ends at the end of the LAST uncertified/unsafe cell,
+            % hence every following cell up to searchEnd is certified safe.
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            dt=double(LIV.dt);
+            t0=double(P.tm);
+
+            D=struct('certified',false,'continuous_time',true, ...
+                'sampled_acceptance',false,'last_unsafe_end_s',NaN, ...
+                'safe_cell_count',0,'unsafe_or_inconclusive_cell_count',0, ...
+                'search_end_s',double(searchEnd), ...
+                'theorem','SUPPORT_SEPARATION_WITH_NOMINAL_SPEED_TIMES_HALFWIDTH');
+
+            if ~(isfinite(t0)&&isfinite(searchEnd)&&searchEnd>t0&&dt>0)
+                holdEnd=NaN;
+                return;
+            end
+
+            lastUnsafe=t0;
+            ta=t0;
+            while ta<searchEnd-8*eps(max(1,searchEnd))
+                tb=min(searchEnd,ta+dt);
+                if ~(tb>ta)
+                    break;
+                end
+                if obj.nominal_reference_cell_continuously_safe(P,ta,tb,CTX)
+                    D.safe_cell_count=D.safe_cell_count+1;
+                else
+                    D.unsafe_or_inconclusive_cell_count= ...
+                        D.unsafe_or_inconclusive_cell_count+1;
+                    lastUnsafe=tb;
+                end
+                ta=tb;
+            end
+
+            D.last_unsafe_end_s=lastUnsafe;
+            if lastUnsafe<searchEnd-8*eps(max(1,searchEnd))
+                holdEnd=lastUnsafe;
+                D.certified=true;
+            else
+                holdEnd=NaN;
+            end
+        end
+
+
+        function tf = nominal_reference_cell_continuously_safe(obj,P,ta,tb,CTX)
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            tc=0.5*(double(ta)+double(tb));
+            h=0.5*(double(tb)-double(ta));
+            if ~(isfinite(tc)&&isfinite(h)&&h>0)
+                tf=false;
+                return;
+            end
+
+            xd=P.base_flat_eval_fn(tc);
+            xd=double(xd(:));
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                tf=false;
+                return;
+            end
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                tf=false;
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+VC*h;
+
+            tf=true;
+            for ii=1:double(O.count)
+                c=double(O.centers(:,ii));
+                R=reshape(double(O.rotations_flat(:,ii)),3,3);
+                a=double(O.base_axes(:,ii));
+                [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+                [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+                [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+                if ~(okL&&okQ&&okC)
+                    tf=false;
+                    return;
+                end
+            end
+        end
+
+
+        function [w,C] = build_bezier_hold_corridor_qp(obj,P,CTX,holdEnd)
+            % R7 exact disjunctive continuous hold-corridor synthesis.
+            %
+            % Each obstacle i supplies ONE axis-free lateral eigendirection
+            % n_i but TWO admissible support halfspaces:
+            %
+            %       n_i' w >= b_i^+      OR      -n_i' w >= b_i^- .
+            %
+            % R6 selected the cheaper sign independently per obstacle.  That
+            % is not equivalent to the globally feasible minimum-norm
+            % translation and can make the assembled QP infeasible.
+            %
+            % R7 solves the DISJUNCTIVE problem directly:
+            %
+            %   min 0.5||w||^2
+            %   s.t. for every obstacle i,
+            %        (n_i'w >= b_i^+) OR (-n_i'w >= b_i^-).
+            %
+            % In R^3, the Euclidean projection onto any fixed-sign
+            % polyhedron has a normal cone generated by at most three
+            % linearly independent active halfspaces.  Therefore the global
+            % optimum over the union of all sign polyhedra is attained by a
+            % candidate generated from at most three of the 2M oriented
+            % halfspaces.  Enumerating oriented active sets of size 1..3 and
+            % checking the full disjunction is complete for this fixed normal
+            % family.  No per-obstacle greedy sign choice, sign bank,
+            % clearance multiplier, sampled acceptance, or node cap is used.
+            %
+            % The independent continuous rise/hold/fall certificate remains
+            % the safety authority; this routine synthesizes a candidate only.
+            O=CTX.obstacles;
+            M=double(O.count);
+            w=nan(3,1);
+            C=struct('certified',false,'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'solver','R7_EXACT_DISJUNCTIVE_ACTIVE_SET_ENUMERATION_3D', ...
+                'normal_rule','LATERAL_ELLIPSOID_METRIC_PRINCIPAL_EIGENVECTOR', ...
+                'obstacle_count',M,'A',zeros(M,3),'b',nan(M,1), ...
+                'base_normals',nan(3,M), ...
+                'required_projection_plus',nan(M,1), ...
+                'required_projection_minus',nan(M,1), ...
+                'selected_signs',zeros(M,1), ...
+                'selected_normals',nan(3,M), ...
+                'required_projection',nan(M,1), ...
+                'qp_active_set',[],'qp_active_obstacles',[], ...
+                'qp_active_signs',[], ...
+                'oriented_candidates_tested',0, ...
+                'oriented_candidates_feasible',0, ...
+                'qp_min_slack',NaN,'displacement_norm_m',NaN, ...
+                'hold_end_s',double(holdEnd), ...
+                'theorem','EXACT_3D_DISJUNCTIVE_ACTIVE_SET_PLUS_CONTINUOUS_HOLD_SUPPORT');
+
+            if M<1 || ~(isfinite(holdEnd)&&holdEnd>=double(P.tm))
+                return;
+            end
+
+            % Nominal path-progress direction over the dangerous hold span.
+            x0=double(P.base_flat_eval_fn(double(P.tm))); x0=x0(:);
+            xh=double(P.base_flat_eval_fn(double(holdEnd))); xh=xh(:);
+            if numel(x0)<7 || numel(xh)<7
+                return;
+            end
+            progress=xh(1:3)-x0(1:3);
+            if norm(progress)<=128*eps(max(1,norm(x0(1:3))))
+                xm=double(P.base_flat_eval_fn(0.5*(double(P.tm)+double(holdEnd))));
+                xm=xm(:);
+                if numel(xm)>=7
+                    progress=xm(5:7);
+                end
+            end
+            if norm(progress)<=128*eps(max(1,norm(progress))) && ...
+                    isfield(CTX.request,'trigger_pL_collision') && ...
+                    isfield(CTX.request,'pL_current')
+                progress=double(CTX.request.trigger_pL_collision(:))- ...
+                    double(CTX.request.pL_current(:));
+            end
+
+            N0=zeros(3,M);
+            bPlus=zeros(M,1);
+            bMinus=zeros(M,1);
+
+            for ii=1:M
+                R=reshape(double(O.rotations_flat(:,ii)),3,3);
+                a=double(O.base_axes(:,ii));
+                if any(~isfinite([R(:);a])) || any(a<=0)
+                    return;
+                end
+
+                n0=obj.bezier_lateral_separator_normal(R,a,progress);
+                if any(~isfinite(n0)) || norm(n0)<=0
+                    return;
+                end
+                n0=n0/norm(n0);
+
+                [bp,okp]=obj.bezier_corridor_required_projection( ...
+                    P,CTX,holdEnd,ii,n0);
+                [bm,okm]=obj.bezier_corridor_required_projection( ...
+                    P,CTX,holdEnd,ii,-n0);
+                if ~(okp&&okm)
+                    return;
+                end
+
+                % Binary64 strictness only.  This is NOT a physical safety
+                % margin and is applied symmetrically to both orientations.
+                etaP=64*eps(max(1,abs(bp)));
+                etaM=64*eps(max(1,abs(bm)));
+
+                N0(:,ii)=n0;
+                bPlus(ii)=bp+etaP;
+                bMinus(ii)=bm+etaM;
+            end
+
+            [w,signs,activeOriented,ST,ok]= ...
+                obj.solve_disjunctive_min_norm_corridor_qp_3d( ...
+                    N0,bPlus,bMinus);
+            if ~ok
+                w=nan(3,1);
+                return;
+            end
+
+            A=zeros(M,3);
+            b=zeros(M,1);
+            N=zeros(3,M);
+            req=zeros(M,1);
+            for ii=1:M
+                if signs(ii)>0
+                    N(:,ii)=N0(:,ii);
+                    req(ii)=bPlus(ii);
+                elseif signs(ii)<0
+                    N(:,ii)=-N0(:,ii);
+                    req(ii)=bMinus(ii);
+                else
+                    w=nan(3,1);
+                    return;
+                end
+                A(ii,:)=N(:,ii).';
+                b(ii)=req(ii);
+            end
+
+            slack=A*w-b;
+            tol=256*eps(max([1;abs(b(:));abs(A*w)]));
+            if any(slack < -tol)
+                w=nan(3,1);
+                return;
+            end
+
+            C.A=A;
+            C.b=b;
+            C.base_normals=N0;
+            C.required_projection_plus=bPlus;
+            C.required_projection_minus=bMinus;
+            C.selected_signs=signs;
+            C.selected_normals=N;
+            C.required_projection=req;
+            C.qp_active_set=activeOriented;
+            C.qp_active_obstacles=ST.active_obstacles;
+            C.qp_active_signs=ST.active_signs;
+            C.oriented_candidates_tested=ST.candidates_tested;
+            C.oriented_candidates_feasible=ST.candidates_feasible;
+            C.qp_min_slack=min(slack);
+            C.displacement_norm_m=norm(w);
+            C.certified=true;
+        end
+
+
+        function n = bezier_lateral_separator_normal(~,R,a,progress)
+            % AF7R37-R14D canonical separator authority.
+            % The old eig() rule was set-valued when the principal lateral
+            % eigenspace was degenerate. This helper preserves the same
+            % maximization problem and adds an explicit deterministic
+            % tie-break inside a numerically indistinguishable top
+            % eigenspace. +/- corridor disjunction remains fully enumerated.
+            [n,~]=af7r36_canonical_separator_normal(R,a,progress);
+            n=double(n(:));
+            assert(numel(n)==3&&all(isfinite(n))&&norm(n)>0, ...
+                '[REPLANNER ERROR] canonical lateral separator invalid.');
+            n=n/norm(n);
+        end
+
+
+        function [breq,ok] = bezier_corridor_required_projection( ...
+                obj,P,CTX,holdEnd,obsIndex,n)
+            % Continuous plateau theorem for a FIXED unit separator n.
+            % During hold the correction is constant, so q=q_base and every
+            % protected body translates by w.  On each time cell I with
+            % halfwidth h, nominal motion is enclosed by V*h.  Therefore
+            % n'w >= breq implies whole-cell separation.
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            n=double(n(:));
+            nn=norm(n);
+            ok=false;
+            breq=-inf;
+            if ~(numel(n)==3&&all(isfinite(n))&&isfinite(nn)&&nn>0)
+                return;
+            end
+            n=n/nn;
+
+            c=double(O.centers(:,obsIndex));
+            R=reshape(double(O.rotations_flat(:,obsIndex)),3,3);
+            a=double(O.base_axes(:,obsIndex));
+            hObs=dot(n,c)+norm(a.*(R.'*n));
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m') && ...
+                    isfinite(double(P.execution_tracking_inflation_m))
+                track=max(0,double(P.execution_tracking_inflation_m));
+            end
+
+            ta=double(P.tm);
+            dt=double(LIV.dt);
+            if holdEnd<=ta+8*eps(max(1,ta))
+                % Zero-length hold: constrain the collision witness point.
+                tb=ta;
+                tc=ta;
+                half=0;
+                [req,valid]=obj.bezier_corridor_cell_requirement( ...
+                    P,tc,half,LIV,hObs,n,VL,VQ,VC,track);
+                if valid
+                    breq=req;
+                    ok=true;
+                end
+                return;
+            end
+
+            while ta<holdEnd-8*eps(max(1,holdEnd))
+                tb=min(holdEnd,ta+dt);
+                tc=0.5*(ta+tb);
+                half=0.5*(tb-ta);
+                [req,valid]=obj.bezier_corridor_cell_requirement( ...
+                    P,tc,half,LIV,hObs,n,VL,VQ,VC,track);
+                if ~valid
+                    return;
+                end
+                breq=max(breq,req);
+                ta=tb;
+            end
+            ok=isfinite(breq);
+        end
+
+
+        function [req,ok] = bezier_corridor_cell_requirement( ...
+                ~,P,tc,half,LIV,hObs,n,VL,VQ,VC,track)
+            xd=P.base_flat_eval_fn(double(tc));
+            xd=double(xd(:));
+            req=NaN;
+            ok=false;
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+            pL=xd(1:3);
+            sf=xd(9:11)+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*half;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*half;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*half;
+
+            reqL=hObs+rhoL-dot(n,pL);
+            reqQ=hObs+rhoQ-dot(n,pQ);
+            reqC=hObs+rhoC-min(dot(n,pQ),dot(n,pL));
+            req=max([reqL,reqQ,reqC]);
+            ok=isfinite(req);
+        end
+
+
+        function [wBest,signBest,activeBest,ST,ok] = ...
+                solve_disjunctive_min_norm_corridor_qp_3d(obj,N,bPlus,bMinus)
+            % Exact global sign + translation solve for the R7 corridor.
+            %
+            % Feasible set:
+            %   for every i,
+            %      N_i' w >= bPlus_i  OR  -N_i' w >= bMinus_i.
+            %
+            % This is a finite union of convex polyhedra.  For any fixed
+            % sign assignment, the minimum-norm projection in R^3 has a
+            % normal-cone representation using <=3 linearly independent
+            % active halfspaces.  Hence the global optimum over the union is
+            % recovered by enumerating all oriented active sets of size
+            % 1..3 (with distinct obstacle indices), solving their KKT
+            % equations, and checking the full disjunction exactly.
+            %
+            % Complexity is polynomial in obstacle count for fixed dimension
+            % (O(M^4) including full-feasibility checks), rather than 2^M.
+            N=double(N);
+            bPlus=double(bPlus(:));
+            bMinus=double(bMinus(:));
+            M=size(N,2);
+
+            wBest=nan(3,1);
+            signBest=zeros(M,1);
+            activeBest=[];
+            ok=false;
+            ST=struct('candidates_tested',0,'candidates_feasible',0, ...
+                'active_obstacles',[],'active_signs',[]);
+
+            if size(N,1)~=3 || numel(bPlus)~=M || numel(bMinus)~=M || ...
+                    any(~isfinite(N(:))) || any(~isfinite(bPlus)) || ...
+                    any(~isfinite(bMinus))
+                return;
+            end
+            nNorm=sqrt(sum(N.^2,1));
+            if any(~isfinite(nNorm)) || any(nNorm<=0)
+                return;
+            end
+            N=N./nNorm;
+
+            % Oriented halfspaces: first M are +N, next M are -N.
+            AO=[N.'; -N.'];
+            bO=[bPlus; bMinus];
+            obsO=[(1:M)'; (1:M)'];
+            sgnO=[ones(M,1); -ones(M,1)];
+            K=2*M;
+
+            bestVal=inf;
+            tolObj=0;
+
+            % Candidate w=0 is globally optimal whenever it satisfies every
+            % obstacle disjunction.
+            [tf0,sgn0]=obj.disjunctive_corridor_feasible_signs( ...
+                    N,bPlus,bMinus,zeros(3,1));
+            ST.candidates_tested=ST.candidates_tested+1;
+            if tf0
+                ST.candidates_feasible=ST.candidates_feasible+1;
+                wBest=zeros(3,1);
+                signBest=sgn0;
+                activeBest=[];
+                ST.active_obstacles=[];
+                ST.active_signs=[];
+                ok=true;
+                return;
+            end
+
+            % Enumerate oriented active sets of size 1..3.  Duplicate
+            % obstacle indices are skipped because a fixed-sign polyhedron
+            % contains only one orientation per obstacle.
+            for kk=1:min(3,M)
+                S=nchoosek(1:K,kk);
+                for jj=1:size(S,1)
+                    ids=S(jj,:);
+                    obs=obsO(ids);
+                    if numel(unique(obs))<kk
+                        continue;
+                    end
+
+                    AS=AO(ids,:);
+                    bs=bO(ids);
+                    G=AS*AS.';
+                    if rcond(G)<=1e3*eps(max(1,norm(G,'fro')))
+                        continue;
+                    end
+
+                    lam=G\bs;
+                    tolLam=256*eps(max([1;abs(lam);abs(bs)]));
+                    if any(lam < -tolLam)
+                        continue;
+                    end
+
+                    wc=AS.'*lam;
+                    if any(~isfinite(wc))
+                        continue;
+                    end
+                    ST.candidates_tested=ST.candidates_tested+1;
+
+                    val=dot(wc,wc);
+                    if isfinite(bestVal)
+                        tolObj=256*eps(max([1;bestVal;val]));
+                        if val>bestVal+tolObj
+                            continue;
+                        end
+                    end
+
+                    [tf,sgn]=obj.disjunctive_corridor_feasible_signs( ...
+                        N,bPlus,bMinus,wc);
+                    if ~tf
+                        continue;
+                    end
+                    ST.candidates_feasible=ST.candidates_feasible+1;
+
+                    if ~isfinite(bestVal) || val<bestVal-tolObj
+                        bestVal=val;
+                        wBest=wc;
+                        signBest=sgn;
+                        activeBest=ids;
+                        ST.active_obstacles=obs(:).';
+                        ST.active_signs=sgnO(ids).';
+                    end
+                end
+            end
+
+            ok=isfinite(bestVal) && all(isfinite(wBest)) && ...
+                all(signBest~=0);
+
+        end
+
+
+        function [tf,sgn] = disjunctive_corridor_feasible_signs( ...
+                ~,N,bPlus,bMinus,wc)
+            % Check the full per-obstacle +/- corridor disjunction at wc and
+            % return one fixed-sign polyhedron that contains wc.
+            N=double(N);
+            bPlus=double(bPlus(:));
+            bMinus=double(bMinus(:));
+            wc=double(wc(:));
+            M=size(N,2);
+            tf=false;
+            sgn=zeros(M,1);
+            if size(N,1)~=3 || numel(bPlus)~=M || ...
+                    numel(bMinus)~=M || numel(wc)~=3 || ...
+                    any(~isfinite([N(:);bPlus;bMinus;wc]))
+                return;
+            end
+
+            proj=N.'*wc;
+            scale=max([ones(M,1),abs(proj),abs(bPlus),abs(bMinus)],[],2);
+            tol=256*eps(scale);
+            satP=proj>=bPlus-tol;
+            satM=-proj>=bMinus-tol;
+            tf=all(satP|satM);
+            if ~tf
+                return;
+            end
+
+            for qq=1:M
+                if satP(qq) && ~satM(qq)
+                    sgn(qq)=1;
+                elseif satM(qq) && ~satP(qq)
+                    sgn(qq)=-1;
+                else
+                    % Both orientations contain wc.  Choose the one with
+                    % larger certified algebraic slack only to identify a
+                    % containing fixed-sign polyhedron.  This does not alter
+                    % wc, the optimization objective, or safety.
+                    slackP=proj(qq)-bPlus(qq);
+                    slackM=-proj(qq)-bMinus(qq);
+                    if slackP>=slackM
+                        sgn(qq)=1;
+                    else
+                        sgn(qq)=-1;
+                    end
+                end
+            end
+        end
+
+
+        function [w,active,ok] = solve_min_norm_halfspace_qp_3d(~,A,b)
+            % Exact active-set enumeration for
+            %   min 0.5||w||^2  s.t. A w >= b,  w in R^3.
+            % At the Euclidean projection onto a polyhedron in R^3, the
+            % normal cone admits a generating set of at most three linearly
+            % independent active constraints.  Enumerating active sets of
+            % cardinality 1..3 is therefore complete for this 3-D QP.
+            A=double(A); b=double(b(:));
+            m=size(A,1);
+            w=nan(3,1); active=[]; ok=false;
+            if size(A,2)~=3 || numel(b)~=m || ...
+                    any(~isfinite(A(:))) || any(~isfinite(b))
+                return;
+            end
+
+            tol0=256*eps(max([1;abs(b)]));
+            if all(-b>=-tol0)
+                w=zeros(3,1);
+                active=[];
+                ok=true;
+                return;
+            end
+
+            best=inf;
+            bestW=nan(3,1);
+            bestS=[];
+            maxK=min(3,m);
+            for kk=1:maxK
+                S=nchoosek(1:m,kk);
+                for jj=1:size(S,1)
+                    ids=S(jj,:);
+                    AS=A(ids,:);
+                    bs=b(ids);
+                    G=AS*AS.';
+                    if rcond(G)<=1e3*eps(max(1,norm(G,'fro')))
+                        continue;
+                    end
+                    lam=G\bs;
+                    tolLam=256*eps(max([1;abs(lam);abs(bs)]));
+                    if any(lam < -tolLam)
+                        continue;
+                    end
+                    wc=AS.'*lam;
+                    tolFeas=256*eps(max([1;abs(b);abs(A*wc)]));
+                    if any(A*wc < b-tolFeas)
+                        continue;
+                    end
+                    val=dot(wc,wc);
+                    if val<best
+                        best=val;
+                        bestW=wc;
+                        bestS=ids;
+                    end
+                end
+            end
+
+            if isfinite(best) && all(isfinite(bestW))
+                w=bestW;
+                active=bestS;
+                ok=true;
+            end
+        end
+
+
+        function G = build_static_continuous_wholebody_shadow_certificate(obj,CTX,P)
+            if exist('af7r33_wholebody_batch_certified','file')==2
+                try
+                    Gfast=af7r33_wholebody_batch_certified(obj,CTX,P);
+                    if isstruct(Gfast)&&isfield(Gfast,'mathematical_pass')&& ...
+                            isfield(Gfast,'continuous_time')&&logical(Gfast.continuous_time)&& ...
+                            isfield(Gfast,'sampled_acceptance')&&~logical(Gfast.sampled_acceptance)
+                        G=Gfast;
+                        return;
+                    end
+                catch
+                    %% Fall through to the unchanged legacy theorem.
+                end
+            end
+            % =============================================================
+            % STATIC ELLIPSOID CONTINUOUS-TIME WHOLE-BODY CERTIFICATE
+            %
+            % IMPORTANT correction relative to the earlier shadow theorem:
+            % the C7 correction changes the flat-output acceleration, hence
+            % it changes the desired cable direction
+            %
+            %   q*(t)=-(pL_ddot(t)+g e3)/||pL_ddot(t)+g e3||,
+            %
+            % and therefore pQ*=pL-Lq*.  The UAV is NOT certified by simply
+            % translating the nominal UAV with the same displacement.
+            %
+            % For each exact reference-grid center, the actual corrected
+            % flat-output reference is evaluated.  A continuous-time
+            % finite-cover tube then encloses the whole adjacent time cell:
+            %
+            %   rho_L = r_L+d_margin+V_L h/2
+            %   rho_Q = r_Q+d_margin+V_Q h/2
+            %   rho_C = r_C+d_margin+max(V_L,V_Q) h/2
+            %
+            % plus any hard execution/tracking inflation supplied by the
+            % execution-aware theorem.
+            %
+            % Separation uses the exact support function of an arbitrarily
+            % oriented static ellipsoid.  This is a continuous-time theorem,
+            % not sampled acceptance.  Directed/outward binary64 authority
+            % remains a separate layer.
+            % =============================================================
+
+            G=struct( ...
+                'mathematical_pass',false, ...
+                'certified',false, ...
+                'continuous_time',true, ...
+                'whole_body',true, ...
+                'all_detected_obstacles',true, ...
+                'static_obstacles_only',true, ...
+                'sampled_acceptance',false, ...
+                'finite_cover_speed_tube',true, ...
+                'support_function_separation',true, ...
+                'corrected_flatness_cable_direction',true, ...
+                'ieee754_outward_closed',false, ...
+                'reason_code',0, ...
+                'min_margin_m',NaN, ...
+                'min_payload_margin_m',NaN, ...
+                'min_uav_margin_m',NaN, ...
+                'min_cable_margin_m',NaN, ...
+                'leaf_count',0, ...
+                'accepted_leaf_count',0, ...
+                'split_count',0, ...
+                'max_depth_used',0, ...
+                'max_depth_cap',0, ...
+                'min_specific_force_norm_lb',NaN, ...
+                'max_qdot_ub',NaN, ...
+                'max_q_arc_radius',NaN, ...
+                'max_q_arc_inflation_m',NaN, ...
+                'resource_exhausted',false, ...
+                'static_separation_open',false, ...
+                'representability_open',false, ...
+                'failure_time_s',NaN, ...
+                'min_static_payload_margin_m',NaN, ...
+                'min_static_uav_margin_m',NaN, ...
+                'min_static_cable_margin_m',NaN, ...
+                'min_theorem_certifiable_radius_s',NaN, ...
+                'cover_theorem','', ...
+                'tracking_inflation_m',0, ...
+                'reference_only_authority',true, ...
+                'final_system_authority',false);
+
+            try
+                O=CTX.obstacles;
+                LIV=CTX.live;
+
+                if double(O.count)<1
+                    G.reason_code=101;
+                    return;
+                end
+
+                dt=double(LIV.dt);
+                if ~(isfinite(dt)&&dt>0)
+                    G.reason_code=102;
+                    return;
+                end
+
+                SC=P.reference_speed_certificate;
+                if ~isstruct(SC) || ~isfield(SC,'certified') || ...
+                        ~logical(SC.certified)
+                    G.reason_code=102;
+                    return;
+                end
+
+                VL=double(SC.payload_speed_UB_m_s);
+                VQ=double(SC.uav_speed_UB_m_s);
+                qdotUB=double(SC.qdot_UB_rad_s);
+                sigmaLB=double(SC.specific_force_norm_LB_m_s2);
+
+                trackingInfl=0;
+                if isfield(P,'execution_tracking_inflation_m')
+                    trackingInfl=double(P.execution_tracking_inflation_m);
+                end
+
+                if any(~isfinite([VL VQ qdotUB sigmaLB trackingInfl])) || ...
+                        min([VL VQ qdotUB sigmaLB trackingInfl])<0 || ...
+                        sigmaLB<=0
+                    G.reason_code=102;
+                    return;
+                end
+
+                VC=max(VL,VQ);
+
+                % ---------------------------------------------------------
+                % MARGIN-DERIVED CONTINUOUS FINITE COVER.
+                %
+                % For a leaf I=[ta,tb], midpoint tc and h=(tb-ta)/2,
+                % let mL0,mQ0,mC0 be STATIC support margins using only
+                % physical body radius + d_margin + hard tracking inflation.
+                %
+                % With certified speed bounds VL,VQ,VC:
+                %
+                %   margin_L(t) >= mL0 - VL*|t-tc|
+                %   margin_Q(t) >= mQ0 - VQ*|t-tc|
+                %   margin_C(t) >= mC0 - VC*|t-tc|.
+                %
+                % Therefore the WHOLE leaf is certified when
+                %
+                %   h < min(mL0/VL, mQ0/VQ, mC0/VC).
+                %
+                % There is NO fixed depth authority.  If the inequality
+                % does not yet hold but all static midpoint margins are
+                % strictly positive, bisect and retry.  If a static midpoint
+                % margin itself is non-positive, subdivision cannot certify
+                % that midpoint with this support family, so reject/inconclusive.
+                %
+                % The only subdivision termination guard is representability:
+                % if binary64 can no longer produce a strict interior
+                % midpoint, numerical closure is unavailable and we reject.
+                % ---------------------------------------------------------
+
+                stackA=zeros(1,64);
+                stackB=zeros(1,64);
+                stackD=zeros(1,64);
+                top=0;
+
+                % Split exactly at the C7 rise/hold/fall joins.
+                th=double(P.tm);
+                if isfield(P,'hold_end') && isfinite(double(P.hold_end))
+                    th=max(double(P.tm),min(double(P.t1),double(P.hold_end)));
+                end
+
+                % LIFO stack: push latest segment first so the fixed prefix
+                % (rise, then hold) is certified before the fall.
+                if double(P.t1)>th
+                    top=top+1;
+                    stackA(top)=th;
+                    stackB(top)=double(P.t1);
+                    stackD(top)=0;
+                end
+                if th>double(P.tm)
+                    top=top+1;
+                    stackA(top)=double(P.tm);
+                    stackB(top)=th;
+                    stackD(top)=0;
+                end
+                if double(P.tm)>double(P.t0)
+                    top=top+1;
+                    stackA(top)=double(P.t0);
+                    stackB(top)=double(P.tm);
+                    stackD(top)=0;
+                end
+
+                minL=inf;
+                minQ=inf;
+                minC=inf;
+                leafCount=0;
+                acceptCount=0;
+                splitCount=0;
+                maxDepthUsed=0;
+                resourceExhausted=false;
+                staticSeparationOpen=false;
+                representabilityOpen=false;
+                minStaticL=inf;
+                minStaticQ=inf;
+                minStaticC=inf;
+                minCertifiedRadius=inf;
+
+                rhoL0=double(LIV.r_load)+double(LIV.d_margin)+trackingInfl;
+                rhoQ0=double(LIV.r_drone)+double(LIV.d_margin)+trackingInfl;
+                rhoC0=double(LIV.r_cable)+double(LIV.d_margin)+trackingInfl;
+
+                while top>0
+                    ta=stackA(top);
+                    tb=stackB(top);
+                    dep=stackD(top);
+                    top=top-1;
+
+                    if ~(isfinite(ta)&&isfinite(tb)&&tb>ta)
+                        G.reason_code=106;
+                        return;
+                    end
+
+                    tmCell=0.5*(ta+tb);
+                    halfWidth=0.5*(tb-ta);
+
+                    % If midpoint rounds to an endpoint, no smaller
+                    % representable binary64 cover can be constructed.
+                    if ~(tmCell>ta && tmCell<tb)
+                        representabilityOpen=true;
+                        G.failure_time_s=tmCell;
+                        break;
+                    end
+
+                    xd=obj.evaluate_bezier_proposal_flat_reference(tmCell,P);
+                    xd=double(xd(:));
+                    if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                        G.reason_code=107;
+                        return;
+                    end
+
+                    pL=xd(1:3);
+                    aL=xd(9:11);
+                    sf=aL+[0;0;double(LIV.gravity)];
+                    ns=norm(sf);
+                    if ~(isfinite(ns)&&ns>=sigmaLB)
+                        G.reason_code=108;
+                        return;
+                    end
+                    q=-sf/ns;
+                    pQ=pL-double(LIV.cable_length)*q;
+
+                    % Static midpoint margins: temporal inflation is NOT
+                    % inserted here.  The theorem below subtracts V*h
+                    % explicitly, which makes the certifiable radius visible.
+                    cellStaticL=inf;
+                    cellStaticQ=inf;
+                    cellStaticC=inf;
+                    staticOK=true;
+
+                    for ii=1:double(O.count)
+                        c=double(O.centers(:,ii));
+                        R=reshape(double(O.rotations_flat(:,ii)),3,3);
+                        a=double(O.base_axes(:,ii));
+
+                        if any(~isfinite([c;R(:);a])) || any(a<=0)
+                            G.reason_code=103;
+                            return;
+                        end
+
+                        [mL0,okL]=obj.best_point_support_margin( ...
+                            pL,c,R,a,rhoL0);
+                        [mQ0,okQ]=obj.best_point_support_margin( ...
+                            pQ,c,R,a,rhoQ0);
+                        [mC0,okC]=obj.best_segment_support_margin( ...
+                            pQ,pL,c,R,a,rhoC0);
+
+                        if ~(okL&&okQ&&okC)
+                            staticOK=false;
+                            break;
+                        end
+
+                        cellStaticL=min(cellStaticL,mL0);
+                        cellStaticQ=min(cellStaticQ,mQ0);
+                        cellStaticC=min(cellStaticC,mC0);
+                    end
+
+                    leafCount=leafCount+1;
+                    maxDepthUsed=max(maxDepthUsed,dep);
+                    minStaticL=min(minStaticL,cellStaticL);
+                    minStaticQ=min(minStaticQ,cellStaticQ);
+                    minStaticC=min(minStaticC,cellStaticC);
+
+                    if ~staticOK || ...
+                            ~(isfinite(cellStaticL)&&isfinite(cellStaticQ)&& ...
+                              isfinite(cellStaticC)) || ...
+                            min([cellStaticL,cellStaticQ,cellStaticC])<=0
+                        staticSeparationOpen=true;
+                        G.failure_time_s=tmCell;
+                        break;
+                    end
+
+                    % The theorem-derived local time radius.  V=0 gives Inf.
+                    rL=obj.safe_time_radius_from_margin(cellStaticL,VL);
+                    rQ=obj.safe_time_radius_from_margin(cellStaticQ,VQ);
+                    rC=obj.safe_time_radius_from_margin(cellStaticC,VC);
+                    rCert=min([rL,rQ,rC]);
+                    minCertifiedRadius=min(minCertifiedRadius,rCert);
+
+                    % Strict inequality is the mathematical acceptance gate.
+                    if isfinite(rCert)
+                        cellPass=(halfWidth<rCert);
+                    else
+                        cellPass=true;
+                    end
+
+                    if cellPass
+                        % Certified continuous lower margins on this WHOLE
+                        % leaf, not sampled margins.
+                        cellMinL=cellStaticL-VL*halfWidth;
+                        cellMinQ=cellStaticQ-VQ*halfWidth;
+                        cellMinC=cellStaticC-VC*halfWidth;
+
+                        if min([cellMinL,cellMinQ,cellMinC])<=0
+                            % Defensive consistency check: this should be
+                            % impossible if halfWidth<rCert.
+                            G.reason_code=110;
+                            return;
+                        end
+
+                        acceptCount=acceptCount+1;
+                        minL=min(minL,cellMinL);
+                        minQ=min(minQ,cellMinQ);
+                        minC=min(minC,cellMinC);
+                        continue;
+                    end
+
+                    % No fixed maxDepth/maxLeaves. Grow storage only as an
+                    % implementation detail; this does not affect authority.
+                    if top+2>numel(stackA)
+                        newCap=2*numel(stackA);
+                        stackA(newCap)=0;
+                        stackB(newCap)=0;
+                        stackD(newCap)=0;
+                    end
+
+                    mid=tmCell;
+                    top=top+1;
+                    stackA(top)=mid;
+                    stackB(top)=tb;
+                    stackD(top)=dep+1;
+                    top=top+1;
+                    stackA(top)=ta;
+                    stackB(top)=mid;
+                    stackD(top)=dep+1;
+                    splitCount=splitCount+1;
+                end
+
+                G.min_payload_margin_m=minL;
+                G.min_uav_margin_m=minQ;
+                G.min_cable_margin_m=minC;
+                G.min_margin_m=min([minL,minQ,minC]);
+                G.leaf_count=leafCount;
+                G.accepted_leaf_count=acceptCount;
+                G.split_count=splitCount;
+                G.max_depth_used=maxDepthUsed;
+                G.max_depth_cap=Inf; % no fixed-depth safety authority
+                G.resource_exhausted=resourceExhausted;
+                G.static_separation_open=staticSeparationOpen;
+                G.representability_open=representabilityOpen;
+                G.min_static_payload_margin_m=minStaticL;
+                G.min_static_uav_margin_m=minStaticQ;
+                G.min_static_cable_margin_m=minStaticC;
+                G.min_theorem_certifiable_radius_s=minCertifiedRadius;
+                G.cover_theorem='MIDPOINT_STATIC_SUPPORT_MINUS_SPEED_TIMES_HALFWIDTH';
+                G.min_specific_force_norm_lb=sigmaLB;
+                G.max_qdot_ub=qdotUB;
+                G.max_q_arc_radius=qdotUB*dt/2;
+                G.max_q_arc_inflation_m=double(LIV.cable_length)*qdotUB*dt/2;
+                G.tracking_inflation_m=trackingInfl;
+
+                if ~resourceExhausted && ~staticSeparationOpen && ...
+                        ~representabilityOpen && top==0 && ...
+                        acceptCount>0 && isfinite(G.min_margin_m) && ...
+                        G.min_margin_m>0
+                    G.mathematical_pass=true;
+                    G.certified=true;
+                    G.reason_code=0;
+                elseif staticSeparationOpen
+                    % A midpoint on the candidate cannot be separated by the
+                    % current exact-support normal family even with zero
+                    % temporal inflation.  This is not a depth/resource issue.
+                    G.reason_code=111;
+                elseif representabilityOpen
+                    % Mathematical subdivision would require a time interval
+                    % finer than binary64 can represent at this epoch.
+                    G.reason_code=112;
+                elseif resourceExhausted
+                    % Retained only for schema compatibility. The new cover
+                    % has no fixed-depth/fixed-leaf exhaustion path.
+                    G.reason_code=109;
+                else
+                    G.reason_code=105;
+                end
+            catch
+                G.reason_code=199;
+                G.mathematical_pass=false;
+                G.certified=false;
+            end
+        end
+
+
+        function b = bezier_c7_bump_scalar(obj,t,t0,tm,t1)
+            if t<=t0 || t>=t1
+                b=0;
+                return;
+            end
+
+            if t<=tm
+                u=(t-t0)/(tm-t0);
+                c=[zeros(1,8),ones(1,8)];
+            else
+                u=(t-tm)/(t1-tm);
+                c=[ones(1,8),zeros(1,8)];
+            end
+
+            u=max(0,min(1,u));
+            b=obj.decasteljau_scalar_local(c,u);
+        end
+
+
+        function [margin,ok] = best_point_support_margin(obj,x,c,R,a,rho)
+            % AF7R30-R12 native equivalent fast path. Same two-normal theorem.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        0,double(x(:)),double(c(:)),double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            y=R.'*(x-c);
+            normals=[R*(y./(a.^2)),(x-c)];
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_point(x,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+
+        function [margin,ok] = best_segment_support_margin(obj,p0,p1,c,R,a,rho)
+            % AF7R30-R12 native equivalent fast path. Same closest-segment
+            % seed and same six support normals as the MATLAB fallback.
+            persistent nativeReady
+            if isempty(nativeReady)
+                nativeReady=(exist('af7r30_support_hull_mex','file')==3);
+            end
+            if nativeReady
+                try
+                    [margin,ok]=af7r30_support_hull_mex( ...
+                        1,double(p0(:)),double(p1(:)),double(c(:)), ...
+                        double(R),double(a(:)),double(rho));
+                    margin=double(margin); ok=logical(ok);
+                    return;
+                catch
+                    nativeReady=false;
+                end
+            end
+
+            [~,~,xstar]=obj.bezier_segment_metric(p0,p1,c,R,a);
+            Y=[xstar,p0,p1];
+            normals=zeros(3,0);
+            for kk=1:size(Y,2)
+                y=R.'*(Y(:,kk)-c);
+                normals(:,end+1)=R*(y./(a.^2)); %#ok<AGROW>
+                normals(:,end+1)=Y(:,kk)-c; %#ok<AGROW>
+            end
+
+            margin=-inf;
+            ok=false;
+            for kk=1:size(normals,2)
+                [m,v]=obj.support_margin_segment( ...
+                    p0,p1,c,R,a,rho,normals(:,kk));
+                if v && m>margin
+                    margin=m;
+                    ok=true;
+                end
+            end
+            ok=ok && isfinite(margin) && margin>0;
+        end
+
+
+        function [margin_m,ok] = support_margin_point(~,x,c,R,a,rho,n)
+            n=double(n(:));
+            nn=norm(n);
+            if ~(isfinite(nn)&&nn>0)
+                margin_m=-inf;
+                ok=false;
+                return;
+            end
+
+            h=dot(n,c)+norm(a.*(R.'*n));
+            raw=dot(n,x)-h-rho*nn;
+            margin_m=raw/nn;
+            ok=isfinite(margin_m);
+        end
+
+
+        function [margin_m,ok] = support_margin_segment(~,p0,p1,c,R,a,rho,n)
+            n=double(n(:));
+            nn=norm(n);
+            if ~(isfinite(nn)&&nn>0)
+                margin_m=-inf;
+                ok=false;
+                return;
+            end
+
+            h=dot(n,c)+norm(a.*(R.'*n));
+            proj=min(dot(n,p0),dot(n,p1));
+            raw=proj-h-rho*nn;
+            margin_m=raw/nn;
+            ok=isfinite(margin_m);
+        end
+
+
+        function fn = snapshot_active_reference_eval_fn(obj)
+            switch upper(char(obj.active_reference_mode))
+                case 'NOMINAL'
+                    assert(isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                        isprop(obj.base_ref,'func') && ...
+                        isa(obj.base_ref.func,'function_handle'), ...
+                        '[REPLANNER ERROR] nominal function unavailable for proposal snapshot.');
+                    fh=obj.base_ref.func;
+                    tf0=double(obj.flight_reference_time_origin);
+                    if ~isfinite(tf0)
+                        tf0=double(obj.resolve_takeoff_end_time());
+                    end
+                    fn=@(tg)obj.evaluate_nominal_snapshot_global(fh,tf0,tg);
+
+                case 'REPAIRED'
+                    obj.assert_repaired_reference_current();
+                    fn=obj.active_repaired_reference.eval_fn;
+
+                otherwise
+                    error('[REPLANNER ERROR] unsupported active reference mode for proposal snapshot.');
+            end
+        end
+
+
+        function fn = snapshot_active_reference_flat_eval_fn(obj)
+            % Mathematical flat-output jet authority for geometry/flatness.
+            % Deliberately separate from the legacy HLC packet evaluator.
+            switch upper(char(obj.active_reference_mode))
+                case 'NOMINAL'
+                    assert(isa(obj.base_ref,'TIME_VARYING_REFERENCE') && ...
+                        isprop(obj.base_ref,'func') && ...
+                        isa(obj.base_ref.func,'function_handle'), ...
+                        '[REPLANNER ERROR] nominal reference unavailable.');
+                    assert(iscell(obj.nominal_flat_derivative_fn) && ...
+                        numel(obj.nominal_flat_derivative_fn)>=7 && ...
+                        all(cellfun(@(f)isa(f,'function_handle'), ...
+                        obj.nominal_flat_derivative_fn(1:7))), ...
+                        '[REPLANNER ERROR] exact nominal flat jet authority unavailable.');
+
+                    rawfh=obj.base_ref.func;
+                    flatfh=obj.nominal_flat_derivative_fn(1:7);
+                    tf0=double(obj.flight_reference_time_origin);
+                    if ~isfinite(tf0)
+                        tf0=double(obj.resolve_takeoff_end_time());
+                    end
+                    fn=@(tg)obj.evaluate_nominal_flat_snapshot_global( ...
+                        rawfh,flatfh,tf0,tg);
+
+                case 'REPAIRED'
+                    obj.assert_repaired_reference_current();
+                    assert(isfield(obj.active_repaired_reference,'flat_eval_fn') && ...
+                        isa(obj.active_repaired_reference.flat_eval_fn,'function_handle'), ...
+                        '[REPLANNER ERROR] repaired flat-jet authority unavailable.');
+                    fn=obj.active_repaired_reference.flat_eval_fn;
+
+                otherwise
+                    error('[REPLANNER ERROR] unsupported active reference mode for flat snapshot.');
+            end
+        end
+
+
+        function xd = evaluate_nominal_flat_snapshot_global(~,rawfh,flatfh,tf0,tg)
+            tau=double(tg)-double(tf0);
+            if tau<0
+                tau=0;
+            end
+
+            % Preserve the baseline yaw/reference packet convention, but
+            % replace ONLY position derivative slots by exact derivatives
+            % of the mathematical position law.
+            xd=rawfh(tau);
+            xd=double(xd(:));
+            if numel(xd)<28
+                xd=[xd;zeros(28-numel(xd),1)];
+            end
+
+            for rr=0:6
+                z=double(flatfh{rr+1}(tau));
+                z=z(:);
+                assert(numel(z)==3 && all(isfinite(z)), ...
+                    '[REPLANNER ERROR] exact nominal flat jet evaluation failed.');
+                xd(4*rr+(1:3))=z;
+            end
+
+            assert(all(isfinite(xd(1:28))), ...
+                '[REPLANNER ERROR] nominal flat snapshot returned invalid xd.');
+        end
+
+
+        function xd = evaluate_nominal_snapshot_global(~,fh,tf0,tg)
+            tau=double(tg)-double(tf0);
+            if tau<0
+                tau=0;
+            end
+            xd=fh(tau);
+            xd=double(xd(:));
+            if numel(xd)<28
+                xd=[xd;zeros(28-numel(xd),1)];
+            end
+            assert(numel(xd)>=28 && all(isfinite(xd(1:28))), ...
+                '[REPLANNER ERROR] nominal snapshot evaluator returned invalid xd.');
+        end
+
+
+        function tend = resolve_reference_rejoin_search_end(obj,tm)
+            % Finite search-domain authority.  This is a computational /
+            % reference-validity bound, never a safety-margin heuristic.
+            %
+            % In the headless Sim the nominal table is built through
+            % simulation end + trigger horizon, so it supplies a finite
+            % source-derived reference domain.  If no finite validity
+            % authority exists, fail closed rather than inventing a
+            % trajectory-specific duration cap.
+            tend=NaN;
+
+            if obj.nominal_table_valid && isfinite(double(obj.nominal_table_tend))
+                tend=double(obj.nominal_table_tend);
+            end
+
+            if strcmpi(char(obj.active_reference_mode),'REPAIRED') && ...
+                    isstruct(obj.active_repaired_reference) && ...
+                    isfield(obj.active_repaired_reference,'valid_until')
+                vr=double(obj.active_repaired_reference.valid_until);
+                if isfinite(vr)
+                    if ~isfinite(tend)
+                        tend=vr;
+                    else
+                        tend=max(tend,vr);
+                    end
+                end
+            end
+
+            if isfinite(tend) && tend<=double(tm)
+                tend=NaN;
+            end
+        end
+
+
+        function r = safe_time_radius_from_margin(~,m,V)
+            % Exact real-arithmetic theorem radius for
+            %   m - V*h > 0.
+            %
+            % No tuning multiplier.  Strictness is enforced by the caller
+            % with h<r, not by shrinking r heuristically.
+            m=double(m);
+            V=double(V);
+            assert(isscalar(m)&&isfinite(m)&&m>0, ...
+                '[REPLANNER ERROR] positive static support margin required.');
+            assert(isscalar(V)&&isfinite(V)&&V>=0, ...
+                '[REPLANNER ERROR] certified nonnegative speed bound required.');
+            if V==0
+                r=Inf;
+            else
+                r=m/V;
+            end
+        end
+
+
+        function tf = reference_rejoin_cell_continuously_safe(obj,P,t1,CTX)
+            % Continuous terminal-cell theorem for the zero-correction
+            % rejoin state.  Since a degree-15 endpoint-repeated C7 bump has
+            % d^(0..7)(t1)=0, the repaired reference equals its frozen base
+            % reference at the rejoin endpoint.
+            tf=false;
+
+            if ~(isstruct(P) && isfield(P,'base_flat_eval_fn') && ...
+                    isa(P.base_flat_eval_fn,'function_handle') && ...
+                    isfield(P,'reference_speed_certificate'))
+                return;
+            end
+
+            SC=P.reference_speed_certificate;
+            if ~(isstruct(SC) && isfield(SC,'certified') && ...
+                    logical(SC.certified))
+                return;
+            end
+
+            LIV=CTX.live;
+            O=CTX.obstacles;
+            h=0.5*double(LIV.dt);
+
+            xd=P.base_flat_eval_fn(double(t1));
+            xd=double(xd(:));
+            if numel(xd)<11 || any(~isfinite(xd(1:11)))
+                return;
+            end
+
+            pL=xd(1:3);
+            aL=xd(9:11);
+            sf=aL+[0;0;double(LIV.gravity)];
+            ns=norm(sf);
+            if ~(isfinite(ns)&&ns>0)
+                return;
+            end
+            q=-sf/ns;
+            pQ=pL-double(LIV.cable_length)*q;
+
+            VL=double(SC.payload_speed_UB_m_s);
+            VQ=double(SC.uav_speed_UB_m_s);
+            VC=max(VL,VQ);
+            track=0;
+            if isfield(P,'execution_tracking_inflation_m')
+                track=double(P.execution_tracking_inflation_m);
+            end
+
+            rhoL=double(LIV.r_load)+double(LIV.d_margin)+track+VL*h;
+            rhoQ=double(LIV.r_drone)+double(LIV.d_margin)+track+VQ*h;
+            rhoC=double(LIV.r_cable)+double(LIV.d_margin)+track+VC*h;
+
+            for ii=1:double(O.count)
+                c=double(O.centers(:,ii));
+                R=reshape(double(O.rotations_flat(:,ii)),3,3);
+                a=double(O.base_axes(:,ii));
+
+                [~,okL]=obj.best_point_support_margin(pL,c,R,a,rhoL);
+                [~,okQ]=obj.best_point_support_margin(pQ,c,R,a,rhoQ);
+                [~,okC]=obj.best_segment_support_margin(pQ,pL,c,R,a,rhoC);
+
+                if ~(okL&&okQ&&okC)
+                    return;
+                end
+            end
+
+            tf=true;
+        end
+
+
+        function txt = bezier_proposal_reason_text(~,code)
+            switch round(double(code))
+                case 0
+                    txt='SUCCESS';
+                case 1
+                    txt='NO_DETECTED_OBSTACLE';
+                case 2
+                    txt='INVALID_TRIGGER_TTC';
+                case 3
+                    txt='NO_STRICT_PRECOLLISION_LEAD_TIME';
+                case 4
+                    txt='TRIGGER_OBSTACLE_NOT_IN_DETECTED_PACKET';
+                case 5
+                    txt='INVALID_TRIGGER_COMPONENT';
+                case 6
+                    txt='INVALID_TRIGGER_GEOMETRY';
+                case 7
+                    txt='INVALID_OUTWARD_DIRECTION';
+                case 8
+                    txt='OUTWARD_LAST_EXIT_SOLVE_FAILED';
+                case 9
+                    txt='INVALID_C7_TIMING';
+                case 12
+                    txt='PEAK_WHOLE_BODY_NOT_SAFE';
+                case 13
+                    txt='CONTINUOUS_WHOLE_BODY_CERTIFICATE_FAILED';
+                case 14
+                    txt='INSUFFICIENT_PRECOLLISION_LEAD_TIME_FOR_FLATNESS';
+                case 15
+                    txt='REPAIRED_FLATNESS_KINEMATIC_CERTIFICATE_FAILED';
+                case 16
+                    txt='FINITE_SENSOR_HORIZON_SPEED_FEASIBILITY_FAILED';
+                case 17
+                    txt='FINITE_REJOIN_SEARCH_DOMAIN_UNAVAILABLE';
+                case 18
+                    txt='NO_CONTINUOUSLY_CERTIFIED_REJOIN_IN_REFERENCE_DOMAIN';
+                case 19
+                    txt='NO_CONTINUOUS_NOMINAL_SAFE_TAIL_IN_REFERENCE_DOMAIN';
+                case 20
+                    txt='HOLD_CORRIDOR_HALFSPACE_QP_FAILED';
+                case 21
+                    txt='FIXED_RISE_HOLD_PREFIX_NOT_CONTINUOUSLY_SAFE';
+                case 22
+                    txt='CONTINUOUS_UNSAFE_EPISODE_COMPONENTS_UNAVAILABLE';
+                case 23
+                    txt='PIECEWISE_C7_TOWING_CORRIDOR_QP_FAILED';
+                case 24
+                    txt='PIECEWISE_C7_FLATNESS_OR_FINITE_SENSING_FAILED';
+                case 25
+                    txt='PIECEWISE_C7_CONTINUOUS_WHOLE_BODY_CERTIFICATE_FAILED';
+                case -100
+                    txt='MALFORMED_GENERATOR_CONTEXT';
+                case -101
+                    txt='BACKEND_CONTRACT_MISMATCH';
+                otherwise
+                    txt=sprintf('UNKNOWN_REASON_%g',double(code));
+            end
+        end
+
+
+        function C = build_bezier_repaired_speed_certificate(obj,P,targetVersion)
+            base=obj.active_speed_certificate;
+            C=struct('certified',false);
+
+            req={'payload_speed_UB_m_s','payload_accel_UB_m_s2', ...
+                'payload_jerk_UB_m_s3','specific_force_norm_LB_m_s2'};
+            for kk=1:numel(req)
+                if ~isfield(base,req{kk})
+                    C.reason=['BASE_SPEED_CERT_MISSING_' req{kk}];
+                    return;
+                end
+            end
+
+            d=double(P.correction_derivative_ub(:));
+            if numel(d)<3 || any(~isfinite(d(1:3))) || any(d(1:3)<0)
+                C.reason='INVALID_CORRECTION_DERIVATIVE_BOUNDS';
+                return;
+            end
+
+            VL=double(base.payload_speed_UB_m_s)+d(1);
+            AL=double(base.payload_accel_UB_m_s2)+d(2);
+            JL=double(base.payload_jerk_UB_m_s3)+d(3);
+            sigma=double(base.specific_force_norm_LB_m_s2)-d(2);
+
+            if ~(all(isfinite([VL AL JL sigma])) && ...
+                    min([VL AL JL])>=0 && sigma>0)
+                C.reason='FLATNESS_SPECIFIC_FORCE_LOWER_BOUND_NOT_POSITIVE';
+                return;
+            end
+
+            qdot=JL/sigma;
+            VQ=VL+double(obj.L_cable)*qdot;
+
+            if ~(isfinite(qdot)&&qdot>=0&&isfinite(VQ)&&VQ>=0)
+                C.reason='INVALID_REPAIRED_QDOT_OR_UAV_SPEED_BOUND';
+                return;
+            end
+
+            C=struct();
+            C.certified=true;
+            C.continuous_time=true;
+            C.sampled_acceptance=false;
+            C.reference_mode='REPAIRED';
+            C.reference_version=double(targetVersion);
+            C.payload_speed_UB_m_s=VL;
+            C.payload_accel_UB_m_s2=AL;
+            C.payload_jerk_UB_m_s3=JL;
+            C.specific_force_norm_LB_m_s2=sigma;
+            C.qdot_UB_rad_s=qdot;
+            C.uav_speed_UB_m_s=VQ;
+            C.base_reference_mode=char(obj.active_reference_mode);
+            C.base_reference_version=double(obj.active_reference_version);
+            C.correction_d1_ub=d(1);
+            C.correction_d2_ub=d(2);
+            C.correction_d3_ub=d(3);
+            C.source='TRIANGLE_BOUNDED_C7_REPAIRED_FLATNESS_KINEMATICS';
+        end
+
+
+        function xd = evaluate_bezier_proposal_reference(obj,t,P)
+            assert(isfield(P,'base_eval_fn') && isa(P.base_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] BEZIER proposal base evaluator unavailable.');
+
+            xd=P.base_eval_fn(double(t));
+            xd=double(xd(:));
+            if numel(xd)<28
+                xd=[xd;zeros(28-numel(xd),1)];
+            end
+            assert(numel(xd)>=28 && all(isfinite(xd(1:28))), ...
+                '[REPLANNER ERROR] BEZIER base reference invalid.');
+
+            if isfield(P,'representation_code') && double(P.representation_code)==2
+                bd=obj.evaluate_piecewise_bezier_correction_derivatives( ...
+                    double(t),P,6);
+                for r=0:6
+                    idx=4*r+(1:3);
+                    xd(idx)=xd(idx)+bd(:,r+1);
+                end
+                return;
+            end
+
+            assert(isfield(P,'displacement') && numel(P.displacement)==3, ...
+                '[REPLANNER ERROR] BEZIER proposal displacement unavailable.');
+            th=double(P.tm);
+            if isfield(P,'hold_end') && isfinite(double(P.hold_end))
+                th=double(P.hold_end);
+            end
+            bd=obj.bezier_c7_rise_hold_fall_derivatives( ...
+                double(t),double(P.t0),double(P.tm),th,double(P.t1),6);
+            w=double(P.displacement(:));
+            for r=0:6
+                idx=4*r+(1:3);
+                xd(idx)=xd(idx)+w*bd(r+1);
+            end
+        end
+
+
+        function xd = evaluate_bezier_proposal_flat_reference(obj,t,P)
+            assert(isfield(P,'base_flat_eval_fn') && ...
+                isa(P.base_flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] BEZIER flat base evaluator unavailable.');
+
+            xd=P.base_flat_eval_fn(double(t));
+            xd=double(xd(:));
+            if numel(xd)<28
+                xd=[xd;zeros(28-numel(xd),1)];
+            end
+            assert(numel(xd)>=28 && all(isfinite(xd(1:28))), ...
+                '[REPLANNER ERROR] BEZIER flat base reference invalid.');
+
+            if isfield(P,'representation_code') && double(P.representation_code)==2
+                bd=obj.evaluate_piecewise_bezier_correction_derivatives( ...
+                    double(t),P,6);
+                for rr=0:6
+                    idx=4*rr+(1:3);
+                    xd(idx)=xd(idx)+bd(:,rr+1);
+                end
+                return;
+            end
+
+            assert(isfield(P,'displacement') && numel(P.displacement)==3, ...
+                '[REPLANNER ERROR] BEZIER proposal displacement unavailable.');
+            th=double(P.tm);
+            if isfield(P,'hold_end') && isfinite(double(P.hold_end))
+                th=double(P.hold_end);
+            end
+            bd=obj.bezier_c7_rise_hold_fall_derivatives( ...
+                double(t),double(P.t0),double(P.tm),th,double(P.t1),6);
+            w=double(P.displacement(:));
+            for rr=0:6
+                idx=4*rr+(1:3);
+                xd(idx)=xd(idx)+w*bd(rr+1);
+            end
+        end
+
+
+        function DOUT = evaluate_piecewise_bezier_correction_derivatives( ...
+                obj,t,P,maxOrder)
+            assert(maxOrder>=0&&maxOrder<=7);
+            DOUT=zeros(3,maxOrder+1);
+            if t<=double(P.t0) || t>=double(P.t1)
+                return;
+            end
+            assert(isfield(P,'piecewise_segment_t0') && ...
+                isfield(P,'piecewise_segment_t1') && ...
+                isfield(P,'piecewise_control_points'), ...
+                '[REPLANNER ERROR] R8 piecewise representation incomplete.');
+
+            s0=double(P.piecewise_segment_t0(:));
+            s1=double(P.piecewise_segment_t1(:));
+            CP=P.piecewise_control_points;
+            assert(numel(s0)==numel(s1)&&numel(CP)==numel(s0));
+
+            is=find(t<=s1,1,'first');
+            if isempty(is)
+                return;
+            end
+            if t<s0(is)
+                if is==1
+                    return;
+                end
+                is=is-1;
+            end
+            ta=s0(is); tb=s1(is); T=tb-ta;
+            assert(T>0);
+            u=(t-ta)/T;
+            u=max(0,min(1,u));
+            C=double(CP{is});
+            assert(isequal(size(C),[3 16])&&all(isfinite(C(:))));
+
+            deg=15;
+            D=C;
+            DOUT(:,1)=obj.decasteljau_vector_local(D,u);
+            for r=1:maxOrder
+                D=(deg/T)*diff(D,1,2);
+                deg=deg-1;
+                DOUT(:,r+1)=obj.decasteljau_vector_local(D,u);
+            end
+        end
+
+
+        function y = decasteljau_vector_local(~,C,u)
+            C=double(C);
+            while size(C,2)>1
+                C=(1-u)*C(:,1:end-1)+u*C(:,2:end);
+            end
+            y=C(:,1);
+        end
+
+
+        function d = bezier_c7_bump_derivatives(obj,t,t0,tm,t1,maxOrder)
+            % Backward-compatible zero-hold wrapper.
+            d=obj.bezier_c7_rise_hold_fall_derivatives( ...
+                t,t0,tm,tm,t1,maxOrder);
+        end
+
+
+        function d = bezier_c7_rise_hold_fall_derivatives( ...
+                obj,t,t0,triseEnd,holdEnd,t1,maxOrder)
+            assert(maxOrder>=0 && maxOrder<=7);
+            assert(t0<triseEnd && triseEnd<=holdEnd && holdEnd<t1, ...
+                '[REPLANNER ERROR] invalid rise-hold-fall timing.');
+            d=zeros(maxOrder+1,1);
+
+            if t<t0 || t>t1
+                return;
+            end
+            if t==t0 || t==t1
+                return;
+            end
+
+            if t>=triseEnd && t<=holdEnd
+                d(1)=1;
+                return;
+            end
+
+            if t<triseEnd
+                T=triseEnd-t0;
+                u=(t-t0)/T;
+                c=[zeros(1,8),ones(1,8)];
+            else
+                T=t1-holdEnd;
+                u=(t-holdEnd)/T;
+                c=[ones(1,8),zeros(1,8)];
+            end
+
+            u=max(0,min(1,u));
+            D=double(c);
+            d(1)=obj.decasteljau_scalar_local(D,u);
+            for r=1:maxOrder
+                D=(numel(D)-1)*diff(D);
+                d(r+1)=obj.decasteljau_scalar_local(D,u)/T^r;
+            end
+        end
+
+
+        function tf = logical_struct_field(~,S,name)
+            tf=false;
+            if isstruct(S) && isfield(S,name)
+                v=S.(name);
+                if (islogical(v)||isnumeric(v)) && isscalar(v) && ...
+                        isfinite(double(v))
+                    tf=logical(v);
+                end
+            end
+        end
+
+
+        function mode = normalize_avoidance_certificate_mode(~,modeIn)
+            mode=upper(char(string(modeIn)));
+            switch mode
+                case {'REFERENCE_ONLY','REFERENCE'}
+                    mode='REFERENCE_ONLY';
+                case {'EXECUTION_AWARE','EXECUTION','ACTUAL'}
+                    mode='EXECUTION_AWARE';
+                otherwise
+                    error('[REPLANNER ERROR] unknown avoidance certificate mode: %s',mode);
+            end
+        end
+
+
+        function R = evaluate_reference_only_proposal_certificate(obj,P)
+            % Read-only reference-layer certificate for comparison.
+            R=struct();
+            R.schema='REPLANNING_REFERENCE_ONLY_EVALUATION_V1';
+            R.certified=false;
+            R.full_system_authority=false;
+            R.sampled_acceptance=false;
+            R.reason='PROPOSAL_NOT_SUCCESSFUL';
+            R.reference_version=double(obj.active_reference_version)+1;
+            R.geometry_certificate=struct();
+            R.speed_certificate=struct();
+            R.proposal_generated=false;
+            R.proposal_success=false;
+            R.proposal_reason_code=NaN;
+            R.proposal_reason='UNKNOWN';
+            R.proposal_t0=NaN;
+            R.proposal_tm=NaN;
+            R.proposal_t1=NaN;
+
+            if isstruct(P)
+                if isfield(P,'generated'), R.proposal_generated=logical(P.generated); end
+                if isfield(P,'success'), R.proposal_success=logical(P.success); end
+                if isfield(P,'reason_code')
+                    R.proposal_reason_code=double(P.reason_code);
+                    R.proposal_reason=obj.bezier_proposal_reason_text(P.reason_code);
+                end
+                if isfield(P,'t0'), R.proposal_t0=double(P.t0); end
+                if isfield(P,'tm'), R.proposal_tm=double(P.tm); end
+                if isfield(P,'t1'), R.proposal_t1=double(P.t1); end
+            end
+
+            if ~(isstruct(P) && isfield(P,'success') && logical(P.success))
+                R.reason=['PROPOSAL_NOT_SUCCESSFUL__' R.proposal_reason];
+                return;
+            end
+
+            if isfield(P,'geometry_shadow_certificate')
+                R.geometry_certificate=P.geometry_shadow_certificate;
+            end
+            if isfield(P,'reference_speed_certificate')
+                R.speed_certificate=P.reference_speed_certificate;
+            end
+
+            G=R.geometry_certificate;
+            SC=R.speed_certificate;
+
+            if ~(isstruct(G) && isfield(G,'certified') && logical(G.certified) && ...
+                    isfield(G,'continuous_time') && logical(G.continuous_time) && ...
+                    isfield(G,'sampled_acceptance') && ~logical(G.sampled_acceptance))
+                R.reason='REFERENCE_GEOMETRY_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+
+            if ~(isstruct(SC) && isfield(SC,'certified') && logical(SC.certified))
+                R.reason='REFERENCE_SPEED_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+
+            if double(SC.reference_version)~=R.reference_version
+                R.reason='REFERENCE_SPEED_CERTIFICATE_VERSION_MISMATCH';
+                return;
+            end
+
+            R.certified=true;
+            R.reason='REFERENCE_ONLY_CERTIFICATE_CLOSED';
+        end
+
+
+        function af7r58q_min_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58Q_MIN_TIMING), return; end
+                if ~(obj.af7r58q_min_ring_capacity==64 && ...
+                        obj.af7r58q_min_ring_width==9 && ...
+                        isequal(size(obj.af7r58q_min_ring),[64 9]))
+                    return;
+                end
+                st=double(obj.af7r58q_min_stage_ms);
+                total_ms=1e3*toc(totalTic);
+                known=sum(st(isfinite(st)));
+                residual=total_ms-known;
+                r=[double(obj.generator_request_count), total_ms, ...
+                    st(1),st(2),st(3),residual, ...
+                    double(obj.active_reference_version), ...
+                    double(obj.replan_commit_count), ...
+                    double(obj.generator_deadline_fail_count)];
+                cap=double(obj.af7r58q_min_ring_capacity);
+                j=mod(double(obj.af7r58q_min_ring_head),cap)+1;
+                obj.af7r58q_min_ring(j,:)=r;
+                obj.af7r58q_min_ring_head=j;
+                obj.af7r58q_min_ring_count=min(cap,double(obj.af7r58q_min_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58q_min_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58q_min_max_capture_overhead_us= ...
+                        max(double(obj.af7r58q_min_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic instrumentation must never change control flow.
+            end
+        end
+
+        function af7r58t_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58T_OTHER_TIMING), return; end
+                if ~(obj.af7r58t_ring_capacity==64 && ...
+                        obj.af7r58t_ring_width==15 && ...
+                        isequal(size(obj.af7r58t_ring),[64 15]))
+                    return;
+                end
+                s=double(obj.af7r58t_stage_ms);
+                r=nan(1,15);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(totalTic);
+                r(3:13)=s;
+                r(14)=double(obj.active_reference_version);
+                r(15)=double(obj.replan_commit_count);
+                cap=double(obj.af7r58t_ring_capacity);
+                j=mod(double(obj.af7r58t_ring_head),cap)+1;
+                obj.af7r58t_ring(j,:)=r;
+                obj.af7r58t_ring_head=j;
+                obj.af7r58t_ring_count=min(cap,double(obj.af7r58t_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58t_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58t_max_capture_overhead_us= ...
+                        max(double(obj.af7r58t_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic capture must never alter control flow.
+            end
+        end
+
+        function af7r58v_r4_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58V_R4_PRETRY_TIMING), return; end
+                if ~(obj.af7r58v_r4_ring_capacity==64 && ...
+                        obj.af7r58v_r4_ring_width==15 && ...
+                        isequal(size(obj.af7r58v_r4_ring),[64 15]))
+                    return;
+                end
+                r=nan(1,15);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(totalTic);
+                r(3)=double(obj.af7r58v_r4_progress_code);
+                r(4)=double(obj.af7r58v_r4_branch_code);
+                r(5:14)=double(obj.af7r58v_r4_stage_ms);
+                r(15)=double(obj.active_reference_version);
+                cap=double(obj.af7r58v_r4_ring_capacity);
+                j=mod(double(obj.af7r58v_r4_ring_head),cap)+1;
+                obj.af7r58v_r4_ring(j,:)=r;
+                obj.af7r58v_r4_ring_head=j;
+                obj.af7r58v_r4_ring_count=min(cap,double(obj.af7r58v_r4_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58v_r4_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58v_r4_max_capture_overhead_us= ...
+                        max(double(obj.af7r58v_r4_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostics must never alter production control flow.
+            end
+        end
+
+        function [ok,reason] = try_commit_reference_only_proposal(obj,P,t_commit,t_hard_cycle)
+            ok=false;
+            reason='';
+
+            if ~obj.ENABLE_AUTO_REPLAN_COMMIT
+                reason='AUTO_COMMIT_DISABLED';
+                return;
+            end
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                reason='NOT_REFERENCE_ONLY_COMMIT_POLICY';
+                return;
+            end
+            if ~(isstruct(P) && isfield(P,'success') && logical(P.success))
+                reason='PROPOSAL_NOT_SUCCESSFUL';
+                return;
+            end
+
+            [spacingOK,~,~,spacingReason]= ...
+                af7r58i_commit_spacing_guard(obj,double(t_commit));
+            if ~spacingOK
+                reason=spacingReason;
+                return;
+            end
+
+            G=P.geometry_shadow_certificate;
+            SC=P.reference_speed_certificate;
+            if ~(isstruct(G)&&isfield(G,'certified')&&logical(G.certified) && ...
+                    isfield(G,'continuous_time')&&logical(G.continuous_time) && ...
+                    isfield(G,'sampled_acceptance')&&~logical(G.sampled_acceptance))
+                reason='REFERENCE_GEOMETRY_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+            if ~(isstruct(SC)&&isfield(SC,'certified')&&logical(SC.certified))
+                reason='REFERENCE_SPEED_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+
+            targetVersion=double(obj.active_reference_version)+1;
+            if double(SC.reference_version)~=targetVersion
+                reason='REFERENCE_SPEED_CERTIFICATE_VERSION_MISMATCH';
+                return;
+            end
+
+            [resourceOK,resourceReason,batchModel,resourceMeta]= ...
+                af7r58i_prepare_batch_model( ...
+                    obj,P,targetVersion,double(t_commit));
+            if ~resourceOK
+                reason=resourceReason;
+                return;
+            end
+            [evalFn,flatEvalFn]= ...
+                af7r58i_make_canonical_eval_handles(obj,batchModel);
+
+            % C7 endpoint/peak construction is exact by repeated endpoint
+            % control values.  The correction vanishes identically after t1.
+            smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
+            if isfield(P,'representation_code') && double(P.representation_code)==2
+                smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_AFFINE_TOWING_CORRIDORS';
+            end
+            smooth=struct( ...
+                'certified',logical(P.c7_exact), ...
+                'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'continuity_order',7, ...
+                'reference_mode','REPAIRED', ...
+                'reference_version',targetVersion, ...
+                'valid_from',double(P.t0), ...
+                'valid_until',double(P.t1), ...
+                'source',smoothSource);
+
+            geom=G;
+            geom.reference_mode='REPAIRED';
+            geom.reference_version=targetVersion;
+            geom.valid_from=double(P.t0);
+            geom.valid_until=double(P.t1);
+            geom.reference_only_authority=true;
+            geom.final_system_authority=false;
+
+            % Pre-evaluate the exact HLC packet at commit/horizon boundary.
+            tq=[double(t_commit),double(t_commit)+double(obj.horizon_s)];
+            for kk=1:numel(tq)
+                xd=evalFn(tq(kk));
+                xf=flatEvalFn(tq(kk));
+                xd=double(xd(:));
+                xf=double(xf(:));
+                if numel(xd)<28 || any(~isfinite(xd(1:28))) || ...
+                        numel(xf)<28 || any(~isfinite(xf(1:28)))
+                    reason='REFERENCE_ONLY_EVAL_FN_INVALID';
+                    return;
+                end
+                sf=xf(9:11)+[0;0;double(obj.gravity)];
+                if ~(isfinite(norm(sf))&&norm(sf)>0)
+                    reason='REFERENCE_ONLY_FLATNESS_SINGULAR';
+                    return;
+                end
+            end
+
+            old=struct( ...
+                'mode',obj.active_reference_mode, ...
+                'version',obj.active_reference_version, ...
+                'ref',obj.active_repaired_reference, ...
+                'cert',obj.active_repaired_certificates, ...
+                'speed',obj.active_speed_certificate, ...
+                'sweep',obj.trigger_sweep_inflation, ...
+                'packet',obj.obstacle_packet, ...
+                'sensor',obj.sensor_horizon_certificate, ...
+                'dep',obj.runtime_dependency_signature, ...
+                'stale',obj.certificate_stale, ...
+                'level',obj.active_repaired_safety_level, ...
+                'count',obj.replan_commit_count, ...
+                'rocount',obj.reference_only_commit_count, ...
+                'time',obj.last_replan_commit_time);
+
+            reuseRuntimePacket= ...
+                obj.can_reuse_reference_only_runtime_packet_exact( ...
+                    old.speed,SC,old.sweep,old.packet,old.sensor,old.dep);
+
+            % AF7R58Z: bounded one-entry NON-AUTHORITY preparation cache.
+            reusePreparedPacketCache=false;
+            preparedPacketCache=struct();
+            preparedPacketWasRebuilt=false;
+            cacheReason=0;
+            if ~reuseRuntimePacket && ...
+                    logical(obj.reference_only_prepared_packet_cache_valid)
+                preparedPacketCache=obj.reference_only_prepared_packet_cache;
+                [reusePreparedPacketCache,cacheReason]= ...
+                    obj.can_reuse_reference_only_prepared_packet_cache_exact( ...
+                        preparedPacketCache,SC);
+                obj.reference_only_prepared_packet_cache_last_reason_code=double(cacheReason);
+                if reusePreparedPacketCache
+                    obj.reference_only_prepared_packet_cache_gate_pass_count= ...
+                        obj.reference_only_prepared_packet_cache_gate_pass_count+1;
+                else
+                    idx=round(double(cacheReason));
+                    if isfinite(idx) && idx>=1 && ...
+                            idx<=numel(obj.reference_only_prepared_packet_cache_miss_reason_count)
+                        obj.reference_only_prepared_packet_cache_miss_reason_count(idx)= ...
+                            obj.reference_only_prepared_packet_cache_miss_reason_count(idx)+1;
+                    end
+                    obj.reference_only_prepared_packet_cache_valid=false;
+                    obj.reference_only_prepared_packet_cache=struct();
+                    obj.reference_only_prepared_packet_cache_invalidate_count= ...
+                        obj.reference_only_prepared_packet_cache_invalidate_count+1;
+                    preparedPacketCache=struct();
+                end
+            end
+
+            if reuseRuntimePacket
+                [sweepNew,packetNew,sensorNew,depNew]= ...
+                    obj.reuse_reference_only_runtime_packet_exact( ...
+                        old.sweep,old.packet,old.sensor,old.dep,SC,targetVersion);
+            elseif reusePreparedPacketCache
+                obj.reference_only_prepared_packet_cache_hit_count= ...
+                    obj.reference_only_prepared_packet_cache_hit_count+1;
+                [sweepNew,packetNew,sensorNew,depNew]= ...
+                    obj.retarget_reference_only_prepared_packet_cache_exact( ...
+                        preparedPacketCache,SC,targetVersion,old.dep);
+                obj.reference_only_prepared_packet_cache_retarget_count= ...
+                    obj.reference_only_prepared_packet_cache_retarget_count+1;
+                % Retarget produced an exact current-speed prepared tuple.
+                % If this attempt still misses the deadline, overwrite the
+                % one-entry cache with the retargeted tuple for the next retry.
+                preparedPacketWasRebuilt=true;
+            else
+                sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
+                packetNew=obj.prepare_obstacle_packet_fast_target(old.packet,sweepNew,targetVersion);
+                sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+                assert(isfield(sensorNew,'certified')&&logical(sensorNew.certified), ...
+                    '[REPLANNER ERROR] fast target sensor horizon is not closed.');
+                depNew=old.dep;
+                depNew.reference_mode='REPAIRED';
+                depNew.reference_version=double(targetVersion);
+                preparedPacketWasRebuilt=true;
+            end
+
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>double(obj.hard_modify_deadline_s)
+                if preparedPacketWasRebuilt
+                    obj.reference_only_prepared_packet_cache=struct( ...
+                        'schema','AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2', ...
+                        'non_authority',true, ...
+                        'speed',SC, ...
+                        'sweep',sweepNew, ...
+                        'packet',packetNew, ...
+                        'sensor',sensorNew, ...
+                        'dep',depNew, ...
+                        'key',struct( ...
+                            'active_reference_mode',char(obj.active_reference_mode), ...
+                            'active_reference_version',double(obj.active_reference_version), ...
+                            'dt',double(obj.prediction_dt), ...
+                            'r_load',double(obj.r_load), ...
+                            'd_margin',double(obj.d_margin), ...
+                            'r_drone',double(obj.r_drone), ...
+                            'r_cable',double(obj.r_cable), ...
+                            'horizon',double(obj.horizon_s), ...
+                            'sensor_range',double(obj.trigger_dist), ...
+                            'cable_length',double(obj.L_cable), ...
+                            'static_obstacle_map',obj.static_obstacle_map));
+                    obj.reference_only_prepared_packet_cache_valid=true;
+                    obj.reference_only_prepared_packet_cache_store_count= ...
+                        obj.reference_only_prepared_packet_cache_store_count+1;
+                end
+                reason='REFERENCE_ONLY_COMMIT_PREPARATION_DEADLINE_EXCEEDED';
+                return;
+            end
+
+            if reusePreparedPacketCache
+                obj.reference_only_prepared_packet_cache_valid=false;
+                obj.reference_only_prepared_packet_cache=struct();
+            end
+            try
+                R=struct();
+                R.valid=true;
+                R.backend='BEZIER_D15_C7';
+                R.eval_fn=evalFn;
+                R.flat_eval_fn=flatEvalFn;
+                R.valid_from=double(P.t0);
+                R.valid_until=Inf;
+                R.reference_version=targetVersion;
+                R.source='CURRENT_REPLANNING_SYSTEM_REFERENCE_ONLY_COMMIT';
+                R.yaw_policy='C6_INDEPENDENT';
+                R.path_parameterization=struct( ...
+                    'kind','DIRECT_TIME_BEZIER_CORRECTION', ...
+                    'path_derivative_order',7, ...
+                    'time_derivative_order',7);
+                R.rejoin_time=double(P.t1);
+                R.representation=struct( ...
+                    'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
+                    't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
+                    'displacement',double(P.displacement(:)));
+                R.batch_flat_model=batchModel;
+                R.resource_certificate=resourceMeta.contract;
+                R.resource_state=resourceMeta;
+                R.authority_split=struct( ...
+                    'controller_packet','eval_fn', ...
+                    'mathematical_flat_jet','flat_eval_fn', ...
+                    'legacy_high_derivative_slots_used_for_geometry',false);
+
+                obj.active_repaired_reference=R;
+                obj.active_repaired_certificates=struct( ...
+                    'reference_only',true, ...
+                    'smoothness',smooth, ...
+                    'geometry',geom);
+                obj.active_reference_mode='REPAIRED';
+                obj.active_reference_version=targetVersion;
+                obj.active_repaired_safety_level='REFERENCE_ONLY';
+                obj.active_speed_certificate=SC;
+                obj.validate_active_speed_certificate(SC);
+                obj.trigger_sweep_inflation=sweepNew;
+                obj.obstacle_packet=packetNew;
+                obj.sensor_horizon_certificate=sensorNew;
+                obj.runtime_dependency_signature=depNew;
+                if reuseRuntimePacket
+                    obj.reference_only_runtime_packet_reuse_count= ...
+                        obj.reference_only_runtime_packet_reuse_count+1;
+                elseif reusePreparedPacketCache
+                    obj.reference_only_prepared_packet_cache_commit_count= ...
+                        obj.reference_only_prepared_packet_cache_commit_count+1;
+                else
+                    obj.reference_only_runtime_packet_rebuild_count= ...
+                        obj.reference_only_runtime_packet_rebuild_count+1;
+                    obj.reference_only_fast_packet_rebuild_count= ...
+                        obj.reference_only_fast_packet_rebuild_count+1;
+                end
+                obj.certificate_stale=obj.empty_certificate_stale_state();
+                % Execution-aware certificates are deliberately not promoted.
+                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                obj.certificate_stale.HLC_ROBUST_CERT=true;
+
+                obj.replan_commit_count=obj.replan_commit_count+1;
+                obj.reference_only_commit_count=obj.reference_only_commit_count+1;
+                obj.last_replan_commit_time=double(t_commit);
+                obj.replan_request_active=false;
+
+                obj.assert_trigger_packet_certificate_current();
+                obj.assert_repaired_reference_current();
+
+                if nargin>=4 && ~isempty(t_hard_cycle)
+                    elapsed=toc(t_hard_cycle);
+                    if elapsed>double(obj.hard_modify_deadline_s)
+                        error(['[REPLANNER DEADLINE] reference-only atomic commit ' ...
+                            'finished after the hard online modification deadline.']);
+                    end
+                end
+
+                % Post-deadline diagnostic/status publication. This cannot make
+                % an over-budget modification pass: the authoritative elapsed
+                % check above has already closed.
+                obj.last_replan_status=struct( ...
+                    'requested',true, ...
+                    'committed',true, ...
+                    'safety_mode','REFERENCE_ONLY', ...
+                    'safety_level','REFERENCE_ONLY', ...
+                    'full_system_authority',false, ...
+                    'reference_version',targetVersion, ...
+                    'backend','BEZIER_D15_C7', ...
+                    'commit_time',double(t_commit), ...
+                    'rejoin_time',double(P.t1));
+
+                ok=true;
+                reason='REFERENCE_ONLY_COMMIT_CLOSED';
+            catch ME
+                obj.active_reference_mode=old.mode;
+                obj.active_reference_version=old.version;
+                obj.active_repaired_reference=old.ref;
+                obj.active_repaired_certificates=old.cert;
+                obj.active_speed_certificate=old.speed;
+                obj.trigger_sweep_inflation=old.sweep;
+                obj.obstacle_packet=old.packet;
+                obj.sensor_horizon_certificate=old.sensor;
+                obj.runtime_dependency_signature=old.dep;
+                obj.certificate_stale=old.stale;
+                obj.active_repaired_safety_level=old.level;
+                obj.replan_commit_count=old.count;
+                obj.reference_only_commit_count=old.rocount;
+                obj.last_replan_commit_time=old.time;
+                reason=ME.message;
+            end
+        end
+
+
+        function F = build_execution_aware_foundation_snapshot(obj,P,CTX,OS)
+            % =============================================================
+            % Read-only hard-authority snapshot for the execution-aware
+            % theorem. No guessed constants and no logged-error maxima.
+            % It stops exactly at the first genuinely missing numerical
+            % source-specific operator.
+            % =============================================================
+            F=struct();
+            F.schema='REPLANNING_EXECUTION_AWARE_FOUNDATION_V1';
+            F.sampled_acceptance=false;
+            F.guessed_uncertainty_constants=false;
+            F.logged_RMSE_or_max_promoted=false;
+
+            F.observer_bridge_closed=false;
+            F.model_state_hard_set_closed=false;
+            F.live_mL_interval_closed=false;
+            F.reference_derivative_bounds_closed=false;
+            F.command_limit_source_closed=false;
+            F.live_hlc_binding_closed=false;
+            F.generated_map_sources_resolved=false;
+
+            F.model_state_interval_image_closed=false;
+            F.hold_reference_mismatch_closed=false;
+            F.saturation_gap_closed=false;
+            F.hard_disturbance_set_closed=false;
+            F.phi_fixed_point_closed=false;
+            F.position_error_ub_closed=false;
+            F.continuous_actuator_reserve_closed=false;
+            F.ieee754_outward_closed=false;
+            F.first_missing_authority='UNINITIALIZED';
+
+            if nargin<4 || isempty(OS)
+                OS=obj.get_observer_hard_support_status();
+            end
+            if isstruct(OS) && isfield(OS,'hlc_state_mass_bridge')
+                B=OS.hlc_state_mass_bridge;
+            else
+                B=struct();
+            end
+
+            F.observer_bridge_closed=isstruct(B) && ...
+                isfield(B,'closed') && logical(B.closed);
+
+            if F.observer_bridge_closed && isfield(B,'model_state')
+                M=B.model_state;
+                req={'euler_abs_ub','compact_quaternion_chord_norm_ub', ...
+                    'w_norm_ub','pL_abs_ub','vL_norm_ub','pT_abs_ub','wL_norm_ub'};
+                ok=true;
+                for kk=1:numel(req)
+                    if ~isfield(M,req{kk})
+                        ok=false; break;
+                    end
+                    zz=M.(req{kk});
+                    z=double(zz(:));
+                    if isempty(z)||any(~isfinite(z))||any(z<0)
+                        ok=false; break;
+                    end
+                end
+                F.model_state_hard_set_closed=ok;
+                F.model_state_bounds=M;
+            else
+                F.model_state_bounds=struct();
+            end
+
+            if F.observer_bridge_closed && isfield(B,'live_mL')
+                ML=B.live_mL;
+                ok=isfield(ML,'error_abs_ub') && isfield(ML,'true_interval');
+                if ok
+                    e=double(ML.error_abs_ub);
+                    I=double(ML.true_interval(:));
+                    ok=isscalar(e)&&isfinite(e)&&e>=0&& ...
+                        numel(I)==2&&all(isfinite(I))&&I(1)>=0&&I(2)>=I(1);
+                end
+                F.live_mL_interval_closed=ok;
+                F.live_mL=ML;
+            else
+                F.live_mL=struct();
+            end
+
+            SC=struct();
+            if isstruct(P) && isfield(P,'reference_speed_certificate')
+                SC=P.reference_speed_certificate;
+            end
+            F.reference_derivative_bounds_closed=isstruct(SC) && ...
+                isfield(SC,'certified') && logical(SC.certified) && ...
+                isfield(P,'correction_derivative_ub') && ...
+                numel(P.correction_derivative_ub)>=6 && ...
+                all(isfinite(double(P.correction_derivative_ub(1:6)))) && ...
+                all(double(P.correction_derivative_ub(1:6))>=0);
+            F.reference_speed_certificate=SC;
+            if isstruct(P) && isfield(P,'correction_derivative_ub')
+                F.correction_derivative_ub=double(P.correction_derivative_ub(:));
+            else
+                F.correction_derivative_ub=nan(6,1);
+            end
+
+            CL=obj.command_limit_certificate;
+            F.command_limit_source_closed=isstruct(CL) && ...
+                isfield(CL,'certified') && logical(CL.certified) && ...
+                isfield(CL,'limits') && isequal(size(CL.limits),[4 2]) && ...
+                all(isfinite(double(CL.limits(:))));
+            F.command_limits=CL;
+            F.live_hlc_binding_closed=isstruct(CL) && ...
+                isfield(CL,'live_controller_verified') && ...
+                isfield(CL,'live_gain_verified') && ...
+                logical(CL.live_controller_verified) && ...
+                logical(CL.live_gain_verified);
+
+            names={'Vfd_SuspendedLoadxyDst','Vs_SuspendedLoadxyDst', ...
+                'Uf_SuspendedLoadxyDst','Beta2_SuspendedLoadxyDst', ...
+                'V2_alpha2_SuspendedLoadxyDst'};
+            paths=cell(size(names));
+            ok=true;
+            for kk=1:numel(names)
+                paths{kk}=which(names{kk});
+                if isempty(paths{kk}) || ~isfile(paths{kk})
+                    ok=false;
+                end
+            end
+            F.generated_map_sources_resolved=ok;
+            F.generated_map_names=names;
+            F.generated_map_paths=paths;
+
+            if isstruct(CTX) && isfield(CTX,'request')
+                F.request_time=double(CTX.request.time);
+                F.target_reference_version=double(CTX.request.next_reference_version);
+            else
+                F.request_time=NaN;
+                F.target_reference_version=double(obj.active_reference_version)+1;
+            end
+
+            if ~F.observer_bridge_closed
+                F.first_missing_authority='OBSERVER_TO_HLC_HARD_BRIDGE';
+            elseif ~F.model_state_hard_set_closed
+                F.first_missing_authority='MODEL_STATE_HARD_SET';
+            elseif ~F.live_mL_interval_closed
+                F.first_missing_authority='LIVE_ML_HARD_INTERVAL';
+            elseif ~F.reference_derivative_bounds_closed
+                F.first_missing_authority='REFERENCE_DERIVATIVE_HARD_BOUNDS';
+            elseif ~F.command_limit_source_closed
+                F.first_missing_authority='COMMAND_LIMIT_SOURCE_BINDING';
+            elseif ~F.live_hlc_binding_closed
+                F.first_missing_authority='LIVE_HLC_SOURCE_GAIN_BINDING';
+            elseif ~F.generated_map_sources_resolved
+                F.first_missing_authority='GENERATED_HLC_MAP_SOURCE_RESOLUTION';
+            else
+                F.first_missing_authority= ...
+                    'SOURCE_SPECIFIC_MODEL_STATE_HLC_INTERVAL_IMAGE';
+            end
+        end
+
+
+        function X = build_execution_aware_proposal_certificate(obj,P,CTX)
+            % =============================================================
+            % Execution-aware certificate composition.
+            %
+            % Structural theorem order:
+            %
+            %   observer hard set
+            %       -> source-specific D(Delta)
+            %       -> Phi(Delta)
+            %       -> attained Delta* >= Phi(Delta*)
+            %       -> hard position_error_ub
+            %       -> tracking inflation
+            %       -> RE-RUN continuous whole-body geometry with inflation
+            %       -> continuous actuator reserve on the SAME Delta*
+            %       -> numerical/outward closure
+            %
+            % The source-specific fixed-point/HLC interval image is supplied
+            % by EXECUTION_AWARE_CERTIFICATE_FN until the fused validated
+            % production kernel is installed. Missing provider => fail closed.
+            % =============================================================
+
+            X=struct();
+            X.certified=false;
+            X.tracking_actuator_layer_certified=false;
+            X.reference_geometry_certified=false;
+            X.reference_geometry_numerically_closed=false;
+            X.observer_bridge=struct();
+            X.hlc_robust_certificate=struct('certified',false);
+            X.dynamics_certificate=struct('certified',false);
+            X.position_error_ub=[NaN;NaN;NaN];
+            X.tracking_inflation_m=NaN;
+            X.ieee754_outward_closed=false;
+            X.sampled_acceptance=false;
+            X.reason='SOURCE_SPECIFIC_HARD_DISTURBANCE_OPERATOR_NOT_INSTALLED';
+
+            OS=obj.get_observer_hard_support_status();
+            if ~(OS.enabled && OS.initialized && OS.selector_verified && ...
+                    OS.fail_count==0 && isstruct(OS.hlc_state_mass_bridge) && ...
+                    isfield(OS.hlc_state_mass_bridge,'closed') && ...
+                    logical(OS.hlc_state_mass_bridge.closed))
+                X.reason='OBSERVER_TO_HLC_HARD_BRIDGE_NOT_CLOSED';
+                return;
+            end
+            X.observer_bridge=OS.hlc_state_mass_bridge;
+            X.foundation=obj.build_execution_aware_foundation_snapshot(P,CTX,OS);
+
+            fn=obj.EXECUTION_AWARE_CERTIFICATE_FN;
+            useBuiltin=isempty(fn);
+
+            REQ=struct();
+            REQ.schema='REPLANNING_EXECUTION_AWARE_CERT_REQUEST_V2';
+            REQ.proposal=P;
+            REQ.generator_context=CTX;
+            REQ.observer_bridge=OS.hlc_state_mass_bridge;
+            REQ.foundation=X.foundation;
+            REQ.command_limits=obj.command_limit_certificate.limits;
+            REQ.active_reference_mode=char(obj.active_reference_mode);
+            REQ.active_reference_version=double(obj.active_reference_version);
+            REQ.target_reference_version=double(obj.active_reference_version)+1;
+            REQ.required_fixed_point='DELTA_GE_PHI_DELTA';
+            REQ.sampled_acceptance_forbidden=true;
+            REQ.require_same_tube_for_actuator=true;
+            REQ.require_unclamped_actuator_reserve=true;
+
+            if useBuiltin
+                Y=obj.builtin_execution_aware_hard_operator_v1(REQ);
+            else
+                Y=fn(REQ);
+            end
+
+            assert(isstruct(Y)&&isscalar(Y)&&isfield(Y,'certified'), ...
+                '[REPLANNER ERROR] execution-aware hard operator returned invalid output.');
+
+            % OPEN provider/operator results are valid diagnostics but can
+            % never promote a candidate.  Full schema validation is applied
+            % only when the operator claims certified=true.
+            if ~logical(Y.certified)
+                X=Y;
+                if ~isfield(X,'foundation')
+                    X.foundation=REQ.foundation;
+                end
+                X.certified=false;
+                X.tracking_actuator_layer_certified=false;
+                X.reference_geometry_certified=false;
+                X.reference_geometry_numerically_closed=false;
+                if ~isfield(X,'sampled_acceptance')
+                    X.sampled_acceptance=false;
+                end
+                return;
+            end
+
+            obj.validate_execution_aware_certificate(Y);
+
+            % Copy the certified tracking/actuator layer first.
+            X=Y;
+            X.foundation=REQ.foundation;
+            X.tracking_actuator_layer_certified=true;
+            X.sampled_acceptance=false;
+
+            % The hard position tube must be fed back into geometry.
+            Pexec=P;
+            Pexec.execution_tracking_inflation_m= ...
+                double(Y.tracking_inflation_m);
+            Gexec=obj.build_static_continuous_wholebody_shadow_certificate( ...
+                CTX,Pexec);
+
+            X.reference_geometry_certificate=Gexec;
+            X.reference_geometry_certified= ...
+                isstruct(Gexec) && isfield(Gexec,'certified') && ...
+                logical(Gexec.certified);
+            X.reference_geometry_numerically_closed= ...
+                X.reference_geometry_certified && ...
+                isfield(Gexec,'ieee754_outward_closed') && ...
+                logical(Gexec.ieee754_outward_closed);
+
+            if ~X.reference_geometry_certified
+                X.certified=false;
+                X.reason='TRACKING_INFLATED_CONTINUOUS_GEOMETRY_OPEN';
+                return;
+            end
+
+            % Mathematical geometry is not enough for final system
+            % authority. The same directed/outward numerical standard is
+            % required for geometry and the HLC/actuator provider.
+            if ~X.reference_geometry_numerically_closed
+                X.certified=false;
+                X.reason='TRACKING_INFLATED_GEOMETRY_IEEE754_OUTWARD_OPEN';
+                return;
+            end
+
+            if ~(isfield(Y,'ieee754_outward_closed') && ...
+                    logical(Y.ieee754_outward_closed))
+                X.certified=false;
+                X.reason='TRACKING_ACTUATOR_IEEE754_OUTWARD_OPEN';
+                return;
+            end
+
+            X.certified=true;
+            X.reason='EXECUTION_AWARE_COMPOSITE_CERTIFICATE_CLOSED';
+        end
+
+
+        function Y = builtin_execution_aware_hard_operator_v1(~,REQ)
+            % =============================================================
+            % BUILTIN SOURCE-SPECIFIC HARD OPERATOR V1 -- fail-closed.
+            %
+            % This is the production integration point for the already
+            % established W12 structural chain.  It consumes ONLY current
+            % hard authorities.  It does not insert guessed uncertainty
+            % constants and does not promote logged error maxima.
+            %
+            % Current closure boundary:
+            %   CLOSED INPUTS:
+            %     observer hard set in HLC coordinates,
+            %     live mL hard interval,
+            %     repaired-reference derivative hard bounds,
+            %     live HLC source/gain binding,
+            %     active command limits.
+            %   OPEN NUMERICAL OPERATOR:
+            %     interval/set image of the exact HLC maps over the joint
+            %     state/reference/mL tube, then D(Delta)->Phi(Delta).
+            % =============================================================
+            F=REQ.foundation;
+
+            Y=struct();
+            Y.schema='REPLANNING_BUILTIN_EXECUTION_HARD_OPERATOR_V1';
+            Y.certified=false;
+            Y.sampled_acceptance=false;
+            Y.guessed_uncertainty_constants=false;
+            Y.logged_RMSE_or_max_promoted=false;
+            Y.ieee754_outward_closed=false;
+            Y.foundation=F;
+            Y.hlc_robust_certificate=struct('certified',false);
+            Y.dynamics_certificate=struct('certified',false);
+            Y.position_error_ub=[NaN;NaN;NaN];
+            Y.tracking_inflation_m=NaN;
+
+            Y.disturbance_components=struct();
+            Y.disturbance_components.model_state=struct( ...
+                'hard_input_available',logical(F.model_state_hard_set_closed), ...
+                'effect_bound_closed',false);
+            Y.disturbance_components.live_mL=struct( ...
+                'hard_input_available',logical(F.live_mL_interval_closed), ...
+                'effect_bound_closed',false);
+            Y.disturbance_components.reference_hold=struct( ...
+                'hard_input_available',logical(F.reference_derivative_bounds_closed), ...
+                'effect_bound_closed',false);
+            Y.disturbance_components.saturation=struct( ...
+                'command_limits_available',logical(F.command_limit_source_closed), ...
+                'effect_bound_closed',false);
+
+            Y.fixed_point=struct( ...
+                'contract','DELTA_GE_PHI_DELTA', ...
+                'hard_disturbance_set_closed',false, ...
+                'phi_operator_closed',false, ...
+                'attained_delta_closed',false);
+
+            if ~F.observer_bridge_closed || ...
+                    ~F.model_state_hard_set_closed || ...
+                    ~F.live_mL_interval_closed || ...
+                    ~F.reference_derivative_bounds_closed || ...
+                    ~F.command_limit_source_closed || ...
+                    ~F.live_hlc_binding_closed || ...
+                    ~F.generated_map_sources_resolved
+                Y.reason=F.first_missing_authority;
+                return;
+            end
+
+            % Do not collapse this OPEN step into a guessed Lipschitz gain.
+            % The next implementation must interval-evaluate the CURRENT
+            % generated HLC maps and preserve Beta2 regularity on the same
+            % joint tube.
+            Y.reason='SOURCE_SPECIFIC_MODEL_STATE_HLC_INTERVAL_IMAGE';
+        end
+
+
+        function validate_execution_aware_certificate(~,X)
+            req={'certified','hlc_robust_certificate','dynamics_certificate', ...
+                'position_error_ub','tracking_inflation_m', ...
+                'ieee754_outward_closed','sampled_acceptance'};
+            assert(isstruct(X)&&isscalar(X), ...
+                '[REPLANNER ERROR] execution-aware provider must return scalar struct.');
+            for kk=1:numel(req)
+                assert(isfield(X,req{kk}), ...
+                    '[REPLANNER ERROR] execution-aware certificate missing %s.',req{kk});
+            end
+            assert(logical(X.certified) && ~logical(X.sampled_acceptance), ...
+                ['[REPLANNER ERROR] source-specific tracking/actuator ' ...
+                 'certificate layer is not closed.']);
+            p=double(X.position_error_ub(:));
+            assert(numel(p)==3 && all(isfinite(p)) && all(p>=0), ...
+                '[REPLANNER ERROR] execution-aware position_error_ub invalid.');
+            assert(isfinite(double(X.tracking_inflation_m)) && ...
+                double(X.tracking_inflation_m)>=norm(p,2), ...
+                '[REPLANNER ERROR] tracking inflation does not dominate position_error_ub.');
+            assert(isstruct(X.hlc_robust_certificate) && ...
+                isfield(X.hlc_robust_certificate,'certified') && ...
+                logical(X.hlc_robust_certificate.certified), ...
+                '[REPLANNER ERROR] HLC robust tube certificate not closed.');
+            assert(isstruct(X.dynamics_certificate) && ...
+                isfield(X.dynamics_certificate,'certified') && ...
+                logical(X.dynamics_certificate.certified), ...
+                '[REPLANNER ERROR] actuator dynamics certificate not closed.');
+        end
+
+
+        function OUT = empty_bezier_d15_c7_proposal(~)
+            OUT=struct( ...
+                'shadow_proposal',true, ...
+                'backend','BEZIER_D15_C7', ...
+                'generated',false, ...
+                'success',false, ...
+                'reason_code',0, ...
+                't0',NaN,'tm',NaN,'hold_end',NaN,'t1',NaN, ...
+                'trigger_collision_time',NaN, ...
+                'timing_projected',false, ...
+                'obstacle_id',NaN,'component_code',NaN, ...
+                'displacement',nan(3,1), ...
+                'displacement_norm_m',NaN, ...
+                'direction',nan(3,1), ...
+                'trigger_metric_before',NaN, ...
+                'trigger_metric_after',NaN, ...
+                'peak_min_metric',NaN, ...
+                'peak_all_safe',false, ...
+                'c7_exact',false, ...
+                'correction_derivative_ub',nan(6,1), ...
+                'representation_code',1, ...
+                'degree',15, ...
+                'geometry_shadow_certificate',struct(), ...
+                'reference_speed_certificate',struct(), ...
+                'nominal_tail_certificate',struct(), ...
+                'corridor_certificate',struct(), ...
+                'unsafe_episode_certificate',struct(), ...
+                'piecewise_synthesis_certificate',struct(), ...
+                'towing_structure_certificate',struct(), ...
+                'derivative_bound_certificate',struct(), ...
+                'local_vector_speed_certificate',struct(), ...
+                'r9_stage_timing',struct('episode_ms',NaN, ...
+                    'synthesis_ms',NaN,'candidate_loop_ms',NaN, ...
+                    'total_internal_ms',NaN), ...
+                'piecewise_segment_t0',[], ...
+                'piecewise_segment_t1',[], ...
+                'piecewise_segment_kind',{{}}, ...
+                'piecewise_control_points',{{}}, ...
+                'piecewise_component_start',[], ...
+                'piecewise_component_end',[], ...
+                'piecewise_component_position',[], ...
+                'piecewise_component_velocity',[], ...
+                'piecewise_corridor_signs',[], ...
+                'piecewise_qp_cost',NaN, ...
+                'piecewise_speed_pass_count',0, ...
+                'piecewise_rejoin_pass_count',0, ...
+                'piecewise_geometry_test_count',0, ...
+                'base_eval_fn',[], ...
+                'base_flat_eval_fn',[], ...
+                'execution_tracking_inflation_m',0, ...
+                'rejoin_search_start_duration_s',NaN, ...
+                'rejoin_search_end_time_s',NaN, ...
+                'rejoin_search_full_certificate_tests',0, ...
+                'rejoin_search_endpoint_safe_count',0, ...
+                'external_test_dependency',false);
+        end
+
+
+        function K = bezier_c7_basis_derivative_constants(~)
+            persistent KK
+            if isempty(KK)
+                c=[zeros(1,8),ones(1,8)];
+                D=c;
+                KK=zeros(6,1);
+                for r=1:6
+                    D=(numel(D)-1)*diff(D);
+                    KK(r)=max(abs(D));
+                end
+            end
+            K=KK;
+        end
+
+
+        function m = bezier_point_metric(~,x,c,R,a)
+            z=(R.'*(x-c))./a;
+            m=norm(z);
+        end
+
+
+        function [m,lambda,xstar] = bezier_segment_metric(~,p0,p1,c,R,a)
+            z0=(R.'*(p0-c))./a;
+            z1=(R.'*(p1-c))./a;
+            sv=z1-z0;
+            ss=dot(sv,sv);
+            if ss<=0
+                lambda=0;
+            else
+                lambda=max(0,min(1,-dot(z0,sv)/ss));
+            end
+            z=z0+lambda*sv;
+            m=norm(z);
+            xstar=p0+lambda*(p1-p0);
+        end
+
+
+        function [alpha,ok] = bezier_point_last_exit_alpha(obj,x,c,R,a,d,target)
+            y=(R.'*(x-c))./a;
+            v=(R.'*d)./a;
+
+            A=dot(v,v);
+            B=2*dot(y,v);
+            C=dot(y,y)-target^2;
+
+            if ~(A>0) || any(~isfinite([A B C]))
+                alpha=NaN;
+                ok=false;
+                return;
+            end
+
+            rr=obj.bezier_quad_roots_nonnegative(A,B,C);
+            if isempty(rr)
+                if C>0
+                    alpha=0;
+                    ok=true;
+                else
+                    alpha=NaN;
+                    ok=false;
+                end
+            else
+                alpha=max(rr);
+                ok=true;
+            end
+        end
+
+
+        function [alpha,ok] = bezier_segment_last_exit_alpha(obj,p0,p1,c,R,a,d,target)
+            z0=(R.'*(p0-c))./a;
+            z1=(R.'*(p1-c))./a;
+            sv=z1-z0;
+            v=(R.'*d)./a;
+            ss=dot(sv,sv);
+
+            if any(~isfinite([z0;z1;v])) || dot(v,v)<=0
+                alpha=NaN;
+                ok=false;
+                return;
+            end
+
+            if ss<=0
+                [alpha,ok]=obj.bezier_point_last_exit_alpha( ...
+                    p0,c,R,a,d,target);
+                return;
+            end
+
+            cand=zeros(1,6);
+            nc=0;
+
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(v,v),2*dot(z0,v),dot(z0,z0)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                if lam<=64*eps(max(1,abs(lam)))
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(v,v),2*dot(z1,v),dot(z1,z1)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                if lam>=1-64*eps(max(1,abs(lam)))
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            Pz=z0-sv*(dot(sv,z0)/ss);
+            Pv=v-sv*(dot(sv,v)/ss);
+            rr=obj.bezier_quad_roots_nonnegative( ...
+                dot(Pv,Pv),2*dot(Pz,Pv),dot(Pz,Pz)-target^2);
+            for k=1:numel(rr)
+                lam=-(dot(sv,z0)+rr(k)*dot(sv,v))/ss;
+                tol=64*eps(max(1,abs(lam)));
+                if lam>=-tol && lam<=1+tol
+                    nc=nc+1;
+                    cand(nc)=rr(k);
+                end
+            end
+
+            if nc>0
+                alpha=max(cand(1:nc));
+                ok=isfinite(alpha) && alpha>=0;
+                return;
+            end
+
+            m0=obj.bezier_segment_metric(p0,p1,c,R,a);
+            if isfinite(m0) && m0>target
+                alpha=0;
+                ok=true;
+            else
+                alpha=NaN;
+                ok=false;
+            end
+        end
+
+
+        function b = decasteljau_scalar_local(~,c,u)
+            q=double(c(:).');
+            u=double(u);
+            n=numel(q)-1;
+            for r=1:n
+                q(1:n-r+1)=(1-u).*q(1:n-r+1)+u.*q(2:n-r+2);
+            end
+            b=q(1);
+        end
+
+
+        function rr = bezier_quad_roots_nonnegative(~,A,B,C)
+            rr=zeros(1,0);
+            if ~(isfinite(A)&&isfinite(B)&&isfinite(C))
+                return;
+            end
+
+            if abs(A)<=eps(max(1,abs(B)))
+                if abs(B)<=eps(max(1,abs(C)))
+                    return;
+                end
+                r=-C/B;
+                if isfinite(r) && r>=0
+                    rr=r;
+                end
+                return;
+            end
+
+            disc=B*B-4*A*C;
+            tol=128*eps(max(1,max(abs([B*B,4*A*C]))));
+            if disc < -tol
+                return;
+            end
+            disc=max(0,disc);
+            sd=sqrt(disc);
+
+            if B>=0
+                q=-0.5*(B+sd);
+            else
+                q=-0.5*(B-sd);
+            end
+
+            if q==0
+                roots=[-B/(2*A),-B/(2*A)];
+            else
+                roots=[q/A,C/q];
+            end
+
+            roots=roots(isfinite(roots) & roots>=0);
+            if ~isempty(roots)
+                rr=unique(roots);
+            end
+        end
+
+
+        function record_bezier_shadow_proposal(obj,P)
+            % Scalar-only hot-path record. The full 3x16 control arrays are
+            % implied by (w,t0,tm,t1) and are not copied into obj/state.
+            obj.generator_shadow_proposal_count=obj.generator_shadow_proposal_count+1;
+
+            if isfield(P,'generated') && logical(P.generated)
+                obj.bezier_shadow_generated_count=obj.bezier_shadow_generated_count+1;
+            end
+            if isfield(P,'peak_all_safe') && logical(P.peak_all_safe)
+                obj.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count+1;
+            end
+
+            if isfield(P,'reason_code'), obj.bezier_shadow_last_reason_code=double(P.reason_code); end
+            if isfield(P,'t0'), obj.bezier_shadow_last_t0=double(P.t0); end
+            if isfield(P,'tm'), obj.bezier_shadow_last_tm=double(P.tm); end
+            if isfield(P,'t1'), obj.bezier_shadow_last_t1=double(P.t1); end
+            if isfield(P,'obstacle_id'), obj.bezier_shadow_last_obstacle_id=double(P.obstacle_id); end
+            if isfield(P,'component_code'), obj.bezier_shadow_last_component_code=double(P.component_code); end
+            if isfield(P,'displacement_norm_m'), obj.bezier_shadow_last_displacement_m=double(P.displacement_norm_m); end
+            if isfield(P,'trigger_metric_before'), obj.bezier_shadow_last_metric_before=double(P.trigger_metric_before); end
+            if isfield(P,'trigger_metric_after'), obj.bezier_shadow_last_metric_after=double(P.trigger_metric_after); end
+            if isfield(P,'peak_min_metric'), obj.bezier_shadow_last_peak_min_metric=double(P.peak_min_metric); end
+            if isfield(P,'peak_all_safe'), obj.bezier_shadow_last_peak_all_safe=logical(P.peak_all_safe); end
+            if isfield(P,'c7_exact'), obj.bezier_shadow_last_c7_exact=logical(P.c7_exact); end
+
+            if isfield(P,'displacement') && isnumeric(P.displacement) && numel(P.displacement)==3
+                w=double(P.displacement(:));
+                obj.bezier_shadow_last_dx=w(1);
+                obj.bezier_shadow_last_dy=w(2);
+                obj.bezier_shadow_last_dz=w(3);
+            end
+
+            if isfield(P,'correction_derivative_ub') && numel(P.correction_derivative_ub)>=6
+                u=double(P.correction_derivative_ub(:));
+                obj.bezier_shadow_last_d1_ub=u(1);
+                obj.bezier_shadow_last_d2_ub=u(2);
+                obj.bezier_shadow_last_d3_ub=u(3);
+                obj.bezier_shadow_last_d4_ub=u(4);
+                obj.bezier_shadow_last_d5_ub=u(5);
+                obj.bezier_shadow_last_d6_ub=u(6);
+            end
+
+            if isfield(P,'r9_stage_timing') && isstruct(P.r9_stage_timing)
+                T9=P.r9_stage_timing;
+                if isfield(T9,'episode_ms'), obj.r9_stage_episode_ms=double(T9.episode_ms); end
+                if isfield(T9,'synthesis_ms'), obj.r9_stage_synthesis_ms=double(T9.synthesis_ms); end
+                if isfield(T9,'candidate_loop_ms'), obj.r9_stage_candidate_loop_ms=double(T9.candidate_loop_ms); end
+                if isfield(T9,'total_internal_ms'), obj.r9_stage_total_internal_ms=double(T9.total_internal_ms); end
+            end
+
+            if isfield(P,'geometry_shadow_certificate') && ...
+                    isstruct(P.geometry_shadow_certificate)
+                G=P.geometry_shadow_certificate;
+                if isfield(G,'mathematical_pass'), obj.geometry_shadow_pass=logical(G.mathematical_pass); end
+                if isfield(G,'reason_code'), obj.geometry_shadow_reason_code=double(G.reason_code); end
+                if isfield(G,'continuous_time'), obj.geometry_shadow_continuous_time=logical(G.continuous_time); end
+                if isfield(G,'ieee754_outward_closed'), obj.geometry_shadow_ieee754_outward_closed=logical(G.ieee754_outward_closed); end
+                if isfield(G,'min_margin_m'), obj.geometry_shadow_min_margin_m=double(G.min_margin_m); end
+                if isfield(G,'min_payload_margin_m'), obj.geometry_shadow_min_payload_margin_m=double(G.min_payload_margin_m); end
+                if isfield(G,'min_uav_margin_m'), obj.geometry_shadow_min_uav_margin_m=double(G.min_uav_margin_m); end
+                if isfield(G,'min_cable_margin_m'), obj.geometry_shadow_min_cable_margin_m=double(G.min_cable_margin_m); end
+                if isfield(G,'leaf_count'), obj.geometry_shadow_leaf_count=double(G.leaf_count); end
+                if isfield(G,'split_count'), obj.geometry_shadow_split_count=double(G.split_count); end
+                if isfield(G,'max_depth_used'), obj.geometry_shadow_max_depth=double(G.max_depth_used); end
+                if isfield(G,'min_alpha_lb'), obj.geometry_shadow_min_alpha_lb=double(G.min_alpha_lb); end
+                if isfield(G,'max_qdot_ub'), obj.geometry_shadow_max_qdot_ub=double(G.max_qdot_ub); end
+                if isfield(G,'max_q_arc_radius'), obj.geometry_shadow_max_q_arc_radius=double(G.max_q_arc_radius); end
+                if isfield(G,'max_q_arc_inflation_m'), obj.geometry_shadow_max_q_arc_inflation_m=double(G.max_q_arc_inflation_m); end
+                if isfield(G,'resource_exhausted'), obj.geometry_shadow_resource_exhausted=logical(G.resource_exhausted); end
+            end
+        end
+
+
+        function prime_real_trigger_event_capture(obj,t_now,xd_now, ...
+                pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,ref_source,pL_ref,q_ref)
+            if obj.trigger_event_capture_prime_done
+                return;
+            end
+
+            idx=find(active,1,'first');
+            assert(~isempty(idx), ...
+                '[REPLANNER PRIME ERROR] trigger-event capture prime needs one active obstacle.');
+
+            N=size(pL_ref,2);
+            j=min(N,max(2,1+round(0.5*obj.horizon_s/obj.prediction_dt)));
+            ttc=(j-1)*obj.prediction_dt;
+            collision_time=double(t_now)+ttc;
+
+            pLcol=pL_ref(:,j);
+            qcol=q_ref(:,j);
+            pQcol=pLcol-obj.L_cable*qcol;
+            obs_id=obj.obstacle_packet.ids(idx);
+            comp_code=1;
+            comp_name='PAYLOAD';
+
+            save_count=obj.trigger_event_count;
+            save_first=obj.first_trigger_event;
+            save_last=obj.last_trigger_event;
+            save_cap=obj.trigger_event_capture_ms;
+
+            st=obj.result.state;
+            names={ ...
+                'trigger_event_latched', ...
+                'trigger_event_count', ...
+                'trigger_event_time_latched', ...
+                'trigger_event_ttc_latched', ...
+                'trigger_event_collision_time_latched', ...
+                'trigger_event_obstacle_id_latched', ...
+                'trigger_event_component_code_latched', ...
+                'trigger_event_capture_ms'};
+            old=cell(size(names));
+            for kk=1:numel(names)
+                if isprop(st,names{kk})
+                    old{kk}=st.(names{kk});
+                else
+                    old{kk}=[];
+                end
+            end
+
+            tp=tic;
+            obj.latch_real_trigger_event( ...
+                double(t_now),xd_now,xd_now, ...
+                pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pLcol,qcol,pQcol,j,(N-1)*obj.prediction_dt,N);
+            obj.trigger_event_capture_prime_ms=1e3*toc(tp);
+
+            obj.trigger_event_count=save_count;
+            obj.first_trigger_event=save_first;
+            obj.last_trigger_event=save_last;
+            obj.trigger_event_capture_ms=save_cap;
+
+            for kk=1:numel(names)
+                if isprop(st,names{kk}) && ~isempty(old{kk})
+                    st.(names{kk})=old{kk};
+                end
+            end
+
+            obj.trigger_event_capture_prime_done=true;
+        end
+
+
+        function latch_real_trigger_event(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit, ...
+                effective_horizon,N,varargin)
+            % =============================================================
+            % Persistent authority snapshot of the ACTUAL Flight request edge.
+            %
+            % Important:
+            %   - called only from do() when need_replan rises false->true,
+            %   - setup/prime paths are excluded by the caller,
+            %   - only currently DETECTED obstacles are copied,
+            %   - no file I/O, no base-workspace mutation,
+            %   - no trigger time is inferred; event_time=t_now exactly.
+            % =============================================================
+
+            assert(~obj.setup_exact_do_prime_active, ...
+                '[REPLANNER ERROR] prime path attempted to latch a real trigger event.');
+            assert(~obj.generator_integration_prime_active, ...
+                '[REPLANNER ERROR] generator prime attempted to latch a real trigger event.');
+
+            idx=find(active);
+            if ~isempty(varargin)
+                AUTH=varargin{1};
+                assert(isstruct(AUTH) && isfield(AUTH,'packet') && ...
+                    isfield(AUTH,'dependency_signature') && ...
+                    isfield(AUTH,'speed_certificate') && ...
+                    isfield(AUTH,'sensor_horizon_certificate') && ...
+                    isfield(AUTH,'reference_mode') && ...
+                    isfield(AUTH,'reference_version') && ...
+                    isfield(AUTH,'flight_reference_time_origin'), ...
+                    '[REPLANNER ERROR] deferred trigger authority snapshot invalid.');
+                P=AUTH.packet;
+                depSnapshot=AUTH.dependency_signature;
+                speedSnapshot=AUTH.speed_certificate;
+                sensorSnapshot=AUTH.sensor_horizon_certificate;
+                refModeSnapshot=char(AUTH.reference_mode);
+                refVersionSnapshot=double(AUTH.reference_version);
+                tf0Snapshot=double(AUTH.flight_reference_time_origin);
+            else
+                P=obj.obstacle_packet;
+                depSnapshot=obj.runtime_dependency_signature;
+                speedSnapshot=obj.active_speed_certificate;
+                sensorSnapshot=obj.sensor_horizon_certificate;
+                refModeSnapshot=char(obj.active_reference_mode);
+                refVersionSnapshot=double(obj.active_reference_version);
+                tf0Snapshot=double(obj.flight_reference_time_origin);
+            end
+
+            OBS=struct( ...
+                'count',double(numel(idx)), ...
+                'ids',P.ids(idx), ...
+                'surface_distances',all_dists(idx), ...
+                'centers',P.C(:,idx), ...
+                'rotations_flat',P.R(:,idx), ...
+                'base_axes',P.Araw(:,idx), ...
+                'payload_axes',P.Apay(:,idx), ...
+                'uav_axes',P.Auav(:,idx), ...
+                'cable_axes',P.Acable(:,idx));
+
+            STATE=struct( ...
+                'pQ_current',pQ_cur(:), ...
+                'pL_current',pL_cur(:), ...
+                'q_current',q_cur(:), ...
+                'cable_residual',double(cable_residual), ...
+                'xd_nominal',xd_nom(:), ...
+                'xd_active',xd_active_now(:));
+
+            TRIG=struct( ...
+                'ttc',double(ttc), ...
+                'collision_time',double(collision_time), ...
+                'obstacle_id',double(obs_id), ...
+                'component',char(comp_name), ...
+                'component_code',double(comp_code), ...
+                'pL_collision',pL_collision(:), ...
+                'q_collision',q_collision(:), ...
+                'pQ_collision',pQ_collision(:), ...
+                'hit_index',double(jhit), ...
+                'effective_horizon',double(effective_horizon), ...
+                'reference_points',double(N));
+
+            tf0=tf0Snapshot;
+            if ~(isnumeric(tf0)&&isscalar(tf0)&&isfinite(tf0))
+                tf0=obj.resolve_takeoff_end_time();
+            end
+
+            REF=struct( ...
+                'mode',refModeSnapshot, ...
+                'version',refVersionSnapshot, ...
+                'source',char(ref_source), ...
+                'global_time',double(t_now), ...
+                'flight_time_origin',double(tf0), ...
+                'reference_time',double(t_now)-double(tf0));
+
+            E=struct();
+            E.schema='REPLANNING_TRIGGER_EVENT_V1_TIME_ORIGIN_BOUND';
+            E.valid=true;
+            E.need_replan=true;
+            E.real_flight_request_edge=true;
+            E.event_time=double(t_now);
+            E.phase='FLIGHT';
+            E.setup_prime=false;
+            E.generator_prime=false;
+            E.state=STATE;
+            E.trigger=TRIG;
+            E.detected_obstacles=OBS;
+            E.reference=REF;
+            E.dependency_signature=depSnapshot;
+            E.speed_certificate=speedSnapshot;
+            E.sensor_horizon_certificate=sensorSnapshot;
+            E.capture_runtime_ms=NaN;
+
+            obj.trigger_event_count=obj.trigger_event_count+1;
+            obj.last_trigger_event=E;
+
+            if obj.trigger_event_count==1
+                obj.first_trigger_event=E;
+            end
+
+            % LOGGER-safe persistent summary.  This is written once per real
+            % request edge, not every control cycle.
+            st=obj.result.state;
+            st.trigger_event_latched=true;
+            st.trigger_event_count=double(obj.trigger_event_count);
+            st.trigger_event_time_latched=double(t_now);
+            st.trigger_event_ttc_latched=double(ttc);
+            st.trigger_event_collision_time_latched=double(collision_time);
+            st.trigger_event_obstacle_id_latched=double(obs_id);
+            st.trigger_event_component_code_latched=double(comp_code);
+            st.trigger_event_capture_ms=NaN;
+        end
+
+
+        function CTX = build_generator_request_context_compact(obj,t_now, ...
+                elapsed_before,budget_remaining, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                active,all_dists,pL_ref,q_ref,ref_source, ...
+                ttc,collision_time,obs_id,comp_name,comp_code, ...
+                pL_collision,q_collision,pQ_collision,jhit)
+            % =============================================================
+            % Compact context:
+            %   STATIC  : small immutable interface/backend facts
+            %   REQUEST : current state/reference/trigger only
+            %   OBS     : sensor-known obstacles only (current detections
+            %             plus retained memory through certified rejoin)
+            %   LIVE    : compact live physical/dependency values
+            %
+            % Full static_obstacle_map and large certificate structs are
+            % intentionally NOT passed to the generator. The active mask
+            % contains only obstacles first admitted by the sensor emulator.
+            % =============================================================
+
+            idx=find(active);
+            P=obj.obstacle_packet;
+
+            OBS=struct( ...
+                'count',double(numel(idx)), ...
+                'ids',P.ids(idx), ...
+                'surface_distances',all_dists(idx), ...
+                'centers',P.C(:,idx), ...
+                'rotations_flat',P.R(:,idx), ...
+                'base_axes',P.Araw(:,idx), ...
+                'payload_axes',P.Apay(:,idx), ...
+                'uav_axes',P.Auav(:,idx), ...
+                'cable_axes',P.Acable(:,idx), ...
+                'raw',obj.static_obstacle_map(idx));
+
+            REQ=struct( ...
+                'time',double(t_now), ...
+                'deadline_remaining_s',double(budget_remaining), ...
+                'elapsed_before_generator_s',double(elapsed_before), ...
+                'next_reference_version',double(obj.active_reference_version)+1, ...
+                'active_reference_mode',obj.active_reference_mode, ...
+                'active_reference_version',double(obj.active_reference_version), ...
+                'xd_nominal',xd_nom(:), ...
+                'xd_active',xd_active_now(:), ...
+                'pQ_current',pQ_cur(:), ...
+                'pL_current',pL_cur(:), ...
+                'q_current',q_cur(:), ...
+                'cable_residual',double(cable_residual), ...
+                'future_pL',pL_ref, ...
+                'future_q',q_ref, ...
+                'future_reference_source',ref_source, ...
+                'trigger_ttc',double(ttc), ...
+                'trigger_collision_time',double(collision_time), ...
+                'trigger_obstacle_id',double(obs_id), ...
+                'trigger_component',comp_name, ...
+                'trigger_component_code',double(comp_code), ...
+                'trigger_pL_collision',pL_collision(:), ...
+                'trigger_q_collision',q_collision(:), ...
+                'trigger_pQ_collision',pQ_collision(:), ...
+                'trigger_hit_index',double(jhit));
+
+            D=obj.runtime_dependency_signature;
+
+            % General ACTIVE-reference kinematic bounds.
+            SC=obj.active_speed_certificate;
+            obj.validate_active_speed_certificate(SC);
+
+            LIVE=struct( ...
+                'dependency_refresh_count',double(obj.dependency_refresh_count), ...
+                'dt',double(D.dt), ...
+                'sensor_range',double(D.sensor_range), ...
+                'horizon',double(D.horizon), ...
+                'r_drone',double(D.r_drone), ...
+                'r_load',double(D.r_load), ...
+                'r_cable',double(D.r_cable), ...
+                'd_margin',double(D.d_margin), ...
+                'cable_length',double(D.cable_length), ...
+                'gravity',double(D.gravity), ...
+                'mQ',double(D.mQ), ...
+                'jx',double(D.jx), ...
+                'jy',double(D.jy), ...
+                'jz',double(D.jz), ...
+                'mL',double(D.mL_snapshot), ...
+                'active_speed_certified', ...
+                    isstruct(SC) && isfield(SC,'certified') && logical(SC.certified), ...
+                'active_payload_speed_ub_m_s',double(SC.payload_speed_UB_m_s), ...
+                'active_uav_speed_ub_m_s',double(SC.uav_speed_UB_m_s), ...
+                'active_qdot_ub_rad_s',double(SC.qdot_UB_rad_s), ...
+                'active_constant_speed_required',false, ...
+                'hard_modify_deadline_s',double(D.hard_modify_deadline_s), ...
+                'command_limits',obj.command_limit_certificate.limits);
+
+            STATIC=struct( ...
+                'interface_version','REPLANNING_GENERATOR_CONTEXT_V1', ...
+                'shadow_only',true, ...
+                'backend_code',double(obj.generator_backend_locked_code), ...
+                'backend_name',obj.generator_backend_locked_name, ...
+                'backend_source_code',double(obj.generator_backend_locked_source_code), ...
+                'detected_only_obstacle_contract',true, ...
+                'retained_sensor_memory_through_rejoin',true);
+
+            CTX=struct('static',STATIC,'request',REQ,'obstacles',OBS,'live',LIVE);
+        end
+
+
+        function prime_generator_integration_variants(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                all_dists,pL_ref,q_ref,ref_source,masks)
+            if obj.generator_integration_prime_done
+                return;
+            end
+
+            % Save externally visible counters/timing.
+            saved=struct( ...
+                'request_count',obj.generator_request_count, ...
+                'candidate_count',obj.generator_candidate_count, ...
+                'vpass',obj.generator_validation_pass_count, ...
+                'vfail',obj.generator_validation_fail_count, ...
+                'dfail',obj.generator_deadline_fail_count, ...
+                'runtime',obj.generator_last_runtime_ms, ...
+                'scode',obj.generator_last_status_code, ...
+                'before',obj.generator_last_elapsed_before_ms, ...
+                'budget',obj.generator_last_budget_remaining_ms, ...
+                'ctx',obj.generator_last_context_ms, ...
+                'cb',obj.generator_last_callback_ms, ...
+                'val',obj.generator_last_validation_ms, ...
+                'critical',obj.generator_last_critical_ms, ...
+                'cycle',obj.generator_last_cycle_critical_ms, ...
+                'callback',obj.generator_backend_locked_callback);
+
+            % Prime the exact REAL empty-callback branch, not a special probe.
+            obj.generator_backend_locked_callback=[];
+            obj.generator_integration_prime_active=true;
+            tp=tic;
+            nvar=0;
+
+            try
+                for rep=1:2
+                    for im=1:size(masks,1)
+                        active=masks(im,:);
+                        thard=tic;
+                        obj.invoke_replan_generator_shadow( ...
+                            thard,t_now,xd_nom,xd_active_now, ...
+                            pQ_cur,pL_cur,q_cur,cable_residual, ...
+                            active,all_dists,pL_ref,q_ref,ref_source, ...
+                            0,double(t_now),1,'PAYLOAD',1, ...
+                            pL_cur,q_cur,pQ_cur,1);
+                        nvar=nvar+1;
+                    end
+                end
+                obj.generator_integration_prime_ms=1e3*toc(tp);
+                obj.generator_integration_prime_variants=nvar;
+                obj.generator_integration_prime_done=true;
+                obj.generator_integration_prime_active=false;
+            catch ME
+                obj.generator_integration_prime_active=false;
+                obj.generator_backend_locked_callback=saved.callback;
+                rethrow(ME);
+            end
+
+            obj.generator_backend_locked_callback=saved.callback;
+
+            % Restore counters/timing after pure warmup.
+            obj.generator_request_count=saved.request_count;
+            obj.generator_candidate_count=saved.candidate_count;
+            obj.generator_validation_pass_count=saved.vpass;
+            obj.generator_validation_fail_count=saved.vfail;
+            obj.generator_deadline_fail_count=saved.dfail;
+            obj.generator_last_runtime_ms=saved.runtime;
+            obj.generator_last_status_code=saved.scode;
+            obj.generator_last_elapsed_before_ms=saved.before;
+            obj.generator_last_budget_remaining_ms=saved.budget;
+            obj.generator_last_context_ms=saved.ctx;
+            obj.generator_last_callback_ms=saved.cb;
+            obj.generator_last_validation_ms=saved.val;
+            obj.generator_last_critical_ms=saved.critical;
+            obj.generator_last_cycle_critical_ms=saved.cycle;
+        end
+
+
+        function prime_locked_backend_kernel_variants(obj,t_now, ...
+                xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                all_dists,pL_ref,q_ref,ref_source,masks)
+            if obj.generator_backend_kernel_prime_done
+                return;
+            end
+
+            if isempty(obj.generator_backend_locked_callback)
+                obj.generator_backend_kernel_prime_done=true;
+                obj.generator_backend_kernel_prime_ms=0;
+                obj.generator_backend_kernel_prime_variants=0;
+                return;
+            end
+
+            P=obj.obstacle_packet;
+            tp=tic;
+            nvar=0;
+            primeCandidate=[];
+
+            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
+                obj.nominal_batch_model_cache=af7r33_nominal_batch_model(obj);
+                obj.nominal_batch_model_cache_valid= ...
+                    isstruct(obj.nominal_batch_model_cache) && ...
+                    isfield(obj.nominal_batch_model_cache,'certified') && ...
+                    logical(obj.nominal_batch_model_cache.certified) && ...
+                    double(obj.nominal_batch_model_cache.reference_version)== ...
+                        double(obj.active_reference_version);
+                assert(obj.nominal_batch_model_cache_valid, ...
+                    '[REPLANNER PRIME ERROR] nominal AF7R33 batch cache failed.');
+            end
+
+            % AF7R38: burn the exact QPC stamp MEX path before any Flight
+            % request edge. This removes first-use stamp cost from ticCB.
+            if exist('af7r25_stamp_mex','file')==3
+                af7r25_stamp_mex();
+                af7r25_stamp_mex();
+                obj.qpc_stamp_prime_done=true;
+            end
+
+            for rep=1:2
+                for im=1:size(masks,1)
+                    active=masks(im,:);
+                    idx=find(active,1,'first');
+                    if isempty(idx)
+                        continue;
+                    end
+
+                    Robs=reshape(P.R(:,idx),3,3);
+                    axes=P.Apay(:,idx);
+                    xcol=P.C(:,idx)+Robs*[0.5*axes(1);0;0];
+
+                    ttcPrime=0.5*obj.horizon_s;
+                    pLcol=xcol;
+                    qcol=q_cur(:);
+                    pQcol=pLcol-obj.L_cable*qcol;
+
+                    CTX=obj.build_generator_request_context_compact( ...
+                        t_now,0,obj.hard_modify_deadline_s, ...
+                        xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
+                        active,all_dists,pL_ref,q_ref,ref_source, ...
+                        ttcPrime,t_now+ttcPrime,P.ids(idx),'PAYLOAD',1, ...
+                        pLcol,qcol,pQcol,1);
+
+                    candPrime=obj.generator_backend_locked_callback(CTX);
+                    if isempty(primeCandidate) && isstruct(candPrime) && isscalar(candPrime) && ...
+                            isfield(candPrime,'success') && logical(candPrime.success)
+                        primeCandidate=candPrime;
+                    end
+                    nvar=nvar+1;
+                end
+            end
+
+            % AF7R46: pre-motion prime of changed-speed fast packet builder.
+            if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                SCp=obj.active_speed_certificate;
+                SCp.reference_mode='REPAIRED';
+                SCp.reference_version=double(obj.active_reference_version)+1;
+                SCp.payload_speed_UB_m_s=double(SCp.payload_speed_UB_m_s)+ ...
+                    eps(max(1,double(SCp.payload_speed_UB_m_s)));
+                SCp.uav_speed_UB_m_s=double(SCp.uav_speed_UB_m_s)+ ...
+                    eps(max(1,double(SCp.uav_speed_UB_m_s)));
+                SWp=obj.build_trigger_sweep_for_target(SCp,SCp.reference_version);
+                PKp=obj.prepare_obstacle_packet_fast_target( ...
+                    obj.obstacle_packet,SWp,SCp.reference_version); %#ok<NASGU>
+                SHp=obj.build_sensor_horizon_for_target(SCp,SCp.reference_version); %#ok<NASGU>
+            end
+
+            % AF7R45: pre-motion prime of the exact packet-reuse branch.
+            % Local outputs only; no runtime authority is modified.
+            if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                reusePrime=obj.can_reuse_reference_only_runtime_packet_exact( ...
+                    obj.active_speed_certificate,obj.active_speed_certificate, ...
+                    obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                    obj.sensor_horizon_certificate,obj.runtime_dependency_signature);
+                if reusePrime
+                    [sweepPrime,packetPrime,sensorPrime,depPrime]= ...
+                        obj.reuse_reference_only_runtime_packet_exact( ...
+                            obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                            obj.sensor_horizon_certificate,obj.runtime_dependency_signature, ...
+                            obj.active_speed_certificate, ...
+                            double(obj.active_reference_version)+1); %#ok<NASGU,ASGLU>
+                end
+            end
+
+            % AF7R38: warm the REAL successful-candidate post-callback
+            % reference-only path without allowing synthetic setup state to
+            % survive. This is implementation/JIT priming only; no setup
+            % candidate becomes safety authority.
+            obj.postcallback_prime_candidate_found=~isempty(primeCandidate);
+            if ~isempty(primeCandidate) && ...
+                    strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                    obj.ENABLE_REFERENCE_ONLY_CERTIFICATE && obj.ENABLE_AUTO_REPLAN_COMMIT
+                sp=struct( ...
+                    'mode',obj.active_reference_mode, ...
+                    'version',obj.active_reference_version, ...
+                    'ref',obj.active_repaired_reference, ...
+                    'cert',obj.active_repaired_certificates, ...
+                    'speed',obj.active_speed_certificate, ...
+                    'sweep',obj.trigger_sweep_inflation, ...
+                    'packet',obj.obstacle_packet, ...
+                    'sensor',obj.sensor_horizon_certificate, ...
+                    'dep',obj.runtime_dependency_signature, ...
+                    'stale',obj.certificate_stale, ...
+                    'level',obj.active_repaired_safety_level, ...
+                    'count',obj.replan_commit_count, ...
+                    'rocount',obj.reference_only_commit_count, ...
+                    'time',obj.last_replan_commit_time, ...
+                    'status',obj.last_replan_status, ...
+                    'reqActive',obj.replan_request_active, ...
+                    'reqVer',obj.replan_request_reference_version, ...
+                    'reqObs',obj.replan_request_obstacle_id, ...
+                    'reqComp',obj.replan_request_component_code, ...
+                    'repairedCache',obj.repaired_reference_cache, ...
+                    'repairedCacheValid',obj.repaired_reference_cache_valid);
+                tpost=tic;
+                try
+                    Rprime=obj.evaluate_reference_only_proposal_certificate(primeCandidate);
+                    assert(isstruct(Rprime)&&isfield(Rprime,'certified')&&logical(Rprime.certified), ...
+                        '[REPLANNER PRIME ERROR] successful native prime candidate failed reference-only certificate.');
+                    [okPrime,reasonPrime]=obj.try_commit_reference_only_proposal( ...
+                        primeCandidate,double(t_now),[]);
+                    assert(okPrime, ...
+                        '[REPLANNER PRIME ERROR] reference-only atomic plumbing prime failed: %s',reasonPrime);
+                    % AF7R41: burn repaired future-packet full build, same-time
+                    % cache hit, and normal one-dt rolling shift before Flight.
+                    obj.repaired_reference_cache=struct();
+                    obj.repaired_reference_cache_valid=false;
+                    obj.repaired_reference_packet(double(t_now));
+                    obj.repaired_reference_packet(double(t_now));
+                    obj.repaired_reference_packet(double(t_now)+double(obj.prediction_dt));
+                    obj.postcallback_prime_ms=1e3*toc(tpost);
+                    obj.postcallback_prime_done=true;
+                catch MEpost
+                    obj.active_reference_mode=sp.mode;
+                    obj.active_reference_version=sp.version;
+                    obj.active_repaired_reference=sp.ref;
+                    obj.active_repaired_certificates=sp.cert;
+                    obj.active_speed_certificate=sp.speed;
+                    obj.trigger_sweep_inflation=sp.sweep;
+                    obj.obstacle_packet=sp.packet;
+                    obj.sensor_horizon_certificate=sp.sensor;
+                    obj.runtime_dependency_signature=sp.dep;
+                    obj.certificate_stale=sp.stale;
+                    obj.active_repaired_safety_level=sp.level;
+                    obj.replan_commit_count=sp.count;
+                    obj.reference_only_commit_count=sp.rocount;
+                    obj.last_replan_commit_time=sp.time;
+                    obj.last_replan_status=sp.status;
+                    obj.replan_request_active=sp.reqActive;
+                    obj.replan_request_reference_version=sp.reqVer;
+                    obj.replan_request_obstacle_id=sp.reqObs;
+                    obj.replan_request_component_code=sp.reqComp;
+                    obj.repaired_reference_cache=sp.repairedCache;
+                    obj.repaired_reference_cache_valid=sp.repairedCacheValid;
+                    rethrow(MEpost);
+                end
+                obj.active_reference_mode=sp.mode;
+                obj.active_reference_version=sp.version;
+                obj.active_repaired_reference=sp.ref;
+                obj.active_repaired_certificates=sp.cert;
+                obj.active_speed_certificate=sp.speed;
+                obj.trigger_sweep_inflation=sp.sweep;
+                obj.obstacle_packet=sp.packet;
+                obj.sensor_horizon_certificate=sp.sensor;
+                obj.runtime_dependency_signature=sp.dep;
+                obj.certificate_stale=sp.stale;
+                obj.active_repaired_safety_level=sp.level;
+                obj.replan_commit_count=sp.count;
+                obj.reference_only_commit_count=sp.rocount;
+                obj.last_replan_commit_time=sp.time;
+                obj.last_replan_status=sp.status;
+                obj.replan_request_active=sp.reqActive;
+                obj.replan_request_reference_version=sp.reqVer;
+                obj.replan_request_obstacle_id=sp.reqObs;
+                obj.replan_request_component_code=sp.reqComp;
+                obj.repaired_reference_cache=sp.repairedCache;
+                obj.repaired_reference_cache_valid=sp.repairedCacheValid;
+            end
+
+            obj.generator_backend_kernel_prime_ms=1e3*toc(tp);
+            obj.generator_backend_kernel_prime_variants=nvar;
+            obj.generator_backend_kernel_prime_done=true;
+        end
+
+
+        function [pL_ref,q_ref,source] = repaired_reference_packet(obj,t_now)
+            % AF7R41 exact rolling REPAIRED future-reference packet.
+            % Full rebuild uses the AF7R33 batch flat model.  On the normal
+            % one-dt live path, N-1 exact columns are reused and only the new
+            % tail point is evaluated.  No interpolation is used.
+            obj.assert_repaired_reference_current();
+
+            N=round(obj.horizon_s/obj.prediction_dt)+1;
+            dt=double(obj.prediction_dt);
+            H=double(obj.horizon_s);
+            t0=double(t_now);
+            R=obj.active_repaired_reference;
+
+            assert(isfinite(dt)&&dt>0 && isfinite(H)&&H>=0, ...
+                '[REPLANNER ERROR] invalid repaired packet timing parameters.');
+            assert(isfield(R,'batch_flat_model') && isstruct(R.batch_flat_model) && ...
+                isfield(R.batch_flat_model,'certified') && logical(R.batch_flat_model.certified), ...
+                '[REPLANNER ERROR] repaired batch flat model unavailable.');
+            assert(isfield(R,'flat_eval_fn') && isa(R.flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] repaired flat evaluator unavailable.');
+
+            C=obj.repaired_reference_cache;
+            canReuse=obj.repaired_reference_cache_valid && isstruct(C) && ...
+                isfield(C,'reference_version') && ...
+                double(C.reference_version)==double(obj.active_reference_version) && ...
+                isfield(C,'dt') && isequal(double(C.dt),dt) && ...
+                isfield(C,'H') && isequal(double(C.H),H) && ...
+                isfield(C,'t0') && isfinite(double(C.t0)) && ...
+                isfield(C,'pL') && isequal(size(C.pL),[3 N]) && ...
+                isfield(C,'q') && isequal(size(C.q),[3 N]);
+
+            shiftCount=NaN;
+            if canReuse
+                d=(t0-double(C.t0))/dt;
+                if isfinite(d)
+                    shiftCount=round(d);
+                    talign=double(C.t0)+double(shiftCount)*dt;
+                    scale=max([1,abs(t0),abs(double(C.t0)),abs(double(shiftCount)*dt)]);
+                    guard=64*eps(scale);
+                    if shiftCount<0 || abs(t0-talign)>guard
+                        shiftCount=NaN;
+                    end
+                end
+            end
+
+            if canReuse && isfinite(shiftCount) && shiftCount==0
+                pL_ref=C.pL;
+                q_ref=C.q;
+                source=sprintf('REPAIRED_ROLLING_CACHE_HIT:v%d:%s', ...
+                    obj.active_reference_version,char(R.backend));
+                obj.validate_reference_packet(pL_ref,q_ref,N);
+                return;
+            end
+
+            if canReuse && isfinite(shiftCount) && shiftCount>=1 && shiftCount<N
+                m=double(shiftCount);
+                pL_ref=[C.pL(:,m+1:end),zeros(3,m)];
+                q_ref=[C.q(:,m+1:end),zeros(3,m)];
+
+                if m==1
+                    xf=double(R.flat_eval_fn(t0+(N-1)*dt));
+                    xf=xf(:);
+                    assert(numel(xf)>=11 && all(isfinite(xf(1:11))), ...
+                        '[REPLANNER ERROR] repaired rolling tail evaluator invalid.');
+                    pL_ref(:,end)=xf(1:3);
+                    sf=xf(9:11)+[0;0;double(obj.gravity)];
+                    ns=norm(sf);
+                    assert(isfinite(ns)&&ns>0, ...
+                        '[REPLANNER ERROR] repaired rolling tail flatness singular.');
+                    q_ref(:,end)=-sf/ns;
+                    source=sprintf('REPAIRED_ROLLING_SHIFT1:v%d:%s', ...
+                        obj.active_reference_version,char(R.backend));
+                else
+                    tq=t0+(N-m:N-1)*dt;
+                    [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                    Y=double(Y);
+                    assert(isequal(size(Y),[21 m]) && numel(valid)==m && ...
+                        all(logical(valid(:))) && all(isfinite(Y),'all'), ...
+                        '[REPLANNER ERROR] repaired rolling tail batch invalid.');
+                    pL_ref(:,end-m+1:end)=Y(1:3,:);
+                    sf=Y(7:9,:)+[0;0;double(obj.gravity)];
+                    ns=sqrt(sum(sf.^2,1));
+                    assert(all(isfinite(ns))&&all(ns>0), ...
+                        '[REPLANNER ERROR] repaired rolling tail batch flatness singular.');
+                    q_ref(:,end-m+1:end)=-sf./ns;
+                    source=sprintf('REPAIRED_ROLLING_SHIFTM:v%d:%s', ...
+                        obj.active_reference_version,char(R.backend));
+                end
+            else
+                tq=t0+(0:N-1)*dt;
+                [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                Y=double(Y);
+                assert(isequal(size(Y),[21 N]) && numel(valid)==N && ...
+                    all(logical(valid(:))) && all(isfinite(Y),'all'), ...
+                    '[REPLANNER ERROR] repaired full batch packet invalid.');
+                pL_ref=Y(1:3,:);
+                sf=Y(7:9,:)+[0;0;double(obj.gravity)];
+                ns=sqrt(sum(sf.^2,1));
+                assert(all(isfinite(ns))&&all(ns>0), ...
+                    '[REPLANNER ERROR] repaired full batch flatness singular.');
+                q_ref=-sf./ns;
+                source=sprintf('REPAIRED_FULL_BATCH:v%d:%s', ...
+                    obj.active_reference_version,char(R.backend));
+            end
+
+            obj.validate_reference_packet(pL_ref,q_ref,N);
+            obj.repaired_reference_cache=struct( ...
+                'reference_version',double(obj.active_reference_version), ...
+                't0',t0,'dt',dt,'H',H,'pL',pL_ref,'q',q_ref);
+            obj.repaired_reference_cache_valid=true;
+        end
+
+
+        function assert_repaired_reference_current(obj)
+            R=obj.active_repaired_reference;
+            C=obj.active_repaired_certificates;
+
+            obj.assert_hard_modify_deadline_limit();
+
+            assert(strcmpi(char(obj.active_reference_mode),'REPAIRED'), ...
+                '[REPLANNER ERROR] repaired reference assertion used outside REPAIRED mode.');
+            assert(isstruct(R) && isfield(R,'valid') && logical(R.valid), ...
+                '[REPLANNER ERROR] repaired reference is unavailable.');
+            assert(isfield(R,'reference_version') && ...
+                double(R.reference_version)==double(obj.active_reference_version), ...
+                '[REPLANNER ERROR] repaired reference version is stale.');
+            assert(isfield(R,'eval_fn') && isa(R.eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] repaired reference eval_fn is unavailable.');
+
+            if strcmpi(char(obj.active_repaired_safety_level),'REFERENCE_ONLY')
+                assert(isfield(R,'flat_eval_fn') && ...
+                    isa(R.flat_eval_fn,'function_handle'), ...
+                    '[REPLANNER ERROR] reference-only flat-jet authority unavailable.');
+                assert(isstruct(C) && isfield(C,'reference_only') && ...
+                    logical(C.reference_only), ...
+                    '[REPLANNER ERROR] active reference-only repair metadata missing.');
+                assert(isfield(C,'smoothness') && isstruct(C.smoothness) && ...
+                    isfield(C.smoothness,'certified') && ...
+                    logical(C.smoothness.certified) && ...
+                    isfield(C.smoothness,'continuous_time') && ...
+                    logical(C.smoothness.continuous_time), ...
+                    '[REPLANNER ERROR] reference-only C7 smoothness certificate missing.');
+                assert(isfield(C,'geometry') && isstruct(C.geometry) && ...
+                    isfield(C.geometry,'certified') && ...
+                    logical(C.geometry.certified) && ...
+                    isfield(C.geometry,'continuous_time') && ...
+                    logical(C.geometry.continuous_time) && ...
+                    isfield(C.geometry,'sampled_acceptance') && ...
+                    ~logical(C.geometry.sampled_acceptance), ...
+                    '[REPLANNER ERROR] reference-only continuous geometry certificate missing.');
+                obj.validate_active_speed_certificate(obj.active_speed_certificate);
+                return;
+            end
+
+            assert(strcmpi(char(obj.active_repaired_safety_level),'EXECUTION_AWARE'), ...
+                '[REPLANNER ERROR] repaired safety level is neither REFERENCE_ONLY nor EXECUTION_AWARE.');
+            assert(isfield(R,'flat_eval_fn') && ...
+                isa(R.flat_eval_fn,'function_handle'), ...
+                '[REPLANNER ERROR] execution-aware flat-jet authority unavailable.');
+
+            assert(isfield(R,'yaw_policy') && ...
+                strcmpi(char(R.yaw_policy),'C6_INDEPENDENT'), ...
+                '[REPLANNER ERROR] active repaired yaw policy is not C6_INDEPENDENT.');
+            assert(isfield(R,'path_parameterization') && ...
+                isstruct(R.path_parameterization), ...
+                '[REPLANNER ERROR] active repaired path parameterization is unavailable.');
+
+            required={'smoothness','geometry','dynamics','hlc_robust','backup', ...
+                'position_c6','yaw_c6','path_position_c7', ...
+                'time_law_c6','time_law_monotonic','terminal_time_law_hold', ...
+                'finite_sensing','compute_deadline','dependency'};
+            for kk=1:numel(required)
+                name=required{kk};
+                assert(isstruct(C) && isfield(C,name) && ...
+                    isstruct(C.(name)) && ...
+                    isfield(C.(name),'certified') && ...
+                    logical(C.(name).certified), ...
+                    '[REPLANNER ERROR] repaired reference certificate %s is unavailable/stale.', ...
+                    name);
+                if isfield(C.(name),'test_only')
+                    assert(~logical(C.(name).test_only), ...
+                        '[REPLANNER ERROR] active repaired certificate %s is test-only.',name);
+                end
+            end
+
+            targetVersion=double(obj.active_reference_version);
+            vf=double(R.valid_from);
+            vu=double(R.valid_until);
+
+            boundNames={'smoothness','geometry','dynamics','hlc_robust','backup', ...
+                'position_c6','yaw_c6','path_position_c7', ...
+                'time_law_c6','time_law_monotonic','terminal_time_law_hold', ...
+                'finite_sensing'};
+            for kk=1:numel(boundNames)
+                name=boundNames{kk};
+                obj.validate_repaired_bound_certificate( ...
+                    C.(name),name,targetVersion,vf,vu);
+            end
+
+            assert(isfield(C.time_law_monotonic,'sdot_lower_bound') && ...
+                double(C.time_law_monotonic.sdot_lower_bound)>=0, ...
+                '[REPLANNER ERROR] active time-law monotonicity certificate is invalid.');
+            assert(isfield(C.terminal_time_law_hold,'zero_derivative_order') && ...
+                double(C.terminal_time_law_hold.zero_derivative_order)>=6 && ...
+                isfield(C.terminal_time_law_hold,'constant_hold_after_terminal') && ...
+                logical(C.terminal_time_law_hold.constant_hold_after_terminal), ...
+                '[REPLANNER ERROR] active terminal time-law hold certificate is invalid.');
+
+            obj.validate_candidate_dependency_certificate( ...
+                C.dependency,R.eval_fn,targetVersion);
+
+            obj.validate_active_speed_certificate(obj.active_speed_certificate);
+        end
+
+
+        function meta = repaired_reference_metadata(obj)
+            R=obj.active_repaired_reference;
+            if isempty(fieldnames(R))
+                meta=struct('valid',false);
+                return;
+            end
+
+            meta=struct();
+            meta.valid=isfield(R,'valid') && logical(R.valid);
+            if isfield(R,'backend'), meta.backend=R.backend; end
+            if isfield(R,'reference_version'), ...
+                    meta.reference_version=R.reference_version; end
+            if isfield(R,'valid_from'), meta.valid_from=R.valid_from; end
+            if isfield(R,'valid_until'), meta.valid_until=R.valid_until; end
+            if isfield(R,'rejoin_time'), meta.rejoin_time=R.rejoin_time; end
+            if isfield(R,'source'), meta.source=R.source; end
+            if isfield(R,'yaw_policy'), meta.yaw_policy=R.yaw_policy; end
+        end
+
+
+        function write_nominal_output(obj,xd_nom)
+            st = obj.result.state;
+            st.xd = xd_nom;
+            if numel(xd_nom)>=3
+                st.p = xd_nom(1:3);
+            end
+            if numel(xd_nom)>=7
+                st.v = xd_nom(5:7);
+            end
+            % 既存フレームワークとの互換性のため state.q にはヨー角情報を格納
+            % （索姿勢ベクトル変数としては使用しない）
+            if numel(xd_nom)>=4
+                st.q = [0;0;xd_nom(4)];
+            end
+        end
+
+        function [pQ_cur,pL_cur,q_cur,residual] = ...
+                get_current_physical_geometry(obj,xd_nom)
+
+            est_state=obj.self.estimator.result.state;
+
+            if obj.has_prop_or_field(est_state,'p') && ~isempty(est_state.p)
+                pQ_cur=est_state.p(:);
+            else
+                error('[REPLANNER ERROR] estimated UAV position p is unavailable.');
+            end
+
+            if obj.has_prop_or_field(est_state,'pL') && ~isempty(est_state.pL)
+                pL_cur=est_state.pL(:);
+            else
+                pL_cur=[];
+            end
+
+            if obj.has_prop_or_field(est_state,'pT') && ~isempty(est_state.pT)
+                q_cur=est_state.pT(:);
+                nq=norm(q_cur);
+                assert(nq>1e-12, ...
+                    '[REPLANNER ERROR] estimated cable direction pT has zero norm.');
+                q_cur=q_cur/nq;
+            else
+                error(['[REPLANNER ERROR] estimator pT is unavailable. ' ...
+                    'Do not reconstruct current physical cable direction ' ...
+                    'from legacy xd(9:11); current geometry must come from ' ...
+                    'the live state estimator/sensor path.']);
+            end
+
+            if isempty(pL_cur)
+                pL_cur=pQ_cur+obj.L_cable*q_cur;
+            end
+
+            residual=norm(pL_cur-pQ_cur-obj.L_cable*q_cur);
+        end
+
+
+        function [pL_ref,q_ref,source] = ...
+                update_reference_cache(obj,time,cha,varargin_in,xd_now)
+
+            t_entry=time.t;
+            N=round(obj.horizon_s/obj.prediction_dt)+1;
+
+            % Fast path: precomputed nominal table.
+            use_nominal_table=isequal(cha,'f') && obj.nominal_table_valid && ...
+                abs(obj.nominal_table_dt-obj.prediction_dt)<=1e-12 && ...
+                t_entry>=obj.nominal_table_t0-1e-10 && ...
+                (t_entry+obj.horizon_s)<=obj.nominal_table_tend+1e-10;
+
+            if use_nominal_table
+                idx0=round((t_entry-obj.nominal_table_t0)/obj.nominal_table_dt)+1;
+                idx1=idx0+N-1;
+                use_nominal_table=idx0>=1 && idx1<=size(obj.nominal_table_pL,2);
+            end
+
+            if use_nominal_table
+                pL_ref=obj.nominal_table_pL(:,idx0:idx1);
+                q_ref=obj.nominal_table_q(:,idx0:idx1);
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
+                pL_ref(:,1)=pL0;
+                q_ref(:,1)=q0;
+                source='precomputed_nominal_table';
+                return;
+            end
+
+            tvec=t_entry+(0:N-1)*obj.prediction_dt;
+
+            if ~isempty(obj.reference_packet_fn)
+                callback_ok=false;
+                try
+                    [pL_ref,q_ref]=obj.reference_packet_fn(tvec);
+                    callback_ok=isnumeric(pL_ref) && isnumeric(q_ref);
+                catch
+                    callback_ok=false;
+                end
+
+                if ~callback_ok
+                    out=obj.reference_packet_fn(tvec);
+                    if isstruct(out)
+                        assert(isfield(out,'pL') && isfield(out,'q'), ...
+                            '[REPLANNER ERROR] reference_packet_fn struct must contain pL and q.');
+                        pL_ref=out.pL;
+                        q_ref=out.q;
+                    elseif iscell(out) && numel(out)>=2
+                        pL_ref=out{1};
+                        q_ref=out{2};
+                    else
+                        error('[REPLANNER ERROR] invalid reference_packet_fn output.');
+                    end
+                end
+
+                obj.validate_reference_packet(pL_ref,q_ref,N);
+                source='reference_packet_fn';
+                return;
+            end
+
+            can_shift=obj.reference_cache_valid && ...
+                abs(obj.reference_cache.dt-obj.prediction_dt)<=1e-12 && ...
+                abs(obj.reference_cache.H-obj.horizon_s)<=1e-12 && ...
+                isfield(obj.reference_cache,'cha') && isequal(obj.reference_cache.cha,cha) && ...
+                abs(t_entry-(obj.reference_cache.t0+obj.prediction_dt)) <= ...
+                    1e-5*max(1,abs(obj.prediction_dt));
+
+            if can_shift
+                pL_ref=[obj.reference_cache.pL(:,2:end),zeros(3,1)];
+                q_ref=[obj.reference_cache.q(:,2:end),zeros(3,1)];
+
+                [pL_new,q_new]=obj.evaluate_nominal_payload_and_q( ...
+                    tvec(end),cha,varargin_in,[]);
+                pL_ref(:,end)=pL_new;
+                q_ref(:,end)=q_new;
+
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
+                pL_ref(:,1)=pL0;
+                q_ref(:,1)=q0;
+                source='rolling_base_ref_do_1_new_endpoint';
+            else
+                pL_ref=zeros(3,N);
+                q_ref=zeros(3,N);
+                tau0=obj.global_to_nominal_tau(t_entry);
+                [pL0,q0]=obj.nominal_payload_and_q_from_xd(xd_now,tau0);
+                pL_ref(:,1)=pL0;
+                q_ref(:,1)=q0;
+
+                for j=2:N
+                    [pL_ref(:,j),q_ref(:,j)]= ...
+                        obj.evaluate_nominal_payload_and_q( ...
+                            tvec(j),cha,varargin_in,[]);
+                end
+                source='full_base_ref_do_fill';
+            end
+
+            obj.validate_reference_packet(pL_ref,q_ref,N);
+
+            assert(abs(time.t-t_entry)<=1e-12, ...
+                '[REPLANNER BUG] time.t changed during future reference evaluation.');
+
+            obj.base_ref.do(varargin_in{:});
+
+            obj.reference_cache=struct( ...
+                't0',t_entry, ...
+                'dt',obj.prediction_dt, ...
+                'H',obj.horizon_s, ...
+                'cha',cha, ...
+                'pL',pL_ref, ...
+                'q',q_ref);
+            obj.reference_cache_valid=true;
+        end
+
+
+        function [pL,q,xd_eval] = evaluate_nominal_payload_and_q( ...
+                obj,t_query_global,cha,varargin_in,~)
+            args = varargin_in;
+            time_orig = args{1};
+
+            % -------------------------------------------------------------
+            % G27-V74R41 Flight-reference time-origin correction.
+            %
+            % Simulation/controller time remains absolute/global.
+            % Only the base Flight reference is evaluated in Flight-relative
+            % time:
+            %       tau = t_global - t_flight_start.
+            %
+            % This is intentionally applied at the unique base_ref future
+            % evaluation boundary so trigger TTC/collision_time, logs, commit
+            % validity, and the control-cycle clock stay in global time.
+            % -------------------------------------------------------------
+            t_eval=double(t_query_global);
+            te_eval=[];
+
+            if isequal(cha,'f')
+                tf0=obj.flight_reference_time_origin;
+                if ~(isnumeric(tf0)&&isscalar(tf0)&&isfinite(tf0))
+                    tf0=obj.resolve_takeoff_end_time();
+                    obj.flight_reference_time_origin=double(tf0);
+                end
+
+                t_eval=double(t_query_global)-double(tf0);
+                tol=1e-10*max(1,abs(double(t_query_global)));
+                assert(t_eval>=-tol, ...
+                    '[REPLANNER ERROR] Flight reference queried before Flight time origin.');
+                if t_eval<0
+                    t_eval=0;
+                end
+
+                try
+                    if isstruct(time_orig) && isfield(time_orig,'te')
+                        te_eval=double(time_orig.te)-double(tf0);
+                    elseif isobject(time_orig) && isprop(time_orig,'te')
+                        te_eval=double(time_orig.te)-double(tf0);
+                    end
+                catch
+                    te_eval=[];
+                end
+            end
+
+            % time may be TIME < handle; never mutate the main simulation
+            % clock. Construct an independent query object/struct.
+            if isa(time_orig, 'TIME')
+                if isempty(te_eval) || ~isfinite(te_eval)
+                    te_local=time_orig.te;
+                else
+                    te_local=te_eval;
+                end
+                tlocal = TIME(t_eval, time_orig.dt, te_local);
+                if isprop(time_orig, 'k') || isfield(time_orig, 'k')
+                    tlocal.k = time_orig.k;
+                end
+            elseif isobject(time_orig)
+                try
+                    tlocal = copy(time_orig);
+                    tlocal.t = t_eval;
+                    if ~isempty(te_eval) && isfinite(te_eval) && isprop(tlocal,'te')
+                        tlocal.te=te_eval;
+                    end
+                catch
+                    tlocal = struct('t', t_eval, 'dt', obj.prediction_dt);
+                    if ~isempty(te_eval) && isfinite(te_eval)
+                        tlocal.te=te_eval;
+                    end
+                end
+            elseif isstruct(time_orig)
+                tlocal = time_orig;
+                tlocal.t = t_eval;
+                if ~isempty(te_eval) && isfinite(te_eval) && isfield(tlocal,'te')
+                    tlocal.te=te_eval;
+                end
+            else
+                tlocal = struct('t', t_eval, 'dt', obj.prediction_dt);
+            end
+
+            args{1} = tlocal;
+            args{2} = cha;
+            r = obj.base_ref.do(args{:});
+            xd_eval = r.state.xd;
+            [pL,q] = obj.nominal_payload_and_q_from_xd(xd_eval,t_eval);
+        end
+
+        function [pL,q] = nominal_payload_and_q_from_xd(obj,xd,tau)
+            assert(numel(xd)>=3, ...
+                '[REPLANNER ERROR] nominal reference packet lacks position.');
+            assert(nargin>=3 && isnumeric(tau) && isscalar(tau) && isfinite(tau), ...
+                '[REPLANNER ERROR] exact nominal reference time tau is required.');
+            assert(isa(obj.nominal_acceleration_fn,'function_handle'), ...
+                ['[REPLANNER ERROR] exact nominal acceleration function is ' ...
+                 'not initialized. Refresh the nominal kinematic certificate.']);
+
+            pL=double(xd(1:3));
+            aL=double(obj.nominal_acceleration_fn(double(tau)));
+            aL=aL(:);
+            assert(numel(aL)==3 && all(isfinite(aL)), ...
+                '[REPLANNER ERROR] exact nominal acceleration evaluation failed.');
+
+            specific=aL+[0;0;obj.gravity];
+            ns=norm(specific);
+            assert(isfinite(ns)&&ns>0, ...
+                '[REPLANNER ERROR] nominal specific-force vector is singular.');
+            q=-specific/ns;
+        end
+
+
+        function tau = global_to_nominal_tau(obj,t_global)
+            tf0=double(obj.flight_reference_time_origin);
+            if ~(isfinite(tf0))
+                tf0=double(obj.resolve_takeoff_end_time());
+                obj.flight_reference_time_origin=tf0;
+            end
+            tau=double(t_global)-tf0;
+            tol=1e-10*max(1,abs(double(t_global)));
+            assert(tau>=-tol, ...
+                '[REPLANNER ERROR] nominal reference queried before Flight origin.');
+            if tau<0
+                tau=0;
+            end
+        end
+
+        function validate_reference_packet(~,pL,q,N)
+            assert(isnumeric(pL) && isequal(size(pL),[3 N]) && ...
+                all(isfinite(pL(:))), ...
+                '[REPLANNER ERROR] pL 参照パケットは有限な 3×N 行列である必要があります。');
+            assert(isnumeric(q) && isequal(size(q),[3 N]) && ...
+                all(isfinite(q(:))), ...
+                '[REPLANNER ERROR] q 参照パケットは有限な 3×N 行列である必要があります。');
+            qn = vecnorm(q,2,1);
+            assert(max(abs(qn-1))<=1e-8, ...
+                '[REPLANNER ERROR] 将来 q パケットに単位ベクトルでないものが含まれています。');
+        end
+
+        function known = apply_simulated_sensor_memory(obj,current_active,t_now,real_event)
+            % AF7R44 simulation-only sensor-memory contract.
+            %
+            % - Initial known set is empty.
+            % - raw_sensor_gate alone may admit a previously unknown obstacle.
+            % - Once admitted, the static obstacle is retained through
+            %   deadline retries and through the certified repaired interval.
+            % - It may be released only after the certified rejoin has passed,
+            %   it is not currently sensed, and no request identity is latched.
+            % - No arbitrary retention time constant is introduced.
+
+            current_active=logical(current_active(:).');
+            M=numel(current_active);
+            assert(M==numel(obj.static_obstacle_map), ...
+                '[REPLANNER ERROR] sensor-memory/static-map size mismatch.');
+
+            if numel(obj.simulated_sensor_memory_mask)~=M
+                obj.simulated_sensor_memory_mask=false(1,M);
+                obj.simulated_sensor_first_seen_s=nan(1,M);
+                obj.simulated_sensor_last_seen_s=nan(1,M);
+                obj.simulated_sensor_release_after_s=inf(1,M);
+                obj.simulated_sensor_memory_release_count=0;
+            end
+
+            if ~real_event
+                % Setup/warmup must never create persistent knowledge.
+                known=current_active;
+                return;
+            end
+
+            t_now=double(t_now);
+            assert(isfinite(t_now), ...
+                '[REPLANNER ERROR] invalid simulated sensor-memory time.');
+
+            mem=logical(obj.simulated_sensor_memory_mask);
+            rel=double(obj.simulated_sensor_release_after_s);
+
+            % Bind every already-known obstacle to the currently executing
+            % future certified rejoin. This also covers obstacles detected
+            % before the successful commit.
+            rejoinFuture=NaN;
+            if strcmpi(char(obj.active_reference_mode),'REPAIRED') && ...
+                    isstruct(obj.active_repaired_reference) && ...
+                    isfield(obj.active_repaired_reference,'rejoin_time')
+                tr=double(obj.active_repaired_reference.rejoin_time);
+                if isfinite(tr) && tr>t_now
+                    rejoinFuture=tr;
+                    ii=find(mem);
+                    for k=1:numel(ii)
+                        j=ii(k);
+                        if ~isfinite(rel(j)) || rel(j)<tr
+                            rel(j)=tr;
+                        end
+                    end
+                end
+            end
+
+            releasable = mem & ~current_active & isfinite(rel) & ...
+                (t_now>=rel) & ~logical(obj.replan_request_active);
+            if any(releasable)
+                obj.simulated_sensor_memory_release_count= ...
+                    obj.simulated_sensor_memory_release_count+nnz(releasable);
+                mem(releasable)=false;
+                rel(releasable)=inf;
+                obj.simulated_sensor_first_seen_s(releasable)=NaN;
+                obj.simulated_sensor_last_seen_s(releasable)=NaN;
+            end
+
+            newly=current_active & ~mem;
+            if any(newly)
+                obj.simulated_sensor_first_seen_s(newly)=t_now;
+                if isfinite(rejoinFuture)
+                    rel(newly)=rejoinFuture;
+                else
+                    % Detected before any successful repaired commit: keep it
+                    % until a later repaired reference supplies a rejoin.
+                    rel(newly)=inf;
+                end
+            end
+
+            mem = mem | current_active;
+            obj.simulated_sensor_last_seen_s(current_active)=t_now;
+
+            obj.simulated_sensor_memory_mask=mem;
+            obj.simulated_sensor_release_after_s=rel;
+            known=mem;
+        end
+
+
+        function [active,min_dist,min_id,dists] = raw_sensor_gate(obj,pQ,OBS)
+            M=numel(OBS);
+            active=false(1,M);
+            dists=inf(1,M);
+            min_dist=inf;
+            min_id=NaN;
+
+            for i=1:M
+                d=obj.raw_surface_distance(pQ,OBS(i));
+                dists(i)=d;
+                if d<=obj.trigger_dist
+                    active(i)=true;
+                    if d<min_dist
+                        min_dist=d;
+                        min_id=OBS(i).id;
+                    end
+                end
+            end
+        end
+
+
+        function d = raw_surface_distance(obj,pW,o)
+            type = lower(o.type);
+            c = o.p_center(:);
+            R = o.R_obs;
+            z = R.'*(pW-c);
+            switch type
+                case 'sphere'
+                    r = o.raw_param(1);
+                    d = max(0,norm(z)-r);
+                case 'cylinder'
+                    r = o.raw_param(1);
+                    h = o.raw_param(2);
+                    dr = max(hypot(z(1),z(2))-r,0);
+                    dz = max(abs(z(3))-h/2,0);
+                    d = hypot(dr,dz);
+                case 'box'
+                    dims = o.raw_param(:);
+                    assert(numel(dims)==3);
+                    q = abs(z)-dims/2;
+                    d = norm(max(q,0));
+                case 'ellipsoid'
+                    a = o.raw_param(:);
+                    assert(numel(a)==3 && all(a>0));
+                    d = obj.point_ellipsoid_distance_local(z,a);
+                case 'cone'
+                    r = o.raw_param(1);
+                    h = o.raw_param(2);
+                    rho = hypot(z(1),z(2));
+                    % 円錐断面 (底面 z=-h/2, 頂点 z=+h/2)
+                    P = [0, h/2; r,-h/2; 0,-h/2];
+                    if obj.point_in_triangle_2d([rho,z(3)],P)
+                        d=0;
+                    else
+                        d=min([ ...
+                            obj.point_segment_distance_2d([rho,z(3)],P(1,:),P(2,:)), ...
+                            obj.point_segment_distance_2d([rho,z(3)],P(2,:),P(3,:)), ...
+                            obj.point_segment_distance_2d([rho,z(3)],P(3,:),P(1,:))]);
+                    end
+                case {'prism','pyramid'}
+                    [V,F] = obj.poly_vertices_faces_world(o);
+                    d = obj.point_convex_polyhedron_distance(pW,V,F);
+                case 'custom'
+                    V = o.raw_param;
+                    assert(isnumeric(V) && size(V,1)==3 && size(V,2)>=4, ...
+                        '[REPLANNER ERROR] カスタム障害物の raw_param は 3×N の頂点座標である必要があります。');
+                    try
+                        F = convhulln(V.');
+                    catch ME
+                        error('[REPLANNER ERROR] カスタム障害物の凸包生成に失敗しました: %s',ME.message);
+                    end
+                    d = obj.point_convex_polyhedron_distance(pW,V,F);
+                otherwise
+                    error('[REPLANNER ERROR] 未対応の障害物タイプです: %s',o.type);
+            end
+        end
+
+        function d = point_ellipsoid_distance_local(~,z,a)
+            z = z(:);
+            a = a(:);
+            if sum((z./a).^2) <= 1
+                d=0;
+                return;
+            end
+            a2 = a.^2;
+            F = @(lam) sum((a2.*z.^2)./(lam+a2).^2)-1;
+            lo=0;
+            hi=max(a2)*max(1,norm(z./a));
+            while F(hi)>0
+                hi=2*hi+max(a2);
+            end
+            for k=1:80
+                mid=0.5*(lo+hi);
+                if F(mid)>0
+                    lo=mid;
+                else
+                    hi=mid;
+                end
+            end
+            lam=0.5*(lo+hi);
+            x=(a2.*z)./(lam+a2);
+            d=norm(z-x);
+        end
+
+        function tf = point_in_triangle_2d(~,p,T)
+            a=T(1,:); b=T(2,:); c=T(3,:);
+            u=b-a; w=p-a;
+            s1=u(1)*w(2)-u(2)*w(1);
+            u=c-b; w=p-b;
+            s2=u(1)*w(2)-u(2)*w(1);
+            u=a-c; w=p-c;
+            s3=u(1)*w(2)-u(2)*w(1);
+            tol=1e-12;
+            tf = (s1>=-tol && s2>=-tol && s3>=-tol) || ...
+                 (s1<= tol && s2<= tol && s3<= tol);
+        end
+
+        function d = point_segment_distance_2d(~,p,a,b)
+            v=b-a;
+            den=dot(v,v);
+            if den<=eps
+                d=norm(p-a);
+                return;
+            end
+            u=dot(p-a,v)/den;
+            u=min(1,max(0,u));
+            d=norm(p-(a+u*v));
+        end
+
+        function [V,F] = poly_vertices_faces_world(~,o)
+            c=o.p_center(:);
+            R=o.R_obs;
+            type=lower(o.type);
+            switch type
+                case 'prism'
+                    s=o.raw_param(1);
+                    h=o.raw_param(2);
+                    rc=s/sqrt(3);
+                    ang=[pi/2,pi/2+2*pi/3,pi/2+4*pi/3];
+                    xy=[rc*cos(ang);rc*sin(ang)];
+                    Vloc=[ ...
+                        xy,xy; ...
+                        -h/2*ones(1,3),h/2*ones(1,3)];
+                case 'pyramid'
+                    s=o.raw_param(1);
+                    h=o.raw_param(2);
+                    Vloc=[ ...
+                        -s/2, s/2, s/2,-s/2,0; ...
+                        -s/2,-s/2, s/2, s/2,0; ...
+                        -h/2,-h/2,-h/2,-h/2,h/2];
+                otherwise
+                    error('poly_vertices_faces_world: 未対応のタイプです。');
+            end
+            V=c+R*Vloc;
+            F=convhulln(V.');
+        end
+
+        function d = point_convex_polyhedron_distance(obj,p,V,F)
+            p=p(:);
+            center=mean(V,2);
+            inside=true;
+            minFace=inf;
+            for i=1:size(F,1)
+                tri=V(:,F(i,:));
+                n=cross(tri(:,2)-tri(:,1),tri(:,3)-tri(:,1));
+                nn=norm(n);
+                if nn<=1e-14
+                    continue;
+                end
+                n=n/nn;
+                % 外向き法線ベクトルの向き合わせ
+                if dot(n,center-tri(:,1))>0
+                    n=-n;
+                end
+                if dot(n,p-tri(:,1))>1e-10
+                    inside=false;
+                end
+                dt=obj.point_triangle_distance_3d(p,tri(:,1),tri(:,2),tri(:,3));
+                minFace=min(minFace,dt);
+            end
+            if inside
+                d=0;
+            else
+                d=minFace;
+            end
+        end
+
+        function d = point_triangle_distance_3d(~,p,a,b,c)
+            ab=b-a;
+            ac=c-a;
+            ap=p-a;
+            d1=dot(ab,ap);
+            d2=dot(ac,ap);
+            if d1<=0 && d2<=0
+                d=norm(ap);
+                return;
+            end
+            bp=p-b;
+            d3=dot(ab,bp);
+            d4=dot(ac,bp);
+            if d3>=0 && d4<=d3
+                d=norm(bp);
+                return;
+            end
+            vc=d1*d4-d3*d2;
+            if vc<=0 && d1>=0 && d3<=0
+                v=d1/(d1-d3);
+                d=norm(p-(a+v*ab));
+                return;
+            end
+            cp=p-c;
+            d5=dot(ab,cp);
+            d6=dot(ac,cp);
+            if d6>=0 && d5<=d6
+                d=norm(cp);
+                return;
+            end
+            vb=d5*d2-d1*d6;
+            if vb<=0 && d2>=0 && d6<=0
+                w=d2/(d2-d6);
+                d=norm(p-(a+w*ac));
+                return;
+            end
+            va=d3*d6-d5*d4;
+            if va<=0 && (d4-d3)>=0 && (d5-d6)>=0
+                w=(d4-d3)/((d4-d3)+(d5-d6));
+                d=norm(p-(b+w*(c-b)));
+                return;
+            end
+            denom=1/(va+vb+vc);
+            v=vb*denom;
+            w=vc*denom;
+            x=a+ab*v+ac*w;
+            d=norm(p-x);
+        end
+
+        function pack = prepare_obstacle_packet(obj,OBS)
+            M=numel(OBS);
+            pack=struct();
+            pack.count=M;
+            pack.C=zeros(3,M);
+            pack.R=zeros(9,M);
+            pack.Apay=zeros(3,M);
+            pack.Auav=zeros(3,M);
+            pack.Acable=zeros(3,M);
+            pack.Araw=zeros(3,M);
+            pack.ids=zeros(1,M);
+            pack.types=cell(1,M);
+
+            obj.validate_active_speed_certificate( ...
+                obj.active_speed_certificate);
+            sweep=obj.trigger_sweep_inflation;
+            assert(isstruct(sweep) && isfield(sweep,'certified') && ...
+                logical(sweep.certified), ...
+                '[REPLANNER ERROR] trigger sweep inflation is not certified.');
+
+            pack.reference_mode=char(obj.active_reference_mode);
+            pack.reference_version=double(obj.active_reference_version);
+            pack.sweep_certified=true;
+            pack.sweep_dt=sweep.dt;
+            pack.delta_payload_m=sweep.payload_m;
+            pack.delta_uav_m=sweep.uav_m;
+            pack.delta_cable_m=sweep.cable_m;
+
+            for i=1:M
+                o=OBS(i);
+                obj.validate_obstacle(o,i);
+                pack.ids(i)=o.id;
+                pack.C(:,i)=o.p_center(:);
+                pack.R(:,i)=o.R_obs(:);
+                pack.types{i}=lower(o.type);
+                pack.Araw(:,i)=obj.raw_enclosing_ellipsoid_axes(o);
+                [Ap,Aq,Ac]=obj.component_outer_ellipsoids(o);
+                pack.Apay(:,i)=Ap;
+                pack.Auav(:,i)=Aq;
+                pack.Acable(:,i)=Ac;
+                if isfield(o,'v_center') && norm(o.v_center(:))>0
+                    error(['[REPLANNER ERROR] 動的障害物 (ID=%d) が検知されました。' ...
+                           '現在のトリガー予測器は静的障害物マップのみ対応しています。動きを勝手に凍結して保証することはありません。'],o.id);
+                end
+            end
+        end
+
+        function validate_obstacle(~,o,i)
+            req={'id','type','raw_param','p_center','R_obs'};
+            for k=1:numel(req)
+                assert(isfield(o,req{k}), ...
+                    '[REPLANNER ERROR] 障害物 %d の必須フィールド %s が存在しません。',i,req{k});
+            end
+            assert(numel(o.p_center)==3 && all(isfinite(o.p_center(:))));
+            assert(isequal(size(o.R_obs),[3 3]) && all(isfinite(o.R_obs(:))));
+            assert(norm(o.R_obs.'*o.R_obs-eye(3),'fro')<=1e-9 && ...
+                abs(det(o.R_obs)-1)<=1e-9, ...
+                '[REPLANNER ERROR] 障害物 %d の回転行列 R_obs が無効です。',i);
+            supported={'sphere','cylinder','box','prism','cone','pyramid','ellipsoid','custom'};
+            assert(any(strcmpi(o.type,supported)), ...
+                '[REPLANNER ERROR] 未対応の障害物タイプです: %s',o.type);
+        end
+
+        function [Ap,Aq,Ac] = component_outer_ellipsoids(obj,o)
+            % =============================================================
+            % Sensor raw geometry is untouched.
+            %
+            % Future-trigger conservative packet only:
+            % physical protection radius + existing d_margin
+            % + theorem-backed intersample sweep radius.
+            % =============================================================
+            sweep=obj.trigger_sweep_inflation;
+            assert(isstruct(sweep) && isfield(sweep,'certified') && ...
+                logical(sweep.certified), ...
+                '[REPLANNER ERROR] trigger intersample sweep is uncertified.');
+
+            Dp=obj.r_load+obj.d_margin+sweep.payload_m;
+            Dq=obj.r_drone+obj.d_margin+sweep.uav_m;
+            Dc=obj.r_cable+obj.d_margin+sweep.cable_m;
+
+            Ap=obj.outer_ellipsoid_with_inflation(o,Dp);
+            Aq=obj.outer_ellipsoid_with_inflation(o,Dq);
+            Ac=obj.outer_ellipsoid_with_inflation(o,Dc);
+        end
+
+        function A = outer_ellipsoid_with_inflation(obj,o,D)
+            type=lower(o.type);
+            % 円柱に対する緊密な外接楕円体 (V223/V224準拠)
+            if strcmp(type,'cylinder')
+                r=o.raw_param(1);
+                h=o.raw_param(2);
+                A=[ ...
+                    sqrt(3/2)*(r+D); ...
+                    sqrt(3/2)*(r+D); ...
+                    sqrt(3)*(h/2+D)];
+                return;
+            end
+            % 球に対する厳密な拡大
+            if strcmp(type,'sphere')
+                r=o.raw_param(1);
+                A=(r+D)*ones(3,1);
+                return;
+            end
+            base=obj.raw_enclosing_ellipsoid_axes(o);
+            % 一般形状に対するミンコフスキー和包囲拡大理論:
+            % E(base) (+) B(D) ⊆ lambda * E(base)
+            % lambda = 1 + D / min(base)
+            amin=min(base);
+            assert(amin>0);
+            lambda=1+D/amin;
+            A=lambda*base;
+        end
+
+        function radii = raw_enclosing_ellipsoid_axes(~,o)
+            type=lower(o.type);
+            raw=o.raw_param;
+            switch type
+                case 'sphere'
+                    r=raw(1);
+                    radii=[r;r;r];
+                case 'cylinder'
+                    r=raw(1);
+                    h=raw(2);
+                    radii=[sqrt(3/2)*r;sqrt(3/2)*r;sqrt(3)*h/2];
+                case 'box'
+                    dims=raw(:);
+                    radii=sqrt(3)*(dims/2);
+                case 'prism'
+                    s=raw(1);
+                    h=raw(2);
+                    rc=s/sqrt(3);
+                    radii=[sqrt(2)*rc;sqrt(2)*rc;sqrt(2)*h/2];
+                case 'cone'
+                    r=raw(1);
+                    h=raw(2);
+                    rb=sqrt(r^2+(h/2)^2);
+                    radii=rb*ones(3,1);
+                case 'pyramid'
+                    s=raw(1);
+                    h=raw(2);
+                    rbase=s/sqrt(2);
+                    rb=sqrt(rbase^2+(h/2)^2);
+                    radii=rb*ones(3,1);
+                case 'ellipsoid'
+                    radii=raw(:);
+                case 'custom'
+                    V=raw;
+                    assert(size(V,1)==3 && size(V,2)>=4);
+                    c=o.p_center(:);
+                    Z=o.R_obs.'*(V-c);
+                    mx=max(abs(Z),[],2);
+                    radii=sqrt(3)*mx;
+                otherwise
+                    error('[REPLANNER ERROR] 未対応の障害物タイプです: %s',o.type);
+            end
+            assert(numel(radii)==3 && all(isfinite(radii)) && all(radii>0));
+        end
+
+        function name = get_component_name(~,code)
+            switch code
+                case 1
+                    name='PAYLOAD';
+                case 2
+                    name='UAV';
+                case 3
+                    name='CABLE';
+                otherwise
+                    name='NONE';
+            end
+        end
+
+        function clear_state_sensor_values(obj,t_now)
+            st=obj.result.state;
+
+            st.time=t_now;
+            st.pQ=[NaN;NaN;NaN];
+            st.detected_point=false;
+            st.detected_obstacles=[];
+            st.need_replan=false;
+            st.relevant_obstacles=[];
+            st.min_obstacle_id_point=NaN;
+            st.min_dist_point=inf;
+            st.detected_obstacle_count_point=0;
+            st.sensor_current_active_mask=zeros(1,numel(obj.static_obstacle_map));
+            st.sensor_known_active_mask=double(obj.simulated_sensor_memory_mask);
+            st.sensor_known_obstacle_count=double(nnz(obj.simulated_sensor_memory_mask));
+            st.sensor_memory_release_count=double(obj.simulated_sensor_memory_release_count);
+
+            st.trigger_ttc=NaN;
+            st.trigger_collision_time=NaN;
+            st.trigger_obstacle_id=NaN;
+            st.trigger_component='NONE';
+            st.trigger_component_code=NaN;
+            st.trigger_pL_collision=[NaN;NaN;NaN];
+            st.trigger_q_collision=[NaN;NaN;NaN];
+            st.trigger_pQ_collision=[NaN;NaN;NaN];
+            st.trigger_effective_horizon=NaN;
+            st.trigger_reference_points=0;
+            st.trigger_reference_source='';
+            st.trigger_sensor_origin=[NaN;NaN;NaN];
+            st.trigger_cable_residual=NaN;
+            st.trigger_active_mask=zeros(1,numel(obj.static_obstacle_map));
+            st.trigger_raw_distances=inf(1,numel(obj.static_obstacle_map));
+            st.trigger_hit_index=NaN;
+            st.trigger_kernel_called=0;
+
+            % Persistent real-event summary.  During ordinary preflight this
+            % is zero/NaN.  Once a real Flight request edge is latched, the
+            % helper writes these fields and clear_state_sensor_values() mirrors
+            % (rather than erases) that persistent object state.
+            st.trigger_event_latched=obj.trigger_event_count>0;
+            st.trigger_event_count=double(obj.trigger_event_count);
+            if obj.trigger_event_count>0 && isstruct(obj.last_trigger_event) && ...
+                    isfield(obj.last_trigger_event,'event_time')
+                st.trigger_event_time_latched=double(obj.last_trigger_event.event_time);
+                st.trigger_event_ttc_latched=double(obj.last_trigger_event.trigger.ttc);
+                st.trigger_event_collision_time_latched= ...
+                    double(obj.last_trigger_event.trigger.collision_time);
+                st.trigger_event_obstacle_id_latched= ...
+                    double(obj.last_trigger_event.trigger.obstacle_id);
+                st.trigger_event_component_code_latched= ...
+                    double(obj.last_trigger_event.trigger.component_code);
+                st.trigger_event_capture_ms=double(obj.trigger_event_capture_ms);
+            else
+                st.trigger_event_time_latched=NaN;
+                st.trigger_event_ttc_latched=NaN;
+                st.trigger_event_collision_time_latched=NaN;
+                st.trigger_event_obstacle_id_latched=NaN;
+                st.trigger_event_component_code_latched=NaN;
+                st.trigger_event_capture_ms=NaN;
+            end
+
+            st.active_reference_mode=obj.active_reference_mode;
+            st.active_reference_version=obj.active_reference_version;
+            st.nominal_xd_table_used=false;
+            st.certificate_guard_passed=false;
+            st.certificate_stale_mask = ...
+                double(obj.certificate_stale.SPEED_TRIGGER_CERT) + ...
+                2*double(obj.certificate_stale.SENSOR_HORIZON_CERT) + ...
+                4*double(obj.certificate_stale.STOP_GEOMETRY_4MS_CERT) + ...
+                8*double(obj.certificate_stale.ACTUATOR_DYNAMICS_CERT);
+            st.hlc_optional_stale=logical(obj.certificate_stale.HLC_ROBUST_CERT);
+            if isfield(obj.command_limit_certificate,'live_controller_verified')
+                st.command_limit_live_verified= ...
+                    logical(obj.command_limit_certificate.live_controller_verified);
+            else
+                st.command_limit_live_verified=false;
+            end
+            st.dependency_refresh_count=obj.dependency_refresh_count;
+            st.mass_certificate_rebuild_count=obj.mass_certificate_rebuild_count;
+            st.loadmass=obj.loadmass;
+            st.replan_commit_count=obj.replan_commit_count;
+            st.last_replan_commit_time=obj.last_replan_commit_time;
+            st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
+            st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+            st.generator_request_count=obj.generator_request_count;
+            st.generator_candidate_count=obj.generator_candidate_count;
+            st.generator_validation_pass_count=obj.generator_validation_pass_count;
+            st.generator_validation_fail_count=obj.generator_validation_fail_count;
+            st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
+            st.generator_last_runtime_ms=obj.generator_last_runtime_ms;
+            st.generator_last_status_code=obj.generator_last_status_code;
+            [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
+            st.generator_backend_flag=double(flagCode);
+            st.generator_backend_last_code=double(obj.generator_backend_last_code);
+            st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
+            st.generator_backend_last_callback_installed= ...
+                logical(obj.generator_backend_last_callback_installed);
+            st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
+            st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
+            st.generator_backend_configuration_frozen= ...
+                logical(obj.generator_backend_configuration_frozen);
+            st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
+            st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
+            st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
+            st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+            st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
+            st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
+            st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
+            st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
+            st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
+            st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
+            st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
+            st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
+            st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
+            st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
+            st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
+            st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
+            st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
+            st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
+            st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
+            st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
+            st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
+            st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
+            st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
+            st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
+            st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
+            st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
+            st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
+            st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
+            st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
+            st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
+            st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+            st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
+            st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
+            st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
+            st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
+            st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
+            st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
+            st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
+            st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+            st.r9_synth_row_count=obj.r9_synth_row_count;
+            st.r9_synth_episode_count=obj.r9_synth_episode_count;
+            st.r9_synth_component_count=obj.r9_synth_component_count;
+            st.r9_synth_sign_count=obj.r9_synth_sign_count;
+            st.r9_hr_request_seq=obj.r9_hr_request_seq;
+            st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
+            st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
+            st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
+            st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
+            st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
+            st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
+            st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
+            st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
+            st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
+            st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
+            st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
+            st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
+            st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
+            st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
+            st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
+            st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
+            st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
+            st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
+            st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
+            st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
+            st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
+            st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
+            st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
+            st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
+            st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
+            st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
+            st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
+            st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
+            st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
+            st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
+            st.generator_last_context_ms=obj.generator_last_context_ms;
+            st.generator_last_callback_ms=obj.generator_last_callback_ms;
+            st.generator_last_validation_ms=obj.generator_last_validation_ms;
+            st.generator_last_critical_ms=obj.generator_last_critical_ms;
+            st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
+
+            % LOGGER-safe direct scalar timing mirrors.
+            st.rt_light_e2e_ms=NaN;
+            st.rt_spike_capture_time=NaN;
+            st.rt_spike_total_ms=NaN;
+            st.rt_spike_stage_front_ms=NaN;
+            st.rt_spike_stage_loadmass_ms=NaN;
+            st.rt_spike_stage_dependency_ms=NaN;
+            st.rt_spike_stage_base_cert_geom_ms=NaN;
+            st.rt_spike_stage_sensor_trigger_ms=NaN;
+            st.rt_spike_stage_output_state_ms=NaN;
+            st.rt_spike_base_ref_ms=NaN;
+            st.rt_spike_flight_guard_ms=NaN;
+            st.rt_spike_cert_guard_ms=NaN;
+            st.rt_spike_active_ref_ms=NaN;
+            st.rt_spike_geometry_ms=NaN;
+            st.rt_spike_state_handle_ms=NaN;
+            st.rt_spike_write_active_output_ms=NaN;
+            st.rt_spike_state_basic_ms=NaN;
+            st.rt_spike_state_trigger_scalar_ms=NaN;
+            st.rt_spike_state_trigger_heavy_ms=NaN;
+            st.rt_spike_state_cert_ms=NaN;
+            st.rt_spike_state_meta_ms=NaN;
+            st.rt_spike_active_count=NaN;
+            st.rt_spike_need_replan=NaN;
+            st.rt_live_binding_ms=NaN;
+            st.rt_dependency_ms=NaN;
+            st.rt_cert_guard_ms=NaN;
+            st.rt_geometry_eval_ms=NaN;
+            st.rt_replan_status_ms=NaN;
+            st.rt_output_write_ms=NaN;
+            st.rt_state_trigger_write_ms=NaN;
+            st.rt_state_cert_write_ms=NaN;
+            st.rt_state_meta_write_ms=NaN;
+            st.rt_base_ref_ms=NaN;
+            st.rt_sensor_ms=NaN;
+            st.rt_reference_packet_ms=NaN;
+            st.rt_kernel_ms=NaN;
+            st.rt_trigger_ms=NaN;
+            st.rt_total_ms=NaN;
+
+        end
+
+
+        function observer_prepare_static_setup_cache(obj)
+            [ok,expected]=obj.observer_validate_measurement_selector();
+            assert(ok,'[REPLANNER OBSERVER ERROR] pre-motion selector cache could not close.');
+            Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
+            m=double(obj.self.parameter.get("mass"));
+            g=double(obj.self.parameter.get("gravity"));
+            L=double(obj.self.parameter.get("cableL"));
+            assert(numel(Jd)==3&&all(isfinite(Jd))&&all(Jd>0)&& ...
+                isfinite(m)&&m>0&&isfinite(g)&&g>=0&&isfinite(L)&&L>0, ...
+                '[REPLANNER OBSERVER ERROR] pre-motion physical cache invalid.');
+            obj.observer_static_setup_cache=struct( ...
+                'selector_verified',true,'measured_scalar_indices',double(expected(:).'), ...
+                'Jdiag',Jd,'mass',m,'gravity',g,'cableL',L);
+            obj.observer_static_setup_cache_valid=true;
+        end
+
+
+        function tf = observer_is_real_control_event(obj,cha)
+            %#ok<INUSD>
+            % Only actual a/t/f calls delivered to THIS reference object
+            % advance the certifier. In the current allocation the replanner
+            % is normally dispatched only in Flight, so SIM mode initializes
+            % exactly at the observed Flight-entry event. Synthetic prime
+            % calls are excluded.
+            if obj.generator_integration_prime_active
+                tf=false;
+                return;
+            end
+            if obj.setup_exact_do_prime_active && ~obj.observer_preflight_prime_active
+                tf=false;
+                return;
+            end
+            % AF7R38: observer_preflight_prime_active executes the exact
+            % observer branch only as a state-restored setup dry run.
+            ph=char(string(cha));
+            tf=any(strcmp(ph,{'a','t','f'}));
+        end
+
+
+        function observer_initialize_lazy(obj,t,phase)
+            % Lazy initialization intentionally occurs after MOTIVE and EKF
+            % have already executed for a real control event.
+            I=struct();
+            I.initialized=false;
+            I.selector_verified=false;
+            I.measured_scalar_indices=[];
+            I.previous_measurement=struct();
+            I.observer_support=struct();
+            I.hlc_state_mass_bridge=struct();
+            I.last_event_time=NaN;
+            I.last_phase='';
+            I.phase_transition_count=0;
+            I.update_count=0;
+            I.fail_count=0;
+            I.runtime_last_ms=NaN;
+            I.runtime_max_ms=NaN;
+            I.runtime_sum_ms=0;
+            I.runtime_count=0;
+
+            if obj.observer_static_setup_cache_valid
+                K0=obj.observer_static_setup_cache;
+                selectorOK=logical(K0.selector_verified);
+                expected=double(K0.measured_scalar_indices(:).');
+            else
+                [selectorOK,expected]=obj.observer_validate_measurement_selector();
+            end
+            assert(selectorOK, ...
+                '[REPLANNER OBSERVER ERROR] EKF selector is not certified p,q,pL,pT order.');
+            I.selector_verified=true;
+            I.measured_scalar_indices=expected;
+
+            mode=upper(strtrim(char(obj.OBSERVER_HARD_SUPPORT_MODE)));
+            if strcmp(mode,'SIM_NUMERIC_TRUTH')
+                st=obj.self.plant.state;
+                wc=double(st.w(:));
+                vc=double(st.vL(:));
+                lc=double(st.wL(:));
+                qe=double(st.q(:));
+                pT=double(st.pT(:));
+                assert(numel(wc)==3&&numel(vc)==3&&numel(lc)==3&& ...
+                    numel(qe)==3&&numel(pT)==3&& ...
+                    all(isfinite([wc;vc;lc;qe;pT])), ...
+                    '[REPLANNER OBSERVER ERROR] SIM initial hidden state invalid.');
+                pn=norm(pT);
+                assert(abs(pn-1)<=16*eps(max(1,pn)), ...
+                    '[REPLANNER OBSERVER ERROR] SIM pT is not unit.');
+                mL0=double(obj.OBSERVER_SIM_TRUE_ML);
+                assert(isscalar(mL0)&&isfinite(mL0)&&mL0>=0, ...
+                    ['[REPLANNER OBSERVER ERROR] SIM true payload mass authority is missing. ' ...
+                     'Pass opts.OBSERVER_SIM_TRUE_ML from the value used BEFORE plant construction.']);
+
+                I.hidden=struct( ...
+                    'w_center',wc,'w_radius',0,'w_norm_ub',norm(wc), ...
+                    'vL_center',vc,'vL_radius',0,'vL_norm_ub',norm(vc), ...
+                    'wL_center',lc,'wL_radius',0,'wL_norm_ub',norm(lc));
+                I.true_mL_interval=[mL0 mL0];
+                I.q_abs_ub_current=abs(qe);
+                I.pT_norm_ub=1;
+
+            elseif strcmp(mode,'REAL_HARD_BOUNDS')
+                B0=obj.OBSERVER_REAL_INITIAL_SUPPORT;
+                req={'w_center','w_radius','vL_center','vL_radius', ...
+                    'wL_center','wL_radius','mL_interval','q_abs_ub','pT_norm_ub'};
+                assert(isstruct(B0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL initial support must be a struct.');
+                for kk=1:numel(req)
+                    assert(isfield(B0,req{kk}), ...
+                        '[REPLANNER OBSERVER ERROR] REAL initial support missing %s.',req{kk});
+                end
+                wc=double(B0.w_center(:)); vc=double(B0.vL_center(:));
+                lc=double(B0.wL_center(:));
+                wr=double(B0.w_radius); vr=double(B0.vL_radius); lr=double(B0.wL_radius);
+                mi=double(B0.mL_interval(:)).'; qa=double(B0.q_abs_ub(:));
+                pn=double(B0.pT_norm_ub);
+                assert(numel(wc)==3&&numel(vc)==3&&numel(lc)==3&& ...
+                    all(isfinite([wc;vc;lc;wr;vr;lr]))&&all([wr;vr;lr]>=0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL hidden initial support invalid.');
+                assert(numel(mi)==2&&all(isfinite(mi))&&mi(1)>=0&&mi(2)>=mi(1), ...
+                    '[REPLANNER OBSERVER ERROR] REAL mL interval invalid.');
+                assert(numel(qa)==3&&all(isfinite(qa))&&all(qa>=0)&& ...
+                    isscalar(pn)&&isfinite(pn)&&pn>0, ...
+                    '[REPLANNER OBSERVER ERROR] REAL q/pT support invalid.');
+                nu=double(obj.OBSERVER_REAL_NU_ABS_UB(:));
+                assert(numel(nu)==12&&all(isfinite(nu))&&all(nu>=0), ...
+                    '[REPLANNER OBSERVER ERROR] REAL 12-D measurement hard bounds invalid.');
+                assert(~isempty(strtrim(char(obj.OBSERVER_REAL_SOURCE_TAG))), ...
+                    '[REPLANNER OBSERVER ERROR] REAL hard-bound source tag required.');
+
+                I.hidden=struct( ...
+                    'w_center',wc,'w_radius',wr,'w_norm_ub',norm(wc)+wr, ...
+                    'vL_center',vc,'vL_radius',vr,'vL_norm_ub',norm(vc)+vr, ...
+                    'wL_center',lc,'wL_radius',lr,'wL_norm_ub',norm(lc)+lr);
+                I.true_mL_interval=mi;
+                I.q_abs_ub_current=qa;
+                I.pT_norm_ub=pn;
+            else
+                error('[REPLANNER OBSERVER ERROR] unsupported mode: %s',mode);
+            end
+
+            I.initialized=true;
+            I.initialized_at_time=double(t);
+            I.initialized_at_phase=char(phase);
+            obj.observer_hard_support_internal=I;
+        end
+
+
+        function observer_update_same_event(obj,time,cha)
+            t=double(time.t);
+            phase=char(string(cha));
+
+            I=obj.observer_hard_support_internal;
+            if isempty(I)||~isstruct(I)||~isfield(I,'initialized')||~I.initialized
+                obj.observer_initialize_lazy(t,phase);
+                I=obj.observer_hard_support_internal;
+            end
+
+            if isfinite(I.last_event_time)
+                if t==I.last_event_time
+                    return;
+                end
+                assert(t>I.last_event_time, ...
+                    '[REPLANNER OBSERVER ERROR] control-event time moved backwards.');
+            end
+
+            if ~isempty(I.last_phase)&&~strcmp(I.last_phase,phase)
+                I.phase_transition_count=I.phase_transition_count+1;
+            end
+
+            C=obj.observer_build_measurement_event(t,phase,I.selector_verified);
+            if ~C.closed
+                I.fail_count=I.fail_count+1;
+                obj.observer_hard_support_internal=I;
+                error('[REPLANNER OBSERVER ERROR] measurement hard box failed: %s',C.reason);
+            end
+
+            xhat=obj.self.estimator.result.state;
+            hasPrev=isstruct(I.previous_measurement)&& ...
+                isfield(I.previous_measurement,'closed')&&logical(I.previous_measurement.closed);
+
+            if hasPrev
+                h=t-double(I.previous_measurement.event_time);
+                assert(isfinite(h)&&h>0, ...
+                    '[REPLANNER OBSERVER ERROR] consecutive event interval is not positive.');
+                uPrev=obj.observer_get_previous_held_input();
+                F=obj.observer_one_step_support(h,uPrev,I);
+                assert(F.closed, ...
+                    '[REPLANNER OBSERVER ERROR] continuous hidden-state support left certified chart.');
+                K=obj.observer_contract_two_events(I.previous_measurement,C,F,xhat);
+
+                I.hidden.w_center=K.w.center;
+                I.hidden.w_radius=K.w.radius;
+                I.hidden.w_norm_ub=K.w.true_norm_ub;
+                I.hidden.vL_center=K.vL.center;
+                I.hidden.vL_radius=K.vL.radius;
+                I.hidden.vL_norm_ub=K.vL.true_norm_ub;
+                I.hidden.wL_center=K.wL.center;
+                I.hidden.wL_radius=K.wL.radius;
+                I.hidden.wL_norm_ub=K.wL.true_norm_ub;
+                measured=K.measured_error;
+                ew=K.w.observer_error_norm_ub;
+                evL=K.vL.observer_error_norm_ub;
+                ewL=K.wL.observer_error_norm_ub;
+                contractionUsed=true;
+                I.last_forward_support=F;
+            else
+                measured=obj.observer_measured_error_box(xhat,C);
+                ew=norm(double(xhat.w(:))-I.hidden.w_center)+I.hidden.w_radius;
+                evL=norm(double(xhat.vL(:))-I.hidden.vL_center)+I.hidden.vL_radius;
+                ewL=norm(double(xhat.wL(:))-I.hidden.wL_center)+I.hidden.wL_radius;
+                contractionUsed=false;
+                I.last_forward_support=struct();
+            end
+
+            mi=I.true_mL_interval;
+            hm=double(xhat.mL);
+            emL=max(abs(hm-mi(1)),abs(hm-mi(2)));
+
+            B=struct();
+            B.schema='REPLANNING_SYSTEM_OBSERVER_HARD_SUPPORT_EVENT_V2';
+            B.closed=true;
+            B.event_time=t;
+            B.phase=phase;
+            B.protection_eligible=strcmp(phase,'f');
+            B.measured=measured;
+            B.w_error_norm_ub=ew;
+            B.vL_error_norm_ub=evL;
+            B.wL_error_norm_ub=ewL;
+            B.mL_error_abs_ub=emL;
+            B.true_mL_interval=mi;
+            B.hidden_true_support=I.hidden;
+            B.consecutive_measurement_contraction_used=contractionUsed;
+            B.numeric_plant_to_continuous_authority=false;
+            B.realized_error_compared=false;
+            B.Q_promoted=false;
+            B.R_promoted=false;
+            B.covariance_promoted=false;
+            B.sampled_acceptance=false;
+
+            I.q_abs_ub_current=abs(C.y(4:6))+C.nu_abs_ub(4:6);
+            I.previous_measurement=C;
+            I.observer_support=B;
+            I.hlc_state_mass_bridge=obj.observer_build_state_mass_bridge(B);
+            I.last_event_time=t;
+            I.last_phase=phase;
+            I.update_count=I.update_count+1;
+            obj.observer_hard_support_internal=I;
+        end
+
+
+        function C = observer_build_measurement_event(obj,t,phase,selectorVerified)
+            C=struct('schema','REPLANNING_SYSTEM_OBSERVER_MEASUREMENT_EVENT_V2', ...
+                'closed',false,'event_time',t,'phase',phase,'y',[], ...
+                'nu_abs_ub',[],'reason','UNINITIALIZED');
+            assert(selectorVerified, ...
+                '[REPLANNER OBSERVER ERROR] measurement selector not verified.');
+
+            y=double(obj.self.sensor.result.output(:));
+            if numel(y)~=12||any(~isfinite(y))
+                C.reason='MEASUREMENT_NOT_FINITE_12D';
+                return;
+            end
+
+            mode=upper(strtrim(char(obj.OBSERVER_HARD_SUPPORT_MODE)));
+            if strcmp(mode,'SIM_NUMERIC_TRUTH')
+                st=obj.self.plant.state;
+                x=[double(st.p(:));double(st.q(:));double(st.pL(:));double(st.pT(:))];
+                if numel(x)~=12||any(~isfinite(x))
+                    C.reason='SIM_NUMERIC_TRUTH_NOT_FINITE_12D';
+                    return;
+                end
+                ur=eps(1)/2;
+                d=double(y-x);
+                rho=(ur/(1-ur))*(abs(y)+abs(x));
+                raw=abs(d)+rho;
+                nu=zeros(12,1);
+                for ii=1:12
+                    nu(ii)=obj.observer_nextfloat_up(raw(ii));
+                end
+                C.y=y; C.nu_abs_ub=nu; C.raw_difference=d;
+                C.relative_to='CURRENT_NUMERICAL_PLANT_STATE';
+                C.numeric_plant_to_continuous_authority=false;
+                C.closed=all(isfinite(nu))&&all(nu>=0);
+                C.reason='SIM_SAME_EVENT_HARD_BOX_CLOSED';
+            elseif strcmp(mode,'REAL_HARD_BOUNDS')
+                nu=double(obj.OBSERVER_REAL_NU_ABS_UB(:));
+                tag=strtrim(char(obj.OBSERVER_REAL_SOURCE_TAG));
+                if numel(nu)~=12||any(~isfinite(nu))||any(nu<0)||isempty(tag)
+                    C.reason='REAL_HARD_BOUND_AUTHORITY_INVALID';
+                    return;
+                end
+                C.y=y; C.nu_abs_ub=nu; C.source_tag=tag;
+                C.relative_to='PHYSICAL_TRUE_MEASURED_COORDINATES';
+                C.numeric_plant_to_continuous_authority=false;
+                C.closed=true;
+                C.reason='REAL_HARD_BOX_CLOSED';
+            else
+                C.reason='UNSUPPORTED_OBSERVER_MODE';
+            end
+            C.Q_promoted=false; C.R_promoted=false;
+            C.covariance_promoted=false; C.logged_max_promoted=false;
+            C.sampled_acceptance=false; C.realized_error_compared=false;
+        end
+
+
+        function [ok,expected] = observer_validate_measurement_selector(obj)
+            ok=false; expected=[];
+            ekf=obj.self.estimator.ekf;
+            Csel=double(ekf.output_param);
+            stlist=string(ekf.model.state.list(:)).';
+            nlist=double(ekf.model.state.num_list(:)).';
+            IDX=struct(); p0=1;
+            for ii=1:numel(stlist)
+                n=nlist(ii); IDX.(char(stlist(ii)))=p0:(p0+n-1); p0=p0+n;
+            end
+            req={'p','q','pL','pT'};
+            if ~all(isfield(IDX,req)),return;end
+            expected=[IDX.p IDX.q IDX.pL IDX.pT];
+            ok=size(Csel,1)==12&&size(Csel,2)==sum(nlist)&& ...
+                all(sum(Csel~=0,2)==1)&&all(Csel(:)==0|Csel(:)==1);
+            if ok
+                [rr,cc]=find(Csel==1); [rr,ord]=sort(rr); cc=cc(ord);
+                ok=isequal(rr(:).',(1:12))&&isequal(cc(:).',expected);
+            end
+        end
+
+
+        function M = observer_measured_error_box(~,xhat,C)
+            y=double(C.y(:)); nu=double(C.nu_abs_ub(:)); M=struct();
+            M.p=struct('center',double(xhat.p(:))-y(1:3),'radius',nu(1:3),'abs_ub',abs(double(xhat.p(:))-y(1:3))+nu(1:3));
+            M.q=struct('center',double(xhat.q(:))-y(4:6),'radius',nu(4:6),'abs_ub',abs(double(xhat.q(:))-y(4:6))+nu(4:6));
+            M.pL=struct('center',double(xhat.pL(:))-y(7:9),'radius',nu(7:9),'abs_ub',abs(double(xhat.pL(:))-y(7:9))+nu(7:9));
+            M.pT=struct('center',double(xhat.pT(:))-y(10:12),'radius',nu(10:12),'abs_ub',abs(double(xhat.pT(:))-y(10:12))+nu(10:12));
+        end
+
+
+        function u = observer_get_previous_held_input(obj)
+            u=double(obj.self.controller.result.input(:));
+            assert(numel(u)==4&&all(isfinite(u)), ...
+                '[REPLANNER OBSERVER ERROR] previous held controller input invalid.');
+        end
+
+
+        function S = observer_one_step_support(obj,h,u,I)
+            H=I.hidden;
+            if obj.observer_static_setup_cache_valid
+                K0=obj.observer_static_setup_cache;
+                Jd=double(K0.Jdiag(:));
+                m=double(K0.mass);
+                g=double(K0.gravity);
+                L=double(K0.cableL);
+            else
+                Jd=double(obj.self.parameter.get(["jx","jy","jz"])); Jd=Jd(:);
+                m=double(obj.self.parameter.get("mass"));
+                g=double(obj.self.parameter.get("gravity"));
+                L=double(obj.self.parameter.get("cableL"));
+            end
+            assert(numel(Jd)==3&&all(isfinite(Jd))&&all(Jd>0)&& ...
+                isfinite(m)&&m>0&&isfinite(g)&&g>=0&&isfinite(L)&&L>0, ...
+                '[REPLANNER OBSERVER ERROR] physical parameter domain invalid.');
+
+            Jmin=min(Jd); Jmax=max(Jd);
+            tauNorm=norm(u(2:4)); u1abs=abs(u(1));
+            W0=double(H.w_norm_ub); WL0=double(H.wL_norm_ub);
+            VL0=double(H.vL_norm_ub); q0=double(I.q_abs_ub_current(:));
+            Pnorm=double(I.pT_norm_ub); mLint=double(I.true_mL_interval(:));
+            mLlb=mLint(1);
+
+            V0=0.5*Jmax*W0^2;
+            sqrtVend=sqrt(V0)+tauNorm*h/sqrt(2*Jmin);
+            VwEnd=sqrtVend^2;
+            Wabs0=sqrt(2*V0/Jmin); WabsEnd=sqrt(2*VwEnd/Jmin);
+            Iw=Wabs0*h+tauNorm*h^2/(2*Jmin);
+
+            Theta=q0(2)+Iw;
+            pitchClosed=Theta<pi/2;
+            qAbs=[Inf;Theta;Inf]; fullClosed=false;
+            if pitchClosed
+                qAbs(1)=q0(1)+(1+tan(Theta))*Iw;
+                qAbs(3)=q0(3)+(1/cos(Theta))*Iw;
+                fullClosed=qAbs(1)<pi&&qAbs(3)<pi;
+            end
+
+            aWL=Pnorm*u1abs/(m*L);
+            WLEnd=WL0+aWL*h;
+            IWL=WL0*h+0.5*aWL*h^2;
+            pTSpan=Pnorm*IWL;
+            den=m+mLlb;
+            assert(den>0,'[REPLANNER OBSERVER ERROR] total mass lower bound invalid.');
+            Aconst=g+(Pnorm^2*u1abs)/den;
+            Aquad=(Pnorm^3)*m*L/den;
+            intWL2=WL0^2*h+WL0*aWL*h^2+(aWL^2*h^3)/3;
+            VLEnd=VL0+Aconst*h+Aquad*intWL2;
+            ALmax=Aconst+Aquad*(WLEnd^2);
+
+            S=struct();
+            S.closed=pitchClosed&&fullClosed; S.h=h; S.held_input=u;
+            S.Jdiag=Jd; S.w_norm_ub_end=WabsEnd;
+            S.q_abs_ub_interval=qAbs;
+            S.wL_accel_norm_ub=aWL; S.wL_norm_ub_end=WLEnd;
+            S.vL_accel_norm_ub=ALmax; S.vL_norm_ub_end=VLEnd; S.pT_norm_ub=Pnorm;
+            S.sampled_acceptance=false; S.guessed_bound=false;
+        end
+
+
+        function O = observer_contract_two_events(obj,C0,C1,F,xhat)
+            y0=double(C0.y(:)); y1=double(C1.y(:));
+            n0=double(C0.nu_abs_ub(:)); n1=double(C1.nu_abs_ub(:));
+            h=double(C1.event_time-C0.event_time);
+            assert(h>0&&isfinite(h),'[REPLANNER OBSERVER ERROR] contraction h invalid.');
+            iq=4:6; ipL=7:9; ipT=10:12;
+            MEAS=obj.observer_measured_error_box(xhat,C1);
+
+            VLF=double(F.vL_norm_ub_end);
+            ALmax=double(F.vL_accel_norm_ub);
+            dPL=(y1(ipL)-y0(ipL))/h;
+            rVL=0.5*ALmax*h+(norm(n0(ipL))+norm(n1(ipL)))/h;
+            cVL=dPL;
+            VLtrue=min(VLF,norm(cVL)+rVL);
+            eVL=min(norm(double(xhat.vL(:)))+VLF, ...
+                norm(double(xhat.vL(:))-cVL)+rVL);
+
+            WLF=double(F.wL_norm_ub_end); Pbar=double(F.pT_norm_ub);
+            aWL=double(F.wL_accel_norm_ub);
+            pTddot=Pbar*(aWL+WLF^2);
+            dPT=(y1(ipT)-y0(ipT))/h;
+            rPTdot=0.5*pTddot*h+(norm(n0(ipT))+norm(n1(ipT)))/h;
+            cWL=cross(y1(ipT),dPT);
+            pTdotUb=Pbar*WLF;
+            rWL=norm(n1(ipT))*pTdotUb+norm(y1(ipT))*rPTdot;
+            WLtrue=min(WLF,norm(cWL)+rWL);
+            eWL=min(norm(double(xhat.wL(:)))+WLF, ...
+                norm(double(xhat.wL(:))-cWL)+rWL);
+
+            Wf=double(F.w_norm_ub_end); Jd=double(F.Jdiag(:));
+            Jmin=min(Jd); Jmax=max(Jd); tauNorm=norm(double(F.held_input(2:4)));
+            Theta=double(F.q_abs_ub_interval(2));
+            assert(isfinite(Theta)&&Theta<pi/2, ...
+                '[REPLANNER OBSERVER ERROR] Euler chart is not closed.');
+            tanT=tan(Theta); secT=1/cos(Theta); Kphi=1+tanT;
+            Aomega=tauNorm/Jmin+(Jmax/Jmin)*Wf^2;
+            adot=Aomega+Kphi*Wf^2;
+            qddotUb=norm([Aomega+secT^2*Wf^2+tanT*adot; ...
+                Aomega+Kphi*Wf^2; secT*(tanT*Wf^2+adot)]);
+            dq=(y1(iq)-y0(iq))/h;
+            rQdot=0.5*qddotUb*h+(norm(n0(iq))+norm(n1(iq)))/h;
+            lim=[pi;pi/2;pi];
+            assert(all(abs(y0(iq))+n0(iq)<lim)&&all(abs(y1(iq))+n1(iq)<lim), ...
+                '[REPLANNER OBSERVER ERROR] measured Euler box reaches chart boundary.');
+            Ey=obj.observer_euler_rate_inverse_ZYX(y1(iq));
+            cW=Ey*dq;
+            dphi=n1(4); dtheta=n1(5);
+            LE=sqrt(dtheta^2+2*dphi^2+2*(dphi+dtheta)^2);
+            Kq=sqrt(Kphi^2+1+secT^2); qdotUb=Kq*Wf;
+            rW=LE*qdotUb+norm(Ey,2)*rQdot;
+            Wtrue=min(Wf,norm(cW)+rW);
+            eW=min(norm(double(xhat.w(:)))+Wf,norm(double(xhat.w(:))-cW)+rW);
+
+            O=struct(); O.closed=true; O.h=h; O.measured_error=MEAS;
+            O.vL=struct('center',cVL,'radius',rVL,'true_norm_ub',VLtrue, ...
+                'observer_error_norm_ub',eVL);
+            O.wL=struct('center',cWL,'radius',rWL,'true_norm_ub',WLtrue, ...
+                'observer_error_norm_ub',eWL);
+            O.w=struct('center',cW,'radius',rW,'true_norm_ub',Wtrue, ...
+                'observer_error_norm_ub',eW);
+        end
+
+
+        function E = observer_euler_rate_inverse_ZYX(~,q)
+            phi=q(1); theta=q(2);
+            E=[1,0,-sin(theta);0,cos(phi),sin(phi)*cos(theta); ...
+                0,-sin(phi),cos(phi)*cos(theta)];
+        end
+
+
+        function R = observer_build_state_mass_bridge(~,B)
+            M=B.measured;
+            eq=double(M.q.abs_ub(:));
+            thetaRelUb=min(pi,sum(eq));
+            R=struct();
+            R.schema='REPLANNING_SYSTEM_OBSERVER_TO_HLC_STATE_MASS_BRIDGE_V2';
+            R.closed=true;
+            R.event_time=B.event_time;
+            R.phase=B.phase;
+            R.model_state=struct( ...
+                'euler_abs_ub',eq, ...
+                'compact_quaternion_chord_norm_ub',2*sin(thetaRelUb/4), ...
+                'w_norm_ub',double(B.w_error_norm_ub), ...
+                'pL_abs_ub',double(M.pL.abs_ub(:)), ...
+                'vL_norm_ub',double(B.vL_error_norm_ub), ...
+                'pT_abs_ub',double(M.pT.abs_ub(:)), ...
+                'wL_norm_ub',double(B.wL_error_norm_ub));
+            R.live_mL=struct('error_abs_ub',double(B.mL_error_abs_ub), ...
+                'true_interval',double(B.true_mL_interval(:)).');
+            % Current controller command has not executed yet at reference stage.
+            R.current_saturation_closed=false;
+            R.total_virtual_disturbance_closed=false;
+            R.phi_fixed_point_closed=false;
+            R.realized_error_compared=false;
+        end
+
+
+        function y = observer_nextfloat_up(~,x)
+            x=double(x);
+            if isnan(x)||x==Inf,y=x;return;end
+            assert(x>=0,'[REPLANNER OBSERVER ERROR] nextfloat input must be nonnegative.');
+            if x==0,y=realmin*eps(1);return;end
+            u=typecast(x,'uint64'); u=u+uint64(1); y=typecast(u,'double');
+        end
+
+
+        function [pL_ref,q_ref,source] = ...
+                get_active_reference_packet(obj,time,cha,varargin_in,xd_now)
+
+            switch upper(char(obj.active_reference_mode))
+                case 'NOMINAL'
+                    [pL_ref,q_ref,source]= ...
+                        obj.update_reference_cache(time,cha,varargin_in,xd_now);
+                case 'REPAIRED'
+                    [pL_ref,q_ref,source]= ...
+                        obj.repaired_reference_packet(time.t);
+                otherwise
+                    error('[REPLANNER ERROR] unknown active_reference_mode: %s', ...
+                        char(obj.active_reference_mode));
+            end
+        end
+
+
+        function [need_replan,ttc,collision_time,comp_name, ...
+                pL_collision,q_collision,pQ_collision,jhit, ...
+                obs_id,comp_code,kernel_called,kernel_ms] = ...
+                trigger_core(obj,active,pL_ref,q_ref,t_now)
+
+            kernel_called=any(active);
+            triggered=false;
+            jhit=NaN;
+            obs_id=NaN;
+            comp_code=NaN;
+            kernel_ms=NaN;
+
+            if kernel_called
+                % Fail closed if active reference mode/version changed without
+                % installing the matching continuous-time speed certificate
+                % and rebuilding the obstacle packet.
+                obj.assert_trigger_packet_certificate_current();
+
+                if obj.ENABLE_PROFILING, tk=tic; end
+                [triggered,jhit,obs_id,comp_code]= ...
+                    g26_future_trigger_kernel_mex( ...
+                        obj.horizon_s,obj.prediction_dt,obj.L_cable, ...
+                        pL_ref,q_ref, ...
+                        obj.obstacle_packet.C,obj.obstacle_packet.R, ...
+                        obj.obstacle_packet.Apay,obj.obstacle_packet.Auav, ...
+                        obj.obstacle_packet.Acable,obj.obstacle_packet.ids, ...
+                        double(active));
+                if obj.ENABLE_PROFILING, kernel_ms=1e3*toc(tk); end
+            end
+
+            N=size(pL_ref,2);
+            [need_replan,ttc,collision_time,comp_name, ...
+                pL_collision,q_collision,pQ_collision,jhit]= ...
+                obj.decode_trigger_result( ...
+                    triggered,jhit,obs_id,comp_code,N,pL_ref,q_ref,t_now);
+        end
+
+
+        function [need_replan,ttc,collision_time,comp_name, ...
+                pL_collision,q_collision,pQ_collision,jhit] = ...
+                decode_trigger_result(obj,triggered,jhit,obs_id,comp_code, ...
+                N,pL_ref,q_ref,t_now)
+
+            need_replan=logical(triggered);
+            ttc=NaN;
+            collision_time=NaN;
+            comp_name='NONE';
+            pL_collision=[NaN;NaN;NaN];
+            q_collision=[NaN;NaN;NaN];
+            pQ_collision=[NaN;NaN;NaN];
+
+            if need_replan
+                jhit=round(jhit);
+                assert(jhit>=1 && jhit<=N, ...
+                    '[REPLANNER ERROR] MEX returned invalid collision index.');
+
+                ttc=(jhit-1)*obj.prediction_dt;
+                collision_time=t_now+ttc;
+                comp_name=obj.get_component_name(comp_code);
+                pL_collision=pL_ref(:,jhit);
+                q_collision=q_ref(:,jhit);
+                pQ_collision=pL_collision-obj.L_cable*q_collision;
+            end
+        end
+
+
+        function ref = get_reference_object(obj, ref_name)
+            % =================================================================
+            % 【参照オブジェクト取得関数】
+            %   agent.reference から指定された名前 (ref_name) の参照軌道オブジェクトを取得します。
+            %   agent.reference が struct の場合も dynamicprops (FUNCTION_CLASS_PROPERTY 等)
+            %   の場合も、MATLAB では共通してドット動的構文 R.(ref_name) で直接安全にプロパティや
+            %   フィールドを取得可能です。冗長な if isstruct(R) 分岐を解消し、高速かつ簡潔に参照を取得します。
+            % =================================================================
+            assert(obj.has_prop_or_field(obj.self, 'reference'), ...
+                '[REPLANNER ERROR] agent.reference が存在しません。');
+            R = obj.self.reference;
+            assert(obj.has_prop_or_field(R, ref_name), ...
+                '[REPLANNER ERROR] reference.%s が存在しません。', ref_name);
+            ref = R.(ref_name);
+        end
+
+        function [te,ok] = try_resolve_takeoff_end_time_nonfatal(obj)
+            % Constructor-safe takeoff-end lookup.
+            %
+            % The legacy run sequence may set obj.takeoff_end_s AFTER the
+            % REPLANNING_SYSTEM constructor returns.  Therefore absence of
+            % reference.takeoff during construction is not an error.
+            %
+            % No guessed/default time is introduced.
+            te=NaN;
+            ok=false;
+
+            if isnumeric(obj.takeoff_end_s) && isscalar(obj.takeoff_end_s) && ...
+                    isfinite(obj.takeoff_end_s) && obj.takeoff_end_s>0
+                te=double(obj.takeoff_end_s);
+                ok=true;
+                return;
+            end
+
+            % Optional legacy source: agent.reference.takeoff.
+            try
+                if ~obj.has_prop_or_field(obj.self,'reference')
+                    return;
+                end
+                R=obj.self.reference;
+                if ~obj.has_prop_or_field(R,'takeoff')
+                    return;
+                end
+                ref=R.takeoff;
+            catch
+                return;
+            end
+
+            candidates={'te','t_end','tend','duration','T'};
+
+            for k=1:numel(candidates)
+                nm=candidates{k};
+                try
+                    if isobject(ref) && isprop(ref,nm)
+                        v=ref.(nm);
+                    elseif isstruct(ref) && isfield(ref,nm)
+                        v=ref.(nm);
+                    else
+                        continue;
+                    end
+
+                    if isnumeric(v) && isscalar(v) && isfinite(v) && v>0
+                        te=double(v);
+                        ok=true;
+                        obj.takeoff_end_s=te;
+                        return;
+                    end
+                catch
+                end
+            end
+
+            for holder={'param','parameter','params','option','opts'}
+                hn=holder{1};
+                try
+                    if ~obj.has_prop_or_field(ref,hn)
+                        continue;
+                    end
+                    H=ref.(hn);
+
+                    for k=1:numel(candidates)
+                        nm=candidates{k};
+                        if isstruct(H) && isfield(H,nm)
+                            v=H.(nm);
+                            if isnumeric(v) && isscalar(v) && ...
+                                    isfinite(v) && v>0
+                                te=double(v);
+                                ok=true;
+                                obj.takeoff_end_s=te;
+                                return;
+                            end
+                        end
+                    end
+                catch
+                end
+            end
+        end
+
+
+        function te = resolve_takeoff_end_time(obj)
+            [te,ok]=obj.try_resolve_takeoff_end_time_nonfatal();
+
+            assert(ok && isfinite(te) && te>0, ...
+                ['[REPLANNER ERROR] Flight reference time origin is still unresolved. ' ...
+                 'The existing run must bind replanner_instance.takeoff_end_s ' ...
+                 '(or opts.takeoff_end_s) before nominal-table generation. ' ...
+                 'reference.takeoff is optional and is not required by construction.']);
+
+            obj.takeoff_end_s=double(te);
+            obj.flight_reference_time_origin=double(te);
+        end
+
+        function tf = is_flight_warmup_context(obj)
+            tf=false;
+            try
+                if obj.has_prop_or_field(obj.self,'cha')
+                    c=obj.self.cha;
+                    if isstring(c), c=char(c); end
+                    tf=ischar(c) && ~isempty(c) && c(1)=='f';
+                end
+            catch
+                tf=false;
+            end
+        end
+
+        function build_nominal_reference_table(obj,time,varargin_in,~)
+            % =================================================================
+            % 【公称軌道テーブル一括事前生成関数】
+            %   飛行開始前 (Setup/Arming) に飛行全区間 [t0, tend] の公称軌道 [pL, q] を
+            %   一括評価して行列にキャッシュします。
+            %
+            % 【スパイク防止の工夫】
+            %   定常飛行中に公称軌道を毎周期再サンプリング・微分計算すると大きな計算時間
+            %   スパイクが発生するため、離陸前に全区間を一括計算しておくことで、飛行中は
+            %   O(1) の高速メモリスライス参照のみで即座に参照パケットを取得できるようにします。
+            % =================================================================
+            if obj.nominal_table_valid || ~isempty(obj.reference_packet_fn)
+                return;
+            end
+
+            if ~isa(obj.base_ref,'TIME_VARYING_REFERENCE')
+                return;
+            end
+
+            te=[];
+            if isstruct(time)
+                if isfield(time,'te'), te=time.te; end
+            elseif isobject(time)
+                if isprop(time,'te'), te=time.te; end
+            end
+            if isempty(te) || ~isscalar(te) || ~isfinite(te)
+                return;
+            end
+
+            % Global table index starts at actual Flight start.  The table
+            % values themselves are evaluated at tau=t_global-t0.
+            t0=obj.resolve_takeoff_end_time();
+            obj.flight_reference_time_origin=double(t0);
+            tend=te+obj.horizon_s;
+            if tend<t0
+                return;
+            end
+
+            Ntab=round((tend-t0)/obj.prediction_dt)+1;
+            assert(Ntab>=2,'[REPLANNER ERROR] invalid nominal table size.');
+
+            pLtab=zeros(3,Ntab);
+            qtab=zeros(3,Ntab);
+
+            % Evaluate the first point once to determine the exact xd width.
+            % The values come from the same base_ref.do() path used previously.
+            tb=tic;
+            [pL1,q1,xd1]=obj.evaluate_nominal_payload_and_q( ...
+                t0,'f',varargin_in,[]);
+            xd1=xd1(:);
+            D=numel(xd1);
+            assert(D>=11 && all(isfinite(xd1)), ...
+                '[REPLANNER ERROR] nominal full-state table received invalid xd.');
+
+            xdtab=zeros(D,Ntab);
+            pLtab(:,1)=pL1;
+            qtab(:,1)=q1;
+            xdtab(:,1)=xd1;
+
+            for j=2:Ntab
+                tq=t0+(j-1)*obj.prediction_dt;
+                [pLj,qj,xdj]=obj.evaluate_nominal_payload_and_q( ...
+                    tq,'f',varargin_in,[]);
+                xdj=xdj(:);
+                assert(numel(xdj)==D && all(isfinite(xdj)), ...
+                    '[REPLANNER ERROR] nominal xd dimension/value changed during table build.');
+                pLtab(:,j)=pLj;
+                qtab(:,j)=qj;
+                xdtab(:,j)=xdj;
+            end
+
+            obj.base_ref.do(varargin_in{:});
+
+            obj.nominal_table_t0=t0;
+            obj.nominal_table_tend=t0+(Ntab-1)*obj.prediction_dt;
+            obj.nominal_table_dt=obj.prediction_dt;
+            obj.nominal_table_pL=pLtab;
+            obj.nominal_table_q=qtab;
+            obj.nominal_table_xd=xdtab;
+            obj.nominal_table_eval_count=Ntab;
+            obj.nominal_table_build_ms=1e3*toc(tb);
+            obj.nominal_table_valid=true;
+            obj.profiling.t_nominal_table_build_ms=obj.nominal_table_build_ms;
+
+            if obj.ENABLE_ALL_LOG
+                fprintf(['[REPLANNING_SYSTEM] nominal table ready | global %.3f--%.3f s | ' ...
+                    'reference tau %.3f--%.3f s | points=%d | %.3f ms\n'], ...
+                    obj.nominal_table_t0,obj.nominal_table_tend, ...
+                    0.0,obj.nominal_table_tend-obj.flight_reference_time_origin, ...
+                    Ntab,obj.nominal_table_build_ms);
+            end
+        end
+
+
+        function xd = get_nominal_xd_from_table(obj,t_now)
+            % Exact O(1) current-reference lookup on the same dt grid used by
+            % build_nominal_reference_table(). No interpolation is permitted.
+            assert(obj.nominal_table_valid && ~isempty(obj.nominal_table_xd), ...
+                '[REPLANNER ERROR] nominal full-state table unavailable in Flight.');
+            assert(abs(obj.nominal_table_dt-obj.prediction_dt)<=1e-12, ...
+                '[REPLANNER ERROR] nominal full-state table dt is stale.');
+
+            idx=round((double(t_now)-obj.nominal_table_t0)/obj.nominal_table_dt)+1;
+            assert(idx>=1 && idx<=size(obj.nominal_table_xd,2), ...
+                '[REPLANNER ERROR] current Flight time lies outside nominal full-state table.');
+
+            tq=obj.nominal_table_t0+(idx-1)*obj.nominal_table_dt;
+            tol=1e-10*max(1,abs(double(t_now)));
+            assert(abs(tq-double(t_now))<=tol, ...
+                '[REPLANNER ERROR] current Flight time is not on the certified nominal dt grid.');
+
+            xd=obj.nominal_table_xd(:,idx);
+            assert(numel(xd)>=11 && all(isfinite(xd)), ...
+                '[REPLANNER ERROR] nominal full-state table returned invalid xd.');
+        end
+
+
+        function tq = make_time_query(obj,time_orig,t_query)
+            % =================================================================
+            % 【非破壊時間クエリオブジェクト生成関数】
+            %   公称軌道の将来時刻評価を行う際、シミュレーション本体の時間オブジェクト (time)
+            %   の内部時刻 t を絶対に書き換えないよう、独立した時間クエリ構造体・オブジェクトを生成します。
+            %
+            % 【重要性】
+            %   time が TIME < handle の場合、直接 time.t = t_query と代入すると本体の時計が狂い、
+            %   シミュレーションが即座に破綻します。本関数により本体時刻の非破壊性を厳格に保証します。
+            % =================================================================
+            if isa(time_orig,'TIME')
+                tq=TIME(t_query,time_orig.dt,time_orig.te);
+                try
+                    if isprop(time_orig,'k'), tq.k=time_orig.k; end
+                catch
+                end
+            elseif isstruct(time_orig)
+                tq=time_orig;
+                tq.t=t_query;
+            elseif isobject(time_orig)
+                try
+                    tq=copy(time_orig);
+                    tq.t=t_query;
+                catch
+                    tq=struct('t',t_query,'dt',obj.prediction_dt);
+                end
+            else
+                tq=struct('t',t_query,'dt',obj.prediction_dt);
+            end
+        end
+
+
+        function r12_tail_prime_hot_path(obj,time,varargin_in,xd_nom,tf)
+            % AF7R30-R12 tail-prime immediately before Flight.
+            if obj.r12_tail_prime_done
+                return;
+            end
+            tp=tic;
+            try
+                obj.assert_runtime_core_certificates_current();
+                af7r33_active_flat_jet_batch(obj,[double(tf) double(tf)+double(obj.prediction_dt)]);
+                xdP=obj.evaluate_active_reference_xd(double(tf),xd_nom);
+                [pQ,pL,~,~]=obj.get_current_physical_geometry(xdP);
+                [active,~,~,~]=obj.raw_sensor_gate(pQ,obj.static_obstacle_map);
+
+                args=varargin_in;
+                args{1}=obj.make_time_query(time,double(tf));
+                args{2}='f';
+                [pLref,qref,~]=obj.get_active_reference_packet( ...
+                    args{1},'f',args,xdP);
+                obj.trigger_core(active,pLref,qref,double(tf));
+
+                if isstruct(obj.obstacle_packet) && ...
+                        isfield(obj.obstacle_packet,'count') && ...
+                        double(obj.obstacle_packet.count)>=1
+                    P=obj.obstacle_packet;
+                    c=double(P.C(:,1));
+                    R=reshape(double(P.R(:,1)),3,3);
+                    a=double(P.Apay(:,1));
+                    obj.best_point_support_margin(pL,c,R,a,double(obj.r_load));
+                    obj.best_segment_support_margin(pQ,pL,c,R,a,double(obj.r_cable));
+                end
+                obj.r10_upper_envelope_row_indices([0;1;2],[1;0;1]);
+                obj.r12_tail_prime_done=true;
+                obj.r12_tail_prime_ms=1e3*toc(tp);
+            catch
+                obj.r12_tail_prime_done=false;
+                obj.r12_tail_prime_ms=NaN;
+            end
+        end
+
+
+        function warmup_online_path(obj,time,varargin_in,xd_now)
+            % =================================================================
+            % 【離陸前コールドパス完全事前燃焼関数 (Pre-motion Prime)】
+            %   機体が動く前の静止段階で、飛行中に実行されうる全パターンの分岐・判定を
+            %   網羅的に事前実行し、MATLAB JIT コンパイラと CPU キャッシュを完全に温めます。
+            %
+            % 【事前テストする網羅ケース】
+            %   1. 障害物マスクの全パターン (0個アクティブ 〜 M個全アクティブ)
+            %   2. 合成された現在衝突パス (j=1) および将来衝突パス (j=2)
+            %   3. 全衝突部位コード (1: PAYLOAD, 2: UAV, 3: CABLE) のデコード処理
+            %   4. 本番引数による do() の実呼び出しを 12 回連続実行 (setup_exact_do_prime)
+            %
+            % 【スパイク防止の工夫】
+            %   MATLAB の JIT コンパイルや初回の関数バインディングは 10〜100 ms 規模の
+            %   巨大な遅延スパイクを引き起こします。これを飛行開始前に 100% 消化しておくことで、
+            %   定常飛行での初周遅延スパイクを根絶します。
+            % =================================================================
+            if obj.online_prime_done
+                return;
+            end
+
+            assert(obj.nominal_table_valid, ...
+                '[REPLANNER ERROR] pre-motion prime requires nominal table.');
+            assert(obj.obstacle_packet.count>=1, ...
+                '[REPLANNER ERROR] pre-motion prime requires at least one obstacle.');
+
+            cache_saved=obj.reference_cache;
+            cache_valid_saved=obj.reference_cache_valid;
+            profile_saved=obj.profiling;
+
+            log_master=obj.ENABLE_ALL_LOG;
+            log_sensor=obj.LOG_SENSOR;
+            log_trigger=obj.LOG_TRIGGER;
+            obj.ENABLE_ALL_LOG=0;
+            obj.LOG_SENSOR=0;
+            obj.LOG_TRIGGER=0;
+
+            M=obj.obstacle_packet.count;
+            N=round(obj.horizon_s/obj.prediction_dt)+1;
+            tf=obj.resolve_takeoff_end_time();
+
+            % Prime reference-table slice exactly at Flight start.
+            tprime=struct('t',tf,'dt',obj.prediction_dt);
+            args_prime=varargin_in;
+            args_prime{1}=tprime;
+            args_prime{2}='f';
+
+            [pL_ref,q_ref,~]= ...
+                obj.get_active_reference_packet(tprime,'f',args_prime,xd_now);
+
+            [pQ_cur,pL_cur,q_cur,cable_residual_cur]= ...
+                obj.get_current_physical_geometry(xd_now);
+            [~,~,~,all_dists]= ...
+                obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+
+            % Freeze selected callback before Flight.
+            obj.freeze_generator_backend_configuration();
+
+            % Prime all detected-obstacle cardinalities: 0,1,...,M.
+            masks=false(M+1,M);
+            for nactive=1:M
+                masks(nactive+1,1:nactive)=true;
+            end
+            obj.prime_generator_integration_variants( ...
+                tf,xd_now,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
+                all_dists,pL_ref,q_ref,'NOMINAL_TABLE',masks);
+
+            % Prime the real selected backend kernel as JIT/first-use prep.
+            % Outputs are discarded; no runtime decision/commit is made.
+            obj.prime_locked_backend_kernel_variants( ...
+                tf,xd_now,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
+                all_dists,pL_ref,q_ref,'NOMINAL_TABLE',masks);
+
+            qsyn=repmat([0;0;-1],1,N);
+            C1=obj.obstacle_packet.C(:,1);
+            far=C1+[1000;1000;1000];
+
+            pL_hit_now=repmat(far,1,N);
+            pL_hit_now(:,1)=C1;
+
+            pL_hit_future=repmat(far,1,N);
+            if N>=2
+                pL_hit_future(:,2)=C1;
+            else
+                pL_hit_future(:,1)=C1;
+            end
+
+            active1=false(1,M);
+            active1(1)=true;
+
+            % Prime the exact real request-edge snapshot branch once before
+            % motion. Other warmups do not execute this branch.
+            obj.prime_real_trigger_event_capture( ...
+                tf,xd_now,pQ_cur,pL_cur,q_cur,cable_residual_cur, ...
+                active1,all_dists,'NOMINAL_TABLE',pL_ref,q_ref);
+
+            t0=tic;
+            variant_count=0;
+            hit_case_count=0;
+
+            for rep=1:max(1,obj.ONLINE_PRIME_CALLS)
+                obj.get_current_physical_geometry(xd_now);
+                obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+
+                for im=1:size(masks,1)
+                    active=masks(im,:);
+                    obj.trigger_core(active,pL_ref,q_ref,tf);
+                    variant_count=variant_count+1;
+                end
+
+                [hit_now,~,~,~,~,~,~,j_now]= ...
+                    obj.trigger_core(active1,pL_hit_now,qsyn,tf);
+                assert(hit_now && j_now==1, ...
+                    '[REPLANNER PRIME ERROR] forced current-hit path failed.');
+                hit_case_count=hit_case_count+1;
+
+                [hit_future,~,~,~,~,~,~,j_future]= ...
+                    obj.trigger_core(active1,pL_hit_future,qsyn,tf);
+                assert(hit_future && j_future>=1 && j_future<=min(2,N), ...
+                    '[REPLANNER PRIME ERROR] forced future-hit path failed.');
+                hit_case_count=hit_case_count+1;
+
+                for cprime=1:3
+                    obj.decode_trigger_result( ...
+                        true,1,obj.obstacle_packet.ids(1),cprime, ...
+                        N,pL_hit_now,qsyn,tf);
+                end
+            end
+
+            % =========================================================
+            % Exact Flight do() prime.
+            %
+            % Stage 1: sequential real-time-age prime
+            %   tf, tf+dt, tf+2dt, ...
+            % This reproduces the first protected cycles with changing table
+            % indices before Flight. It moves sequence-dependent MATLAB/JIT/
+            % memory first-use effects out of the runtime control cycle.
+            %
+            % Stage 2: preserve existing forced-hit/no-hit downstream branch
+            % coverage at tf.
+            % =========================================================
+            exact_args=varargin_in;
+            exact_args{2}='f';
+
+            replan_request_active_saved=obj.replan_request_active;
+            replan_request_reference_version_saved=obj.replan_request_reference_version;
+            replan_request_obstacle_id_saved=obj.replan_request_obstacle_id;
+            replan_request_component_code_saved=obj.replan_request_component_code;
+            last_replan_status_saved=obj.last_replan_status;
+
+            obj.setup_exact_do_prime_active=true;
+            obj.setup_exact_force_hit=false;
+            obj.setup_exact_force_hit_calls=0;
+
+            % AF7R46: cache only state-independent observer setup before
+            % motion. Actual measurement/hidden support still initializes
+            % from the real Flight-entry event.
+            obj.observer_prepare_static_setup_cache();
+
+            % AF7R38 setup-only observer/full-do dry-run prime.
+            % Two structural cases are exercised: first measurement event
+            % (hasPrev=false) and consecutive contraction (hasPrev=true).
+            % No arbitrary timing repetition/count is used as authority.
+            observer_prime_saved=obj.observer_hard_support_internal;
+            obj.observer_preflight_prime_active=true;
+            tobs=tic;
+            try
+                for kop=1:2
+                    tq=tf+(kop-1)*obj.prediction_dt;
+                    exact_args{1}=obj.make_time_query(varargin_in{1},tq);
+                    obj.setup_exact_force_hit=false;
+                    obj.do(exact_args{:});
+                end
+                obj.observer_preflight_prime_ms=1e3*toc(tobs);
+                obj.observer_preflight_prime_done=true;
+            catch MEobs
+                obj.observer_preflight_prime_active=false;
+                obj.observer_hard_support_internal=observer_prime_saved;
+                rethrow(MEobs);
+            end
+            obj.observer_preflight_prime_active=false;
+            obj.observer_hard_support_internal=observer_prime_saved;
+
+            nseq=round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS);
+            nbranch=round(obj.SETUP_EXACT_DO_PRIME_CALLS);
+
+            te=tic;
+            try
+                % Stage 1: genuine no-forced-hit protected sequence.
+                for k=1:nseq
+                    tq=tf+(k-1)*obj.prediction_dt;
+                    exact_args{1}=obj.make_time_query(varargin_in{1},tq);
+                    obj.setup_exact_force_hit=false;
+                    obj.do(exact_args{:});
+                end
+
+                % Stage 2: existing branch-coverage prime.
+                exact_args{1}=obj.make_time_query(varargin_in{1},tf);
+                for k=1:nbranch
+                    obj.setup_exact_force_hit=mod(k,2)==0;
+                    if obj.setup_exact_force_hit
+                        obj.setup_exact_force_hit_calls= ...
+                            obj.setup_exact_force_hit_calls+1;
+                    end
+                    obj.do(exact_args{:});
+                end
+
+                obj.setup_exact_force_hit=false;
+                obj.setup_exact_do_prime_runtime_ms=1e3*toc(te);
+                obj.setup_exact_do_prime_calls=nseq+nbranch;
+                obj.setup_exact_do_prime_done=true;
+                obj.setup_exact_do_prime_active=false;
+
+                % Warmup is not allowed to leave request-edge state behind.
+                obj.replan_request_active=replan_request_active_saved;
+                obj.replan_request_reference_version=replan_request_reference_version_saved;
+                obj.replan_request_obstacle_id=replan_request_obstacle_id_saved;
+                obj.replan_request_component_code=replan_request_component_code_saved;
+                obj.last_replan_status=last_replan_status_saved;
+            catch ME
+                obj.setup_exact_force_hit=false;
+                obj.observer_preflight_prime_active=false;
+                obj.setup_exact_do_prime_active=false;
+                obj.setup_exact_do_prime_done=false;
+                obj.replan_request_active=replan_request_active_saved;
+                obj.replan_request_reference_version=replan_request_reference_version_saved;
+                obj.replan_request_obstacle_id=replan_request_obstacle_id_saved;
+                obj.replan_request_component_code=replan_request_component_code_saved;
+                obj.last_replan_status=last_replan_status_saved;
+                obj.ENABLE_ALL_LOG=log_master;
+                obj.LOG_SENSOR=log_sensor;
+                obj.LOG_TRIGGER=log_trigger;
+                rethrow(ME);
+            end
+
+            % Restore normal state after synthetic setup execution.
+            try
+                obj.base_ref.do(varargin_in{:});
+            catch
+            end
+            obj.reference_cache=cache_saved;
+            obj.reference_cache_valid=cache_valid_saved;
+            obj.profiling=profile_saved;
+
+            obj.clear_state_sensor_values(time.t);
+            obj.write_nominal_output(xd_now);
+
+            obj.online_prime_runtime_ms=1e3*toc(t0);
+            obj.online_prime_variant_count=variant_count;
+            obj.online_prime_hit_cases=hit_case_count;
+            obj.online_prime_done=true;
+            obj.profiling.t_setup_prime_ms=obj.online_prime_runtime_ms;
+
+            obj.ENABLE_ALL_LOG=log_master;
+            obj.LOG_SENSOR=log_sensor;
+            obj.LOG_TRIGGER=log_trigger;
+
+            if obj.ENABLE_ALL_LOG
+                fprintf(['[REPLANNING_SYSTEM] pre-motion prime ready | ' ...
+                    'variants=%d | hitCases=%d | sequentialDo=%d | branchDo=%d | ' ...
+                    'totalExactDo=%d | forcedHit=%d | generatorPrime=%.3f ms (%d variants) | ' ...
+                    'backendPrime=%.3f ms (%d variants) | %.3f ms\n'], ...
+                    obj.online_prime_variant_count,obj.online_prime_hit_cases, ...
+                    round(obj.SEQUENTIAL_FLIGHT_PRIME_CALLS), ...
+                    round(obj.SETUP_EXACT_DO_PRIME_CALLS), ...
+                    obj.setup_exact_do_prime_calls,obj.setup_exact_force_hit_calls, ...
+                    obj.generator_integration_prime_ms,obj.generator_integration_prime_variants, ...
+                    obj.generator_backend_kernel_prime_ms,obj.generator_backend_kernel_prime_variants, ...
+                    obj.online_prime_runtime_ms);
+            end
+        end
+
+
+        function warmup_runtime(obj)
+            t0=tic;
+            N=round(obj.horizon_s/obj.prediction_dt)+1;
+            pL=zeros(3,N);
+            q=repmat([0;0;-1],1,N);
+            % 本番と同じ障害物数・全格子点 N・全 active・実楕円パラメータによる MEX ウォームアップ
+            if ~isempty(obj.obstacle_packet) && isfield(obj.obstacle_packet,'count') && obj.obstacle_packet.count>0
+                M=obj.obstacle_packet.count;
+                C_warm   = obj.obstacle_packet.C;
+                R_warm   = obj.obstacle_packet.R;
+                Ap_warm  = obj.obstacle_packet.Apay;
+                Aq_warm  = obj.obstacle_packet.Auav;
+                Ac_warm  = obj.obstacle_packet.Acable;
+                ids_warm = obj.obstacle_packet.ids;
+                act_warm = ones(1,M);
+            else
+                M=1;
+                C_warm   = [100;100;100];
+                R_mat    = eye(3);
+                R_warm   = R_mat(:);
+                Ap_warm  = [1;1;1];
+                Aq_warm  = [1;1;1];
+                Ac_warm  = [1;1;1];
+                ids_warm = 1;
+                act_warm = 1;
+            end
+            for k=1:obj.warmup_calls
+                g26_future_trigger_kernel_mex( ...
+                    obj.horizon_s,obj.prediction_dt,obj.L_cable, ...
+                    pL,q,C_warm,R_warm,Ap_warm,Aq_warm,Ac_warm,ids_warm,act_warm);
+            end
+            % 実障害物を用いた生形状幾何計算ルーチンの JIT ウォームアップ
+            if ~isempty(obj.static_obstacle_map)
+                p=[0;0;0];
+                for rep=1:max(1,min(3,obj.warmup_calls))
+                    for i=1:numel(obj.static_obstacle_map)
+                        obj.raw_surface_distance(p,obj.static_obstacle_map(i));
+                    end
+                end
+            end
+            obj.warmup_runtime_ms=1e3*toc(t0);
+            obj.warmup_done=true;
+            obj.profiling.t_startup_warmup_ms=obj.warmup_runtime_ms;
+        end
+
+        function ensure_mex_compiled(obj)
+            root=fileparts(mfilename('fullpath'));
+            cpp_path=fullfile(root,[obj.mex_name '.cpp']);
+            mex_path=fullfile(root,[obj.mex_name '.' mexext]);
+            lines=obj.mex_source_lines();
+            src=sprintf('%s\n',lines{:});
+            source_changed=true;
+            if exist(cpp_path,'file')==2
+                try
+                    old=fileread(cpp_path);
+                    source_changed=~strcmp(old,src);
+                catch
+                    source_changed=true;
+                end
+            end
+            if source_changed
+                fid=fopen(cpp_path,'w');
+                assert(fid>=0,'[REPLANNER ERROR] MEX ソースファイルの書き込みに失敗しました。');
+                fprintf(fid,'%s',src);
+                fclose(fid);
+            end
+            rebuild=source_changed || exist(mex_path,'file')~=3;
+            if rebuild
+                try
+                    eval(['clear ',obj.mex_name]);
+                catch
+                end
+                old_dir=pwd;
+                cleanup=onCleanup(@()cd(old_dir)); %#ok<NASGU>
+                cd(root);
+                mex('-R2018a',cpp_path,'-output',obj.mex_name);
+                rehash;
+            end
+            obj.mex_ready = exist(mex_path,'file')==3 || exist(obj.mex_name,'file')==3;
+            assert(obj.mex_ready,'[REPLANNER ERROR] 将来予測トリガー MEX カーネルが利用できません。');
+        end
+
+        function lines = mex_source_lines(obj)
+            rev=obj.mex_source_revision;
+            lines={
+                ['// ' rev]
+                '// Auto-generated by REPLANNING_SYSTEM'
+                '#include "mex.h"'
+                '#include <cmath>'
+                '#include <algorithm>'
+                '#include <limits>'
+                ''
+                'struct V3 { double x,y,z; };'
+                ''
+                'static inline V3 sub(V3 a,V3 b){ return {a.x-b.x,a.y-b.y,a.z-b.z}; }'
+                'static inline V3 add(V3 a,V3 b){ return {a.x+b.x,a.y+b.y,a.z+b.z}; }'
+                'static inline V3 mul(double s,V3 a){ return {s*a.x,s*a.y,s*a.z}; }'
+                'static inline double dot(V3 a,V3 b){ return a.x*b.x+a.y*b.y+a.z*b.z; }'
+                'static inline double nrm(V3 a){ return std::sqrt(dot(a,a)); }'
+                ''
+                'static inline V3 col3(const double* A,mwSize j){'
+                '    return {A[3*j],A[3*j+1],A[3*j+2]};'
+                '}'
+                ''
+                'static inline V3 Rt(const double* R,V3 v){'
+                '    return {'
+                '        R[0]*v.x+R[1]*v.y+R[2]*v.z,'
+                '        R[3]*v.x+R[4]*v.y+R[5]*v.z,'
+                '        R[6]*v.x+R[7]*v.y+R[8]*v.z};'
+                '}'
+                ''
+                'static double pointLevel(V3 p,V3 c,const double* R,V3 a){'
+                '    V3 z=Rt(R,sub(p,c));'
+                '    z.x/=a.x; z.y/=a.y; z.z/=a.z;'
+                '    return nrm(z);'
+                '}'
+                ''
+                'static double segmentLevel(V3 p0,V3 p1,V3 c,const double* R,V3 a){'
+                '    V3 z0=Rt(R,sub(p0,c));'
+                '    V3 z1=Rt(R,sub(p1,c));'
+                '    z0.x/=a.x; z0.y/=a.y; z0.z/=a.z;'
+                '    z1.x/=a.x; z1.y/=a.y; z1.z/=a.z;'
+                '    V3 d=sub(z1,z0);'
+                '    double den=dot(d,d);'
+                '    if(den<=std::numeric_limits<double>::epsilon()) return nrm(z0);'
+                '    double u=-dot(z0,d)/den;'
+                '    u=std::max(0.0,std::min(1.0,u));'
+                '    return nrm(add(z0,mul(u,d)));'
+                '}'
+                ''
+                'void mexFunction(int nlhs,mxArray* plhs[],int nrhs,const mxArray* prhs[]){'
+                '    if(nrhs!=12) mexErrMsgIdAndTxt("G26TRIGGER:MEX","Expected 12 inputs.");'
+                '    if(nlhs>4) mexErrMsgIdAndTxt("G26TRIGGER:MEX","At most 4 outputs.");'
+                ''
+                '    double H=mxGetScalar(prhs[0]);'
+                '    double dt=mxGetScalar(prhs[1]);'
+                '    double L=mxGetScalar(prhs[2]);'
+                ''
+                '    const mxArray* pLmx=prhs[3];'
+                '    const mxArray* qmx=prhs[4];'
+                '    const mxArray* Cmx=prhs[5];'
+                '    const mxArray* Rmx=prhs[6];'
+                '    const mxArray* Apmx=prhs[7];'
+                '    const mxArray* Aqmx=prhs[8];'
+                '    const mxArray* Acmx=prhs[9];'
+                '    const mxArray* Idmx=prhs[10];'
+                '    const mxArray* Actmx=prhs[11];'
+                ''
+                '    if(mxGetM(pLmx)!=3 || mxGetM(qmx)!=3)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","pL,q must be 3xN.");'
+                ''
+                '    mwSize N=mxGetN(pLmx);'
+                '    if(mxGetN(qmx)!=N)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","pL/q length mismatch.");'
+                ''
+                '    mwSize M=mxGetN(Cmx);'
+                ''
+                '    if(mxGetM(Cmx)!=3 || mxGetM(Rmx)!=9 ||'
+                '       mxGetM(Apmx)!=3 || mxGetM(Aqmx)!=3 || mxGetM(Acmx)!=3)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","bad obstacle matrix shape.");'
+                ''
+                '    if(mxGetN(Rmx)!=M || mxGetN(Apmx)!=M || mxGetN(Aqmx)!=M ||'
+                '       mxGetN(Acmx)!=M || mxGetNumberOfElements(Idmx)!=M ||'
+                '       mxGetNumberOfElements(Actmx)!=M)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","obstacle size mismatch.");'
+                ''
+                '    const double* pL=mxGetPr(pLmx);'
+                '    const double* q=mxGetPr(qmx);'
+                '    const double* C=mxGetPr(Cmx);'
+                '    const double* Rf=mxGetPr(Rmx);'
+                '    const double* Ap=mxGetPr(Apmx);'
+                '    const double* Aq=mxGetPr(Aqmx);'
+                '    const double* Ac=mxGetPr(Acmx);'
+                '    const double* ids=mxGetPr(Idmx);'
+                '    const double* active=mxGetPr(Actmx);'
+                ''
+                '    mwSize nH=(mwSize)std::floor(H/dt+1e-12);'
+                '    mwSize i1=std::min(N-1,nH);'
+                ''
+                '    bool found=false;'
+                '    double jhit=mxGetNaN();'
+                '    double oid=mxGetNaN();'
+                '    double comp=mxGetNaN();'
+                ''
+                '    for(mwSize j=0;j<=i1;j++){'
+                '        V3 pLj=col3(pL,j);'
+                '        V3 qj=col3(q,j);'
+                '        V3 pQj=sub(pLj,mul(L,qj));'
+                ''
+                '        double best=std::numeric_limits<double>::infinity();'
+                '        double bestComp=mxGetNaN();'
+                '        double bestOid=mxGetNaN();'
+                ''
+                '        for(mwSize i=0;i<M;i++){'
+                '            if(!(active[i]>0.5)) continue;'
+                ''
+                '            V3 c={C[3*i],C[3*i+1],C[3*i+2]};'
+                '            const double* R=Rf+9*i;'
+                '            V3 ap={Ap[3*i],Ap[3*i+1],Ap[3*i+2]};'
+                '            V3 aq={Aq[3*i],Aq[3*i+1],Aq[3*i+2]};'
+                '            V3 ac={Ac[3*i],Ac[3*i+1],Ac[3*i+2]};'
+                ''
+                '            double sp=pointLevel(pLj,c,R,ap)-1.0;'
+                '            if(sp<best){ best=sp; bestComp=1; bestOid=ids[i]; }'
+                ''
+                '            double sq=pointLevel(pQj,c,R,aq)-1.0;'
+                '            if(sq<best){ best=sq; bestComp=2; bestOid=ids[i]; }'
+                ''
+                '            double sc=segmentLevel(pLj,pQj,c,R,ac)-1.0;'
+                '            if(sc<best){ best=sc; bestComp=3; bestOid=ids[i]; }'
+                '        }'
+                ''
+                '        if(best<=0.0){'
+                '            found=true;'
+                '            jhit=(double)(j+1);'
+                '            oid=bestOid;'
+                '            comp=bestComp;'
+                '            break;'
+                '        }'
+                '    }'
+                ''
+                '    if(nlhs>0) plhs[0]=mxCreateLogicalScalar(found);'
+                '    if(nlhs>1) plhs[1]=mxCreateDoubleScalar(jhit);'
+                '    if(nlhs>2) plhs[2]=mxCreateDoubleScalar(oid);'
+                '    if(nlhs>3) plhs[3]=mxCreateDoubleScalar(comp);'
+                '}'
+            };
+        end
+
+    end
+end

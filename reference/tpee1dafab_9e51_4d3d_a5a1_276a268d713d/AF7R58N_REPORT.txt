@@ -1,0 +1,24 @@
+====================================================================================================
+ AF7R58N | REQUEST-BY-REQUEST 4-MS TIMING-RING ANALYSIS
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. POST-AF7R58M SOURCE BINDING]
+ REPLANNING_SYSTEM.m               = 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+ af7r58m_capture_timing_ring.m      = 8a0194054093ef43272e8ee3b16b02cedc7c285d89312a177232b919e0d2bea4
+ af7r58m_timing_ring_labels.m       = 2a7ceb8d3970ff13a092b222bb80207ee6c39b8e45a26dc54b92ce77fb94f824
+
+[B. LIVE RING READINESS]
+ generator request count                 = 10
+ deadline fail count                     = 9
+ hard deadline [ms]                      = 4
+ ring capacity / width                   = 64 / 32
+ ring count / head                       = 0 / 0
+ max capture overhead [us]               = 0
+ last capture overhead [us]              = NaN
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpee1dafab_9e51_4d3d_a5a1_276a268d713d\AF7R58N_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpee1dafab_9e51_4d3d_a5a1_276a268d713d\AF7R58N_OUT.mat
+ status = TIMING_RING_EMPTY__RERUN_REAL_REQUEST_SCENARIO

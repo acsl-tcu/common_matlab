@@ -1,37 +1,33 @@
-AF7R57N V6 — sticky resource abort for Stage-A / Stage-B
-===========================================================
+AF7R57N V8 — branch-local episode return normalization
+========================================================
 
-V5 found three real guard defects:
-- Stage-A leaf cap set resource code 209 but planner could later succeed.
-- Stage-B leaf cap was misreported as 212 because the split path used one
-  combined reason for leaf and split exhaustion.
-- Stage-B split cap set 212 but planner could continue to another candidate
-  and later succeed.
+Why V7 stopped
+--------------
+V7 assumed the phrase "fixed episode unavailable" occurred exactly once in
+the corrected serializer source.  The live source contains that same message
+in multiple branches, so the source-binding assertion failed before any MEX
+rebuild or runtime test.  This did not invalidate V6.
 
-V6 fixes those defects in the generated guarded shadow core:
+V8 correction
+-------------
+V8 makes no global occurrence-count assumption.  It examines every exact
+throw-shaped line independently and patches a branch only when a UNIQUE nearest
+existing `plhs[0]=result_struct(...)` serializer call is available in the local
+source window.  The branch's existing result schema/context is reused.
 
-1. Immediately after `tighten_stageA(...)`, if any resource code is set:
-       R.success = false;
-       R.reason  = resource_reason();
-       return R;
-   This is inserted in both native planner paths.
+Only resource reasons 202/203 are converted to ordinary rejection.  Other
+`fixed episode unavailable` conditions remain exceptions.
 
-2. Stage-B split accounting is separated:
-       leaf cap  -> 211
-       split cap -> 212
+The runtime fault-injection gate remains decisive:
+  202 -> RETURN, success=false, exact reason 202
+  203 -> RETURN, success=false, exact reason 203
+All other exercised resource codes must also remain RETURN + closed=1.
 
-3. Immediately after `stageB_speed(...)`, any resource code causes the same
-   top-level sticky reject. No next-candidate fallback is allowed.
+V8 retains the QPC gates from V7:
+- admitted current packet: 2000 trials
+- reason 202 reject: 1000 trials
+- reason 203 reject: 1000 trials
+Every measured trial must be <4 ms; no percentile relaxation.
 
-The episode 202/203 behavior is intentionally not hidden:
-the existing op=4 fixed-episode wrapper may still transport those two resource
-rejections as `fixed episode unavailable` exceptions. V6 continues to audit
-them as fail-closed with exact op=9 reason codes, but production transport is
-not closed until they are normalized to ordinary reject results.
-
-Expected focused V6 result:
-    209 -> got 209, transport RETURN, closed 1
-    211 -> got 211, transport RETURN, closed 1
-    212 -> got 212, transport RETURN, closed 1
-
-If those close, only episode exception transport should remain open.
+Production caps are still not selected and production-general 4 ms is not
+claimed.

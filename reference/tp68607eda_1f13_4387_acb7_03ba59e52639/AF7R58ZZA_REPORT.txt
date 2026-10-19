@@ -1,0 +1,8 @@
+status=ZZ_4MS_STILL_OPEN
+source SHA=59e24920394b53faf2d832d6b84dead3e94e9728ea767cf7dca1ef3a1a5f19fb
+requests/fails/commits=11/10/1
+hardMaxMs=23.8843
+hardOver4=10
+postCallbackMaxMs=NaN
+refMaxMs=28.625500000000002
+refOver25=1

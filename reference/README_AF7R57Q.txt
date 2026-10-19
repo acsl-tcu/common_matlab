@@ -1,0 +1,9 @@
+AF7R57Q REPAIRED-REFERENCE SERIALIZATION / PACKET PROVENANCE
+
+Run:
+    Q57 = AF7R57Q_REPAIRED_REFERENCE_SERIALIZATION_PROVENANCE_AUDIT();
+
+Read-only. No MEX build, no production modification, no new timing claim.
+
+Entrypoint SHA-256:
+    b6b740ea26c00c404f13a7fa0d8937d83e5c6ddf995380393c304acea94eaaee

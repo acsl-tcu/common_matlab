@@ -1,0 +1,58 @@
+====================================================================================================
+ AF7R58S-R2 | JOINED REQUEST + SPARSE COMMIT TIMING AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58Q-R5 SOURCE BINDING]
+ REPLANNING_SYSTEM SHA exact = 1 | 1474c591fe2227f461eb43c2853d61909e63e9bef9bf6a40a851956c1c02e440
+
+[B. FULL REQUEST EPOCH AUTHORITY -- AF7R58M]
+ current generator_request_count        = 8
+ global deadline_fail_count             = 7
+ hard deadline [ms]                     = 4
+ full request ring rows                 = 16
+ prime/warmup rows before latest epoch = 8
+ latest epoch exact seq 1:N             = 1
+ latest epoch deadline-fail increments  = 6
+ latest epoch commit increments         = 1
+
+[C. SPARSE COMMIT RING -- AF7R58Q-R5]
+ commit ring rows total                = 8
+ commit ring seq raw                    = [0 1 2 3 4 6 7 8]
+ last capture overhead [us]             = 19.300000000000001
+ max capture overhead [us]              = 1822.7
+
+[D. JOINED REAL-REQUEST TABLE]
+ seq | fail+ | status | cycle | callback | commit? | commitTot | spacing | resource | handles | OTHER | commit+ | rebuild+ | vfail+
+   1 | 0 |    -30 |  13.333 |    2.319 | 1 |     8.122 |   0.432 |    1.881 |   0.559 |    5.250 | 0 | 1 | 1
+   2 | 1 |    -30 |  12.005 |    2.023 | 1 |     7.016 |   0.611 |    1.277 |   0.435 |    4.693 | 0 | 0 | 1
+   3 | 1 |    -30 |  12.901 |    1.988 | 1 |     8.515 |   0.319 |    1.133 |   0.420 |    6.643 | 0 | 0 | 1
+   4 | 1 |    -30 |  27.059 |    2.408 | 1 |    18.243 |   1.345 |    6.810 |   2.249 |    7.838 | 0 | 0 | 1
+   5 | 1 |    -20 |   5.880 |    3.424 | 0 |       NaN |     NaN |      NaN |     NaN |      NaN | 0 | 0 | 0
+   6 | 1 |    -30 |   7.781 |    1.701 | 1 |     1.840 |   0.046 |    0.478 |   0.135 |    1.180 | 0 | 0 | 1
+   7 | 1 |    -30 |  14.188 |    1.793 | 1 |    11.481 |   0.013 |    0.146 |   0.082 |   11.240 | 0 | 1 | 1
+   8 | 0 |     30 |   3.932 |    1.809 | 1 |     1.493 |   0.011 |    0.139 |   0.082 |    1.262 | 1 | 1 | 0
+
+[E. COMMIT-CALLED AGGREGATE]
+ commit-called requests                 = 7
+ commit-called deadline fails           = 5
+ commit total max / mean [ms]           = 18.242999999999999 / 8.1013285714285708
+ spacing max / mean [ms]                = 1.3449 / 0.39665714285714282
+ resource max / mean [ms]               = 6.8104999999999993 / 1.6948142857142856
+ handles max / mean [ms]                = 2.2494000000000001 / 0.56612857142857143
+ OTHER max / mean [ms]                  = 11.240499999999999 / 5.4437285714285713
+ dominant bucket                        = OTHER_COMMIT
+ dominant mean [ms]                     = 5.4437285714285713
+
+[F. STATUS]
+ sparse commit seq accepted             = 1
+ full-request epoch authority            = AF7R58M
+ deadline-fail authority                 = outer AF7R58M cumulative counter
+ instrumented timing final 4-ms proof    = 0
+ status = JOINED_COMMIT_TIMING_CLOSED__OTHER_COMMIT_SPLIT_NEXT
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf9807215_96ba_44c4_ab7b_df16a49fdd39\AF7R58S_R2_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf9807215_96ba_44c4_ab7b_df16a49fdd39\AF7R58S_R2_OUT.mat
+ status = JOINED_COMMIT_TIMING_CLOSED__OTHER_COMMIT_SPLIT_NEXT

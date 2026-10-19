@@ -1,0 +1,11 @@
+status=FIRST_REQUEST_COMMIT__PLANNER_SUCCESS__OUTER_LOOP_OVERRUN_REMAINS
+sourceSHA=bc97df3a0a7341ac5605d52f4dd94923bfd831a11be535450666ec6d10ff41ec
+requests=1
+deadlineFails=0
+commits=1
+firstCommitRequest=1
+triggerToCommitS=0
+attemptMedianMs=13.7467
+attemptMaxMs=13.7467
+fullIterationMaxMs=32.451
+requestRowsOver25ms=1

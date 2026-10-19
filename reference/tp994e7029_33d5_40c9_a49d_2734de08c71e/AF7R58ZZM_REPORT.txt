@@ -1,0 +1,32 @@
+====================================================================================================
+ AF7R58ZZM | REMOVE R3 HIGH-RES TIMING INSTRUMENTATION
+====================================================================================================
+[AUTHORITY] exactCurrentSHA=1 | reverseStripExact=1 | parseBeforeWrite=1 | rollbackOnFailure=1
+[SAFETY] trajectoryMathChanged=0 | certificateMathChanged=0 | generatorMathChanged=0 | deadlineChanged=0
+[SENSING] detectedOnlyGeneratorRequired=1 | unseenTruthPreplan=0
+
+[A. CURRENT INSTRUMENTED SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = 0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
+
+[B. PREFLIGHT BEFORE PRODUCTION WRITE]
+ R3 selector removed                   = 1
+ all 15 R3 mark sites removed         = 1
+ exact restored ZZH SHA               = 1
+ full restored class parse            = 1
+ finite-sensing contract retained     = 1
+ production writes                    = 0
+
+[C. RESTORE RESULT]
+ post SHA                             = 2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+ exact AF7R58ZZH restored             = 1
+ timing instrumentation remaining     = 0
+ 4-ms deadline changed                = 0
+ safety/certificate math changed      = 0
+ finite-sensing contract retained     = 1
+ MEX file deleted                     = 0
+ NOTE: af7r58zzk_trace_mex may remain on disk but is no longer called.
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp994e7029_33d5_40c9_a49d_2734de08c71e\AF7R58ZZM_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp994e7029_33d5_40c9_a49d_2734de08c71e\AF7R58ZZM_OUT.mat
+status = R3_TIMING_REMOVED__EXACT_ZZH_RESTORED__CLEAN_RERUN_REQUIRED

@@ -1,0 +1,41 @@
+====================================================================================================
+ AF7R58ZZN-R2 | LOW-RISK HOT-PATH OPTIMIZATION
+====================================================================================================
+[AUTHORITY] exactSourceBinding=1 | parseBeforeWrite=1 | transactionalRollback=1
+[SAFETY] acceptanceChanged=0 | certificateMathChanged=0 | deadlineChanged=0 | generatorMexMathChanged=0
+[SENSING] detectedOnlyGeneratorRequired=1 | unseenTruthPreplan=0
+[OPT] resourceClosedPacketMemoization=1 | tripleInflationFusion=1
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM.m             = 2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+ af7r58i_resource_contract.m     = 772e49a8007bd955cb262b1db513f65c1270f87384b5f12694ee8774ae458392
+
+[B. PREFLIGHT BEFORE FIRST PRODUCTION WRITE]
+ resource memo key exactly {tf0,tend,dt} = 1
+ cache store bound to theorem-final Smax   = 1
+ local-function layout assumed            = 0
+ closed contracts only are memoized        = 1
+ original theorem body retained            = 1
+ triple inflation production sites         = 2
+ static obstacle authority checks retained = 1
+ moving-obstacle rejection retained        = 1
+ fused inflation bitwise self-test          = 1
+ fused inflation self-test max abs diff    = 0
+ patched resource helper parse             = 1
+ patched full class parse                  = 1
+ production writes                         = 0
+
+[C. INSTALL RESULT]
+ REPLANNING_SYSTEM post SHA         = 4b72f2667086282cd1f7609a1555c84f0245ddbfaf650604c4b768886a886234
+ resource helper post SHA           = 4f04ed3aaebe1feae39c5436a8f619bc89045cc0c4ad06d7d35e356f1605cdf8
+ staged/post byte identity           = 1
+ acceptance/certificate logic changed= 0
+ 4-ms deadline changed               = 0
+ finite sensing changed              = 0
+ generator/MEX math changed          = 0
+ payload mass / actuator logic changed= 0
+ runtime timing instrumentation added = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpc0cb3911_48f0_4347_8655_9415b0e07ec9\AF7R58ZZN_R2_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpc0cb3911_48f0_4347_8655_9415b0e07ec9\AF7R58ZZN_R2_OUT.mat
+status = LOW_RISK_HOTPATH_OPTIMIZATION_INSTALLED__CLEAN_RERUN_REQUIRED

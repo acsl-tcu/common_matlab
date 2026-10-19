@@ -1,0 +1,7 @@
+AF7R57T V7 raw-byte symbol forensic
+
+Run:
+    T57V7 = AF7R57T_V7_RAW_BYTE_SYMBOL_FORENSIC_AUDIT();
+
+Entrypoint SHA-256:
+    58e70300c94e6723841154e0eb4a07c43a407b6cf301e6c41a23036d6abc28cf

@@ -1,0 +1,96 @@
+====================================================================================================
+ AF7R58K | ROBUST POST-INSTALL LIVE RESOURCE + 4MS AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticSafetyAcceptance=1
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58I-R3 SOURCE BINDING]
+ REPLANNING_SYSTEM.m                        present=1 | SHA-match=1 | 503c4146f10892fdb45004c986bd6359f63e6ce5c59bf3f2ef61de971585badc
+ af7r33_make_batch_model_from_proposal.m    present=1 | SHA-match=1 | 0e293b36a77ccc4d426eb0e1e9460a949eb4acb4be81dc8dcab539828c8847ed
+ af7r58i_nextup_nonnegative.m               present=1 | SHA-match=1 | c2f6a28d1e05301bdafe6eddd200c70366875b4d0b4d7cadf1d8d37677c04116
+ af7r58i_nextdown_positive.m                present=1 | SHA-match=1 | 4624d94cd8f13f35706f9a97dc8c5f45fd7e2fa3ff114ac35b2cc9f88f78c444
+ af7r58i_resource_contract.m                present=1 | SHA-match=1 | 772e49a8007bd955cb262b1db513f65c1270f87384b5f12694ee8774ae458392
+ af7r58i_commit_spacing_guard.m             present=1 | SHA-match=1 | ba92a9bb05e5cea6916f904646ff416a8379ff5ed9ed4424baf362eacb43054e
+ af7r58i_prune_batch_model_exact.m          present=1 | SHA-match=1 | 5309875bdfbb7e228921cf1182afb759037a6a3bcd79a0b88d6e76466e4c6db4
+ af7r58i_prepare_batch_model.m              present=1 | SHA-match=1 | 92f093168f1df95661c5e7f2e75005fe439406eb3ec22e53fd1f25d6bdfb8a15
+ af7r58i_make_canonical_eval_handles.m      present=1 | SHA-match=1 | 1c9bf7407b9c2482c5f6d2676479966b808995c4d10ee2871a620faba55a82f8
+ af7r58i_decasteljau.m                      present=1 | SHA-match=1 | aab46ffbeb52e74e40d0298ba35d87bc7b13902f21e541fce24b99aa85b01a04
+ af7r58i_correction_derivatives.m           present=1 | SHA-match=1 | 472c61619d64401264479a429f63b177f76bcb7e14b0cd5f39b6fe5f5f95ec35
+ af7r58i_eval_canonical_reference.m         present=1 | SHA-match=1 | 4f8ecd8576983d638b5fbbc71384d333fc90d4d9e4787c6ea694e94dc2d0ca39
+
+[B. ROBUST INSTALLED SOURCE INVARIANTS]
+ explicit commit-spacing guard                   = 1
+ canonical prepare call                          = 1
+ canonical nonrecursive handles                  = 1
+ bounded canonical model stored                  = 1
+ prepare performs exact expired prune            = 1
+ prepare counts G/S before append                = 1 / 1
+ G/S excess use ordinary return                  = 1 / 1
+ resource code does not consume mL              = 1
+ resource code does not consume thrust/moment   = 1 / 1
+ installed invariant conjunction                 = 1
+
+[C. LIVE OBJECT READINESS]
+ active mode/version                  = REPAIRED / 1
+ prediction dt [s]                   = 0.025000000000000001
+ flight origin [s]                   = 5
+ nominal table tend [s]              = 54
+ nominal table ready                 = 1
+ real replan request count           = 10
+
+[D. LIVE RESOURCE CONTRACT]
+ closed                              = 1
+ reason                              = RESOURCE_CONTRACT_CLOSED
+ finite flight domain                = [5, 54] s
+ Tcorr_max                           = 49.000000000000007 s
+ Dcommit_min                         = 0.024999999999516829 s
+ Kmax / Cmax                         = 11 / 1024
+ Sgroup_max                          = 2049
+ Gmax / Smax                         = 1962 / 4020138
+
+[E. COMMIT-SPACING READ-ONLY TEST]
+ tested                              = 1
+ represented boundary accepted        = 1
+ just-below boundary rejected         = 1
+
+[F. ACTIVE CANONICAL STATE]
+ mode                                = REPAIRED
+ resource/equivalence closed         = 1
+ groups / segments                   = 1 / 3
+ groups<=Gmax / segments<=Smax       = 1 / 1
+ eval / flat bitwise equality         = 1 / 1
+ max eval / flat abs diff             = 0 / 0
+
+[G. REAL-REQUEST 4MS EVIDENCE]
+ request observed                     = 1
+ request count                        = 10
+ deadline fail count                  = 9
+ last cycle [ms]                      = 3.5703
+ hard deadline [ms]                   = 4
+ observed-run pass                    = 0
+ formal future WCET theorem closed    = 0
+ NOTE: observed timing is evidence, not a mathematical future WCET theorem.
+
+[H. RESERVED FAILURE-BACKUP SWITCH CONTRACT]
+ later backup required                         = 1
+ default enabled                               = 1
+ explicit ON/OFF flag required                 = 1
+ OFF scope = failure/no-solution fallback only
+ OFF must NOT bypass normal safety/resource certificates
+ backup installed by AF7R58K                   = 0
+
+[I. CLOSURE LEDGER]
+ exact installed source binding       = 1
+ robust source invariants              = 1
+ live resource theorem                = 1
+ active canonical state               = 1
+ observed real-request 4ms            = 0
+ future formal WCET                   = 0
+ tension/thrust/moment + live mL      = 0
+ failure backup implementation        = 0
+ status                               = LIVE_RESOURCE_CANONICAL_CLOSED__REAL_REPLAN_4MS_EVIDENCE_OPEN
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp864c2ca4_37cc_44b9_8b9f_2f10701a8b6e\AF7R58K_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp864c2ca4_37cc_44b9_8b9f_2f10701a8b6e\AF7R58K_OUT.mat
+ status = LIVE_RESOURCE_CANONICAL_CLOSED__REAL_REPLAN_4MS_EVIDENCE_OPEN

@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58X | FAILED-PREPARATION REBUILD / REUSE FORENSIC AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM SHA exact = 1 | cfa7e053e86aec9879eef0fb3c6d28e55fd33c8b1e76c09c77bdd83e1f170f79
+
+[B. EXACT FUNCTION SOURCE INVENTORY]
+ commit     source L9171:L9492 | SHA=00f81e2e493ae59347f78c0153234aefaf2df6a8821a1704d56ed65c6a8013e4
+ canReuse   source L4703:L4824 | SHA=fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+
+[AUDIT ERROR]
+ identifier = 
+ message    = [AF7R58X] method token "function [sweepNew,packetNew,sensorNew,depNew] = reuse_reference_only_runtime_packet_exact" count=0.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpb1f0fbd9_64dd_4552_b52a_5cc063afcee8\AF7R58X_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpb1f0fbd9_64dd_4552_b52a_5cc063afcee8\AF7R58X_OUT.mat
+ status = AUDIT_ERROR__NO_PRODUCTION_CHANGE

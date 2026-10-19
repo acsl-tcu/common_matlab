@@ -1,0 +1,40 @@
+====================================================================================================
+ AF7R58I | TRANSACTIONAL CANONICAL ACTIVE-REFERENCE RESOURCE INSTALL
+====================================================================================================
+[AUTHORITY] transactional=1 | rollbackOnFailure=1 | noFlight=1 | noSimulation=1 | noMexChange=1
+[SAFETY] sampledSafetyAcceptance=0 | theoryWeakening=0 | hardcodedPhysicalParams=0 | mLFrozen=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM exact reviewed source = 1 | 223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+ AF7R33 builder exact reviewed source    = 1 | f0e9f487cd270430d191871366c84595be586b6da0fb7b93eb98f4dfc25b46fd
+
+[B. PRE-INSTALL THEORY / SOURCE FACTS]
+ request.time = t_now                              = 1
+ reference-only commit receives same t_now         = 1
+ packet t0 = request.time                          = 1
+ native correction support is strict t0<t<t1      = 1
+ MATLAB correction support is strict t0<t<t1      = 1
+ recursive active-evaluator capture is present     = 1
+ prior AF7R58I spacing install absent              = 1
+ prior AF7R58I canonical install absent            = 1
+
+[C. TRANSACTIONAL PRODUCTION INSTALL]
+ explicit positive commit-spacing guard installed        = 1
+ exact expired prune installed                           = 1
+ live source-derived Gmax/Smax theorem installed          = 1
+ nonrecursive canonical active evaluator installed        = 1
+ active valid_until artificially shortened                = 0
+ MEX/core mathematical safety code modified               = 0
+ payload mL touched/frozen                                = 0
+
+[INSTALL FAILURE]
+ identifier          = MATLAB:narginout:notValidMfile
+ message             = 有効な MATLAB ファイルではありません。
+ rollback performed  = 1
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf59d82bf_ec12_4d17_abb1_b2a96f3d3d85\AF7R58I_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf59d82bf_ec12_4d17_abb1_b2a96f3d3d85\AF7R58I_OUT.mat
+ status = INSTALL_FAILED__ROLLBACK_COMPLETE

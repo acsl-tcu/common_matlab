@@ -1,0 +1,94 @@
+====================================================================================================
+ AF7R58G | EXACT CURRENT RESOURCE-BINDING AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | targetedSourcesOnly=1 | noCapGuess=1 | noFlight=1 | noMex=1
+
+[A. EXACT SOURCE BINDING]
+ REPLANNING_SYSTEM.m                        present=1 | SHA-256=223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+ af7r33_make_batch_model_from_proposal.m    present=1 | SHA-256=f0e9f487cd270430d191871366c84595be586b6da0fb7b93eb98f4dfc25b46fd
+ af7r33_nominal_batch_model.m               present=1 | SHA-256=0aa0a05b1ebfd94ae27c90fa65aa40250d8c5e647dff3bfda4df13cf54738453
+ af7r34_make_core_packet.m                  present=1 | SHA-256=ce1f98dac7b49ec8510c09d5c89b7edd4aea64a6c6320e7d2752431528cf22f8
+ af7r36_single_core_proposal.m              present=1 | SHA-256=d7bbe05efd268743e7307bcf3291f8f0e7777ab126432abc190ac60c999cc7ac
+ af7r36_core.hpp                            present=1 | SHA-256=ad5ce1970583c0313637dcac58b8cf949092fe53e201efc61e55754fb2ea79be
+ af7r36_single_core_mex.cpp                 present=1 | SHA-256=4f9778723aa3aa339d5167b90845fcfcaa8564cae68326ff1e4ed504c7e6daea
+ REPLANNING_SYSTEM reviewed SHA match         = 1
+ af7r36_core reviewed SHA match               = 1
+ af7r36_single_core_mex reviewed SHA match    = 1
+
+[B. t0 / COMMIT-TIME SOURCE CHAIN]
+ REQ.time = t_now                                                 = 1
+ native packet t0 = REQ.time                                      = 1
+ AF7R36 proposal uses same CTX packet                             = 1
+ proposal t0 = native RAW.t0                                      = 1
+ REFERENCE_ONLY commit called with t_now                          = 0
+ batch correction t0 = proposal t0                                = 1
+ batch correction t1 = proposal t1                                = 1
+ batch model appends exactly one group                            = 1
+ nominal batch model starts with zero groups                      = 1
+ current REFERENCE_ONLY path proves group t0 = commit time        = 0
+
+[C. t1 / CORRECTION-LIFETIME AUTHORITY]
+ packet t1 uses resolve_reference_rejoin_search_end               = 1
+ nominal table end derives from preflight te + horizon            = 1
+ resolver uses nominal_table_tend                                 = 1
+ resolver may extend to finite active valid_until                 = 1
+ REFERENCE_ONLY active valid_until is Inf (not finite extension)  = 1
+ generic commit copies candidate.valid_until                      = 1
+ generic validator requires finite ordered valid interval         = 0
+ generic valid_until upper-bounded by finite reference authority  = 0
+ current REFERENCE_ONLY correction lifetime source-bounded        = 0
+ symbolic current-path bound: Tcorr <= nominal_table_tend - commit_time
+ conservative preflight form: Tcorr_max <= nominal_table_tend - flight_reference_time_origin
+ NOTE: no numeric duration is selected by this audit.
+
+[D. SUCCESSIVE COMMIT SPACING]
+ last_replan_commit_time state exists                             = 1
+ REFERENCE_ONLY writes successful commit time                     = 1
+ generic commit writes successful commit time                     = 1
+ REFERENCE_ONLY has explicit previous-vs-new commit spacing guard = 0
+ generic commit has explicit previous-vs-new commit spacing guard = 0
+ prediction_dt is live/runtime-bound                              = 1
+ Dcommit_min > 0 source-closed                                    = 0
+ Dcommit_min = OPEN (dt alone is intentionally NOT promoted to a proof).
+
+[E. AF7R58E TREE / COMPONENT / SEGMENT RE-BINDING]
+ reviewed af7r36_core SHA still exact                             = 1
+ production dyadic terminal predicate present                     = 1
+ production connected-component storage present                   = 1
+ production adjacent episode merge present                        = 1
+ actual production build_candidate present                        = 1
+ production segment relation source-bound                         = 1
+ component theorem: Cmax <= 2^(max(Kmax-1,0)), with Kmax from AF7R58E outward width recurrence
+ segment theorem:   S_group_max <= 2*Cmax + 1
+ numeric Cmax/Sgroup are NOT selected without a closed generic lifetime + live preflight packet.
+
+[F. RESOURCE-CAP CLOSURE LEDGER]
+ current REFERENCE_ONLY t0=commit chain closed                    = 0
+ current REFERENCE_ONLY finite Tcorr source bound closed          = 0
+ generic future EXECUTION_AWARE Tcorr bound closed                = 0
+ Dcommit_min source closed                                        = 0
+ Cmax/S_group formula source closed                               = 1
+ production prune-before-count-before-append installed/closed     = 0
+ production Gmax closed                                           = 0
+ production Smax closed                                           = 0
+ numeric production caps selected                                 = 0
+
+[G. NEXT PRODUCTION CONTRACT -- NOT INSTALLED BY AF7R58G]
+ no hardcoded preflight parameters            = 1
+ no hardcoded actuator/input limits          = 1
+ payload mL remains live-estimator authority = 1
+ require generic finite valid-until bound    = 1
+ require explicit commit-spacing guard       = 1
+ require exact expired-prune production install = 1
+ cap theorem                                 = Gmax=ceil(Tcorr_max/Dcommit_min)+1; Smax=Gmax*(2*Cmax+1)
+ required order                              = EXACT_PRUNE_EXPIRED__COUNT_GS__ORDINARY_RETURN_IF_EXCESS__APPEND
+ NOTE: later actuator/tension certificate must consume external preflight config + latest in-flight mL estimate.
+
+[H. STATUS]
+ status                                      = OPEN
+ next action                                 = INSTALL_GENERIC_VALIDITY_BOUND__EXPLICIT_DCOMMIT_GUARD__EXACT_PRUNE_AND_ORDINARY_GS_RETURN
+ production modified                         = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp52fdbbbe_f567_4b0e_9acc_c48af9d58625\AF7R58G_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp52fdbbbe_f567_4b0e_9acc_c48af9d58625\AF7R58G_OUT.mat

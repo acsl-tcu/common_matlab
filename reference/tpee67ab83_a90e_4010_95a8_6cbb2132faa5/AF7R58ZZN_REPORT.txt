@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58ZZN | LOW-RISK HOT-PATH OPTIMIZATION
+====================================================================================================
+[AUTHORITY] exactSourceBinding=1 | parseBeforeWrite=1 | transactionalRollback=1
+[SAFETY] acceptanceChanged=0 | certificateMathChanged=0 | deadlineChanged=0 | generatorMexMathChanged=0
+[SENSING] detectedOnlyGeneratorRequired=1 | unseenTruthPreplan=0
+[OPT] resourceClosedPacketMemoization=1 | tripleInflationFusion=1
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM.m             = 2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+ af7r58i_resource_contract.m     = 772e49a8007bd955cb262b1db513f65c1270f87384b5f12694ee8774ae458392
+
+[INSTALL FAILURE]
+ identifier = 
+ message    = [AF7R58ZZN] resource cache-store anchor count=0.
+ rollback   = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpee67ab83_a90e_4010_95a8_6cbb2132faa5\AF7R58ZZN_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpee67ab83_a90e_4010_95a8_6cbb2132faa5\AF7R58ZZN_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_ATTEMPTED

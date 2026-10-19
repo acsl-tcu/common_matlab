@@ -1,0 +1,15 @@
+AF7R57N V2 static correction audit
+===================================
+V1 mathematical/resource architecture changed          = 0
+count(string(...)) retained                             = 0
+token counting via numel(strfind(...))                 = 1
+token count guaranteed scalar                           = 1
+char + newline + char concatenation retained           = 0
+explicit cstdint include ensured                        = 1
+resource_guard_enabled validated as {0,1}              = 1
+all resource caps finite/nonnegative/integer validated = 1
+fault injection requires planner success=false         = 1
+fault injection requires dedicated resource code       = 1
+production cap values selected                         = 0
+production-general 4ms claimed                         = 0
+production source modified                             = 0

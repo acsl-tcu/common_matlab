@@ -1,0 +1,36 @@
+====================================================================================================
+ AF7R58ZZK-R3 | HIGH-RES ROTATING COMMIT TIMING INSTALL
+====================================================================================================
+[AUTHORITY] QPC=1 | threadCycles=1 | processCycles=1 | ticTocSubstage=0
+[PERTURBATION] oneWindowPerRequest=1 | marksPerSelectedWindow=2 | fixedMexRing=1
+[SAFETY] deadlineChanged=0 | acceptanceChanged=0 | certificateMathChanged=0 | generatorMathChanged=0
+[SENSING] detectedOnlyGeneratorRequired=1 | unseenTruthPreplan=0
+
+[A. EXACT CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = 2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+
+[B. HIGH-RES TRACE MEX]
+ MEX = C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58zzk_trace_mex.mexw64
+ SHA = 357572fb7aebd71f6f5e2da6f1777559b05f18c11855357128925814472bf83f
+
+[C. PREFLIGHT BEFORE PRODUCTION WRITE]
+ exact pre-source SHA                   = 1
+ Window-3 bounded branch selection      = 1
+ staged patched source SHA              = 0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
+ full patched class parse               = 1
+ production writes                      = 0
+
+[D. INSTALL RESULT]
+ post SHA                               = 0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
+ staged/post SHA exact match            = 1
+ source instrumentation mark sites      = 15
+ timing rotation uses commit attempts   = 1
+ MEX marks per selected request window  = 2
+ tic/toc used for substage timing       = 0
+ 4-ms deadline changed                  = 0
+ sensor-known-only contract retained    = 1
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf6e41897_6544_40ec_bee2_c0d5a33eba11\AF7R58ZZK_R3_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpf6e41897_6544_40ec_bee2_c0d5a33eba11\AF7R58ZZK_R3_OUT.mat
+status = HIRES_ROTATING_TIMING_R3_INSTALLED__CLEAN_RERUN_REQUIRED

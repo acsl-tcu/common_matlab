@@ -1,0 +1,90 @@
+====================================================================================================
+ AF7R58I-R3 | COLLISION-FREE PREFLIGHT TRANSACTIONAL CANONICAL RESOURCE INSTALL
+====================================================================================================
+[AUTHORITY] transactional=1 | rollbackOnFailure=1 | noFlight=1 | noSimulation=1 | noMexChange=1
+[SAFETY] sampledSafetyAcceptance=0 | theoryWeakening=0 | hardcodedPhysicalParams=0 | mLFrozen=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM exact reviewed source = 1 | 223d34c49d7148b8ea14ff4ab9c420d409560c0650ac19e9b0f99318887090c9
+ AF7R33 builder exact reviewed source    = 1 | f0e9f487cd270430d191871366c84595be586b6da0fb7b93eb98f4dfc25b46fd
+
+[B. PRE-INSTALL THEORY / SOURCE FACTS]
+ request.time = t_now                              = 1
+ reference-only commit receives same t_now         = 1
+ packet t0 = request.time                          = 1
+ native correction support is strict t0<t<t1      = 1
+ MATLAB correction support is strict t0<t<t1      = 1
+ recursive active-evaluator capture is present     = 1
+ prior AF7R58I spacing install absent              = 1
+ prior AF7R58I canonical install absent            = 1
+
+[C. PRE-FLIGHT MATLAB PARSE -- PRODUCTION WRITES STILL ZERO]
+ parsing helper af7r58i_nextup_nonnegative             | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_nextup_nonnegative.m
+   PASS = 1
+ parsing helper af7r58i_nextdown_positive              | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_nextdown_positive.m
+   PASS = 1
+ parsing helper af7r58i_resource_contract              | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_resource_contract.m
+   PASS = 1
+ parsing helper af7r58i_commit_spacing_guard           | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_commit_spacing_guard.m
+   PASS = 1
+ parsing helper af7r58i_prune_batch_model_exact        | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_prune_batch_model_exact.m
+   PASS = 1
+ parsing helper af7r58i_prepare_batch_model            | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_prepare_batch_model.m
+   PASS = 1
+ parsing helper af7r58i_make_canonical_eval_handles    | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_make_canonical_eval_handles.m
+   PASS = 1
+ parsing helper af7r58i_decasteljau                    | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_decasteljau.m
+   PASS = 1
+ parsing helper af7r58i_correction_derivatives         | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_correction_derivatives.m
+   PASS = 1
+ parsing helper af7r58i_eval_canonical_reference       | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_eval_canonical_reference.m
+   PASS = 1
+ parsing AF7R33 patched copy as AF7R58I_R3_PARSE_AF7R33   | C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\AF7R58I_R3_PARSE_AF7R33.m
+   PASS = 1
+ parsing patched REPLANNING_SYSTEM class     | PASS = 1
+
+[D. TRANSACTIONAL PRODUCTION INSTALL]
+ all generated artifacts parsed before first production write = 1
+ explicit positive commit-spacing guard installed              = 1
+ exact expired prune installed                                 = 1
+ live source-derived Gmax/Smax theorem installed                = 1
+ nonrecursive canonical active evaluator installed              = 1
+ active valid_until artificially shortened                      = 0
+ MEX/core mathematical safety code modified                     = 0
+ payload mL touched/frozen                                      = 0
+
+[D. CANONICAL EVALUATOR SELF-TEST -- SUPPLEMENTARY]
+ legacy recursive-vs-canonical bitwise identical          = 1
+ flat recursive-vs-canonical bitwise identical            = 1
+ max legacy abs error                                      = 0
+ max flat abs error                                        = 0
+ strict-support boundary zero semantics                    = 1
+ NOTE: this regression is not safety acceptance; the proof is additive correction algebra + strict support.
+
+[E. CLOSURE LEDGER AFTER INSTALL]
+ t0=commit equality enforced at resource gate             = 1
+ finite correction support retained                        = 1
+ expired-prune semantics installed                         = 1
+ recursive active evaluator removed from commit             = 1
+ bounded canonical model is sole REFERENCE_ONLY history     = 1
+ explicit positive Dcommit guard installed                  = 1
+ live Gmax/Smax contract installed                          = 1
+ ordinary reference-only return on resource excess          = 1
+ full IEEE compiler/rounding environment closure            = 0
+ end-to-end hard 4 ms re-validation                        = 0
+ tension/thrust/moment feasibility with latest live mL      = 0
+ final failure backup integration                           = 0
+ production modified                                        = 1
+
+[F. NEXT REQUIRED AUDIT]
+ Recreate REPLANNING_SYSTEM object from a clean run before testing.
+ Return AF7R58I_R3_REPORT.txt and AF7R58I_R3_OUT.mat.
+ Next: direct live-config resource packet audit + equivalence regression + hard-path 4-ms timing.
+ Then: towing-specific tension/thrust/moment feasibility using external preflight config
+       and the latest in-flight payload-mass estimate; no fixed mL assumption.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_OUT.mat
+ status = PRODUCTION_CANONICAL_RESOURCE_INSTALL_R3_COMPLETE__RUNTIME_PACKET_AUDIT_NEXT

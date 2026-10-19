@@ -1,0 +1,69 @@
+====================================================================================================
+ AF7R58M | BOUNDED REQUEST-TIMING RING TRANSACTIONAL INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | bounded=1 | noThrowCapture=1 | rollbackOnFailure=1
+[SAFETY] trajectoryMathChanged=0 | certificatesChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM reviewed SHA exact = 1 | 503c4146f10892fdb45004c986bd6359f63e6ce5c59bf3f2ef61de971585badc
+
+[B. PREFLIGHT PARSE -- PRODUCTION WRITES STILL ZERO]
+ helper af7r58m_capture_timing_ring          PASS=1
+ helper af7r58m_timing_ring_labels           PASS=1
+ patched REPLANNING_SYSTEM class              PASS=1
+
+[C. PRODUCTION INSTALL]
+ bounded ring capacity                        = 64 requests
+ numeric columns                              = 32
+ capture runs only on real generator requests = 1
+ all return branches captured via onCleanup   = 1
+ capture helper catches all internal errors   = 1
+ control/safety decision modified             = 0
+ trajectory/certificate mathematics modified = 0
+ production modified                          = 1
+
+[D. RING COLUMNS]
+  1  request_seq
+  2  cleanup_entry_cycle_ms
+  3  recorded_cycle_ms
+  4  elapsed_before_ms
+  5  budget_remaining_ms
+  6  context_ms
+  7  callback_ms
+  8  validation_ms
+  9  critical_ms
+ 10  runtime_ms
+ 11  status_code
+ 12  deadline_fail_count_cumulative
+ 13  candidate_count_cumulative
+ 14  validation_pass_count_cumulative
+ 15  validation_fail_count_cumulative
+ 16  active_reference_version
+ 17  replan_commit_count
+ 18  reference_only_evaluation_count
+ 19  reference_only_commit_count
+ 20  runtime_packet_reuse_count
+ 21  runtime_packet_rebuild_count
+ 22  fast_packet_rebuild_count
+ 23  compact_native_proposal_count
+ 24  stage_episode_ms
+ 25  stage_hessian_ms
+ 26  stage_corridor_ms
+ 27  stage_qp_ms
+ 28  stage_candidate_build_ms
+ 29  stage_synthesis_ms
+ 30  stage_candidate_loop_ms
+ 31  stage_total_internal_ms
+ 32  callback_wall_qpc_ms
+
+[E. NEXT RUN]
+ Recreate REPLANNING_SYSTEM from a clean run.
+ Execute the same real scenario until >=10 generator requests if possible.
+ Do NOT infer cause from one request; the next audit reads the whole bounded ring.
+ This diagnostic ring is temporary instrumentation and is not a safety certificate.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp8e6441d4_0f49_47da_a2f7_7cafdeeb5358\AF7R58M_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp8e6441d4_0f49_47da_a2f7_7cafdeeb5358\AF7R58M_OUT.mat
+ status = TIMING_RING_INSTALL_COMPLETE__RERUN_REAL_REQUEST_SCENARIO_NEXT

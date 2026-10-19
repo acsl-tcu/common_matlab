@@ -1,0 +1,16 @@
+AF7R57N V7 static design audit
+============================
+V6 safety/resource semantics changed                 = 0
+fixed-episode throw source-bound                      = 1
+nearby normal result_struct serializer reused         = 1
+202 converted to ordinary reject                      = 1
+203 converted to ordinary reject                      = 1
+non-resource fixed-episode failures still throw       = 1
+all exercised resource faults must RETURN             = 1
+normal current QPC population                         = 2000
+202 rejection QPC population                          = 1000
+203 rejection QPC population                          = 1000
+percentile relaxation                                 = 0
+production cap values selected                        = 0
+production-general 4ms claimed                        = 0
+production source modified                            = 0

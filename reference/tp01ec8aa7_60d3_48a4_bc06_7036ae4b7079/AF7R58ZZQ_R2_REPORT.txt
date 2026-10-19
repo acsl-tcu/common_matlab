@@ -1,0 +1,41 @@
+====================================================================================================
+ AF7R58ZZQ-R2 | FIXED-4S HORIZON / ONE-CONTROL-PERIOD SUCCESS INSTALL
+====================================================================================================
+[HORIZON] fixed4s=1 | extendedPreview=0 | immediateOrdinaryTrigger=1 | lastMomentWait=0
+[PLANNER] legacy4msNormalGate=0 | syncAttemptBudget=prediction_dt | currentNominalBudgetMs=25
+[ATOMIC] cachePreservedOnReject=1 | explicitRollback=1 | cacheConsumedAfterClosure=1
+[SAFETY] certificateMathChanged=0 | generatorMexMathChanged=0 | finiteSensingChanged=0
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM SHA            = 4b72f2667086282cd1f7609a1555c84f0245ddbfaf650604c4b768886a886234
+ resource-contract helper SHA     = 4f04ed3aaebe1feae39c5436a8f619bc89045cc0c4ad06d7d35e356f1605cdf8
+
+[B. PREFLIGHT BEFORE PRODUCTION WRITE]
+ fixed collision horizon H=4 s            = 1
+ extended preview installed                = 0
+ ordinary trigger unchanged                = 1
+ normal planner budget = prediction_dt     = 1
+ historical 4ms normal planner gate        = 0
+ historical 4ms stop/fallback cert retained= 1
+ cache preserved until commit closure      = 1
+ atomic ordering uses executable anchors = 1
+ comment-text anchor dependency          = 0
+ expected budget miss uses ordinary rollback=1
+ finite sensing contract retained          = 1
+ native generator call retained            = 1
+ reference certificate call retained       = 1
+ full candidate class parse                = 1
+ production writes                         = 0
+
+[C. INSTALL RESULT]
+ post SHA                              = bc97df3a0a7341ac5605d52f4dd94923bfd831a11be535450666ec6d10ff41ec
+ staged/post exact byte identity        = 1
+ H=4 s changed                          = 0
+ generator/MEX math changed             = 0
+ continuous certificate math changed    = 0
+ finite sensing changed                 = 0
+ resource helper changed                = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp01ec8aa7_60d3_48a4_bc06_7036ae4b7079\AF7R58ZZQ_R2_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp01ec8aa7_60d3_48a4_bc06_7036ae4b7079\AF7R58ZZQ_R2_OUT.mat
+status = FIXED4S_ONECYCLE_SUCCESS_ARCHITECTURE_INSTALLED__CLEAN_RERUN_REQUIRED

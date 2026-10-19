@@ -1,0 +1,47 @@
+====================================================================================================
+ AF7R58ZC | EXACT PREPARED-CACHE POST-RUN EFFECT AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noSyntheticReplan=1
+
+[A. RUNTIME BINDING]
+ resolved source = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ resolved SHA    = 4767fd66d50247a5d848eba2e6a3b3af30f098c3a9fc3b8a206b4d50c62a4e72
+ live object     = 1
+
+[B. CACHE COUNTERS]
+ valid             = 0
+ stores            = 7
+ gate passes       = 0
+ hits              = 0
+ successful commits= 0
+ invalidates       = 7
+ last reason       = 5
+ reason counts     = [0 0 0 0 7 0 0 0 0 0 0 0 0 0 0 0]
+ runtime rebuilds  = 6
+ fast rebuilds     = 6
+ requests          = 14
+ deadline fails    = 13
+ commits           = 1
+
+[C. MISS REASON MAP]
+  1 POLICY                         : 0
+  2 CACHE_SCHEMA_OR_SHAPE          : 0
+  3 NEW_SPEED_CERT_INVALID         : 0
+  4 CACHED_SPEED_CERT_INVALID      : 0
+  5 PAYLOAD_SPEED_CHANGED          : 7
+  6 UAV_SPEED_CHANGED              : 0
+  7 CACHE_KEY_SHAPE                : 0
+  8 ACTIVE_AUTHORITY_CHANGED       : 0
+  9 LIVE_NUMERIC_DEP_CHANGED       : 0
+ 10 OBSTACLE_SOURCE_CHANGED        : 0
+ 11 SWEEP_MISMATCH                 : 0
+ 12 PACKET_INVALID                 : 0
+ 13 SENSOR_MISMATCH                : 0
+ 14 CACHED_DEP_INVALID             : 0
+ 15 RESERVED_15                    : 0
+ 16 RESERVED_16                    : 0
+ dominant miss reason = 5 PAYLOAD_SPEED_CHANGED (7)
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpa926dc07_7261_45ce_bf70_7339684e5c49\AF7R58ZC_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpa926dc07_7261_45ce_bf70_7339684e5c49\AF7R58ZC_OUT.mat
+status = EXACT_CACHE_SAFE_MISS_DOMINANT__PAYLOAD_SPEED_CHANGED

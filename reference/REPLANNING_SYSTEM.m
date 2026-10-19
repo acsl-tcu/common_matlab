@@ -65,7 +65,12 @@ classdef REPLANNING_SYSTEM < handle
 %   - Every production candidate certificate is bound to the next REPAIRED
 %     reference version and the current live dependency/source signature.
 %   - Test-only certificate tokens are explicitly rejected.
-%   - hard_modify_deadline_s is fail-closed at <= 4 ms.
+%   - 4 s collision-prediction horizon is the fixed online system requirement.
+%   - Normal REFERENCE_ONLY replanning starts immediately on the first
+%     H=4 s trigger and is allowed one control period (prediction_dt) for
+%     synchronous MATLAB validation.  The historical 4 ms quantity remains
+%     bound only to the stop/fallback geometry certificate; it is no longer
+%     the normal planner acceptance deadline.
 %   - MEX is an acceleration mechanism only; no MEX result bypasses the
 %     certificate/backup/atomic-commit authority.
 %
@@ -322,7 +327,11 @@ classdef REPLANNING_SYSTEM < handle
         % -----------------------------------------------------------------
         % 【G27-V38 dependency-aware runtime certificate manager】
         % -----------------------------------------------------------------
-        % 4 ms is a design requirement and remains externally configurable.
+        % Historical 4 ms reaction allowance retained ONLY for the
+        % stop/fallback geometry certificate. Normal REFERENCE_ONLY planning
+        % no longer rejects at 4 ms; its synchronous attempt budget is one
+        % control period = prediction_dt, while the collision horizon remains
+        % fixed at 4 s.
         hard_modify_deadline_s      = 4.0e-3;
 
         sensor_horizon_certificate  = struct();
@@ -342,6 +351,18 @@ classdef REPLANNING_SYSTEM < handle
         reference_only_runtime_packet_reuse_count = 0;
         reference_only_runtime_packet_rebuild_count = 0;
         reference_only_fast_packet_rebuild_count = 0;
+
+        % AF7R58Z: one-entry NON-AUTHORITY prepared runtime-packet cache.
+        reference_only_prepared_packet_cache_valid = false;
+        reference_only_prepared_packet_cache = struct();
+        reference_only_prepared_packet_cache_hit_count = 0;
+        reference_only_prepared_packet_cache_store_count = 0;
+        reference_only_prepared_packet_cache_invalidate_count = 0;
+        reference_only_prepared_packet_cache_commit_count = 0;
+        reference_only_prepared_packet_cache_retarget_count = 0;
+        reference_only_prepared_packet_cache_gate_pass_count = 0;
+        reference_only_prepared_packet_cache_last_reason_code = 0;
+        reference_only_prepared_packet_cache_miss_reason_count = zeros(1,16);
         compact_native_proposal_count = 0;
 
         % -----------------------------------------------------------------
@@ -414,6 +435,7 @@ classdef REPLANNING_SYSTEM < handle
         % get_last_trigger_event()/get_first_trigger_event().
         CAPTURE_REAL_TRIGGER_EVENT   = false; % AF7R50C: offline replay capture disabled for clean timing
         ENABLE_PROPOSAL_DIAGNOSTIC_MIRROR = false; % no post-decision proposal mirroring in online cycle
+        ENABLE_HOTPATH_DIAGNOSTIC_MIRROR = false; % non-authoritative per-cycle/request state mirrors; OFF in production
         trigger_event_count          = 0;
         first_trigger_event          = struct();
         last_trigger_event           = struct();
@@ -562,6 +584,51 @@ classdef REPLANNING_SYSTEM < handle
         generator_last_validation_ms       = NaN;
         generator_last_critical_ms         = NaN;
         generator_last_cycle_critical_ms   = NaN;
+
+        % AF7R58M bounded request-only timing ring (diagnostic only).
+        ENABLE_AF7R58M_TIMING_RING          = false;
+        af7r58m_timing_ring_capacity        = 64;
+        af7r58m_timing_ring_width           = 32;
+        af7r58m_timing_ring                  = nan(64,32);
+        af7r58m_timing_ring_head             = 0;
+        af7r58m_timing_ring_count            = 0;
+        af7r58m_last_capture_overhead_us     = NaN;
+        af7r58m_max_capture_overhead_us      = 0;
+
+        % AF7R58Q-R5 minimal commit timing diagnostics.
+        ENABLE_AF7R58Q_MIN_TIMING             = false;
+        af7r58q_min_ring_capacity             = 64;
+        af7r58q_min_ring_width                = 9;
+        af7r58q_min_ring                      = nan(64,9);
+        af7r58q_min_ring_head                 = 0;
+        af7r58q_min_ring_count                = 0;
+        af7r58q_min_stage_ms                  = nan(1,3);
+        af7r58q_min_last_capture_overhead_us  = NaN;
+        af7r58q_min_max_capture_overhead_us   = 0;
+
+        % AF7R58T OTHER_COMMIT substage diagnostics.
+        ENABLE_AF7R58T_OTHER_TIMING           = false;
+        af7r58t_ring_capacity                 = 64;
+        af7r58t_ring_width                    = 15;
+        af7r58t_ring                          = nan(64,15);
+        af7r58t_ring_head                     = 0;
+        af7r58t_ring_count                    = 0;
+        af7r58t_stage_ms                      = nan(1,11);
+        af7r58t_last_capture_overhead_us      = NaN;
+        af7r58t_max_capture_overhead_us       = 0;
+
+        % AF7R58V-R4 robust pre-transaction diagnostics.
+        ENABLE_AF7R58V_R4_PRETRY_TIMING       = false;
+        af7r58v_r4_ring_capacity              = 64;
+        af7r58v_r4_ring_width                 = 15;
+        af7r58v_r4_ring                       = nan(64,15);
+        af7r58v_r4_ring_head                  = 0;
+        af7r58v_r4_ring_count                 = 0;
+        af7r58v_r4_stage_ms                   = nan(1,10);
+        af7r58v_r4_progress_code              = 0;
+        af7r58v_r4_branch_code                = 0;
+        af7r58v_r4_last_capture_overhead_us   = NaN;
+        af7r58v_r4_max_capture_overhead_us    = 0;
 
         generator_request_count          = 0;
         generator_candidate_count        = 0;
@@ -960,6 +1027,8 @@ classdef REPLANNING_SYSTEM < handle
             status.trigger_sweep=obj.trigger_sweep_inflation;
             status.sensor_horizon=obj.sensor_horizon_certificate;
             status.stop_geometry_4ms=obj.stop_geometry_4ms_certificate;
+            status.reference_only_sync_budget= ...
+                obj.get_reference_only_sync_budget_certificate();
             status.command_limit=obj.command_limit_certificate;
             if isfield(obj.command_limit_certificate,'live_controller_verified')
                 status.live_controller_verified= ...
@@ -1013,6 +1082,46 @@ classdef REPLANNING_SYSTEM < handle
             end
         end
 
+
+
+        function C = get_reference_only_sync_budget_certificate(obj)
+            % =============================================================
+            % AF7R58ZZQ synchronous-validation budget theorem.
+            %
+            % The ONLINE collision-prediction horizon remains exactly 4 s.
+            % Replanning begins immediately at the first ordinary H-second
+            % trigger; this certificate does NOT postpone activation toward
+            % collision.  For the current synchronous MATLAB implementation,
+            % one control period is the maximum normal REFERENCE_ONLY attempt
+            % budget.  Phase-2 worker separation removes this compute-cycle
+            % coupling while retaining H=4 s.
+            % =============================================================
+            H=double(obj.horizon_s);
+            dt=double(obj.prediction_dt);
+            S=obj.sensor_horizon_certificate;
+
+            sensorClosed=isstruct(S) && ...
+                isfield(S,'certified') && logical(S.certified) && ...
+                isfield(S,'horizon') && isequal(double(S.horizon),H) && ...
+                isfield(S,'before_horizon_entry_LB_s') && ...
+                double(S.before_horizon_entry_LB_s)>0;
+
+            C=struct();
+            C.certified= ...
+                isequal(H,4.0) && isfinite(dt) && dt>0 && ...
+                H>2*dt && sensorClosed;
+            C.horizon_s=H;
+            C.control_period_s=dt;
+            C.attempt_budget_s=dt;
+            C.first_trigger_entry_ttc_LB_s=H-dt;
+            C.remaining_ttc_after_full_attempt_LB_s=H-2*dt;
+            C.starts_immediately_on_first_horizon_trigger=true;
+            C.extended_preview_used=false;
+            C.historical_4ms_used_as_normal_planner_deadline=false;
+            C.historical_4ms_stop_fallback_allowance_s= ...
+                double(obj.hard_modify_deadline_s);
+            C.source='FIXED_4S_HORIZON__ONE_CONTROL_PERIOD_SYNC_ATTEMPT_THEOREM';
+        end
 
 
         function S = get_nominal_stop_geometry_actuator_T_set(obj)
@@ -1152,6 +1261,11 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             obj.assert_hard_modify_deadline_limit();
+            [spacingOK,~,~,spacingReason]= ...
+                af7r58i_commit_spacing_guard(obj,double(t_commit));
+            assert(spacingOK, ...
+                '[REPLANNER ERROR] repaired commit spacing rejected: %s', ...
+                spacingReason);
             obj.validate_repaired_candidate(candidate,double(t_commit));
 
             newVersion=double(obj.active_reference_version)+1;
@@ -1338,6 +1452,9 @@ classdef REPLANNING_SYSTEM < handle
             end
             if isfield(opts,'ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL')
                 obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL=logical(opts.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL);
+            end
+            if isfield(opts,'ENABLE_HOTPATH_DIAGNOSTIC_MIRROR')
+                obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR=logical(opts.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR);
             end
             if isfield(opts,'SPIKE_CAPTURE_THRESHOLD_MS')
                 obj.SPIKE_CAPTURE_THRESHOLD_MS=double(opts.SPIKE_CAPTURE_THRESHOLD_MS);
@@ -1862,25 +1979,31 @@ classdef REPLANNING_SYSTEM < handle
             dt_observer_ms=NaN;
             if obj.ENABLE_OBSERVER_HARD_SUPPORT && ...
                     obj.observer_is_real_control_event(cha)
-                t_observer_addon=tic;
-                obj.observer_update_same_event(time,cha);
-                dt_observer_ms=1e3*toc(t_observer_addon);
-                I=obj.observer_hard_support_internal;
-                I.runtime_last_ms=dt_observer_ms;
-                if ~isfield(I,'runtime_max_ms') || ~isfinite(I.runtime_max_ms)
-                    I.runtime_max_ms=dt_observer_ms;
+                if obj.ENABLE_LIGHT_RUNTIME_AUDIT || obj.ENABLE_PROFILING
+                    t_observer_addon=tic;
+                    obj.observer_update_same_event(time,cha);
+                    dt_observer_ms=1e3*toc(t_observer_addon);
+                    I=obj.observer_hard_support_internal;
+                    I.runtime_last_ms=dt_observer_ms;
+                    if ~isfield(I,'runtime_max_ms') || ~isfinite(I.runtime_max_ms)
+                        I.runtime_max_ms=dt_observer_ms;
+                    else
+                        I.runtime_max_ms=max(I.runtime_max_ms,dt_observer_ms);
+                    end
+                    if ~isfield(I,'runtime_sum_ms') || ~isfinite(I.runtime_sum_ms)
+                        I.runtime_sum_ms=0;
+                    end
+                    if ~isfield(I,'runtime_count') || ~isfinite(I.runtime_count)
+                        I.runtime_count=0;
+                    end
+                    I.runtime_sum_ms=I.runtime_sum_ms+dt_observer_ms;
+                    I.runtime_count=I.runtime_count+1;
+                    obj.observer_hard_support_internal=I;
                 else
-                    I.runtime_max_ms=max(I.runtime_max_ms,dt_observer_ms);
+                    % Production: preserve the exact observer update, omit only
+                    % non-authoritative runtime measurement/statistics.
+                    obj.observer_update_same_event(time,cha);
                 end
-                if ~isfield(I,'runtime_sum_ms') || ~isfinite(I.runtime_sum_ms)
-                    I.runtime_sum_ms=0;
-                end
-                if ~isfield(I,'runtime_count') || ~isfinite(I.runtime_count)
-                    I.runtime_count=0;
-                end
-                I.runtime_sum_ms=I.runtime_sum_ms+dt_observer_ms;
-                I.runtime_count=I.runtime_count+1;
-                obj.observer_hard_support_internal=I;
             end
 
             % The replanner is constructed before the live HLC controller
@@ -1988,10 +2111,12 @@ classdef REPLANNING_SYSTEM < handle
                 cp_flight_guard_ms=1e3*toc(t_light_e2e);
             end
 
-            % Hard real-time accounting for sensor/trigger/generator integration.
-            % This timer is independent of optional profiling/light-audit flags.
-            t_hard_cycle=tic;
-
+            % AF7R58ZP: all work below until t_hard_cycle is sensor-independent
+            % preparation/authority validation.  The <=4 ms modification clock
+            % starts at the first sensor-dependent operation (raw_sensor_gate),
+            % matching the sensor -> trigger -> target-modification contract.
+            % Full reference-node wall time remains measured externally and is
+            % NOT hidden by this accounting boundary.
             if obj.ENABLE_PROFILING
                 t_cert_guard=tic;
             end
@@ -2005,6 +2130,8 @@ classdef REPLANNING_SYSTEM < handle
                 t_geometry_eval=tic;
             end
 
+            active_version_at_eval=double(obj.active_reference_version);
+            active_mode_at_eval=char(obj.active_reference_mode);
             xd_active_now=obj.evaluate_active_reference_xd(time.t,xd_nom);
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
@@ -2019,8 +2146,25 @@ classdef REPLANNING_SYSTEM < handle
 
             if obj.ENABLE_PROFILING
                 obj.profiling.t_geometry_eval_ms=1e3*toc(t_geometry_eval);
+                tr=tic;
+            end
+
+            % Sensor-independent future-reference packet preparation.
+            % It may update only the rolling reference cache; it does not read
+            % or mutate the current obstacle-detection result.
+            [pL_ref,q_ref,ref_source]= ...
+                obj.get_active_reference_packet(time,cha,varargin,xd_nom);
+
+            if obj.ENABLE_PROFILING
+                obj.profiling.t_reference_packet_ms=1e3*toc(tr);
                 ts=tic;
             end
+
+            % Sensor-dependent synchronous attempt accounting begins here.
+            % AF7R58ZZQ normal planning budget = one control period; the
+            % collision-prediction horizon remains fixed at H=4 s.
+            t_hard_cycle=tic;
+
             [sensor_active,min_dist,min_id,all_dists]= ...
                 obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
 
@@ -2038,19 +2182,11 @@ classdef REPLANNING_SYSTEM < handle
 
             if obj.ENABLE_PROFILING
                 obj.profiling.t_sensor_ms=1e3*toc(ts);
-                tr=tic;
+                tt=tic;
             end
 
             vis_count=nnz(sensor_active);
             known_count=nnz(active);
-
-            [pL_ref,q_ref,ref_source]= ...
-                obj.get_active_reference_packet(time,cha,varargin,xd_nom);
-
-            if obj.ENABLE_PROFILING
-                obj.profiling.t_reference_packet_ms=1e3*toc(tr);
-                tt=tic;
-            end
 
             N=size(pL_ref,2);
             effective_horizon=(N-1)*obj.prediction_dt;
@@ -2109,8 +2245,9 @@ classdef REPLANNING_SYSTEM < handle
 
                 % A hard-deadline miss is not a completed planning decision.
                 % The same request remains retry-eligible while positive
-                % physical lead remains. Each individual attempt must still
-                % satisfy the <=4 ms deadline before any commit.
+                % physical lead remains. Each individual synchronous MATLAB
+                % attempt must stay within one control period. The ordinary
+                % collision horizon itself remains fixed at H=4 s.
                 retryableDeadlineMiss = sameIdentity && ...
                     any(double(obj.generator_last_status_code)==[-2 -20 -30]) && ...
                     isfinite(double(ttc)) && ...
@@ -2206,7 +2343,15 @@ classdef REPLANNING_SYSTEM < handle
                 cp_state_handle_ms=1e3*toc(t_light_e2e);
             end
 
-            obj.write_active_output(time.t,xd_nom);
+            if double(obj.active_reference_version)==active_version_at_eval && ...
+                    strcmp(char(obj.active_reference_mode),active_mode_at_eval)
+                % Exact same active authority as the pre-sensor evaluation.
+                obj.write_active_output(time.t,xd_nom,xd_active_now);
+            else
+                % A same-cycle commit changed the authority. Preserve the
+                % legacy behavior by evaluating the newly committed reference.
+                obj.write_active_output(time.t,xd_nom);
+            end
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_write_active_output_ms=1e3*toc(t_light_e2e);
@@ -2307,8 +2452,7 @@ classdef REPLANNING_SYSTEM < handle
             st.loadmass=obj.loadmass;
             st.replan_commit_count=obj.replan_commit_count;
             st.last_replan_commit_time=obj.last_replan_commit_time;
-            st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
-            st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+            % Keep only the small scalar generator status interface live.
             st.generator_request_count=obj.generator_request_count;
             st.generator_candidate_count=obj.generator_candidate_count;
             st.generator_validation_pass_count=obj.generator_validation_pass_count;
@@ -2316,95 +2460,99 @@ classdef REPLANNING_SYSTEM < handle
             st.generator_deadline_fail_count=obj.generator_deadline_fail_count;
             st.generator_last_runtime_ms=obj.generator_last_runtime_ms;
             st.generator_last_status_code=obj.generator_last_status_code;
-            [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
-            st.generator_backend_flag=double(flagCode);
-            st.generator_backend_last_code=double(obj.generator_backend_last_code);
-            st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
-            st.generator_backend_last_callback_installed= ...
-                logical(obj.generator_backend_last_callback_installed);
-            st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
-            st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
-            st.generator_backend_configuration_frozen= ...
-                logical(obj.generator_backend_configuration_frozen);
-            st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
-            st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
-            st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
-            st.generator_context_detected_only=logical(obj.generator_context_detected_only);
-            st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
-            st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
-            st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
-            st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
-            st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
-            st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
-            st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
-            st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
-            st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
-            st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
-            st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
-            st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
-            st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
-            st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
-            st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
-            st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
-            st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
-            st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
-            st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
-            st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
-            st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
-            st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
-            st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
-            st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
-            st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
-            st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
-            st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
-            st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
-            st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
-            st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
-            st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
-            st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
-            st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
-            st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
-            st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
-            st.r9_synth_row_count=obj.r9_synth_row_count;
-            st.r9_synth_episode_count=obj.r9_synth_episode_count;
-            st.r9_synth_component_count=obj.r9_synth_component_count;
-            st.r9_synth_sign_count=obj.r9_synth_sign_count;
-            st.r9_hr_request_seq=obj.r9_hr_request_seq;
-            st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
-            st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
-            st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
-            st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
-            st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
-            st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
-            st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
-            st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
-            st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
-            st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
-            st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
-            st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
-            st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
-            st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
-            st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
-            st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
-            st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
-            st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
-            st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
-            st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
-            st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
-            st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
-            st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
-            st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
-            st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
-            st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
-            st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
-            st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
-            st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
-            st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
-            st.generator_last_context_ms=obj.generator_last_context_ms;
-            st.generator_last_callback_ms=obj.generator_last_callback_ms;
-            st.generator_last_validation_ms=obj.generator_last_validation_ms;
-            st.generator_last_critical_ms=obj.generator_last_critical_ms;
             st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
+            if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                st.generator_shadow_enabled=logical(obj.generator_shadow_enabled);
+                st.generator_callback_installed=~isempty(obj.repaired_candidate_generator_fn);
+                [flagCode,~,~]=obj.normalize_generator_backend_flag(obj.generator_backend_flag);
+                st.generator_backend_flag=double(flagCode);
+                st.generator_backend_last_code=double(obj.generator_backend_last_code);
+                st.generator_backend_last_source_code=double(obj.generator_backend_last_source_code);
+                st.generator_backend_last_callback_installed= ...
+                    logical(obj.generator_backend_last_callback_installed);
+                st.generator_backend_locked_code=double(obj.generator_backend_locked_code);
+                st.generator_backend_selection_locked=logical(obj.generator_backend_selection_locked);
+                st.generator_backend_configuration_frozen= ...
+                    logical(obj.generator_backend_configuration_frozen);
+                st.generator_integration_prime_done=logical(obj.generator_integration_prime_done);
+                st.generator_integration_prime_ms=obj.generator_integration_prime_ms;
+                st.generator_integration_prime_variants=obj.generator_integration_prime_variants;
+                st.generator_context_detected_only=logical(obj.generator_context_detected_only);
+                st.generator_backend_kernel_prime_done=logical(obj.generator_backend_kernel_prime_done);
+                st.generator_backend_kernel_prime_ms=obj.generator_backend_kernel_prime_ms;
+                st.generator_backend_kernel_prime_variants=obj.generator_backend_kernel_prime_variants;
+                st.generator_shadow_proposal_count=obj.generator_shadow_proposal_count;
+                st.bezier_shadow_generated_count=obj.bezier_shadow_generated_count;
+                st.bezier_shadow_peak_safe_count=obj.bezier_shadow_peak_safe_count;
+                st.bezier_shadow_last_reason_code=obj.bezier_shadow_last_reason_code;
+                st.bezier_shadow_last_t0=obj.bezier_shadow_last_t0;
+                st.bezier_shadow_last_tm=obj.bezier_shadow_last_tm;
+                st.bezier_shadow_last_t1=obj.bezier_shadow_last_t1;
+                st.bezier_shadow_last_obstacle_id=obj.bezier_shadow_last_obstacle_id;
+                st.bezier_shadow_last_component_code=obj.bezier_shadow_last_component_code;
+                st.bezier_shadow_last_displacement_m=obj.bezier_shadow_last_displacement_m;
+                st.bezier_shadow_last_metric_before=obj.bezier_shadow_last_metric_before;
+                st.bezier_shadow_last_metric_after=obj.bezier_shadow_last_metric_after;
+                st.bezier_shadow_last_peak_min_metric=obj.bezier_shadow_last_peak_min_metric;
+                st.bezier_shadow_last_peak_all_safe=logical(obj.bezier_shadow_last_peak_all_safe);
+                st.bezier_shadow_last_c7_exact=logical(obj.bezier_shadow_last_c7_exact);
+                st.bezier_shadow_last_d1_ub=obj.bezier_shadow_last_d1_ub;
+                st.bezier_shadow_last_d2_ub=obj.bezier_shadow_last_d2_ub;
+                st.bezier_shadow_last_d3_ub=obj.bezier_shadow_last_d3_ub;
+                st.bezier_shadow_last_d4_ub=obj.bezier_shadow_last_d4_ub;
+                st.bezier_shadow_last_d5_ub=obj.bezier_shadow_last_d5_ub;
+                st.bezier_shadow_last_d6_ub=obj.bezier_shadow_last_d6_ub;
+                st.bezier_shadow_last_dx=obj.bezier_shadow_last_dx;
+                st.bezier_shadow_last_dy=obj.bezier_shadow_last_dy;
+                st.bezier_shadow_last_dz=obj.bezier_shadow_last_dz;
+                st.r9_stage_episode_ms=obj.r9_stage_episode_ms;
+                st.r9_stage_synthesis_ms=obj.r9_stage_synthesis_ms;
+                st.r9_stage_candidate_loop_ms=obj.r9_stage_candidate_loop_ms;
+                st.r9_stage_total_internal_ms=obj.r9_stage_total_internal_ms;
+                st.r9_synth_hessian_ms=obj.r9_synth_hessian_ms;
+                st.r9_synth_corridor_ms=obj.r9_synth_corridor_ms;
+                st.r9_synth_qp_ms=obj.r9_synth_qp_ms;
+                st.r9_synth_candidate_build_ms=obj.r9_synth_candidate_build_ms;
+                st.r9_synth_row_count=obj.r9_synth_row_count;
+                st.r9_synth_episode_count=obj.r9_synth_episode_count;
+                st.r9_synth_component_count=obj.r9_synth_component_count;
+                st.r9_synth_sign_count=obj.r9_synth_sign_count;
+                st.r9_hr_request_seq=obj.r9_hr_request_seq;
+                st.r9_hr_callback_wall_ms=obj.r9_hr_callback_wall_ms;
+                st.r9_hr_callback_thread_cycles=obj.r9_hr_callback_thread_cycles;
+                st.r9_hr_callback_process_cycles=obj.r9_hr_callback_process_cycles;
+                st.r9_hr_episode_wall_ms=obj.r9_hr_episode_wall_ms;
+                st.r9_hr_episode_thread_cycles=obj.r9_hr_episode_thread_cycles;
+                st.r9_hr_episode_process_cycles=obj.r9_hr_episode_process_cycles;
+                st.r9_hr_synthesis_wall_ms=obj.r9_hr_synthesis_wall_ms;
+                st.r9_hr_synthesis_thread_cycles=obj.r9_hr_synthesis_thread_cycles;
+                st.r9_hr_synthesis_process_cycles=obj.r9_hr_synthesis_process_cycles;
+                st.r9_hr_qp_wall_ms=obj.r9_hr_qp_wall_ms;
+                st.r9_hr_qp_thread_cycles=obj.r9_hr_qp_thread_cycles;
+                st.r9_hr_qp_process_cycles=obj.r9_hr_qp_process_cycles;
+                st.geometry_shadow_pass=logical(obj.geometry_shadow_pass);
+                st.geometry_shadow_reason_code=obj.geometry_shadow_reason_code;
+                st.geometry_shadow_continuous_time=logical(obj.geometry_shadow_continuous_time);
+                st.geometry_shadow_ieee754_outward_closed=logical(obj.geometry_shadow_ieee754_outward_closed);
+                st.geometry_shadow_min_margin_m=obj.geometry_shadow_min_margin_m;
+                st.geometry_shadow_min_payload_margin_m=obj.geometry_shadow_min_payload_margin_m;
+                st.geometry_shadow_min_uav_margin_m=obj.geometry_shadow_min_uav_margin_m;
+                st.geometry_shadow_min_cable_margin_m=obj.geometry_shadow_min_cable_margin_m;
+                st.geometry_shadow_leaf_count=obj.geometry_shadow_leaf_count;
+                st.geometry_shadow_split_count=obj.geometry_shadow_split_count;
+                st.geometry_shadow_max_depth=obj.geometry_shadow_max_depth;
+                st.geometry_shadow_min_alpha_lb=obj.geometry_shadow_min_alpha_lb;
+                st.geometry_shadow_max_qdot_ub=obj.geometry_shadow_max_qdot_ub;
+                st.geometry_shadow_max_q_arc_radius=obj.geometry_shadow_max_q_arc_radius;
+                st.geometry_shadow_max_q_arc_inflation_m=obj.geometry_shadow_max_q_arc_inflation_m;
+                st.geometry_shadow_resource_exhausted=logical(obj.geometry_shadow_resource_exhausted);
+                st.generator_last_elapsed_before_ms=obj.generator_last_elapsed_before_ms;
+                st.generator_last_budget_remaining_ms=obj.generator_last_budget_remaining_ms;
+                st.generator_last_context_ms=obj.generator_last_context_ms;
+                st.generator_last_callback_ms=obj.generator_last_callback_ms;
+                st.generator_last_validation_ms=obj.generator_last_validation_ms;
+                st.generator_last_critical_ms=obj.generator_last_critical_ms;
+            end
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_state_meta_ms=1e3*toc(t_light_e2e);
@@ -4266,8 +4414,14 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
-        function write_active_output(obj,t_now,xd_nom)
-            xd=obj.evaluate_active_reference_xd(t_now,xd_nom);
+        function write_active_output(obj,t_now,xd_nom,varargin_xd)
+            if nargin>=4 && ~isempty(varargin_xd)
+                xd=double(varargin_xd(:));
+                assert(numel(xd)>=11 && all(isfinite(xd)), ...
+                    '[REPLANNER ERROR] precomputed active output is invalid.');
+            else
+                xd=obj.evaluate_active_reference_xd(t_now,xd_nom);
+            end
             st=obj.result.state;
             st.xd=xd;
 
@@ -4558,51 +4712,11 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function model = make_batch_model_from_proposal_cached(obj,P,targetVersion)
-            assert(isstruct(P)&&isfield(P,'representation_code')&& ...
-                double(P.representation_code)==2, ...
-                '[REPLANNER ERROR] cached batch commit requires piecewise representation_code=2.');
-
-            if strcmpi(char(obj.active_reference_mode),'NOMINAL')
-                assert(obj.nominal_batch_model_cache_valid && ...
-                    isstruct(obj.nominal_batch_model_cache) && ...
-                    isfield(obj.nominal_batch_model_cache,'certified') && ...
-                    logical(obj.nominal_batch_model_cache.certified) && ...
-                    double(obj.nominal_batch_model_cache.reference_version)== ...
-                        double(obj.active_reference_version), ...
-                    '[REPLANNER ERROR] nominal AF7R33 batch cache is stale.');
-                model=obj.nominal_batch_model_cache;
-            elseif strcmpi(char(obj.active_reference_mode),'REPAIRED')
-                R=obj.active_repaired_reference;
-                assert(isstruct(R)&&isfield(R,'batch_flat_model')&& ...
-                    isstruct(R.batch_flat_model)&& ...
-                    isfield(R.batch_flat_model,'certified')&& ...
-                    logical(R.batch_flat_model.certified), ...
-                    '[REPLANNER ERROR] previous repaired reference lacks batch model.');
-                model=R.batch_flat_model;
-            else
-                error('[REPLANNER ERROR] unsupported active reference mode.');
-            end
-
-            C=struct();
-            C.t0=double(P.t0);
-            C.t1=double(P.t1);
-            C.segment_t0=double(P.piecewise_segment_t0(:).');
-            C.segment_t1=double(P.piecewise_segment_t1(:).');
-            C.control_points=P.piecewise_control_points;
-
-            assert(isfinite(C.t0)&&isfinite(C.t1)&&C.t1>C.t0);
-            assert(numel(C.segment_t0)==numel(C.segment_t1)&& ...
-                numel(C.control_points)==numel(C.segment_t0)&& ...
-                ~isempty(C.control_points));
-            for k=1:numel(C.control_points)
-                cp=double(C.control_points{k});
-                assert(isequal(size(cp),[3 16])&&all(isfinite(cp),'all'));
-            end
-
-            model.corrections(end+1)=C;
-            model.reference_version=double(targetVersion);
-            model.certified=true;
-            model.schema='AF7R33_BATCH_FLAT_MODEL_V1';
+            [ok,reason,model,~]=af7r58i_prepare_batch_model( ...
+                obj,P,targetVersion,double(P.t0));
+            assert(ok, ...
+                '[REPLANNER ERROR] canonical batch resource gate rejected: %s', ...
+                reason);
         end
 
 
@@ -4647,9 +4761,9 @@ classdef REPLANNING_SYSTEM < handle
                 ar=double(pack.Araw(:,i));
                 assert(isequal(ar,double(obj.raw_enclosing_ellipsoid_axes(o))), ...
                     '[REPLANNER ERROR] raw obstacle ellipsoid changed during fast packet rebuild.');
-                pack.Apay(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dp);
-                pack.Auav(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dq);
-                pack.Acable(:,i)=obj.outer_ellipsoid_from_raw_cached(o,ar,Dc);
+                [pack.Apay(:,i),pack.Auav(:,i),pack.Acable(:,i)]= ...
+                    obj.outer_ellipsoid_triplet_from_raw_cached( ...
+                        o,ar,Dp,Dq,Dc);
                 if isfield(o,'v_center') && norm(o.v_center(:))>0
                     error('[REPLANNER ERROR] moving obstacle entered static fast packet path.');
                 end
@@ -4668,6 +4782,32 @@ classdef REPLANNING_SYSTEM < handle
             end
             amin=min(base); assert(isfinite(amin)&&amin>0);
             A=(1+D/amin)*base;
+        end
+
+        function [Ap,Aq,Ac] = outer_ellipsoid_triplet_from_raw_cached( ...
+                ~,o,base,Dp,Dq,Dc)
+            % AF7R58ZZN-R2 exact fused form of three calls to
+            % outer_ellipsoid_from_raw_cached(). Each individual
+            % floating-point expression is intentionally unchanged.
+            type=lower(o.type);
+            if strcmp(type,'cylinder')
+                r=double(o.raw_param(1)); h=double(o.raw_param(2));
+                Ap=[sqrt(3/2)*(r+Dp);sqrt(3/2)*(r+Dp);sqrt(3)*(h/2+Dp)];
+                Aq=[sqrt(3/2)*(r+Dq);sqrt(3/2)*(r+Dq);sqrt(3)*(h/2+Dq)];
+                Ac=[sqrt(3/2)*(r+Dc);sqrt(3/2)*(r+Dc);sqrt(3)*(h/2+Dc)];
+                return;
+            end
+            if strcmp(type,'sphere')
+                r=double(o.raw_param(1));
+                Ap=(r+Dp)*ones(3,1);
+                Aq=(r+Dq)*ones(3,1);
+                Ac=(r+Dc)*ones(3,1);
+                return;
+            end
+            amin=min(base); assert(isfinite(amin)&&amin>0);
+            Ap=(1+Dp/amin)*base;
+            Aq=(1+Dq/amin)*base;
+            Ac=(1+Dc/amin)*base;
         end
 
 
@@ -4812,6 +4952,228 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function [tf,reason] = can_reuse_reference_only_prepared_packet_cache_exact(obj,C,newSC)
+            % AF7R58ZL exact NON-AUTHORITY prepared-cache retarget gate.
+            %
+            % A cached entry is NOT accepted as a new safety certificate.
+            % It is accepted only as an exact static-geometry base from which
+            % the current-speed sweep/packet/sensor tuple is recomputed.
+            %
+            % Therefore payload/UAV speed changes do not invalidate the cache:
+            % the current speed certificate is applied exactly by
+            % retarget_reference_only_prepared_packet_cache_exact().
+            %
+            % reason: 0 PASS
+            % 1 policy | 2 cache/schema | 3 newSC | 4 cachedSC
+            % 5 cached payload speed invalid | 6 cached UAV speed invalid
+            % 7 key shape | 8 active authority changed
+            % 9 live numeric dependency changed | 10 obstacle source changed
+            % 11 cached sweep mismatch | 12 cached packet invalid
+            % 13 cached sensor mismatch | 14 cached dep invalid
+            tf=false;
+            reason=1;
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                return;
+            end
+
+            reason=2;
+            if ~(isstruct(C) && isscalar(C) && ...
+                    isfield(C,'schema') && ...
+                    strcmp(char(C.schema),'AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2') && ...
+                    isfield(C,'non_authority') && isscalar(C.non_authority) && logical(C.non_authority) && ...
+                    isfield(C,'speed') && isfield(C,'sweep') && ...
+                    isfield(C,'packet') && isfield(C,'sensor') && ...
+                    isfield(C,'dep') && isfield(C,'key'))
+                return;
+            end
+
+            req={'payload_speed_UB_m_s','uav_speed_UB_m_s'};
+            reason=3;
+            if ~(isstruct(newSC) && isfield(newSC,'certified') && logical(newSC.certified) && ...
+                    all(isfield(newSC,req)))
+                return;
+            end
+            VL=double(newSC.payload_speed_UB_m_s);
+            VQ=double(newSC.uav_speed_UB_m_s);
+            if ~(isfinite(VL)&&VL>=0&&isfinite(VQ)&&VQ>=0)
+                return;
+            end
+
+            reason=4;
+            oldSC=C.speed;
+            if ~(isstruct(oldSC) && isfield(oldSC,'certified') && logical(oldSC.certified) && ...
+                    all(isfield(oldSC,req)))
+                return;
+            end
+            VLcached=double(oldSC.payload_speed_UB_m_s);
+            VQcached=double(oldSC.uav_speed_UB_m_s);
+            reason=5;
+            if ~(isfinite(VLcached)&&VLcached>=0), return; end
+            reason=6;
+            if ~(isfinite(VQcached)&&VQcached>=0), return; end
+
+            reason=7;
+            K=C.key;
+            keyReq={'active_reference_mode','active_reference_version', ...
+                'dt','r_load','d_margin','r_drone','r_cable', ...
+                'horizon','sensor_range','cable_length','static_obstacle_map'};
+            if ~(isstruct(K)&&isscalar(K)&&all(isfield(K,keyReq)))
+                return;
+            end
+
+            reason=8;
+            if ~(strcmpi(char(K.active_reference_mode),char(obj.active_reference_mode)) && ...
+                    isequal(double(K.active_reference_version),double(obj.active_reference_version)))
+                return;
+            end
+
+            reason=9;
+            live=[double(obj.prediction_dt),double(obj.r_load),double(obj.d_margin), ...
+                double(obj.r_drone),double(obj.r_cable),double(obj.horizon_s), ...
+                double(obj.trigger_dist),double(obj.L_cable)];
+            stored=[double(K.dt),double(K.r_load),double(K.d_margin), ...
+                double(K.r_drone),double(K.r_cable),double(K.horizon), ...
+                double(K.sensor_range),double(K.cable_length)];
+            if ~(all(isfinite(live)) && all(isfinite(stored)) && isequal(stored,live))
+                return;
+            end
+
+            reason=10;
+            if ~isequaln(K.static_obstacle_map,obj.static_obstacle_map)
+                return;
+            end
+
+            % Prove the cached entry itself was internally coherent at the
+            % cached speed. It is only a base; current-speed quantities are
+            % recomputed after this gate.
+            dt=live(1);
+            pay=VLcached*dt/2;
+            uav=VQcached*dt/2;
+            cab=max(VLcached,VQcached)*dt/2;
+            S=C.sweep;
+            reason=11;
+            if ~(isstruct(S) && isfield(S,'certified') && logical(S.certified) && ...
+                    isfield(S,'dt') && isequal(double(S.dt),dt) && ...
+                    isfield(S,'payload_m') && isequal(double(S.payload_m),pay) && ...
+                    isfield(S,'uav_m') && isequal(double(S.uav_m),uav) && ...
+                    isfield(S,'cable_m') && isequal(double(S.cable_m),cab) && ...
+                    isfield(S,'sensor_one_period_m') && ...
+                        isequal(double(S.sensor_one_period_m),VQcached*dt))
+                return;
+            end
+
+            reason=12;
+            P=C.packet;
+            M=numel(obj.static_obstacle_map);
+            if ~(isstruct(P) && isscalar(P) && ...
+                    isfield(P,'count') && double(P.count)==M && ...
+                    isfield(P,'ids') && numel(P.ids)==M && ...
+                    isfield(P,'C') && isequal(size(P.C),[3 M]) && ...
+                    isfield(P,'R') && isequal(size(P.R),[9 M]) && ...
+                    isfield(P,'types') && numel(P.types)==M && ...
+                    isfield(P,'Araw') && isequal(size(P.Araw),[3 M]) && ...
+                    isfield(P,'Apay') && isequal(size(P.Apay),[3 M]) && ...
+                    isfield(P,'Auav') && isequal(size(P.Auav),[3 M]) && ...
+                    isfield(P,'Acable') && isequal(size(P.Acable),[3 M]) && ...
+                    isfield(P,'delta_payload_m') && isequal(double(P.delta_payload_m),pay) && ...
+                    isfield(P,'delta_uav_m') && isequal(double(P.delta_uav_m),uav) && ...
+                    isfield(P,'delta_cable_m') && isequal(double(P.delta_cable_m),cab))
+                return;
+            end
+
+            reason=13;
+            H=live(6); Rs=live(7); L=live(8);
+            rho=max([live(4),L+live(2),L+live(5)]);
+            horizonMargin=Rs-(rho+VQcached*H);
+            dDetLB=Rs-VQcached*dt;
+            safeClear=dDetLB-rho;
+            if VQcached>0
+                collisionLead=safeClear/VQcached;
+                beforeHorizon=collisionLead-H;
+            else
+                collisionLead=Inf;
+                beforeHorizon=Inf;
+            end
+            T=C.sensor;
+            if ~(isstruct(T) && isfield(T,'certified') && logical(T.certified) && ...
+                    isfield(T,'VL') && isequal(double(T.VL),VLcached) && ...
+                    isfield(T,'VQ') && isequal(double(T.VQ),VQcached) && ...
+                    isfield(T,'dt') && isequal(double(T.dt),dt) && ...
+                    isfield(T,'sensor_range') && isequal(double(T.sensor_range),Rs) && ...
+                    isfield(T,'horizon') && isequal(double(T.horizon),H) && ...
+                    isfield(T,'rho_body') && isequal(double(T.rho_body),rho) && ...
+                    isfield(T,'sensor_horizon_margin_m') && ...
+                        isequal(double(T.sensor_horizon_margin_m),horizonMargin) && ...
+                    isfield(T,'first_detection_distance_LB_m') && ...
+                        isequal(double(T.first_detection_distance_LB_m),dDetLB) && ...
+                    isfield(T,'first_collision_lead_LB_s') && ...
+                        isequal(double(T.first_collision_lead_LB_s),collisionLead) && ...
+                    isfield(T,'before_horizon_entry_LB_s') && ...
+                        isequal(double(T.before_horizon_entry_LB_s),beforeHorizon))
+                return;
+            end
+
+            reason=14;
+            if ~isstruct(C.dep), return; end
+
+            reason=0;
+            tf=true;
+        end
+
+
+        function [sweep,packet,sensor,dep] = ...
+                retarget_reference_only_prepared_packet_cache_exact( ...
+                    obj,C,SC,targetVersion,currentDep)
+            % Exact current-speed retarget from a validated non-authority cache.
+            %
+            % Static obstacle authority is unchanged by the gate. Araw is the
+            % cached raw enclosing-ellipsoid authority. We recompute every
+            % speed-dependent inflated axis with the SAME production formula
+            % outer_ellipsoid_from_raw_cached(), then rebuild the sensor theorem
+            % from the current speed certificate. No sampled acceptance is used.
+            sweep=obj.build_trigger_sweep_for_target(SC,targetVersion);
+
+            packet=C.packet;
+            packet.reference_mode='REPAIRED';
+            packet.reference_version=double(targetVersion);
+            packet.sweep_certified=true;
+            packet.sweep_dt=double(sweep.dt);
+            packet.delta_payload_m=double(sweep.payload_m);
+            packet.delta_uav_m=double(sweep.uav_m);
+            packet.delta_cable_m=double(sweep.cable_m);
+
+            Dp=double(obj.r_load)+double(obj.d_margin)+double(sweep.payload_m);
+            Dq=double(obj.r_drone)+double(obj.d_margin)+double(sweep.uav_m);
+            Dc=double(obj.r_cable)+double(obj.d_margin)+double(sweep.cable_m);
+            M=numel(obj.static_obstacle_map);
+            assert(double(packet.count)==M, ...
+                '[REPLANNER ERROR] cached packet/static-map count changed during retarget.');
+            for ii=1:M
+                o=obj.static_obstacle_map(ii);
+                assert(isequal(double(packet.ids(ii)),double(o.id)) && ...
+                    isequal(double(packet.C(:,ii)),double(o.p_center(:))) && ...
+                    isequal(double(packet.R(:,ii)),double(o.R_obs(:))) && ...
+                    strcmpi(char(packet.types{ii}),char(o.type)), ...
+                    '[REPLANNER ERROR] cached static obstacle authority changed during retarget.');
+                ar=double(packet.Araw(:,ii));
+                [packet.Apay(:,ii),packet.Auav(:,ii),packet.Acable(:,ii)]= ...
+                    obj.outer_ellipsoid_triplet_from_raw_cached( ...
+                        o,ar,Dp,Dq,Dc);
+                if isfield(o,'v_center') && norm(o.v_center(:))>0
+                    error('[REPLANNER ERROR] moving obstacle entered prepared-cache retarget path.');
+                end
+            end
+
+            sensor=obj.build_sensor_horizon_for_target(SC,targetVersion);
+            assert(isfield(sensor,'certified')&&logical(sensor.certified), ...
+                '[REPLANNER ERROR] retargeted sensor horizon is not closed.');
+
+            dep=currentDep;
+            dep.reference_mode='REPAIRED';
+            dep.reference_version=double(targetVersion);
+        end
+
+
         function [sweep,packet,sensor,dep] = ...
                 reuse_reference_only_runtime_packet_exact( ...
                     obj,oldSweep,oldPacket,oldSensor,oldDep,SC,targetVersion)
@@ -4903,6 +5265,71 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function af7r58m_capture_timing_ring_internal(obj,t_hard_cycle)
+            % AF7R58O bounded request-only diagnostic writer.
+            % Must never throw and must never affect control decisions.
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58M_TIMING_RING)
+                    return;
+                end
+                cap=double(obj.af7r58m_timing_ring_capacity);
+                wid=double(obj.af7r58m_timing_ring_width);
+                if ~(cap==64 && wid==32 && isequal(size(obj.af7r58m_timing_ring),[64 32]))
+                    return;
+                end
+
+                r=nan(1,32);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(t_hard_cycle);
+                r(3)=double(obj.generator_last_cycle_critical_ms);
+                r(4)=double(obj.generator_last_elapsed_before_ms);
+                r(5)=double(obj.generator_last_budget_remaining_ms);
+                r(6)=double(obj.generator_last_context_ms);
+                r(7)=double(obj.generator_last_callback_ms);
+                r(8)=double(obj.generator_last_validation_ms);
+                r(9)=double(obj.generator_last_critical_ms);
+                r(10)=double(obj.generator_last_runtime_ms);
+                r(11)=double(obj.generator_last_status_code);
+                r(12)=double(obj.generator_deadline_fail_count);
+                r(13)=double(obj.generator_candidate_count);
+                r(14)=double(obj.generator_validation_pass_count);
+                r(15)=double(obj.generator_validation_fail_count);
+                r(16)=double(obj.active_reference_version);
+                r(17)=double(obj.replan_commit_count);
+                r(18)=double(obj.reference_only_evaluation_count);
+                r(19)=double(obj.reference_only_commit_count);
+                r(20)=double(obj.reference_only_runtime_packet_reuse_count);
+                r(21)=double(obj.reference_only_runtime_packet_rebuild_count);
+                r(22)=double(obj.reference_only_fast_packet_rebuild_count);
+                r(23)=double(obj.compact_native_proposal_count);
+                r(24)=double(obj.r9_stage_episode_ms);
+                r(25)=double(obj.r9_synth_hessian_ms);
+                r(26)=double(obj.r9_synth_corridor_ms);
+                r(27)=double(obj.r9_synth_qp_ms);
+                r(28)=double(obj.r9_synth_candidate_build_ms);
+                r(29)=double(obj.r9_stage_synthesis_ms);
+                r(30)=double(obj.r9_stage_candidate_loop_ms);
+                r(31)=double(obj.r9_stage_total_internal_ms);
+                r(32)=double(obj.r9_hr_callback_wall_ms);
+
+                head=double(obj.af7r58m_timing_ring_head);
+                idx=mod(head,cap)+1;
+                obj.af7r58m_timing_ring(idx,:)=r;
+                obj.af7r58m_timing_ring_head=idx;
+                obj.af7r58m_timing_ring_count=min(cap,double(obj.af7r58m_timing_ring_count)+1);
+
+                us=1e6*toc(tcap);
+                obj.af7r58m_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58m_max_capture_overhead_us= ...
+                        max(double(obj.af7r58m_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic capture must never alter the control path.
+            end
+        end
+
         function invoke_replan_generator_shadow(obj,t_hard_cycle,t_now, ...
                 xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
                 active,all_dists,pL_ref,q_ref,ref_source, ...
@@ -4922,22 +5349,45 @@ classdef REPLANNING_SYSTEM < handle
 
             ti=tic;
             obj.generator_request_count=obj.generator_request_count+1;
-            obj.r9_hr_request_seq=double(obj.generator_request_count);
-            obj.r9_hr_callback_wall_ms=NaN;
-            obj.r9_hr_callback_thread_cycles=NaN;
-            obj.r9_hr_callback_process_cycles=NaN;
-            obj.r9_hr_episode_wall_ms=NaN;
-            obj.r9_hr_episode_thread_cycles=NaN;
-            obj.r9_hr_episode_process_cycles=NaN;
-            obj.r9_hr_synthesis_wall_ms=NaN;
-            obj.r9_hr_synthesis_thread_cycles=NaN;
-            obj.r9_hr_synthesis_process_cycles=NaN;
-            obj.r9_hr_qp_wall_ms=NaN;
-            obj.r9_hr_qp_thread_cycles=NaN;
-            obj.r9_hr_qp_process_cycles=NaN;
+
+            % AF7R58ZZQ: H=4 s is fixed.  Start planning immediately when the
+            % ordinary trigger fires; do not extend the horizon and do not wait
+            % toward collision.  In this synchronous MATLAB phase, allow one
+            % control period for the complete sensor-dependent attempt.
+            attempt_budget_s=double(obj.prediction_dt);
+            assert(isequal(double(obj.horizon_s),4.0) && ...
+                isfinite(attempt_budget_s) && attempt_budget_s>0 && ...
+                double(obj.horizon_s)>2*attempt_budget_s, ...
+                '[AF7R58ZZQ] fixed-4s / one-control-period budget contract open.');
+            Ssync=obj.sensor_horizon_certificate;
+            assert(isstruct(Ssync) && isfield(Ssync,'certified') && ...
+                logical(Ssync.certified) && isfield(Ssync,'horizon') && ...
+                isequal(double(Ssync.horizon),4.0) && ...
+                isfield(Ssync,'before_horizon_entry_LB_s') && ...
+                double(Ssync.before_horizon_entry_LB_s)>0, ...
+                '[AF7R58ZZQ] synchronous planning-budget theorem is not closed.');
+            if obj.ENABLE_AF7R58M_TIMING_RING
+                af7r58m_ring_cleanup=onCleanup( ...
+                    @()obj.af7r58m_capture_timing_ring_internal(t_hard_cycle)); %#ok<NASGU>
+            end
+            if obj.ENABLE_PROFILING
+                obj.r9_hr_request_seq=double(obj.generator_request_count);
+                obj.r9_hr_callback_wall_ms=NaN;
+                obj.r9_hr_callback_thread_cycles=NaN;
+                obj.r9_hr_callback_process_cycles=NaN;
+                obj.r9_hr_episode_wall_ms=NaN;
+                obj.r9_hr_episode_thread_cycles=NaN;
+                obj.r9_hr_episode_process_cycles=NaN;
+                obj.r9_hr_synthesis_wall_ms=NaN;
+                obj.r9_hr_synthesis_thread_cycles=NaN;
+                obj.r9_hr_synthesis_process_cycles=NaN;
+                obj.r9_hr_qp_wall_ms=NaN;
+                obj.r9_hr_qp_thread_cycles=NaN;
+                obj.r9_hr_qp_process_cycles=NaN;
+            end
 
             elapsed_before=toc(t_hard_cycle);
-            budget_remaining=double(obj.hard_modify_deadline_s)-elapsed_before;
+            budget_remaining=attempt_budget_s-elapsed_before;
             obj.generator_last_elapsed_before_ms=1e3*elapsed_before;
             obj.generator_last_budget_remaining_ms=1e3*budget_remaining;
 
@@ -4949,15 +5399,17 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_validation_ms=0;
                 obj.generator_last_critical_ms=1e3*toc(ti);
                 obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
-                obj.last_replan_status=struct( ...
-                    'requested',true,'committed',false, ...
-                    'reason','PRE_GENERATOR_DEADLINE_EXHAUSTED', ...
-                    'trigger_ttc',double(ttc), ...
-                    'elapsed_before_generator_ms',1e3*elapsed_before, ...
-                    'budget_remaining_ms',1e3*budget_remaining, ...
-                    'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
-                    'backend_code',double(obj.generator_backend_locked_code), ...
-                    'backend_name',char(obj.generator_backend_locked_name));
+                if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','PRE_GENERATOR_DEADLINE_EXHAUSTED', ...
+                        'trigger_ttc',double(ttc), ...
+                        'elapsed_before_generator_ms',1e3*elapsed_before, ...
+                        'budget_remaining_ms',1e3*budget_remaining, ...
+                        'deadline_ms',1e3*attempt_budget_s, ...
+                        'backend_code',double(obj.generator_backend_locked_code), ...
+                        'backend_name',char(obj.generator_backend_locked_name));
+                end
                 return;
             end
 
@@ -4986,12 +5438,16 @@ classdef REPLANNING_SYSTEM < handle
                 candidate=[];
             else
                 try
-                    r25cb0=af7r25_stamp_mex();
-                    candidate=obj.generator_backend_locked_callback(CTX);
-                    r25cb1=af7r25_stamp_mex();
-                    obj.r9_hr_callback_wall_ms=1e3*double(r25cb1(1)-r25cb0(1))/double(r25cb0(2));
-                    obj.r9_hr_callback_thread_cycles=double(r25cb1(3)-r25cb0(3));
-                    obj.r9_hr_callback_process_cycles=double(r25cb1(4)-r25cb0(4));
+                    if obj.ENABLE_PROFILING
+                        r25cb0=af7r25_stamp_mex();
+                        candidate=obj.generator_backend_locked_callback(CTX);
+                        r25cb1=af7r25_stamp_mex();
+                        obj.r9_hr_callback_wall_ms=1e3*double(r25cb1(1)-r25cb0(1))/double(r25cb0(2));
+                        obj.r9_hr_callback_thread_cycles=double(r25cb1(3)-r25cb0(3));
+                        obj.r9_hr_callback_process_cycles=double(r25cb1(4)-r25cb0(4));
+                    else
+                        candidate=obj.generator_backend_locked_callback(CTX);
+                    end
                 catch
                     callback_ok=false;
                 end
@@ -5008,7 +5464,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_critical_ms=cp_callback;
                 cycle_ms=1e3*toc(t_hard_cycle);
                 obj.generator_last_cycle_critical_ms=cycle_ms;
-                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                if cycle_ms>1e3*attempt_budget_s
                     obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
                 end
                 return;
@@ -5020,7 +5476,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_critical_ms=cp_callback;
                 cycle_ms=1e3*toc(t_hard_cycle);
                 obj.generator_last_cycle_critical_ms=cycle_ms;
-                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                if cycle_ms>1e3*attempt_budget_s
                     obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
                     obj.generator_last_status_code=-7;
                 end
@@ -5049,9 +5505,9 @@ classdef REPLANNING_SYSTEM < handle
                 % are deliberately separated. A deadline miss ALWAYS
                 % forbids commit, but the already-generated candidate is
                 % still evaluated read-only so the same run reveals which
-                % theorem layer is open. This does not weaken the <=4 ms
-                % production rule.
-                deadlineExceeded=cycle_ms>1e3*obj.hard_modify_deadline_s;
+                % theorem layer is open. This does not weaken the one-control-period
+                % synchronous attempt rule.
+                deadlineExceeded=cycle_ms>1e3*attempt_budget_s;
                 if deadlineExceeded
                     obj.generator_deadline_fail_count= ...
                         obj.generator_deadline_fail_count+1;
@@ -5059,32 +5515,34 @@ classdef REPLANNING_SYSTEM < handle
 
                 if ~(isfield(candidate,'success') && logical(candidate.success)) && ...
                         ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
-                    obj.last_reference_only_evaluation=struct( ...
-                        'certified',false, ...
-                        'full_system_authority',false, ...
-                        'sampled_acceptance',false, ...
-                        'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
-                    obj.last_execution_aware_evaluation=struct( ...
-                        'certified',false, ...
-                        'full_system_authority',false, ...
-                        'sampled_acceptance',false, ...
-                        'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
                     obj.generator_last_status_code=21;
-                    obj.last_replan_status=struct( ...
-                        'requested',true,'committed',false, ...
-                        'reason','REFERENCE_PROPOSAL_NOT_CERTIFIED', ...
-                        'proposal_reason_code',double(candidate.reason_code), ...
-                        'proposal_reason',obj.bezier_proposal_reason_text(candidate.reason_code), ...
-                        'proposal_generated',obj.logical_struct_field(candidate,'generated'), ...
-                        'proposal_t0',double(candidate.t0), ...
-                        'proposal_tm',double(candidate.tm), ...
-                        'proposal_t1',double(candidate.t1), ...
-                        'reference_certified',false, ...
-                        'execution_certified',false, ...
-                        'noncommit_diagnostics_deferred',true, ...
-                        'cycle_ms',cycle_ms, ...
-                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
-                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                        obj.last_reference_only_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                        obj.last_execution_aware_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_FAILED_PROPOSAL_PRODUCTION_HOTPATH');
+                        obj.last_replan_status=struct( ...
+                            'requested',true,'committed',false, ...
+                            'reason','REFERENCE_PROPOSAL_NOT_CERTIFIED', ...
+                            'proposal_reason_code',double(candidate.reason_code), ...
+                            'proposal_reason',obj.bezier_proposal_reason_text(candidate.reason_code), ...
+                            'proposal_generated',obj.logical_struct_field(candidate,'generated'), ...
+                            'proposal_t0',double(candidate.t0), ...
+                            'proposal_tm',double(candidate.tm), ...
+                            'proposal_t1',double(candidate.t1), ...
+                            'reference_certified',false, ...
+                            'execution_certified',false, ...
+                            'noncommit_diagnostics_deferred',true, ...
+                            'cycle_ms',cycle_ms, ...
+                            'deadline_ms',1e3*attempt_budget_s, ...
+                            'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
+                    end
                     return;
                 end
 
@@ -5150,32 +5608,34 @@ classdef REPLANNING_SYSTEM < handle
                             obj.logical_struct_field(Rref,'certified'), ...
                         'execution_certified',false, ...
                         'cycle_ms',cycle_ms, ...
-                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s), ...
+                        'deadline_ms',1e3*attempt_budget_s, ...
                         'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY));
                     return;
                 end
 
                 if deadlineExceeded && ~obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL
-                    obj.last_reference_only_evaluation=struct( ...
-                        'certified',false, ...
-                        'full_system_authority',false, ...
-                        'sampled_acceptance',false, ...
-                        'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
-                    obj.last_execution_aware_evaluation=struct( ...
-                        'certified',false, ...
-                        'full_system_authority',false, ...
-                        'sampled_acceptance',false, ...
-                        'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
                     obj.generator_last_status_code=-20;
-                    obj.last_replan_status=struct( ...
-                        'requested',true,'committed',false, ...
-                        'reason','GENERATOR_DEADLINE_EXCEEDED__DIAGNOSTICS_DEFERRED', ...
-                        'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
-                        'reference_certified',false, ...
-                        'execution_certified',false, ...
-                        'noncommit_diagnostics_deferred',true, ...
-                        'cycle_ms',cycle_ms, ...
-                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s));
+                    if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                        obj.last_reference_only_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                        obj.last_execution_aware_evaluation=struct( ...
+                            'certified',false, ...
+                            'full_system_authority',false, ...
+                            'sampled_acceptance',false, ...
+                            'reason','SKIPPED_DEADLINE_MISS_PRODUCTION_HOTPATH');
+                        obj.last_replan_status=struct( ...
+                            'requested',true,'committed',false, ...
+                            'reason','GENERATOR_DEADLINE_EXCEEDED__DIAGNOSTICS_DEFERRED', ...
+                            'commit_policy',char(obj.AVOIDANCE_COMMIT_POLICY), ...
+                            'reference_certified',false, ...
+                            'execution_certified',false, ...
+                            'noncommit_diagnostics_deferred',true, ...
+                            'cycle_ms',cycle_ms, ...
+                            'deadline_ms',1e3*attempt_budget_s);
+                    end
                     return;
                 end
 
@@ -5184,7 +5644,7 @@ classdef REPLANNING_SYSTEM < handle
                 % REFERENCE_ONLY commits depend only on the already-closed
                 % reference certificate. Execution-aware evaluation is a
                 % non-authoritative diagnostic in this policy and is
-                % deferred from the <=4 ms modification path. No safety
+                % deferred from the synchronous attempt path. No safety
                 % condition used by REFERENCE_ONLY is removed or relaxed.
                 % EXECUTION_AWARE retains both evaluations exactly.
                 % -----------------------------------------------------
@@ -5216,8 +5676,10 @@ classdef REPLANNING_SYSTEM < handle
                     otherwise
                         error('[REPLANNER ERROR] unknown avoidance commit policy.');
                 end
-                obj.last_reference_only_evaluation=Rref;
-                obj.last_execution_aware_evaluation=Xexec;
+                if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                    obj.last_reference_only_evaluation=Rref;
+                    obj.last_execution_aware_evaluation=Xexec;
+                end
 
                 if deadlineExceeded
                     obj.generator_last_status_code=-20;
@@ -5228,7 +5690,7 @@ classdef REPLANNING_SYSTEM < handle
                         'reference_certified',obj.logical_struct_field(Rref,'certified'), ...
                         'execution_certified',obj.logical_struct_field(Xexec,'certified'), ...
                         'cycle_ms',cycle_ms, ...
-                        'deadline_ms',1e3*double(obj.hard_modify_deadline_s));
+                        'deadline_ms',1e3*attempt_budget_s);
                     return;
                 end
 
@@ -5262,6 +5724,26 @@ classdef REPLANNING_SYSTEM < handle
                             return;
                         end
 
+                        % AF7R58ZZQ: fail closed before entering commit if the
+                        % already-certified callback/evaluation path consumed
+                        % the one-control-period synchronous attempt budget.
+                        cycle_ms=1e3*toc(t_hard_cycle);
+                        obj.generator_last_cycle_critical_ms=cycle_ms;
+                        if cycle_ms>1e3*attempt_budget_s
+                            obj.generator_deadline_fail_count= ...
+                                obj.generator_deadline_fail_count+1;
+                            obj.generator_last_status_code=-20;
+                            if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                                obj.last_replan_status=struct( ...
+                                    'requested',true,'committed',false, ...
+                                    'reason','PRECOMMIT_DEADLINE_EXCEEDED', ...
+                                    'commit_policy','REFERENCE_ONLY', ...
+                                    'cycle_ms',cycle_ms, ...
+                                    'deadline_ms',1e3*attempt_budget_s);
+                            end
+                            return;
+                        end
+
                         [commit_ok,commit_reason]= ...
                             obj.try_commit_reference_only_proposal( ...
                                 candidate,double(t_now),t_hard_cycle);
@@ -5274,17 +5756,19 @@ classdef REPLANNING_SYSTEM < handle
                         else
                             obj.generator_validation_fail_count= ...
                                 obj.generator_validation_fail_count+1;
-                            if cycle_ms>1e3*obj.hard_modify_deadline_s
+                            if cycle_ms>1e3*attempt_budget_s
                                 obj.generator_deadline_fail_count= ...
                                     obj.generator_deadline_fail_count+1;
                                 obj.generator_last_status_code=-30;
                             else
                                 obj.generator_last_status_code=31;
                             end
-                            obj.last_replan_status=struct( ...
-                                'requested',true,'committed',false, ...
-                                'reason',char(commit_reason), ...
-                                'commit_policy','REFERENCE_ONLY');
+                            if obj.ENABLE_HOTPATH_DIAGNOSTIC_MIRROR
+                                obj.last_replan_status=struct( ...
+                                    'requested',true,'committed',false, ...
+                                    'reason',char(commit_reason), ...
+                                    'commit_policy','REFERENCE_ONLY');
+                            end
                         end
 
                     case 'EXECUTION_AWARE'
@@ -5338,7 +5822,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_critical_ms=cp_callback;
                 cycle_ms=1e3*toc(t_hard_cycle);
                 obj.generator_last_cycle_critical_ms=cycle_ms;
-                if cycle_ms>1e3*obj.hard_modify_deadline_s
+                if cycle_ms>1e3*attempt_budget_s
                     obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
                 end
                 return;
@@ -5360,7 +5844,7 @@ classdef REPLANNING_SYSTEM < handle
             cycle_ms=1e3*toc(t_hard_cycle);
             obj.generator_last_cycle_critical_ms=cycle_ms;
 
-            if cycle_ms>1e3*obj.hard_modify_deadline_s
+            if cycle_ms>1e3*attempt_budget_s
                 obj.generator_deadline_fail_count=obj.generator_deadline_fail_count+1;
                 obj.generator_last_status_code=-6;
                 return;
@@ -8993,9 +9477,117 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function af7r58q_min_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58Q_MIN_TIMING), return; end
+                if ~(obj.af7r58q_min_ring_capacity==64 && ...
+                        obj.af7r58q_min_ring_width==9 && ...
+                        isequal(size(obj.af7r58q_min_ring),[64 9]))
+                    return;
+                end
+                st=double(obj.af7r58q_min_stage_ms);
+                total_ms=1e3*toc(totalTic);
+                known=sum(st(isfinite(st)));
+                residual=total_ms-known;
+                r=[double(obj.generator_request_count), total_ms, ...
+                    st(1),st(2),st(3),residual, ...
+                    double(obj.active_reference_version), ...
+                    double(obj.replan_commit_count), ...
+                    double(obj.generator_deadline_fail_count)];
+                cap=double(obj.af7r58q_min_ring_capacity);
+                j=mod(double(obj.af7r58q_min_ring_head),cap)+1;
+                obj.af7r58q_min_ring(j,:)=r;
+                obj.af7r58q_min_ring_head=j;
+                obj.af7r58q_min_ring_count=min(cap,double(obj.af7r58q_min_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58q_min_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58q_min_max_capture_overhead_us= ...
+                        max(double(obj.af7r58q_min_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic instrumentation must never change control flow.
+            end
+        end
+
+        function af7r58t_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58T_OTHER_TIMING), return; end
+                if ~(obj.af7r58t_ring_capacity==64 && ...
+                        obj.af7r58t_ring_width==15 && ...
+                        isequal(size(obj.af7r58t_ring),[64 15]))
+                    return;
+                end
+                s=double(obj.af7r58t_stage_ms);
+                r=nan(1,15);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(totalTic);
+                r(3:13)=s;
+                r(14)=double(obj.active_reference_version);
+                r(15)=double(obj.replan_commit_count);
+                cap=double(obj.af7r58t_ring_capacity);
+                j=mod(double(obj.af7r58t_ring_head),cap)+1;
+                obj.af7r58t_ring(j,:)=r;
+                obj.af7r58t_ring_head=j;
+                obj.af7r58t_ring_count=min(cap,double(obj.af7r58t_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58t_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58t_max_capture_overhead_us= ...
+                        max(double(obj.af7r58t_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostic capture must never alter control flow.
+            end
+        end
+
+        function af7r58v_r4_capture_internal(obj,totalTic)
+            tcap=tic;
+            try
+                if ~logical(obj.ENABLE_AF7R58V_R4_PRETRY_TIMING), return; end
+                if ~(obj.af7r58v_r4_ring_capacity==64 && ...
+                        obj.af7r58v_r4_ring_width==15 && ...
+                        isequal(size(obj.af7r58v_r4_ring),[64 15]))
+                    return;
+                end
+                r=nan(1,15);
+                r(1)=double(obj.generator_request_count);
+                r(2)=1e3*toc(totalTic);
+                r(3)=double(obj.af7r58v_r4_progress_code);
+                r(4)=double(obj.af7r58v_r4_branch_code);
+                r(5:14)=double(obj.af7r58v_r4_stage_ms);
+                r(15)=double(obj.active_reference_version);
+                cap=double(obj.af7r58v_r4_ring_capacity);
+                j=mod(double(obj.af7r58v_r4_ring_head),cap)+1;
+                obj.af7r58v_r4_ring(j,:)=r;
+                obj.af7r58v_r4_ring_head=j;
+                obj.af7r58v_r4_ring_count=min(cap,double(obj.af7r58v_r4_ring_count)+1);
+                us=1e6*toc(tcap);
+                obj.af7r58v_r4_last_capture_overhead_us=us;
+                if isfinite(us)
+                    obj.af7r58v_r4_max_capture_overhead_us= ...
+                        max(double(obj.af7r58v_r4_max_capture_overhead_us),us);
+                end
+            catch
+                % Diagnostics must never alter production control flow.
+            end
+        end
+
         function [ok,reason] = try_commit_reference_only_proposal(obj,P,t_commit,t_hard_cycle)
             ok=false;
             reason='';
+
+            % AF7R58ZZQ: normal REFERENCE_ONLY commit uses the same one-control-
+            % period synchronous attempt budget as generation.  The historical
+            % hard_modify_deadline_s=4 ms remains exclusively in the stop/
+            % fallback geometry certificate and is not a normal commit gate.
+            attempt_budget_s=double(obj.prediction_dt);
+            assert(isequal(double(obj.horizon_s),4.0) && ...
+                isfinite(attempt_budget_s) && attempt_budget_s>0 && ...
+                double(obj.horizon_s)>2*attempt_budget_s, ...
+                '[AF7R58ZZQ] fixed-4s / one-control-period commit budget open.');
 
             if ~obj.ENABLE_AUTO_REPLAN_COMMIT
                 reason='AUTO_COMMIT_DISABLED';
@@ -9010,7 +9602,12 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            P=obj.af7r46_materialize_candidate_evaluators(P);
+            [spacingOK,~,~,spacingReason]= ...
+                af7r58i_commit_spacing_guard(obj,double(t_commit));
+            if ~spacingOK
+                reason=spacingReason;
+                return;
+            end
 
             G=P.geometry_shadow_certificate;
             SC=P.reference_speed_certificate;
@@ -9031,11 +9628,179 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            evalFn=@(tg)obj.evaluate_bezier_proposal_reference(tg,P);
-            flatEvalFn=@(tg)obj.evaluate_bezier_proposal_flat_reference(tg,P);
+            % AF7R58ZZ: continuous certificate is the authority here.
+            % The removed two-time evaluator probes were sampled implementation
+            % checks, not the continuous-time proof.
+            if ~(isfield(SC,'continuous_time') && logical(SC.continuous_time) && ...
+                    isfield(SC,'sampled_acceptance') && ~logical(SC.sampled_acceptance) && ...
+                    isfield(SC,'specific_force_norm_LB_m_s2') && ...
+                    isnumeric(SC.specific_force_norm_LB_m_s2) && ...
+                    isscalar(SC.specific_force_norm_LB_m_s2) && ...
+                    isfinite(double(SC.specific_force_norm_LB_m_s2)) && ...
+                    double(SC.specific_force_norm_LB_m_s2)>0)
+                reason='REFERENCE_ONLY_CONTINUOUS_FLATNESS_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+            if ~(isfield(P,'c7_exact') && logical(P.c7_exact))
+                reason='REFERENCE_ONLY_C7_CERTIFICATE_NOT_CLOSED';
+                return;
+            end
+
+            [resourceOK,resourceReason,batchModel,resourceMeta]= ...
+                af7r58i_prepare_batch_model( ...
+                    obj,P,targetVersion,double(t_commit));
+            if ~resourceOK
+                reason=resourceReason;
+                return;
+            end
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>attempt_budget_s
+                reason='REFERENCE_ONLY_DEADLINE_AFTER_RESOURCE_MODEL';
+                return;
+            end
+
+            % AF7R58ZZH: CACHE-FIRST theorem-preserving ordering.
+            % Build/reuse the exact NON-AUTHORITY runtime packet before
+            % allocating evaluator handles and certificate metadata. ZZF
+            % fail-fast remains authoritative; this only ensures a failed
+            % attempt can leave an exact prepared packet for the next retry.
+            reuseRuntimePacket= ...
+                obj.can_reuse_reference_only_runtime_packet_exact( ...
+                    obj.active_speed_certificate,SC, ...
+                    obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                    obj.sensor_horizon_certificate,obj.runtime_dependency_signature);
+
+            reusePreparedPacketCache=false;
+            preparedPacketCache=struct();
+            preparedPacketWasRebuilt=false;
+            cacheReason=0;
+            if ~reuseRuntimePacket && ...
+                    logical(obj.reference_only_prepared_packet_cache_valid)
+                preparedPacketCache=obj.reference_only_prepared_packet_cache;
+                [reusePreparedPacketCache,cacheReason]= ...
+                    obj.can_reuse_reference_only_prepared_packet_cache_exact( ...
+                        preparedPacketCache,SC);
+                obj.reference_only_prepared_packet_cache_last_reason_code=double(cacheReason);
+                if reusePreparedPacketCache
+                    obj.reference_only_prepared_packet_cache_gate_pass_count= ...
+                        obj.reference_only_prepared_packet_cache_gate_pass_count+1;
+                else
+                    idx=round(double(cacheReason));
+                    if isfinite(idx) && idx>=1 && ...
+                            idx<=numel(obj.reference_only_prepared_packet_cache_miss_reason_count)
+                        obj.reference_only_prepared_packet_cache_miss_reason_count(idx)= ...
+                            obj.reference_only_prepared_packet_cache_miss_reason_count(idx)+1;
+                    end
+                    obj.reference_only_prepared_packet_cache_valid=false;
+                    obj.reference_only_prepared_packet_cache=struct();
+                    obj.reference_only_prepared_packet_cache_invalidate_count= ...
+                        obj.reference_only_prepared_packet_cache_invalidate_count+1;
+                    preparedPacketCache=struct();
+                end
+            end
+
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>attempt_budget_s
+                reason='REFERENCE_ONLY_DEADLINE_AFTER_REUSE_GATE';
+                return;
+            end
+
+            if reuseRuntimePacket
+                [sweepNew,packetNew,sensorNew,depNew]= ...
+                    obj.reuse_reference_only_runtime_packet_exact( ...
+                        obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                        obj.sensor_horizon_certificate,obj.runtime_dependency_signature, ...
+                        SC,targetVersion);
+            elseif reusePreparedPacketCache
+                obj.reference_only_prepared_packet_cache_hit_count= ...
+                    obj.reference_only_prepared_packet_cache_hit_count+1;
+                [sweepNew,packetNew,sensorNew,depNew]= ...
+                    obj.retarget_reference_only_prepared_packet_cache_exact( ...
+                        preparedPacketCache,SC,targetVersion, ...
+                        obj.runtime_dependency_signature);
+                obj.reference_only_prepared_packet_cache_retarget_count= ...
+                    obj.reference_only_prepared_packet_cache_retarget_count+1;
+                preparedPacketWasRebuilt=true;
+            else
+                sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
+                packetNew=obj.prepare_obstacle_packet_fast_target( ...
+                    obj.obstacle_packet,sweepNew,targetVersion);
+                sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+                assert(isfield(sensorNew,'certified')&&logical(sensorNew.certified), ...
+                    '[REPLANNER ERROR] fast target sensor horizon is not closed.');
+                depNew=obj.runtime_dependency_signature;
+                depNew.reference_mode='REPAIRED';
+                depNew.reference_version=double(targetVersion);
+                preparedPacketWasRebuilt=true;
+            end
+
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>attempt_budget_s
+                if preparedPacketWasRebuilt
+                    obj.reference_only_prepared_packet_cache=struct( ...
+                        'schema','AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2', ...
+                        'non_authority',true, ...
+                        'speed',SC, ...
+                        'sweep',sweepNew, ...
+                        'packet',packetNew, ...
+                        'sensor',sensorNew, ...
+                        'dep',depNew, ...
+                        'key',struct( ...
+                            'active_reference_mode',char(obj.active_reference_mode), ...
+                            'active_reference_version',double(obj.active_reference_version), ...
+                            'dt',double(obj.prediction_dt), ...
+                            'r_load',double(obj.r_load), ...
+                            'd_margin',double(obj.d_margin), ...
+                            'r_drone',double(obj.r_drone), ...
+                            'r_cable',double(obj.r_cable), ...
+                            'horizon',double(obj.horizon_s), ...
+                            'sensor_range',double(obj.trigger_dist), ...
+                            'cable_length',double(obj.L_cable), ...
+                            'static_obstacle_map',obj.static_obstacle_map));
+                    obj.reference_only_prepared_packet_cache_valid=true;
+                    obj.reference_only_prepared_packet_cache_store_count= ...
+                        obj.reference_only_prepared_packet_cache_store_count+1;
+                end
+                reason='REFERENCE_ONLY_COMMIT_PREPARATION_DEADLINE_EXCEEDED';
+                return;
+            end
+
+            [evalFn,flatEvalFn]= ...
+                af7r58i_make_canonical_eval_handles(obj,batchModel);
+
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>attempt_budget_s
+                if preparedPacketWasRebuilt
+                    obj.reference_only_prepared_packet_cache=struct( ...
+                        'schema','AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2', ...
+                        'non_authority',true, ...
+                        'speed',SC, ...
+                        'sweep',sweepNew, ...
+                        'packet',packetNew, ...
+                        'sensor',sensorNew, ...
+                        'dep',depNew, ...
+                        'key',struct( ...
+                            'active_reference_mode',char(obj.active_reference_mode), ...
+                            'active_reference_version',double(obj.active_reference_version), ...
+                            'dt',double(obj.prediction_dt), ...
+                            'r_load',double(obj.r_load), ...
+                            'd_margin',double(obj.d_margin), ...
+                            'r_drone',double(obj.r_drone), ...
+                            'r_cable',double(obj.r_cable), ...
+                            'horizon',double(obj.horizon_s), ...
+                            'sensor_range',double(obj.trigger_dist), ...
+                            'cable_length',double(obj.L_cable), ...
+                            'static_obstacle_map',obj.static_obstacle_map));
+                    obj.reference_only_prepared_packet_cache_valid=true;
+                    obj.reference_only_prepared_packet_cache_store_count= ...
+                        obj.reference_only_prepared_packet_cache_store_count+1;
+                end
+                reason='REFERENCE_ONLY_DEADLINE_AFTER_EVAL_HANDLES';
+                return;
+            end
 
             % C7 endpoint/peak construction is exact by repeated endpoint
-            % control values.  The correction vanishes identically after t1.
+            % control values. The correction vanishes identically after t1.
             smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
             if isfield(P,'representation_code') && double(P.representation_code)==2
                 smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_AFFINE_TOWING_CORRIDORS';
@@ -9059,25 +9824,39 @@ classdef REPLANNING_SYSTEM < handle
             geom.reference_only_authority=true;
             geom.final_system_authority=false;
 
-            % Pre-evaluate the exact HLC packet at commit/horizon boundary.
-            tq=[double(t_commit),double(t_commit)+double(obj.horizon_s)];
-            for kk=1:numel(tq)
-                xd=evalFn(tq(kk));
-                xf=flatEvalFn(tq(kk));
-                xd=double(xd(:));
-                xf=double(xf(:));
-                if numel(xd)<28 || any(~isfinite(xd(1:28))) || ...
-                        numel(xf)<28 || any(~isfinite(xf(1:28)))
-                    reason='REFERENCE_ONLY_EVAL_FN_INVALID';
-                    return;
+            if nargin>=4 && ~isempty(t_hard_cycle) && ...
+                    toc(t_hard_cycle)>attempt_budget_s
+                if preparedPacketWasRebuilt
+                    obj.reference_only_prepared_packet_cache=struct( ...
+                        'schema','AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2', ...
+                        'non_authority',true, ...
+                        'speed',SC, ...
+                        'sweep',sweepNew, ...
+                        'packet',packetNew, ...
+                        'sensor',sensorNew, ...
+                        'dep',depNew, ...
+                        'key',struct( ...
+                            'active_reference_mode',char(obj.active_reference_mode), ...
+                            'active_reference_version',double(obj.active_reference_version), ...
+                            'dt',double(obj.prediction_dt), ...
+                            'r_load',double(obj.r_load), ...
+                            'd_margin',double(obj.d_margin), ...
+                            'r_drone',double(obj.r_drone), ...
+                            'r_cable',double(obj.r_cable), ...
+                            'horizon',double(obj.horizon_s), ...
+                            'sensor_range',double(obj.trigger_dist), ...
+                            'cable_length',double(obj.L_cable), ...
+                            'static_obstacle_map',obj.static_obstacle_map));
+                    obj.reference_only_prepared_packet_cache_valid=true;
+                    obj.reference_only_prepared_packet_cache_store_count= ...
+                        obj.reference_only_prepared_packet_cache_store_count+1;
                 end
-                sf=xf(9:11)+[0;0;double(obj.gravity)];
-                if ~(isfinite(norm(sf))&&norm(sf)>0)
-                    reason='REFERENCE_ONLY_FLATNESS_SINGULAR';
-                    return;
-                end
+                reason='REFERENCE_ONLY_DEADLINE_AFTER_CERT_METADATA';
+                return;
             end
 
+            % Rollback snapshot is needed only after every theorem-preserving
+            % pre-transaction stage has passed its fail-fast gate.
             old=struct( ...
                 'mode',obj.active_reference_mode, ...
                 'version',obj.active_reference_version, ...
@@ -9090,32 +9869,36 @@ classdef REPLANNING_SYSTEM < handle
                 'dep',obj.runtime_dependency_signature, ...
                 'stale',obj.certificate_stale, ...
                 'level',obj.active_repaired_safety_level, ...
-                'count',obj.replan_commit_count, ...
-                'rocount',obj.reference_only_commit_count, ...
                 'time',obj.last_replan_commit_time);
 
-            reuseRuntimePacket= ...
-                obj.can_reuse_reference_only_runtime_packet_exact( ...
-                    old.speed,SC,old.sweep,old.packet,old.sensor,old.dep);
-
-            if reuseRuntimePacket
-                [sweepNew,packetNew,sensorNew,depNew]= ...
-                    obj.reuse_reference_only_runtime_packet_exact( ...
-                        old.sweep,old.packet,old.sensor,old.dep,SC,targetVersion);
-            else
-                sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
-                packetNew=obj.prepare_obstacle_packet_fast_target(old.packet,sweepNew,targetVersion);
-                sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
-                assert(isfield(sensorNew,'certified')&&logical(sensorNew.certified), ...
-                    '[REPLANNER ERROR] fast target sensor horizon is not closed.');
-                depNew=old.dep;
-                depNew.reference_mode='REPAIRED';
-                depNew.reference_version=double(targetVersion);
-            end
-
             if nargin>=4 && ~isempty(t_hard_cycle) && ...
-                    toc(t_hard_cycle)>double(obj.hard_modify_deadline_s)
-                reason='REFERENCE_ONLY_COMMIT_PREPARATION_DEADLINE_EXCEEDED';
+                    toc(t_hard_cycle)>attempt_budget_s
+                if preparedPacketWasRebuilt
+                    obj.reference_only_prepared_packet_cache=struct( ...
+                        'schema','AF7R58ZB_ONE_ENTRY_PREPARED_PACKET_CACHE_V2', ...
+                        'non_authority',true, ...
+                        'speed',SC, ...
+                        'sweep',sweepNew, ...
+                        'packet',packetNew, ...
+                        'sensor',sensorNew, ...
+                        'dep',depNew, ...
+                        'key',struct( ...
+                            'active_reference_mode',char(obj.active_reference_mode), ...
+                            'active_reference_version',double(obj.active_reference_version), ...
+                            'dt',double(obj.prediction_dt), ...
+                            'r_load',double(obj.r_load), ...
+                            'd_margin',double(obj.d_margin), ...
+                            'r_drone',double(obj.r_drone), ...
+                            'r_cable',double(obj.r_cable), ...
+                            'horizon',double(obj.horizon_s), ...
+                            'sensor_range',double(obj.trigger_dist), ...
+                            'cable_length',double(obj.L_cable), ...
+                            'static_obstacle_map',obj.static_obstacle_map));
+                    obj.reference_only_prepared_packet_cache_valid=true;
+                    obj.reference_only_prepared_packet_cache_store_count= ...
+                        obj.reference_only_prepared_packet_cache_store_count+1;
+                end
+                reason='REFERENCE_ONLY_DEADLINE_AFTER_ROLLBACK_SNAPSHOT';
                 return;
             end
 
@@ -9139,8 +9922,9 @@ classdef REPLANNING_SYSTEM < handle
                     'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
                     't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
                     'displacement',double(P.displacement(:)));
-                R.batch_flat_model=obj.make_batch_model_from_proposal_cached( ...
-                    P,targetVersion);
+                R.batch_flat_model=batchModel;
+                R.resource_certificate=resourceMeta.contract;
+                R.resource_state=resourceMeta;
                 R.authority_split=struct( ...
                     'controller_packet','eval_fn', ...
                     'mathematical_flat_jet','flat_eval_fn', ...
@@ -9160,23 +9944,64 @@ classdef REPLANNING_SYSTEM < handle
                 obj.obstacle_packet=packetNew;
                 obj.sensor_horizon_certificate=sensorNew;
                 obj.runtime_dependency_signature=depNew;
+                obj.certificate_stale=obj.empty_certificate_stale_state();
+                % Execution-aware certificates are deliberately not promoted.
+                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                obj.certificate_stale.HLC_ROBUST_CERT=true;
+
+                % AF7R58ZZO: spacing authority stays inside atomic state.
+                obj.last_replan_commit_time=double(t_commit);
+
+                obj.assert_trigger_packet_certificate_current();
+                obj.assert_repaired_reference_current();
+
+                if nargin>=4 && ~isempty(t_hard_cycle)
+                    elapsed=toc(t_hard_cycle);
+                    if elapsed>attempt_budget_s
+                        % AF7R58ZZQ expected attempt-budget reject: explicit fail-closed
+                        % rollback. Do not throw an exception and do not consume
+                        % the validated non-authority prepared cache.
+                        obj.active_reference_mode=old.mode;
+                        obj.active_reference_version=old.version;
+                        obj.active_repaired_reference=old.ref;
+                        obj.active_repaired_certificates=old.cert;
+                        obj.active_speed_certificate=old.speed;
+                        obj.trigger_sweep_inflation=old.sweep;
+                        obj.obstacle_packet=old.packet;
+                        obj.sensor_horizon_certificate=old.sensor;
+                        obj.runtime_dependency_signature=old.dep;
+                        obj.certificate_stale=old.stale;
+                        obj.active_repaired_safety_level=old.level;
+                        obj.last_replan_commit_time=old.time;
+                        reason=['[REPLANNER DEADLINE] reference-only atomic commit ' ...
+                            'finished after the one-control-period synchronous attempt budget.'];
+                        return;
+                    end
+                end
+
+                % AF7R58ZZO post-deadline non-authority bookkeeping.
                 if reuseRuntimePacket
                     obj.reference_only_runtime_packet_reuse_count= ...
                         obj.reference_only_runtime_packet_reuse_count+1;
+                elseif reusePreparedPacketCache
+                    obj.reference_only_prepared_packet_cache_commit_count= ...
+                        obj.reference_only_prepared_packet_cache_commit_count+1;
+                    % Consume only after the authoritative commit has closed.
+                    obj.reference_only_prepared_packet_cache_valid=false;
+                    obj.reference_only_prepared_packet_cache=struct();
                 else
                     obj.reference_only_runtime_packet_rebuild_count= ...
                         obj.reference_only_runtime_packet_rebuild_count+1;
                     obj.reference_only_fast_packet_rebuild_count= ...
                         obj.reference_only_fast_packet_rebuild_count+1;
                 end
-                obj.certificate_stale=obj.empty_certificate_stale_state();
-                % Execution-aware certificates are deliberately not promoted.
-                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
-                obj.certificate_stale.HLC_ROBUST_CERT=true;
-
                 obj.replan_commit_count=obj.replan_commit_count+1;
                 obj.reference_only_commit_count=obj.reference_only_commit_count+1;
-                obj.last_replan_commit_time=double(t_commit);
+                obj.replan_request_active=false;
+
+                % Post-deadline diagnostic/status publication. This cannot make
+                % an over-budget modification pass: the authoritative elapsed
+                % check above has already closed.
                 obj.last_replan_status=struct( ...
                     'requested',true, ...
                     'committed',true, ...
@@ -9187,18 +10012,6 @@ classdef REPLANNING_SYSTEM < handle
                     'backend','BEZIER_D15_C7', ...
                     'commit_time',double(t_commit), ...
                     'rejoin_time',double(P.t1));
-                obj.replan_request_active=false;
-
-                obj.assert_trigger_packet_certificate_current();
-                obj.assert_repaired_reference_current();
-
-                if nargin>=4 && ~isempty(t_hard_cycle)
-                    elapsed=toc(t_hard_cycle);
-                    if elapsed>double(obj.hard_modify_deadline_s)
-                        error(['[REPLANNER DEADLINE] reference-only atomic commit ' ...
-                            'finished after the hard online modification deadline.']);
-                    end
-                end
 
                 ok=true;
                 reason='REFERENCE_ONLY_COMMIT_CLOSED';
@@ -9214,8 +10027,6 @@ classdef REPLANNING_SYSTEM < handle
                 obj.runtime_dependency_signature=old.dep;
                 obj.certificate_stale=old.stale;
                 obj.active_repaired_safety_level=old.level;
-                obj.replan_commit_count=old.count;
-                obj.reference_only_commit_count=old.rocount;
                 obj.last_replan_commit_time=old.time;
                 reason=ME.message;
             end
@@ -10239,6 +11050,7 @@ classdef REPLANNING_SYSTEM < handle
                 'active_qdot_ub_rad_s',double(SC.qdot_UB_rad_s), ...
                 'active_constant_speed_required',false, ...
                 'hard_modify_deadline_s',double(D.hard_modify_deadline_s), ...
+                'reference_only_sync_attempt_budget_s',double(obj.prediction_dt), ...
                 'command_limits',obj.command_limit_certificate.limits);
 
             STATIC=struct( ...
@@ -10386,7 +11198,7 @@ classdef REPLANNING_SYSTEM < handle
                     pQcol=pLcol-obj.L_cable*qcol;
 
                     CTX=obj.build_generator_request_context_compact( ...
-                        t_now,0,obj.hard_modify_deadline_s, ...
+                        t_now,0,double(obj.prediction_dt), ...
                         xd_nom,xd_active_now,pQ_cur,pL_cur,q_cur,cable_residual, ...
                         active,all_dists,pL_ref,q_ref,ref_source, ...
                         ttcPrime,t_now+ttcPrime,P.ids(idx),'PAYLOAD',1, ...
@@ -12249,7 +13061,13 @@ classdef REPLANNING_SYSTEM < handle
             dphi=n1(4); dtheta=n1(5);
             LE=sqrt(dtheta^2+2*dphi^2+2*(dphi+dtheta)^2);
             Kq=sqrt(Kphi^2+1+secT^2); qdotUb=Kq*Wf;
-            rW=LE*qdotUb+norm(Ey,2)*rQdot;
+            % AF7R58ZP exact ZYX spectral norm:
+            % eig(Ey'*Ey)={1,1-|sin(theta)|,1+|sin(theta)|}.
+            % Round upward by one representable double before using the hard
+            % support multiplier; this is conservative, not an approximation.
+            EyNorm2=obj.observer_nextfloat_up( ...
+                sqrt(1+abs(sin(double(y1(iq(2)))))));
+            rW=LE*qdotUb+EyNorm2*rQdot;
             Wtrue=min(Wf,norm(cW)+rW);
             eW=min(norm(double(xhat.w(:)))+Wf,norm(double(xhat.w(:))-cW)+rW);
 

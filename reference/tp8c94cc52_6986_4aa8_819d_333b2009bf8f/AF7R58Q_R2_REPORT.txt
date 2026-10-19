@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58Q-R2 | ROBUST REFERENCE-ONLY COMMIT STAGE TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | productionWriteAfterParseOnly=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM AF7R58O SHA exact = 1 | 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58Q-R2] regex patch must be unique (speed sweep), found 0.
+ rollback performed  = 0
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp8c94cc52_6986_4aa8_819d_333b2009bf8f\AF7R58Q_R2_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp8c94cc52_6986_4aa8_819d_333b2009bf8f\AF7R58Q_R2_OUT.mat
+ status = INSTALL_FAILED__ROLLBACK_COMPLETE

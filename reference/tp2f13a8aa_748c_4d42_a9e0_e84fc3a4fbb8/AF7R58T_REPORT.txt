@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58T | OTHER_COMMIT SOURCE-BOUND SUBSTAGE TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58Q-R5 SOURCE BINDING]
+ source SHA exact = 1 | 1474c591fe2227f461eb43c2853d61909e63e9bef9bf6a40a851956c1c02e440
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58T] semantic token "obj.replan_commit_count=" count=2.
+ rollback performed  = 0
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp2f13a8aa_748c_4d42_a9e0_e84fc3a4fbb8\AF7R58T_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp2f13a8aa_748c_4d42_a9e0_e84fc3a4fbb8\AF7R58T_OUT.mat
+ status = INSTALL_FAILED__ROLLBACK_COMPLETE

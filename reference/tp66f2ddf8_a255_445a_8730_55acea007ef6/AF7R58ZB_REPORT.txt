@@ -1,0 +1,67 @@
+====================================================================================================
+ AF7R58ZB | EXACT PREPARED-CACHE KEY + LIVE DEPENDENCY RECAPTURE INSTALL
+====================================================================================================
+[AUTHORITY] sourceBound=1 | oneEntry=1 | nonAuthority=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] activeReuseGateUnchanged=1 | exactCacheKey=1 | liveDepRecapture=1 | finalAssertionsPreserved=1
+
+[A. EXACT R5 SOURCE BINDING]
+ source SHA exact = 1 | 3e1cd5df64bf893c0d9c4d4fd6502d8a26f395ada08b8ad32abd12d076c9f901
+
+[B. PROTECTED FUNCTION HASHES -- BEFORE]
+ can_reuse_reference_only_runtime_packet_exact    L4711:L4832 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        L4833:L4865 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   L4627:L4642 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              L4643:L4677 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  L4692:L4710 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[C. STATIC PATCH INVARIANTS]
+ new_gate_exactly_one                         = 1
+ v2_schema_twice                              = 1
+ live_dep_recapture_once                      = 1
+ key_has_obstacle_map                         = 1
+ key_has_all_numeric                          = 1
+ reason_counter_fixed                         = 1
+ no_append                                    = 1
+ predeadline_reason_preserved                 = 1
+ all                                          = 1
+
+[D. PROTECTED FUNCTION HASHES -- PATCHED]
+ can_reuse_reference_only_runtime_packet_exact    unchanged=1 | L4714:L4835 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        unchanged=1 | L4976:L5008 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   unchanged=1 | L4630:L4645 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              unchanged=1 | L4646:L4680 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  unchanged=1 | L4695:L4713 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[E. PATCHED SAFETY TOPOLOGY]
+ cache dedicated exact gate             L9487
+ cache hit branch                       L9518
+ live dependency recapture              L9531
+ reject-only cache store                L9561
+ predeadline reject reason              L9584
+ transactional try                      L9599
+ active packet assignment               L9643
+ final assertions                       L9682 / L9683
+
+[F. PREFLIGHT BEFORE WRITE]
+ static invariants                       = 1
+ protected active-reuse/builders         = 1
+ safety topology                         = 1
+ full patched class parse                = 1
+ production writes                       = 0
+
+[G. INSTALL RESULT]
+ production modified                    = 1
+ rollback performed                     = 0
+ active runtime reuse gate changed      = 0
+ dedicated cache gate installed         = 1
+ exact live numeric key                 = 1
+ exact obstacle-map freshness           = 1
+ live full dependency recapture on hit  = 1
+ fixed miss-reason counters             = 16
+ trajectory geometry changed            = 0
+ new REPLANNING_SYSTEM SHA              = 4767fd66d50247a5d848eba2e6a3b3af30f098c3a9fc3b8a206b4d50c62a4e72
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp66f2ddf8_a255_445a_8730_55acea007ef6\AF7R58ZB_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp66f2ddf8_a255_445a_8730_55acea007ef6\AF7R58ZB_OUT.mat
+ status = EXACT_PREPARED_CACHE_KEY_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

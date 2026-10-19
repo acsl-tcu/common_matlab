@@ -1,0 +1,7 @@
+no_string_count_call = 1
+no_plus_newline_plus = 1
+token_count_helper = 1
+scalar_strfind_counter = 1
+cap_validation = 1
+fault_requires_failure = 1
+cstdint_ensured = 1

@@ -1,0 +1,6 @@
+text_scalar_defined = 1
+resource_block_normalized = 1
+replace_all_normalized = 1
+write_normalized = 1
+normalize_lf_normalized = 1
+old_scalar_string_assert_removed = 1

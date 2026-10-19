@@ -1,0 +1,26 @@
+====================================================================================================
+ AF7R58S | MINIMAL REFERENCE-ONLY COMMIT TIMING AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noCommit=1 | noSyntheticReplan=1
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58Q-R5 SOURCE BINDING]
+ REPLANNING_SYSTEM SHA exact = 1 | 1474c591fe2227f461eb43c2853d61909e63e9bef9bf6a40a851956c1c02e440
+
+[B. LIVE R5 TIMING RING]
+ generator request count               = 8
+ global deadline fail count            = 7
+ hard deadline [ms]                    = 4
+ ring capacity / width                 = 64 / 9
+ ring count / head                     = 8 / 8
+ last capture overhead [us]            = 19.300000000000001
+ max capture overhead [us]             = 1822.7
+
+[AUDIT ERROR]
+ identifier = 
+ message    = [AF7R58S] cannot isolate latest request epoch.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpa3839c83_a323_4b3f_ad33_2b8ce00173c2\AF7R58S_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpa3839c83_a323_4b3f_ad33_2b8ce00173c2\AF7R58S_OUT.mat
+ status = AUDIT_ERROR__NO_PRODUCTION_CHANGE

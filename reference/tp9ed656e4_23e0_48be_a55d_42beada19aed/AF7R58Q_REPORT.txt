@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58Q | REFERENCE-ONLY COMMIT STAGE TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | productionWriteAfterParseOnly=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT PRE-INSTALL SOURCE BINDING]
+ REPLANNING_SYSTEM AF7R58O SHA exact = 1 | 051b2ee71448d51532f1f260e5141476a955e91eb205d406a083260dc4583f31
+
+[INSTALL FAILURE]
+ identifier          = 
+ message             = [AF7R58Q] function-local patch anchor must occur once (speed sweep timer), found 0.
+ rollback performed  = 0
+ production modified = 0
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9ed656e4_23e0_48be_a55d_42beada19aed\AF7R58Q_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp9ed656e4_23e0_48be_a55d_42beada19aed\AF7R58Q_OUT.mat
+ status = INSTALL_FAILED__ROLLBACK_COMPLETE

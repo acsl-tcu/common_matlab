@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58ZZQ | FIXED-4S HORIZON / ONE-CONTROL-PERIOD SUCCESS INSTALL
+====================================================================================================
+[HORIZON] fixed4s=1 | extendedPreview=0 | immediateOrdinaryTrigger=1 | lastMomentWait=0
+[PLANNER] legacy4msNormalGate=0 | syncAttemptBudget=prediction_dt | currentNominalBudgetMs=25
+[ATOMIC] cachePreservedOnReject=1 | explicitRollback=1 | cacheConsumedAfterClosure=1
+[SAFETY] certificateMathChanged=0 | generatorMexMathChanged=0 | finiteSensingChanged=0
+
+[A. EXACT CURRENT SOURCE BINDING]
+ REPLANNING_SYSTEM SHA            = 4b72f2667086282cd1f7609a1555c84f0245ddbfaf650604c4b768886a886234
+ resource-contract helper SHA     = 4f04ed3aaebe1feae39c5436a8f619bc89045cc0c4ad06d7d35e356f1605cdf8
+
+[INSTALL FAILURE]
+ identifier = 
+ message    = [AF7R58ZZQ] atomic ordering anchors unresolved.
+ rollback   = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd41ec529_c7ee_489e_97d8_089c1611ec59\AF7R58ZZQ_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd41ec529_c7ee_489e_97d8_089c1611ec59\AF7R58ZZQ_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_ATTEMPTED

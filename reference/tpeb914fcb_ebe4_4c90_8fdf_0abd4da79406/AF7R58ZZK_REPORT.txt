@@ -1,0 +1,24 @@
+====================================================================================================
+ AF7R58ZZK | HIGH-RES ROTATING COMMIT TIMING INSTALL
+====================================================================================================
+[AUTHORITY] QPC=1 | threadCycles=1 | processCycles=1 | ticTocSubstage=0
+[PERTURBATION] oneWindowPerRequest=1 | marksPerSelectedWindow=2 | fixedMexRing=1
+[SAFETY] deadlineChanged=0 | acceptanceChanged=0 | certificateMathChanged=0 | generatorMathChanged=0
+[SENSING] detectedOnlyGeneratorRequired=1 | unseenTruthPreplan=0
+
+[A. EXACT CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = 2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+
+[B. BUILD HIGH-RES TRACE MEX]
+ MEX = C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58zzk_trace_mex.mexw64
+ SHA = 357572fb7aebd71f6f5e2da6f1777559b05f18c11855357128925814472bf83f
+
+[INSTALL FAILURE]
+ identifier = 
+ message    = [AF7R58ZZK] insert-before anchor count=2.
+ rollback   = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpeb914fcb_ebe4_4c90_8fdf_0abd4da79406\AF7R58ZZK_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpeb914fcb_ebe4_4c90_8fdf_0abd4da79406\AF7R58ZZK_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_ATTEMPTED

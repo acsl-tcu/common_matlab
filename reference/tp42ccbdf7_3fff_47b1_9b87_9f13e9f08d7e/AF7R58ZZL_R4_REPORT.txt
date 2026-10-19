@@ -1,0 +1,22 @@
+status=HIRES_WINDOW_ATTRIBUTION_AVAILABLE__REMOVE_INSTRUMENTATION_BEFORE_FINAL_TIMING
+sourceSHA=0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
+installedPostSHA=0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
+recoveredBaseSHA=2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+recoveredBaseCRLFSHA=a1f08bcc96eca74194d8aaeed4fac2239cb2dbd94651f2df7a4b4bd110c002fa
+lineEndingNormalizationDetected=1
+sourceExact=1
+zeroSeqEventsRemoved=2
+calibrationPairs=200
+qpcFreqHz=10000000
+pairMedianMs=0.0231
+pairP95Ms=0.026405
+reliableThresholdMs=0.1155
+dominantWindow=ATOMIC_TRANSACTION
+dominantMedianMs=4.3549
+RESOURCE_MODEL n=2 reliable=2 min=1.6281 median=1.9557 max=2.2833 quality=HAS_RELIABLE_SAMPLE
+REUSE_CACHE_GATE n=0 reliable=0 min=NaN median=NaN max=NaN quality=NO_COMPLETE_SAMPLE
+PACKET_REUSE_RETARGET_REBUILD n=1 reliable=1 min=2.9646 median=2.9646 max=2.9646 quality=HAS_RELIABLE_SAMPLE
+CANONICAL_EVAL_HANDLES n=0 reliable=0 min=NaN median=NaN max=NaN quality=NO_COMPLETE_SAMPLE
+CERT_METADATA n=0 reliable=0 min=NaN median=NaN max=NaN quality=NO_COMPLETE_SAMPLE
+ROLLBACK_SNAPSHOT n=0 reliable=0 min=NaN median=NaN max=NaN quality=NO_COMPLETE_SAMPLE
+ATOMIC_TRANSACTION n=2 reliable=2 min=0.9427 median=4.3549 max=7.7671 quality=HAS_RELIABLE_SAMPLE

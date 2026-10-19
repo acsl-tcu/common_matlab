@@ -1,0 +1,21 @@
+AF7R57N static design audit
+============================
+parent is closed corrected R57K source               = 1
+current E/C/Nobs compiled as constants               = 0
+resource contract passed in runtime packet            = 1
+obstacle pre-admission                                = 1
+episode leaf/split caps                               = 1
+episode/component admission                           = 1
+2^E sign-branch admission                             = 1
+QP combinatorial subset admission                     = 1
+candidate-count admission                             = 1
+Stage-A leaf/split caps                               = 1
+corrected Stage-B leaf/split caps                     = 1
+whole-body geometry leaf/split/depth caps             = 1
+cap exhaustion can produce PASS                       = 0
+dedicated resource-status query                       = 1
+diagnostic discovery caps marked non-production       = 1
+exact-current-usage contract used only as guard test  = 1
+one-at-a-time fault injection                         = 1
+production cap values selected                        = 0
+production source modified                            = 0

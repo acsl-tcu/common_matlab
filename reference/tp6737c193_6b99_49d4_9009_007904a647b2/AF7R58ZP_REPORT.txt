@@ -1,0 +1,52 @@
+====================================================================================================
+ AF7R58ZP | SENSOR-TO-TARGET HOT-PATH INSTALL
+====================================================================================================
+[AUTHORITY] exactCurrentSHA=1 | embeddedExactPayload=1 | parseBeforeWrite=1 | rollback=1
+[SAFETY] certificateChecksRemoved=0 | generatorMathChanged=0 | commitMathChanged=0 | cacheMathChanged=0
+[TIMING] hardClockStartsAtFirstSensorDependentOperation=1 | fullReferenceWallTimeStillExternal=1
+
+[A. CURRENT PRODUCTION BINDING]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA  = 8ce3089c8a1baddd448d3896f7146d810527efc344f504d2da751d4a5bf53f73
+ exact post-ZL authority = 1
+
+[B. PATCH SCOPE]
+ changed methods = do, write_active_output, observer_contract_two_events
+ all other exact-header blocks unchanged = 222
+ order_exact                                  = 1
+ central_certificate_guard_retained           = 1
+ sensor_gate_retained                         = 1
+ trigger_core_retained                        = 1
+ generator_call_retained                      = 1
+ output_reuse_version_mode_guarded            = 1
+ output_fallback_preserved                    = 1
+ observer_svd_removed                         = 1
+ observer_exact_zyx_norm                      = 1
+ all                                          = 1
+
+[C. ZYX NORM SUPPLEMENTARY REGRESSION]
+ max |SVD-formula| = 2.2204460492503131e-16
+ upward hard-support closure = 1
+
+[D. PREFLIGHT BEFORE WRITE]
+ current source exact    = 1
+ payload SHA exact       = 1
+ unauthorized changes    = 0
+ full MATLAB class parse = 1
+ production writes       = 0
+
+[E. INSTALL RESULT]
+ production modified                     = 1
+ rollback performed                      = 0
+ hard clock begins at raw_sensor_gate    = 1
+ certificate verification retained       = 1
+ future reference packet precomputed     = 1
+ same-authority output re-evaluation cut = 1
+ same-cycle commit output semantics kept = 1
+ observer SVD replaced exactly           = 1
+ generator / commit / cache math changed = 0
+ post SHA                                = afdab70a7a68f545dac3dede9814c95b703cb7823b9da5374ed05004735a1c11
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp6737c193_6b99_49d4_9009_007904a647b2\AF7R58ZP_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp6737c193_6b99_49d4_9009_007904a647b2\AF7R58ZP_OUT.mat
+status = SENSOR_TO_TARGET_HOTPATH_INSTALLED__CLEAN_RERUN_REQUIRED

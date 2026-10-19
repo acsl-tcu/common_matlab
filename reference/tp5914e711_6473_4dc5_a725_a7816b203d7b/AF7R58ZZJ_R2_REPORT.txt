@@ -1,0 +1,9 @@
+status=PER_REQUEST_VALIDATION_PASS_NOT_LOGGED__USE_STATUS_AND_DELTAS
+sourceSHA=2a0013a583cbcff3afd62e4495fa5e784427132390616ec5886000f134f2c05f
+profileClass=struct
+requests=20
+firstValidationPassRequest=NaN
+firstCommitRequest=20
+validationPassField=
+validationFailField=
+statusCodeField=

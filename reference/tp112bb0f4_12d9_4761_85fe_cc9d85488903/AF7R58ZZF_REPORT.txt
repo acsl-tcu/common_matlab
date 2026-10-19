@@ -1,0 +1,42 @@
+====================================================================================================
+ AF7R58ZZF-R2 | FAIL-FAST COMMIT DEADLINE INSTALL
+====================================================================================================
+[AUTHORITY] exactSourceSHA=1 | parseBeforeWrite=1 | transactionalRollback=1
+[SAFETY] rejectOnlyNewBranches=1 | certificateMathChanged=0 | activeAuthorityBeforeGate=0
+
+[A. EXACT CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA = 59e24920394b53faf2d832d6b84dead3e94e9728ea767cf7dca1ef3a1a5f19fb
+ payload SHA = c2e5f087a4ce9294057243624effab0d9eec9b2d9996b7cab2f18770c09a7f6c
+
+[B. STATIC SAFETY INVARIANTS]
+ outer_precommit_gate               = 1
+ after_resource_gate                = 1
+ after_handles_gate                 = 1
+ after_metadata_gate                = 1
+ after_reuse_gate                   = 1
+ continuous_sigma_guard             = 1
+ c7_guard                           = 1
+ resource_gate                      = 1
+ trigger_assert                     = 1
+ reference_assert                   = 1
+ final_atomic_deadline              = 1
+ all                                = 1
+ all fail-fast gates before active mutation = 1
+
+[C. PREFLIGHT BEFORE WRITE]
+ exact source SHA = 1
+ exact payload SHA = 1
+ full class parse = 1
+ production writes = 0
+
+[D. INSTALL RESULT]
+ production modified = 1
+ new accepting branches = 0
+ new reject-only deadline gates = 5
+ certificate/generator/controller math changed = 0
+ post SHA = c2e5f087a4ce9294057243624effab0d9eec9b2d9996b7cab2f18770c09a7f6c
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp112bb0f4_12d9_4761_85fe_cc9d85488903\AF7R58ZZF_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp112bb0f4_12d9_4761_85fe_cc9d85488903\AF7R58ZZF_OUT.mat
+status = FAILFAST_COMMIT_DEADLINE_GATES_INSTALLED__CLEAN_RERUN_REQUIRED

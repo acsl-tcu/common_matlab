@@ -1,0 +1,49 @@
+====================================================================================================
+ AF7R58T-R2 | OTHER_COMMIT SOURCE-BOUND SUBSTAGE TIMING INSTALL
+====================================================================================================
+[AUTHORITY] diagnosticOnly=1 | boundedRing=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] trajectoryMathChanged=0 | certificateLogicChanged=0 | commitDecisionChanged=0 | mLTouched=0
+ root = C:\Users\student\Documents\GitHub\common_matlab\reference
+
+[A. EXACT AF7R58Q-R5 SOURCE BINDING]
+ source SHA exact = 1 | 1474c591fe2227f461eb43c2853d61909e63e9bef9bf6a40a851956c1c02e440
+
+[B. CURRENT COMMIT SOURCE ANCHORS]
+ first_gate                   source L9091
+ spacing_start                source L9105
+ spacing_call                 source L9106
+ resource_start               source L9133
+ resource_call                source L9134
+ handles_start                source L9142
+ handles_call                 source L9143
+ canonical_store              source L9251
+ active_assign                source L9259
+ commit_state_start           source L9287
+ commit_state_end             source L9300
+ assert1                      source L9302
+ assert2                      source L9303
+ catch_line                   source L9315
+ rollback_end                 source L9330
+ try_line                     source L9231
+ success_ok                   source L9313
+ all required anchors unique/order-closed = 1
+ optional sensor/packet-name assumption   = 0
+
+[C. PREFLIGHT -- BEFORE PRODUCTION WRITE]
+ all 11 stage inserts present           = 1
+ patched full class parse               = 1
+ production writes                      = 0
+
+[D. INSTALL RESULT]
+ bounded ring                           = 64 x 15
+ OTHER substage count                   = 11
+ trajectory/certificate logic changed  = 0
+ commit acceptance logic changed        = 0
+ production modified                    = 1
+ new REPLANNING_SYSTEM SHA              = 72b3b05880362d2bfa4bb81eb61eb04bf69bd38eccf796d860a43b156c4d32ea
+ NOTE: timing is diagnostic only; final 4-ms proof requires instrumentation removal.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpb7ff3fe8_7d62_47f0_b37c_243b6d9ca906\AF7R58T_R2_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpb7ff3fe8_7d62_47f0_b37c_243b6d9ca906\AF7R58T_R2_OUT.mat
+ status = OTHER_COMMIT_SPLIT_R2_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

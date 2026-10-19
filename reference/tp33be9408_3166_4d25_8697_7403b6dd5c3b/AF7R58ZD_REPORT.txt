@@ -1,0 +1,55 @@
+====================================================================================================
+ AF7R58ZD | MONOTONE CONSERVATIVE PREPARED-CACHE DOMINANCE INSTALL
+====================================================================================================
+[AUTHORITY] sourceBound=1 | rollbackOnFailure=1 | parseBeforeWrite=1
+[SAFETY] cachedSpeedDominatesCurrent=1 | exactLiveDeps=1 | exactObstacleMap=1 | failClosedOnIncrease=1
+
+[A. EXACT ZB SOURCE BINDING]
+ source SHA exact = 1 | 4767fd66d50247a5d848eba2e6a3b3af30f098c3a9fc3b8a206b4d50c62a4e72
+
+[B. PROTECTED FUNCTION HASHES -- BEFORE]
+ can_reuse_reference_only_runtime_packet_exact    L4714:L4835 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        L4976:L5008 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   L4630:L4645 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              L4646:L4680 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  L4695:L4713 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[C. MONOTONE CACHE THEOREM PREFLIGHT]
+ cached_bounds_defined                          = 1
+ payload_dominance                              = 1
+ uav_dominance                                  = 1
+ cached_sweep_validation                        = 1
+ cached_sensor_validation                       = 1
+ exact_live_dependencies_preserved              = 1
+ fail_closed_on_bound_increase                  = 1
+ all                                            = 1
+
+[D. PROTECTED FUNCTION HASHES -- PATCHED]
+ can_reuse_reference_only_runtime_packet_exact    unchanged=1 | L4714:L4835 | fb05087486eb72b7b3423f9118a83db5cb2599879054be23aa661d29fa3db2a9
+ reuse_reference_only_runtime_packet_exact        unchanged=1 | L4981:L5013 | 2a7f967c60c13fd24be487d0aeabe78122dd8da689929397b2ab4a62fcbca0e1
+ build_trigger_sweep_for_target                   unchanged=1 | L4630:L4645 | 4be1d260ddc49774038b0e24160fa38820580e885ad97bd53976c268c3d1ec90
+ prepare_obstacle_packet_fast_target              unchanged=1 | L4646:L4680 | 3dbae8acba53799b9a13ca25cda1c9e7a4a500ea40d010515c4b19f27493bea8
+ build_sensor_horizon_for_target                  unchanged=1 | L4695:L4713 | b799c5d5212acf927003eec9a7cc4ae3c1739c12c2f4be1b05d48a503659cb6e
+
+[E. PREFLIGHT BEFORE WRITE]
+ monotone cache theorem                 = 1
+ exact live dependency invalidation     = 1
+ exact obstacle source invalidation     = 1
+ protected production builders          = 1
+ full patched class parse               = 1
+ production writes                      = 0
+
+[F. INSTALL RESULT]
+ production modified                    = 1
+ rollback performed                     = 0
+ exact equality -> conservative dominance= 1
+ fail closed when current bound increases= 1
+ trajectory geometry changed            = 0
+ active runtime reuse gate changed      = 0
+ builders changed                       = 0
+ new REPLANNING_SYSTEM SHA              = 092af1855aebd4b688d0d031629f84bee28126750f9d2484f223d7ccebb301b3
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp33be9408_3166_4d25_8697_7403b6dd5c3b\AF7R58ZD_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp33be9408_3166_4d25_8697_7403b6dd5c3b\AF7R58ZD_OUT.mat
+ status = MONOTONE_CACHE_DOMINANCE_INSTALL_COMPLETE__CLEAN_RERUN_REQUIRED

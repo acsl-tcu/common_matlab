@@ -1,0 +1,18 @@
+====================================================================================================
+ AF7R58ZZF | FAIL-FAST COMMIT DEADLINE INSTALL
+====================================================================================================
+[AUTHORITY] exactSourceSHA=1 | parseBeforeWrite=1 | transactionalRollback=1
+[SAFETY] rejectOnlyNewBranches=1 | certificateMathChanged=0 | activeAuthorityBeforeGate=0
+
+[A. EXACT CURRENT SOURCE]
+ path = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ SHA = 59e24920394b53faf2d832d6b84dead3e94e9728ea767cf7dca1ef3a1a5f19fb
+ payload SHA = c2e5f087a4ce9294057243624effab0d9eec9b2d9996b7cab2f18770c09a7f6c
+
+[INSTALL FAILURE] MATLAB:assertion:failed | アサーションに失敗しました。
+ rollback performed = 0
+ production modified = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp77be54f3_c344_46cf_8044_622a329a7abe\AF7R58ZZF_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp77be54f3_c344_46cf_8044_622a329a7abe\AF7R58ZZF_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_COMPLETE

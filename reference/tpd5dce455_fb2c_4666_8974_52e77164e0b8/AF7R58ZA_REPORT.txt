@@ -1,0 +1,64 @@
+====================================================================================================
+ AF7R58ZA | RUNTIME BINDING + R5 CACHE EFFECT AUDIT
+====================================================================================================
+[AUTHORITY] readOnly=1 | productionModified=0 | noClearClasses=1 | noSyntheticReplan=1
+
+[A. INSTALLER-DIRECTORY PRODUCTION FILE]
+ installer root                         = C:\Users\student\Documents\GitHub\common_matlab\reference
+ local REPLANNING_SYSTEM exists         = 1
+ local SHA                             = 3e1cd5df64bf893c0d9c4d4fd6502d8a26f395ada08b8ad32abd12d076c9f901
+ local SHA is exact R5                  = 1
+ local R5 cache properties present      = 1
+ local R5 cache schema present          = 1
+
+[B. MATLAB RUNTIME NAME RESOLUTION]
+ which(REPLANNING_SYSTEM)               = C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ which REPLANNING_SYSTEM -all:
+   C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m                                         % REPLANNING_SYSTEM constructor
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tp108e6c51_a5ea_410b_ad2a_778991511f57\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tp1d97efa0_2db3_4389_ac72_bc38fb2fd477\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tp60120f41_52c8_4654_b557_d8d44e288c8a\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tp8a4c0b01_ea86_4ca8_9876_86c2ecb3d326\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tpab0077ac_5a60_4fd7_bfc6_0a669c1eceda\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tpb850497c_ec07_44c9_88cb_4364689b5fb3\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tpcc036bcf_c4d6_43d5_a74f_819f5456ee88\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tpe3b4602c_e523_45d2_a74b_3330da54092d\REPLANNING_SYSTEM.m  % Shadowed
+   C:\Users\student\Documents\GitHub\common_matlab\reference\tpefd24f39_0b40_424f_a73a_342eb4f6c740\REPLANNING_SYSTEM.m  % Shadowed
+ which(run_flight_headless)              = C:\Users\student\Documents\GitHub\common_matlab\run_flight_headless.m
+ resolved SHA                          = 3e1cd5df64bf893c0d9c4d4fd6502d8a26f395ada08b8ad32abd12d076c9f901
+ resolved SHA is exact R5               = 1
+ resolved path == installer production  = 1
+ resolved R5 cache properties present   = 1
+
+[C. IN-MEMORY REPLANNING FILES]
+ matching inmem entries                 = 1
+   C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+
+[D. LIVE REPLANNING_SYSTEM OBJECT]
+ direct base-workspace objects found    = 1
+ names                                  = replanner_instance
+ live object has all R5 cache props     = 1
+ cache valid                            = 0
+ cache hit count                        = 0
+ cache store count                      = 6
+ cache invalidate count                 = 6
+ cache successful-consume commit count  = 0
+ active runtime packet reuse count      = 0
+ runtime packet rebuild count           = 3
+ fast packet rebuild count              = 3
+ generator request count                = 11
+ generator deadline fail count          = 10
+ replan commit count                    = 1
+
+[E. CLASSIFICATION]
+ RESULT: R5 stored cache data, but no later request passed the exact cache reuse gate.
+ stores/hits/commits/invalidates          = 6 / 0 / 0 / 6
+
+ IMPORTANT: AF7R58Z-R5 intentionally does NOT change trajectory geometry.
+ IMPORTANT: unchanged "bloated" avoidance trajectory is therefore expected at this stage.
+ IMPORTANT: timing can improve only on requests that qualify for cache store/hit.
+
+[RETURN THESE TWO FILES]
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd5dce455_fb2c_4666_8974_52e77164e0b8\AF7R58ZA_REPORT.txt
+ RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpd5dce455_fb2c_4666_8974_52e77164e0b8\AF7R58ZA_OUT.mat
+ status = R5_ACTIVE__CACHE_STORED_BUT_NO_EXACT_HIT
