@@ -1,0 +1,33 @@
+====================================================================================================
+ AF7R58ZZV | TWO-SPIKE TARGETED INSTALL
+====================================================================================================
+[SCOPE] FlightEntryOnly=1 | ReplanWindowOnly=1 | HLCChanged=0
+[WORKER] process=0 | thread=0 | parpool=0 | parfeval=0
+[PHASE] preArmInitializationPrime=1 | arming/takeoff/flight/landingWarmup=0
+[TRIGGER] fixedH4s=1 | immediateStage1=1 | pendingKernelRelatch=0
+[FRESHNESS] rawSensorEveryCycle=1 | newKnownObstacleReject=1 | dep/map/versionReject=1
+[CERT] continuousMathChanged=0 | finiteSensingChanged=0
+
+[A. PREFLIGHT]
+ exact PRE SHA                         = 1 | c5e0753344024fa155a2ffd359b3dacfdc14ad68559df786bf316add9bfa12ba
+ exact staged POST SHA                 = 1 | cbc183990c230078d61f01ab5157802036cc20dac6738e1f6465e7a7b212cff3
+ fixed collision horizon H=4 s         = 1
+ worker/thread/process offload          = 0
+ pending-pipeline trigger kernel rerun  = 0
+ raw sensor freshness every cycle       = 1
+ Stage2 first repaired packet prepared  = 1
+ Stage3 deep static revalidation moved  = Stage2/preArm
+ per-cycle nominal func2str             = 0
+ warmup in mission phases               = 0
+ full patched class parse               = 1
+ production writes                      = 0
+
+[B. INSTALL]
+ REPLANNING_SYSTEM post SHA = cbc183990c230078d61f01ab5157802036cc20dac6738e1f6465e7a7b212cff3
+ production modified         = 1
+ rollback performed          = 0
+ status = TWO_SPIKE_TARGETED_OPTIMIZATION_INSTALLED__CLEAN_RERUN_REQUIRED
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp90eb8200_64e8_44a5_8150_52754b425ec1\AF7R58ZZV_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp90eb8200_64e8_44a5_8150_52754b425ec1\AF7R58ZZV_OUT.mat
+status = TWO_SPIKE_TARGETED_OPTIMIZATION_INSTALLED__CLEAN_RERUN_REQUIRED

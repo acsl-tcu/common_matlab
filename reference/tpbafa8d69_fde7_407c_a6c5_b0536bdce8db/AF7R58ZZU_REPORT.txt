@@ -1,0 +1,17 @@
+====================================================================================================
+ AF7R58ZZU | DETERMINISTIC STAGED REPLAN PIPELINE INSTALL
+====================================================================================================
+[REMOVE] MATLAB process worker/parfeval architecture = 1
+[TRIGGER] fixedH4s=1 | immediateOrdinaryTrigger=1 | extendedPreview=0
+[PIPELINE] stage1Generate=1 | stage2CertPrepare=1 | stage3Atomic=1
+[SCHEDULE] activation=t_trigger+2dt | dt=25ms nominal
+[SAFETY] staleReject=1 | continuousCertificateMathChanged=0 | finiteSensingChanged=0
+
+[INSTALL FAILURE]
+ identifier = MATLAB:assertion:failed
+ message    = アサーションに失敗しました。
+ rollback   = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbafa8d69_fde7_407c_a6c5_b0536bdce8db\AF7R58ZZU_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpbafa8d69_fde7_407c_a6c5_b0536bdce8db\AF7R58ZZU_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_ATTEMPTED

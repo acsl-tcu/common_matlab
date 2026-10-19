@@ -1,0 +1,51 @@
+status=OBSERVER_CALL_ORDINAL_FORENSIC_R13_R4_COMPLETE
+diagnosticClosed=1
+productionModified=0
+addedWarmup=0
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+r13SHA=324ddeeb0d27dea14604984bba7d198f9acefcffd86f23aac64eee6cd52b6bb5
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tp8c17dc42_ddb6_412f_9146_839134408cbc\AF7R58ZZY_R13_R4_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tp8c17dc42_ddb6_412f_9146_839134408cbc\AF7R58ZZY_R13_R4_OUT.mat
+
+[CALL_ORDINAL_TIMING]
+columns=context t updateOrdinal oneOrdinal contractOrdinal total one contract residual hasPrev h
+row=PREFLIGHT 5 1 0 0 7.3398 NaN NaN 0.3067 0 NaN
+row=PREFLIGHT 5.025 2 1 1 6.5235 1.1972 2.5605 0.9556 1 0.025
+row=LIVE 5 3 0 0 3.1729 NaN NaN 0.1996 0 NaN
+row=LIVE 5.025 4 2 2 4.6971 0.8579 1.7019 0.501 1 0.025
+row=LIVE 5.05 5 3 3 13.9156 0.6685 3.8632 2.363 1 0.025
+row=LIVE 5.075 6 4 4 3.193 0.6672 1.2478 0.4421 1 0.025
+row=LIVE 5.1 7 5 5 16.4665 3.894 7.1908 2.5873 1 0.025
+row=LIVE 5.125 8 6 6 2.0176 0.5475 0.6941 0.2774 1 0.025
+row=LIVE 5.15 9 7 7 0.4012 0.0369 0.1463 0.0226 1 0.025
+row=LIVE 5.175 10 8 8 0.3899 0.0346 0.1417 0.0223 1 0.025
+row=LIVE 5.2 11 9 9 0.3995 0.0372 0.1476 0.0225 1 0.025
+
+[PREFLIGHT_VS_LIVE_SHAPE]
+preflightHasPrevEvents=1
+liveHasPrevEvents=8
+allInputShapeExact=1
+allOutputShapeExact=1
+staticCacheSame=1
+hSame=1
+columns=t updateOrdinal oneOrdinal contractOrdinal inputShapeExact outputShapeExact exactReplay hotOneMs hotContractMs hotSumMs liveToHotRatio
+row=5.025 4 2 2 1 1 1 0.0116 0.09305 0.10465 44.8838987
+row=5.05 5 3 3 1 1 1 0.0106 0.0894 0.1 139.156
+row=5.075 6 4 4 1 1 1 0.0105 0.0879 0.0984 32.449187
+row=5.1 7 5 5 1 1 1 0.01125 0.09285 0.1041 158.179635
+row=5.125 8 6 6 1 1 1 0.01065 0.0884 0.09905 20.3695103
+row=5.15 9 7 7 1 1 1 0.0104 0.0889 0.0993 4.04028197
+row=5.175 10 8 8 1 1 1 0.01045 0.0898 0.10025 3.88927681
+row=5.2 11 9 9 1 1 1 0.0105 0.08915 0.09965 4.00903161
+
+[SPIKE_ORDINALS]
+oneStepSpikeOrdinals=5
+contractSpikeOrdinals=[2 3 4 5]
+observerSpikeUpdateOrdinals=[5 7]
+classification=SAME_SHAPE_EARLY_CALL_ORDINAL_JIT_OR_ALLOCATOR_STRONGLY_SUPPORTED
+nextAction=AOT_COMPILED_OBSERVER_NUMERIC_KERNEL_SHADOW__NO_ADDED_WARMUP

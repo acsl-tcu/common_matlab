@@ -1,0 +1,73 @@
+status=DUAL_ROOT_CAUSE_R6_R2_COMPLETE
+captureClosed=1
+productionModified=0
+isaProductionContract=1
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+parentDiagSHA=2b874c2e92052de1c756c3b00f8f62f5cb08018a496b9c78b981df085f2efb18
+r6DiagSHA=5f9b5750bd920eb01b08fb78569ae3ad53260eff239321380eb0cf5ec1d7fc86
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tp2125289e_561c_4e25_9619_9d8b98bdd3e1\AF7R58ZZY_R6_R2_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tp2125289e_561c_4e25_9619_9d8b98bdd3e1\AF7R58ZZY_R6_R2_OUT.mat
+
+[OBSERVER_ROOT]
+dominant=TWO_EVENT_CONTRACTION
+dominantMs=6.9662
+dominantT=5.1
+oneStepDominant=ATTITUDE_EULER_BOUND
+oneStepDominantMs=1.6073
+oneStepDominantT=5.1
+contractionDominant=W_CONTRACTION
+contractionDominantMs=2.5773
+contractionDominantT=5.1
+columns=t total stateFetch lazyInit eventGuardPhase measurement xhatPrev prevInput oneStepTotal oneStepParams oneStepAttitude oneStepLoad oneStepStruct contractTotal contractMeasured contractVL contractWL contractW contractStruct hiddenUpdate noPrevMeasured massError supportStruct qPrevAssign bridge finalCommit hasPrev contractionUsed updateCountBefore h staticCacheValid completed
+row= 5 2.7917 0.0364 0.8569 0.0219 0.5751 0.0846 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.5172 0.0478 0.0935 0.0458 0.2623 0.0573 0 0 0 NaN 1 1
+row= 5.025 4.2838 0.0281 0.0261 0.0502 0.5714 0.0948 0.1867 0.7647 0.1399 0.2592 0.1005 0.0756 1.6139 0.3913 0.1434 0.158 0.5363 0.0805 0.1654 NaN 0.0427 0.0934 0.041 0.2074 0.0656 1 1 1 0.025 1 1
+row= 5.05 14.5228 0.2428 0.1373 0.3537 3.2776 1.1433 0.1866 0.7096 0.1206 0.2157 0.1011 0.0771 3.6842 2.4678 0.1669 0.1525 0.5238 0.0804 0.1688 NaN 0.2935 0.6726 0.5397 1.374 0.3977 1 1 2 0.025 1 1
+row= 5.075 2.9759 0.0098 0.008 0.0322 0.18 0.0343 0.2187 0.6649 0.1172 0.1976 0.1017 0.0751 1.2309 0.1495 0.1396 0.143 0.4636 0.0679 0.164 NaN 0.0147 0.0322 0.0123 0.045 0.0206 1 1 3 0.025 1 1
+row= 5.1 18.7299 0.0475 0.0387 0.3265 0.1639 0.3039 0.9022 4.7969 0.9309 1.6073 0.3183 0.4962 6.9662 0.2888 0.7612 0.8921 2.5773 0.4267 1.4644 NaN 0.0529 0.059 0.0386 0.097 0.0583 1 1 4 0.025 1 1
+row= 5.125 5.3467 0.0133 0.015 0.0323 0.0993 0.0331 0.0597 1.7758 0.1223 0.0886 0.0321 0.0669 1.4436 0.1358 0.068 0.0531 0.1139 0.0573 0.0629 NaN 0.0285 0.0516 0.0197 0.0565 0.1108 1 1 5 0.025 1 1
+row= 5.15 1.72 0.0014 0.0023 0.0024 0.0832 0.0165 0.0854 0.3667 0.0358 0.0432 0.0054 0.1208 0.6765 0.0856 0.0701 0.0373 0.0628 0.1827 0.2369 NaN 0.012 0.026 0.0059 0.0383 0.0156 1 1 6 0.025 1 1
+row= 5.175 0.3945 0.0012 0.0017 0.0024 0.0739 0.0063 0.0031 0.0356 0.0062 0.0082 0.0013 0.0126 0.1426 0.0567 0.0174 0.0143 0.0251 0.0174 0.0276 NaN 0.0073 0.0208 0.006 0.0339 0.0124 1 1 7 0.025 1 1
+row= 5.2 0.3603 0.0019 0.002 0.0022 0.0671 0.0051 0.0035 0.0332 0.0059 0.0074 0.0011 0.0135 0.1367 0.0566 0.0158 0.0135 0.0231 0.017 0.0195 NaN 0.0064 0.0177 0.0055 0.0281 0.0151 1 1 8 0.025 1 1
+
+[REPAIRED_REFERENCE_ROOT]
+dominant=ACTIVE_REFERENCE_ASSERT
+dominantMs=4.4119
+dominantT=9.925
+assertDominant=BASIC_REFERENCE
+assertDominantMs=1.024
+assertDominantT=9.925
+pathCodes=1:CACHE_HIT,2:SHIFT1,3:SHIFTM,4:FULL_BATCH
+cacheHitCount=1
+shift1Count=5
+shiftMCount=0
+fullBatchCount=0
+columns=t total assertTotal assertDeadline assertBasic assertROFlatMeta assertSmooth assertGeometry assertSpeed assertExec setupAuthority cacheEligibility shiftCalc pathCode shiftCount canReuse cacheValidBefore shiftAlloc tailScalarEval tailBatchEval derive validate cacheStore refVersion cacheVersionBefore cacheT0Before N H dt safetyLevelCode tMinusCacheT0 completed
+row= 9.925 6.1056 4.4119 0.2049 1.024 0.3506 0.4239 0.7483 0.2747 NaN 0.2171 0.124 0.0825 1 0 1 1 NaN NaN NaN NaN 0.8316 NaN 1 1 9.925 161 4 0.025 1 0 1
+row= 9.95 11.0032 0.5062 0.0149 0.0331 0.0166 0.0796 0.0385 0.0133 NaN 1.3173 2.7227 0.3103 2 1 1 1 0.1484 3.5417 NaN 0.1661 0.3479 0.4843 1 1 9.925 161 4 0.025 1 0.025 1
+row= 9.975 5.0704 0.1904 0.0164 0.0157 0.0094 0.013 0.015 0.0137 NaN 0.0576 3.1582 0.4695 2 1 1 1 0.0885 0.3884 NaN 0.1295 0.0174 0.0211 1 1 9.95 161 4 0.025 1 0.025 1
+row= 10 1.1568 0.1831 0.0126 0.0127 0.0088 0.0113 0.0132 0.0139 NaN 0.0195 0.0802 0.0192 2 1 1 1 0.0835 0.3129 NaN 0.1212 0.0178 0.021 1 1 9.975 161 4 0.025 1 0.025 1
+row= 10.025 7.2924 1.4736 0.0525 0.0458 0.0367 0.0364 0.0368 0.0443 NaN 0.0595 0.0511 0.0339 2 1 1 1 0.5004 1.1445 NaN 0.9582 0.0247 0.0277 1 1 10 161 4 0.025 1 0.025 1
+row= 10.05 2.7914 0.3216 0.0117 0.0271 0.0649 0.0336 0.0352 0.0524 NaN 0.0408 0.0409 0.0134 2 1 1 1 0.0651 0.2966 NaN 0.0825 0.1094 0.1931 1 1 10.025 161 4 0.025 1 0.025 1
+
+[STAGE2_CONTEXT_FROM_PARENT_DIAGNOSTIC]
+dominant=POSTCACHE_BATCH
+dominantMs=6.5162
+dominantT=9.875
+columns=t stage1 stage2 stage3 postcacheBatch postcacheDerive batchModel packet handlesMeta
+row= 9.85 5.2578 NaN NaN NaN NaN NaN NaN NaN
+row= 9.875 NaN 14.3783 NaN 6.5162 0.5955 1.4558 1.3524 0.9365
+row= 9.9 NaN NaN 3.7343 NaN NaN NaN NaN NaN
+
+[INTERPRETATION_CONTRACT]
+timingIsEmpirical=1
+formalFutureWCETClaim=0
+trajectoryMathChanged=0
+certificateAcceptanceChanged=0
+sensorGeometryChanged=0
+activationTimeChanged=0
+staleAtomicGatesChanged=0
+commitPolicyChanged=0
+productionSourceModified=0
+diagnosticTicTocOverheadPresent=1

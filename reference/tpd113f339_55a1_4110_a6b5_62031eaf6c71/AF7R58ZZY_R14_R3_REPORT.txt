@@ -1,0 +1,80 @@
+status=OBSERVER_AOT_R14_R3_COMPLETE__OBSERVER_REPAIR_OPEN
+diagnosticClosed=1
+observerRepairClosed=0
+performanceClosed=0
+controlPeriod25msClosed=0
+earlyOnline25msClosed=0
+productionModified=0
+shadowOnly=1
+addedWarmup=0
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+r14SHA=677c9e0d6661fda644ea6d3fc3dec9d0782cee163acba58ef692275330d815a7
+cppSHA=2af09842ace57c918c1f5439f0cfac683c7a1a0c684895b43e7739b37c91a087
+runnerSemantics=25/25
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tpd113f339_55a1_4110_a6b5_62031eaf6c71\AF7R58ZZY_R14_R3_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tpd113f339_55a1_4110_a6b5_62031eaf6c71\AF7R58ZZY_R14_R3_OUT.mat
+
+[MEX_BUILD_AND_BITWISE_GATE]
+buildClosed=1
+strictCompile=1
+buildMessage=
+selectedMode=0
+mode0Exact=1
+mode0Tested=8
+mode0Message=
+mode0OneHotMedianMs=0.0032
+mode0ContractHotMedianMs=0.0091
+mode1Exact=1
+mode1Tested=8
+mode1Message=
+mode1OneHotMedianMs=0.0131
+mode1ContractHotMedianMs=0.0534
+postRunBitwiseExact=1
+postRunReplayCount=8
+
+[OBSERVER_LIVE_PERFORMANCE]
+columns=metric baseline_ms optimized_ms ratio
+observerPeak 21.1981 9.4743 0.446940999
+oneStepPeak 4.662 0.9516 0.204118404
+contractionPeak 7.9401 1.5539 0.195702825
+baselinePeakT=5.1
+optimizedPeakT=5.05
+mexOneCalls=1681
+mexContractCalls=1681
+fallbackCalls=0
+
+[FULL_RUNTIME_PROFILE]
+deadlineAuthority=ONLINE_BEFORE_PLANT
+fullIterationRole=SIMULATION_PLANT_PLUS_LOGGER_CONTEXT_ONLY
+columns=metric baseline_ms optimized_ms ratio
+flightOnlinePeak 533.9614 536.4673 1.00469304
+earlyOnlinePeak 48.583 34.5603 0.711366116
+replanOnlinePeak 31.3923 33.5127 1.06754523
+flightFullIterationPeak 538.5944 542.059 1.00643267
+earlyFullIterationPeak 53.1171 40.3923 0.760438729
+replanFullIterationPeak 35.8102 38.5736 1.07716796
+baselineOnlineOver25Count=8
+optimizedOnlineOver25Count=7
+baselineFullIterationOver25Count=15
+optimizedFullIterationOver25Count=11
+optimizedEarlyOnlineOver25Count=3
+optimizedReplanOnlineOver25Count=3
+
+[OPTIMIZED_TOP_ONLINE_SPIKES]
+columns=t onlineBeforePlantMs fullIterationMs
+row=24.95 5.1 9.875
+
+[CONTRACT]
+trajectoryMathChanged=0
+certificateAcceptanceChanged=0
+observerTheoremChanged=0
+commitPolicyChanged=0
+workShiftedToArmingTakeoffLanding=0
+productionInstallPerformed=0
+sameSessionSequentialComparison=1
+fullIterationIsNotControlDeadline=1
+mexLiveStateInterface=NUMERIC_7X3_STATE_VECTORS

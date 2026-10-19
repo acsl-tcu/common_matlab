@@ -149,7 +149,7 @@ replan_opts.AVOIDANCE_COMMIT_POLICY = AVOIDANCE_COMMIT_POLICY;
 replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
 replan_opts.ENABLE_AF7R53_PREPARED_COMMIT = ENABLE_AF7R53_PREPARED_COMMIT;
 
-replanner_instance = REPLANNING_SYSTEM(agent,nominal_ref,replan_opts);
+replanner_instance = REPLANNING_SYSTEM_R15_FAST(agent,nominal_ref,replan_opts);
 
 avoidance_status = replanner_instance.get_avoidance_mode_status();
 fprintf(['[AVOIDANCE] commit=%s | ref-cert=%d | exec-cert=%d | ' ...

@@ -1,0 +1,47 @@
+status=STAGE2_DIRECT_MEX_R10_INCOMPLETE_FAIL_CLOSED
+captureClosed=0
+productionModified=0
+shadowOnly=1
+noPhaseShift=1
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+observerOptimizationApplied=0
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+originalAF7R33SHA=1f57a0066acb75859dfe565b3c38a99d5c272b8afae4698131d7aeeb70093889
+r10DiagnosticSHA=83d16646d7e78b25777bb02c919df50a31245866b08ba5e2911804b0412fffed
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tp79548ab5_7c4b_4ac6_9ddc_b898af31464d\AF7R58ZZY_R10_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tp79548ab5_7c4b_4ac6_9ddc_b898af31464d\AF7R58ZZY_R10_OUT.mat
+
+[EXACTNESS_AND_CONNECTION]
+captureShadowFullExact=1
+localDecasteljauMexBitwiseExact=1
+fullR10FastHelperBitwiseExact=1
+decasteljauCapturedCalls=7
+r10FastHotMedianMs=0.5634
+r10FastHotP95Ms=3.2177
+stage2FastTotalCalls=2
+stage2FastRealCalls=2
+fastConnected=1
+
+[PERFORMANCE_COMPARISON]
+columns=metric baseline_ms optimized_ms ratio
+observerPeak 18.752 17.6293 0.940129053
+flightEntryDoPeak 0.1809 0.19 1.05030404
+replanDoPeak 0.0167 0.0314 1.88023952
+stage2Total 14.4501 41.0264 2.83917758
+stage2Postcache 6.6655 33.2691 4.99123847
+postcommitRefPacket 12.7843 11.0675 0.865710285
+changedPathNoRegression=0
+meaningfulImprovement=0
+
+[CONTRACT]
+trajectoryMathChanged=0
+derivativeOrderReduced=0
+certificateAcceptanceChanged=0
+commitPolicyChanged=0
+observerPathChanged=0
+workShiftedToArmingTakeoffLanding=0
+productionInstallPerformed=0

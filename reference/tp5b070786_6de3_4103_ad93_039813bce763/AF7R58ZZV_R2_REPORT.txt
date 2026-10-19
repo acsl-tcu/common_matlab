@@ -1,0 +1,28 @@
+====================================================================================================
+ AF7R58ZZV-R2 | CONSTRUCTOR SIGNATURE CACHE-ORDER FIX
+====================================================================================================
+[ROOTCAUSE] validator used runtime signature cache before constructor captured it
+[FIX] constructorExactFunc2strOnce=1 | cachedBindingAfterCapture=1
+[FLIGHT] perCycleFunc2str=0 | hotGuardUnchanged=1
+[WORKER] process=0 | thread=0 | parpool=0 | parfeval=0
+[SAFETY] fixedH4s=1 | finiteSensingChanged=0 | certificateMathChanged=0
+
+[A. PREFLIGHT]
+ exact PRE SHA                      = 1 | cbc183990c230078d61f01ab5157802036cc20dac6738e1f6465e7a7b212cff3
+ exact staged POST SHA              = 1 | 310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+ constructor pre-cache fallback     = exact func2str once
+ cached binding after capture        = 1
+ Flight hot per-cycle func2str       = 0
+ worker/thread/process offload       = 0
+ staged two-spike optimization kept  = 1
+ continuous certificate kept         = 1
+ full patched class parse            = 1
+ production writes                   = 0
+
+[B. INSTALL]
+ REPLANNING_SYSTEM post SHA = 310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+ status = ZZV_CONSTRUCTOR_SIGNATURE_FIX_INSTALLED__CLEAN_RERUN_REQUIRED
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp5b070786_6de3_4103_ad93_039813bce763\AF7R58ZZV_R2_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp5b070786_6de3_4103_ad93_039813bce763\AF7R58ZZV_R2_OUT.mat
+status = ZZV_CONSTRUCTOR_SIGNATURE_FIX_INSTALLED__CLEAN_RERUN_REQUIRED

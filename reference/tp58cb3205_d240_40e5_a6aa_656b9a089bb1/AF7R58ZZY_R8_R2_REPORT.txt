@@ -1,0 +1,111 @@
+status=KERNEL_C6_FORENSIC_R8_R2_COMPLETE__GENERIC_STAGED_YAW_GATE_OPEN
+captureClosed=1
+productionModified=0
+repairApplied=0
+noPhaseShift=1
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+r8DiagSHA=5ca886499192ee309c0bfd7a39c2094de708e4a85104fb7a54e99b2b987e97df
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tp58cb3205_d240_40e5_a6aa_656b9a089bb1\AF7R58ZZY_R8_R2_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tp58cb3205_d240_40e5_a6aa_656b9a089bb1\AF7R58ZZY_R8_R2_OUT.mat
+
+[C6_CLOSURE]
+currentPositionC6Closed=1
+positionContinuityOrder=7
+currentYawC6Closed=1
+yawPolicy=C6_INDEPENDENT
+nominalYawConstantSource=1
+canonicalCorrectionLeavesYawUntouched=1
+directionFacingYawIntended=1
+directionFacingYawImplemented=0
+nominalHorizontalHeadingDefined=0
+verticalNominalRequiresC6HeadingHold=1
+genericStagedYawExplicitGate=0
+genericStagedYawContractClosed=0
+supplementaryBezierGroups=1
+supplementarySegments=3
+supplementaryMaxGlobalEndpointJetResidualD0D7=0
+supplementaryMaxInternalJoinJetResidualD0D7=4.5234260658278134e-10
+
+[LIVE_FLIGHT_ROOTS]
+observerDominant=TWO_EVENT_CONTRACTION
+observerDominantMs=6.8783
+observerDominantT=5.1
+oneStepDominant=ATTITUDE_EULER_BOUND
+oneStepDominantMs=1.575
+oneStepDominantT=5.1
+contractionDominant=MEASURED_BOX
+contractionDominantMs=2.4558
+contractionDominantT=5.05
+stage2Dominant=POSTCACHE_BATCH
+stage2DominantMs=6.4427
+stage2DominantT=9.875
+
+[OBSERVER_POSTRUN_EXACT_REPLAY]
+snapshotCount=8
+classification=COLD_JIT_ALLOCATION_DOMINANT
+event=5.025 oneFirstMs=0.8472 oneHotMedianMs=0.0113 contractFirstMs=4.6781 contractHotMedianMs=0.05145 oneExact=1 contractExact=1
+event=5.05 oneFirstMs=0.1567 oneHotMedianMs=0.01085 contractFirstMs=0.1989 contractHotMedianMs=0.04985 oneExact=1 contractExact=1
+event=5.075 oneFirstMs=0.0905 oneHotMedianMs=0.01115 contractFirstMs=0.1238 contractHotMedianMs=0.05245 oneExact=1 contractExact=1
+event=5.1 oneFirstMs=0.1015 oneHotMedianMs=0.0112 contractFirstMs=0.1475 contractHotMedianMs=0.05245 oneExact=1 contractExact=1
+event=5.125 oneFirstMs=0.263 oneHotMedianMs=0.01095 contractFirstMs=0.3567 contractHotMedianMs=0.05095 oneExact=1 contractExact=1
+event=5.15 oneFirstMs=0.0288 oneHotMedianMs=0.0109 contractFirstMs=0.0707 contractHotMedianMs=0.05075 oneExact=1 contractExact=1
+event=5.175 oneFirstMs=0.0148 oneHotMedianMs=0.01065 contractFirstMs=0.0606 contractHotMedianMs=0.04845 oneExact=1 contractExact=1
+event=5.2 oneFirstMs=0.0128 oneHotMedianMs=0.011 contractFirstMs=0.0476 contractHotMedianMs=0.0513 oneExact=1 contractExact=1
+
+[BATCH_POSTRUN_EXACT_REPLAY]
+classification=MIXED_COLD_AND_STEADY
+valid=1
+N=161
+firstMs=6.4785
+hotMedianMs=3.72795
+hotP95Ms=4.378855
+tailScalarFirstMs=1.0577
+tailScalarHotMedianMs=0.11605
+
+[PROFILE_TOP_OBSERVER]
+profileAvailable=1
+rank=1 total_s=0.0330614409 calls=1 name=AF7R58ZZY_R8_R2_KERNEL_C6_FORENSIC_AUDIT
+rank=2 total_s=0.0326429404 calls=1 name=AF7R58ZZY_R8_R2_KERNEL_C6_FORENSIC_AUDIT>profile_observer_r8
+rank=3 total_s=0.0119152148 calls=30 name=REPLANNING_SYSTEM_R8R2_DIAG>REPLANNING_SYSTEM_R8R2_DIAG.observer_contract_two_events
+rank=4 total_s=0.00462620573 calls=30 name=REPLANNING_SYSTEM_R8R2_DIAG>REPLANNING_SYSTEM_R8R2_DIAG.observer_one_step_support
+rank=5 total_s=0.0028288035 calls=30 name=REPLANNING_SYSTEM>REPLANNING_SYSTEM.observer_measured_error_box
+rank=6 total_s=0.000466400578 calls=30 name=REPLANNING_SYSTEM>REPLANNING_SYSTEM.observer_nextfloat_up
+rank=7 total_s=0.00033920042 calls=30 name=REPLANNING_SYSTEM>REPLANNING_SYSTEM.observer_euler_rate_inverse_ZYX
+
+[PROFILE_TOP_BATCH]
+profileAvailable=1
+rank=1 total_s=0.0732942826 calls=1 name=AF7R58ZZY_R8_R2_KERNEL_C6_FORENSIC_AUDIT
+rank=2 total_s=0.0730912821 calls=1 name=AF7R58ZZY_R8_R2_KERNEL_C6_FORENSIC_AUDIT>profile_batch_r8
+rank=3 total_s=0.048557421 calls=10 name=af7r33_flat_jet_batch_model
+rank=4 total_s=0.0358350893 calls=10 name=af7r33_flat_jet_batch_model>piecewise_derivative_batch
+rank=5 total_s=0.0330928824 calls=70 name=af7r33_flat_jet_batch_model>decasteljau_batch
+rank=6 total_s=0.00201250501 calls=10 name=strjoin
+rank=7 total_s=0.00196420489 calls=10 name=af7r33_flat_jet_batch_model>sha256_text
+rank=8 total_s=0.000500901248 calls=60 name=af7r33_flat_jet_batch_model>normalize_triplet_output
+rank=9 total_s=0.000424801058 calls=30 name=af7r33_flat_jet_batch_model>normalize_scalar_output
+rank=10 total_s=0.000314600784 calls=10 name=java.security.MessageDigest.getInstance
+rank=11 total_s=0.000180100449 calls=10 name=strfun\private\strescape
+rank=12 total_s=0.00014040035 calls=10 name=sym.matlabFunction>@(t)t.*1.5+3.0
+rank=13 total_s=0.000125800313 calls=20 name=java.security.MessageDigest$Delegate
+rank=14 total_s=0.000106700266 calls=20 name=sym.matlabFunction>@(t)0.0
+rank=15 total_s=9.81002444e-05 calls=50 name=sym.matlabFunction>@(t)[0.0;0.0;0.0]
+rank=16 total_s=8.73002175e-05 calls=10 name=sym.matlabFunction>@(t)[0.0;0.0;1.5]
+
+[NO_PHASE_SHIFT_PERFORMANCE_CONTRACT]
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+addedWarmup=0
+productionPerformanceChangedByR8=0
+performanceRepairApplied=0
+futureRepairMustNotRegressBaseline=1
+
+[INTERPRETATION]
+timingIsEmpirical=1
+postRunReplayOccursAfterMission=1
+formalFutureWCETClaim=0
+trajectoryMathChanged=0
+certificateAcceptanceChanged=0
+commitPolicyChanged=0

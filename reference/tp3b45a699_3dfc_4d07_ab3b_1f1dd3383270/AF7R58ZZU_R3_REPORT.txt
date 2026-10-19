@@ -1,0 +1,39 @@
+====================================================================================================
+ AF7R58ZZU-R3 | STAGED PIPELINE + PRE-ARM-ONLY WARMUP INSTALL
+====================================================================================================
+[ROOTCAUSE] prior horizon regexp rejected the valid trailing source comment
+[REMOVE] MATLAB process worker/parfeval architecture = 1
+[TRIGGER] fixedH4s=1 | immediateOrdinaryTrigger=1 | extendedPreview=0
+[PIPELINE] stage1Generate=1 | stage2CertPrepare=1 | stage3Atomic=1
+[PHASE] coldPathWarmup=PRE_ARM_INITIALIZATION_ONLY
+[PHASE] armingWarmup=0 | takeoffWarmup=0 | flightWarmup=0 | landingWarmup=0
+[SAFETY] staleReject=1 | continuousCertificateMathChanged=0 | finiteSensingChanged=0
+ horizon declaration matches               = 1
+ hard 4-ms declaration matches             = 1
+
+[A. PREFLIGHT]
+ exact ZZT-R2 source PRE                   = 1 | fb4e01fb133fab7d8d9c441d43b3ea68d9c274d20b4837ef56c25b73fd347b90
+ exact ZZT-R2 helper PRE                   = 1 | 6dd47bb6ddf23c33c7888d8765316004abe5e622911be3a904a3c9b6f2d2aaad
+ fixed collision horizon H=4 s             = 1
+ extended preview                          = 0
+ process/thread-worker tokens              = 0
+ staged activation                         = t_trigger + 2*dt
+ continuous reference certificate retained = 1
+ finite-sensing contract retained          = 1
+ hard 4-ms physical bound source matched   = 1
+ actual Arming warmup                      = 0
+ actual Takeoff warmup                     = 0
+ actual Flight warmup                      = 0
+ actual Landing warmup                     = 0
+ warmup location                            = PRE-ARM INITIALIZATION ONLY
+ full patched class parse                   = 1
+ production writes                         = 0
+
+[B. INSTALL]
+ REPLANNING_SYSTEM post SHA = c5e0753344024fa155a2ffd359b3dacfdc14ad68559df786bf316add9bfa12ba
+ process-worker helper removed = 1
+ status = STAGED_PIPELINE_R3_INSTALLED__PREARM_ONLY_WARMUP__CLEAN_RERUN_REQUIRED
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp3b45a699_3dfc_4d07_ab3b_1f1dd3383270\AF7R58ZZU_R3_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp3b45a699_3dfc_4d07_ab3b_1f1dd3383270\AF7R58ZZU_R3_OUT.mat
+status = STAGED_PIPELINE_R3_INSTALLED__PREARM_ONLY_WARMUP__CLEAN_RERUN_REQUIRED

@@ -1,0 +1,32 @@
+====================================================================================================
+ AF7R58ZZT | PROCESS-WORKER REPLANNING INSTALL
+====================================================================================================
+[HORIZON] fixed4s=1 | extendedPreview=0 | ordinaryTriggerImmediate=1
+[WORKER] processPool=1 | nonblockingFlight=1 | earliestActivation=t+dt
+[SAFETY] lateReject=1 | staleReject=1 | finiteSensingUnchanged=1 | certificateMathChanged=0
+[SCOPE] REFERENCE_ONLY worker authority in W1 | EXECUTION_AWARE worker failClosed=1
+
+[A. PREFLIGHT]
+ exact PRE SHA                        = 1 | bc97df3a0a7341ac5605d52f4dd94923bfd831a11be535450666ec6d10ff41ec
+ exact staged POST SHA                = 1 | 093e15216f99e9d5a69c9c11151c9b8249e9d45669e77ae60defc4b7310dcb94
+ exact helper SHA                     = 1 | 66211cbfd6e5dc5721de9f3ff164474d840cea20c5338dbcf952c48e9d0cb52d
+ fixed collision horizon H=4 s        = 1
+ extended preview                     = 0
+ earliest activation                  = t + dt
+ Flight worker wait/block             = 0
+ stale sensor/dependency/map reject   = 1
+ generator/certificate math changed   = 0
+ full patched class parse             = 1
+ helper parse                         = 1
+ production writes                    = 0
+
+[B. INSTALL]
+ REPLANNING_SYSTEM post SHA = 093e15216f99e9d5a69c9c11151c9b8249e9d45669e77ae60defc4b7310dcb94
+ process-worker helper SHA   = 66211cbfd6e5dc5721de9f3ff164474d840cea20c5338dbcf952c48e9d0cb52d
+ production modified         = 1
+ rollback performed          = 0
+ status = PROCESS_WORKER_W1_INSTALLED__CLEAN_RERUN_REQUIRED
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp0716d9da_b703_4d3a_bf46_4caceb08754d\AF7R58ZZT_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp0716d9da_b703_4d3a_bf46_4caceb08754d\AF7R58ZZT_OUT.mat
+status = PROCESS_WORKER_W1_INSTALLED__CLEAN_RERUN_REQUIRED

@@ -1,0 +1,29 @@
+====================================================================================================
+ AF7R58ZZT-R2 | PROCESS-WORKER RECOVERY INSTALL
+====================================================================================================
+[ROOTCAUSE] oneDtActivationTooAggressive=1 | repeatedMissCouldReachZeroLead=1
+[FIX] measuredIPCLead=1 | ordinaryReturn=1 | synchronousRecovery=1
+[SAFETY] fixedH4s=1 | extendedPreview=0 | staleReject=1 | certificateMathChanged=0
+
+[A. PREFLIGHT]
+ exact source PRE                       = 1 | 093e15216f99e9d5a69c9c11151c9b8249e9d45669e77ae60defc4b7310dcb94
+ exact helper PRE                       = 1 | 66211cbfd6e5dc5721de9f3ff164474d840cea20c5338dbcf952c48e9d0cb52d
+ fixed H=4 s                            = 1
+ setup max-roundtrip calibration        = 1 | samples=8
+ calibrated future activation           = 1
+ zero-lead assert removed               = 1
+ async miss -> synchronous recovery      = 1
+ stale sensor/dependency/map reject      = 1
+ generator/certificate math unchanged   = 1
+ full class parse                        = 1
+ worker helper parse                     = 1
+ production writes                       = 0
+
+[B. INSTALL]
+ REPLANNING_SYSTEM post SHA = fb4e01fb133fab7d8d9c441d43b3ea68d9c274d20b4837ef56c25b73fd347b90
+ worker helper post SHA      = 6dd47bb6ddf23c33c7888d8765316004abe5e622911be3a904a3c9b6f2d2aaad
+ status = PROCESS_WORKER_R2_RECOVERY_INSTALLED__CLEAN_RERUN_REQUIRED
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp338806aa_87d0_41d2_aeb1_efc3f841f1e3\AF7R58ZZT_R2_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tp338806aa_87d0_41d2_aeb1_efc3f841f1e3\AF7R58ZZT_R2_OUT.mat
+status = PROCESS_WORKER_R2_RECOVERY_INSTALLED__CLEAN_RERUN_REQUIRED

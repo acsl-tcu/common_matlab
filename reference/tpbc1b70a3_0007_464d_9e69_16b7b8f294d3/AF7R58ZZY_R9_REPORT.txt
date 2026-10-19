@@ -1,0 +1,53 @@
+status=PERFORMANCE_SHADOW_REPAIR_R9_INCOMPLETE_FAIL_CLOSED
+captureClosed=0
+productionModified=0
+shadowOnly=1
+noPhaseShift=1
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+originalAF7R33SHA=1f57a0066acb75859dfe565b3c38a99d5c272b8afae4698131d7aeeb70093889
+r9DiagnosticSHA=82db825369923cf9499b06de230967c3bb225a202734cbe8f0af5d20f095d000
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tpbc1b70a3_0007_464d_9e69_16b7b8f294d3\AF7R58ZZY_R9_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tpbc1b70a3_0007_464d_9e69_16b7b8f294d3\AF7R58ZZY_R9_OUT.mat
+
+[EXACTNESS_GATE]
+captureShadowFullExact=0
+localDecasteljauMexBitwiseExact=0
+fullAF7R33HelperBitwiseExact=0
+decasteljauCapturedCalls=0
+observerPremissionOneStepExact=0
+observerPremissionContractionExact=0
+observerPostMissionAllExact=0
+
+[PERFORMANCE_COMPARISON]
+columns=metric baseline_ms optimized_ms ratio
+observerPeak NaN NaN NaN
+flightEntryDoPeak NaN NaN NaN
+replanDoPeak NaN NaN NaN
+stage2Total NaN NaN NaN
+stage2Postcache NaN NaN NaN
+postcommitRefPacket NaN NaN NaN
+noRegression=0
+meaningfulImprovement=0
+
+[OBSERVER_KERNEL]
+premissionOneEquivMs=NaN
+premissionContractEquivMs=NaN
+liveOneCalls=0
+liveContractCalls=0
+postMissionSnapshotCount=0
+
+[CONTRACT]
+trajectoryMathChanged=0
+derivativeOrderReduced=0
+certificateAcceptanceChanged=0
+commitPolicyChanged=0
+observerTheoremChanged=0
+workShiftedToArmingTakeoffLanding=0
+diagnosticPremissionEquivalenceWorkAdded=1
+productionInstallPerformed=0
+runError=MATLAB:UndefinedFunction | 関数 'sha256_text' (タイプ'char' の入力引数) が未定義です。

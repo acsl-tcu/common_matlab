@@ -1,0 +1,56 @@
+status=PERFORMANCE_SHADOW_REPAIR_R9_R2_INCOMPLETE_FAIL_CLOSED
+captureClosed=0
+productionModified=0
+shadowOnly=1
+noPhaseShift=1
+newArmingWork=0
+newTakeoffWork=0
+newLandingWork=0
+sourceSHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+runnerSHA=d4d15d081ea8a6e3073b0a63ce36e47f983777ac2c81db194384de69f5e5fc37
+originalAF7R33SHA=1f57a0066acb75859dfe565b3c38a99d5c272b8afae4698131d7aeeb70093889
+r9DiagnosticSHA=b9dcc616018aa2dd4fcc151bc44826ee307fd34714a74d72b8d5db02a384b60e
+runnerSemantics=23/23
+raw=C:\Users\student\Documents\GitHub\common_matlab\reference\tp79455940_cbdb_4db8_a5aa_474f2789680c\AF7R58ZZY_R9_R2_RAW_CAPTURE.mat
+out=C:\Users\student\Documents\GitHub\common_matlab\reference\tp79455940_cbdb_4db8_a5aa_474f2789680c\AF7R58ZZY_R9_R2_OUT.mat
+
+[EXACTNESS_GATE]
+captureShadowFullExact=1
+localDecasteljauMexBitwiseExact=1
+fullAF7R33HelperBitwiseExact=1
+decasteljauCapturedCalls=7
+mexShadowHotMedianMs=0.6069
+mexShadowHotP95Ms=2.76486
+observerPremissionOneStepExact=0
+observerPremissionContractionExact=0
+observerPostMissionAllExact=0
+
+[PERFORMANCE_COMPARISON]
+columns=metric baseline_ms optimized_ms ratio
+observerPeak NaN NaN NaN
+flightEntryDoPeak NaN NaN NaN
+replanDoPeak NaN NaN NaN
+stage2Total NaN NaN NaN
+stage2Postcache NaN NaN NaN
+postcommitRefPacket NaN NaN NaN
+noRegression=0
+meaningfulImprovement=0
+
+[OBSERVER_KERNEL]
+premissionOneEquivMs=NaN
+premissionContractEquivMs=NaN
+liveOneCalls=0
+liveContractCalls=0
+postMissionSnapshotCount=0
+
+[CONTRACT]
+trajectoryMathChanged=0
+derivativeOrderReduced=0
+certificateAcceptanceChanged=0
+commitPolicyChanged=0
+observerTheoremChanged=0
+workShiftedToArmingTakeoffLanding=0
+diagnosticPremissionEquivalenceWorkAdded=1
+productionInstallPerformed=0
+runError= | [AF7R58ZZY-R9-R2 OPTIMIZED] MATLAB:m_not_current_method | エラー: <a href="matlab: opentoline('C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM_R9R2_DIAG.m',96,9)">ファイル: REPLANNING_SYSTEM_R9R2_DIAG.m 行: 96 列: 9</a>
+スーパークラス メソッドを同じ名前をもつメソッド内で呼び出す場合は、そのスーパークラス メソッドを '@' の左オペランドをメソッド名にした method@superclass として呼び出してください。

@@ -1,0 +1,20 @@
+====================================================================================================
+ AF7R58ZZU-R2 | STAGED PIPELINE + PRE-ARM-ONLY WARMUP INSTALL
+====================================================================================================
+[ROOTCAUSE] prior installer literal mismatch: 0.004 vs exact 4.0e-3
+[REMOVE] MATLAB process worker/parfeval architecture = 1
+[TRIGGER] fixedH4s=1 | immediateOrdinaryTrigger=1 | extendedPreview=0
+[PIPELINE] stage1Generate=1 | stage2CertPrepare=1 | stage3Atomic=1
+[PHASE] coldPathWarmup=PRE_ARM_INITIALIZATION_ONLY
+[PHASE] armingWarmup=0 | takeoffWarmup=0 | flightWarmup=0 | landingWarmup=0
+[SAFETY] staleReject=1 | continuousCertificateMathChanged=0 | finiteSensingChanged=0
+
+[INSTALL FAILURE]
+ identifier = 
+ message    = [AF7R58ZZU-R2] exact fixed H=4 s declaration unresolved.
+ line       = 1591
+ rollback   = 0
+
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpe4af8d6d_5112_40e0_b62b_d08439d4106f\AF7R58ZZU_R2_REPORT.txt
+RETURN: C:\Users\student\Documents\GitHub\common_matlab\reference\tpe4af8d6d_5112_40e0_b62b_d08439d4106f\AF7R58ZZU_R2_OUT.mat
+status = INSTALL_FAILED__ROLLBACK_ATTEMPTED
