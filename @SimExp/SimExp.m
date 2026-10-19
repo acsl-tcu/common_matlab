@@ -58,6 +58,7 @@ classdef SimExp < matlab.apps.AppBase
         agent = [];
         motive = [];
         initial_setting = [];
+        dataset_files string = string.empty; % 正常終了した試行の学習用ファイル
         update_timer;
         N = 1;
         t0 = 0;
@@ -107,6 +108,17 @@ classdef SimExp < matlab.apps.AppBase
         % Button pushed function: SavedataButton
         function save_data(app, event)
             app.logger.save(app.data_file_name);
+            % 手動実行でも、通常ログと同時に学習用データを書き出す。
+            if isfield(app.initial_setting,'mec_dataset') && app.initial_setting.mec_dataset.enabled
+                try
+                    dataset_file = save_mec_dataset(app.logger,app.initial_setting.mec_dataset_metadata);
+                    app.dataset_files(end+1) = string(dataset_file);
+                catch ME
+                    % 励振OFFの比較実験などでは通常ログだけを残す。
+                    warning('SimExp:DatasetExport', ...
+                        '通常ログは保存済みです。学習用データの保存を見送りました：%s',ME.message);
+                end
+            end
         end
 
         % Value changed function: FilenameoptionEditField
@@ -298,6 +310,12 @@ classdef SimExp < matlab.apps.AppBase
                 % ★ 今回のtrialで使うseedを決定
                 % =============================================================
                 seed = trial;
+                if isfield(app.initial_setting,'trajectory_seeds')
+                    seeds = app.initial_setting.trajectory_seeds;
+                    assert(numel(seeds)==nTrial, ...
+                        'SimExp:SeedCount','シードの個数と試行回数を一致させてください。');
+                    seed = seeds(trial);
+                end
 
                 % ★ resetする「前」に設定へ渡す
                 app.initial_setting.trajectory_seed = seed;
@@ -382,7 +400,11 @@ classdef SimExp < matlab.apps.AppBase
                 % =============================================================
                 app.cha = 'f';
 
-                N_f = round(40 / app.time.dt);
+                flight_time = 40;
+                if isfield(app.initial_setting,'mec_dataset') && app.initial_setting.mec_dataset.enabled
+                    flight_time = app.initial_setting.mec_dataset.flight_time;
+                end
+                N_f = round(flight_time / app.time.dt);
 
                 for k = 1:N_f
 

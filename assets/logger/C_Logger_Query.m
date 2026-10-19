@@ -84,7 +84,7 @@ classdef C_Logger_Query < handle
                 variable = split(variable, '.'); % member毎に分割
                 data = [logger.Data.agent(agentIndex)];
 
-                switch variable
+                switch variable(1)
                     case "inner_input" % 横ベクトルの場合
                         data = [data.(variable)];
                         data = [data{1, data_range}];

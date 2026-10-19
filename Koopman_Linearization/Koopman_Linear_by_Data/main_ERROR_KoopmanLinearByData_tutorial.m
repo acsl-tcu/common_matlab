@@ -1,3 +1,18 @@
+%% MEC誤差モデル：試行分割・正則化・単位を考慮したゲイン設計
+% 調節する値はmode/MEC_Koopman/mec_gain_settings.mにまとめた。
+% 旧KL/LYKLの対話式処理は、比較できるよう末尾のブロックコメントに保存する。
+
+% このスクリプト自身の場所から、リポジトリのルートフォルダを求める。
+repo_root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+% リポジトリ内のフォルダをMATLABの検索パスに加え、関連関数を呼び出せるようにする。
+addpath(genpath(repo_root));
+% データの場所、試行分割、正則化候補などのゲイン学習設定を読み込む。
+setting = mec_gain_settings();
+% データの読み込み・誤差モデル学習・ゲイン設計と検証を実行し、結果の保存先と評価結果を受け取る。
+[gain_file,model_file,report] = train_mec_gain(setting);
+
+% 旧実装（保存用）
+%{
 %% Koopman Linear by Data %%
 %--------------------------------------------------------------------------------
 %初心者用のクープマン線形化プログラム
@@ -47,7 +62,11 @@ FileName = input('保存するファイル名を入力してください(※ ～
 % [~, baseName, ~] = fileparts(FileName);
 [~, baseName, ext] = fileparts(FileName);
 
-folderPath = 'datasets'; %データセットに使用するデータはデータセットフォルダにいれておく main.mの階層
+repoRoot = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+folderPath = fullfile(repoRoot,'datasets','MEC_4input'); % 新しい4入力データの保存先
+if isempty(dir(fullfile(folderPath,'*.mat')))
+    folderPath = fullfile(repoRoot,'datasets'); % 従来データだけを扱う場合
+end
 files = dir(folderPath);
 % folderPath = 'KMPCSimデータセット'
 fileList = dir(fullfile(folderPath,'*.mat')); %対象のファイルを取得
@@ -119,9 +138,7 @@ try
     end
 
     %データ保存用,現在のファイルパスを取得,保存先を指定
-    activeFile = matlab.desktop.editor.getActive;
-    % nowFolder = fileparts(activeFile.Filename);
-    nowFolder = fileparts(activeFile.Filename);
+    nowFolder = fileparts(mfilename('fullpath')); % エディタの選択状態に依存しない保存先
     % targetPath=append(nowFolder,'\',FileName);
 
     %% Defining Koopman Operator
@@ -144,7 +161,7 @@ try
         else
             if i == 1 %66 ~ 78はコマンドウィンドウから入力するのに必要(クープマン線形化には関係ない)
                 setting = 1;
-                Dataset = ImportFromExpData_ERROR_tutorial(append(loading_filename,'_',num2str(i),'.mat'),setting);
+                Dataset = ImportFromExpData_ERROR_tutorial(fullfile(folderPath,append(loading_filename,'_',num2str(i),'.mat')),setting);
                 datarange = Dataset.datarange;
                 range = Dataset.range;
                 IDX = Dataset.IDX;
@@ -154,10 +171,16 @@ try
                 fprintf('\n')
             else
                 setting = 0;
-                Dataset = ImportFromExpData_ERROR_tutorial(append(loading_filename,'_',num2str(i),'.mat'),setting,datarange,range,IDX,phase2,vz_z);
+                Dataset = ImportFromExpData_ERROR_tutorial(fullfile(folderPath,append(loading_filename,'_',num2str(i),'.mat')),setting,datarange,range,IDX,phase2,vz_z);
             end
         end
+        % 入力と予測の定義が違う旧ログを、新しい収集データへ混ぜない。
+        datasetDefinition = 'legacy';
+        if isfield(Dataset,'metadata') && isfield(Dataset.metadata,'error_definition')
+            datasetDefinition = Dataset.metadata.error_definition;
+        end
         if i==1
+            Data.error_definition = datasetDefinition;
             Data.X = [Dataset.X];
             Data.U = [Dataset.U];
             Data.Y = [Dataset.Y];
@@ -167,6 +190,8 @@ try
             Data.dU = Dataset.dU;
             % data.dU = Data.dU ./ scaleU;    %こういうこと？ではないらしい
         else
+            assert(strcmp(Data.error_definition,datasetDefinition), ...
+                '異なる誤差定義のデータは結合できません。新旧データを分けてください。');
             Data.X = [Data.X, Dataset.X];
             Data.U = [Data.U, Dataset.U];
             Data.Y = [Data.Y, Dataset.Y];
@@ -655,3 +680,5 @@ disp(targetPath)
 % end
 %
 % fprintf('\n＜ファイルの移動が完了しました＞\n')
+
+%}

@@ -59,7 +59,10 @@ classdef EKF < handle
         end
 
         function [result]=do(obj,varargin)
-            if ~isempty(obj.timer)
+            if isa(obj.self.plant,'MODEL_CLASS')
+                % シミュレーションでは実行速度に依存させず、指定周期を使う。
+                dt = varargin{1}.dt;
+            elseif ~isempty(obj.timer)
                 dt = toc(obj.timer);
                 if dt > obj.dt
                     dt = obj.dt;
@@ -88,7 +91,11 @@ classdef EKF < handle
                 P = (eye(obj.n)-G*C)*P_pre;	% Update covariance
                 z = y-yh;
                 if obj.fEulerAngle
-                    z(obj.qIndex) = wrapToPi(z(obj.qIndex));
+                    % Mapping Toolboxを使わず、姿勢角の観測誤差を±πへ折り返す。
+                    angle_error = z(obj.qIndex);
+                    wrapped_error = mod(angle_error+pi,2*pi)-pi;
+                    wrapped_error(wrapped_error==-pi & angle_error>0) = pi;
+                    z(obj.qIndex) = wrapped_error;
                 end
                 tmpvalue = xh_pre + G*z;	% Update state estimate
                 tmpvalue = obj.model.projection(tmpvalue);

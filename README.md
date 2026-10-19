@@ -1,3 +1,9 @@
+## KMEC2026：MECシミュレーションとデータ収集
+
+- [GUIの手動操作・外乱／励振／MEC補償の切替](mode/MEC_Koopman/README.md)
+- [学習用データの定義・自動収集](mode/MEC_Koopman/DATASET.md)
+- [MEC誤差モデルの正則化同定・ゲイン設計](mode/MEC_Koopman/GAIN_DESIGN.md)
+
 よく使うブランチ接頭語と意味
 
 | 接頭語            | 典型的な意味・用途                                                          |

@@ -1,0 +1,17 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/16 17:47:07
+データセット : C:\Users\yuriy\github\common_matlab\datasets
+
+=== C:\Users\yuriy\github\common_matlab\datasets 内のファイル一覧 ===
+
+MEC_dataset_001_Log(16-Oct-2026_17_38_57).mat
+MEC_dataset_002_Log(16-Oct-2026_17_39_09).mat
+MEC_dataset_003_Log(16-Oct-2026_17_39_22).mat
+MEC_dataset_004_Log(16-Oct-2026_17_39_35).mat
+MEC_dataset_005_Log(16-Oct-2026_17_39_47).mat
+MEC_dataset_006_Log(16-Oct-2026_17_39_59).mat
+MEC_dataset_007_Log(16-Oct-2026_17_40_12).mat
+MEC_dataset_008_Log(16-Oct-2026_17_40_24).mat
+MEC_dataset_009_Log(16-Oct-2026_17_40_37).mat
+MEC_dataset_010_Log(16-Oct-2026_17_40_50).mat
+KLでした

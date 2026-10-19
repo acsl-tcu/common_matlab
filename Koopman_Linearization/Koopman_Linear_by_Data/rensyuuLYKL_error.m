@@ -10,7 +10,7 @@ function [U_val, A_val, B_val, P_val, result] = rensyuuLYKL_error(E, dU, E_next,
 
 %% 初期値
 rho_bar   = 0.99;   %固有値の最大をどこまでにするか
-% max_iter  = 30;   %何回繰り返し線形化するか
+% max_iter  = 30;   %何回繰り返しLMIするか
 max_iter = 14;
 tolerance = 1e-5;   %
 
