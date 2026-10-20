@@ -1,6 +1,0 @@
-status=AUDIT_ERROR__NO_PRODUCTION_CHANGE
-sourceSHA=0f62bade234b28c3e9b128c6080e2109e09e75d404236e3077b10176b89afbad
-recoveredBaseSHA=a1f08bcc96eca74194d8aaeed4fac2239cb2dbd94651f2df7a4b4bd110c002fa
-sourceExact=0
-errorIdentifier=
-errorMessage=[AF7R58ZZL-R3] current source is not exact ZZH + R3 diagnostics.

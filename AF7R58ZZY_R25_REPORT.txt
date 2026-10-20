@@ -1,0 +1,15 @@
+AF7R58ZZY-R25 RESULT
+class=REPLANNING_SYSTEM_R25_LEAN
+stage1=4.564200000
+stage2=12.140200000
+stage3=4.920900000
+compile=2.502400000
+core_packet=0.409700000
+fast_packet=1.261500000
+steady_median=6.882700000
+replan_max=29.330500000
+stage_online=[21.2326 29.3305 20.4502]
+postcommit_max=16.354700000
+over25=2
+merge_fast=2001
+merge_fallback=0

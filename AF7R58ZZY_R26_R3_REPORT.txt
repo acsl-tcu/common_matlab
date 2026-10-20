@@ -1,0 +1,27 @@
+AF7R58ZZY-R26-R3 RESULT
+class=REPLANNING_SYSTEM_R26_BALANCED
+build=AF7R58ZZY_R26_BALANCED_R3
+stage1_generate=4.411400000
+stage2_refcert=0.491500000
+stage3_core=8.978800000
+stage4_compile=4.785200000
+stage4_activate=5.434700000
+stage4_total=12.071900000
+steady_median=6.499500000
+replan_max=24.364000000
+stage_online=[18.1319 14.3628 18.3426 24.364]
+stage_controller=[2.2748 2.2704 2.2334 2.3128]
+stage_controller_excluded=[15.8571 12.0924 16.1092 22.0512]
+stage_reference=[13.0045 9.3128 13.3274 19.2463]
+stage_replanner=[12.7387 9.0537 13.0733 18.9846]
+stage_estimator=[2.218 2.1922 2.1866 2.2107]
+stage_merge=[0.0334 0.028 0.0288 0.0297]
+replan_max_controller_excluded=22.051200000
+postcommit_max=15.081800000
+over25=1
+over20=2
+over17=4
+over15=8
+pipeline_intervals=3
+merge_fast=2001
+merge_fallback=0

@@ -1,0 +1,24 @@
+AF7R58ZZY-R27 RESULT
+class=REPLANNING_SYSTEM_R27_LEAN_EXACT
+build=AF7R58ZZY_R27_LEAN_EXACT_V1
+stage1=11.283800000
+incremental_compile=6.511600000
+stage2_refcert=0.489200000
+stage3_core=12.748300000
+stage4_compile=0.000000000
+stage4_cache=0.000000000
+stage4_guard=0.600700000
+stage4_assign=0.491500000
+stage4_activate=4.221800000
+stage4_total=6.575800000
+stage_online=[24.8499 14.0472 23.1187 19.3573]
+stage_controller_excluded=[22.4971 11.7307 20.7862 16.9267]
+stage_reference=[19.9577 8.8521 17.2727 14.0372]
+stage_replanner=[19.6493 8.5662 17.0177 13.763]
+replan_max=24.849900000
+replan_max_controller_excluded=22.497100000
+steady_median=6.687200000
+postcommit_max=15.563700000
+lazy_cache_rebuild=2.096500000
+full_compile_avoided=1
+target_le17=0

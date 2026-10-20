@@ -5,6 +5,8 @@
 #include <vector>
 #include <stdexcept>
 #include <cstring>
+#include <chrono>
+#include <cmath>
 
 using namespace af7r34;
 
@@ -37,6 +39,193 @@ static std::string str(const mxArray* x,const char* name){
 }
 static mxArray* logicalScalar(bool v){return mxCreateLogicalScalar(v);}
 static mxArray* dscalar(double v){return mxCreateDoubleScalar(v);}
+
+
+// ============================================================================
+// AF7R58ZZY-R28 native compiled-representation helpers.
+// These functions DO NOT participate in trajectory acceptance. They construct
+// the exact R23 compiled evaluator representation from the already generated
+// degree-15 candidate and an already-certified active compiled base.
+// ============================================================================
+static mxArray* vecrow(const std::vector<double>&v);
+static const char* R28_REV="AF7R58ZZY_R28_NATIVE_ONCE_V1";
+
+static const mxArray* optfld(const mxArray* s,const char* name){
+    if(!s||!mxIsStruct(s)||mxGetNumberOfElements(s)!=1) return nullptr;
+    return mxGetField(s,0,name);
+}
+static bool logical_value(const mxArray* x,const char* name){
+    if(!x||mxGetNumberOfElements(x)!=1)
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","%s must be scalar.",name);
+    if(mxIsLogical(x)) return mxIsLogicalScalarTrue(x);
+    if(mxIsDouble(x)&&!mxIsComplex(x)) return mxGetScalar(x)!=0.0;
+    mexErrMsgIdAndTxt("AF7R28:CompiledBase","%s must be logical/double scalar.",name);
+    return false;
+}
+static long nonneg_int(double x,const char* name){
+    if(!std::isfinite(x)||x<0.0||x!=std::floor(x))
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","%s must be a nonnegative integer.",name);
+    return (long)x;
+}
+static void require_bitwise_finite_array(const double* p,size_t n,const char* name){
+    for(size_t i=0;i<n;++i) if(!std::isfinite(p[i]))
+        mexErrMsgIdAndTxt("AF7R28:Finite","%s contains non-finite data.",name);
+}
+static void write_segment_dcp(double* out,size_t outSeg,const Poly& cp,double T){
+    if(cp.size()!=16||!(std::isfinite(T)&&T>0.0))
+        mexErrMsgIdAndTxt("AF7R28:DCP","invalid degree-15 segment.");
+    double q[3*16]; double qnext[3*16];
+    for(size_t k=0;k<16;++k){
+        if(!(std::isfinite(cp[k].x)&&std::isfinite(cp[k].y)&&std::isfinite(cp[k].z)))
+            mexErrMsgIdAndTxt("AF7R28:DCP","candidate control point is non-finite.");
+        q[3*k+0]=cp[k].x; q[3*k+1]=cp[k].y; q[3*k+2]=cp[k].z;
+    }
+    const size_t block=3*16;
+    double* dst0=out + block*(0 + 7*outSeg);
+    for(size_t i=0;i<block;++i) dst0[i]=q[i];
+    size_t ncols=16;
+    for(size_t r=1;r<=6;++r){
+        const double factor=static_cast<double>(16-r)/T;
+        const size_t newcols=ncols-1;
+        for(size_t j=0;j<newcols;++j){
+            for(size_t k=0;k<3;++k){
+                volatile double d=q[k+3*(j+1)]-q[k+3*j];
+                qnext[k+3*j]=factor*d;
+            }
+        }
+        double* dst=out + block*(r + 7*outSeg);
+        for(size_t j=0;j<newcols;++j)
+            for(size_t k=0;k<3;++k) dst[k+3*j]=qnext[k+3*j];
+        for(size_t i=0;i<3*newcols;++i) q[i]=qnext[i];
+        ncols=newcols;
+    }
+}
+static std::vector<Poly> cp3_to_poly(const mxArray* A,size_t S){
+    if(!mxIsDouble(A)||mxIsComplex(A)) mexErrMsgIdAndTxt("AF7R28:Shape","cp0 must be real double.");
+    const mwSize nd=mxGetNumberOfDimensions(A); const mwSize* d=mxGetDimensions(A);
+    if(!(nd==2||nd==3)||d[0]!=3||d[1]!=16||((nd>=3?d[2]:1)!=S))
+        mexErrMsgIdAndTxt("AF7R28:Shape","cp0 must be 3x16xS.");
+    const double* p=mxGetPr(A); std::vector<Poly> out(S);
+    for(size_t s=0;s<S;++s){
+        out[s].resize(16);
+        for(size_t k=0;k<16;++k){
+            double x=p[(3*k+0)+48*s],y=p[(3*k+1)+48*s],z=p[(3*k+2)+48*s];
+            if(!(std::isfinite(x)&&std::isfinite(y)&&std::isfinite(z)))
+                mexErrMsgIdAndTxt("AF7R28:Finite","cp0 contains non-finite value.");
+            out[s][k]={x,y,z};
+        }
+    }
+    return out;
+}
+
+struct BaseCompiledView{
+    bool present=false;
+    long G=0,S=0;
+    std::vector<double> gt0,gt1,gfirst,gcount,s0,s1;
+    const double* dcp=nullptr;
+};
+static BaseCompiledView parse_base_compiled(const mxArray* B,double targetVersion){
+    BaseCompiledView V;
+    if(!B||!mxIsStruct(B)||mxGetNumberOfElements(B)!=1||mxGetNumberOfFields(B)==0) return V;
+    const mxArray* sch=optfld(B,"schema");
+    if(!sch) return V;
+    if(str(sch,"schema")!="AF7R58ZZY_R23_COMPILED_CORRECTION_V1")
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","base schema mismatch.");
+    double rv=scalar(fld(B,"reference_version"),"reference_version");
+    if(rv!=targetVersion-1.0) mexErrMsgIdAndTxt("AF7R28:CompiledBase","base version mismatch.");
+    V.G=nonneg_int(scalar(fld(B,"group_count"),"group_count"),"group_count");
+    V.S=nonneg_int(scalar(fld(B,"segment_count"),"segment_count"),"segment_count");
+    V.gt0=dvec(fld(B,"group_t0"),"group_t0"); V.gt1=dvec(fld(B,"group_t1"),"group_t1");
+    V.gfirst=dvec(fld(B,"group_first"),"group_first"); V.gcount=dvec(fld(B,"group_segments"),"group_segments");
+    V.s0=dvec(fld(B,"segment_t0"),"segment_t0"); V.s1=dvec(fld(B,"segment_t1"),"segment_t1");
+    if((long)V.gt0.size()!=V.G||(long)V.gt1.size()!=V.G||(long)V.gfirst.size()!=V.G||(long)V.gcount.size()!=V.G||
+       (long)V.s0.size()!=V.S||(long)V.s1.size()!=V.S)
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","base metadata size mismatch.");
+    if(nonneg_int(scalar(fld(B,"degree"),"degree"),"degree")!=15||
+       nonneg_int(scalar(fld(B,"max_derivative_order"),"max_derivative_order"),"max_derivative_order")!=6||
+       !logical_value(fld(B,"strict_support"),"strict_support")||
+       !logical_value(fld(B,"certified_numeric_representation"),"certified_numeric_representation")||
+       str(fld(B,"group_addition_order"),"group_addition_order")!="ASCENDING_CANONICAL_GROUP_INDEX")
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","base representation contract mismatch.");
+    const mxArray* D=fld(B,"derivative_control_points");
+    if(!mxIsDouble(D)||mxIsComplex(D)) mexErrMsgIdAndTxt("AF7R28:CompiledBase","base DCP type invalid.");
+    const mwSize nd=mxGetNumberOfDimensions(D); const mwSize* ds=mxGetDimensions(D);
+    if(nd!=4||ds[0]!=3||ds[1]!=16||ds[2]!=7||(long)ds[3]!=V.S)
+        mexErrMsgIdAndTxt("AF7R28:CompiledBase","base DCP shape invalid.");
+    V.dcp=mxGetPr(D); require_bitwise_finite_array(V.dcp,(size_t)V.S*3*16*7,"base DCP");
+    for(long g=0;g<V.G;++g){
+        long f=nonneg_int(V.gfirst[g],"group_first"); long n=nonneg_int(V.gcount[g],"group_segments");
+        if(f<1||n<1||f+n-1>V.S) mexErrMsgIdAndTxt("AF7R28:CompiledBase","base group range invalid.");
+        if(!(std::isfinite(V.gt0[g])&&std::isfinite(V.gt1[g])&&V.gt1[g]>V.gt0[g]))
+            mexErrMsgIdAndTxt("AF7R28:CompiledBase","base group support invalid.");
+    }
+    V.present=true; return V;
+}
+static mxArray* compiled_packet_struct(const mxArray* baseA,const std::vector<double>& ns0,
+    const std::vector<double>& ns1,const std::vector<Poly>& ncp,
+    double nt0,double nt1,double targetVersion){
+    if(!(std::isfinite(nt0)&&std::isfinite(nt1)&&nt1>nt0&&std::isfinite(targetVersion)&&targetVersion>=0.0))
+        mexErrMsgIdAndTxt("AF7R28:Compile","new-group support/version invalid.");
+    const size_t Snew=ns0.size();
+    if(Snew<1||ns1.size()!=Snew||ncp.size()!=Snew)
+        mexErrMsgIdAndTxt("AF7R28:Compile","new-group segment size invalid.");
+    for(size_t s=0;s<Snew;++s)
+        if(!(std::isfinite(ns0[s])&&std::isfinite(ns1[s])&&ns1[s]>ns0[s]))
+            mexErrMsgIdAndTxt("AF7R28:Compile","new segment duration invalid.");
+
+    BaseCompiledView B=parse_base_compiled(baseA,targetVersion);
+    std::vector<long> keepG; size_t Sk=0;
+    for(long g=0;g<B.G;++g){
+        if(B.gt1[g]>nt0){ // exact complement of AF7R58I prune t1<=t_commit
+            keepG.push_back(g); Sk+=(size_t)nonneg_int(B.gcount[g],"group_segments");
+        }
+    }
+    const size_t G=keepG.size()+1, S=Sk+Snew;
+    std::vector<double> gt0,gt1,gfirst,gcount,s0,s1;
+    gt0.reserve(G);gt1.reserve(G);gfirst.reserve(G);gcount.reserve(G);s0.reserve(S);s1.reserve(S);
+    size_t cursor=1;
+    for(long g:keepG){
+        long first=nonneg_int(B.gfirst[g],"group_first"); long n=nonneg_int(B.gcount[g],"group_segments");
+        gt0.push_back(B.gt0[g]);gt1.push_back(B.gt1[g]);gfirst.push_back((double)cursor);gcount.push_back((double)n);
+        for(long j=0;j<n;++j){long si=first-1+j;s0.push_back(B.s0[si]);s1.push_back(B.s1[si]);}
+        cursor+=(size_t)n;
+    }
+    gt0.push_back(nt0);gt1.push_back(nt1);gfirst.push_back((double)cursor);gcount.push_back((double)Snew);
+    s0.insert(s0.end(),ns0.begin(),ns0.end()); s1.insert(s1.end(),ns1.begin(),ns1.end());
+    if(cursor+Snew!=S+1) mexErrMsgIdAndTxt("AF7R28:Compile","group cursor mismatch.");
+
+    const char* fn[]={"schema","reference_version","group_count","segment_count","group_t0","group_t1",
+        "group_first","group_segments","segment_t0","segment_t1","derivative_control_points",
+        "max_derivative_order","degree","strict_support","group_addition_order","certified_numeric_representation"};
+    mxArray* O=mxCreateStructMatrix(1,1,sizeof(fn)/sizeof(fn[0]),fn);
+    auto set=[&](const char*n,mxArray*v){mxSetField(O,0,n,v);};
+    set("schema",mxCreateString("AF7R58ZZY_R23_COMPILED_CORRECTION_V1"));
+    set("reference_version",dscalar(targetVersion));set("group_count",dscalar((double)G));set("segment_count",dscalar((double)S));
+    set("group_t0",vecrow(gt0));set("group_t1",vecrow(gt1));set("group_first",vecrow(gfirst));set("group_segments",vecrow(gcount));
+    set("segment_t0",vecrow(s0));set("segment_t1",vecrow(s1));
+    mwSize dims[4]={3,16,7,(mwSize)S}; mxArray* D=mxCreateNumericArray(4,dims,mxDOUBLE_CLASS,mxREAL); double* out=mxGetPr(D);
+    size_t outSeg=0; const size_t segBlock=3*16*7;
+    for(long g:keepG){
+        long first=nonneg_int(B.gfirst[g],"group_first"); long n=nonneg_int(B.gcount[g],"group_segments");
+        for(long j=0;j<n;++j){
+            long si=first-1+j;
+            std::memcpy(out+segBlock*outSeg,B.dcp+segBlock*(size_t)si,segBlock*sizeof(double));
+            ++outSeg;
+        }
+    }
+    for(size_t s=0;s<Snew;++s){write_segment_dcp(out,outSeg,ncp[s],ns1[s]-ns0[s]);++outSeg;}
+    if(outSeg!=S) mexErrMsgIdAndTxt("AF7R28:Compile","DCP segment cursor mismatch.");
+    set("derivative_control_points",D);set("max_derivative_order",dscalar(6));set("degree",dscalar(15));
+    set("strict_support",logicalScalar(true));set("group_addition_order",mxCreateString("ASCENDING_CANONICAL_GROUP_INDEX"));
+    set("certified_numeric_representation",logicalScalar(true));
+    return O;
+}
+static mxArray* dcp_only_from_cp(const mxArray* cpA,const mxArray* durA){
+    auto dur=dvec(durA,"duration"); size_t S=dur.size(); auto cps=cp3_to_poly(cpA,S);
+    mwSize dims[4]={3,16,7,(mwSize)S}; mxArray* D=mxCreateNumericArray(4,dims,mxDOUBLE_CLASS,mxREAL); double*out=mxGetPr(D);
+    for(size_t s=0;s<S;++s) write_segment_dcp(out,s,cps[s],dur[s]);
+    return D;
+}
 
 static ActiveReference parse_ref(const mxArray* P){
     if(!G_compiled) mexErrMsgIdAndTxt("AF7R34:Reference","nominal AST is not compiled.");
@@ -120,7 +309,7 @@ static mxArray* cp_cell(const std::vector<Poly>&cp){
         mxSetCell(c,s,x);
     }return c;
 }
-static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,const std::vector<Obstacle>&obs){
+static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,const std::vector<Obstacle>&obs,const mxArray* packet){
     const char* fn[]={"success","reason_code","t0","tm","hold_end","t1",
         "episode_count","component_count","episode_obstacle_index","episode_obstacle_id",
         "episode_start","episode_end","episode_component_index","component_start","component_end",
@@ -132,7 +321,8 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,c
         "geometry_split_count","geometry_max_depth","geometry_min_payload_margin",
         "geometry_min_uav_margin","geometry_min_cable_margin","geometry_min_margin",
         "speed_pass_count","rejoin_pass_count","geometry_test_count",
-        "episode_ms","hessian_ms","corridor_ms","qp_ms","candidate_build_ms","synthesis_ms","candidate_ms","total_ms"};
+        "episode_ms","hessian_ms","corridor_ms","qp_ms","candidate_build_ms","synthesis_ms","candidate_ms","total_ms",
+        "compiled_correction","compiled_native_exact","compiled_native_ms","compiled_native_revision"};
     mxArray*S=mxCreateStructMatrix(1,1,sizeof(fn)/sizeof(fn[0]),fn);
     auto set=[&](const char*n,mxArray*v){mxSetField(S,0,n,v);};
     set("success",logicalScalar(R.success));set("reason_code",dscalar(R.reason));
@@ -165,6 +355,18 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,c
     set("corridor_ms",dscalar(R.tim.corridor));set("qp_ms",dscalar(R.tim.qp));
     set("candidate_build_ms",dscalar(R.tim.candidate_build));set("synthesis_ms",dscalar(R.tim.synthesis));
     set("candidate_ms",dscalar(R.tim.candidate));set("total_ms",dscalar(R.tim.total));
+    mxArray* compiled=nullptr; bool compiledExact=false; double compiledMs=0.0;
+    const mxArray* base=optfld(packet,"r28_compiled_base"); const mxArray* tv=optfld(packet,"r28_target_version");
+    if(R.success && base && tv){
+        const auto tc=std::chrono::steady_clock::now();
+        const double targetVersion=scalar(tv,"r28_target_version");
+        compiled=compiled_packet_struct(base,R.cand.seg0,R.cand.seg1,R.cand.cp,t0,t1,targetVersion);
+        compiledMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-tc).count();
+        compiledExact=true;
+    }
+    if(!compiled) compiled=mxCreateStructMatrix(0,0,0,nullptr);
+    set("compiled_correction",compiled);set("compiled_native_exact",logicalScalar(compiledExact));
+    set("compiled_native_ms",dscalar(compiledMs));set("compiled_native_revision",mxCreateString(R28_REV));
     return S;
 }
 static mxArray* eval_matrix(const ActiveReference&R,const std::vector<double>&t){
@@ -197,7 +399,23 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
             if(!G_compiled||sig!=G_nominal.signature) mexErrMsgIdAndTxt("AF7R34:Reference","compiled nominal signature mismatch.");
             ActiveReference R=parse_ref(P);Live L=parse_live(P);SpeedCert B=parse_speed(P);auto O=parse_obs(P);
             double t0=scalar(fld(P,"t0"),"t0"),tm=scalar(fld(P,"tm"),"tm"),t1=scalar(fld(P,"t1"),"t1");
-            PlanResult Q=plan(R,L,B,O,t0,tm,t1);plhs[0]=result_struct(Q,t0,tm,t1,O);return;
+            PlanResult Q=plan(R,L,B,O,t0,tm,t1);plhs[0]=result_struct(Q,t0,tm,t1,O,P);return;
+        }
+        if(op==3){
+            if(nrhs!=3||nlhs!=1) mexErrMsgIdAndTxt("AF7R28:Arity","DCP selftest op: op, cp0, duration -> dcp.");
+            plhs[0]=dcp_only_from_cp(prhs[1],prhs[2]);return;
+        }
+        if(op==4){
+            if(nrhs!=8||nlhs!=1) mexErrMsgIdAndTxt("AF7R28:Arity","append op: op, base, seg0, seg1, cp0, t0, t1, targetVersion.");
+            auto s0=dvec(prhs[2],"segment_t0"),s1=dvec(prhs[3],"segment_t1");
+            if(s0.size()!=s1.size()||s0.empty()) mexErrMsgIdAndTxt("AF7R28:Shape","append segment metadata mismatch.");
+            auto cp=cp3_to_poly(prhs[4],s0.size());
+            double nt0=scalar(prhs[5],"t0"),nt1=scalar(prhs[6],"t1"),tv=scalar(prhs[7],"targetVersion");
+            plhs[0]=compiled_packet_struct(prhs[1],s0,s1,cp,nt0,nt1,tv);return;
+        }
+        if(op==5){
+            if(nrhs!=1||nlhs>1) mexErrMsgIdAndTxt("AF7R28:Arity","revision op: op -> string.");
+            if(nlhs>0)plhs[0]=mxCreateString(R28_REV);return;
         }
         mexErrMsgIdAndTxt("AF7R34:Op","unknown op.");
     }catch(const std::exception&e){

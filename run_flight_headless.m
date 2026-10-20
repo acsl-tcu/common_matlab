@@ -147,9 +147,13 @@ replan_opts.ENABLE_EXECUTION_AWARE_CERTIFICATE = ...
     ENABLE_EXECUTION_AWARE_CERTIFICATE;
 replan_opts.AVOIDANCE_COMMIT_POLICY = AVOIDANCE_COMMIT_POLICY;
 replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
+% R22 ACCOUNTING DIAGNOSTIC ONLY -- no safety/control semantics changed.
+replan_opts.ENABLE_PROFILING = false;
+replan_opts.ENABLE_LIGHT_RUNTIME_AUDIT = false;
+replan_opts.SPIKE_CAPTURE_THRESHOLD_MS = 2.0;
 replan_opts.ENABLE_AF7R53_PREPARED_COMMIT = ENABLE_AF7R53_PREPARED_COMMIT;
 
-replanner_instance = REPLANNING_SYSTEM_R15_FAST(agent,nominal_ref,replan_opts);
+replanner_instance = REPLANNING_SYSTEM_R28_NATIVE_ONCE(agent,nominal_ref,replan_opts);
 
 avoidance_status = replanner_instance.get_avoidance_mode_status();
 fprintf(['[AVOIDANCE] commit=%s | ref-cert=%d | exec-cert=%d | ' ...
@@ -189,6 +193,40 @@ runtime_profile.simulation_plant_s = nan(size(ts:dt:te));
 runtime_profile.logger_s = nan(size(ts:dt:te));
 runtime_profile.full_iteration_s = nan(size(ts:dt:te));
 runtime_profile.k = 0;
+runtime_profile.r22_sensor_prop_s = nan(size(ts:dt:te));
+runtime_profile.r22_estimator_prop_s = nan(size(ts:dt:te));
+runtime_profile.r22_replanner_s = nan(size(ts:dt:te));
+runtime_profile.r22_sload_s = nan(size(ts:dt:te));
+runtime_profile.r22_reference_merge_s = nan(size(ts:dt:te));
+runtime_profile.r22_reference_prop_s = nan(size(ts:dt:te));
+runtime_profile.r22_diag_snapshot_s = nan(size(ts:dt:te));
+runtime_profile.r22_controller_prop_s = nan(size(ts:dt:te));
+runtime_profile.r22_input_transform_prop_s = nan(size(ts:dt:te));
+runtime_profile.r22_rt_light_e2e_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_observer_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_live_binding_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_dependency_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_base_ref_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_cert_guard_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_geometry_eval_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_reference_packet_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_sensor_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_kernel_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_trigger_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_replan_status_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_output_write_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_state_trigger_write_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_state_cert_write_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_state_meta_write_ms = nan(size(ts:dt:te));
+runtime_profile.r22_rt_total_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_front_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_loadmass_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_dependency_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_base_cert_geom_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_sensor_trigger_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_output_state_ms = nan(size(ts:dt:te));
+runtime_profile.r22_spike_write_active_output_ms = nan(size(ts:dt:te));
+runtime_profile.r22_trigger_event_capture_ms = nan(size(ts:dt:te));
 
 %% 6. Headless初期化
 % GUIの代わりに各phaseの関数を一度通す。
@@ -285,11 +323,80 @@ while time.t <= time.te
     end
     sensor_acquisition_s=toc(tAcquire);
 
-    do_prop_local(time,cha,cha,logger,env,agent,"sensor",1,true);
-    do_prop_local(time,cha,cha,logger,env,agent,"estimator",1,true);
-    do_prop_local(time,cha,cha,logger,env,agent,"reference",1,true);
-    do_prop_local(time,cha,cha,logger,env,agent,"controller",1,true);
-    do_prop_local(time,cha,cha,logger,env,agent,"input_transform",1,true);
+    r22t=tic; do_prop_local(time,cha,cha,logger,env,agent,"sensor",1,true); r22_sensor_prop_s=toc(r22t);
+    r22t=tic; do_prop_local(time,cha,cha,logger,env,agent,"estimator",1,true); r22_estimator_prop_s=toc(r22t);
+
+    % Exact expansion of do_prop_local for the fixed Flight reference list
+    % ["timevarying","sload"], so replanner and SLOAD adjustment are separated.
+    assert(isequal(agent.cha_allocation.f.reference,["timevarying","sload"]), ...
+        '[R22] Flight reference allocation changed.');
+    r22ref=tic;
+    r22t=tic; agent.reference.result = agent.reference.timevarying.do(time,cha,logger,env,agent,1); r22_replanner_s=toc(r22t);
+    r22t=tic; r22_sload_result = agent.reference.sload.do(time,cha,logger,env,agent,1); r22_sload_s=toc(r22t);
+    r22t=tic; agent.reference.result = af7r77_merge_result_reference_fast_R25(agent.reference.result,r22_sload_result); r22_reference_merge_s=toc(r22t);
+    r22_reference_prop_s=toc(r22ref);
+
+    % Snapshot scalar diagnostic channels; time this overhead explicitly.
+    % R26-R3 clean mode intentionally disables the internal light audit.
+    % Empty internal timing mirrors are stored as NaN; outer timing remains authoritative.
+    r22t=tic; r22st=replanner_instance.result.state;
+    if replanner_instance.ENABLE_LIGHT_RUNTIME_AUDIT || replanner_instance.ENABLE_PROFILING
+        r22_rt_light_e2e_ms=double(r22st.rt_light_e2e_ms);
+        r22_rt_observer_ms=double(r22st.rt_observer_ms);
+        r22_rt_live_binding_ms=double(r22st.rt_live_binding_ms);
+        r22_rt_dependency_ms=double(r22st.rt_dependency_ms);
+        r22_rt_base_ref_ms=double(r22st.rt_base_ref_ms);
+        r22_rt_cert_guard_ms=double(r22st.rt_cert_guard_ms);
+        r22_rt_geometry_eval_ms=double(r22st.rt_geometry_eval_ms);
+        r22_rt_reference_packet_ms=double(r22st.rt_reference_packet_ms);
+        r22_rt_sensor_ms=double(r22st.rt_sensor_ms);
+        r22_rt_kernel_ms=double(r22st.rt_kernel_ms);
+        r22_rt_trigger_ms=double(r22st.rt_trigger_ms);
+        r22_rt_replan_status_ms=double(r22st.rt_replan_status_ms);
+        r22_rt_output_write_ms=double(r22st.rt_output_write_ms);
+        r22_rt_state_trigger_write_ms=double(r22st.rt_state_trigger_write_ms);
+        r22_rt_state_cert_write_ms=double(r22st.rt_state_cert_write_ms);
+        r22_rt_state_meta_write_ms=double(r22st.rt_state_meta_write_ms);
+        r22_rt_total_ms=double(r22st.rt_total_ms);
+        r22_spike_front_ms=double(r22st.rt_spike_stage_front_ms);
+        r22_spike_loadmass_ms=double(r22st.rt_spike_stage_loadmass_ms);
+        r22_spike_dependency_ms=double(r22st.rt_spike_stage_dependency_ms);
+        r22_spike_base_cert_geom_ms=double(r22st.rt_spike_stage_base_cert_geom_ms);
+        r22_spike_sensor_trigger_ms=double(r22st.rt_spike_stage_sensor_trigger_ms);
+        r22_spike_output_state_ms=double(r22st.rt_spike_stage_output_state_ms);
+        r22_spike_write_active_output_ms=double(r22st.rt_spike_write_active_output_ms);
+        r22_trigger_event_capture_ms=double(r22st.trigger_event_capture_ms);
+    else
+        r22_rt_light_e2e_ms=NaN;
+        r22_rt_observer_ms=NaN;
+        r22_rt_live_binding_ms=NaN;
+        r22_rt_dependency_ms=NaN;
+        r22_rt_base_ref_ms=NaN;
+        r22_rt_cert_guard_ms=NaN;
+        r22_rt_geometry_eval_ms=NaN;
+        r22_rt_reference_packet_ms=NaN;
+        r22_rt_sensor_ms=NaN;
+        r22_rt_kernel_ms=NaN;
+        r22_rt_trigger_ms=NaN;
+        r22_rt_replan_status_ms=NaN;
+        r22_rt_output_write_ms=NaN;
+        r22_rt_state_trigger_write_ms=NaN;
+        r22_rt_state_cert_write_ms=NaN;
+        r22_rt_state_meta_write_ms=NaN;
+        r22_rt_total_ms=NaN;
+        r22_spike_front_ms=NaN;
+        r22_spike_loadmass_ms=NaN;
+        r22_spike_dependency_ms=NaN;
+        r22_spike_base_cert_geom_ms=NaN;
+        r22_spike_sensor_trigger_ms=NaN;
+        r22_spike_output_state_ms=NaN;
+        r22_spike_write_active_output_ms=NaN;
+        r22_trigger_event_capture_ms=NaN;
+    end
+    r22_diag_snapshot_s=toc(r22t);
+
+    r22t=tic; do_prop_local(time,cha,cha,logger,env,agent,"controller",1,true); r22_controller_prop_s=toc(r22t);
+    r22t=tic; do_prop_local(time,cha,cha,logger,env,agent,"input_transform",1,true); r22_input_transform_prop_s=toc(r22t);
 
     % Onboard-compute proxy:
     % connector acquisition + sensor + estimator + reference/replanner
@@ -326,6 +433,40 @@ while time.t <= time.te
     runtime_profile.simulation_plant_s(rk)=simulation_plant_s;
     runtime_profile.logger_s(rk)=logger_s;
     runtime_profile.full_iteration_s(rk)=full_iteration_s;
+    runtime_profile.r22_sensor_prop_s(rk)=r22_sensor_prop_s;
+    runtime_profile.r22_estimator_prop_s(rk)=r22_estimator_prop_s;
+    runtime_profile.r22_replanner_s(rk)=r22_replanner_s;
+    runtime_profile.r22_sload_s(rk)=r22_sload_s;
+    runtime_profile.r22_reference_merge_s(rk)=r22_reference_merge_s;
+    runtime_profile.r22_reference_prop_s(rk)=r22_reference_prop_s;
+    runtime_profile.r22_diag_snapshot_s(rk)=r22_diag_snapshot_s;
+    runtime_profile.r22_controller_prop_s(rk)=r22_controller_prop_s;
+    runtime_profile.r22_input_transform_prop_s(rk)=r22_input_transform_prop_s;
+    runtime_profile.r22_rt_light_e2e_ms(rk)=r22_rt_light_e2e_ms;
+    runtime_profile.r22_rt_observer_ms(rk)=r22_rt_observer_ms;
+    runtime_profile.r22_rt_live_binding_ms(rk)=r22_rt_live_binding_ms;
+    runtime_profile.r22_rt_dependency_ms(rk)=r22_rt_dependency_ms;
+    runtime_profile.r22_rt_base_ref_ms(rk)=r22_rt_base_ref_ms;
+    runtime_profile.r22_rt_cert_guard_ms(rk)=r22_rt_cert_guard_ms;
+    runtime_profile.r22_rt_geometry_eval_ms(rk)=r22_rt_geometry_eval_ms;
+    runtime_profile.r22_rt_reference_packet_ms(rk)=r22_rt_reference_packet_ms;
+    runtime_profile.r22_rt_sensor_ms(rk)=r22_rt_sensor_ms;
+    runtime_profile.r22_rt_kernel_ms(rk)=r22_rt_kernel_ms;
+    runtime_profile.r22_rt_trigger_ms(rk)=r22_rt_trigger_ms;
+    runtime_profile.r22_rt_replan_status_ms(rk)=r22_rt_replan_status_ms;
+    runtime_profile.r22_rt_output_write_ms(rk)=r22_rt_output_write_ms;
+    runtime_profile.r22_rt_state_trigger_write_ms(rk)=r22_rt_state_trigger_write_ms;
+    runtime_profile.r22_rt_state_cert_write_ms(rk)=r22_rt_state_cert_write_ms;
+    runtime_profile.r22_rt_state_meta_write_ms(rk)=r22_rt_state_meta_write_ms;
+    runtime_profile.r22_rt_total_ms(rk)=r22_rt_total_ms;
+    runtime_profile.r22_spike_front_ms(rk)=r22_spike_front_ms;
+    runtime_profile.r22_spike_loadmass_ms(rk)=r22_spike_loadmass_ms;
+    runtime_profile.r22_spike_dependency_ms(rk)=r22_spike_dependency_ms;
+    runtime_profile.r22_spike_base_cert_geom_ms(rk)=r22_spike_base_cert_geom_ms;
+    runtime_profile.r22_spike_sensor_trigger_ms(rk)=r22_spike_sensor_trigger_ms;
+    runtime_profile.r22_spike_output_state_ms(rk)=r22_spike_output_state_ms;
+    runtime_profile.r22_spike_write_active_output_ms(rk)=r22_spike_write_active_output_ms;
+    runtime_profile.r22_trigger_event_capture_ms(rk)=r22_trigger_event_capture_ms;
 
     time.t = time.t + dt;
 
@@ -343,6 +484,40 @@ runtime_profile.online_before_plant_s=runtime_profile.online_before_plant_s(1:Kr
 runtime_profile.simulation_plant_s=runtime_profile.simulation_plant_s(1:Krt);
 runtime_profile.logger_s=runtime_profile.logger_s(1:Krt);
 runtime_profile.full_iteration_s=runtime_profile.full_iteration_s(1:Krt);
+runtime_profile.r22_sensor_prop_s=runtime_profile.r22_sensor_prop_s(1:Krt);
+runtime_profile.r22_estimator_prop_s=runtime_profile.r22_estimator_prop_s(1:Krt);
+runtime_profile.r22_replanner_s=runtime_profile.r22_replanner_s(1:Krt);
+runtime_profile.r22_sload_s=runtime_profile.r22_sload_s(1:Krt);
+runtime_profile.r22_reference_merge_s=runtime_profile.r22_reference_merge_s(1:Krt);
+runtime_profile.r22_reference_prop_s=runtime_profile.r22_reference_prop_s(1:Krt);
+runtime_profile.r22_diag_snapshot_s=runtime_profile.r22_diag_snapshot_s(1:Krt);
+runtime_profile.r22_controller_prop_s=runtime_profile.r22_controller_prop_s(1:Krt);
+runtime_profile.r22_input_transform_prop_s=runtime_profile.r22_input_transform_prop_s(1:Krt);
+runtime_profile.r22_rt_light_e2e_ms=runtime_profile.r22_rt_light_e2e_ms(1:Krt);
+runtime_profile.r22_rt_observer_ms=runtime_profile.r22_rt_observer_ms(1:Krt);
+runtime_profile.r22_rt_live_binding_ms=runtime_profile.r22_rt_live_binding_ms(1:Krt);
+runtime_profile.r22_rt_dependency_ms=runtime_profile.r22_rt_dependency_ms(1:Krt);
+runtime_profile.r22_rt_base_ref_ms=runtime_profile.r22_rt_base_ref_ms(1:Krt);
+runtime_profile.r22_rt_cert_guard_ms=runtime_profile.r22_rt_cert_guard_ms(1:Krt);
+runtime_profile.r22_rt_geometry_eval_ms=runtime_profile.r22_rt_geometry_eval_ms(1:Krt);
+runtime_profile.r22_rt_reference_packet_ms=runtime_profile.r22_rt_reference_packet_ms(1:Krt);
+runtime_profile.r22_rt_sensor_ms=runtime_profile.r22_rt_sensor_ms(1:Krt);
+runtime_profile.r22_rt_kernel_ms=runtime_profile.r22_rt_kernel_ms(1:Krt);
+runtime_profile.r22_rt_trigger_ms=runtime_profile.r22_rt_trigger_ms(1:Krt);
+runtime_profile.r22_rt_replan_status_ms=runtime_profile.r22_rt_replan_status_ms(1:Krt);
+runtime_profile.r22_rt_output_write_ms=runtime_profile.r22_rt_output_write_ms(1:Krt);
+runtime_profile.r22_rt_state_trigger_write_ms=runtime_profile.r22_rt_state_trigger_write_ms(1:Krt);
+runtime_profile.r22_rt_state_cert_write_ms=runtime_profile.r22_rt_state_cert_write_ms(1:Krt);
+runtime_profile.r22_rt_state_meta_write_ms=runtime_profile.r22_rt_state_meta_write_ms(1:Krt);
+runtime_profile.r22_rt_total_ms=runtime_profile.r22_rt_total_ms(1:Krt);
+runtime_profile.r22_spike_front_ms=runtime_profile.r22_spike_front_ms(1:Krt);
+runtime_profile.r22_spike_loadmass_ms=runtime_profile.r22_spike_loadmass_ms(1:Krt);
+runtime_profile.r22_spike_dependency_ms=runtime_profile.r22_spike_dependency_ms(1:Krt);
+runtime_profile.r22_spike_base_cert_geom_ms=runtime_profile.r22_spike_base_cert_geom_ms(1:Krt);
+runtime_profile.r22_spike_sensor_trigger_ms=runtime_profile.r22_spike_sensor_trigger_ms(1:Krt);
+runtime_profile.r22_spike_output_state_ms=runtime_profile.r22_spike_output_state_ms(1:Krt);
+runtime_profile.r22_spike_write_active_output_ms=runtime_profile.r22_spike_write_active_output_ms(1:Krt);
+runtime_profile.r22_trigger_event_capture_ms=runtime_profile.r22_trigger_event_capture_ms(1:Krt);
 
 disp("Simulation complete! Drawing plots...");
 

@@ -1,0 +1,122 @@
+R23 CURRENT EXECUTION CAPTURE - NO SIMULATION RERUN
+active class = REPLANNING_SYSTEM_R23_COMPILED
+MATLAB = 26.1.0.3276743 (R2026a) Update 3
+Disk source SHA does not prove an already loaded class has identical bytes.
+Current class, path alternatives, and loaded function inventory are retained separately.
+run_flight_headless | SOURCE | SHA=22a4b5fa6d5c2ccfc9a3798780782535e101424173e5eec81c8ddfb9c6f49949
+ path=C:\Users\student\Documents\GitHub\common_matlab\run_flight_headless.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\run_flight_headless.m
+REPLANNING_SYSTEM_R23_COMPILED | SOURCE | SHA=a10e436a4b41a4ccc0c41120f4f069c34f28a19143049dc48fa6e8cf6959633c
+ path=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R23_COMPILED.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R23_COMPILED.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM_R23_COMPILED.m
+REPLANNING_SYSTEM_R21_BALANCED | SOURCE | SHA=4b22dedd43eceb874e41abde44fbd87f93d88de0b81ea91a724c4cfd0073b90f
+ path=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R21_BALANCED.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R21_BALANCED.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM_R21_BALANCED.m
+REPLANNING_SYSTEM_R19_FAST | SOURCE | SHA=928677701a06d2c8aabf96982276fb4ada5daf9c67c8ec1354182e823c85e482
+ path=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R19_FAST.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\REPLANNING_SYSTEM_R19_FAST.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM_R19_FAST.m
+REPLANNING_SYSTEM | SOURCE | SHA=310cfdd01f9554a80b71e8d90464816a721859709ad7c4b9137cdc0f3a6eaf49
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58ZW_20261019_045900\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp01ec8aa7_60d3_48a4_bc06_7036ae4b7079\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp0716d9da_b703_4d3a_bf46_4caceb08754d\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp108e6c51_a5ea_410b_ad2a_778991511f57\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp1d97efa0_2db3_4389_ac72_bc38fb2fd477\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp338806aa_87d0_41d2_aeb1_efc3f841f1e3\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp3b45a699_3dfc_4d07_ab3b_1f1dd3383270\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp5b070786_6de3_4103_ad93_039813bce763\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp60120f41_52c8_4654_b557_d8d44e288c8a\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp6c1cab1f_2ddc_4fbc_8baf_349e43c91b68\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp78f7da98_7183_41a5_b206_95e177ed3746\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp83cc73fb_4c85_4bcc_9929_543c7545308b\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp8a4c0b01_ea86_4ca8_9876_86c2ecb3d326\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp90eb8200_64e8_44a5_8150_52754b425ec1\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpab0077ac_5a60_4fd7_bfc6_0a669c1eceda\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpb850497c_ec07_44c9_88cb_4364689b5fb3\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpb95af14e_e251_44ec_a502_5f88bf6ac19d\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpbafa8d69_fde7_407c_a6c5_b0536bdce8db\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpcc036bcf_c4d6_43d5_a74f_819f5456ee88\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpcdf81942_30a8_4709_8057_f8c6f5e5b45e\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpd41ec529_c7ee_489e_97d8_089c1611ec59\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpe3b4602c_e523_45d2_a74b_3330da54092d\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpe4af8d6d_5112_40e0_b62b_d08439d4106f\STAGE\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpe895037a_1ae8_4f7f_8d08_7b000cd0b6e1\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpea0fc40f_7f2f_4652_95fd_3b1b951828f2\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpedd8cb10_a8db_4f9f_ba2d_f8ec0654608f\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpefd24f39_0b40_424f_a73a_342eb4f6c740\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpf0ad6a42_278c_4992_a616_d8d4e5e86dc8\REPLANNING_SYSTEM.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpf6e41897_6544_40ec_bee2_c0d5a33eba11\AF7R58ZZK_R3_STAGE\REPLANNING_SYSTEM.m
+TIME_VARYING_REFERENCE | SOURCE | SHA=aa3abde15bfcd93d6d027c96e5ea0176e88658d2235c7d3d290f18d1c376624b
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\TIME_VARYING_REFERENCE.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\TIME_VARYING_REFERENCE.m
+AF7R58ZZY_R23_REPORT | SOURCE | SHA=c843e5dae0337dd26aa710527cc3c7d7f60453ec04978976f3d24fbc7e3e36b6
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58ZZY_R23_REPORT.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58ZZY_R23_REPORT.m
+af7r76_compile_correction_packet_R23 | SOURCE | SHA=e0f3ab777a2f2ccb9fdd02c3b10bae775aa8a37a4aeafac8ed402d7216a75177
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r76_compile_correction_packet_R23.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r76_compile_correction_packet_R23.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r76_compile_correction_packet_R23.m
+af7r76_compiled_eval_mex | BINARY_HASH_ONLY | SHA=b074655702329da545b2755c777a4aea9648517ad0bf1e7c39e1391aa2008421
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r76_compiled_eval_mex.mexw64
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r76_compiled_eval_mex.mexw64
+af7r75_posaccel_batch_R19 | SOURCE | SHA=69b0996e0a5dd2fa55a580214f9f8edbb517e0ebca7ed614a49814e612560f80
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r75_posaccel_batch_R19.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r75_posaccel_batch_R19.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r75_posaccel_batch_R19.m
+af7r75_posaccel_core_R19 | SOURCE | SHA=c41f2533dac1342dde55753c01f7a1f1e2740d3e8064f95b4b22265756acaa27
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r75_posaccel_core_R19.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r75_posaccel_core_R19.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r75_posaccel_core_R19.m
+af7r73_posaccel_core_R17 | SOURCE | SHA=0bc12e7e2c9241b308e731c5639f5deeb159035b4b3acfbfd2d178157493e755
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r73_posaccel_core_R17.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r73_posaccel_core_R17.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r73_posaccel_core_R17.m
+af7r72_posaccel_core_R16 | SOURCE | SHA=4172465680d07dee891c25c825481ef34c62443e85a916107a19b19d5338d7bd
+ path=C:\Users\student\Documents\GitHub\common_matlab\af7r72_posaccel_core_R16.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\af7r72_posaccel_core_R16.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r72_posaccel_core_R16.m
+af7r33_flat_jet_batch_model | SOURCE | SHA=1f57a0066acb75859dfe565b3c38a99d5c272b8afae4698131d7aeeb70093889
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r33_flat_jet_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r33_flat_jet_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp670801c1_371c_43f1_9f06_cb5e15e0e799\af7r33_flat_jet_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp6e91154a_04f2_454e_9129_82d1494e57ca\af7r33_flat_jet_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tpf3be754f_1787_4151_b4f5_2d2f7f9cd2c5\af7r33_flat_jet_batch_model.m
+af7r58i_eval_canonical_reference | SOURCE | SHA=4f8ecd8576983d638b5fbbc71384d333fc90d4d9e4787c6ea694e94dc2d0ca39
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_eval_canonical_reference.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_eval_canonical_reference.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_eval_canonical_reference.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_eval_canonical_reference.m
+af7r58i_prepare_batch_model | SOURCE | SHA=92f093168f1df95661c5e7f2e75005fe439406eb3ec22e53fd1f25d6bdfb8a15
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_prepare_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_prepare_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58ZW_20261019_045900\af7r58i_prepare_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_prepare_batch_model.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_prepare_batch_model.m
+af7r58i_commit_spacing_guard | SOURCE | SHA=ba92a9bb05e5cea6916f904646ff416a8379ff5ed9ed4424baf362eacb43054e
+ path=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_commit_spacing_guard.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r58i_commit_spacing_guard.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp20def788_39fa_4046_807c_d153b92933f0\AF7R58I_R3_PREFLIGHT\af7r58i_commit_spacing_guard.m
+ candidate=C:\Users\student\Documents\GitHub\common_matlab\reference\tp47149204_8f25_4e4b_adf0_420558afa90a\AF7R58I_R2_PREFLIGHT\af7r58i_commit_spacing_guard.m
+full online metric includes non-replanner work; not a replanner-only deadline metric.
+Flight full-online count=1681 | over4ms=1681 | max=531.659600ms
+commit-window full-online samples (milliseconds):
+ t=9.7750000000000714 | online=9.977300
+ t=9.8000000000000718 | online=10.105000
+ t=9.8250000000000721 | online=10.023900
+ t=9.8500000000000725 | online=27.657600
+ t=9.8750000000000728 | online=29.739400
+ t=9.9000000000000732 | online=21.516300
+ t=9.9250000000000735 | online=18.839900
+ t=9.9500000000000739 | online=17.566200
+ t=9.9750000000000743 | online=19.784400
+ t=10.000000000000075 | online=16.912500
+ t=10.025000000000075 | online=19.656000
+ t=10.050000000000075 | online=11.307700
+ t=10.075000000000076 | online=10.588200
+raw timing fields: t, phase, sensor_acquisition_s, online_before_plant_s, simulation_plant_s, logger_s, full_iteration_s, k, r22_sensor_prop_s, r22_estimator_prop_s, r22_replanner_s, r22_sload_s, r22_reference_merge_s, r22_reference_prop_s, r22_diag_snapshot_s, r22_controller_prop_s, r22_input_transform_prop_s, r22_rt_light_e2e_ms, r22_rt_observer_ms, r22_rt_live_binding_ms, r22_rt_dependency_ms, r22_rt_base_ref_ms, r22_rt_cert_guard_ms, r22_rt_geometry_eval_ms, r22_rt_reference_packet_ms, r22_rt_sensor_ms, r22_rt_kernel_ms, r22_rt_trigger_ms, r22_rt_replan_status_ms, r22_rt_output_write_ms, r22_rt_state_trigger_write_ms, r22_rt_state_cert_write_ms, r22_rt_state_meta_write_ms, r22_rt_total_ms, r22_spike_front_ms, r22_spike_loadmass_ms, r22_spike_dependency_ms, r22_spike_base_cert_geom_ms, r22_spike_sensor_trigger_ms, r22_spike_output_state_ms, r22_spike_write_active_output_ms, r22_trigger_event_capture_ms
+No speed improvement or 4ms pass is claimed by this capture.
+Return the ZIP printed below. No extra files and no Flight rerun are needed.

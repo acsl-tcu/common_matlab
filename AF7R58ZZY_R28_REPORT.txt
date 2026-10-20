@@ -1,0 +1,24 @@
+AF7R58ZZY-R28 RESULT
+class=REPLANNING_SYSTEM_R28_NATIVE_ONCE
+build=AF7R58ZZY_R28_NATIVE_ONCE_V1
+stage1=4.763100000
+native_compile=0.012800000
+stage2_refcert=0.547600000
+stage3_core=12.809700000
+binding=1.615600000
+stage4_compile=0.000000000
+stage4_cache=0.000000000
+stage4_guard=0.726700000
+stage4_assign=0.537200000
+stage4_activate=3.246700000
+stage4_total=5.118200000
+stage_online=[17.8743 14.2673 21.6045 18.1167]
+stage_controller_excluded=[15.63 11.988 18.9993 15.7336]
+stage_reference=[12.8418 8.9737 16.1587 12.8171]
+stage_replanner=[12.6003 8.6722 15.8626 12.5454]
+replan_max=21.604500000
+replan_max_controller_excluded=18.999300000
+steady_median=6.657000000
+postcommit_max=15.804100000
+target_le17=0
+all_stages_le17=0
