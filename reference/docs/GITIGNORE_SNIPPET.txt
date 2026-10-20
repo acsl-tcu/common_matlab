@@ -1,0 +1,9 @@
+# AF7R58ZZY generated outputs
+generated/AF7R58ZZY_FINAL/
+_af7_final/backups/
+AF7R58ZZY_R*_OUT.mat
+AF7R58ZZY_R*_REPORT.txt
+AF7R58ZZY_R*_PACKAGE.zip
+AF7R58ZZY_R*_BACKUP_*/
+AF7R58ZZY_R*_BUILD_*/
+**/tp*/
