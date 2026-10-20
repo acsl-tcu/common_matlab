@@ -1,0 +1,26 @@
+AF7R58ZZY-R30 RESULT
+class=REPLANNING_SYSTEM_R30_SINGLE_BUILD_EXACT
+build=AF7R58ZZY_R30_SINGLE_BUILD_EXACT_V1
+stage1=4.762600000
+native_compile=0.012800000
+stage2_refcert=0.476600000
+stage3_core=13.077800000
+r30_guard=0.758000000
+r30_batch=1.489500000
+r30_packet=1.852000000
+r30_handles=0.547700000
+r30_binding=0.745900000
+r30_reference_assembly=0.585400000
+r30_bundle=0.324500000
+r30_prepare_total=6.918000000
+stage4_total=5.552100000
+stage_online=[17.8959 13.7748 21.9642 18.5428]
+stage_controller_excluded=[15.4407 11.4892 19.5427 16.2193]
+stage_reference=[12.8275 8.8022 16.4319 13.3703]
+stage_replanner=[12.5832 8.5728 16.1894 13.1166]
+replan_max=21.964200000
+replan_max_controller_excluded=19.542700000
+steady_median=6.577800000
+postcommit_max=14.979800000
+target_le17=0
+all_stages_le17=0

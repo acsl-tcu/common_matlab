@@ -1,0 +1,19 @@
+AF7R58ZZY-R32 RESULT
+class=REPLANNING_SYSTEM_R32_DIRECT_CANDIDATE_STORE
+build=AF7R58ZZY_R32_DIRECT_CANDIDATE_STORE_V1
+stage1=7.107600000
+stage2_refcert=0.457700000
+stage3_core=6.551700000
+stage4_total=4.604400000
+stage_online=[22.1992 14.0552 14.2809 17.0247]
+stage_controller_excluded=[19.7429 11.7109 12.1014 14.706]
+stage_reference=[15.3662 8.9876 9.3424 12.0441]
+stage_replanner=[15.0955 8.7327 9.1478 11.8148]
+stage_diag_snapshot=[0.0039 0.0038 0.0038 0.0031]
+stage_non_est_ref_ctrl=[0.8859 0.6231 0.6301 0.5889]
+replan_max=22.199200000
+replan_max_controller_excluded=19.742900000
+steady_median=6.533900000
+postcommit_max=17.311800000
+target_le17=0
+all_stages_le17=0

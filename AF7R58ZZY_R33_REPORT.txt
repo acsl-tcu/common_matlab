@@ -1,0 +1,17 @@
+AF7R58ZZY-R33 RESULT
+class=REPLANNING_SYSTEM_R33_R31_PLUS_NO_NATIVE_RAW
+build=AF7R58ZZY_R33_R31_PLUS_NO_NATIVE_RAW_V1
+stage1=4.665800000
+stage2_refcert=0.569300000
+stage3_core=6.491100000
+stage4_total=5.867100000
+stage_online=[17.9768 14.2235 14.2626 18.8795]
+stage_controller_excluded=[15.5486 11.9251 12.2355 16.3927]
+stage_reference=[12.5384 9.1559 9.5498 13.1863]
+stage_replanner=[12.2961 8.8733 9.3412 12.9664]
+replan_max=18.879500000
+replan_max_controller_excluded=16.392700000
+steady_median=6.413300000
+postcommit_max=15.324700000
+target_le17=1
+all_stages_le17=1

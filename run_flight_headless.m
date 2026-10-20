@@ -153,7 +153,7 @@ replan_opts.ENABLE_LIGHT_RUNTIME_AUDIT = false;
 replan_opts.SPIKE_CAPTURE_THRESHOLD_MS = 2.0;
 replan_opts.ENABLE_AF7R53_PREPARED_COMMIT = ENABLE_AF7R53_PREPARED_COMMIT;
 
-replanner_instance = REPLANNING_SYSTEM_R28_NATIVE_ONCE(agent,nominal_ref,replan_opts);
+replanner_instance = REPLANNING_SYSTEM_R33_R31_PLUS_NO_NATIVE_RAW(agent,nominal_ref,replan_opts);
 
 avoidance_status = replanner_instance.get_avoidance_mode_status();
 fprintf(['[AVOIDANCE] commit=%s | ref-cert=%d | exec-cert=%d | ' ...

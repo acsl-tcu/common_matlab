@@ -1,0 +1,19 @@
+AF7R58ZZY-R31 RESULT
+class=REPLANNING_SYSTEM_R31_DIRECT_STAGE_STORE
+build=AF7R58ZZY_R31_DIRECT_STAGE_STORE_V1
+stage1=4.556200000
+stage2_refcert=0.605900000
+stage3_core=7.905300000
+stage4_total=4.530300000
+stage_online=[19.9617 16.5669 15.9964 18.8029]
+stage_controller_excluded=[17.4489 14.1059 13.7878 16.4721]
+stage_reference=[14.1957 11.3504 10.9999 13.6297]
+stage_replanner=[13.9428 11.0532 10.769 13.3706]
+stage_diag_snapshot=[0.0036 0.0039 0.0037 0.0042]
+stage_non_est_ref_ctrl=[0.5688 0.6191 0.6124 0.6419]
+replan_max=19.961700000
+replan_max_controller_excluded=17.448900000
+steady_median=6.569200000
+postcommit_max=16.722900000
+target_le17=0
+all_stages_le17=0

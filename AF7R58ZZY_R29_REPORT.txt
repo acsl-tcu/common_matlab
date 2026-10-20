@@ -1,0 +1,23 @@
+AF7R58ZZY-R29 RESULT
+class=REPLANNING_SYSTEM_R29_STAGE3_LEAN_EXACT
+build=AF7R58ZZY_R29_STAGE3_LEAN_EXACT_V1
+stage1=4.792100000
+native_compile=0.014400000
+stage2_refcert=0.441800000
+stage3_core=12.769500000
+r29_batch=3.403100000
+r29_packet=1.809300000
+r29_handles=0.538900000
+r29_bundle=0.223800000
+r29_binding=0.137000000
+stage4_total=4.842800000
+stage_online=[18.1357 13.5205 21.083 17.7572]
+stage_controller_excluded=[15.6317 11.3616 18.8097 15.539]
+stage_reference=[12.8869 8.6841 16.138 12.7777]
+stage_replanner=[12.6565 8.4377 15.8918 12.5354]
+replan_max=21.083000000
+replan_max_controller_excluded=18.809700000
+steady_median=6.567600000
+postcommit_max=15.402400000
+target_le17=0
+all_stages_le17=0
