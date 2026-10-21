@@ -50,4 +50,4 @@ else
 end
 
 app = SimExp(Setting);
-app.run_auto_trials(1, "hovering_check_ME0185_OnMEC");%自動くりかえし
+app.run_auto_trials(1, "errore_02_spline__KL_err_result_ModerErr_021");%自動くりかえし

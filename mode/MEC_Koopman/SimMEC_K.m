@@ -40,9 +40,9 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model.param.param(1) = 0.8;
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
 
-% % モデル誤差
-plant_model.param.param(6) = 0.185; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.185; % 
+% モデル誤差
+plant_model.param.param(6) = 0.21; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.21; % 
 
 
 
@@ -112,8 +112,8 @@ agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントロ
 
 function dfunc(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",1);
-app.logger.plot({1, "q", "e"},"xrange",[app.time.ts,app.time.te],"fig_num",2);
-app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
+% app.logger.plot({1, "q", "e"},"xrange",[app.time.ts,app.time.te],"fig_num",2);
+% app.logger.plot({1, "v", "er"},"xrange",[app.time.ts,app.time.te],"fig_num",3);
 % app.logger.plot({1, "input1", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",4);%スラスト
 % app.logger.plot({1, "input2:4", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",5);
 % app.logger.plot({1, "controller.result.input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
@@ -185,24 +185,24 @@ xlabel('Time [s]')
 title('Total input')
 
 %================================================================================================
-figure(10);
-clf;
-hold on;
-
-plot(t_total, T_ctrl, '-',  'LineWidth', 1.5);
-plot(t_ex,    T_ex+7.271,   '--', 'LineWidth', 1.5);
-
-grid on;
-xlabel('Time [s]');
-ylabel('Input');
-legend('T_{ctrl}', 'T_{ex}');
-title('Controller input and excitation input');
-
-hold off;
+% figure(10);
+% clf;
+% hold on;
+% 
+% plot(t_total, T_ctrl, '-',  'LineWidth', 1.5);
+% plot(t_ex,    T_ex+7.271,   '--', 'LineWidth', 1.5);
+% 
+% grid on;
+% xlabel('Time [s]');
+% ylabel('Input');
+% legend('T_{ctrl}', 'T_{ex}');
+% title('Controller input and excitation input');
+% 
+% hold off;
 %==================================================================================================-
 
-app.logger.plot({{1, "controller.result.z_p_forward", ""},{1, "controller.result.z_n_forward", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 13);
-app.logger.plot({{1, "controller.result.z_p_back", ""},{1, "controller.result.z_n_back", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 14);
+% app.logger.plot({{1, "controller.result.z_p_forward", ""},{1, "controller.result.z_n_forward", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 13);
+% app.logger.plot({{1, "controller.result.z_p_back", ""},{1, "controller.result.z_n_back", "s"}}, "xrange",[app.time.ts,app.time.te], "fig_num", 14);
 
 % app.logger.plot({1, "p1-p2", "er"},"color", 0,"fig_num",8);
 app.logger.plot({1, "p1-p2-p3", "er"},"color",0,"fig_num",9);
