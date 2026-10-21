@@ -57,7 +57,7 @@ settings.savefolder = folder;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % fsave = 0;
-fsave = 1;
+fsave = 2;
 % fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択
@@ -73,7 +73,7 @@ settings.fcolor = 1; % default=1 -> フェーズごとの背景色あり
 
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
-settings.target = ["p","controller.result.delta_u","p1-p2-p3"];
+settings.target = ["p1-p2"];
 % settings.target = ["p", "v", "q", "w","input", "controller.result.nominal", "controller.result.delta_u", "p1-p2", "p1-p2-p3"];
 % settings.target = ["p", "q", "v", "w", "input", "controller.result.delta_input", "p1-p2-p3"];
 % settings.target = ["controller.result.delta_input", "controller.result.delta_input2:4", "controller.result.nominal_input", "controller.result.nominal_input2:4"];
@@ -206,9 +206,6 @@ for exp_idx = 1:numel(filenames)
                 tmp = settings.attribute;
                 fcolor = 0;
                 att = select_attribute(settings.target(i), tmp);
-                case "controller.result.delta_u"
-    ylabel = "Compensation input [N], [Nm]";
-    att = "";
             otherwise
                 if contains(settings.target(i), 'input') % "input"が入っていたら
                     if contains(settings.target(i), 'delta_input') % MEC用
@@ -483,13 +480,6 @@ switch target
         legend{2} = "$\tau_{pitch}$";
         legend{3} = "$T$";
         legend{4} = "$\tau_{yaw}$";
-        case "controller.result.delta_u"
-    legend = {
-        "$\Delta T$"
-        "$\Delta \tau_{roll}$"
-        "$\Delta \tau_{pitch}$"
-        "$\Delta \tau_{yaw}$"
-    };
     otherwise
         for i=1:legend_num, legend{i} = string(i); end % 例外が入ってきたら適当に入れる
         if contains(target, 'delta_input') % MEC用

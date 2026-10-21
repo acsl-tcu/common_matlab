@@ -14,11 +14,6 @@ function data = ImportFromExpData_ERROR_estimation_tutorial(expData_Filename)
 % expData_Filename = 'TestData1.mat'
 
 logger = load(expData_Filename);
-% 検証にも、学習と同じE・dU・E_nextの対応関係を使用する。
-if isfield(logger,'Dataset')
-    data = logger.Dataset;
-    return;
-end
 logger = logger.(string(fieldnames(logger)));
 clear data % 読み込んだファイル内のdataと同名の変数を初期化
 
@@ -71,7 +66,7 @@ end
 
 % MECで計算した誤差（26次元）
 data.e = cell2mat(arrayfun(@(N) logger.Data.agent.controller.result{N}.e(:), data.startIndex:data.endIndex, 'UniformOutput',false))';
-% 実機側入力とノミナル側入力の差（新ログでは補償と励振の合計、4次元）
+% MECの補償入力（4次元）
 data.delta_u = cell2mat(arrayfun(@(N)logger.Data.agent.controller.result{N}.delta_u(:), data.startIndex:data.endIndex, 'UniformOutput',false))';
 
 % %% Set Dataset and Input

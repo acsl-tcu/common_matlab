@@ -22,9 +22,6 @@ if exist("motive","var"); Setting.motive = motive;end
 if exist("env","var"); Setting.env = env;end
 if exist("in_prog_func","var"); Setting.in_prog_func = in_prog_func;end
 if exist("post_func","var"); Setting.post_func = post_func;end
-if exist("mec_dataset_metadata","var")
-    Setting.mec_dataset_metadata = mec_dataset_metadata;
-end
 
 app.initial_setting = Setting;
 app.set_mode();

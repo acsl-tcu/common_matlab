@@ -1,21 +1,3 @@
-%% 正則化したMEC誤差モデルからゲインだけを再計算する
-% 同定からやり直す場合はmain_ERROR_KoopmanLinearByData_tutorialを実行する。
-% 旧カルマン分解処理は、比較できるよう末尾のブロックコメントに保存する。
-repo_root = fileparts(mfilename('fullpath'));
-addpath(genpath(repo_root));
-setting = mec_gain_settings();
-model_file = fullfile(setting.output_dir,'mec_model_regularized.mat');
-saved = load(model_file,'est','report');
-gain = design_mec_error_gain(saved.est,setting);
-gain.identification_report = saved.report;
-stamp = char(datetime('now','Format','yyyyMMdd_HHmmss_SSS'));
-gain_file = fullfile(setting.output_dir,['mec_gain_' stamp '.mat']);
-save(gain_file,'-struct','gain');
-save(fullfile(setting.output_dir,'mec_gain_regularized.mat'),'-struct','gain');
-fprintf('ゲインを保存しました：%s\n',gain_file);
-
-% 旧実装（保存用）
-%{
 %% Koopmanモデル: カルマン正準分解 -> 可制御部分だけにdlqr
 
 % 固定ゼロ・定数特徴を手動で除去しないで，全状態を分解して，可制御部分のみに対してdlqr
@@ -242,5 +224,3 @@ title('Eigenvalues of A-BK_{full}');
 legend([h2, h1], {'Eigenvalues', 'Unit Circle'}, ...
     'Location', 'best');
 hold off;
-
-%}

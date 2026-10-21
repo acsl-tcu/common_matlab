@@ -99,19 +99,19 @@ classdef C_Logger_Plot < handle
                 for listIndex = 1:length(plotList)
                     plotSetting = plotList{listIndex};
                     agentIndex = plotSetting{1}; % indices of variable drones. example : [1 2]
-                    param = string(plotSetting{2}); % p,q,v,w, etc
-                    attribute = char(plotSetting{3}); % e,s,r,p
+                    param = plotSetting{2}; % p,q,v,w, etc
+                    attribute = plotSetting{3}; % e,s,r,p
                     customData = [];
                     if length(plotSetting) >= 4
                         customData = plotSetting{4};
                     end
-                    if isempty(attribute); attribute = ' '; end
+                    if strcmp(attribute, ""); attribute = " "; end
 
                     for agentId = agentIndex
 
-                        for attrIndex = 1:numel(attribute)
+                        for attrIndex = 1:strlength(attribute)
                             ps = split(param, '-'); % separate by '-', each in {p q v w}
-                            att = attribute(attrIndex); % one character: s,e,r,p
+                            att = extract(attribute, attrIndex); % attribute {s e r p}
 
                             if isempty(customData)
                                 switch length(ps)

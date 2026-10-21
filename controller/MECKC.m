@@ -1,19 +1,14 @@
 classdef MECKC < handle
-    % HLCの入力にMEC補償と、学習用の4入力励振を加える。
+    % Hierarchical linearization based controller for a quadcopter
     properties
         self
         result
         param
         parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
-        pre_input = zeros(4,1);
-        x_pre = zeros(12,1);
-        previous_time = [];
-        gain = zeros(4,26);
-        collect_dataset = false;
-        excitation_enabled = true;
-        use_compensation = true;
-        excitation_profile = [];
-        flight_start = [];
+        agent
+        delta_u
+        pre_input = [0;0;0;0];
+        x_pre = [0;0;0;0;0;0;0;0;0;0;0;0];
     end
 
     methods
@@ -22,104 +17,154 @@ classdef MECKC < handle
             obj.param = param;
             obj.param.P = self.parameter.get(obj.parameter_name);
             obj.result.input = zeros(4,1);
-            use_compensation = true;
-            if isfield(param,'dataset') && param.dataset.enabled
-                obj.collect_dataset = true;
-                if isfield(param.dataset,'excitation_enabled')
-                    obj.excitation_enabled = param.dataset.excitation_enabled;
-                end
-                use_compensation = param.dataset.use_compensation;
-                obj.excitation_profile = make_mec_excitation(param.trajectory_seed,param.dataset);
-            end
-            % 明示指定があれば、通常モード・学習モードのどちらでも優先する。
-            if isfield(param,'use_compensation')
-                use_compensation = param.use_compensation;
-            end
-            obj.use_compensation = use_compensation;
-            % ゲインは補償を使う場合だけ、初期化時に読み込む。
-            if use_compensation
-                % 旧ゲインは比較用に残す。正則化・検証付きの設計結果を既定にする。
-                % gain_file = 'ai_data_spline_KL_err_gain_controllable_dlqr_20261016_174715_924.mat';
-                repo_root = fileparts(fileparts(mfilename('fullpath')));
-                gain_file = fullfile(repo_root,'Data','MEC_design','mec_gain_regularized.mat');
-                if isfield(param,'gain_file')
-                    gain_file = param.gain_file;
-                end
-                % gain_data = load(gain_file,'K_full');
-                if isfile(gain_file)
-                    gain_data = load(gain_file);
-                else
-                    % MATファイルがない環境では、検証後に保存した係数ソースを使う。
-                    source_file = fullfile(repo_root,'controller','mec_gain_regularized.m');
-                    assert(isfile(source_file),'MECKC:MissingGain', ...
-                        'ゲインがありません。先にtrain_mec_gainを実行してください：%s',gain_file);
-                    addpath(fileparts(source_file));
-                    gain_data = mec_gain_regularized();
-                end
-                if isfield(gain_data,'error_definition')
-                    assert(strcmp(gain_data.error_definition,'nominal_input_one_step_v1'), ...
-                        'MECKC:GainDefinition','ゲイン設計時と現在の誤差定義が異なります。');
-                    assert(isfield(param,'dt') && abs(gain_data.dt-param.dt)<1e-10, ...
-                        'MECKC:GainSampleTime','ゲイン設計時と現在の周期が異なります。');
-                else
-                    warning('MECKC:LegacyGain','旧ゲインには誤差定義・周期の検証情報がありません。');
-                end
-                obj.gain = gain_data.K_full;
-                assert(isequal(size(obj.gain),[4,26]) && all(isfinite(obj.gain(:))), ...
-                    'MECKC:InvalidGain','K_fullは有限な4行26列の行列にしてください。');
-            end
+            % obj.result.input = zeros(self.estimator.model.dim(2),1);
+            % %これが元々のコード，modelのところでエラーが出るから上記に変更
+
+            % % %%%%%%入力を振動させたいとき%%%%%%%%
+            % % obj.param.A = 0.7;
+            % % obj.param.f = 1;           % Hz
+            % % obj.param.ome = 2*pi*obj.param.f;
         end
 
         function result = do(obj,varargin)
-            % 呼び出し順：時刻、動作段階、ログ、環境、機体一覧、機体番号。
-            x = obj.self.estimator.result.state.get();
-            time = varargin{1};
-            dt = time.dt;
-            t = time.t;
-            % 前回の推定状態と同時刻のノミナル入力から、現在状態を予測する。
-            % 空回しでは時刻が進まないので、その誤差を学習に使わない。
-            obj.result.e_valid = ~isempty(obj.previous_time) && t>obj.previous_time;
-            if obj.result.e_valid
-                assert(abs(t-obj.previous_time-dt)<1e-8, ...
-                    'MECKC:TimeGap','予測と観測の時間間隔がサンプリング周期と一致しません。');
-                dx = roll_pitch_yaw_thrust_torque_physical_parameter_model( ...
-                    obj.x_pre,obj.pre_input,obj.param.P);
-                x_nominal = obj.x_pre+dx*dt;
-            else
-                x_nominal = x;
+            % vararginの中身：do_loopのところに１個(?)あって，do(app.time,fCha,app.logger,app.env,app.agent,i)
+            model = obj.self.estimator.result;
+            t = varargin{1,1}.t;
+            x = [model.state.p(1);
+                model.state.p(2);
+                model.state.p(3);
+                model.state.q(1);
+                model.state.q(2);
+                model.state.q(3);
+                model.state.v(1);
+                model.state.v(2);
+                model.state.v(3);
+                model.state.w(1);
+                model.state.w(2);
+                model.state.w(3);];
+            if isfield(varargin{3}.Data.agent, "controller") && isfield(varargin{3}.Data.agent, "estimator") &&(numel(varargin{3}.Data.agent.estimator.result) >= 2)% ループの最初はLoggingされていなくて，参照できないのを回避
+                obj.pre_input = varargin{3}.Data.agent.controller.result{end}.input; % LOGGERの中から前時刻の入力を取得
+                obj.x_pre = varargin{3}.Data.agent.estimator.result{:,end-1}.state.get; % LOGGERの中から前時刻の状態を取得
             end
-            z_plant = quaternions_all(x);
-            z_nominal = quaternions_all(x_nominal);
-            obj.result.e = z_nominal-z_plant;
-            obj.result.error_definition = 'nominal_input_one_step_v1';
-            obj.result.x_nominal = x_nominal;
-            obj.result.x_estimated = x;
+            dt = varargin{1}.dt;    %25msとか
+            dx = roll_pitch_yaw_thrust_torque_physical_parameter_model(obj.x_pre, obj.pre_input, obj.param.P);
+            %ブレークポイントくっ付けてここのparamとノミナルのおparamが一緒だったらいいかな
+            %
 
-            % 描画時の成分数制限を避けるため、26観測量を前後半に分ける。
-            obj.result.z_p_forward = z_plant(1:13);
-            obj.result.z_n_forward = z_nominal(1:13);
-            obj.result.z_p_back = z_plant(14:26);
-            obj.result.z_n_back = z_nominal(14:26);
+            x_n_now = obj.x_pre + dx*dt;%x_nominal[k+1]
+            % delta_x = x-x_n_now;
+            z_p=quaternions_all(x); %観測量z※プラントの状態を入れてる
+            z_n=quaternions_all(x_n_now);%ノミナルの状態
 
-            obj.result.delta_u_mec = -obj.gain*obj.result.e;
-            u_nominal = obj.self.controller.result.input;
-            obj.result.excitation = zeros(4,1);
-            if obj.collect_dataset && obj.excitation_enabled && varargin{2}=='f'
-                if isempty(obj.flight_start)
-                    obj.flight_start = t;
+            %---可制御部分をデカップリング---%
+            % K_full=[zeros(4,24)];
+            % load('koopman_common_z__gain_KD.mat','K_full');
+            % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');errorKLMEC
+            load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
+            % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
+            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
+            % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
+            % load('exp_de_kensyou_KL_gain_KCD_LQR_check_KudouSenpainode.mat','K_full');     %remakeのカルマン正準分解でのゲイン
+
+
+            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full'); % ←飛びはするがRMSEはおそらく低下
+
+            % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
+
+            % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
+
+            % % data = load('first_KL_gain_KD.mat');
+            % % K = data.K;
+            e = z_n-z_p;
+            obj.result.e = e;
+            %%%%%-----lqr法終わり-----%%%%%
+            %拡張状態取得
+
+            % ※一気にz_pなどと取得するとplot時に警告が出る(50まで)
+            obj.result.z_p_forward = z_p(1:13);%プラント拡張状態の前半
+            obj.result.z_n_forward = z_n(1:13);
+            obj.result.z_p_back = z_p(14:26);
+            obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
+
+
+            % function T_ex = excitation_sweep_cos(t)
+            %
+            %     % ===== 設定値 =====
+            %     A = 2;
+            %     f_start = 0.1;
+            %     f_end   = 2;
+            %     T_sweep = 40.0;
+            %     t_start = 7.0;
+            %
+            %     % ===== 励起時間外 =====
+            %     if t < t_start || t >= t_start + T_sweep
+            %         T_ex = 0;
+            %         return
+            %     end
+            %
+            %     % 励起開始を t=0 とした相対時間
+            %     tau = t - t_start;
+            %
+            %     % 線形周波数スイープ
+            %     k = (f_end - f_start) / T_sweep;
+            %
+            %     % 位相
+            %     phase = 2*pi*(f_start*tau ...
+            %         + 0.5*k*tau^2);
+            %
+            %     % 励起入力
+            %     T_ex = A*cos(phase);
+            % end
+            function T_ex = excitation_sweep_cos(t)
+
+                A = 2;
+                f_start = 0.1;
+                f_end   = 2;
+                T_sweep = 40.0;
+                t_start = 7.0;
+
+                % 振幅の立ち上げ・立ち下げ時間
+                T_ramp = 2.0;
+
+                if t < t_start || t >= t_start + T_sweep
+                    T_ex = 0;
+                    return
                 end
-                obj.result.excitation = mec_input_excitation(t-obj.flight_start,obj.excitation_profile);
-            end
-            % 同定入力は補償量と励振を含む、実機側とノミナル側の入力差。
-            obj.result.input_nominal = u_nominal;
-            obj.result.input = u_nominal+obj.result.delta_u_mec+obj.result.excitation;
-            obj.result.input_plant = obj.result.input;
-            obj.result.delta_u = obj.result.input_plant-obj.result.input_nominal;
 
-            % 次回の予測に必要な状態と入力を、同じステップで保存する。
-            obj.x_pre = x;
-            obj.pre_input = u_nominal;
-            obj.previous_time = t;
+                tau = t - t_start;
+
+                % 線形周波数スイープ
+                k = (f_end - f_start) / T_sweep;
+
+                % 位相
+                phase = 2*pi*(f_start*tau ...
+                    + 0.5*k*tau^2);
+
+                % ===== smooth envelope =====
+                if tau < T_ramp
+                    % 0 -> 1
+                    envelope = 0.5*(1 - cos(pi*tau/T_ramp));
+
+                elseif tau > T_sweep - T_ramp
+                    % 1 -> 0
+                    tau_end = T_sweep - tau;
+                    envelope = 0.5*(1 - cos(pi*tau_end/T_ramp));
+
+                else
+                    envelope = 1;
+                end
+
+                T_ex = A * envelope * cos(phase);
+            end
+
+            obj.result.delta_u = -K_full*e;     %補償入力オン
+            % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
+            % obj.result.delta_u = 0;%unだけ確認したいとき
+            % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t);
+            % 0; 0; 0];   %補償入力＋励起入力オン
+
+            obj.result.input=varargin{5}.controller.result.input + obj.result.delta_u;%un+Δu+励起入力
             result = obj.result;
         end
     end

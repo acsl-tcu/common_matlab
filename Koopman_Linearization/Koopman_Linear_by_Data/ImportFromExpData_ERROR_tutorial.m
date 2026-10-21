@@ -11,11 +11,6 @@ function data = ImportFromExpData_ERROR_tutorial(expData_Filename,setting,datara
 
 % 実験データ読み込み
 logger = load(expData_Filename);
-% 新しい収集処理が保存した、時刻整合済みの誤差系データを直接読み込む。
-if isfield(logger,'Dataset')
-    data = logger.Dataset;
-    return;
-end
 logger = logger.(string(fieldnames(logger)));
 clear data % 読み込んだファイル内のda3
 % taと同名の変数を初期化
@@ -118,7 +113,7 @@ if logger.fExp==1 || logger.fExp == 0%fExp:1 実機データ
         data.startIndex:data.endIndex, ...
         'UniformOutput',false))';
 
-    % 実機側入力とノミナル側入力の差（新ログでは補償と励振の合計）
+    % MECの補償入力
 data.delta_u = cell2mat(arrayfun(@(N) ...
     logger.Data.agent.controller.result{N}.delta_u(:), ...
     data.startIndex:data.endIndex, ...
@@ -182,7 +177,7 @@ else
         logger.Data.agent.controller.result{N}.e(:), ...
         data.startIndex:data.endIndex, ...
         'UniformOutput',false))';
-    % 実機側入力とノミナル側入力の差（4次元）
+    % MECの補償入力（4次元）
 data.delta_u = cell2mat(arrayfun(@(N) ...
     logger.Data.agent.controller.result{N}.delta_u(:), ...
     data.startIndex:data.endIndex, ...
