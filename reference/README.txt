@@ -1,33 +1,23 @@
-AF7R57N V8 — branch-local episode return normalization
-========================================================
+AF7 runner-owned 3-D visualization fix V2
 
-Why V7 stopped
---------------
-V7 assumed the phrase "fixed episode unavailable" occurred exactly once in
-the corrected serializer source.  The live source contains that same message
-in multiple branches, so the source-binding assertion failed before any MEX
-rebuild or runtime test.  This did not invalidate V6.
+This package changes visualization ownership only.
 
-V8 correction
--------------
-V8 makes no global occurrence-count assumption.  It examines every exact
-throw-shaped line independently and patches a branch only when a UNIQUE nearest
-existing `plhs[0]=result_struct(...)` serializer call is available in the local
-source window.  The branch's existing result schema/context is reused.
+Overwrite:
+  run_flight_headless.m
+  AF7R31_FLOW_AUDIT.m
 
-Only resource reasons 202/203 are converted to ordinary rejection.  Other
-`fixed episode unavailable` conditions remain exceptions.
+No production replanner/core/MEX source is changed.
 
-The runtime fault-injection gate remains decisive:
-  202 -> RETURN, success=false, exact reason 202
-  203 -> RETURN, success=false, exact reason 203
-All other exercised resource codes must also remain RETURN + closed=1.
+After simulation:
+- Figure 5  = trajectory/avoidance dashboard
+- Figure 10 = timing dashboard
+- Figure 12 = large dedicated 3-D trajectory/obstacle window
 
-V8 retains the QPC gates from V7:
-- admitted current packet: 2000 trials
-- reason 202 reject: 1000 trials
-- reason 203 reject: 1000 trials
-Every measured trial must be <4 ms; no percentile relaxation.
+Figure 12 is built directly from the logger/replanner data already available
+inside run_flight_headless.m. It does not search for another axes or UIAxes.
 
-Production caps are still not selected and production-general 4 ms is not
-claimed.
+AF7R31_FLOW_AUDIT no longer opens or searches for any 3-D window. It only
+prints planner diagnostics. This enforces the requested ownership:
+visualization belongs to run_flight_headless.m, not to the replanner/audit path.
+
+No MEX rebuild is required for these two visualization/audit files.

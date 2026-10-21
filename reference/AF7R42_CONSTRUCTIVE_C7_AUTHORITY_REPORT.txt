@@ -1,0 +1,20 @@
+AF7R42 CONSTRUCTIVE-C7 AUTHORITY INSTALL
+timestamp=2026-10-21 19:41:29.299
+trajectory_math_changed=0
+hard_certificate_semantics_changed=0
+candidate_objective_changed=0
+candidate_geometry_changed=0
+speed_gate_changed=0
+rejoin_gate_changed=0
+wholebody_gate_changed=0
+yaw_heading_requirement_changed=0
+
+[A. CURRENT AUTHORITY]
+ reference_dir=C:\Users\student\Documents\GitHub\common_matlab\reference
+ REPLANNING_SYSTEM=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+ hpp=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r36_core.hpp
+ cpp=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r36_single_core_mex.cpp
+ mex=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r36_single_core_mex.mexw64
+ hpp_sha_before=44a256ba9879050cc375abc3ab9a25054825177b6c27c1b8335bc366a9a0d158
+ cpp_sha_before=c95821a571f8bebd67bf387600577442d796a959093f39fd89d4620329fabd81
+ mex_sha_before=cafde4a63f7687f7df2ccf93633dcb8611b9069fd9ec44894762259cf6019f4a

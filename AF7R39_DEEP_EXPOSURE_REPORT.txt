@@ -1,0 +1,156 @@
+AF7R39 DEEP EXPOSURE AUDIT
+timestamp=2026-10-21 19:12:49.861
+production_modified=0
+acceptance_modified=0
+certificate_semantics_modified=0
+D38_source=EXISTING_BASE_WORKSPACE
+REPLANNING_SYSTEM=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+SHA256=e8295f4248dd8094718c47ec98beae943f1d840cfa7a55fc7915e6563dc336e0
+classification=EXISTING_EXPOSURE_MAY_BE_SUFFICIENT
+
+REQUIRED_COUNTS
+side_assignment=4
+knot_segment=8
+knot_state=6
+segment_bounds=66
+stageB_leaf=73
+finite_witness=2
+
+ALL_RELEVANT_HITS
+D38.pipeline.state | char | [1 4] | IDLE
+D38.pipeline.takeoff_warmup_allowed | logical | [1 1] | 0
+D38.pipeline.stage1_count | double | [1 1] | 1
+D38.pipeline.stage2_count | double | [1 1] | 0
+D38.pipeline.stale_reject_count | double | [1 1] | 0
+D38.pipeline.last_stage1_ms | double | [1 1] | 7.6726000000000001
+D38.pipeline.last_stage2_ms | double | [1 1] | NaN
+D38.pipeline.last_stage3_ms | double | [1 1] | NaN
+D38.pipeline.development_stage_budget_ms | double | [1 1] | 25
+D38.pipeline.final_target_ms | double | [1 1] | 4
+D38.pipeline.stage1_meets_final_target | logical | [1 1] | 0
+D38.pipeline.stage2_meets_final_target | logical | [1 1] | 0
+D38.pipeline.stage3_meets_final_target | logical | [1 1] | 0
+D38.pipeline.last_reason | char | [1 29] | STAGE1_PROPOSAL_NOT_CERTIFIED
+D38.pipeline.predeadline_reason_code | double | [1 1] | 24
+D38.pipeline.predeadline_payload_speed | double | [1 1] | NaN
+D38.pipeline.predeadline_uav_speed | double | [1 1] | NaN
+D38.pipeline.predeadline_qdot | double | [1 1] | NaN
+D38.pipeline.predeadline_speed_pass_count | double | [1 1] | 0
+D38.pipeline.predeadline_constant_translation | logical | [1 1] | 0
+D38.pipeline.r24e_family_speed_pass | double | [1 8] | [0 0 0 0 0 0 0 0]
+D38.pipeline.r24e_family_speed_fail | double | [1 8] | [0 0 0 0 2 0 2 2]
+D38.pipeline.r24e_split_representability_reject | double | [1 1] | 4
+D38.pipeline.r28_flow_side_assignments | double | [1 1] | 0
+D38.pipeline.r28_flow_exit_start_s | double | [1 1] | NaN
+D38.pipeline.r30_flow_support_start_s | double | [1 1] | NaN
+D38.pipeline.r30_tail_s | double | [1 1] | NaN
+D38.pipeline.r31_entry_duration_s | double | [1 1] | NaN
+D38.pipeline.r31_flow_segment_duration_s | double | [1 1] | NaN
+D38.pipeline.r31_exit_duration_s | double | [1 1] | NaN
+D38.pipeline.r31_best_correction_speed_ub | double | [1 1] | 41.96450643561321
+D38.pipeline.r31_best_stageA_uav_speed_ub | double | [1 1] | Inf
+D38.pipeline.r32_nominal_progress_speed | double | [1 1] | 1.5
+D38.pipeline.r32_best_pre_speed_ub | double | [1 1] | 41.991306247658244
+D38.pipeline.r33_support_start_s | double | [1 1] | NaN
+D38.pipeline.r33_best_accel_ub | double | [1 1] | Inf
+D38.pipeline.r33_best_jerk_ub | double | [1 1] | Inf
+D38.pipeline.r34_selected_hold_start_s | double | [1 1] | NaN
+D38.pipeline.r34_selected_velocity_ub | double | [1 1] | Inf
+D38.pipeline.r34_selected_accel_ub | double | [1 1] | Inf
+D38.pipeline.r34_selected_jerk_ub | double | [1 1] | Inf
+D38.pipeline.r36_best_spatial_path_speed_ub | double | [1 1] | Inf
+D38.pipeline.r36_best_total_velocity_ub | double | [1 1] | Inf
+D38.pipeline.r36_best_accel_ub | double | [1 1] | Inf
+D38.pipeline.r36_best_jerk_ub | double | [1 1] | Inf
+D38.pipeline.r37_side_assignments | double | [1 1] | 2
+D38.pipeline.r37_knot_count | double | [1 1] | 4
+D38.pipeline.r37_support_start_s | double | [1 1] | 13.234375
+D38.pipeline.r37_best_total_velocity_ub | double | [1 1] | 41.991306247658244
+D38.pipeline.r37_best_accel_ub | double | [1 1] | 155.20792858315573
+D38.pipeline.r37_best_jerk_ub | double | [1 1] | 976.10175268261662
+D38.generator.speed_payload | double | [1 1] | 0
+D38.generator.speed_accel | double | [1 1] | 0
+D38.generator.speed_jerk | double | [1 1] | 0
+D38.generator.speed_sigma | double | [1 1] | 0
+D38.generator.speed_qdot | double | [1 1] | 0
+D38.generator.speed_uav | double | [1 1] | 0
+D38.generator.primary_speed_pass_count | double | [1 1] | 0
+D38.generator.fallback_speed_pass_count | double | [1 1] | 0
+D38.generator.primary_min_stageA_uav_speed_UB_m_s | double | [1 1] | Inf
+D38.generator.primary_min_stageA_specific_force_LB_m_s2 | double | [1 1] | -Inf
+D38.generator.primary_min_stageA_correction_speed_UB_m_s | double | [1 1] | NaN
+D38.generator.primary_min_stageA_correction_accel_UB_m_s2 | double | [1 1] | NaN
+D38.generator.primary_min_stageA_correction_jerk_UB_m_s3 | double | [1 1] | NaN
+D38.generator.primary_stageA_certified_count | double | [1 1] | 0
+D38.generator.primary_stageB_certified_count | double | [1 1] | 0
+D38.generator.primary_stageB_finite_witness_count | double | [1 1] | 0
+D38.generator.primary_stageB_repr_fail_count | double | [1 1] | 0
+BASE.D38.pipeline.state | char | [1 4] | IDLE
+BASE.D38.pipeline.takeoff_warmup_allowed | logical | [1 1] | 0
+BASE.D38.pipeline.stage1_count | double | [1 1] | 1
+BASE.D38.pipeline.stage2_count | double | [1 1] | 0
+BASE.D38.pipeline.stale_reject_count | double | [1 1] | 0
+BASE.D38.pipeline.last_stage1_ms | double | [1 1] | 7.6726000000000001
+BASE.D38.pipeline.last_stage2_ms | double | [1 1] | NaN
+BASE.D38.pipeline.last_stage3_ms | double | [1 1] | NaN
+BASE.D38.pipeline.development_stage_budget_ms | double | [1 1] | 25
+BASE.D38.pipeline.final_target_ms | double | [1 1] | 4
+BASE.D38.pipeline.stage1_meets_final_target | logical | [1 1] | 0
+BASE.D38.pipeline.stage2_meets_final_target | logical | [1 1] | 0
+BASE.D38.pipeline.stage3_meets_final_target | logical | [1 1] | 0
+BASE.D38.pipeline.last_reason | char | [1 29] | STAGE1_PROPOSAL_NOT_CERTIFIED
+BASE.D38.pipeline.predeadline_reason_code | double | [1 1] | 24
+BASE.D38.pipeline.predeadline_payload_speed | double | [1 1] | NaN
+BASE.D38.pipeline.predeadline_uav_speed | double | [1 1] | NaN
+BASE.D38.pipeline.predeadline_qdot | double | [1 1] | NaN
+BASE.D38.pipeline.predeadline_speed_pass_count | double | [1 1] | 0
+BASE.D38.pipeline.predeadline_constant_translation | logical | [1 1] | 0
+BASE.D38.pipeline.r24e_family_speed_pass | double | [1 8] | [0 0 0 0 0 0 0 0]
+BASE.D38.pipeline.r24e_family_speed_fail | double | [1 8] | [0 0 0 0 2 0 2 2]
+BASE.D38.pipeline.r24e_split_representability_reject | double | [1 1] | 4
+BASE.D38.pipeline.r28_flow_side_assignments | double | [1 1] | 0
+BASE.D38.pipeline.r28_flow_exit_start_s | double | [1 1] | NaN
+BASE.D38.pipeline.r30_flow_support_start_s | double | [1 1] | NaN
+BASE.D38.pipeline.r30_tail_s | double | [1 1] | NaN
+BASE.D38.pipeline.r31_entry_duration_s | double | [1 1] | NaN
+BASE.D38.pipeline.r31_flow_segment_duration_s | double | [1 1] | NaN
+BASE.D38.pipeline.r31_exit_duration_s | double | [1 1] | NaN
+BASE.D38.pipeline.r31_best_correction_speed_ub | double | [1 1] | 41.96450643561321
+BASE.D38.pipeline.r31_best_stageA_uav_speed_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r32_nominal_progress_speed | double | [1 1] | 1.5
+BASE.D38.pipeline.r32_best_pre_speed_ub | double | [1 1] | 41.991306247658244
+BASE.D38.pipeline.r33_support_start_s | double | [1 1] | NaN
+BASE.D38.pipeline.r33_best_accel_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r33_best_jerk_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r34_selected_hold_start_s | double | [1 1] | NaN
+BASE.D38.pipeline.r34_selected_velocity_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r34_selected_accel_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r34_selected_jerk_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r36_best_spatial_path_speed_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r36_best_total_velocity_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r36_best_accel_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r36_best_jerk_ub | double | [1 1] | Inf
+BASE.D38.pipeline.r37_side_assignments | double | [1 1] | 2
+BASE.D38.pipeline.r37_knot_count | double | [1 1] | 4
+BASE.D38.pipeline.r37_support_start_s | double | [1 1] | 13.234375
+BASE.D38.pipeline.r37_best_total_velocity_ub | double | [1 1] | 41.991306247658244
+BASE.D38.pipeline.r37_best_accel_ub | double | [1 1] | 155.20792858315573
+BASE.D38.pipeline.r37_best_jerk_ub | double | [1 1] | 976.10175268261662
+BASE.D38.generator.speed_payload | double | [1 1] | 0
+BASE.D38.generator.speed_accel | double | [1 1] | 0
+BASE.D38.generator.speed_jerk | double | [1 1] | 0
+BASE.D38.generator.speed_sigma | double | [1 1] | 0
+BASE.D38.generator.speed_qdot | double | [1 1] | 0
+BASE.D38.generator.speed_uav | double | [1 1] | 0
+BASE.D38.generator.primary_speed_pass_count | double | [1 1] | 0
+BASE.D38.generator.fallback_speed_pass_count | double | [1 1] | 0
+BASE.D38.generator.primary_min_stageA_uav_speed_UB_m_s | double | [1 1] | Inf
+BASE.D38.generator.primary_min_stageA_specific_force_LB_m_s2 | double | [1 1] | -Inf
+BASE.D38.generator.primary_min_stageA_correction_speed_UB_m_s | double | [1 1] | NaN
+BASE.D38.generator.primary_min_stageA_correction_accel_UB_m_s2 | double | [1 1] | NaN
+BASE.D38.generator.primary_min_stageA_correction_jerk_UB_m_s3 | double | [1 1] | NaN
+BASE.D38.generator.primary_stageA_certified_count | double | [1 1] | 0
+BASE.D38.generator.primary_stageB_certified_count | double | [1 1] | 0
+BASE.D38.generator.primary_stageB_finite_witness_count | double | [1 1] | 0
+BASE.D38.generator.primary_stageB_repr_fail_count | double | [1 1] | 0
+BASE.tAcquire | uint64 | [1 1] | 6485313639926

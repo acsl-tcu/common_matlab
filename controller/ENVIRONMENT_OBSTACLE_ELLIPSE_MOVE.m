@@ -101,10 +101,11 @@ function obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(t)
     %  障害物 3: 円運動 (Circular Motion)
     %  特定の領域をぐるぐると回る障害物
     %  =========================================================================
-    p_center3 = [5; -5; 15];
+    p_center3 = [0.2; 25; 3];
     v_3  = [0; 0; 0];
 
-    cyl_param3 = [1.0, 1.0];
+    % cyl_param3 = [2.0, 10.0];
+    cyl_param3 = [5.0, 10.0];
     R_obs3     = eye(3);
     d_margin3  = 0.5;
 

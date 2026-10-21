@@ -13,6 +13,224 @@ using namespace af7r34;
 static NominalExpr G_nominal;
 static bool G_compiled=false;
 
+// AF7_SELECTED_MOTION_AUDIT_R11_RING -- sampled diagnostic only.
+struct MotionR11Row {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,ok=0,family=0;
+    double full3=0,fullxy=0,base3=0,corr3=0,end3=0;
+    double vmax=0,vxymax=0,vbase=0,vcorr=0,moving=0,env=NAN;
+    double p0x=NAN,p0y=NAN,p0z=NAN,pmx=NAN,pmy=NAN,pmz=NAN,p1x=NAN,p1y=NAN,p1z=NAN;
+    double cmx=NAN,cmy=NAN,cmz=NAN;
+};
+static std::vector<MotionR11Row> G_motion11;
+static double G_motion11_seq=0;
+static void motion11_push(const PlanResult&Q,const ActiveReference&R,double t0,double tm,double t1){
+    MotionR11Row d;d.seq=++G_motion11_seq;d.t0=t0;d.tm=tm;d.t1=t1;d.ok=Q.success?1:0;
+    if(Q.success){
+        d.family=Q.cand.family;d.env=Q.cand.max_ctrl;
+        const int N=65;auto F0=candidate_eval(R,Q.cand,t0);auto B0=R.eval(t0);Vec3 p0=F0[0];
+        d.p0x=p0.x;d.p0y=p0.y;d.p0z=p0.z;
+        for(int k=0;k<N;++k){
+            double u=double(k)/double(N-1),t=t0+(t1-t0)*u;auto F=candidate_eval(R,Q.cand,t);auto B=R.eval(t);
+            Vec3 df=F[0]-p0,db=B[0]-B0[0],dc=F[0]-B[0],dv=F[1]-B[1];
+            d.full3=std::max(d.full3,norm(df));d.fullxy=std::max(d.fullxy,std::hypot(df.x,df.y));
+            d.base3=std::max(d.base3,norm(db));d.corr3=std::max(d.corr3,norm(dc));
+            d.vmax=std::max(d.vmax,norm(F[1]));d.vxymax=std::max(d.vxymax,std::hypot(F[1].x,F[1].y));
+            d.vbase=std::max(d.vbase,norm(B[1]));d.vcorr=std::max(d.vcorr,norm(dv));
+            if(norm(F[1])>1e-9)++d.moving;
+            if(k==(N-1)/2){d.pmx=F[0].x;d.pmy=F[0].y;d.pmz=F[0].z;d.cmx=dc.x;d.cmy=dc.y;d.cmz=dc.z;}
+            if(k==N-1){d.p1x=F[0].x;d.p1y=F[0].y;d.p1z=F[0].z;d.end3=norm(F[0]-p0);}
+        }
+    }
+    if(G_motion11.size()>=512)G_motion11.erase(G_motion11.begin());G_motion11.push_back(d);
+}
+static mxArray* motion11_matrix(){
+    const mwSize N=(mwSize)G_motion11.size(),C=29;mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_motion11[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.ok,d.family,d.full3,d.fullxy,d.base3,d.corr3,d.end3,
+        d.vmax,d.vxymax,d.vbase,d.vcorr,d.moving,d.env,
+        d.p0x,d.p0y,d.p0z,d.pmx,d.pmy,d.pmz,d.p1x,d.p1y,d.p1z,d.cmx,d.cmy,d.cmz};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];}return M;
+}
+
+struct HeadTopoMexR10B {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,ok=0,family=0,cls=0,strict=0,core=0,lp=0,rp=0;
+    double v0=NAN,v1=NAN,a0=NAN,a1=NAN,J=NAN,dl=NAN,dr=NAN,c0=NAN,c1=NAN;
+};
+static std::vector<HeadTopoMexR10B> G_headtopo10b;
+static double G_headtopo10b_seq=0;
+static void headtopo10b_push(const PlanResult&P,const ActiveReference&ref,double t0,double tm,double t1){
+    HeadTopoMexR10B d;d.seq=++G_headtopo10b_seq;d.t0=t0;d.tm=tm;d.t1=t1;d.ok=P.success?1:0;
+    if(P.success){auto H=heading_topology_r10b(ref,P.cand,P.speed,t0,t1);d.family=P.cand.family;d.cls=H.cls;
+        d.strict=H.strict?1:0;d.core=H.core?1:0;d.lp=H.left_proven?1:0;d.rp=H.right_proven?1:0;
+        d.v0=H.v0;d.v1=H.v1;d.a0=H.a0;d.a1=H.a1;d.J=H.J;d.dl=H.dl;d.dr=H.dr;d.c0=H.core0;d.c1=H.core1;}
+    if(G_headtopo10b.size()>=512)G_headtopo10b.erase(G_headtopo10b.begin());G_headtopo10b.push_back(d);
+}
+static mxArray* headtopo10b_matrix(){
+    const mwSize N=(mwSize)G_headtopo10b.size(),C=20;mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_headtopo10b[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.ok,d.family,d.cls,d.strict,d.core,d.lp,d.rp,d.v0,d.v1,d.a0,d.a1,d.J,d.dl,d.dr,d.c0,d.c1};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];}return M;
+}
+
+// AF7_HEADING_TOPOLOGY_R10_RING -- diagnostic only.
+struct HeadTopoMexR10 {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,ok=0,family=0,strict=0,loc=0;
+    double fail_t=NAN,width=NAN,vxy=NAN,v0=NAN,v1=NAN;
+    double d1=NAN,d2=NAN,d3=NAN,d4=NAN,d5=NAN,d6=NAN,unresolved=0,depthhit=0;
+};
+static std::vector<HeadTopoMexR10> G_headtopo10;
+static double G_headtopo10_seq=0;
+static void headtopo10_push(const PlanResult&P,const ActiveReference&ref,double t0,double tm,double t1){
+    HeadTopoMexR10 d;d.seq=++G_headtopo10_seq;d.t0=t0;d.tm=tm;d.t1=t1;d.ok=P.success?1:0;
+    if(P.success){
+        d.family=P.cand.family;auto H=heading_topology_r10(ref,P.cand,P.speed,t0,t1);
+        d.strict=H.strict_pass?1:0;d.loc=H.location;d.fail_t=H.fail_t;d.width=H.fail_width;d.vxy=H.vxy;d.v0=H.v0;d.v1=H.v1;
+        d.d1=H.hder[0];d.d2=H.hder[1];d.d3=H.hder[2];d.d4=H.hder[3];d.d5=H.hder[4];d.d6=H.hder[5];
+        d.unresolved=H.unresolved;d.depthhit=H.max_depth_hit;
+    }
+    if(G_headtopo10.size()>=512)G_headtopo10.erase(G_headtopo10.begin());G_headtopo10.push_back(d);
+}
+static mxArray* headtopo10_matrix(){
+    const mwSize N=(mwSize)G_headtopo10.size(),C=21;mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_headtopo10[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.ok,d.family,d.strict,d.loc,d.fail_t,d.width,d.vxy,d.v0,d.v1,
+        d.d1,d.d2,d.d3,d.d4,d.d5,d.d6,d.unresolved,d.depthhit};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }return M;
+}
+
+// AF7_PRIMARY_HEADING_R7_MAP_R9BB_RING -- diagnostic only.
+struct PHR9Row {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,limit=NAN;
+    double prod_ok=0,prod_family=0,prod_heading=0,prod_env=NAN,prod_vq=NAN,prod_qdot=NAN;
+    double r7_ok=0,r7_reason=0,r7_cand=0,r7_speed=0,r7_rejoin=0,r7_geom=0,r7_heading=0;
+    double r7_env=NAN,r7_vq=NAN,r7_qdot=NAN;
+    double wc=0,wmin=NAN,wmint=NAN,wmins=NAN,wminc=NAN,wmax=NAN,wmaxt=NAN,wmaxs=NAN,wmaxc=NAN;
+};
+static std::vector<PHR9Row> G_phr9;
+static double G_phr9_seq=0;
+static void phr9_push(const PlanResult&P,const C7R8ShadowResult&Q7,
+                      const ActiveReference&ref,const Live&L,double t0,double tm,double t1){
+    PHR9Row d;d.seq=++G_phr9_seq;d.t0=t0;d.tm=tm;d.t1=t1;
+    double rho=std::max({L.rQ,L.L+L.rL,L.L+L.rC});d.limit=(L.sensor_range-rho)/(L.horizon+L.dt);
+    d.prod_ok=P.success?1:0;
+    if(P.success){
+        d.prod_family=P.cand.family;d.prod_env=P.cand.max_ctrl;d.prod_vq=P.speed.VQ;d.prod_qdot=P.speed.qdot;
+        d.prod_heading=c7r7_heading_regular(ref,P.cand,P.speed,t0,t1)?1:0;
+    }
+    d.r7_ok=Q7.success?1:0;d.r7_reason=Q7.reason;d.r7_cand=Q7.candidate_count;d.r7_speed=Q7.speed_pass;
+    d.r7_rejoin=Q7.rejoin_pass;d.r7_geom=Q7.geom_pass;d.r7_heading=Q7.heading_pass;
+    if(Q7.success){d.r7_env=Q7.cand.max_ctrl;d.r7_vq=Q7.speed.VQ;d.r7_qdot=Q7.speed.qdot;}
+    const auto&W=G_towmap_towing_witness;d.wc=W.count;
+    d.wmin=std::isfinite(W.min_vq)?W.min_vq:NAN;d.wmint=W.min_t;d.wmins=W.min_seg;d.wminc=W.min_class;
+    d.wmax=std::isfinite(W.max_vq)?W.max_vq:NAN;d.wmaxt=W.max_t;d.wmaxs=W.max_seg;d.wmaxc=W.max_class;
+    if(G_phr9.size()>=512)G_phr9.erase(G_phr9.begin());G_phr9.push_back(d);
+}
+static mxArray* phr9_matrix(){
+    const mwSize N=(mwSize)G_phr9.size(),C=30;mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_phr9[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.limit,d.prod_ok,d.prod_family,d.prod_heading,d.prod_env,d.prod_vq,d.prod_qdot,
+        d.r7_ok,d.r7_reason,d.r7_cand,d.r7_speed,d.r7_rejoin,d.r7_geom,d.r7_heading,d.r7_env,d.r7_vq,d.r7_qdot,
+        d.wc,d.wmin,d.wmint,d.wmins,d.wminc,d.wmax,d.wmaxt,d.wmaxs,d.wmaxc};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }return M;
+}
+
+// AF7_R7_SHADOW_AUTHORITY_R8BB_RING -- diagnostic only.
+struct C7R8MexRow {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,limit=NAN,success=0,reason=0;
+    double cand=0,speed=0,rejoin=0,geom=0,heading=0;
+    double env=NAN,VQ=NAN,VL=NAN,A=NAN,J=NAN,sigma=NAN,qdot=NAN,total_ms=NAN;
+    double wc=0,wmin=NAN,wmint=NAN,wmins=NAN,wminc=NAN,wmax=NAN,wmaxt=NAN,wmaxs=NAN,wmaxc=NAN;
+};
+static std::vector<C7R8MexRow> G_r7shadow;
+static double G_r7shadow_seq=0;
+static void r7shadow_push(const C7R8ShadowResult&Q,const Live&L,double t0,double tm,double t1){
+    C7R8MexRow d;d.seq=++G_r7shadow_seq;d.t0=t0;d.tm=tm;d.t1=t1;
+    double rho=std::max({L.rQ,L.L+L.rL,L.L+L.rC});d.limit=(L.sensor_range-rho)/(L.horizon+L.dt);
+    d.success=Q.success?1:0;d.reason=Q.reason;d.cand=Q.candidate_count;d.speed=Q.speed_pass;d.rejoin=Q.rejoin_pass;d.geom=Q.geom_pass;d.heading=Q.heading_pass;
+    if(Q.success){d.env=Q.cand.max_ctrl;d.VQ=Q.speed.VQ;d.VL=Q.speed.VL;d.A=Q.speed.A;d.J=Q.speed.J;d.sigma=Q.speed.sigma;d.qdot=Q.speed.qdot;}
+    d.total_ms=Q.total_ms;
+    const auto&W=G_towmap_towing_witness;d.wc=W.count;d.wmin=std::isfinite(W.min_vq)?W.min_vq:NAN;d.wmint=W.min_t;d.wmins=W.min_seg;d.wminc=W.min_class;
+    d.wmax=std::isfinite(W.max_vq)?W.max_vq:NAN;d.wmaxt=W.max_t;d.wmaxs=W.max_seg;d.wmaxc=W.max_class;
+    if(G_r7shadow.size()>=512)G_r7shadow.erase(G_r7shadow.begin());G_r7shadow.push_back(d);
+}
+static mxArray* r7shadow_matrix(){
+    const mwSize N=(mwSize)G_r7shadow.size(),C=29;mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_r7shadow[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.limit,d.success,d.reason,d.cand,d.speed,d.rejoin,d.geom,d.heading,
+        d.env,d.VQ,d.VL,d.A,d.J,d.sigma,d.qdot,d.total_ms,d.wc,d.wmin,d.wmint,d.wmins,d.wminc,d.wmax,d.wmaxt,d.wmaxs,d.wmaxc};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }return M;
+}
+
+// AF7_C7_HOMOTOPY_FRONTIER_R6BB_RING -- diagnostic only.
+struct C7FrontMexRow {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,alpha=NAN,sign_code=0;
+    double generated=0,speed=0,rejoin=0,geometry=0,heading=0,c7=1;
+    double envelope=NAN,VL=NAN,A=NAN,J=NAN,sigma=NAN,qdot=NAN,VQ=NAN,heading_lb=NAN,heading_splits=0;
+};
+static std::vector<C7FrontMexRow> G_c7front_mex;
+static double G_c7front_seq=0;
+static void c7front_push(double t0,double tm,double t1){
+    for(const auto&r:G_c7front_rows){
+        C7FrontMexRow d;d.seq=++G_c7front_seq;d.t0=t0;d.tm=tm;d.t1=t1;d.alpha=r.alpha;d.sign_code=r.sign_code;
+        d.generated=r.generated?1:0;d.speed=r.speed?1:0;d.rejoin=r.rejoin?1:0;d.geometry=r.geometry?1:0;d.heading=r.heading?1:0;
+        d.envelope=r.envelope;d.VL=r.VL;d.A=r.A;d.J=r.J;d.sigma=r.sigma;d.qdot=r.qdot;d.VQ=r.VQ;d.heading_lb=r.heading_lb;d.heading_splits=r.heading_splits;
+        if(G_c7front_mex.size()>=2048)G_c7front_mex.erase(G_c7front_mex.begin());
+        G_c7front_mex.push_back(d);
+    }
+}
+static mxArray* c7front_matrix(){
+    const mwSize N=(mwSize)G_c7front_mex.size(),C=21;
+    mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_c7front_mex[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.alpha,d.sign_code,d.generated,d.speed,d.rejoin,d.geometry,d.heading,d.c7,
+        d.envelope,d.VL,d.A,d.J,d.sigma,d.qdot,d.VQ,d.heading_lb,d.heading_splits};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }return M;
+}
+
+// AF7_TOWMAP_R4C_RING -- diagnostic only.
+struct TowMapEntry {
+    double seq=0,t0=NAN,tm=NAN,t1=NAN,limit=NAN,success=0,reason=0,family=0;
+    double envelope=NAN,VQ=NAN,VL=NAN,A=NAN,J=NAN,sigma=NAN,qdot=NAN,total_ms=NAN;
+    double pc=0,ps=0,pr=0,pg=0,tc=0,ts=0,tr=0,tg=0,fc=0,fs=0,fr=0,fg=0;
+    double pwc=0,pwmin=NAN,pwmint=NAN,pwmins=NAN,pwminc=NAN,pwmax=NAN,pwmaxt=NAN,pwmaxs=NAN,pwmaxc=NAN;
+    double twc=0,twmin=NAN,twmint=NAN,twmins=NAN,twminc=NAN,twmax=NAN,twmaxt=NAN,twmaxs=NAN,twmaxc=NAN;
+};
+static std::vector<TowMapEntry> G_towmap;
+static double G_towmap_seq=0;
+static inline double towmap_finite_or_nan(double x){return std::isfinite(x)?x:NAN;}
+static void towmap_push(const PlanResult&Q,const Live&L,double t0,double tm,double t1){
+    TowMapEntry d;d.seq=++G_towmap_seq;d.t0=t0;d.tm=tm;d.t1=t1;
+    double rho=std::max({L.rQ,L.L+L.rL,L.L+L.rC});d.limit=(L.sensor_range-rho)/(L.horizon+L.dt);
+    d.success=Q.success?1.0:0.0;d.reason=Q.reason;d.family=(double)Q.cand.family;
+    if(Q.success){d.envelope=Q.cand.max_ctrl;d.VQ=Q.speed.VQ;d.VL=Q.speed.VL;d.A=Q.speed.A;d.J=Q.speed.J;d.sigma=Q.speed.sigma;d.qdot=Q.speed.qdot;}
+    d.total_ms=Q.tim.total;
+    d.pc=Q.primary_candidate_count;d.ps=Q.primary_speed_pass;d.pr=Q.primary_rejoin_pass;d.pg=Q.primary_geom_tests;
+    d.tc=Q.towing_candidate_count;d.ts=Q.towing_speed_pass;d.tr=Q.towing_rejoin_pass;d.tg=Q.towing_geom_tests;
+    d.fc=Q.fallback_candidate_count;d.fs=Q.fallback_speed_pass;d.fr=Q.fallback_rejoin_pass;d.fg=Q.fallback_geom_tests;
+    const auto&P=G_towmap_primary_witness;const auto&T=G_towmap_towing_witness;
+    d.pwc=P.count;d.pwmin=towmap_finite_or_nan(P.min_vq);d.pwmint=P.min_t;d.pwmins=P.min_seg;d.pwminc=P.min_class;
+    d.pwmax=towmap_finite_or_nan(P.max_vq);d.pwmaxt=P.max_t;d.pwmaxs=P.max_seg;d.pwmaxc=P.max_class;
+    d.twc=T.count;d.twmin=towmap_finite_or_nan(T.min_vq);d.twmint=T.min_t;d.twmins=T.min_seg;d.twminc=T.min_class;
+    d.twmax=towmap_finite_or_nan(T.max_vq);d.twmaxt=T.max_t;d.twmaxs=T.max_seg;d.twmaxc=T.max_class;
+    if(G_towmap.size()>=512)G_towmap.erase(G_towmap.begin());
+    G_towmap.push_back(d);
+}
+static mxArray* towmap_matrix(){
+    const mwSize N=(mwSize)G_towmap.size(),C=46;
+    mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    for(mwSize i=0;i<N;++i){const auto&d=G_towmap[i];double v[C]={
+        d.seq,d.t0,d.tm,d.t1,d.limit,d.success,d.reason,d.family,d.envelope,d.VQ,d.VL,d.A,d.J,d.sigma,d.qdot,d.total_ms,
+        d.pc,d.ps,d.pr,d.pg,d.tc,d.ts,d.tr,d.tg,d.fc,d.fs,d.fr,d.fg,
+        d.pwc,d.pwmin,d.pwmint,d.pwmins,d.pwminc,d.pwmax,d.pwmaxt,d.pwmaxs,d.pwmaxc,
+        d.twc,d.twmin,d.twmint,d.twmins,d.twminc,d.twmax,d.twmaxt,d.twmaxs,d.twmaxc};
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }return M;
+}
+
 static const mxArray* fld(const mxArray* s,const char* name){
     if(!mxIsStruct(s)) mexErrMsgIdAndTxt("AF7R34:Packet","packet must be struct.");
     const mxArray* v=mxGetField(s,0,name);
@@ -49,6 +267,7 @@ static mxArray* dscalar(double v){return mxCreateDoubleScalar(v);}
 // ============================================================================
 static mxArray* vecrow(const std::vector<double>&v);
 static const char* R28_REV="AF7R58ZZY_R28_NATIVE_ONCE_V1";
+static const char* PLANNER_REV="AF7R45R3_NATIVE_HEADING_BINDING_C7_V1";
 
 static const mxArray* optfld(const mxArray* s,const char* name){
     if(!s||!mxIsStruct(s)||mxGetNumberOfElements(s)!=1) return nullptr;
@@ -309,7 +528,7 @@ static mxArray* cp_cell(const std::vector<Poly>&cp){
         mxSetCell(c,s,x);
     }return c;
 }
-static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,const std::vector<Obstacle>&obs,const mxArray* packet){
+static mxArray* result_struct(const PlanResult&R,double t0,double tm,double searchEnd,const std::vector<Obstacle>&obs,const mxArray* packet){
     const char* fn[]={"success","reason_code","t0","tm","hold_end","t1",
         "episode_count","component_count","episode_obstacle_index","episode_obstacle_id",
         "episode_start","episode_end","episode_component_index","component_start","component_end",
@@ -322,11 +541,81 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,c
         "geometry_min_uav_margin","geometry_min_cable_margin","geometry_min_margin",
         "speed_pass_count","rejoin_pass_count","geometry_test_count",
         "episode_ms","hessian_ms","corridor_ms","qp_ms","candidate_build_ms","synthesis_ms","candidate_ms","total_ms",
-        "compiled_correction","compiled_native_exact","compiled_native_ms","compiled_native_revision"};
+        "compiled_correction","compiled_native_exact","compiled_native_ms","compiled_native_revision",
+        "search_end","selected_t1","rejoin_seed_duration_s","rejoin_selected_duration_s",
+        "rejoin_next_gap_s","rejoin_attempt_count","rejoin_safe_trial_count",
+        "rejoin_scope_component_count","rejoin_merged_component_count",
+        "search_speed_pass_total","search_rejoin_pass_total","search_geometry_test_total",
+        "spatial_envelope_priority","compact_constant_translation","stored_c7_exact","r24e_family_seen","r24e_family_exact","r24e_family_exact_reject","r24e_family_speed_pass","r24e_family_speed_fail","r24e_split_representability_reject","minimum_deviation_primary",
+        "candidate_family","primary_candidate_count","primary_speed_pass_count",
+        "primary_rejoin_pass_count","primary_geometry_test_count",
+        "fallback_candidate_count","fallback_speed_pass_count",
+        "fallback_rejoin_pass_count","fallback_geometry_test_count",
+        "towing_candidate_count","towing_speed_pass_count",
+        "towing_rejoin_pass_count","towing_geometry_test_count",
+        "finite_sensing_limit_m_s","primary_min_stageA_uav_speed_UB_m_s",
+        "primary_min_stageA_specific_force_LB_m_s2",
+        "primary_min_stageA_correction_speed_UB_m_s",
+        "primary_min_stageA_correction_accel_UB_m_s2",
+        "primary_min_stageA_correction_jerk_UB_m_s3",
+        "primary_min_envelope_m","primary_stageA_certified_count",
+        "primary_stageB_certified_count","primary_stageB_finite_witness_count",
+        "primary_stageB_repr_fail_count","towing_diag_revision",
+        "r28_flow_side_assignments","r28_flow_qp_solutions","r28_flow_built",
+        "r28_flow_row_reject","r28_flow_grid_reject","r28_flow_support_reject",
+        "r28_flow_step_s","r28_flow_entry_end_s","r28_flow_exit_start_s",
+        "r28_flow_exit_end_s",
+        "r30_flow_support_start_s","r30_flow_wait_s",
+        "r30_first_unsafe_s","r30_last_unsafe_s","r30_reference_end_s",
+        "r30_lead_s","r30_tail_s",
+        "r31_entry_duration_s","r31_flow_segment_duration_s","r31_exit_duration_s",
+        "r31_best_correction_speed_ub","r31_best_stageA_uav_speed_ub",
+        "r31_exact_join_reject",
+        "r32_affine_base_detected","r32_timing_trial_count",
+        "r32_exact_candidate_count","r32_monotone_reject_count",
+        "r32_nominal_progress_speed","r32_best_pre_speed_ub",
+        "r32_best_progress_scale","r32_best_entry_T",
+        "r32_best_flow_T","r32_best_exit_T",
+        "r33_exact_timing_candidate_count","r33_pareto_candidate_count",
+        "r33_quantized_progress_reject_count","r33_time_quantum_s",
+        "r33_support_start_s","r33_support_end_s",
+        "r33_best_accel_ub","r33_best_jerk_ub",
+        "delay_preserving","terminal_hold_start","terminal_offset",
+        "schedule_delay_s",
+        "r34_delay_candidate_count","r34_terminal_hold_exact_count",
+        "r34_monotone_progress_count","r34_selected_delay_s",
+        "r34_selected_hold_start_s","r34_selected_alpha",
+        "r34_selected_velocity_ub","r34_selected_accel_ub",
+        "r34_selected_jerk_ub",
+        "path_tangent_yaw_c6","heading_gamma_m_s","heading_anchor_rad",
+        "heading_base_velocity",
+        "r35_heading_candidate_count","r35_heading_pass_count",
+        "r35_heading_reject_count","r35_best_heading_gamma_m_s",
+        "r35_selected_heading_gamma_m_s","r35_selected_heading_anchor_rad",
+        "r36_spatial_qp_solutions","r36_spatial_row_rejects",
+        "r36_timing_trials","r36_exact_curved_candidates",
+        "r36_curved_heading_pass","r36_mid_progress_s",
+        "r36_best_spatial_path_speed_ub","r36_best_total_velocity_ub",
+        "r36_best_accel_ub","r36_best_jerk_ub",
+        "trigger_to_free_rejoin","identity_time_law",
+        "actual_rejoin_time","spatial_knot_count",
+        "r37_side_assignments","r37_spatial_qp_solutions",
+        "r37_exact_c7_candidates","r37_heading_pass_count",
+        "r37_knot_count","r37_support_start_s","r37_actual_rejoin_s",
+        "r37_best_total_velocity_ub","r37_best_accel_ub","r37_best_jerk_ub",
+        "constructive_exact_c7","legacy_float_endpoint_checker_pass",
+        "r38_constructive_c7_count","r38_legacy_float_checker_pass_count",
+        "r38_legacy_float_false_reject_count",
+        "r45_tangent_interval_count","r45_zero_offset_interval_count",
+        "r45_convex_search_fallback_count",
+        "r45_best_fixed_peak_req_m","r45_best_tangent_peak_req_m",
+        "r45_max_peak_relief_m",
+        "rejoin_search_ms","planner_native_revision"};
     mxArray*S=mxCreateStructMatrix(1,1,sizeof(fn)/sizeof(fn[0]),fn);
     auto set=[&](const char*n,mxArray*v){mxSetField(S,0,n,v);};
     set("success",logicalScalar(R.success));set("reason_code",dscalar(R.reason));
-    set("t0",dscalar(t0));set("tm",dscalar(tm));set("hold_end",dscalar(R.hold_end));set("t1",dscalar(t1));
+    double outT1=fin(R.selected_t1)?R.selected_t1:searchEnd;
+    set("t0",dscalar(t0));set("tm",dscalar(tm));set("hold_end",dscalar(R.hold_end));set("t1",dscalar(outT1));
     set("episode_count",dscalar((double)R.episode.ep.size()));set("component_count",dscalar((double)R.episode.comp.size()));
     std::vector<double> oi,oid,es,ee,ec,cs,ce;
     for(auto&e:R.episode.ep){oi.push_back(e.obs+1);oid.push_back(obs[e.obs].id);es.push_back(e.start);ee.push_back(e.end);ec.push_back(e.comp+1);}
@@ -355,12 +644,186 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double t1,c
     set("corridor_ms",dscalar(R.tim.corridor));set("qp_ms",dscalar(R.tim.qp));
     set("candidate_build_ms",dscalar(R.tim.candidate_build));set("synthesis_ms",dscalar(R.tim.synthesis));
     set("candidate_ms",dscalar(R.tim.candidate));set("total_ms",dscalar(R.tim.total));
+    set("search_end",dscalar(R.search_end));
+    set("selected_t1",dscalar(R.selected_t1));
+    set("rejoin_seed_duration_s",dscalar(R.rejoin_seed_duration));
+    set("rejoin_selected_duration_s",dscalar(R.rejoin_selected_duration));
+    set("rejoin_next_gap_s",dscalar(R.rejoin_next_gap));
+    set("rejoin_attempt_count",dscalar(R.rejoin_attempts));
+    set("rejoin_safe_trial_count",dscalar(R.rejoin_safe_trials));
+    set("rejoin_scope_component_count",dscalar(R.rejoin_scope_components));
+    set("rejoin_merged_component_count",dscalar(R.rejoin_merged_components));
+    set("search_speed_pass_total",dscalar(R.search_speed_pass_total));
+    set("search_rejoin_pass_total",dscalar(R.search_rejoin_pass_total));
+    set("search_geometry_test_total",dscalar(R.search_geom_tests_total));
+    set("spatial_envelope_priority",logicalScalar(R.spatial_envelope_priority));
+    set("compact_constant_translation",logicalScalar(R.cand.family==4||R.cand.family==5));
+    set("stored_c7_exact",logicalScalar(R.cand.exact_c7));
+    std::vector<int> r24cs(R.r24e_family_seen.begin(),R.r24e_family_seen.end());
+    std::vector<int> r24ce(R.r24e_family_exact.begin(),R.r24e_family_exact.end());
+    std::vector<int> r24cx(R.r24e_family_exact_reject.begin(),R.r24e_family_exact_reject.end());
+    std::vector<int> r24cp(R.r24e_family_speed_pass.begin(),R.r24e_family_speed_pass.end());
+    std::vector<int> r24cf(R.r24e_family_speed_fail.begin(),R.r24e_family_speed_fail.end());
+    set("r24e_family_seen",ivecrow(r24cs));
+    set("r24e_family_exact",ivecrow(r24ce));
+    set("r24e_family_exact_reject",ivecrow(r24cx));
+    set("r24e_family_speed_pass",ivecrow(r24cp));
+    set("r24e_family_speed_fail",ivecrow(r24cf));
+    set("r24e_split_representability_reject",dscalar(R.r24e_split_representability_reject));
+    set("minimum_deviation_primary",logicalScalar(R.cand.family==1));
+    const char* family=(R.cand.family==1)?"MINIMUM_DEVIATION_AFFINE":
+                       ((R.cand.family==2)?"MINIMUM_SNAP_FALLBACK":
+                       ((R.cand.family==3)?"TOWING_C7_CONDENSED_C3":"NONE"));
+    if(R.cand.family==4)family="TOWING_C7_MIN_NORM_CONSTANT";
+    if(R.cand.family==5)family="TOWING_C7_SPEED_OPT_SPLIT";
+    if(R.cand.family==6)family="CURVED_C7_ZERO_JET_BELL";
+    if(R.cand.family==7)family="TANGENT_SUPPORT_CORRIDOR_C7";
+    set("candidate_family",mxCreateString(family));
+    set("primary_candidate_count",dscalar(R.primary_candidate_count));
+    set("primary_speed_pass_count",dscalar(R.primary_speed_pass));
+    set("primary_rejoin_pass_count",dscalar(R.primary_rejoin_pass));
+    set("primary_geometry_test_count",dscalar(R.primary_geom_tests));
+    set("fallback_candidate_count",dscalar(R.fallback_candidate_count));
+    set("fallback_speed_pass_count",dscalar(R.fallback_speed_pass));
+    set("fallback_rejoin_pass_count",dscalar(R.fallback_rejoin_pass));
+    set("fallback_geometry_test_count",dscalar(R.fallback_geom_tests));
+    set("towing_candidate_count",dscalar(R.towing_candidate_count));
+    set("towing_speed_pass_count",dscalar(R.towing_speed_pass));
+    set("towing_rejoin_pass_count",dscalar(R.towing_rejoin_pass));
+    set("towing_geometry_test_count",dscalar(R.towing_geom_tests));
+    set("finite_sensing_limit_m_s",dscalar(R.finite_sensing_limit));
+    set("primary_min_stageA_uav_speed_UB_m_s",dscalar(R.primary_min_stageA_vq));
+    set("primary_min_stageA_specific_force_LB_m_s2",dscalar(R.primary_min_stageA_sigma));
+    set("primary_min_stageA_correction_speed_UB_m_s",dscalar(R.primary_min_stageA_U[0]));
+    set("primary_min_stageA_correction_accel_UB_m_s2",dscalar(R.primary_min_stageA_U[1]));
+    set("primary_min_stageA_correction_jerk_UB_m_s3",dscalar(R.primary_min_stageA_U[2]));
+    set("primary_min_envelope_m",dscalar(R.primary_min_envelope));
+    set("primary_stageA_certified_count",dscalar(R.primary_stageA_certified_count));
+    set("primary_stageB_certified_count",dscalar(R.primary_stageB_certified_count));
+    set("primary_stageB_finite_witness_count",dscalar(R.primary_stageB_finite_witness_count));
+    set("primary_stageB_repr_fail_count",dscalar(R.primary_stageB_repr_fail_count));
+    set("towing_diag_revision",mxCreateString("AF7_TOWING_DIAG_V1"));
+    set("r28_flow_side_assignments",dscalar(R.r28_flow_side_assignments));
+    set("r28_flow_qp_solutions",dscalar(R.r28_flow_qp_solutions));
+    set("r28_flow_built",dscalar(R.r28_flow_built));
+    set("r28_flow_row_reject",dscalar(R.r28_flow_row_reject));
+    set("r28_flow_grid_reject",dscalar(R.r28_flow_grid_reject));
+    set("r28_flow_support_reject",dscalar(R.r28_flow_support_reject));
+    set("r28_flow_step_s",dscalar(R.r28_flow_step_s));
+    set("r28_flow_entry_end_s",dscalar(R.r28_flow_entry_end_s));
+    set("r28_flow_exit_start_s",dscalar(R.r28_flow_exit_start_s));
+    set("r28_flow_exit_end_s",dscalar(R.r28_flow_exit_end_s));
+    set("r30_flow_support_start_s",dscalar(R.r30_flow_support_start_s));
+    set("r30_flow_wait_s",dscalar(R.r30_flow_wait_s));
+    set("r30_first_unsafe_s",dscalar(R.r30_first_unsafe_s));
+    set("r30_last_unsafe_s",dscalar(R.r30_last_unsafe_s));
+    set("r30_reference_end_s",dscalar(R.r30_reference_end_s));
+    set("r30_lead_s",dscalar(R.r30_lead_s));
+    set("r30_tail_s",dscalar(R.r30_tail_s));
+    set("r31_entry_duration_s",dscalar(R.r31_entry_duration_s));
+    set("r31_flow_segment_duration_s",dscalar(R.r31_flow_segment_duration_s));
+    set("r31_exit_duration_s",dscalar(R.r31_exit_duration_s));
+    set("r31_best_correction_speed_ub",dscalar(R.r31_best_correction_speed_ub));
+    set("r31_best_stageA_uav_speed_ub",dscalar(R.r31_best_stageA_uav_speed_ub));
+    set("r31_exact_join_reject",dscalar(R.r31_exact_join_reject));
+    set("r32_affine_base_detected",dscalar(R.r32_affine_base_detected));
+    set("r32_timing_trial_count",dscalar(R.r32_timing_trial_count));
+    set("r32_exact_candidate_count",dscalar(R.r32_exact_candidate_count));
+    set("r32_monotone_reject_count",dscalar(R.r32_monotone_reject_count));
+    set("r32_nominal_progress_speed",dscalar(R.r32_nominal_progress_speed));
+    set("r32_best_pre_speed_ub",dscalar(R.r32_best_pre_speed_ub));
+    set("r32_best_progress_scale",dscalar(R.r32_best_progress_scale));
+    set("r32_best_entry_T",dscalar(R.r32_best_entry_T));
+    set("r32_best_flow_T",dscalar(R.r32_best_flow_T));
+    set("r32_best_exit_T",dscalar(R.r32_best_exit_T));
+    set("r33_exact_timing_candidate_count",dscalar(R.r33_exact_timing_candidate_count));
+    set("r33_pareto_candidate_count",dscalar(R.r33_pareto_candidate_count));
+    set("r33_quantized_progress_reject_count",dscalar(R.r33_quantized_progress_reject_count));
+    set("r33_time_quantum_s",dscalar(R.r33_time_quantum_s));
+    set("r33_support_start_s",dscalar(R.r33_support_start_s));
+    set("r33_support_end_s",dscalar(R.r33_support_end_s));
+    set("r33_best_accel_ub",dscalar(R.r33_best_accel_ub));
+    set("r33_best_jerk_ub",dscalar(R.r33_best_jerk_ub));
+    set("delay_preserving",logicalScalar(R.cand.terminal_hold));
+    set("terminal_hold_start",dscalar(R.cand.terminal_hold_start));
+    {
+        mxArray* v=mxCreateDoubleMatrix(3,1,mxREAL);
+        double* p=mxGetPr(v);
+        p[0]=R.cand.terminal_offset.x;
+        p[1]=R.cand.terminal_offset.y;
+        p[2]=R.cand.terminal_offset.z;
+        set("terminal_offset",v);
+    }
+    set("schedule_delay_s",dscalar(R.cand.schedule_delay));
+    set("r34_delay_candidate_count",dscalar(R.r34_delay_candidate_count));
+    set("r34_terminal_hold_exact_count",dscalar(R.r34_terminal_hold_exact_count));
+    set("r34_monotone_progress_count",dscalar(R.r34_monotone_progress_count));
+    set("r34_selected_delay_s",dscalar(R.r34_selected_delay_s));
+    set("r34_selected_hold_start_s",dscalar(R.r34_selected_hold_start_s));
+    set("r34_selected_alpha",dscalar(R.r34_selected_alpha));
+    set("r34_selected_velocity_ub",dscalar(R.r34_selected_velocity_ub));
+    set("r34_selected_accel_ub",dscalar(R.r34_selected_accel_ub));
+    set("r34_selected_jerk_ub",dscalar(R.r34_selected_jerk_ub));
+    set("path_tangent_yaw_c6",logicalScalar(R.cand.heading_c6));
+    set("heading_gamma_m_s",dscalar(R.cand.heading_gamma));
+    set("heading_anchor_rad",dscalar(R.cand.heading_anchor_rad));
+    {
+        mxArray* v=mxCreateDoubleMatrix(3,1,mxREAL);
+        double* p=mxGetPr(v);
+        p[0]=R.cand.heading_base_velocity.x;
+        p[1]=R.cand.heading_base_velocity.y;
+        p[2]=R.cand.heading_base_velocity.z;
+        set("heading_base_velocity",v);
+    }
+    set("r35_heading_candidate_count",dscalar(R.r35_heading_candidate_count));
+    set("r35_heading_pass_count",dscalar(R.r35_heading_pass_count));
+    set("r35_heading_reject_count",dscalar(R.r35_heading_reject_count));
+    set("r35_best_heading_gamma_m_s",dscalar(R.r35_best_heading_gamma_m_s));
+    set("r35_selected_heading_gamma_m_s",dscalar(R.r35_selected_heading_gamma_m_s));
+    set("r35_selected_heading_anchor_rad",dscalar(R.r35_selected_heading_anchor_rad));
+    set("r36_spatial_qp_solutions",dscalar(R.r36_spatial_qp_solutions));
+    set("r36_spatial_row_rejects",dscalar(R.r36_spatial_row_rejects));
+    set("r36_timing_trials",dscalar(R.r36_timing_trials));
+    set("r36_exact_curved_candidates",dscalar(R.r36_exact_curved_candidates));
+    set("r36_curved_heading_pass",dscalar(R.r36_curved_heading_pass));
+    set("r36_mid_progress_s",dscalar(R.r36_mid_progress_s));
+    set("r36_best_spatial_path_speed_ub",dscalar(R.r36_best_spatial_path_speed_ub));
+    set("r36_best_total_velocity_ub",dscalar(R.r36_best_total_velocity_ub));
+    set("r36_best_accel_ub",dscalar(R.r36_best_accel_ub));
+    set("r36_best_jerk_ub",dscalar(R.r36_best_jerk_ub));
+    set("trigger_to_free_rejoin",logicalScalar(R.cand.trigger_to_free_rejoin));
+    set("identity_time_law",logicalScalar(R.cand.identity_time_law));
+    set("actual_rejoin_time",dscalar(R.cand.actual_rejoin_time));
+    set("spatial_knot_count",dscalar(R.cand.spatial_knot_count));
+    set("r37_side_assignments",dscalar(R.r37_side_assignments));
+    set("r37_spatial_qp_solutions",dscalar(R.r37_spatial_qp_solutions));
+    set("r37_exact_c7_candidates",dscalar(R.r37_exact_c7_candidates));
+    set("r37_heading_pass_count",dscalar(R.r37_heading_pass_count));
+    set("r37_knot_count",dscalar(R.r37_knot_count));
+    set("r37_support_start_s",dscalar(R.r37_support_start_s));
+    set("r37_actual_rejoin_s",dscalar(R.r37_actual_rejoin_s));
+    set("r37_best_total_velocity_ub",dscalar(R.r37_best_total_velocity_ub));
+    set("r37_best_accel_ub",dscalar(R.r37_best_accel_ub));
+    set("r37_best_jerk_ub",dscalar(R.r37_best_jerk_ub));
+    set("constructive_exact_c7",logicalScalar(R.cand.exact_c7_constructive));
+    set("legacy_float_endpoint_checker_pass",logicalScalar(R.cand.legacy_float_endpoint_checker_pass));
+    set("r38_constructive_c7_count",dscalar(R.r38_constructive_c7_count));
+    set("r38_legacy_float_checker_pass_count",dscalar(R.r38_legacy_float_checker_pass_count));
+    set("r38_legacy_float_false_reject_count",dscalar(R.r38_legacy_float_false_reject_count));
+    set("r45_tangent_interval_count",dscalar(R.r45_tangent_interval_count));
+    set("r45_zero_offset_interval_count",dscalar(R.r45_zero_offset_interval_count));
+    set("r45_convex_search_fallback_count",dscalar(R.r45_convex_search_fallback_count));
+    set("r45_best_fixed_peak_req_m",dscalar(R.r45_best_fixed_peak_req_m));
+    set("r45_best_tangent_peak_req_m",dscalar(R.r45_best_tangent_peak_req_m));
+    set("r45_max_peak_relief_m",dscalar(R.r45_max_peak_relief_m));
+    set("rejoin_search_ms",dscalar(R.tim.rejoin_search));
+    set("planner_native_revision",mxCreateString(PLANNER_REV));
     mxArray* compiled=nullptr; bool compiledExact=false; double compiledMs=0.0;
     const mxArray* base=optfld(packet,"r28_compiled_base"); const mxArray* tv=optfld(packet,"r28_target_version");
     if(R.success && base && tv){
         const auto tc=std::chrono::steady_clock::now();
         const double targetVersion=scalar(tv,"r28_target_version");
-        compiled=compiled_packet_struct(base,R.cand.seg0,R.cand.seg1,R.cand.cp,t0,t1,targetVersion);
+        compiled=compiled_packet_struct(base,R.cand.seg0,R.cand.seg1,R.cand.cp,t0,outT1,targetVersion);
         compiledMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-tc).count();
         compiledExact=true;
     }
@@ -398,8 +861,72 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
             std::string sig=str(fld(P,"nominal_signature"),"nominal_signature");
             if(!G_compiled||sig!=G_nominal.signature) mexErrMsgIdAndTxt("AF7R34:Reference","compiled nominal signature mismatch.");
             ActiveReference R=parse_ref(P);Live L=parse_live(P);SpeedCert B=parse_speed(P);auto O=parse_obs(P);
-            double t0=scalar(fld(P,"t0"),"t0"),tm=scalar(fld(P,"tm"),"tm"),t1=scalar(fld(P,"t1"),"t1");
-            PlanResult Q=plan(R,L,B,O,t0,tm,t1);plhs[0]=result_struct(Q,t0,tm,t1,O,P);return;
+            double t0=scalar(fld(P,"t0"),"t0"),tm=scalar(fld(P,"tm"),"tm");
+            const mxArray* se=optfld(P,"search_end");
+            double searchEnd=se?scalar(se,"search_end"):scalar(fld(P,"t1"),"t1");
+            PlanResult Q=plan(R,L,B,O,t0,tm,searchEnd);
+            /* R11: R10B heading runtime hook disabled while motion authority is audited. */
+            c7front_push(t0,tm,searchEnd);
+            plhs[0]=result_struct(Q,t0,tm,searchEnd,O,P);return;
+        }
+        if(op==6){
+            if(nrhs!=1||nlhs!=1) mexErrMsgIdAndTxt("AF7TOWMAP:Arity","diag op: op -> matrix.");
+            plhs[0]=towmap_matrix();return;
+        }
+        if(op==7){
+            if(nrhs!=1||nlhs>1) mexErrMsgIdAndTxt("AF7TOWMAP:Arity","clear diag op: op.");
+            G_towmap.clear();G_towmap_seq=0;towmap_core_reset_witness();
+            if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==8){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7C7FRONT:Arity","diag op8: op -> matrix.");
+            plhs[0]=c7front_matrix();return;
+        }
+        if(op==9){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7C7FRONT:Arity","diag op9: clear.");
+            G_c7front_mex.clear();G_c7front_seq=0;G_c7front_rows.clear();
+            if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==10){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7R7SHADOW:Arity","op10 -> matrix.");
+            plhs[0]=r7shadow_matrix();return;
+        }
+        if(op==11){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7R7SHADOW:Arity","op11 clear.");
+            G_r7shadow.clear();G_r7shadow_seq=0;
+            if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==12){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7PHR9:Arity","op12 -> matrix.");
+            plhs[0]=phr9_matrix();return;
+        }
+        if(op==13){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7PHR9:Arity","op13 clear.");
+            G_phr9.clear();G_phr9_seq=0;if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==14){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7HEADTOPO10:Arity","op14 -> matrix.");
+            plhs[0]=headtopo10_matrix();return;
+        }
+        if(op==15){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7HEADTOPO10:Arity","op15 clear.");
+            G_headtopo10.clear();G_headtopo10_seq=0;if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==16){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7HEADTOPO10B:Arity","op16 -> matrix.");
+            plhs[0]=headtopo10b_matrix();return;
+        }
+        if(op==17){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7HEADTOPO10B:Arity","op17 clear.");
+            G_headtopo10b.clear();G_headtopo10b_seq=0;if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==18){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7MOTION11:Arity","op18 -> matrix.");
+            plhs[0]=motion11_matrix();return;
+        }
+        if(op==19){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7MOTION11:Arity","op19 clear.");
+            G_motion11.clear();G_motion11_seq=0;if(nlhs>0)plhs[0]=logicalScalar(true);return;
         }
         if(op==3){
             if(nrhs!=3||nlhs!=1) mexErrMsgIdAndTxt("AF7R28:Arity","DCP selftest op: op, cp0, duration -> dcp.");

@@ -1,0 +1,85 @@
+AF7R41 NATIVE-RING SPEED SPLIT AUDIT
+timestamp=2026-10-21 19:33:38.849
+production_modified=0
+mex_rebuilt=0
+acceptance_modified=0
+certificate_semantics_modified=0
+mex_path=C:\Users\student\Documents\GitHub\common_matlab\reference\af7r36_single_core_mex.mexw64
+mex_sha256=cafde4a63f7687f7df2ccf93633dcb8611b9069fd9ec44894762259cf6019f4a
+REPLANNING_SYSTEM=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+REPLANNING_SYSTEM_sha256=e8295f4248dd8094718c47ec98beae943f1d840cfa7a55fc7915e6563dc336e0
+classification=LEGACY_EXACT_C7_GATE_PREEMPTS_PRIMARY_STAGE_A
+
+FLAGS
+legacy_constructive_exact_but_float_rejected=1
+family1_rejected_before_speed=1
+other_exact_families_reach_and_fail_speed=1
+r7_constructive_path_blocked_at_speed=0
+finite_speed_violation_witness_observed=0
+
+D38 FACTS
+r37_side_assignments=2
+r37_exact_c7_candidates=2
+r37_heading_pass_count=2
+r37_best_total_velocity_ub=41.991306247658244
+r37_best_accel_ub=155.20792858315573
+r37_best_jerk_ub=976.10175268261662
+r38_constructive_c7_count=2
+r38_legacy_float_checker_pass_count=0
+r38_legacy_float_false_reject_count=2
+finite_sensing_limit=3.1055900621118009
+primary_candidate_count=2
+primary_speed_pass_count=0
+primary_stageA_certified_count=0
+primary_stageB_certified_count=0
+primary_stageB_finite_witness_count=0
+primary_stageB_repr_fail_count=0
+primary_min_stageA_vq=Inf
+primary_min_stageA_sigma=-Inf
+primary_U0/U1/U2=NaN / NaN / NaN
+family_seen=[0 2 2 0 2 0 2 2]
+family_exact=[0 0 0 0 2 0 2 2]
+family_exact_reject=[0 2 2 0 0 0 0 0]
+family_speed_pass=[0 0 0 0 0 0 0 0]
+family_speed_fail=[0 0 0 0 2 0 2 2]
+
+NATIVE RING SUMMARY
+r7_rows=0
+r7_candidate_positive=0
+r7_speed_zero=0
+r7_reason24=0
+r7_finite_witness_rows=0
+r7_max_candidate_count=NaN
+r7_max_speed_pass=NaN
+c7front_rows=0
+c7_generated=0
+c7_speed_pass=0
+c7_rejoin_pass=0
+c7_geometry_pass=0
+c7_heading_pass=0
+c7_finite_vq=0
+c7_vq_over_limit=0
+towmap_rows=0
+primary_witness_total=NaN
+towing_witness_total=NaN
+any_prod_success=0
+phr9_rows=0
+phr9_r7_candidate_positive=0
+phr9_r7_speed_zero=0
+phr9_r7_reason24=0
+
+====================================================================================================
+TOWMAP
+size=[0 46]
+
+====================================================================================================
+C7FRONT
+size=[0 21]
+
+====================================================================================================
+R7SHADOW
+size=[0 29]
+
+====================================================================================================
+PHR9
+size=[0 30]

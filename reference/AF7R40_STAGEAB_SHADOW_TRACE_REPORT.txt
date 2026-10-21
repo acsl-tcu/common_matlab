@@ -1,0 +1,13 @@
+AF7R40 STAGE-A/B SHADOW TRACE AUDIT
+timestamp=2026-10-21 19:27:53.899
+production_modified=0
+acceptance_modified=0
+certificate_semantics_modified=0
+original_source=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+original_sha256=e8295f4248dd8094718c47ec98beae943f1d840cfa7a55fc7915e6563dc336e0
+production_sha256_after=e8295f4248dd8094718c47ec98beae943f1d840cfa7a55fc7915e6563dc336e0
+production_hash_unchanged=1
+production_resolution_restored=1
+
+CLASSIFICATION=NO_CANDIDATE_TRACE_CAPTURED
+candidate_count=0
