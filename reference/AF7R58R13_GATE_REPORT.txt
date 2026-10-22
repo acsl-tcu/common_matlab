@@ -1,0 +1,21 @@
+AF7R58R13 | R58 SPEED-GATE PROVENANCE
+diagnostic_only=1 | acceptance_changed=0 | hard_cert_changed=0
+classification = AT_LEAST_ONE_CERTIFIED_FINITE_SPEED_VIOLATION_OF_THE_SAME_CANDIDATE
+shadow_ran = 1 | branch rows = 2
+finite violation witness count = 2
+Stage A bounding-expression impossible count = 2
+Stage A/B representation = 0 / 0
+branch=1 side=-1 qpCost=531.359082 speedLimit=3.10559006 quantScaled=1.79496978e+09 quantPhysical=2528.07551
+   before-lattice rawQP [v,a,j] UBs= [93.9294262 291.47204 752.098692] | after-lattice UBs=[175.728412 385.000098 831.576662]
+   StageA cert/impossibleBound/representation=0/1/0 splits=0
+   StageA VQbound=Inf sigma=-375.190098 StageB attempted/code/leaves/splits=1/2/3/0
+   StageB worst seg/time/VQ/sigma/qdot = 2 / 37.5546875 / Inf / -1256.82855 / Inf | witness=13.9880557
+branch=2 side=+1 qpCost=613.533898 speedLimit=3.10559006 quantScaled=1.89377674e+09 quantPhysical=2586.38427
+   before-lattice rawQP [v,a,j] UBs= [100.078038 306.91899 797.240653] | after-lattice UBs=[209.961192 589.473037 1317.19877]
+   StageA cert/impossibleBound/representation=0/1/0 splits=0
+   StageA VQbound=Inf sigma=-579.663037 StageB attempted/code/leaves/splits=1/2/3/0
+   StageB worst seg/time/VQ/sigma/qdot = 1 / 21.671875 / Inf / -1708.72352 / Inf | witness=6.46357742
+WARNING: Bernstein UBs are upper bounds, not measured actual speed.
+WARNING: finite witness must satisfy the actual candidate speed formula and limit.
+WARNING: R58 is NON-COMMITTABLE REFERENCE-ONLY SHADOW; full execution safety remains open.
+WARNING: zero rows with shadow ON may mean early pre-speed failure.

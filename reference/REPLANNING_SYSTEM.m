@@ -1,11 +1,18 @@
 classdef REPLANNING_SYSTEM < handle
-% AF7R46-ONLINE-ONLY: obstacle-specific avoidance synthesis is forbidden in pre-Flight priming.
-% Stage1 performs exactly one full-domain native hard-certificate call; adaptive rejoin shortening is quality-only and removed from the hard cycle.
-% Native episode/corridor/QP/certificate timings are persisted for post-run diagnosis. No safety gate is weakened.
+% AF7R52-GENERAL-C7-WORLD3D-PHASE:
+% - obstacle-specific avoidance synthesis remains forbidden before the real sensor+H=4 s trigger;
+% - trigger geometry uses the same raw-ellipsoid support + Euclidean body/sweep radii as the native episode authority;
+% - the native primary may replan additively from an already-repaired C7 active reference;
+% - automatic rejoin uses suspended-load natural-time timing and preserves schedule delay; same-clock catch-up is forbidden;
+% - Stage2 post-commit pL/q cache is evaluated by the exact native active-reference evaluator when applicable;
+% - path-tangent yaw remains C6 from the total C7 position path.
+% No speed/rejoin/whole-body safety gate is weakened.
 % AF7R45R3-NATIVE-HEADING-BINDING: path-tangent yaw consumes the exact native vbase used by its C6 certificate.
 % AF7R45R2-QP-SCALABILITY: tangent-support corridor retained; R37 QP uses scalable active-set exchange with conservative R42 fixed-corridor fallback.
 % AF7R45-TANGENT-SUPPORT-CORRIDOR: R37 uses time-varying exact ellipsoid tangent support inside the progress/lateral plane; hard certificates unchanged.
-% AF7R37-DIRECT: family-7 is rebuilt over the complete trigger-to-rejoin interval; static-obstacle corridor geometry is handled by a generic exact-C7 Hermite spline and certified adaptive rejoin search.
+% AF7R51: any certified C7 active reference (straight, circle, saddle, curved)
+% is reparameterized by a no-catch-up C7 phase map; the proven R45/R47
+% tangent-support corridor supplies the spatial avoidance correction.
 
 % AF7R38-PREFLIGHT-POLICY-HOTPATH: dry-run observer/full-do cold paths before Flight; defer non-authoritative execution diagnostics under REFERENCE_ONLY.
 % AF7R42-CONSTRUCTIVE-C7-AUTHORITY: build_candidate structural C7 metadata is source-bound; hard gates unchanged.
@@ -171,6 +178,11 @@ classdef REPLANNING_SYSTEM < handle
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
         ENABLE_LIGHT_RUNTIME_AUDIT = 0; % AF7R50C clean production-timing run: no in-run light audit
         ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
+        % R13 diagnostic-only R58 heavy shadow: 0 skips ~154-ms historical
+        % non-committable computation; 1 enables full QP/speed provenance.
+        % This does NOT disable the production replanner or any hard certificate.
+        ENABLE_AF7R58_SHADOW_DIAGNOSTIC = 1;
+        ENABLE_AF7R58R14_LOWJET_SEED_ONLY = 1; % R14 diagnostic: nested C7 low-jet family, non-committable
         r12_tail_prime_done = false;
         r12_tail_prime_ms = NaN;
 
@@ -263,7 +275,7 @@ classdef REPLANNING_SYSTEM < handle
         nominal_table_q          = [];     % 事前計算済み索姿勢ベクトル行列 (3×K)
         nominal_table_xd         = [];     % 同じ base_ref.do() で事前計算した完全 xd 行列 (D×K)
         nominal_acceleration_fn  = [];     % exact d^2/dt^2 of base_ref position law
-        nominal_flat_derivative_fn = {};   % {d^0 p/dt^0,...,d^6 p/dt^6}, setup-only authority
+        nominal_flat_derivative_fn = {};   % {d^0 p/dt^0,...,d^7 p/dt^7}, setup-only authority
         nominal_table_build_ms   = NaN;    % テーブル事前生成所要時間 [ms]
         nominal_table_eval_count = 0;      % 飛行中のテーブル参照カウント
 
@@ -272,7 +284,7 @@ classdef REPLANNING_SYSTEM < handle
         % -----------------------------------------------------------------
         mex_name            = 'g26_future_trigger_kernel_mex'; % MEX 関数名
         mex_ready           = false;                           % コンパイル済みフラグ
-        mex_source_revision = 'G26_FUTURE_TRIGGER_R2_20261012'; % ソースコードリビジョン識別子
+        mex_source_revision = 'G26_FUTURE_TRIGGER_R3_EXACT_SUPPORT_20261022'; % ソースコードリビジョン識別子
 
         % -----------------------------------------------------------------
         % 【初期ウォームアップ・事前プライム実行状態】
@@ -812,6 +824,395 @@ classdef REPLANNING_SYSTEM < handle
         staged_replan_predeadline_rejoin_baseline_t1 = NaN;
         staged_replan_predeadline_rejoin_selected_t1 = NaN;
         staged_replan_predeadline_rejoin_selected = false;
+        % AF7R47 active-base / event timing diagnostics (no control authority).
+        staged_replan_predeadline_r47_active_base_replan_count = NaN;
+        staged_replan_predeadline_r47_nonaffine_base_count = NaN;
+        staged_replan_predeadline_r47_heading_leaf_count = NaN;
+        staged_replan_predeadline_r47_heading_split_count = NaN;
+        % AF7R48 automatic natural rejoin / exact-trigger diagnostics.
+        staged_replan_predeadline_r48_natural_rejoin_trial_count = NaN;
+        staged_replan_predeadline_r48_natural_rejoin_selected_count = NaN;
+        staged_replan_predeadline_r48_exit_monotone_row_count = NaN;
+        staged_replan_predeadline_r48_natural_rejoin_seed_t1 = NaN;
+        staged_replan_predeadline_r49_phase_timing_trial_count = NaN;
+        staged_replan_predeadline_r49_phase_gate_pass_count = NaN;
+        staged_replan_predeadline_r49_hard_certificate_trial_count = NaN;
+        staged_replan_predeadline_r49_selected_Ke = NaN;
+        staged_replan_predeadline_r49_selected_Kflow = NaN;
+        staged_replan_predeadline_r49_selected_Kx = NaN;
+        staged_replan_predeadline_r50_spatial_side_solution_count = NaN;
+        staged_replan_predeadline_r50_spatial_lateral_constraint_count = NaN;
+        staged_replan_predeadline_r50_entry_candidate_count = NaN;
+        staged_replan_predeadline_r50_exit_candidate_count = NaN;
+        staged_replan_predeadline_r50_best_spatial_velocity_norm = NaN;
+        staged_replan_predeadline_r51_phase_seed_count = NaN;
+        staged_replan_predeadline_r51_phase_seed_reject_count = NaN;
+        staged_replan_predeadline_r51_tangent_candidate_count = NaN;
+        staged_replan_predeadline_r51_tangent_certified_count = NaN;
+        staged_replan_predeadline_r51_phase_alpha = NaN;
+        staged_replan_predeadline_r51_phase_delay_s = NaN;
+        staged_replan_predeadline_r51_phase_exit_time_s = NaN;
+        staged_replan_predeadline_r52_phase_episode_count = NaN;
+        staged_replan_predeadline_r52_phase_episode_rebuild_fail_count = NaN;
+        staged_replan_predeadline_r52_corridor_row_count = NaN;
+        staged_replan_predeadline_r52_support_plane_fail_count = NaN;
+        staged_replan_predeadline_r52_spatial_qp_solution_count = NaN;
+        staged_replan_predeadline_r52_rejoin_time_trial_count = NaN;
+        staged_replan_predeadline_r52_selected_spatial_rejoin_s = NaN;
+        staged_replan_predeadline_r53_normal_bundle_node_count = NaN;
+        staged_replan_predeadline_r53_normal_bundle_row_count = NaN;
+        staged_replan_predeadline_r53_normal_bundle_singular_count = NaN;
+        staged_replan_predeadline_r53_affine_reduction_count = NaN;
+        staged_replan_predeadline_r54_phase_candidate_count = NaN;
+        staged_replan_predeadline_r54_phase_trial_count = NaN;
+        staged_replan_predeadline_r54_phase_base_certified_count = NaN;
+        staged_replan_predeadline_r54_phase_episode_pass_count = NaN;
+        staged_replan_predeadline_r54_phase_episode_empty_count = NaN;
+        staged_replan_predeadline_r54_selected_tau_multiple = NaN;
+        staged_replan_predeadline_r54_selected_alpha = NaN;
+        staged_replan_predeadline_r54_selected_delay_s = NaN;
+        staged_replan_predeadline_r54_selected_first_unsafe_lead_s = NaN;
+        staged_replan_predeadline_r54_max_first_unsafe_lead_s = NaN;
+        staged_replan_predeadline_r54_maneuver_horizon_coupling_count = NaN;
+        staged_replan_predeadline_r55_phase_build_count = NaN;
+        staged_replan_predeadline_r55_phase_build_fail_count = NaN;
+        staged_replan_predeadline_r55_phase_episode_pass_count = NaN;
+        staged_replan_predeadline_r55_phase_episode_empty_count = NaN;
+        staged_replan_predeadline_r55_mixed_side_episode_count = NaN;
+        staged_replan_predeadline_r55_side_plus_count = NaN;
+        staged_replan_predeadline_r55_side_minus_count = NaN;
+        staged_replan_predeadline_r55_side_onebranch_count = NaN;
+        staged_replan_predeadline_r55_side_both_failed_count = NaN;
+        staged_replan_predeadline_r55_corridor_row_count = NaN;
+        staged_replan_predeadline_r55_obstacle_count = NaN;
+        staged_replan_predeadline_r55_old_clock_binding_count = NaN;
+        staged_replan_predeadline_r55_maneuver_horizon_coupling_count = NaN;
+        staged_replan_predeadline_r55_alpha = NaN;
+        staged_replan_predeadline_r55_delay_s = NaN;
+        staged_replan_predeadline_r55_source_unsafe_start_s = NaN;
+        staged_replan_predeadline_r55_source_unsafe_end_s = NaN;
+        staged_replan_predeadline_r55_predicted_first_unsafe_t_s = NaN;
+        staged_replan_predeadline_r55_predicted_last_unsafe_t_s = NaN;
+        staged_replan_predeadline_r55_pre_unsafe_slack_s = NaN;
+        staged_replan_predeadline_r55_post_unsafe_slack_s = NaN;
+        staged_replan_predeadline_r55_min_temporal_slack_s = NaN;
+        staged_replan_predeadline_r55_phase_entry_transition_s = NaN;
+        staged_replan_predeadline_r55_phase_exit_transition_s = NaN;
+        staged_replan_predeadline_r55_source_phase_at_rejoin_s = NaN;
+        staged_replan_predeadline_r55_rejoin_clock_delay_s = NaN;
+        staged_replan_predeadline_r55_min_ellipsoid_axis_m = NaN;
+        staged_replan_predeadline_r55_max_ellipsoid_axis_m = NaN;
+        staged_replan_predeadline_r55_max_rotation_orth_error = NaN;
+        staged_replan_predeadline_r56_shadow_ran = NaN;
+        staged_replan_predeadline_r56_source_qp_ok = NaN;
+        staged_replan_predeadline_r56_source_exact_c7 = NaN;
+        staged_replan_predeadline_r56_source_knot_count = NaN;
+        staged_replan_predeadline_r56_source_episode_count = NaN;
+        staged_replan_predeadline_r56_source_corridor_row_count = NaN;
+        staged_replan_predeadline_r56_source_normal_row_count = NaN;
+        staged_replan_predeadline_r56_source_side_plus_count = NaN;
+        staged_replan_predeadline_r56_source_side_minus_count = NaN;
+        staged_replan_predeadline_r56_source_side_fail_count = NaN;
+        staged_replan_predeadline_r56_const_sample_count = NaN;
+        staged_replan_predeadline_r56_const_dynamic_pass = NaN;
+        staged_replan_predeadline_r56_const_geometry_point_pass = NaN;
+        staged_replan_predeadline_r56_entry_bestcase_pass = NaN;
+        staged_replan_predeadline_r56_exit_bestcase_pass = NaN;
+        staged_replan_predeadline_r56_yaw_source_regular = NaN;
+        staged_replan_predeadline_r56_old_clock_binding_count = NaN;
+        staged_replan_predeadline_r56_horizon_duration_coupling_count = NaN;
+        staged_replan_predeadline_r56_source_support_start_s = NaN;
+        staged_replan_predeadline_r56_source_rejoin_s = NaN;
+        staged_replan_predeadline_r56_source_corr_v_ub = NaN;
+        staged_replan_predeadline_r56_source_corr_a_ub = NaN;
+        staged_replan_predeadline_r56_source_corr_j_ub = NaN;
+        staged_replan_predeadline_r56_source_min_hxy = NaN;
+        staged_replan_predeadline_r56_alpha_max_pointwise = NaN;
+        staged_replan_predeadline_r56_const_max_vl = NaN;
+        staged_replan_predeadline_r56_const_max_vq = NaN;
+        staged_replan_predeadline_r56_const_min_sigma = NaN;
+        staged_replan_predeadline_r56_const_max_qdot = NaN;
+        staged_replan_predeadline_r56_const_min_geom_margin = NaN;
+        staged_replan_predeadline_r56_entry_Tmax_s = NaN;
+        staged_replan_predeadline_r56_entry_max_vq = NaN;
+        staged_replan_predeadline_r56_entry_min_sigma = NaN;
+        staged_replan_predeadline_r56_entry_max_qdot = NaN;
+        staged_replan_predeadline_r56_exit_Tmax_s = NaN;
+        staged_replan_predeadline_r56_exit_max_vq = NaN;
+        staged_replan_predeadline_r56_exit_min_sigma = NaN;
+        staged_replan_predeadline_r56_exit_max_qdot = NaN;
+        staged_replan_predeadline_r56_chain_rule_max_error = NaN;
+        staged_replan_predeadline_r56_shadow_ms = NaN;
+        staged_replan_predeadline_r57_probe_ran = NaN;
+        staged_replan_predeadline_r57_source_qp_ok = NaN;
+        staged_replan_predeadline_r57_source_exact_c7 = NaN;
+        staged_replan_predeadline_r57_speed_attempt = NaN;
+        staged_replan_predeadline_r57_speed_pass = NaN;
+        staged_replan_predeadline_r57_speed_stageA_pass = NaN;
+        staged_replan_predeadline_r57_speed_stageB_attempt = NaN;
+        staged_replan_predeadline_r57_speed_stageB_finite_witness = NaN;
+        staged_replan_predeadline_r57_speed_stageB_repr_fail = NaN;
+        staged_replan_predeadline_r57_heading_attempt = NaN;
+        staged_replan_predeadline_r57_heading_pass = NaN;
+        staged_replan_predeadline_r57_heading_leaf_count = NaN;
+        staged_replan_predeadline_r57_heading_split_count = NaN;
+        staged_replan_predeadline_r57_geometry_attempt = NaN;
+        staged_replan_predeadline_r57_geometry_pass = NaN;
+        staged_replan_predeadline_r57_commit_attempted = NaN;
+        staged_replan_predeadline_r57_rejoin_selected = NaN;
+        staged_replan_predeadline_r57_old_clock_commit_binding_count = NaN;
+        staged_replan_predeadline_r57_horizon_duration_coupling_count = NaN;
+        staged_replan_predeadline_r57_speed_VL = NaN;
+        staged_replan_predeadline_r57_speed_A = NaN;
+        staged_replan_predeadline_r57_speed_J = NaN;
+        staged_replan_predeadline_r57_speed_sigma = NaN;
+        staged_replan_predeadline_r57_speed_qdot = NaN;
+        staged_replan_predeadline_r57_speed_VQ = NaN;
+        staged_replan_predeadline_r57_heading_gamma = NaN;
+        staged_replan_predeadline_r57_geometry_min_margin = NaN;
+        staged_replan_predeadline_r57_source_support_start_s = NaN;
+        staged_replan_predeadline_r57_source_support_end_s = NaN;
+        staged_replan_predeadline_r57_source_corr_v_ub = NaN;
+        staged_replan_predeadline_r57_source_corr_a_ub = NaN;
+        staged_replan_predeadline_r57_source_corr_j_ub = NaN;
+        staged_replan_predeadline_r57_source_build_ms = NaN;
+        staged_replan_predeadline_r57_speed_ms = NaN;
+        staged_replan_predeadline_r57_heading_ms = NaN;
+        staged_replan_predeadline_r57_geometry_ms = NaN;
+        staged_replan_predeadline_r57_probe_ms = NaN;
+        staged_replan_predeadline_r58_shadow_ran = NaN;
+        staged_replan_predeadline_r58_speed_gate_rows = zeros(0,38);
+        staged_replan_predeadline_r58_reference_only = NaN;
+        staged_replan_predeadline_r58_fixed_rejoin_constraint_count = NaN;
+        staged_replan_predeadline_r58_same_clock_binding_count = NaN;
+        staged_replan_predeadline_r58_horizon_duration_coupling_count = NaN;
+        staged_replan_predeadline_r58_free_c7_constructive = NaN;
+        staged_replan_predeadline_r58_terminal_offset_hold = NaN;
+        staged_replan_predeadline_r58_terminal_zero_derivative_order = NaN;
+        staged_replan_predeadline_r58_source_knot_count = NaN;
+        staged_replan_predeadline_r58_scalar_dof_count = NaN;
+        staged_replan_predeadline_r58r14_lowjet_seed_only = NaN;
+        staged_replan_predeadline_r58r14_active_reduced_dof = NaN;
+        staged_replan_predeadline_r58r14_full_reduced_dof = NaN;
+        staged_replan_predeadline_r58_spatial_dof_count = NaN;
+        staged_replan_predeadline_r58_episode_count = NaN;
+        staged_replan_predeadline_r58_component_count = NaN;
+        staged_replan_predeadline_r58_side_cache_plus_valid = NaN;
+        staged_replan_predeadline_r58_side_cache_minus_valid = NaN;
+        staged_replan_predeadline_r58_side_cache_fail = NaN;
+        staged_replan_predeadline_r58_bnb_nodes_popped = NaN;
+        staged_replan_predeadline_r58_bnb_qp_solves = NaN;
+        staged_replan_predeadline_r58_bnb_qp_infeasible = NaN;
+        staged_replan_predeadline_r58_bnb_full_assignments = NaN;
+        staged_replan_predeadline_r58_bnb_speed_fail = NaN;
+        staged_replan_predeadline_r58_bnb_heading_fail = NaN;
+        staged_replan_predeadline_r58_bnb_geometry_fail = NaN;
+        staged_replan_predeadline_r58_bnb_feasible_full = NaN;
+        staged_replan_predeadline_r58_bnb_max_queue = NaN;
+        staged_replan_predeadline_r58_selected_side_plus = NaN;
+        staged_replan_predeadline_r58_selected_side_minus = NaN;
+        staged_replan_predeadline_r58_speed_pass = NaN;
+        staged_replan_predeadline_r58_heading_pass = NaN;
+        staged_replan_predeadline_r58_geometry_pass = NaN;
+        staged_replan_predeadline_r58_needs_time_law = NaN;
+        staged_replan_predeadline_r58_commit_attempted = NaN;
+        staged_replan_predeadline_r58_rejoin_selected = NaN;
+        staged_replan_predeadline_r58_reference_tracking_inflation_m = NaN;
+        staged_replan_predeadline_r58_support_start_s = NaN;
+        staged_replan_predeadline_r58_support_end_s = NaN;
+        staged_replan_predeadline_r58_terminal_offset_norm_m = NaN;
+        staged_replan_predeadline_r58_quantized_jet_max_abs_error = NaN;
+        staged_replan_predeadline_r58_legacy_join_max_abs_mismatch = NaN;
+        staged_replan_predeadline_r58_best_qp_cost = NaN;
+        staged_replan_predeadline_r58_speed_VL = NaN;
+        staged_replan_predeadline_r58_speed_A = NaN;
+        staged_replan_predeadline_r58_speed_J = NaN;
+        staged_replan_predeadline_r58_speed_sigma = NaN;
+        staged_replan_predeadline_r58_speed_qdot = NaN;
+        staged_replan_predeadline_r58_speed_VQ = NaN;
+        staged_replan_predeadline_r58_heading_gamma = NaN;
+        staged_replan_predeadline_r58_geometry_min_margin = NaN;
+        staged_replan_predeadline_r58_build_ms = NaN;
+        staged_replan_predeadline_r58_homotopy_ms = NaN;
+        staged_replan_predeadline_r58_certificate_ms = NaN;
+        staged_replan_predeadline_r58_shadow_ms = NaN;
+        staged_replan_predeadline_r58r2_node_scaled_variables = NaN;
+        staged_replan_predeadline_r58r2_row_equilibrated = NaN;
+        staged_replan_predeadline_r58r2_root_qp_elided = NaN;
+        staged_replan_predeadline_r58r2_node_scale_min_s = NaN;
+        staged_replan_predeadline_r58r2_node_scale_max_s = NaN;
+        staged_replan_predeadline_r58r2_row_scale_min = NaN;
+        staged_replan_predeadline_r58r2_row_scale_max = NaN;
+        staged_replan_predeadline_r58r3_hessian_diag_equilibrated = NaN;
+        staged_replan_predeadline_r58r3_equilibrated_cholesky_pass = NaN;
+        staged_replan_predeadline_r58r3_raw_hdiag_min = NaN;
+        staged_replan_predeadline_r58r3_raw_hdiag_max = NaN;
+        staged_replan_predeadline_r58r3_raw_hdiag_ratio = NaN;
+        staged_replan_predeadline_r58r3_eq_hdiag_min = NaN;
+        staged_replan_predeadline_r58r3_eq_hdiag_max = NaN;
+        staged_replan_predeadline_r58r4_normal_equalities_eliminated = NaN;
+        staged_replan_predeadline_r58r4_reduced_spatial_dof_count = NaN;
+        staged_replan_predeadline_r58r4_elimination_build_fail = NaN;
+        staged_replan_predeadline_r58r4_elimination_max_residual = NaN;
+        staged_replan_predeadline_r58r5_dykstra_used = NaN;
+        staged_replan_predeadline_r58r5_dykstra_converged_feasible = NaN;
+        staged_replan_predeadline_r58r5_dykstra_resource_fail = NaN;
+        staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail = NaN;
+        staged_replan_predeadline_r58r5_dykstra_max_sweeps_used = NaN;
+        staged_replan_predeadline_r58r5_dykstra_projection_count = NaN;
+        staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count = NaN;
+        staged_replan_predeadline_r58r5_dykstra_max_violation = NaN;
+        staged_replan_predeadline_r58r5_dykstra_duality_gap = NaN;
+        staged_replan_predeadline_r58r5_dykstra_stationarity_residual = NaN;
+        staged_replan_predeadline_r58r5_dykstra_ms = NaN;
+        staged_replan_predeadline_r58r6_hildreth_used = NaN;
+        staged_replan_predeadline_r58r6_kkt_converged_count = NaN;
+        staged_replan_predeadline_r58r6_resource_fail_count = NaN;
+        staged_replan_predeadline_r58r6_max_sweeps_used = NaN;
+        staged_replan_predeadline_r58r6_coordinate_updates = NaN;
+        staged_replan_predeadline_r58r6_max_primal_violation = NaN;
+        staged_replan_predeadline_r58r6_max_complementarity = NaN;
+        staged_replan_predeadline_r58r6_duality_gap = NaN;
+        staged_replan_predeadline_r58r6_stationarity_residual = NaN;
+        staged_replan_predeadline_r58r6_max_lambda = NaN;
+        staged_replan_predeadline_r58r6_solver_ms = NaN;
+        staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs = NaN;
+        staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error = NaN;
+        staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error = NaN;
+        staged_replan_predeadline_r58r6_failed_corr_v_ub = NaN;
+        staged_replan_predeadline_r58r6_failed_corr_a_ub = NaN;
+        staged_replan_predeadline_r58r6_failed_corr_j_ub = NaN;
+        staged_replan_predeadline_r58r6_failed_speed_worst_vq = NaN;
+        staged_replan_predeadline_r58r6_failed_speed_worst_vl = NaN;
+        staged_replan_predeadline_r58r6_failed_speed_worst_sigma = NaN;
+        staged_replan_predeadline_r58r6_failed_speed_worst_qdot = NaN;
+        staged_replan_predeadline_r58r6_failed_speed_witness = NaN;
+        staged_replan_predeadline_r58r7_constraint_generation_used = NaN;
+        staged_replan_predeadline_r58r7_full_row_count_max = NaN;
+        staged_replan_predeadline_r58r7_outer_iterations_max = NaN;
+        staged_replan_predeadline_r58r7_full_scans = NaN;
+        staged_replan_predeadline_r58r7_rows_added = NaN;
+        staged_replan_predeadline_r58r7_active_rows_max = NaN;
+        staged_replan_predeadline_r58r7_subset_kkt_solves = NaN;
+        staged_replan_predeadline_r58r7_subset_kkt_converged = NaN;
+        staged_replan_predeadline_r58r7_subset_resource_fail = NaN;
+        staged_replan_predeadline_r58r7_duplicate_add_fail = NaN;
+        staged_replan_predeadline_r58r7_full_optimality_closed = NaN;
+        staged_replan_predeadline_r58r7_subset_sweeps_max = NaN;
+        staged_replan_predeadline_r58r7_coordinate_updates = NaN;
+        staged_replan_predeadline_r58r7_initial_worst_violation = NaN;
+        staged_replan_predeadline_r58r7_final_max_violation = NaN;
+        staged_replan_predeadline_r58r7_final_duality_gap = NaN;
+        staged_replan_predeadline_r58r7_final_complementarity = NaN;
+        staged_replan_predeadline_r58r7_final_stationarity = NaN;
+        staged_replan_predeadline_r58r7_solver_ms = NaN;
+        staged_replan_predeadline_r58r8_ipm_used = NaN;
+        staged_replan_predeadline_r58r8_ipm_converged = NaN;
+        staged_replan_predeadline_r58r8_ipm_resource_fail = NaN;
+        staged_replan_predeadline_r58r8_ipm_factor_fail = NaN;
+        staged_replan_predeadline_r58r8_ipm_max_iterations = NaN;
+        staged_replan_predeadline_r58r8_ipm_newton_solves = NaN;
+        staged_replan_predeadline_r58r8_ipm_primal_residual = NaN;
+        staged_replan_predeadline_r58r8_ipm_dual_residual = NaN;
+        staged_replan_predeadline_r58r8_ipm_complementarity = NaN;
+        staged_replan_predeadline_r58r8_ipm_duality_gap = NaN;
+        staged_replan_predeadline_r58r8_ipm_min_slack = NaN;
+        staged_replan_predeadline_r58r8_ipm_min_lambda = NaN;
+        staged_replan_predeadline_r58r8_ipm_ms = NaN;
+        staged_replan_predeadline_r58r8_newton_diag_equilibrated = NaN;
+        staged_replan_predeadline_r58r8_pcg_used = NaN;
+        staged_replan_predeadline_r58r8_pcg_resource_fail = NaN;
+        staged_replan_predeadline_r58r8_pcg_max_iterations = NaN;
+        staged_replan_predeadline_r58r8_pcg_final_rel_residual = NaN;
+        staged_replan_predeadline_r58r9_failure_count = NaN;
+        staged_replan_predeadline_r58r9_failure_depth = NaN;
+        staged_replan_predeadline_r58r9_failure_last_side = NaN;
+        staged_replan_predeadline_r58r9_failure_outer_iteration = NaN;
+        staged_replan_predeadline_r58r9_failure_active_rows = NaN;
+        staged_replan_predeadline_r58r9_failure_added_row = NaN;
+        staged_replan_predeadline_r58r9_failure_ipm_iteration = NaN;
+        staged_replan_predeadline_r58r9_failure_stage = NaN;
+        staged_replan_predeadline_r58r9_failure_pcg_iterations = NaN;
+        staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual = NaN;
+        staged_replan_predeadline_r58r9_failure_pcg_rhs_inf = NaN;
+        staged_replan_predeadline_r58r9_failure_D_min = NaN;
+        staged_replan_predeadline_r58r9_failure_D_max = NaN;
+        staged_replan_predeadline_r58r9_failure_D_ratio = NaN;
+        staged_replan_predeadline_r58r9_failure_min_slack = NaN;
+        staged_replan_predeadline_r58r9_failure_min_lambda = NaN;
+        staged_replan_predeadline_r58r9_failure_metric_max_abs_corr = NaN;
+        staged_replan_predeadline_r58r9_failure_metric_one_minus_corr = NaN;
+        staged_replan_predeadline_r58r9_full_scan_ms = NaN;
+        staged_replan_predeadline_r58r9_subset_solver_ms = NaN;
+        staged_replan_predeadline_r58r9_pcg_ms = NaN;
+        staged_replan_predeadline_r58r9_plus_failed = NaN;
+        staged_replan_predeadline_r58r9_minus_failed = NaN;
+        staged_replan_predeadline_r58r9_plus_failure_stage = NaN;
+        staged_replan_predeadline_r58r9_minus_failure_stage = NaN;
+        staged_replan_predeadline_r58r9_plus_failure_active_rows = NaN;
+        staged_replan_predeadline_r58r9_minus_failure_active_rows = NaN;
+        staged_replan_predeadline_r58r9_plus_failure_pcg_relres = NaN;
+        staged_replan_predeadline_r58r9_minus_failure_pcg_relres = NaN;
+        staged_replan_predeadline_r58r9_plus_metric_max_abs_corr = NaN;
+        staged_replan_predeadline_r58r9_minus_metric_max_abs_corr = NaN;
+        staged_replan_predeadline_r58r9_plus_cg_ms = NaN;
+        staged_replan_predeadline_r58r9_minus_cg_ms = NaN;
+        staged_replan_predeadline_r58r10_plus_primal_residual = NaN;
+        staged_replan_predeadline_r58r10_plus_dual_residual = NaN;
+        staged_replan_predeadline_r58r10_plus_mu = NaN;
+        staged_replan_predeadline_r58r10_plus_duality_gap = NaN;
+        staged_replan_predeadline_r58r10_plus_kkt_tol = NaN;
+        staged_replan_predeadline_r58r10_plus_gap_tol = NaN;
+        staged_replan_predeadline_r58r10_plus_last_sigma = NaN;
+        staged_replan_predeadline_r58r10_plus_last_alpha_primal = NaN;
+        staged_replan_predeadline_r58r10_plus_last_alpha_dual = NaN;
+        staged_replan_predeadline_r58r10_plus_min_alpha_primal = NaN;
+        staged_replan_predeadline_r58r10_plus_min_alpha_dual = NaN;
+        staged_replan_predeadline_r58r10_plus_mu_ratio = NaN;
+        staged_replan_predeadline_r58r10_plus_D_min = NaN;
+        staged_replan_predeadline_r58r10_plus_D_max = NaN;
+        staged_replan_predeadline_r58r10_plus_D_ratio = NaN;
+        staged_replan_predeadline_r58r10_plus_min_slack = NaN;
+        staged_replan_predeadline_r58r10_plus_min_lambda = NaN;
+        staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations = NaN;
+        staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations = NaN;
+        staged_replan_predeadline_r58r10_plus_predictor_pcg_relres = NaN;
+        staged_replan_predeadline_r58r10_plus_corrector_pcg_relres = NaN;
+        staged_replan_predeadline_r58r10_minus_primal_residual = NaN;
+        staged_replan_predeadline_r58r10_minus_dual_residual = NaN;
+        staged_replan_predeadline_r58r10_minus_mu = NaN;
+        staged_replan_predeadline_r58r10_minus_duality_gap = NaN;
+        staged_replan_predeadline_r58r10_minus_kkt_tol = NaN;
+        staged_replan_predeadline_r58r10_minus_gap_tol = NaN;
+        staged_replan_predeadline_r58r10_minus_last_sigma = NaN;
+        staged_replan_predeadline_r58r10_minus_last_alpha_primal = NaN;
+        staged_replan_predeadline_r58r10_minus_last_alpha_dual = NaN;
+        staged_replan_predeadline_r58r10_minus_min_alpha_primal = NaN;
+        staged_replan_predeadline_r58r10_minus_min_alpha_dual = NaN;
+        staged_replan_predeadline_r58r10_minus_mu_ratio = NaN;
+        staged_replan_predeadline_r58r10_minus_D_min = NaN;
+        staged_replan_predeadline_r58r10_minus_D_max = NaN;
+        staged_replan_predeadline_r58r10_minus_D_ratio = NaN;
+        staged_replan_predeadline_r58r10_minus_min_slack = NaN;
+        staged_replan_predeadline_r58r10_minus_min_lambda = NaN;
+        staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations = NaN;
+        staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations = NaN;
+        staged_replan_predeadline_r58r10_minus_predictor_pcg_relres = NaN;
+        staged_replan_predeadline_r58r10_minus_corrector_pcg_relres = NaN;
+        staged_replan_predeadline_r58r11_augmented_kkt_used = NaN;
+        staged_replan_predeadline_r58r11_augmented_kkt_solve_fail = NaN;
+        staged_replan_predeadline_r58r11_common_step_used = NaN;
+        staged_replan_predeadline_r58r11_augmented_kkt_max_dim = NaN;
+        staged_replan_predeadline_r58r11_newton_solves = NaN;
+        staged_replan_predeadline_r58r11_newton_max_rel_residual = NaN;
+        staged_replan_predeadline_r58r11_common_step_min = NaN;
+        staged_replan_predeadline_r58r11_common_step_last = NaN;
+        staged_replan_predeadline_r58r11_solver_ms = NaN;
+        r47_event_ring_capacity = 64;
+        r47_event_ring_width = 18;
+        r47_event_ring = nan(64,18);
+        r47_event_ring_head = 0;
+        r47_event_ring_count = 0;
         % AF7R36 R14C diagnostic persistence only.
         staged_replan_native_error_count = 0;
         staged_replan_first_native_error_identifier = '';
@@ -1635,6 +2036,14 @@ classdef REPLANNING_SYSTEM < handle
 
             obj.self=self;
             obj.base_ref=base_ref;
+
+            % AF7R58R15: a newly constructed simulation cannot silently
+            % inherit the previous run's diagnostic result. This is setup-only.
+            if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
+                    logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
+                    isappdata(0,'AF7R58R15_LAST_STATUS')
+                rmappdata(0,'AF7R58R15_LAST_STATUS');
+            end
 
             if isfield(opts,'ENABLE_ALL_LOG'), obj.ENABLE_ALL_LOG=logical(opts.ENABLE_ALL_LOG); end
             if isfield(opts,'LOG_SENSOR'), obj.LOG_SENSOR=logical(opts.LOG_SENSOR); end
@@ -2993,13 +3402,17 @@ classdef REPLANNING_SYSTEM < handle
             % Setup-only exact FLAT position jet authority.  Geometry,
             % cable direction and flatness proofs use these derivatives,
             % never legacy high-order xd slots.
-            JET=cell(1,7);
+            % AF7R47: position derivative order 7 is required to evaluate
+            % path-tangent yaw through yaw^(6) after replanning from a curved
+            % active C7 reference. Existing controller/geometry packets still
+            % consume only the historical 0..6 slots.
+            JET=cell(1,8);
             JET{1}=pL;
-            for rr=1:6
+            for rr=1:7
                 JET{rr+1}=simplify(diff(JET{rr},t));
             end
-            obj.nominal_flat_derivative_fn=cell(1,7);
-            for rr=0:6
+            obj.nominal_flat_derivative_fn=cell(1,8);
+            for rr=0:7
                 obj.nominal_flat_derivative_fn{rr+1}= ...
                     matlabFunction(JET{rr+1},'Vars',t);
             end
@@ -4972,21 +5385,22 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function P = af7r46_single_core_proposal_compact(obj,CTX)
-            % R37 compact-deviation + certified adaptive-rejoin wrapper.
+            % R51 compact native general-C7 phase-warped tangent-corridor wrapper.
+            % Same-clock catch-up is forbidden: successful production candidates
+            % must preserve a nonnegative schedule delay after avoidance.
             %
             % Safety architecture:
             %   1) referenceEnd is ONLY the finite validity boundary of the
             %      current reference authority. It is never treated as the
             %      desired maneuver duration.
-            %   2) A full-domain fixed-t1 candidate is first certified and
-            %      retained as a fail-safe witness.
-            %   3) Shorter fixed-t1 candidates are independently rebuilt and
-            %      accepted only if the SAME native hard certificates close.
-            %   4) The native generator first solves the exact minimum
-            %      integrated-squared-deviation affine towing family, then
-            %      falls back to the historical affine/minimum-snap family.
+            %   2) The native core derives one shorter rejoin seed from the
+            %      actual unsafe episode and suspended-load natural time.
+            %   3) That seed is accepted only if the SAME native hard
+            %      certificates close; otherwise referenceEnd is the fail-safe.
+            %   4) No obstacle-specific path is generated before the real
+            %      sensor-known + H=4 s trigger.
             assert(exist('af7r36_single_core_mex','file')==3, ...
-                '[AF7R46] AF7R36 native core MEX missing.');
+                '[AF7R48] AF7R36 native core MEX missing.');
 
             % Source-binding authority: archived/native-source copies must
             % never shadow the active reference helper.  A mismatched packet
@@ -5008,6 +5422,9 @@ classdef REPLANNING_SYSTEM < handle
 
             % Exact baseline witness at the full valid reference boundary.
             pkt=af7r34_make_core_packet(obj,CTX,struct('t1',referenceEnd));
+            pkt.r58_shadow_diagnostic_enabled=logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC);
+            pkt.r58r14_lowjet_seed_only=logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY);
+            pkt=obj.af7r51_attach_phase_packet_metadata(pkt,[]);
             RAWbase=af7r36_single_core_mex(1,pkt);
 
             % Version binding is carried by the ordinary result schema; no
@@ -5016,35 +5433,42 @@ classdef REPLANNING_SYSTEM < handle
                 isfield(RAWbase,'planner_native_revision') && ...
                 ischar(RAWbase.planner_native_revision) && ...
                 strcmp(RAWbase.planner_native_revision, ...
-                    'AF7R45R3_NATIVE_HEADING_BINDING_C7_V1'), ...
+                    'AF7R58R14_C7_LOWJET_SEED_SHADOW_V1'), ...
                 ['[R38] af7r36_single_core_mex revision mismatch. ' ...
                  'Replace ALL THREE R25E production source files: ' ...
                  'REPLANNING_SYSTEM.m, af7r36_core.hpp, and af7r36_single_core_mex.cpp; ' ...
                  'then rebuild the MEX and clear mex/classes.']);
 
-            % AF7R46 ONLINE-ONLY:
-            % RAWbase is already the full hard-certified fixed-t1 native result
-            % at the source-derived active-reference validity boundary.
-            %
-            % Historical select_certified_adaptive_rejoin() repeatedly called
-            % the COMPLETE native planner/certificate stack inside Stage1 only
-            % to shorten rejoin time. That search is explicitly quality-only,
-            % not a safety theorem, and caused a multi-call runtime spike.
-            %
-            % Stage1 now performs exactly one obstacle-dependent synthesis:
-            % this RAWbase call above, and only after the real H=4 s trigger.
-            % No fixed maneuver-duration constant is introduced.
+            % AF7R48 NATIVE NATURAL-REJOIN:
+            % The native planner builds the unsafe episode ONCE, derives one
+            % suspended-load natural-time rejoin seed from that episode and
+            % sqrt(L/g), and certifies that shorter candidate through the SAME
+            % exact-C7 -> yaw-C6 -> speed -> rejoin -> whole-body hard gates.
+            % If it does not close, the source-validity boundary referenceEnd
+            % is tried as a fail-safe. No fixed physical maneuver time is used.
             RAW=RAWbase;
+            certTests=1; safeTrials=double(logical(RAW.success));
+            seedDur=NaN; selectedT1=double(RAW.t1); selected=false;
+            if isfield(RAW,'rejoin_attempt_count'),certTests=double(RAW.rejoin_attempt_count);end
+            if isfield(RAW,'rejoin_safe_trial_count'),safeTrials=double(RAW.rejoin_safe_trial_count);end
+            if isfield(RAW,'rejoin_seed_duration_s'),seedDur=double(RAW.rejoin_seed_duration_s);end
+            if isfield(RAW,'selected_t1')&&isfinite(double(RAW.selected_t1))
+                selectedT1=double(RAW.selected_t1);
+            end
+            if isfield(RAW,'r48_natural_rejoin_selected_count')
+                selected=double(RAW.r48_natural_rejoin_selected_count)>0;
+            else
+                selected=selectedT1<referenceEnd-64*eps(max([1,abs(referenceEnd),abs(selectedT1)]));
+            end
             RJ=struct( ...
-                'certificate_tests',1, ...
-                'safe_trial_count',double(isstruct(RAWbase) && ...
-                    isfield(RAWbase,'success') && logical(RAWbase.success)), ...
-                'seed_duration_s',NaN, ...
-                'selected',false, ...
-                'selected_t1',double(RAWbase.t1), ...
-                'selected_envelope_m',double(RAWbase.max_control_norm_m), ...
-                'baseline_t1',double(RAWbase.t1), ...
-                'baseline_envelope_m',double(RAWbase.max_control_norm_m), ...
+                'certificate_tests',certTests, ...
+                'safe_trial_count',safeTrials, ...
+                'seed_duration_s',seedDur, ...
+                'selected',logical(selected), ...
+                'selected_t1',selectedT1, ...
+                'selected_envelope_m',double(RAW.max_control_norm_m), ...
+                'baseline_t1',double(referenceEnd), ...
+                'baseline_envelope_m',NaN, ...
                 'trigger_component_index',NaN, ...
                 'scope_component_count',NaN, ...
                 'merged_component_count',NaN, ...
@@ -5065,7 +5489,9 @@ classdef REPLANNING_SYSTEM < handle
                     k00=find(ce>=tm0-tolT0,1,'first');
                     if isempty(k00),k00=1;end
                     RJ.trigger_component_index=k00;
-                    RJ.seed_duration_s=max(dt0,cs(k00)-t00);
+                    % Keep the native R48 natural-rejoin seed duration.
+                    % The historical entry-duration seed is no longer the
+                    % rejoin-time authority.
                     RJ.scope_component_count=numel(cs)-k00+1;
                     RJ.merged_component_count=max(0,numel(cs)-k00);
                 end
@@ -5082,7 +5508,13 @@ classdef REPLANNING_SYSTEM < handle
             P.tm=double(RAW.tm);
             P.trigger_collision_time=double(RAW.tm);
             P.hold_end=double(RAW.hold_end);
-            P.t1=double(RAW.t1);
+            % AF7R51: P.t1 remains the finite active-reference validity
+            % boundary. The spatial avoidance correction ends at
+            % actual_rejoin_time, but the phase layer persists afterwards as
+            % s(t)=t-Delta and must remain represented in active history.
+            P.t1=double(referenceEnd);
+            assert(isfinite(P.t1)&&P.t1>P.t0, ...
+                '[AF7R51] invalid active-reference validity boundary.');
             P.rejoin_search_start_duration_s=double(RJ.seed_duration_s);
             P.rejoin_search_end_time_s=double(referenceEnd);
             P.rejoin_search_full_certificate_tests=double(RJ.certificate_tests);
@@ -5107,13 +5539,27 @@ classdef REPLANNING_SYSTEM < handle
             % Preserve the historical native payload because downstream
             % production code in this authority may inspect it.
             P.native_raw=RAW;
+            P.r48_natural_rejoin_trial_count=NaN;
+            P.r48_natural_rejoin_selected_count=NaN;
+            P.r48_exit_monotone_row_count=NaN;
+            P.r48_natural_rejoin_seed_t1=NaN;
+            if isfield(RAW,'r48_natural_rejoin_trial_count'),P.r48_natural_rejoin_trial_count=double(RAW.r48_natural_rejoin_trial_count);end
+            if isfield(RAW,'r48_natural_rejoin_selected_count'),P.r48_natural_rejoin_selected_count=double(RAW.r48_natural_rejoin_selected_count);end
+            if isfield(RAW,'r48_exit_monotone_row_count'),P.r48_exit_monotone_row_count=double(RAW.r48_exit_monotone_row_count);end
+            if isfield(RAW,'r48_natural_rejoin_seed_t1'),P.r48_natural_rejoin_seed_t1=double(RAW.r48_natural_rejoin_seed_t1);end
 
             if ~P.success
                 return;
             end
 
+            assert(isfield(RAW,'phase_reparameterized') && ...
+                    logical(RAW.phase_reparameterized) && ...
+                    isfield(RAW,'delay_preserving') && logical(RAW.delay_preserving), ...
+                ['[AF7R51] production candidate lacks the general no-catch-up ' ...
+                 'phase layer. Same-clock rejoin is forbidden.']);
+
             assert(isfield(RAW,'stored_c7_exact'), ...
-                '[AF7R46] native result lacks exact stored-C7 authority.');
+                '[AF7R48] native result lacks exact stored-C7 authority.');
             P.c7_exact=logical(RAW.stored_c7_exact);
             P.representation_code=2;
             P.degree=15;
@@ -5130,6 +5576,9 @@ classdef REPLANNING_SYSTEM < handle
                     logical(RAW.minimum_deviation_primary)
                 P.piecewise_candidate_family='MINIMUM_DEVIATION_AFFINE';
             end
+            % Delay preserving means spatial-path rejoin with clock phase lag:
+            % on the exact-affine base p(t)+offset == p_base(t-Delta).
+            % No catch-up to p_base(t) is required after the detour.
             P.delay_preserving=false;
             P.terminal_hold_start=NaN;
             P.terminal_offset=zeros(3,1);
@@ -5147,6 +5596,32 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(RAW,'schedule_delay_s')
                 P.schedule_delay_s=double(RAW.schedule_delay_s);
             end
+
+            % AF7R51 general C7 phase metadata. This is a reference layer,
+            % not an affine-position hold and not a straight-line special case.
+            P.phase_reparameterized=logical(RAW.phase_reparameterized);
+            P.phase_t0=double(RAW.phase_t0);
+            P.phase_entry_end=double(RAW.phase_entry_end);
+            P.phase_flow_end=double(RAW.phase_flow_end);
+            P.phase_exit_end=double(RAW.phase_exit_end);
+            P.phase_source_start=double(RAW.phase_source_start);
+            P.phase_source_end=double(RAW.phase_source_end);
+            P.phase_alpha=double(RAW.phase_alpha);
+            P.phase_delay_s=double(RAW.phase_delay_s);
+            assert(P.phase_reparameterized && ...
+                all(isfinite([P.phase_t0 P.phase_entry_end P.phase_flow_end ...
+                              P.phase_exit_end P.phase_source_start ...
+                              P.phase_source_end P.phase_alpha P.phase_delay_s])) && ...
+                P.phase_t0<P.phase_entry_end && ...
+                P.phase_entry_end<P.phase_flow_end && ...
+                P.phase_flow_end<P.phase_exit_end && ...
+                P.phase_source_end>P.phase_source_start && ...
+                P.phase_alpha>0 && P.phase_alpha<=1 && P.phase_delay_s>=0, ...
+                '[AF7R51] invalid native phase metadata.');
+            P.delay_preserving=true;
+            P.schedule_delay_s=P.phase_delay_s;
+            P.terminal_hold_start=NaN;
+            P.terminal_offset=zeros(3,1);
             P.path_tangent_yaw_c6=false;
             P.heading_gamma_m_s=NaN;
             P.heading_anchor_rad=NaN;
@@ -5170,11 +5645,11 @@ classdef REPLANNING_SYSTEM < handle
                 assert(numel(P.heading_base_velocity)==3 && ...
                     all(isfinite(P.heading_base_velocity)) && ...
                     hypot(P.heading_base_velocity(1),P.heading_base_velocity(2))>0, ...
-                    '[REPLANNER ERROR] native path-tangent yaw base velocity missing/invalid.');
+                    '[REPLANNER ERROR] native path-tangent yaw initial active velocity missing/invalid.');
             end
             P.trigger_to_free_rejoin=false;
             P.identity_time_law=false;
-            P.actual_rejoin_time=double(P.t1);
+            P.actual_rejoin_time=double(P.phase_exit_end);
             P.spatial_knot_count=NaN;
             if isfield(RAW,'trigger_to_free_rejoin')
                 P.trigger_to_free_rejoin=logical(RAW.trigger_to_free_rejoin);
@@ -5520,6 +5995,7 @@ classdef REPLANNING_SYSTEM < handle
             assert(ok, ...
                 '[REPLANNER ERROR] canonical batch resource gate rejected: %s', ...
                 reason);
+            model=obj.af7r51_append_phase_layer(model,P);
         end
 
 
@@ -6277,6 +6753,384 @@ classdef REPLANNING_SYSTEM < handle
             obj.staged_replan_predeadline_native_synthesis_ms=NaN;
             obj.staged_replan_predeadline_native_candidate_ms=NaN;
             obj.staged_replan_predeadline_native_total_ms=NaN;
+            obj.staged_replan_predeadline_r48_natural_rejoin_trial_count=NaN;
+            obj.staged_replan_predeadline_r48_natural_rejoin_selected_count=NaN;
+            obj.staged_replan_predeadline_r48_exit_monotone_row_count=NaN;
+            obj.staged_replan_predeadline_r48_natural_rejoin_seed_t1=NaN;
+            obj.staged_replan_predeadline_r49_phase_timing_trial_count=NaN;
+            obj.staged_replan_predeadline_r49_phase_gate_pass_count=NaN;
+            obj.staged_replan_predeadline_r49_hard_certificate_trial_count=NaN;
+            obj.staged_replan_predeadline_r49_selected_Ke=NaN;
+            obj.staged_replan_predeadline_r49_selected_Kflow=NaN;
+            obj.staged_replan_predeadline_r49_selected_Kx=NaN;
+            obj.staged_replan_predeadline_r50_spatial_side_solution_count=NaN;
+            obj.staged_replan_predeadline_r50_spatial_lateral_constraint_count=NaN;
+            obj.staged_replan_predeadline_r50_entry_candidate_count=NaN;
+            obj.staged_replan_predeadline_r50_exit_candidate_count=NaN;
+            obj.staged_replan_predeadline_r50_best_spatial_velocity_norm=NaN;
+            obj.staged_replan_predeadline_r51_phase_seed_count=NaN;
+            obj.staged_replan_predeadline_r51_phase_seed_reject_count=NaN;
+            obj.staged_replan_predeadline_r51_tangent_candidate_count=NaN;
+            obj.staged_replan_predeadline_r51_tangent_certified_count=NaN;
+            obj.staged_replan_predeadline_r51_phase_alpha=NaN;
+            obj.staged_replan_predeadline_r51_phase_delay_s=NaN;
+            obj.staged_replan_predeadline_r51_phase_exit_time_s=NaN;
+            obj.staged_replan_predeadline_r52_phase_episode_count=NaN;
+            obj.staged_replan_predeadline_r52_phase_episode_rebuild_fail_count=NaN;
+            obj.staged_replan_predeadline_r52_corridor_row_count=NaN;
+            obj.staged_replan_predeadline_r52_support_plane_fail_count=NaN;
+            obj.staged_replan_predeadline_r52_spatial_qp_solution_count=NaN;
+            obj.staged_replan_predeadline_r52_rejoin_time_trial_count=NaN;
+            obj.staged_replan_predeadline_r52_selected_spatial_rejoin_s=NaN;
+            obj.staged_replan_predeadline_r53_normal_bundle_node_count=NaN;
+            obj.staged_replan_predeadline_r53_normal_bundle_row_count=NaN;
+            obj.staged_replan_predeadline_r53_normal_bundle_singular_count=NaN;
+            obj.staged_replan_predeadline_r53_affine_reduction_count=NaN;
+            obj.staged_replan_predeadline_r54_phase_candidate_count=NaN;
+            obj.staged_replan_predeadline_r54_phase_trial_count=NaN;
+            obj.staged_replan_predeadline_r54_phase_base_certified_count=NaN;
+            obj.staged_replan_predeadline_r54_phase_episode_pass_count=NaN;
+            obj.staged_replan_predeadline_r54_phase_episode_empty_count=NaN;
+            obj.staged_replan_predeadline_r54_selected_tau_multiple=NaN;
+            obj.staged_replan_predeadline_r54_selected_alpha=NaN;
+            obj.staged_replan_predeadline_r54_selected_delay_s=NaN;
+            obj.staged_replan_predeadline_r54_selected_first_unsafe_lead_s=NaN;
+            obj.staged_replan_predeadline_r54_max_first_unsafe_lead_s=NaN;
+            obj.staged_replan_predeadline_r54_maneuver_horizon_coupling_count=NaN;
+            obj.staged_replan_predeadline_r55_phase_build_count=NaN;
+            obj.staged_replan_predeadline_r55_phase_build_fail_count=NaN;
+            obj.staged_replan_predeadline_r55_phase_episode_pass_count=NaN;
+            obj.staged_replan_predeadline_r55_phase_episode_empty_count=NaN;
+            obj.staged_replan_predeadline_r55_mixed_side_episode_count=NaN;
+            obj.staged_replan_predeadline_r55_side_plus_count=NaN;
+            obj.staged_replan_predeadline_r55_side_minus_count=NaN;
+            obj.staged_replan_predeadline_r55_side_onebranch_count=NaN;
+            obj.staged_replan_predeadline_r55_side_both_failed_count=NaN;
+            obj.staged_replan_predeadline_r55_corridor_row_count=NaN;
+            obj.staged_replan_predeadline_r55_obstacle_count=NaN;
+            obj.staged_replan_predeadline_r55_old_clock_binding_count=NaN;
+            obj.staged_replan_predeadline_r55_maneuver_horizon_coupling_count=NaN;
+            obj.staged_replan_predeadline_r55_alpha=NaN;
+            obj.staged_replan_predeadline_r55_delay_s=NaN;
+            obj.staged_replan_predeadline_r55_source_unsafe_start_s=NaN;
+            obj.staged_replan_predeadline_r55_source_unsafe_end_s=NaN;
+            obj.staged_replan_predeadline_r55_predicted_first_unsafe_t_s=NaN;
+            obj.staged_replan_predeadline_r55_predicted_last_unsafe_t_s=NaN;
+            obj.staged_replan_predeadline_r55_pre_unsafe_slack_s=NaN;
+            obj.staged_replan_predeadline_r55_post_unsafe_slack_s=NaN;
+            obj.staged_replan_predeadline_r55_min_temporal_slack_s=NaN;
+            obj.staged_replan_predeadline_r55_phase_entry_transition_s=NaN;
+            obj.staged_replan_predeadline_r55_phase_exit_transition_s=NaN;
+            obj.staged_replan_predeadline_r55_source_phase_at_rejoin_s=NaN;
+            obj.staged_replan_predeadline_r55_rejoin_clock_delay_s=NaN;
+            obj.staged_replan_predeadline_r55_min_ellipsoid_axis_m=NaN;
+            obj.staged_replan_predeadline_r55_max_ellipsoid_axis_m=NaN;
+            obj.staged_replan_predeadline_r55_max_rotation_orth_error=NaN;
+            obj.staged_replan_predeadline_r56_shadow_ran=NaN;
+            obj.staged_replan_predeadline_r56_source_qp_ok=NaN;
+            obj.staged_replan_predeadline_r56_source_exact_c7=NaN;
+            obj.staged_replan_predeadline_r56_source_knot_count=NaN;
+            obj.staged_replan_predeadline_r56_source_episode_count=NaN;
+            obj.staged_replan_predeadline_r56_source_corridor_row_count=NaN;
+            obj.staged_replan_predeadline_r56_source_normal_row_count=NaN;
+            obj.staged_replan_predeadline_r56_source_side_plus_count=NaN;
+            obj.staged_replan_predeadline_r56_source_side_minus_count=NaN;
+            obj.staged_replan_predeadline_r56_source_side_fail_count=NaN;
+            obj.staged_replan_predeadline_r56_const_sample_count=NaN;
+            obj.staged_replan_predeadline_r56_const_dynamic_pass=NaN;
+            obj.staged_replan_predeadline_r56_const_geometry_point_pass=NaN;
+            obj.staged_replan_predeadline_r56_entry_bestcase_pass=NaN;
+            obj.staged_replan_predeadline_r56_exit_bestcase_pass=NaN;
+            obj.staged_replan_predeadline_r56_yaw_source_regular=NaN;
+            obj.staged_replan_predeadline_r56_old_clock_binding_count=NaN;
+            obj.staged_replan_predeadline_r56_horizon_duration_coupling_count=NaN;
+            obj.staged_replan_predeadline_r56_source_support_start_s=NaN;
+            obj.staged_replan_predeadline_r56_source_rejoin_s=NaN;
+            obj.staged_replan_predeadline_r56_source_corr_v_ub=NaN;
+            obj.staged_replan_predeadline_r56_source_corr_a_ub=NaN;
+            obj.staged_replan_predeadline_r56_source_corr_j_ub=NaN;
+            obj.staged_replan_predeadline_r56_source_min_hxy=NaN;
+            obj.staged_replan_predeadline_r56_alpha_max_pointwise=NaN;
+            obj.staged_replan_predeadline_r56_const_max_vl=NaN;
+            obj.staged_replan_predeadline_r56_const_max_vq=NaN;
+            obj.staged_replan_predeadline_r56_const_min_sigma=NaN;
+            obj.staged_replan_predeadline_r56_const_max_qdot=NaN;
+            obj.staged_replan_predeadline_r56_const_min_geom_margin=NaN;
+            obj.staged_replan_predeadline_r56_entry_Tmax_s=NaN;
+            obj.staged_replan_predeadline_r56_entry_max_vq=NaN;
+            obj.staged_replan_predeadline_r56_entry_min_sigma=NaN;
+            obj.staged_replan_predeadline_r56_entry_max_qdot=NaN;
+            obj.staged_replan_predeadline_r56_exit_Tmax_s=NaN;
+            obj.staged_replan_predeadline_r56_exit_max_vq=NaN;
+            obj.staged_replan_predeadline_r56_exit_min_sigma=NaN;
+            obj.staged_replan_predeadline_r56_exit_max_qdot=NaN;
+            obj.staged_replan_predeadline_r56_chain_rule_max_error=NaN;
+            obj.staged_replan_predeadline_r56_shadow_ms=NaN;
+            obj.staged_replan_predeadline_r57_probe_ran=NaN;
+            obj.staged_replan_predeadline_r57_source_qp_ok=NaN;
+            obj.staged_replan_predeadline_r57_source_exact_c7=NaN;
+            obj.staged_replan_predeadline_r57_speed_attempt=NaN;
+            obj.staged_replan_predeadline_r57_speed_pass=NaN;
+            obj.staged_replan_predeadline_r57_speed_stageA_pass=NaN;
+            obj.staged_replan_predeadline_r57_speed_stageB_attempt=NaN;
+            obj.staged_replan_predeadline_r57_speed_stageB_finite_witness=NaN;
+            obj.staged_replan_predeadline_r57_speed_stageB_repr_fail=NaN;
+            obj.staged_replan_predeadline_r57_heading_attempt=NaN;
+            obj.staged_replan_predeadline_r57_heading_pass=NaN;
+            obj.staged_replan_predeadline_r57_heading_leaf_count=NaN;
+            obj.staged_replan_predeadline_r57_heading_split_count=NaN;
+            obj.staged_replan_predeadline_r57_geometry_attempt=NaN;
+            obj.staged_replan_predeadline_r57_geometry_pass=NaN;
+            obj.staged_replan_predeadline_r57_commit_attempted=NaN;
+            obj.staged_replan_predeadline_r57_rejoin_selected=NaN;
+            obj.staged_replan_predeadline_r57_old_clock_commit_binding_count=NaN;
+            obj.staged_replan_predeadline_r57_horizon_duration_coupling_count=NaN;
+            obj.staged_replan_predeadline_r57_speed_VL=NaN;
+            obj.staged_replan_predeadline_r57_speed_A=NaN;
+            obj.staged_replan_predeadline_r57_speed_J=NaN;
+            obj.staged_replan_predeadline_r57_speed_sigma=NaN;
+            obj.staged_replan_predeadline_r57_speed_qdot=NaN;
+            obj.staged_replan_predeadline_r57_speed_VQ=NaN;
+            obj.staged_replan_predeadline_r57_heading_gamma=NaN;
+            obj.staged_replan_predeadline_r57_geometry_min_margin=NaN;
+            obj.staged_replan_predeadline_r57_source_support_start_s=NaN;
+            obj.staged_replan_predeadline_r57_source_support_end_s=NaN;
+            obj.staged_replan_predeadline_r57_source_corr_v_ub=NaN;
+            obj.staged_replan_predeadline_r57_source_corr_a_ub=NaN;
+            obj.staged_replan_predeadline_r57_source_corr_j_ub=NaN;
+            obj.staged_replan_predeadline_r57_source_build_ms=NaN;
+            obj.staged_replan_predeadline_r57_speed_ms=NaN;
+            obj.staged_replan_predeadline_r57_heading_ms=NaN;
+            obj.staged_replan_predeadline_r57_geometry_ms=NaN;
+            obj.staged_replan_predeadline_r57_probe_ms=NaN;
+            obj.staged_replan_predeadline_r58_shadow_ran=NaN;
+            obj.staged_replan_predeadline_r58r14_lowjet_seed_only=NaN;
+            obj.staged_replan_predeadline_r58r14_active_reduced_dof=NaN;
+            obj.staged_replan_predeadline_r58r14_full_reduced_dof=NaN;
+            obj.staged_replan_predeadline_r58_speed_gate_rows=zeros(0,38);
+            obj.staged_replan_predeadline_r58_reference_only=NaN;
+            obj.staged_replan_predeadline_r58_fixed_rejoin_constraint_count=NaN;
+            obj.staged_replan_predeadline_r58_same_clock_binding_count=NaN;
+            obj.staged_replan_predeadline_r58_horizon_duration_coupling_count=NaN;
+            obj.staged_replan_predeadline_r58_free_c7_constructive=NaN;
+            obj.staged_replan_predeadline_r58_terminal_offset_hold=NaN;
+            obj.staged_replan_predeadline_r58_terminal_zero_derivative_order=NaN;
+            obj.staged_replan_predeadline_r58_source_knot_count=NaN;
+            obj.staged_replan_predeadline_r58_scalar_dof_count=NaN;
+            obj.staged_replan_predeadline_r58_spatial_dof_count=NaN;
+            obj.staged_replan_predeadline_r58_episode_count=NaN;
+            obj.staged_replan_predeadline_r58_component_count=NaN;
+            obj.staged_replan_predeadline_r58_side_cache_plus_valid=NaN;
+            obj.staged_replan_predeadline_r58_side_cache_minus_valid=NaN;
+            obj.staged_replan_predeadline_r58_side_cache_fail=NaN;
+            obj.staged_replan_predeadline_r58_bnb_nodes_popped=NaN;
+            obj.staged_replan_predeadline_r58_bnb_qp_solves=NaN;
+            obj.staged_replan_predeadline_r58_bnb_qp_infeasible=NaN;
+            obj.staged_replan_predeadline_r58_bnb_full_assignments=NaN;
+            obj.staged_replan_predeadline_r58_bnb_speed_fail=NaN;
+            obj.staged_replan_predeadline_r58_bnb_heading_fail=NaN;
+            obj.staged_replan_predeadline_r58_bnb_geometry_fail=NaN;
+            obj.staged_replan_predeadline_r58_bnb_feasible_full=NaN;
+            obj.staged_replan_predeadline_r58_bnb_max_queue=NaN;
+            obj.staged_replan_predeadline_r58_selected_side_plus=NaN;
+            obj.staged_replan_predeadline_r58_selected_side_minus=NaN;
+            obj.staged_replan_predeadline_r58_speed_pass=NaN;
+            obj.staged_replan_predeadline_r58_heading_pass=NaN;
+            obj.staged_replan_predeadline_r58_geometry_pass=NaN;
+            obj.staged_replan_predeadline_r58_needs_time_law=NaN;
+            obj.staged_replan_predeadline_r58_commit_attempted=NaN;
+            obj.staged_replan_predeadline_r58_rejoin_selected=NaN;
+            obj.staged_replan_predeadline_r58_reference_tracking_inflation_m=NaN;
+            obj.staged_replan_predeadline_r58_support_start_s=NaN;
+            obj.staged_replan_predeadline_r58_support_end_s=NaN;
+            obj.staged_replan_predeadline_r58_terminal_offset_norm_m=NaN;
+            obj.staged_replan_predeadline_r58_quantized_jet_max_abs_error=NaN;
+            obj.staged_replan_predeadline_r58_legacy_join_max_abs_mismatch=NaN;
+            obj.staged_replan_predeadline_r58_best_qp_cost=NaN;
+            obj.staged_replan_predeadline_r58_speed_VL=NaN;
+            obj.staged_replan_predeadline_r58_speed_A=NaN;
+            obj.staged_replan_predeadline_r58_speed_J=NaN;
+            obj.staged_replan_predeadline_r58_speed_sigma=NaN;
+            obj.staged_replan_predeadline_r58_speed_qdot=NaN;
+            obj.staged_replan_predeadline_r58_speed_VQ=NaN;
+            obj.staged_replan_predeadline_r58_heading_gamma=NaN;
+            obj.staged_replan_predeadline_r58_geometry_min_margin=NaN;
+            obj.staged_replan_predeadline_r58_build_ms=NaN;
+            obj.staged_replan_predeadline_r58_homotopy_ms=NaN;
+            obj.staged_replan_predeadline_r58_certificate_ms=NaN;
+            obj.staged_replan_predeadline_r58_shadow_ms=NaN;
+            obj.staged_replan_predeadline_r58r2_node_scaled_variables=NaN;
+            obj.staged_replan_predeadline_r58r2_row_equilibrated=NaN;
+            obj.staged_replan_predeadline_r58r2_root_qp_elided=NaN;
+            obj.staged_replan_predeadline_r58r2_node_scale_min_s=NaN;
+            obj.staged_replan_predeadline_r58r2_node_scale_max_s=NaN;
+            obj.staged_replan_predeadline_r58r2_row_scale_min=NaN;
+            obj.staged_replan_predeadline_r58r2_row_scale_max=NaN;
+            obj.staged_replan_predeadline_r58r3_hessian_diag_equilibrated=NaN;
+            obj.staged_replan_predeadline_r58r3_equilibrated_cholesky_pass=NaN;
+            obj.staged_replan_predeadline_r58r3_raw_hdiag_min=NaN;
+            obj.staged_replan_predeadline_r58r3_raw_hdiag_max=NaN;
+            obj.staged_replan_predeadline_r58r3_raw_hdiag_ratio=NaN;
+            obj.staged_replan_predeadline_r58r3_eq_hdiag_min=NaN;
+            obj.staged_replan_predeadline_r58r3_eq_hdiag_max=NaN;
+            obj.staged_replan_predeadline_r58r4_normal_equalities_eliminated=NaN;
+            obj.staged_replan_predeadline_r58r4_reduced_spatial_dof_count=NaN;
+            obj.staged_replan_predeadline_r58r4_elimination_build_fail=NaN;
+            obj.staged_replan_predeadline_r58r4_elimination_max_residual=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_used=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_converged_feasible=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_resource_fail=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_max_sweeps_used=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_projection_count=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_max_violation=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_stationarity_residual=NaN;
+            obj.staged_replan_predeadline_r58r5_dykstra_ms=NaN;
+            obj.staged_replan_predeadline_r58r6_hildreth_used=NaN;
+            obj.staged_replan_predeadline_r58r6_kkt_converged_count=NaN;
+            obj.staged_replan_predeadline_r58r6_resource_fail_count=NaN;
+            obj.staged_replan_predeadline_r58r6_max_sweeps_used=NaN;
+            obj.staged_replan_predeadline_r58r6_coordinate_updates=NaN;
+            obj.staged_replan_predeadline_r58r6_max_primal_violation=NaN;
+            obj.staged_replan_predeadline_r58r6_max_complementarity=NaN;
+            obj.staged_replan_predeadline_r58r6_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r6_stationarity_residual=NaN;
+            obj.staged_replan_predeadline_r58r6_max_lambda=NaN;
+            obj.staged_replan_predeadline_r58r6_solver_ms=NaN;
+            obj.staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs=NaN;
+            obj.staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error=NaN;
+            obj.staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_corr_v_ub=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_corr_a_ub=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_corr_j_ub=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_speed_worst_vq=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_speed_worst_vl=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_speed_worst_sigma=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_speed_worst_qdot=NaN;
+            obj.staged_replan_predeadline_r58r6_failed_speed_witness=NaN;
+            obj.staged_replan_predeadline_r58r7_constraint_generation_used=NaN;
+            obj.staged_replan_predeadline_r58r7_full_row_count_max=NaN;
+            obj.staged_replan_predeadline_r58r7_outer_iterations_max=NaN;
+            obj.staged_replan_predeadline_r58r7_full_scans=NaN;
+            obj.staged_replan_predeadline_r58r7_rows_added=NaN;
+            obj.staged_replan_predeadline_r58r7_active_rows_max=NaN;
+            obj.staged_replan_predeadline_r58r7_subset_kkt_solves=NaN;
+            obj.staged_replan_predeadline_r58r7_subset_kkt_converged=NaN;
+            obj.staged_replan_predeadline_r58r7_subset_resource_fail=NaN;
+            obj.staged_replan_predeadline_r58r7_duplicate_add_fail=NaN;
+            obj.staged_replan_predeadline_r58r7_full_optimality_closed=NaN;
+            obj.staged_replan_predeadline_r58r7_subset_sweeps_max=NaN;
+            obj.staged_replan_predeadline_r58r7_coordinate_updates=NaN;
+            obj.staged_replan_predeadline_r58r7_initial_worst_violation=NaN;
+            obj.staged_replan_predeadline_r58r7_final_max_violation=NaN;
+            obj.staged_replan_predeadline_r58r7_final_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r7_final_complementarity=NaN;
+            obj.staged_replan_predeadline_r58r7_final_stationarity=NaN;
+            obj.staged_replan_predeadline_r58r7_solver_ms=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_used=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_converged=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_resource_fail=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_factor_fail=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_max_iterations=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_newton_solves=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_primal_residual=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_dual_residual=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_complementarity=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_min_slack=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_min_lambda=NaN;
+            obj.staged_replan_predeadline_r58r8_ipm_ms=NaN;
+            obj.staged_replan_predeadline_r58r8_newton_diag_equilibrated=NaN;
+            obj.staged_replan_predeadline_r58r8_pcg_used=NaN;
+            obj.staged_replan_predeadline_r58r8_pcg_resource_fail=NaN;
+            obj.staged_replan_predeadline_r58r8_pcg_max_iterations=NaN;
+            obj.staged_replan_predeadline_r58r8_pcg_final_rel_residual=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_count=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_depth=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_last_side=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_outer_iteration=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_active_rows=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_added_row=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_ipm_iteration=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_stage=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_pcg_iterations=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_pcg_rhs_inf=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_D_min=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_D_max=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_D_ratio=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_min_slack=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_min_lambda=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_metric_max_abs_corr=NaN;
+            obj.staged_replan_predeadline_r58r9_failure_metric_one_minus_corr=NaN;
+            obj.staged_replan_predeadline_r58r9_full_scan_ms=NaN;
+            obj.staged_replan_predeadline_r58r9_subset_solver_ms=NaN;
+            obj.staged_replan_predeadline_r58r9_pcg_ms=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_failed=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_failed=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_failure_stage=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_failure_stage=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_failure_active_rows=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_failure_active_rows=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_failure_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_failure_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_metric_max_abs_corr=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_metric_max_abs_corr=NaN;
+            obj.staged_replan_predeadline_r58r9_plus_cg_ms=NaN;
+            obj.staged_replan_predeadline_r58r9_minus_cg_ms=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_primal_residual=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_dual_residual=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_mu=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_kkt_tol=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_gap_tol=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_last_sigma=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_last_alpha_primal=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_last_alpha_dual=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_min_alpha_primal=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_min_alpha_dual=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_mu_ratio=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_D_min=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_D_max=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_D_ratio=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_min_slack=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_min_lambda=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_primal_residual=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_dual_residual=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_mu=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_duality_gap=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_kkt_tol=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_gap_tol=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_last_sigma=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_last_alpha_primal=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_last_alpha_dual=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_min_alpha_primal=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_min_alpha_dual=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_mu_ratio=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_D_min=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_D_max=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_D_ratio=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_min_slack=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_min_lambda=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_relres=NaN;
+            obj.staged_replan_predeadline_r58r11_augmented_kkt_used=NaN;
+            obj.staged_replan_predeadline_r58r11_augmented_kkt_solve_fail=NaN;
+            obj.staged_replan_predeadline_r58r11_common_step_used=NaN;
+            obj.staged_replan_predeadline_r58r11_augmented_kkt_max_dim=NaN;
+            obj.staged_replan_predeadline_r58r11_newton_solves=NaN;
+            obj.staged_replan_predeadline_r58r11_newton_max_rel_residual=NaN;
+            obj.staged_replan_predeadline_r58r11_common_step_min=NaN;
+            obj.staged_replan_predeadline_r58r11_common_step_last=NaN;
+            obj.staged_replan_predeadline_r58r11_solver_ms=NaN;
             obj.staged_replan_predeadline_rejoin_certificate_tests=NaN;
             obj.staged_replan_predeadline_rejoin_safe_trial_count=NaN;
             obj.staged_replan_predeadline_rejoin_baseline_t1=NaN;
@@ -6329,6 +7183,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_status_code=-61;
                 obj.staged_replan_last_reason= ...
                     ['STAGE1_NATIVE_ERROR__' ME.identifier];
+                obj.r47_record_pipeline_event(1,t_now,1e3*toc(ts),struct(),-61);
                 return;
             end
 
@@ -6489,6 +7344,388 @@ classdef REPLANNING_SYSTEM < handle
                 if isfield(NR16,'r45_best_fixed_peak_req_m'),obj.staged_replan_predeadline_r45_best_fixed_peak_req_m=double(NR16.r45_best_fixed_peak_req_m);end
                 if isfield(NR16,'r45_best_tangent_peak_req_m'),obj.staged_replan_predeadline_r45_best_tangent_peak_req_m=double(NR16.r45_best_tangent_peak_req_m);end
                 if isfield(NR16,'r45_max_peak_relief_m'),obj.staged_replan_predeadline_r45_max_peak_relief_m=double(NR16.r45_max_peak_relief_m);end
+                if isfield(NR16,'r47_active_base_replan_count'),obj.staged_replan_predeadline_r47_active_base_replan_count=double(NR16.r47_active_base_replan_count);end
+                if isfield(NR16,'r47_nonaffine_base_count'),obj.staged_replan_predeadline_r47_nonaffine_base_count=double(NR16.r47_nonaffine_base_count);end
+                if isfield(NR16,'r47_heading_leaf_count'),obj.staged_replan_predeadline_r47_heading_leaf_count=double(NR16.r47_heading_leaf_count);end
+                if isfield(NR16,'r47_heading_split_count'),obj.staged_replan_predeadline_r47_heading_split_count=double(NR16.r47_heading_split_count);end
+                if isfield(NR16,'r48_natural_rejoin_trial_count'),obj.staged_replan_predeadline_r48_natural_rejoin_trial_count=double(NR16.r48_natural_rejoin_trial_count);end
+                if isfield(NR16,'r48_natural_rejoin_selected_count'),obj.staged_replan_predeadline_r48_natural_rejoin_selected_count=double(NR16.r48_natural_rejoin_selected_count);end
+                if isfield(NR16,'r48_exit_monotone_row_count'),obj.staged_replan_predeadline_r48_exit_monotone_row_count=double(NR16.r48_exit_monotone_row_count);end
+                if isfield(NR16,'r48_natural_rejoin_seed_t1'),obj.staged_replan_predeadline_r48_natural_rejoin_seed_t1=double(NR16.r48_natural_rejoin_seed_t1);end
+                if isfield(NR16,'r49_phase_timing_trial_count'),obj.staged_replan_predeadline_r49_phase_timing_trial_count=double(NR16.r49_phase_timing_trial_count);end
+                if isfield(NR16,'r49_phase_gate_pass_count'),obj.staged_replan_predeadline_r49_phase_gate_pass_count=double(NR16.r49_phase_gate_pass_count);end
+                if isfield(NR16,'r49_hard_certificate_trial_count'),obj.staged_replan_predeadline_r49_hard_certificate_trial_count=double(NR16.r49_hard_certificate_trial_count);end
+                if isfield(NR16,'r49_selected_Ke'),obj.staged_replan_predeadline_r49_selected_Ke=double(NR16.r49_selected_Ke);end
+                if isfield(NR16,'r49_selected_Kflow'),obj.staged_replan_predeadline_r49_selected_Kflow=double(NR16.r49_selected_Kflow);end
+                if isfield(NR16,'r49_selected_Kx'),obj.staged_replan_predeadline_r49_selected_Kx=double(NR16.r49_selected_Kx);end
+                if isfield(NR16,'r50_spatial_side_solution_count'),obj.staged_replan_predeadline_r50_spatial_side_solution_count=double(NR16.r50_spatial_side_solution_count);end
+                if isfield(NR16,'r50_spatial_lateral_constraint_count'),obj.staged_replan_predeadline_r50_spatial_lateral_constraint_count=double(NR16.r50_spatial_lateral_constraint_count);end
+                if isfield(NR16,'r50_entry_candidate_count'),obj.staged_replan_predeadline_r50_entry_candidate_count=double(NR16.r50_entry_candidate_count);end
+                if isfield(NR16,'r50_exit_candidate_count'),obj.staged_replan_predeadline_r50_exit_candidate_count=double(NR16.r50_exit_candidate_count);end
+                if isfield(NR16,'r50_best_spatial_velocity_norm'),obj.staged_replan_predeadline_r50_best_spatial_velocity_norm=double(NR16.r50_best_spatial_velocity_norm);end
+                if isfield(NR16,'r51_phase_seed_count'),obj.staged_replan_predeadline_r51_phase_seed_count=double(NR16.r51_phase_seed_count);end
+                if isfield(NR16,'r51_phase_seed_reject_count'),obj.staged_replan_predeadline_r51_phase_seed_reject_count=double(NR16.r51_phase_seed_reject_count);end
+                if isfield(NR16,'r51_tangent_candidate_count'),obj.staged_replan_predeadline_r51_tangent_candidate_count=double(NR16.r51_tangent_candidate_count);end
+                if isfield(NR16,'r51_tangent_certified_count'),obj.staged_replan_predeadline_r51_tangent_certified_count=double(NR16.r51_tangent_certified_count);end
+                if isfield(NR16,'r51_phase_alpha'),obj.staged_replan_predeadline_r51_phase_alpha=double(NR16.r51_phase_alpha);end
+                if isfield(NR16,'r51_phase_delay_s'),obj.staged_replan_predeadline_r51_phase_delay_s=double(NR16.r51_phase_delay_s);end
+                if isfield(NR16,'r51_phase_exit_time_s'),obj.staged_replan_predeadline_r51_phase_exit_time_s=double(NR16.r51_phase_exit_time_s);end
+                if isfield(NR16,'r52_phase_episode_count'),obj.staged_replan_predeadline_r52_phase_episode_count=double(NR16.r52_phase_episode_count);end
+                if isfield(NR16,'r52_phase_episode_rebuild_fail_count'),obj.staged_replan_predeadline_r52_phase_episode_rebuild_fail_count=double(NR16.r52_phase_episode_rebuild_fail_count);end
+                if isfield(NR16,'r52_corridor_row_count'),obj.staged_replan_predeadline_r52_corridor_row_count=double(NR16.r52_corridor_row_count);end
+                if isfield(NR16,'r52_support_plane_fail_count'),obj.staged_replan_predeadline_r52_support_plane_fail_count=double(NR16.r52_support_plane_fail_count);end
+                if isfield(NR16,'r52_spatial_qp_solution_count'),obj.staged_replan_predeadline_r52_spatial_qp_solution_count=double(NR16.r52_spatial_qp_solution_count);end
+                if isfield(NR16,'r52_rejoin_time_trial_count'),obj.staged_replan_predeadline_r52_rejoin_time_trial_count=double(NR16.r52_rejoin_time_trial_count);end
+                if isfield(NR16,'r52_selected_spatial_rejoin_s'),obj.staged_replan_predeadline_r52_selected_spatial_rejoin_s=double(NR16.r52_selected_spatial_rejoin_s);end
+                if isfield(NR16,'r53_normal_bundle_node_count'),obj.staged_replan_predeadline_r53_normal_bundle_node_count=double(NR16.r53_normal_bundle_node_count);end
+                if isfield(NR16,'r53_normal_bundle_row_count'),obj.staged_replan_predeadline_r53_normal_bundle_row_count=double(NR16.r53_normal_bundle_row_count);end
+                if isfield(NR16,'r53_normal_bundle_singular_count'),obj.staged_replan_predeadline_r53_normal_bundle_singular_count=double(NR16.r53_normal_bundle_singular_count);end
+                if isfield(NR16,'r53_affine_reduction_count'),obj.staged_replan_predeadline_r53_affine_reduction_count=double(NR16.r53_affine_reduction_count);end
+                if isfield(NR16,'r54_phase_candidate_count'),obj.staged_replan_predeadline_r54_phase_candidate_count=double(NR16.r54_phase_candidate_count);end
+                if isfield(NR16,'r54_phase_trial_count'),obj.staged_replan_predeadline_r54_phase_trial_count=double(NR16.r54_phase_trial_count);end
+                if isfield(NR16,'r54_phase_base_certified_count'),obj.staged_replan_predeadline_r54_phase_base_certified_count=double(NR16.r54_phase_base_certified_count);end
+                if isfield(NR16,'r54_phase_episode_pass_count'),obj.staged_replan_predeadline_r54_phase_episode_pass_count=double(NR16.r54_phase_episode_pass_count);end
+                if isfield(NR16,'r54_phase_episode_empty_count'),obj.staged_replan_predeadline_r54_phase_episode_empty_count=double(NR16.r54_phase_episode_empty_count);end
+                if isfield(NR16,'r54_selected_tau_multiple'),obj.staged_replan_predeadline_r54_selected_tau_multiple=double(NR16.r54_selected_tau_multiple);end
+                if isfield(NR16,'r54_selected_alpha'),obj.staged_replan_predeadline_r54_selected_alpha=double(NR16.r54_selected_alpha);end
+                if isfield(NR16,'r54_selected_delay_s'),obj.staged_replan_predeadline_r54_selected_delay_s=double(NR16.r54_selected_delay_s);end
+                if isfield(NR16,'r54_selected_first_unsafe_lead_s'),obj.staged_replan_predeadline_r54_selected_first_unsafe_lead_s=double(NR16.r54_selected_first_unsafe_lead_s);end
+                if isfield(NR16,'r54_max_first_unsafe_lead_s'),obj.staged_replan_predeadline_r54_max_first_unsafe_lead_s=double(NR16.r54_max_first_unsafe_lead_s);end
+                if isfield(NR16,'r54_maneuver_horizon_coupling_count'),obj.staged_replan_predeadline_r54_maneuver_horizon_coupling_count=double(NR16.r54_maneuver_horizon_coupling_count);end
+                if isfield(NR16,'r55_phase_build_count'),obj.staged_replan_predeadline_r55_phase_build_count=double(NR16.r55_phase_build_count);end
+                if isfield(NR16,'r55_phase_build_fail_count'),obj.staged_replan_predeadline_r55_phase_build_fail_count=double(NR16.r55_phase_build_fail_count);end
+                if isfield(NR16,'r55_phase_episode_pass_count'),obj.staged_replan_predeadline_r55_phase_episode_pass_count=double(NR16.r55_phase_episode_pass_count);end
+                if isfield(NR16,'r55_phase_episode_empty_count'),obj.staged_replan_predeadline_r55_phase_episode_empty_count=double(NR16.r55_phase_episode_empty_count);end
+                if isfield(NR16,'r55_mixed_side_episode_count'),obj.staged_replan_predeadline_r55_mixed_side_episode_count=double(NR16.r55_mixed_side_episode_count);end
+                if isfield(NR16,'r55_side_plus_count'),obj.staged_replan_predeadline_r55_side_plus_count=double(NR16.r55_side_plus_count);end
+                if isfield(NR16,'r55_side_minus_count'),obj.staged_replan_predeadline_r55_side_minus_count=double(NR16.r55_side_minus_count);end
+                if isfield(NR16,'r55_side_onebranch_count'),obj.staged_replan_predeadline_r55_side_onebranch_count=double(NR16.r55_side_onebranch_count);end
+                if isfield(NR16,'r55_side_both_failed_count'),obj.staged_replan_predeadline_r55_side_both_failed_count=double(NR16.r55_side_both_failed_count);end
+                if isfield(NR16,'r55_corridor_row_count'),obj.staged_replan_predeadline_r55_corridor_row_count=double(NR16.r55_corridor_row_count);end
+                if isfield(NR16,'r55_obstacle_count'),obj.staged_replan_predeadline_r55_obstacle_count=double(NR16.r55_obstacle_count);end
+                if isfield(NR16,'r55_old_clock_binding_count'),obj.staged_replan_predeadline_r55_old_clock_binding_count=double(NR16.r55_old_clock_binding_count);end
+                if isfield(NR16,'r55_maneuver_horizon_coupling_count'),obj.staged_replan_predeadline_r55_maneuver_horizon_coupling_count=double(NR16.r55_maneuver_horizon_coupling_count);end
+                if isfield(NR16,'r55_alpha'),obj.staged_replan_predeadline_r55_alpha=double(NR16.r55_alpha);end
+                if isfield(NR16,'r55_delay_s'),obj.staged_replan_predeadline_r55_delay_s=double(NR16.r55_delay_s);end
+                if isfield(NR16,'r55_source_unsafe_start_s'),obj.staged_replan_predeadline_r55_source_unsafe_start_s=double(NR16.r55_source_unsafe_start_s);end
+                if isfield(NR16,'r55_source_unsafe_end_s'),obj.staged_replan_predeadline_r55_source_unsafe_end_s=double(NR16.r55_source_unsafe_end_s);end
+                if isfield(NR16,'r55_predicted_first_unsafe_t_s'),obj.staged_replan_predeadline_r55_predicted_first_unsafe_t_s=double(NR16.r55_predicted_first_unsafe_t_s);end
+                if isfield(NR16,'r55_predicted_last_unsafe_t_s'),obj.staged_replan_predeadline_r55_predicted_last_unsafe_t_s=double(NR16.r55_predicted_last_unsafe_t_s);end
+                if isfield(NR16,'r55_pre_unsafe_slack_s'),obj.staged_replan_predeadline_r55_pre_unsafe_slack_s=double(NR16.r55_pre_unsafe_slack_s);end
+                if isfield(NR16,'r55_post_unsafe_slack_s'),obj.staged_replan_predeadline_r55_post_unsafe_slack_s=double(NR16.r55_post_unsafe_slack_s);end
+                if isfield(NR16,'r55_min_temporal_slack_s'),obj.staged_replan_predeadline_r55_min_temporal_slack_s=double(NR16.r55_min_temporal_slack_s);end
+                if isfield(NR16,'r55_phase_entry_transition_s'),obj.staged_replan_predeadline_r55_phase_entry_transition_s=double(NR16.r55_phase_entry_transition_s);end
+                if isfield(NR16,'r55_phase_exit_transition_s'),obj.staged_replan_predeadline_r55_phase_exit_transition_s=double(NR16.r55_phase_exit_transition_s);end
+                if isfield(NR16,'r55_source_phase_at_rejoin_s'),obj.staged_replan_predeadline_r55_source_phase_at_rejoin_s=double(NR16.r55_source_phase_at_rejoin_s);end
+                if isfield(NR16,'r55_rejoin_clock_delay_s'),obj.staged_replan_predeadline_r55_rejoin_clock_delay_s=double(NR16.r55_rejoin_clock_delay_s);end
+                if isfield(NR16,'r55_min_ellipsoid_axis_m'),obj.staged_replan_predeadline_r55_min_ellipsoid_axis_m=double(NR16.r55_min_ellipsoid_axis_m);end
+                if isfield(NR16,'r55_max_ellipsoid_axis_m'),obj.staged_replan_predeadline_r55_max_ellipsoid_axis_m=double(NR16.r55_max_ellipsoid_axis_m);end
+                if isfield(NR16,'r55_max_rotation_orth_error'),obj.staged_replan_predeadline_r55_max_rotation_orth_error=double(NR16.r55_max_rotation_orth_error);end
+                if isfield(NR16,'r56_shadow_ran'),obj.staged_replan_predeadline_r56_shadow_ran=double(NR16.r56_shadow_ran);end
+                if isfield(NR16,'r56_source_qp_ok'),obj.staged_replan_predeadline_r56_source_qp_ok=double(NR16.r56_source_qp_ok);end
+                if isfield(NR16,'r56_source_exact_c7'),obj.staged_replan_predeadline_r56_source_exact_c7=double(NR16.r56_source_exact_c7);end
+                if isfield(NR16,'r56_source_knot_count'),obj.staged_replan_predeadline_r56_source_knot_count=double(NR16.r56_source_knot_count);end
+                if isfield(NR16,'r56_source_episode_count'),obj.staged_replan_predeadline_r56_source_episode_count=double(NR16.r56_source_episode_count);end
+                if isfield(NR16,'r56_source_corridor_row_count'),obj.staged_replan_predeadline_r56_source_corridor_row_count=double(NR16.r56_source_corridor_row_count);end
+                if isfield(NR16,'r56_source_normal_row_count'),obj.staged_replan_predeadline_r56_source_normal_row_count=double(NR16.r56_source_normal_row_count);end
+                if isfield(NR16,'r56_source_side_plus_count'),obj.staged_replan_predeadline_r56_source_side_plus_count=double(NR16.r56_source_side_plus_count);end
+                if isfield(NR16,'r56_source_side_minus_count'),obj.staged_replan_predeadline_r56_source_side_minus_count=double(NR16.r56_source_side_minus_count);end
+                if isfield(NR16,'r56_source_side_fail_count'),obj.staged_replan_predeadline_r56_source_side_fail_count=double(NR16.r56_source_side_fail_count);end
+                if isfield(NR16,'r56_const_sample_count'),obj.staged_replan_predeadline_r56_const_sample_count=double(NR16.r56_const_sample_count);end
+                if isfield(NR16,'r56_const_dynamic_pass'),obj.staged_replan_predeadline_r56_const_dynamic_pass=double(NR16.r56_const_dynamic_pass);end
+                if isfield(NR16,'r56_const_geometry_point_pass'),obj.staged_replan_predeadline_r56_const_geometry_point_pass=double(NR16.r56_const_geometry_point_pass);end
+                if isfield(NR16,'r56_entry_bestcase_pass'),obj.staged_replan_predeadline_r56_entry_bestcase_pass=double(NR16.r56_entry_bestcase_pass);end
+                if isfield(NR16,'r56_exit_bestcase_pass'),obj.staged_replan_predeadline_r56_exit_bestcase_pass=double(NR16.r56_exit_bestcase_pass);end
+                if isfield(NR16,'r56_yaw_source_regular'),obj.staged_replan_predeadline_r56_yaw_source_regular=double(NR16.r56_yaw_source_regular);end
+                if isfield(NR16,'r56_old_clock_binding_count'),obj.staged_replan_predeadline_r56_old_clock_binding_count=double(NR16.r56_old_clock_binding_count);end
+                if isfield(NR16,'r56_horizon_duration_coupling_count'),obj.staged_replan_predeadline_r56_horizon_duration_coupling_count=double(NR16.r56_horizon_duration_coupling_count);end
+                if isfield(NR16,'r56_source_support_start_s'),obj.staged_replan_predeadline_r56_source_support_start_s=double(NR16.r56_source_support_start_s);end
+                if isfield(NR16,'r56_source_rejoin_s'),obj.staged_replan_predeadline_r56_source_rejoin_s=double(NR16.r56_source_rejoin_s);end
+                if isfield(NR16,'r56_source_corr_v_ub'),obj.staged_replan_predeadline_r56_source_corr_v_ub=double(NR16.r56_source_corr_v_ub);end
+                if isfield(NR16,'r56_source_corr_a_ub'),obj.staged_replan_predeadline_r56_source_corr_a_ub=double(NR16.r56_source_corr_a_ub);end
+                if isfield(NR16,'r56_source_corr_j_ub'),obj.staged_replan_predeadline_r56_source_corr_j_ub=double(NR16.r56_source_corr_j_ub);end
+                if isfield(NR16,'r56_source_min_hxy'),obj.staged_replan_predeadline_r56_source_min_hxy=double(NR16.r56_source_min_hxy);end
+                if isfield(NR16,'r56_alpha_max_pointwise'),obj.staged_replan_predeadline_r56_alpha_max_pointwise=double(NR16.r56_alpha_max_pointwise);end
+                if isfield(NR16,'r56_const_max_vl'),obj.staged_replan_predeadline_r56_const_max_vl=double(NR16.r56_const_max_vl);end
+                if isfield(NR16,'r56_const_max_vq'),obj.staged_replan_predeadline_r56_const_max_vq=double(NR16.r56_const_max_vq);end
+                if isfield(NR16,'r56_const_min_sigma'),obj.staged_replan_predeadline_r56_const_min_sigma=double(NR16.r56_const_min_sigma);end
+                if isfield(NR16,'r56_const_max_qdot'),obj.staged_replan_predeadline_r56_const_max_qdot=double(NR16.r56_const_max_qdot);end
+                if isfield(NR16,'r56_const_min_geom_margin'),obj.staged_replan_predeadline_r56_const_min_geom_margin=double(NR16.r56_const_min_geom_margin);end
+                if isfield(NR16,'r56_entry_Tmax_s'),obj.staged_replan_predeadline_r56_entry_Tmax_s=double(NR16.r56_entry_Tmax_s);end
+                if isfield(NR16,'r56_entry_max_vq'),obj.staged_replan_predeadline_r56_entry_max_vq=double(NR16.r56_entry_max_vq);end
+                if isfield(NR16,'r56_entry_min_sigma'),obj.staged_replan_predeadline_r56_entry_min_sigma=double(NR16.r56_entry_min_sigma);end
+                if isfield(NR16,'r56_entry_max_qdot'),obj.staged_replan_predeadline_r56_entry_max_qdot=double(NR16.r56_entry_max_qdot);end
+                if isfield(NR16,'r56_exit_Tmax_s'),obj.staged_replan_predeadline_r56_exit_Tmax_s=double(NR16.r56_exit_Tmax_s);end
+                if isfield(NR16,'r56_exit_max_vq'),obj.staged_replan_predeadline_r56_exit_max_vq=double(NR16.r56_exit_max_vq);end
+                if isfield(NR16,'r56_exit_min_sigma'),obj.staged_replan_predeadline_r56_exit_min_sigma=double(NR16.r56_exit_min_sigma);end
+                if isfield(NR16,'r56_exit_max_qdot'),obj.staged_replan_predeadline_r56_exit_max_qdot=double(NR16.r56_exit_max_qdot);end
+                if isfield(NR16,'r56_chain_rule_max_error'),obj.staged_replan_predeadline_r56_chain_rule_max_error=double(NR16.r56_chain_rule_max_error);end
+                if isfield(NR16,'r56_shadow_ms'),obj.staged_replan_predeadline_r56_shadow_ms=double(NR16.r56_shadow_ms);end
+                if isfield(NR16,'r57_probe_ran'),obj.staged_replan_predeadline_r57_probe_ran=double(NR16.r57_probe_ran);end
+                if isfield(NR16,'r57_source_qp_ok'),obj.staged_replan_predeadline_r57_source_qp_ok=double(NR16.r57_source_qp_ok);end
+                if isfield(NR16,'r57_source_exact_c7'),obj.staged_replan_predeadline_r57_source_exact_c7=double(NR16.r57_source_exact_c7);end
+                if isfield(NR16,'r57_speed_attempt'),obj.staged_replan_predeadline_r57_speed_attempt=double(NR16.r57_speed_attempt);end
+                if isfield(NR16,'r57_speed_pass'),obj.staged_replan_predeadline_r57_speed_pass=double(NR16.r57_speed_pass);end
+                if isfield(NR16,'r57_speed_stageA_pass'),obj.staged_replan_predeadline_r57_speed_stageA_pass=double(NR16.r57_speed_stageA_pass);end
+                if isfield(NR16,'r57_speed_stageB_attempt'),obj.staged_replan_predeadline_r57_speed_stageB_attempt=double(NR16.r57_speed_stageB_attempt);end
+                if isfield(NR16,'r57_speed_stageB_finite_witness'),obj.staged_replan_predeadline_r57_speed_stageB_finite_witness=double(NR16.r57_speed_stageB_finite_witness);end
+                if isfield(NR16,'r57_speed_stageB_repr_fail'),obj.staged_replan_predeadline_r57_speed_stageB_repr_fail=double(NR16.r57_speed_stageB_repr_fail);end
+                if isfield(NR16,'r57_heading_attempt'),obj.staged_replan_predeadline_r57_heading_attempt=double(NR16.r57_heading_attempt);end
+                if isfield(NR16,'r57_heading_pass'),obj.staged_replan_predeadline_r57_heading_pass=double(NR16.r57_heading_pass);end
+                if isfield(NR16,'r57_heading_leaf_count'),obj.staged_replan_predeadline_r57_heading_leaf_count=double(NR16.r57_heading_leaf_count);end
+                if isfield(NR16,'r57_heading_split_count'),obj.staged_replan_predeadline_r57_heading_split_count=double(NR16.r57_heading_split_count);end
+                if isfield(NR16,'r57_geometry_attempt'),obj.staged_replan_predeadline_r57_geometry_attempt=double(NR16.r57_geometry_attempt);end
+                if isfield(NR16,'r57_geometry_pass'),obj.staged_replan_predeadline_r57_geometry_pass=double(NR16.r57_geometry_pass);end
+                if isfield(NR16,'r57_commit_attempted'),obj.staged_replan_predeadline_r57_commit_attempted=double(NR16.r57_commit_attempted);end
+                if isfield(NR16,'r57_rejoin_selected'),obj.staged_replan_predeadline_r57_rejoin_selected=double(NR16.r57_rejoin_selected);end
+                if isfield(NR16,'r57_old_clock_commit_binding_count'),obj.staged_replan_predeadline_r57_old_clock_commit_binding_count=double(NR16.r57_old_clock_commit_binding_count);end
+                if isfield(NR16,'r57_horizon_duration_coupling_count'),obj.staged_replan_predeadline_r57_horizon_duration_coupling_count=double(NR16.r57_horizon_duration_coupling_count);end
+                if isfield(NR16,'r57_speed_VL'),obj.staged_replan_predeadline_r57_speed_VL=double(NR16.r57_speed_VL);end
+                if isfield(NR16,'r57_speed_A'),obj.staged_replan_predeadline_r57_speed_A=double(NR16.r57_speed_A);end
+                if isfield(NR16,'r57_speed_J'),obj.staged_replan_predeadline_r57_speed_J=double(NR16.r57_speed_J);end
+                if isfield(NR16,'r57_speed_sigma'),obj.staged_replan_predeadline_r57_speed_sigma=double(NR16.r57_speed_sigma);end
+                if isfield(NR16,'r57_speed_qdot'),obj.staged_replan_predeadline_r57_speed_qdot=double(NR16.r57_speed_qdot);end
+                if isfield(NR16,'r57_speed_VQ'),obj.staged_replan_predeadline_r57_speed_VQ=double(NR16.r57_speed_VQ);end
+                if isfield(NR16,'r57_heading_gamma'),obj.staged_replan_predeadline_r57_heading_gamma=double(NR16.r57_heading_gamma);end
+                if isfield(NR16,'r57_geometry_min_margin'),obj.staged_replan_predeadline_r57_geometry_min_margin=double(NR16.r57_geometry_min_margin);end
+                if isfield(NR16,'r57_source_support_start_s'),obj.staged_replan_predeadline_r57_source_support_start_s=double(NR16.r57_source_support_start_s);end
+                if isfield(NR16,'r57_source_support_end_s'),obj.staged_replan_predeadline_r57_source_support_end_s=double(NR16.r57_source_support_end_s);end
+                if isfield(NR16,'r57_source_corr_v_ub'),obj.staged_replan_predeadline_r57_source_corr_v_ub=double(NR16.r57_source_corr_v_ub);end
+                if isfield(NR16,'r57_source_corr_a_ub'),obj.staged_replan_predeadline_r57_source_corr_a_ub=double(NR16.r57_source_corr_a_ub);end
+                if isfield(NR16,'r57_source_corr_j_ub'),obj.staged_replan_predeadline_r57_source_corr_j_ub=double(NR16.r57_source_corr_j_ub);end
+                if isfield(NR16,'r57_source_build_ms'),obj.staged_replan_predeadline_r57_source_build_ms=double(NR16.r57_source_build_ms);end
+                if isfield(NR16,'r57_speed_ms'),obj.staged_replan_predeadline_r57_speed_ms=double(NR16.r57_speed_ms);end
+                if isfield(NR16,'r57_heading_ms'),obj.staged_replan_predeadline_r57_heading_ms=double(NR16.r57_heading_ms);end
+                if isfield(NR16,'r57_geometry_ms'),obj.staged_replan_predeadline_r57_geometry_ms=double(NR16.r57_geometry_ms);end
+                if isfield(NR16,'r57_probe_ms'),obj.staged_replan_predeadline_r57_probe_ms=double(NR16.r57_probe_ms);end
+                if isfield(NR16,'r58_shadow_ran'),obj.staged_replan_predeadline_r58_shadow_ran=double(NR16.r58_shadow_ran);end
+                if isfield(NR16,'r58r14_lowjet_seed_only'),obj.staged_replan_predeadline_r58r14_lowjet_seed_only=double(NR16.r58r14_lowjet_seed_only);end
+                if isfield(NR16,'r58r14_active_reduced_dof'),obj.staged_replan_predeadline_r58r14_active_reduced_dof=double(NR16.r58r14_active_reduced_dof);end
+                if isfield(NR16,'r58r14_full_reduced_dof'),obj.staged_replan_predeadline_r58r14_full_reduced_dof=double(NR16.r58r14_full_reduced_dof);end
+                if isfield(NR16,'r58_speed_gate_rows'),obj.staged_replan_predeadline_r58_speed_gate_rows=double(NR16.r58_speed_gate_rows);end
+                if isfield(NR16,'r58_reference_only'),obj.staged_replan_predeadline_r58_reference_only=double(NR16.r58_reference_only);end
+                if isfield(NR16,'r58_fixed_rejoin_constraint_count'),obj.staged_replan_predeadline_r58_fixed_rejoin_constraint_count=double(NR16.r58_fixed_rejoin_constraint_count);end
+                if isfield(NR16,'r58_same_clock_binding_count'),obj.staged_replan_predeadline_r58_same_clock_binding_count=double(NR16.r58_same_clock_binding_count);end
+                if isfield(NR16,'r58_horizon_duration_coupling_count'),obj.staged_replan_predeadline_r58_horizon_duration_coupling_count=double(NR16.r58_horizon_duration_coupling_count);end
+                if isfield(NR16,'r58_free_c7_constructive'),obj.staged_replan_predeadline_r58_free_c7_constructive=double(NR16.r58_free_c7_constructive);end
+                if isfield(NR16,'r58_terminal_offset_hold'),obj.staged_replan_predeadline_r58_terminal_offset_hold=double(NR16.r58_terminal_offset_hold);end
+                if isfield(NR16,'r58_terminal_zero_derivative_order'),obj.staged_replan_predeadline_r58_terminal_zero_derivative_order=double(NR16.r58_terminal_zero_derivative_order);end
+                if isfield(NR16,'r58_source_knot_count'),obj.staged_replan_predeadline_r58_source_knot_count=double(NR16.r58_source_knot_count);end
+                if isfield(NR16,'r58_scalar_dof_count'),obj.staged_replan_predeadline_r58_scalar_dof_count=double(NR16.r58_scalar_dof_count);end
+                if isfield(NR16,'r58_spatial_dof_count'),obj.staged_replan_predeadline_r58_spatial_dof_count=double(NR16.r58_spatial_dof_count);end
+                if isfield(NR16,'r58_episode_count'),obj.staged_replan_predeadline_r58_episode_count=double(NR16.r58_episode_count);end
+                if isfield(NR16,'r58_component_count'),obj.staged_replan_predeadline_r58_component_count=double(NR16.r58_component_count);end
+                if isfield(NR16,'r58_side_cache_plus_valid'),obj.staged_replan_predeadline_r58_side_cache_plus_valid=double(NR16.r58_side_cache_plus_valid);end
+                if isfield(NR16,'r58_side_cache_minus_valid'),obj.staged_replan_predeadline_r58_side_cache_minus_valid=double(NR16.r58_side_cache_minus_valid);end
+                if isfield(NR16,'r58_side_cache_fail'),obj.staged_replan_predeadline_r58_side_cache_fail=double(NR16.r58_side_cache_fail);end
+                if isfield(NR16,'r58_bnb_nodes_popped'),obj.staged_replan_predeadline_r58_bnb_nodes_popped=double(NR16.r58_bnb_nodes_popped);end
+                if isfield(NR16,'r58_bnb_qp_solves'),obj.staged_replan_predeadline_r58_bnb_qp_solves=double(NR16.r58_bnb_qp_solves);end
+                if isfield(NR16,'r58_bnb_qp_infeasible'),obj.staged_replan_predeadline_r58_bnb_qp_infeasible=double(NR16.r58_bnb_qp_infeasible);end
+                if isfield(NR16,'r58_bnb_full_assignments'),obj.staged_replan_predeadline_r58_bnb_full_assignments=double(NR16.r58_bnb_full_assignments);end
+                if isfield(NR16,'r58_bnb_speed_fail'),obj.staged_replan_predeadline_r58_bnb_speed_fail=double(NR16.r58_bnb_speed_fail);end
+                if isfield(NR16,'r58_bnb_heading_fail'),obj.staged_replan_predeadline_r58_bnb_heading_fail=double(NR16.r58_bnb_heading_fail);end
+                if isfield(NR16,'r58_bnb_geometry_fail'),obj.staged_replan_predeadline_r58_bnb_geometry_fail=double(NR16.r58_bnb_geometry_fail);end
+                if isfield(NR16,'r58_bnb_feasible_full'),obj.staged_replan_predeadline_r58_bnb_feasible_full=double(NR16.r58_bnb_feasible_full);end
+                if isfield(NR16,'r58_bnb_max_queue'),obj.staged_replan_predeadline_r58_bnb_max_queue=double(NR16.r58_bnb_max_queue);end
+                if isfield(NR16,'r58_selected_side_plus'),obj.staged_replan_predeadline_r58_selected_side_plus=double(NR16.r58_selected_side_plus);end
+                if isfield(NR16,'r58_selected_side_minus'),obj.staged_replan_predeadline_r58_selected_side_minus=double(NR16.r58_selected_side_minus);end
+                if isfield(NR16,'r58_speed_pass'),obj.staged_replan_predeadline_r58_speed_pass=double(NR16.r58_speed_pass);end
+                if isfield(NR16,'r58_heading_pass'),obj.staged_replan_predeadline_r58_heading_pass=double(NR16.r58_heading_pass);end
+                if isfield(NR16,'r58_geometry_pass'),obj.staged_replan_predeadline_r58_geometry_pass=double(NR16.r58_geometry_pass);end
+                if isfield(NR16,'r58_needs_time_law'),obj.staged_replan_predeadline_r58_needs_time_law=double(NR16.r58_needs_time_law);end
+                if isfield(NR16,'r58_commit_attempted'),obj.staged_replan_predeadline_r58_commit_attempted=double(NR16.r58_commit_attempted);end
+                if isfield(NR16,'r58_rejoin_selected'),obj.staged_replan_predeadline_r58_rejoin_selected=double(NR16.r58_rejoin_selected);end
+                if isfield(NR16,'r58_reference_tracking_inflation_m'),obj.staged_replan_predeadline_r58_reference_tracking_inflation_m=double(NR16.r58_reference_tracking_inflation_m);end
+                if isfield(NR16,'r58_support_start_s'),obj.staged_replan_predeadline_r58_support_start_s=double(NR16.r58_support_start_s);end
+                if isfield(NR16,'r58_support_end_s'),obj.staged_replan_predeadline_r58_support_end_s=double(NR16.r58_support_end_s);end
+                if isfield(NR16,'r58_terminal_offset_norm_m'),obj.staged_replan_predeadline_r58_terminal_offset_norm_m=double(NR16.r58_terminal_offset_norm_m);end
+                if isfield(NR16,'r58_quantized_jet_max_abs_error'),obj.staged_replan_predeadline_r58_quantized_jet_max_abs_error=double(NR16.r58_quantized_jet_max_abs_error);end
+                if isfield(NR16,'r58_legacy_join_max_abs_mismatch'),obj.staged_replan_predeadline_r58_legacy_join_max_abs_mismatch=double(NR16.r58_legacy_join_max_abs_mismatch);end
+                if isfield(NR16,'r58_best_qp_cost'),obj.staged_replan_predeadline_r58_best_qp_cost=double(NR16.r58_best_qp_cost);end
+                if isfield(NR16,'r58_speed_VL'),obj.staged_replan_predeadline_r58_speed_VL=double(NR16.r58_speed_VL);end
+                if isfield(NR16,'r58_speed_A'),obj.staged_replan_predeadline_r58_speed_A=double(NR16.r58_speed_A);end
+                if isfield(NR16,'r58_speed_J'),obj.staged_replan_predeadline_r58_speed_J=double(NR16.r58_speed_J);end
+                if isfield(NR16,'r58_speed_sigma'),obj.staged_replan_predeadline_r58_speed_sigma=double(NR16.r58_speed_sigma);end
+                if isfield(NR16,'r58_speed_qdot'),obj.staged_replan_predeadline_r58_speed_qdot=double(NR16.r58_speed_qdot);end
+                if isfield(NR16,'r58_speed_VQ'),obj.staged_replan_predeadline_r58_speed_VQ=double(NR16.r58_speed_VQ);end
+                if isfield(NR16,'r58_heading_gamma'),obj.staged_replan_predeadline_r58_heading_gamma=double(NR16.r58_heading_gamma);end
+                if isfield(NR16,'r58_geometry_min_margin'),obj.staged_replan_predeadline_r58_geometry_min_margin=double(NR16.r58_geometry_min_margin);end
+                if isfield(NR16,'r58_build_ms'),obj.staged_replan_predeadline_r58_build_ms=double(NR16.r58_build_ms);end
+                if isfield(NR16,'r58_homotopy_ms'),obj.staged_replan_predeadline_r58_homotopy_ms=double(NR16.r58_homotopy_ms);end
+                if isfield(NR16,'r58_certificate_ms'),obj.staged_replan_predeadline_r58_certificate_ms=double(NR16.r58_certificate_ms);end
+                if isfield(NR16,'r58_shadow_ms'),obj.staged_replan_predeadline_r58_shadow_ms=double(NR16.r58_shadow_ms);end
+                if isfield(NR16,'r58r2_node_scaled_variables'),obj.staged_replan_predeadline_r58r2_node_scaled_variables=double(NR16.r58r2_node_scaled_variables);end
+                if isfield(NR16,'r58r2_row_equilibrated'),obj.staged_replan_predeadline_r58r2_row_equilibrated=double(NR16.r58r2_row_equilibrated);end
+                if isfield(NR16,'r58r2_root_qp_elided'),obj.staged_replan_predeadline_r58r2_root_qp_elided=double(NR16.r58r2_root_qp_elided);end
+                if isfield(NR16,'r58r2_node_scale_min_s'),obj.staged_replan_predeadline_r58r2_node_scale_min_s=double(NR16.r58r2_node_scale_min_s);end
+                if isfield(NR16,'r58r2_node_scale_max_s'),obj.staged_replan_predeadline_r58r2_node_scale_max_s=double(NR16.r58r2_node_scale_max_s);end
+                if isfield(NR16,'r58r2_row_scale_min'),obj.staged_replan_predeadline_r58r2_row_scale_min=double(NR16.r58r2_row_scale_min);end
+                if isfield(NR16,'r58r2_row_scale_max'),obj.staged_replan_predeadline_r58r2_row_scale_max=double(NR16.r58r2_row_scale_max);end
+                if isfield(NR16,'r58r3_hessian_diag_equilibrated'),obj.staged_replan_predeadline_r58r3_hessian_diag_equilibrated=double(NR16.r58r3_hessian_diag_equilibrated);end
+                if isfield(NR16,'r58r3_equilibrated_cholesky_pass'),obj.staged_replan_predeadline_r58r3_equilibrated_cholesky_pass=double(NR16.r58r3_equilibrated_cholesky_pass);end
+                if isfield(NR16,'r58r3_raw_hdiag_min'),obj.staged_replan_predeadline_r58r3_raw_hdiag_min=double(NR16.r58r3_raw_hdiag_min);end
+                if isfield(NR16,'r58r3_raw_hdiag_max'),obj.staged_replan_predeadline_r58r3_raw_hdiag_max=double(NR16.r58r3_raw_hdiag_max);end
+                if isfield(NR16,'r58r3_raw_hdiag_ratio'),obj.staged_replan_predeadline_r58r3_raw_hdiag_ratio=double(NR16.r58r3_raw_hdiag_ratio);end
+                if isfield(NR16,'r58r3_eq_hdiag_min'),obj.staged_replan_predeadline_r58r3_eq_hdiag_min=double(NR16.r58r3_eq_hdiag_min);end
+                if isfield(NR16,'r58r3_eq_hdiag_max'),obj.staged_replan_predeadline_r58r3_eq_hdiag_max=double(NR16.r58r3_eq_hdiag_max);end
+                if isfield(NR16,'r58r4_normal_equalities_eliminated'),obj.staged_replan_predeadline_r58r4_normal_equalities_eliminated=double(NR16.r58r4_normal_equalities_eliminated);end
+                if isfield(NR16,'r58r4_reduced_spatial_dof_count'),obj.staged_replan_predeadline_r58r4_reduced_spatial_dof_count=double(NR16.r58r4_reduced_spatial_dof_count);end
+                if isfield(NR16,'r58r4_elimination_build_fail'),obj.staged_replan_predeadline_r58r4_elimination_build_fail=double(NR16.r58r4_elimination_build_fail);end
+                if isfield(NR16,'r58r4_elimination_max_residual'),obj.staged_replan_predeadline_r58r4_elimination_max_residual=double(NR16.r58r4_elimination_max_residual);end
+                if isfield(NR16,'r58r5_dykstra_used'),obj.staged_replan_predeadline_r58r5_dykstra_used=double(NR16.r58r5_dykstra_used);end
+                if isfield(NR16,'r58r5_dykstra_converged_feasible'),obj.staged_replan_predeadline_r58r5_dykstra_converged_feasible=double(NR16.r58r5_dykstra_converged_feasible);end
+                if isfield(NR16,'r58r5_dykstra_resource_fail'),obj.staged_replan_predeadline_r58r5_dykstra_resource_fail=double(NR16.r58r5_dykstra_resource_fail);end
+                if isfield(NR16,'r58r5_dykstra_degenerate_row_fail'),obj.staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail=double(NR16.r58r5_dykstra_degenerate_row_fail);end
+                if isfield(NR16,'r58r5_dykstra_max_sweeps_used'),obj.staged_replan_predeadline_r58r5_dykstra_max_sweeps_used=double(NR16.r58r5_dykstra_max_sweeps_used);end
+                if isfield(NR16,'r58r5_dykstra_projection_count'),obj.staged_replan_predeadline_r58r5_dykstra_projection_count=double(NR16.r58r5_dykstra_projection_count);end
+                if isfield(NR16,'r58r5_dykstra_optimal_kkt_count'),obj.staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count=double(NR16.r58r5_dykstra_optimal_kkt_count);end
+                if isfield(NR16,'r58r5_dykstra_max_violation'),obj.staged_replan_predeadline_r58r5_dykstra_max_violation=double(NR16.r58r5_dykstra_max_violation);end
+                if isfield(NR16,'r58r5_dykstra_duality_gap'),obj.staged_replan_predeadline_r58r5_dykstra_duality_gap=double(NR16.r58r5_dykstra_duality_gap);end
+                if isfield(NR16,'r58r5_dykstra_stationarity_residual'),obj.staged_replan_predeadline_r58r5_dykstra_stationarity_residual=double(NR16.r58r5_dykstra_stationarity_residual);end
+                if isfield(NR16,'r58r5_dykstra_ms'),obj.staged_replan_predeadline_r58r5_dykstra_ms=double(NR16.r58r5_dykstra_ms);end
+                if isfield(NR16,'r58r6_hildreth_used'),obj.staged_replan_predeadline_r58r6_hildreth_used=double(NR16.r58r6_hildreth_used);end
+                if isfield(NR16,'r58r6_kkt_converged_count'),obj.staged_replan_predeadline_r58r6_kkt_converged_count=double(NR16.r58r6_kkt_converged_count);end
+                if isfield(NR16,'r58r6_resource_fail_count'),obj.staged_replan_predeadline_r58r6_resource_fail_count=double(NR16.r58r6_resource_fail_count);end
+                if isfield(NR16,'r58r6_max_sweeps_used'),obj.staged_replan_predeadline_r58r6_max_sweeps_used=double(NR16.r58r6_max_sweeps_used);end
+                if isfield(NR16,'r58r6_coordinate_updates'),obj.staged_replan_predeadline_r58r6_coordinate_updates=double(NR16.r58r6_coordinate_updates);end
+                if isfield(NR16,'r58r6_max_primal_violation'),obj.staged_replan_predeadline_r58r6_max_primal_violation=double(NR16.r58r6_max_primal_violation);end
+                if isfield(NR16,'r58r6_max_complementarity'),obj.staged_replan_predeadline_r58r6_max_complementarity=double(NR16.r58r6_max_complementarity);end
+                if isfield(NR16,'r58r6_duality_gap'),obj.staged_replan_predeadline_r58r6_duality_gap=double(NR16.r58r6_duality_gap);end
+                if isfield(NR16,'r58r6_stationarity_residual'),obj.staged_replan_predeadline_r58r6_stationarity_residual=double(NR16.r58r6_stationarity_residual);end
+                if isfield(NR16,'r58r6_max_lambda'),obj.staged_replan_predeadline_r58r6_max_lambda=double(NR16.r58r6_max_lambda);end
+                if isfield(NR16,'r58r6_solver_ms'),obj.staged_replan_predeadline_r58r6_solver_ms=double(NR16.r58r6_solver_ms);end
+                if isfield(NR16,'r58r6_prequant_scaled_jet_max_abs'),obj.staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs=double(NR16.r58r6_prequant_scaled_jet_max_abs);end
+                if isfield(NR16,'r58r6_quantized_scaled_jet_rel_error'),obj.staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error=double(NR16.r58r6_quantized_scaled_jet_rel_error);end
+                if isfield(NR16,'r58r6_quantized_physical_jet_max_abs_error'),obj.staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error=double(NR16.r58r6_quantized_physical_jet_max_abs_error);end
+                if isfield(NR16,'r58r6_failed_corr_v_ub'),obj.staged_replan_predeadline_r58r6_failed_corr_v_ub=double(NR16.r58r6_failed_corr_v_ub);end
+                if isfield(NR16,'r58r6_failed_corr_a_ub'),obj.staged_replan_predeadline_r58r6_failed_corr_a_ub=double(NR16.r58r6_failed_corr_a_ub);end
+                if isfield(NR16,'r58r6_failed_corr_j_ub'),obj.staged_replan_predeadline_r58r6_failed_corr_j_ub=double(NR16.r58r6_failed_corr_j_ub);end
+                if isfield(NR16,'r58r6_failed_speed_worst_vq'),obj.staged_replan_predeadline_r58r6_failed_speed_worst_vq=double(NR16.r58r6_failed_speed_worst_vq);end
+                if isfield(NR16,'r58r6_failed_speed_worst_vl'),obj.staged_replan_predeadline_r58r6_failed_speed_worst_vl=double(NR16.r58r6_failed_speed_worst_vl);end
+                if isfield(NR16,'r58r6_failed_speed_worst_sigma'),obj.staged_replan_predeadline_r58r6_failed_speed_worst_sigma=double(NR16.r58r6_failed_speed_worst_sigma);end
+                if isfield(NR16,'r58r6_failed_speed_worst_qdot'),obj.staged_replan_predeadline_r58r6_failed_speed_worst_qdot=double(NR16.r58r6_failed_speed_worst_qdot);end
+                if isfield(NR16,'r58r6_failed_speed_witness'),obj.staged_replan_predeadline_r58r6_failed_speed_witness=double(NR16.r58r6_failed_speed_witness);end
+                if isfield(NR16,'r58r7_constraint_generation_used'),obj.staged_replan_predeadline_r58r7_constraint_generation_used=double(NR16.r58r7_constraint_generation_used);end
+                if isfield(NR16,'r58r7_full_row_count_max'),obj.staged_replan_predeadline_r58r7_full_row_count_max=double(NR16.r58r7_full_row_count_max);end
+                if isfield(NR16,'r58r7_outer_iterations_max'),obj.staged_replan_predeadline_r58r7_outer_iterations_max=double(NR16.r58r7_outer_iterations_max);end
+                if isfield(NR16,'r58r7_full_scans'),obj.staged_replan_predeadline_r58r7_full_scans=double(NR16.r58r7_full_scans);end
+                if isfield(NR16,'r58r7_rows_added'),obj.staged_replan_predeadline_r58r7_rows_added=double(NR16.r58r7_rows_added);end
+                if isfield(NR16,'r58r7_active_rows_max'),obj.staged_replan_predeadline_r58r7_active_rows_max=double(NR16.r58r7_active_rows_max);end
+                if isfield(NR16,'r58r7_subset_kkt_solves'),obj.staged_replan_predeadline_r58r7_subset_kkt_solves=double(NR16.r58r7_subset_kkt_solves);end
+                if isfield(NR16,'r58r7_subset_kkt_converged'),obj.staged_replan_predeadline_r58r7_subset_kkt_converged=double(NR16.r58r7_subset_kkt_converged);end
+                if isfield(NR16,'r58r7_subset_resource_fail'),obj.staged_replan_predeadline_r58r7_subset_resource_fail=double(NR16.r58r7_subset_resource_fail);end
+                if isfield(NR16,'r58r7_duplicate_add_fail'),obj.staged_replan_predeadline_r58r7_duplicate_add_fail=double(NR16.r58r7_duplicate_add_fail);end
+                if isfield(NR16,'r58r7_full_optimality_closed'),obj.staged_replan_predeadline_r58r7_full_optimality_closed=double(NR16.r58r7_full_optimality_closed);end
+                if isfield(NR16,'r58r7_subset_sweeps_max'),obj.staged_replan_predeadline_r58r7_subset_sweeps_max=double(NR16.r58r7_subset_sweeps_max);end
+                if isfield(NR16,'r58r7_coordinate_updates'),obj.staged_replan_predeadline_r58r7_coordinate_updates=double(NR16.r58r7_coordinate_updates);end
+                if isfield(NR16,'r58r7_initial_worst_violation'),obj.staged_replan_predeadline_r58r7_initial_worst_violation=double(NR16.r58r7_initial_worst_violation);end
+                if isfield(NR16,'r58r7_final_max_violation'),obj.staged_replan_predeadline_r58r7_final_max_violation=double(NR16.r58r7_final_max_violation);end
+                if isfield(NR16,'r58r7_final_duality_gap'),obj.staged_replan_predeadline_r58r7_final_duality_gap=double(NR16.r58r7_final_duality_gap);end
+                if isfield(NR16,'r58r7_final_complementarity'),obj.staged_replan_predeadline_r58r7_final_complementarity=double(NR16.r58r7_final_complementarity);end
+                if isfield(NR16,'r58r7_final_stationarity'),obj.staged_replan_predeadline_r58r7_final_stationarity=double(NR16.r58r7_final_stationarity);end
+                if isfield(NR16,'r58r7_solver_ms'),obj.staged_replan_predeadline_r58r7_solver_ms=double(NR16.r58r7_solver_ms);end
+                if isfield(NR16,'r58r8_ipm_used'),obj.staged_replan_predeadline_r58r8_ipm_used=double(NR16.r58r8_ipm_used);end
+                if isfield(NR16,'r58r8_ipm_converged'),obj.staged_replan_predeadline_r58r8_ipm_converged=double(NR16.r58r8_ipm_converged);end
+                if isfield(NR16,'r58r8_ipm_resource_fail'),obj.staged_replan_predeadline_r58r8_ipm_resource_fail=double(NR16.r58r8_ipm_resource_fail);end
+                if isfield(NR16,'r58r8_ipm_factor_fail'),obj.staged_replan_predeadline_r58r8_ipm_factor_fail=double(NR16.r58r8_ipm_factor_fail);end
+                if isfield(NR16,'r58r8_ipm_max_iterations'),obj.staged_replan_predeadline_r58r8_ipm_max_iterations=double(NR16.r58r8_ipm_max_iterations);end
+                if isfield(NR16,'r58r8_ipm_newton_solves'),obj.staged_replan_predeadline_r58r8_ipm_newton_solves=double(NR16.r58r8_ipm_newton_solves);end
+                if isfield(NR16,'r58r8_ipm_primal_residual'),obj.staged_replan_predeadline_r58r8_ipm_primal_residual=double(NR16.r58r8_ipm_primal_residual);end
+                if isfield(NR16,'r58r8_ipm_dual_residual'),obj.staged_replan_predeadline_r58r8_ipm_dual_residual=double(NR16.r58r8_ipm_dual_residual);end
+                if isfield(NR16,'r58r8_ipm_complementarity'),obj.staged_replan_predeadline_r58r8_ipm_complementarity=double(NR16.r58r8_ipm_complementarity);end
+                if isfield(NR16,'r58r8_ipm_duality_gap'),obj.staged_replan_predeadline_r58r8_ipm_duality_gap=double(NR16.r58r8_ipm_duality_gap);end
+                if isfield(NR16,'r58r8_ipm_min_slack'),obj.staged_replan_predeadline_r58r8_ipm_min_slack=double(NR16.r58r8_ipm_min_slack);end
+                if isfield(NR16,'r58r8_ipm_min_lambda'),obj.staged_replan_predeadline_r58r8_ipm_min_lambda=double(NR16.r58r8_ipm_min_lambda);end
+                if isfield(NR16,'r58r8_ipm_ms'),obj.staged_replan_predeadline_r58r8_ipm_ms=double(NR16.r58r8_ipm_ms);end
+                if isfield(NR16,'r58r8_newton_diag_equilibrated'),obj.staged_replan_predeadline_r58r8_newton_diag_equilibrated=double(NR16.r58r8_newton_diag_equilibrated);end
+                if isfield(NR16,'r58r8_pcg_used'),obj.staged_replan_predeadline_r58r8_pcg_used=double(NR16.r58r8_pcg_used);end
+                if isfield(NR16,'r58r8_pcg_resource_fail'),obj.staged_replan_predeadline_r58r8_pcg_resource_fail=double(NR16.r58r8_pcg_resource_fail);end
+                if isfield(NR16,'r58r8_pcg_max_iterations'),obj.staged_replan_predeadline_r58r8_pcg_max_iterations=double(NR16.r58r8_pcg_max_iterations);end
+                if isfield(NR16,'r58r8_pcg_final_rel_residual'),obj.staged_replan_predeadline_r58r8_pcg_final_rel_residual=double(NR16.r58r8_pcg_final_rel_residual);end
+                if isfield(NR16,'r58r9_failure_count'),obj.staged_replan_predeadline_r58r9_failure_count=double(NR16.r58r9_failure_count);end
+                if isfield(NR16,'r58r9_failure_depth'),obj.staged_replan_predeadline_r58r9_failure_depth=double(NR16.r58r9_failure_depth);end
+                if isfield(NR16,'r58r9_failure_last_side'),obj.staged_replan_predeadline_r58r9_failure_last_side=double(NR16.r58r9_failure_last_side);end
+                if isfield(NR16,'r58r9_failure_outer_iteration'),obj.staged_replan_predeadline_r58r9_failure_outer_iteration=double(NR16.r58r9_failure_outer_iteration);end
+                if isfield(NR16,'r58r9_failure_active_rows'),obj.staged_replan_predeadline_r58r9_failure_active_rows=double(NR16.r58r9_failure_active_rows);end
+                if isfield(NR16,'r58r9_failure_added_row'),obj.staged_replan_predeadline_r58r9_failure_added_row=double(NR16.r58r9_failure_added_row);end
+                if isfield(NR16,'r58r9_failure_ipm_iteration'),obj.staged_replan_predeadline_r58r9_failure_ipm_iteration=double(NR16.r58r9_failure_ipm_iteration);end
+                if isfield(NR16,'r58r9_failure_stage'),obj.staged_replan_predeadline_r58r9_failure_stage=double(NR16.r58r9_failure_stage);end
+                if isfield(NR16,'r58r9_failure_pcg_iterations'),obj.staged_replan_predeadline_r58r9_failure_pcg_iterations=double(NR16.r58r9_failure_pcg_iterations);end
+                if isfield(NR16,'r58r9_failure_pcg_final_rel_residual'),obj.staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual=double(NR16.r58r9_failure_pcg_final_rel_residual);end
+                if isfield(NR16,'r58r9_failure_pcg_rhs_inf'),obj.staged_replan_predeadline_r58r9_failure_pcg_rhs_inf=double(NR16.r58r9_failure_pcg_rhs_inf);end
+                if isfield(NR16,'r58r9_failure_D_min'),obj.staged_replan_predeadline_r58r9_failure_D_min=double(NR16.r58r9_failure_D_min);end
+                if isfield(NR16,'r58r9_failure_D_max'),obj.staged_replan_predeadline_r58r9_failure_D_max=double(NR16.r58r9_failure_D_max);end
+                if isfield(NR16,'r58r9_failure_D_ratio'),obj.staged_replan_predeadline_r58r9_failure_D_ratio=double(NR16.r58r9_failure_D_ratio);end
+                if isfield(NR16,'r58r9_failure_min_slack'),obj.staged_replan_predeadline_r58r9_failure_min_slack=double(NR16.r58r9_failure_min_slack);end
+                if isfield(NR16,'r58r9_failure_min_lambda'),obj.staged_replan_predeadline_r58r9_failure_min_lambda=double(NR16.r58r9_failure_min_lambda);end
+                if isfield(NR16,'r58r9_failure_metric_max_abs_corr'),obj.staged_replan_predeadline_r58r9_failure_metric_max_abs_corr=double(NR16.r58r9_failure_metric_max_abs_corr);end
+                if isfield(NR16,'r58r9_failure_metric_one_minus_corr'),obj.staged_replan_predeadline_r58r9_failure_metric_one_minus_corr=double(NR16.r58r9_failure_metric_one_minus_corr);end
+                if isfield(NR16,'r58r9_full_scan_ms'),obj.staged_replan_predeadline_r58r9_full_scan_ms=double(NR16.r58r9_full_scan_ms);end
+                if isfield(NR16,'r58r9_subset_solver_ms'),obj.staged_replan_predeadline_r58r9_subset_solver_ms=double(NR16.r58r9_subset_solver_ms);end
+                if isfield(NR16,'r58r9_pcg_ms'),obj.staged_replan_predeadline_r58r9_pcg_ms=double(NR16.r58r9_pcg_ms);end
+                if isfield(NR16,'r58r9_plus_failed'),obj.staged_replan_predeadline_r58r9_plus_failed=double(NR16.r58r9_plus_failed);end
+                if isfield(NR16,'r58r9_minus_failed'),obj.staged_replan_predeadline_r58r9_minus_failed=double(NR16.r58r9_minus_failed);end
+                if isfield(NR16,'r58r9_plus_failure_stage'),obj.staged_replan_predeadline_r58r9_plus_failure_stage=double(NR16.r58r9_plus_failure_stage);end
+                if isfield(NR16,'r58r9_minus_failure_stage'),obj.staged_replan_predeadline_r58r9_minus_failure_stage=double(NR16.r58r9_minus_failure_stage);end
+                if isfield(NR16,'r58r9_plus_failure_active_rows'),obj.staged_replan_predeadline_r58r9_plus_failure_active_rows=double(NR16.r58r9_plus_failure_active_rows);end
+                if isfield(NR16,'r58r9_minus_failure_active_rows'),obj.staged_replan_predeadline_r58r9_minus_failure_active_rows=double(NR16.r58r9_minus_failure_active_rows);end
+                if isfield(NR16,'r58r9_plus_failure_pcg_relres'),obj.staged_replan_predeadline_r58r9_plus_failure_pcg_relres=double(NR16.r58r9_plus_failure_pcg_relres);end
+                if isfield(NR16,'r58r9_minus_failure_pcg_relres'),obj.staged_replan_predeadline_r58r9_minus_failure_pcg_relres=double(NR16.r58r9_minus_failure_pcg_relres);end
+                if isfield(NR16,'r58r9_plus_metric_max_abs_corr'),obj.staged_replan_predeadline_r58r9_plus_metric_max_abs_corr=double(NR16.r58r9_plus_metric_max_abs_corr);end
+                if isfield(NR16,'r58r9_minus_metric_max_abs_corr'),obj.staged_replan_predeadline_r58r9_minus_metric_max_abs_corr=double(NR16.r58r9_minus_metric_max_abs_corr);end
+                if isfield(NR16,'r58r9_plus_cg_ms'),obj.staged_replan_predeadline_r58r9_plus_cg_ms=double(NR16.r58r9_plus_cg_ms);end
+                if isfield(NR16,'r58r9_minus_cg_ms'),obj.staged_replan_predeadline_r58r9_minus_cg_ms=double(NR16.r58r9_minus_cg_ms);end
+                if isfield(NR16,'r58r10_plus_primal_residual'),obj.staged_replan_predeadline_r58r10_plus_primal_residual=double(NR16.r58r10_plus_primal_residual);end
+                if isfield(NR16,'r58r10_plus_dual_residual'),obj.staged_replan_predeadline_r58r10_plus_dual_residual=double(NR16.r58r10_plus_dual_residual);end
+                if isfield(NR16,'r58r10_plus_mu'),obj.staged_replan_predeadline_r58r10_plus_mu=double(NR16.r58r10_plus_mu);end
+                if isfield(NR16,'r58r10_plus_duality_gap'),obj.staged_replan_predeadline_r58r10_plus_duality_gap=double(NR16.r58r10_plus_duality_gap);end
+                if isfield(NR16,'r58r10_plus_kkt_tol'),obj.staged_replan_predeadline_r58r10_plus_kkt_tol=double(NR16.r58r10_plus_kkt_tol);end
+                if isfield(NR16,'r58r10_plus_gap_tol'),obj.staged_replan_predeadline_r58r10_plus_gap_tol=double(NR16.r58r10_plus_gap_tol);end
+                if isfield(NR16,'r58r10_plus_last_sigma'),obj.staged_replan_predeadline_r58r10_plus_last_sigma=double(NR16.r58r10_plus_last_sigma);end
+                if isfield(NR16,'r58r10_plus_last_alpha_primal'),obj.staged_replan_predeadline_r58r10_plus_last_alpha_primal=double(NR16.r58r10_plus_last_alpha_primal);end
+                if isfield(NR16,'r58r10_plus_last_alpha_dual'),obj.staged_replan_predeadline_r58r10_plus_last_alpha_dual=double(NR16.r58r10_plus_last_alpha_dual);end
+                if isfield(NR16,'r58r10_plus_min_alpha_primal'),obj.staged_replan_predeadline_r58r10_plus_min_alpha_primal=double(NR16.r58r10_plus_min_alpha_primal);end
+                if isfield(NR16,'r58r10_plus_min_alpha_dual'),obj.staged_replan_predeadline_r58r10_plus_min_alpha_dual=double(NR16.r58r10_plus_min_alpha_dual);end
+                if isfield(NR16,'r58r10_plus_mu_ratio'),obj.staged_replan_predeadline_r58r10_plus_mu_ratio=double(NR16.r58r10_plus_mu_ratio);end
+                if isfield(NR16,'r58r10_plus_D_min'),obj.staged_replan_predeadline_r58r10_plus_D_min=double(NR16.r58r10_plus_D_min);end
+                if isfield(NR16,'r58r10_plus_D_max'),obj.staged_replan_predeadline_r58r10_plus_D_max=double(NR16.r58r10_plus_D_max);end
+                if isfield(NR16,'r58r10_plus_D_ratio'),obj.staged_replan_predeadline_r58r10_plus_D_ratio=double(NR16.r58r10_plus_D_ratio);end
+                if isfield(NR16,'r58r10_plus_min_slack'),obj.staged_replan_predeadline_r58r10_plus_min_slack=double(NR16.r58r10_plus_min_slack);end
+                if isfield(NR16,'r58r10_plus_min_lambda'),obj.staged_replan_predeadline_r58r10_plus_min_lambda=double(NR16.r58r10_plus_min_lambda);end
+                if isfield(NR16,'r58r10_plus_predictor_pcg_iterations'),obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations=double(NR16.r58r10_plus_predictor_pcg_iterations);end
+                if isfield(NR16,'r58r10_plus_corrector_pcg_iterations'),obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations=double(NR16.r58r10_plus_corrector_pcg_iterations);end
+                if isfield(NR16,'r58r10_plus_predictor_pcg_relres'),obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_relres=double(NR16.r58r10_plus_predictor_pcg_relres);end
+                if isfield(NR16,'r58r10_plus_corrector_pcg_relres'),obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_relres=double(NR16.r58r10_plus_corrector_pcg_relres);end
+                if isfield(NR16,'r58r10_minus_primal_residual'),obj.staged_replan_predeadline_r58r10_minus_primal_residual=double(NR16.r58r10_minus_primal_residual);end
+                if isfield(NR16,'r58r10_minus_dual_residual'),obj.staged_replan_predeadline_r58r10_minus_dual_residual=double(NR16.r58r10_minus_dual_residual);end
+                if isfield(NR16,'r58r10_minus_mu'),obj.staged_replan_predeadline_r58r10_minus_mu=double(NR16.r58r10_minus_mu);end
+                if isfield(NR16,'r58r10_minus_duality_gap'),obj.staged_replan_predeadline_r58r10_minus_duality_gap=double(NR16.r58r10_minus_duality_gap);end
+                if isfield(NR16,'r58r10_minus_kkt_tol'),obj.staged_replan_predeadline_r58r10_minus_kkt_tol=double(NR16.r58r10_minus_kkt_tol);end
+                if isfield(NR16,'r58r10_minus_gap_tol'),obj.staged_replan_predeadline_r58r10_minus_gap_tol=double(NR16.r58r10_minus_gap_tol);end
+                if isfield(NR16,'r58r10_minus_last_sigma'),obj.staged_replan_predeadline_r58r10_minus_last_sigma=double(NR16.r58r10_minus_last_sigma);end
+                if isfield(NR16,'r58r10_minus_last_alpha_primal'),obj.staged_replan_predeadline_r58r10_minus_last_alpha_primal=double(NR16.r58r10_minus_last_alpha_primal);end
+                if isfield(NR16,'r58r10_minus_last_alpha_dual'),obj.staged_replan_predeadline_r58r10_minus_last_alpha_dual=double(NR16.r58r10_minus_last_alpha_dual);end
+                if isfield(NR16,'r58r10_minus_min_alpha_primal'),obj.staged_replan_predeadline_r58r10_minus_min_alpha_primal=double(NR16.r58r10_minus_min_alpha_primal);end
+                if isfield(NR16,'r58r10_minus_min_alpha_dual'),obj.staged_replan_predeadline_r58r10_minus_min_alpha_dual=double(NR16.r58r10_minus_min_alpha_dual);end
+                if isfield(NR16,'r58r10_minus_mu_ratio'),obj.staged_replan_predeadline_r58r10_minus_mu_ratio=double(NR16.r58r10_minus_mu_ratio);end
+                if isfield(NR16,'r58r10_minus_D_min'),obj.staged_replan_predeadline_r58r10_minus_D_min=double(NR16.r58r10_minus_D_min);end
+                if isfield(NR16,'r58r10_minus_D_max'),obj.staged_replan_predeadline_r58r10_minus_D_max=double(NR16.r58r10_minus_D_max);end
+                if isfield(NR16,'r58r10_minus_D_ratio'),obj.staged_replan_predeadline_r58r10_minus_D_ratio=double(NR16.r58r10_minus_D_ratio);end
+                if isfield(NR16,'r58r10_minus_min_slack'),obj.staged_replan_predeadline_r58r10_minus_min_slack=double(NR16.r58r10_minus_min_slack);end
+                if isfield(NR16,'r58r10_minus_min_lambda'),obj.staged_replan_predeadline_r58r10_minus_min_lambda=double(NR16.r58r10_minus_min_lambda);end
+                if isfield(NR16,'r58r10_minus_predictor_pcg_iterations'),obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations=double(NR16.r58r10_minus_predictor_pcg_iterations);end
+                if isfield(NR16,'r58r10_minus_corrector_pcg_iterations'),obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations=double(NR16.r58r10_minus_corrector_pcg_iterations);end
+                if isfield(NR16,'r58r10_minus_predictor_pcg_relres'),obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_relres=double(NR16.r58r10_minus_predictor_pcg_relres);end
+                if isfield(NR16,'r58r10_minus_corrector_pcg_relres'),obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_relres=double(NR16.r58r10_minus_corrector_pcg_relres);end
+                if isfield(NR16,'r58r11_augmented_kkt_used'),obj.staged_replan_predeadline_r58r11_augmented_kkt_used=double(NR16.r58r11_augmented_kkt_used);end
+                if isfield(NR16,'r58r11_augmented_kkt_solve_fail'),obj.staged_replan_predeadline_r58r11_augmented_kkt_solve_fail=double(NR16.r58r11_augmented_kkt_solve_fail);end
+                if isfield(NR16,'r58r11_common_step_used'),obj.staged_replan_predeadline_r58r11_common_step_used=double(NR16.r58r11_common_step_used);end
+                if isfield(NR16,'r58r11_augmented_kkt_max_dim'),obj.staged_replan_predeadline_r58r11_augmented_kkt_max_dim=double(NR16.r58r11_augmented_kkt_max_dim);end
+                if isfield(NR16,'r58r11_newton_solves'),obj.staged_replan_predeadline_r58r11_newton_solves=double(NR16.r58r11_newton_solves);end
+                if isfield(NR16,'r58r11_newton_max_rel_residual'),obj.staged_replan_predeadline_r58r11_newton_max_rel_residual=double(NR16.r58r11_newton_max_rel_residual);end
+                if isfield(NR16,'r58r11_common_step_min'),obj.staged_replan_predeadline_r58r11_common_step_min=double(NR16.r58r11_common_step_min);end
+                if isfield(NR16,'r58r11_common_step_last'),obj.staged_replan_predeadline_r58r11_common_step_last=double(NR16.r58r11_common_step_last);end
+                if isfield(NR16,'r58r11_solver_ms'),obj.staged_replan_predeadline_r58r11_solver_ms=double(NR16.r58r11_solver_ms);end
                 if isfield(NR16,'episode_ms'),obj.staged_replan_predeadline_native_episode_ms=double(NR16.episode_ms);end
                 if isfield(NR16,'hessian_ms'),obj.staged_replan_predeadline_native_hessian_ms=double(NR16.hessian_ms);end
                 if isfield(NR16,'corridor_ms'),obj.staged_replan_predeadline_native_corridor_ms=double(NR16.corridor_ms);end
@@ -6517,6 +7754,42 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(candidate,'adaptive_rejoin_selected')
                 obj.staged_replan_predeadline_rejoin_selected= ...
                     logical(candidate.adaptive_rejoin_selected);
+            end
+
+            obj.r47_record_pipeline_event( ...
+                1,t_now,stage_ms,candidate,obj.field_scalar(candidate,'reason_code'));
+
+            % AF7R58R15: diagnostic-only export independent of caller workspace.
+            % Root application data is MATLAB-process-local, survives clearvars
+            % and does NOT retain a controller/plant/agent handle. Never grants
+            % acceptance or changes trajectory, deadline or hard certificates.
+            % Deliberately restricted to explicit R58+R14 research diagnostics.
+            if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
+                    logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
+                    isstruct(candidate) && isfield(candidate,'native_raw') && ...
+                    isstruct(candidate.native_raw)
+                N15=candidate.native_raw;
+                req15={'r58_shadow_ran', 'r58r14_lowjet_seed_only', ...
+                    'r58r14_active_reduced_dof', 'r58r14_full_reduced_dof', ...
+                    'r58_bnb_full_assignments', 'r58_bnb_qp_solves', ...
+                    'r58_bnb_feasible_full', 'r58_bnb_speed_fail', ...
+                    'r58_speed_pass', 'r58_heading_pass', 'r58_geometry_pass', ...
+                    'r58_speed_gate_rows', 'r58_shadow_ms', ...
+                    'r58_homotopy_ms', 'r58_build_ms', ...
+                    'r58_reference_only', 'r58_commit_attempted'};
+                if all(isfield(N15,req15))
+                    snap15=struct();
+                    for ii15=1:numel(req15)
+                        nm15=req15{ii15};
+                        snap15.(nm15)=double(N15.(nm15));
+                    end
+                    snap15.last_stage1_ms=double(stage_ms);
+                    snap15.r15_trigger_time_s=double(t_now);
+                    snap15.r15_source='NATIVE_R14_POST_STAGE1_NUMERIC_ONLY';
+                    % Capturing a single 38-column diagnostic matrix involves
+                    % no file IO in Flight; writing reports is post-simulation.
+                    setappdata(0,'AF7R58R15_LAST_STATUS',snap15);
+                end
             end
 
             % AF7R25G development runtime policy:
@@ -6657,6 +7930,10 @@ classdef REPLANNING_SYSTEM < handle
                 obj.staged_replan_last_stage2_ms=1e3*toc(ts);
                 obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
                 obj.staged_replan_stage2_count=obj.staged_replan_stage2_count+1;
+                r47code=41;
+                if ~ok,r47code=31;end
+                obj.r47_record_pipeline_event( ...
+                    2,t_now,obj.staged_replan_last_stage2_ms,P,r47code);
 
                 if ~ok
                     obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
@@ -6704,6 +7981,11 @@ classdef REPLANNING_SYSTEM < handle
                 [ok,reason]=obj.activate_staged_reference_only_bundle( ...
                     obj.staged_replan_bundle,t_now,t_hard_cycle);
                 obj.staged_replan_last_stage3_ms=1e3*toc(ts);
+                r47code=30;
+                if ~ok,r47code=-67;end
+                obj.r47_record_pipeline_event( ...
+                    3,t_now,obj.staged_replan_last_stage3_ms, ...
+                    obj.staged_replan_candidate,r47code);
 
                 if ok
                     obj.staged_replan_commit_count= ...
@@ -6721,6 +8003,166 @@ classdef REPLANNING_SYSTEM < handle
                     obj.reset_staged_replan_pipeline( ...
                         ['STAGE3_COMMIT_REJECT__' char(reason)],true);
                 end
+            end
+        end
+
+
+        function Q = af7r48_native_eval_packet_from_batch_model(obj,model)
+            % AF7R48 exact serialization of the already-certified canonical
+            % position-flat model for af7r36_single_core_mex op=2.
+            % No trajectory generation or safety decision occurs here.
+            assert(isstruct(model) && isfield(model,'certified') && ...
+                logical(model.certified) && ...
+                isfield(model,'flight_reference_time_origin') && ...
+                isfield(model,'corrections'), ...
+                '[REPLANNER ERROR] invalid canonical batch model for native evaluation.');
+
+            Q=struct();
+            Q.flight_t0=double(model.flight_reference_time_origin);
+            C=model.corrections;
+            G=numel(C);
+            Q.repair_t0=zeros(1,G);
+            Q.repair_t1=zeros(1,G);
+            Q.repair_offsets=zeros(1,G+1);
+            S=0;
+            for g=1:G
+                assert(isfield(C(g),'t0')&&isfield(C(g),'t1')&& ...
+                    isfield(C(g),'segment_t0')&&isfield(C(g),'segment_t1')&& ...
+                    isfield(C(g),'control_points'));
+                Q.repair_t0(g)=double(C(g).t0);
+                Q.repair_t1(g)=double(C(g).t1);
+                s0=double(C(g).segment_t0(:).');
+                s1=double(C(g).segment_t1(:).');
+                assert(numel(s0)==numel(s1));
+                Q.repair_offsets(g)=S;
+                S=S+numel(s0);
+            end
+            Q.repair_offsets(G+1)=S;
+            Q.repair_seg0=zeros(1,S);
+            Q.repair_seg1=zeros(1,S);
+            Q.repair_cp=zeros(48,S);
+            jj=0;
+            for g=1:G
+                s0=double(C(g).segment_t0(:).');
+                s1=double(C(g).segment_t1(:).');
+                CP=C(g).control_points;
+                for k=1:numel(s0)
+                    jj=jj+1;
+                    Q.repair_seg0(jj)=s0(k);
+                    Q.repair_seg1(jj)=s1(k);
+                    if iscell(CP)
+                        cp=double(CP{k});
+                    else
+                        A=double(CP);
+                        if ndims(A)==3
+                            cp=A(:,:,k);
+                        elseif isequal(size(A),[3 16]) && numel(s0)==1
+                            cp=A;
+                        else
+                            error('[REPLANNER ERROR] unsupported canonical control-point storage.');
+                        end
+                    end
+                    assert(isequal(size(cp),[3 16]) && all(isfinite(cp),'all'));
+                    Q.repair_cp(:,jj)=cp(:);
+                end
+            end
+            assert(jj==S && isfinite(Q.flight_t0));
+            Q=obj.af7r51_attach_phase_packet_metadata(Q,model);
+        end
+
+
+        function model = af7r51_append_phase_layer(~,model,P)
+            % AF7R51 phase metadata is orthogonal to the historical additive
+            % correction schema. Match layers by exact correction t0.
+            if ~isfield(model,'phase_layers') || ~isstruct(model.phase_layers)
+                model.phase_layers=struct('correction_t0',{},'t0',{},'tA',{}, ...
+                    'tB',{},'tE',{},'sA',{},'sB',{},'alpha',{},'delay',{});
+            end
+            % Prune metadata whose correction group was already pruned by the
+            % canonical resource helper.
+            if ~isempty(model.phase_layers)
+                ct=arrayfun(@(c)double(c.t0),model.corrections);
+                keep=false(1,numel(model.phase_layers));
+                for k=1:numel(model.phase_layers)
+                    keep(k)=any(ct==double(model.phase_layers(k).correction_t0));
+                end
+                model.phase_layers=model.phase_layers(keep);
+            end
+            if ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized))
+                return;
+            end
+            L=struct( ...
+                'correction_t0',double(P.t0), ...
+                't0',double(P.phase_t0), ...
+                'tA',double(P.phase_entry_end), ...
+                'tB',double(P.phase_flow_end), ...
+                'tE',double(P.phase_exit_end), ...
+                'sA',double(P.phase_source_start), ...
+                'sB',double(P.phase_source_end), ...
+                'alpha',double(P.phase_alpha), ...
+                'delay',double(P.phase_delay_s));
+            vals=[L.correction_t0 L.t0 L.tA L.tB L.tE L.sA L.sB L.alpha L.delay];
+            assert(all(isfinite(vals)) && L.t0<L.tA && L.tA<L.tB && ...
+                L.tB<L.tE && L.sA<L.sB && L.alpha>0 && L.alpha<=1 && L.delay>=0, ...
+                '[AF7R51] invalid phase layer at commit.');
+            model.phase_layers(end+1)=L;
+        end
+
+
+        function Q = af7r51_attach_phase_packet_metadata(obj,Q,model)
+            if nargin<3 || isempty(model)
+                if strcmpi(char(obj.active_reference_mode),'REPAIRED')
+                    obj.assert_repaired_reference_current();
+                    model=obj.active_repaired_reference.batch_flat_model;
+                else
+                    model=struct('corrections',struct([]),'phase_layers',struct([]));
+                end
+            end
+            G=numel(model.corrections);
+            Q.repair_phase_enabled=zeros(1,G);
+            Q.repair_phase_t0=zeros(1,G);
+            Q.repair_phase_tA=zeros(1,G);
+            Q.repair_phase_tB=zeros(1,G);
+            Q.repair_phase_tE=zeros(1,G);
+            Q.repair_phase_sA=zeros(1,G);
+            Q.repair_phase_sB=zeros(1,G);
+            Q.repair_phase_alpha=ones(1,G);
+            Q.repair_phase_delay=zeros(1,G);
+            if ~isfield(model,'phase_layers') || isempty(model.phase_layers)
+                return;
+            end
+            for g=1:G
+                ct=double(model.corrections(g).t0);
+                ix=find(arrayfun(@(x)double(x.correction_t0)==ct,model.phase_layers),1,'last');
+                if isempty(ix),continue;end
+                L=model.phase_layers(ix);
+                Q.repair_phase_enabled(g)=1;
+                Q.repair_phase_t0(g)=double(L.t0);
+                Q.repair_phase_tA(g)=double(L.tA);
+                Q.repair_phase_tB(g)=double(L.tB);
+                Q.repair_phase_tE(g)=double(L.tE);
+                Q.repair_phase_sA(g)=double(L.sA);
+                Q.repair_phase_sB(g)=double(L.sB);
+                Q.repair_phase_alpha(g)=double(L.alpha);
+                Q.repair_phase_delay(g)=double(L.delay);
+            end
+        end
+
+
+        function [evalFn,flatEvalFn] = af7r51_make_phase_native_eval_handles(obj,model)
+            Q=obj.af7r48_native_eval_packet_from_batch_model(model);
+            evalFn=@(tg)obj.af7r51_native_phase_eval(Q,double(tg));
+            flatEvalFn=evalFn;
+        end
+
+
+        function xd = af7r51_native_phase_eval(~,Q,tg)
+            Y=af7r36_single_core_mex(2,Q,double(tg));
+            assert(isequal(size(Y),[21 1]) && all(isfinite(Y(:))), ...
+                '[AF7R51] native phase reference evaluation failed.');
+            xd=zeros(28,1);
+            for r=0:6
+                xd(4*r+(1:3))=Y(3*r+(1:3),1);
             end
         end
 
@@ -6777,6 +8219,9 @@ classdef REPLANNING_SYSTEM < handle
             [resourceOK,resourceReason,batchModel,resourceMeta]= ...
                 af7r58i_prepare_batch_model( ...
                     obj,P,targetVersion,double(t_commit));
+            if resourceOK
+                batchModel=obj.af7r51_append_phase_layer(batchModel,P);
+            end
             if ~resourceOK
                 reason=resourceReason; return;
             end
@@ -6795,11 +8240,23 @@ classdef REPLANNING_SYSTEM < handle
             depNew.reference_mode='REPAIRED';
             depNew.reference_version=double(targetVersion);
 
-            [evalFnBase,flatEvalFnBase]= ...
-                af7r58i_make_canonical_eval_handles(obj,batchModel);
+            % AF7R47: snapshot the PREVIOUS active reference before the
+            % authority swap. Its continuous yaw supplies only the unwrap
+            % branch; the new yaw derivatives come from the new total C7 path.
+            yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
+            yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
+
+            if isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers)
+                [evalFnBase,flatEvalFnBase]= ...
+                    obj.af7r51_make_phase_native_eval_handles(batchModel);
+            else
+                [evalFnBase,flatEvalFnBase]= ...
+                    af7r58i_make_canonical_eval_handles(obj,batchModel);
+            end
             evalFn=evalFnBase;
             flatEvalFn=flatEvalFnBase;
             if isfield(P,'delay_preserving') && logical(P.delay_preserving) && ...
+                    ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)) && ...
                     isfield(P,'terminal_offset') && ...
                     numel(P.terminal_offset)==3
                 qhold=double(P.terminal_offset(:));
@@ -6812,12 +8269,13 @@ classdef REPLANNING_SYSTEM < handle
 
             if isfield(P,'path_tangent_yaw_c6') && ...
                     logical(P.path_tangent_yaw_c6)
+                P.path_tangent_batch_model=batchModel;
                 evalYawBase=evalFn;
                 flatYawBase=flatEvalFn;
                 evalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    evalYawBase,tg,P);
+                    evalYawBase,yawAnchorEvalFn,tg,P);
                 flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    flatYawBase,tg,P);
+                    flatYawBase,yawAnchorFlatFn,tg,P);
             end
 
             smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
@@ -6870,7 +8328,7 @@ classdef REPLANNING_SYSTEM < handle
                     'continuity_order',6, ...
                     'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
                     'heading_anchor_rad',double(P.heading_anchor_rad), ...
-                    'source','C7_POSITION_PLUS_STRICT_HORIZONTAL_HALFPLANE_LOG_DERIVATIVE');
+                    'source','C7_POSITION_PLUS_ACTIVE_BASE_POSITIVE_DOT_LOG_DERIVATIVE');
             end
             R.path_parameterization=struct( ...
                 'kind','DIRECT_TIME_BEZIER_CORRECTION', ...
@@ -6881,6 +8339,10 @@ classdef REPLANNING_SYSTEM < handle
                 R.path_parameterization.path_derivative_order=7;
                 R.path_parameterization.time_derivative_order=6;
                 R.path_parameterization.identity_time_law=true;
+                R.rejoin_time=double(P.actual_rejoin_time);
+            elseif isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)
+                R.path_parameterization.kind='GENERAL_C7_PHASE_REPARAMETERIZATION';
+                R.path_parameterization.schedule_delay_s=double(P.phase_delay_s);
                 R.rejoin_time=double(P.actual_rejoin_time);
             elseif isfield(P,'delay_preserving') && logical(P.delay_preserving)
                 R.path_parameterization.kind='AFFINE_BASE_DELAY_PRESERVING_RETIMING';
@@ -6934,9 +8396,31 @@ classdef REPLANNING_SYSTEM < handle
             N=round(H/dt)+1;
             tCache=double(t_commit)+dt;
             tqCache=tCache+(0:N-1)*dt;
-            [Ycache,validCache]= ...
-                af7r33_flat_jet_batch_model(obj,tqCache,batchModel);
-            Ycache=double(Ycache);
+            % AF7R48: this is evaluation of an already-certified C7 model,
+            % not replanning. For ordinary direct-time candidates use the
+            % exact native active-reference evaluator (same nominal AST and
+            % stored degree-15 control polygons as the planner). This removes
+            % the 161-point MATLAB batch cold spike from Stage2.
+            % AF7R48R1: the native ActiveReference evaluator already carries
+            % the final correction control value after each repair t1. For the
+            % exact-affine delay-preserving family this is exactly the proved
+            % schedule-shift offset p_base(t-Delta)-p_base(t), so the native
+            % 161-point cache path remains exact and does not need the slow
+            % MATLAB batch fallback.
+            useNativeCache=true;
+            if useNativeCache
+                evalPacket=obj.af7r48_native_eval_packet_from_batch_model(batchModel);
+                Ycache=double(af7r36_single_core_mex(2,evalPacket,tqCache));
+                validCache=true(1,N);
+                R.native_eval_packet=evalPacket;
+                R.native_position_eval_exact=true;
+            else
+                R.native_eval_packet=struct();
+                R.native_position_eval_exact=false;
+                [Ycache,validCache]= ...
+                    af7r33_flat_jet_batch_model(obj,tqCache,batchModel);
+                Ycache=double(Ycache);
+            end
             if ~(isequal(size(Ycache),[21 N]) && numel(validCache)==N && ...
                     all(logical(validCache(:))) && all(isfinite(Ycache),'all'))
                 reason='STAGED_POSTCOMMIT_CACHE_BATCH_INVALID'; return;
@@ -7111,6 +8595,55 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function r47_record_pipeline_event(obj,stageCode,t_now,stage_ms,P,statusCode)
+            % AF7R47 bounded diagnostic ring. Never grants/rejects control.
+            try
+                cap=double(obj.r47_event_ring_capacity);
+                wid=double(obj.r47_event_ring_width);
+                if ~(cap==64 && wid==18 && isequal(size(obj.r47_event_ring),[64 18]))
+                    return;
+                end
+                r=nan(1,18);
+                r(1)=double(obj.r47_event_ring_count)+1;
+                r(2)=double(t_now);
+                r(3)=double(stageCode);
+                r(4)=double(stage_ms);
+                r(6)=double(statusCode);
+
+                if isstruct(P)
+                    if isfield(P,'success'),r(5)=double(logical(P.success));end
+                    if isfield(P,'t0'),r(7)=double(P.t0);end
+                    if isfield(P,'t1'),r(8)=double(P.t1);end
+                    if isfield(P,'native_raw') && isstruct(P.native_raw)
+                        N=P.native_raw;
+                        names={'episode_ms','hessian_ms','corridor_ms','qp_ms', ...
+                            'candidate_build_ms','synthesis_ms','candidate_ms','total_ms', ...
+                            'r45_tangent_interval_count'};
+                        cols=9:17;
+                        for kk=1:numel(names)
+                            if isfield(N,names{kk})
+                                v=double(N.(names{kk}));
+                                if isscalar(v),r(cols(kk))=v;end
+                            end
+                        end
+                    end
+                    if isfield(P,'geometry_shadow_certificate') && ...
+                            isstruct(P.geometry_shadow_certificate) && ...
+                            isfield(P.geometry_shadow_certificate,'certified')
+                        r(18)=double(logical(P.geometry_shadow_certificate.certified));
+                    end
+                end
+
+                j=mod(double(obj.r47_event_ring_head),cap)+1;
+                obj.r47_event_ring(j,:)=r;
+                obj.r47_event_ring_head=j;
+                obj.r47_event_ring_count=min(cap,double(obj.r47_event_ring_count)+1);
+            catch
+                % Diagnostics must never affect the planning/control path.
+            end
+        end
+
+
         function S = get_staged_pipeline_status(obj)
             S=struct();
             S.enabled=logical(obj.ENABLE_STAGED_REPLAN_PIPELINE);
@@ -7258,6 +8791,391 @@ classdef REPLANNING_SYSTEM < handle
             S.r45_best_fixed_peak_req_m=double(obj.staged_replan_predeadline_r45_best_fixed_peak_req_m);
             S.r45_best_tangent_peak_req_m=double(obj.staged_replan_predeadline_r45_best_tangent_peak_req_m);
             S.r45_max_peak_relief_m=double(obj.staged_replan_predeadline_r45_max_peak_relief_m);
+            S.r47_active_base_replan_count=double(obj.staged_replan_predeadline_r47_active_base_replan_count);
+            S.r47_nonaffine_base_count=double(obj.staged_replan_predeadline_r47_nonaffine_base_count);
+            S.r47_heading_leaf_count=double(obj.staged_replan_predeadline_r47_heading_leaf_count);
+            S.r47_heading_split_count=double(obj.staged_replan_predeadline_r47_heading_split_count);
+            S.r48_natural_rejoin_trial_count=double(obj.staged_replan_predeadline_r48_natural_rejoin_trial_count);
+            S.r48_natural_rejoin_selected_count=double(obj.staged_replan_predeadline_r48_natural_rejoin_selected_count);
+            S.r48_exit_monotone_row_count=double(obj.staged_replan_predeadline_r48_exit_monotone_row_count);
+            S.r48_natural_rejoin_seed_t1=double(obj.staged_replan_predeadline_r48_natural_rejoin_seed_t1);
+            S.r49_phase_timing_trial_count=double(obj.staged_replan_predeadline_r49_phase_timing_trial_count);
+            S.r49_phase_gate_pass_count=double(obj.staged_replan_predeadline_r49_phase_gate_pass_count);
+            S.r49_hard_certificate_trial_count=double(obj.staged_replan_predeadline_r49_hard_certificate_trial_count);
+            S.r49_selected_Ke=double(obj.staged_replan_predeadline_r49_selected_Ke);
+            S.r49_selected_Kflow=double(obj.staged_replan_predeadline_r49_selected_Kflow);
+            S.r49_selected_Kx=double(obj.staged_replan_predeadline_r49_selected_Kx);
+            S.r50_spatial_side_solution_count=double(obj.staged_replan_predeadline_r50_spatial_side_solution_count);
+            S.r50_spatial_lateral_constraint_count=double(obj.staged_replan_predeadline_r50_spatial_lateral_constraint_count);
+            S.r50_entry_candidate_count=double(obj.staged_replan_predeadline_r50_entry_candidate_count);
+            S.r50_exit_candidate_count=double(obj.staged_replan_predeadline_r50_exit_candidate_count);
+            S.r50_best_spatial_velocity_norm=double(obj.staged_replan_predeadline_r50_best_spatial_velocity_norm);
+            S.r51_phase_seed_count=double(obj.staged_replan_predeadline_r51_phase_seed_count);
+            S.r51_phase_seed_reject_count=double(obj.staged_replan_predeadline_r51_phase_seed_reject_count);
+            S.r51_tangent_candidate_count=double(obj.staged_replan_predeadline_r51_tangent_candidate_count);
+            S.r51_tangent_certified_count=double(obj.staged_replan_predeadline_r51_tangent_certified_count);
+            S.r51_phase_alpha=double(obj.staged_replan_predeadline_r51_phase_alpha);
+            S.r51_phase_delay_s=double(obj.staged_replan_predeadline_r51_phase_delay_s);
+            S.r51_phase_exit_time_s=double(obj.staged_replan_predeadline_r51_phase_exit_time_s);
+            S.r52_phase_episode_count=double(obj.staged_replan_predeadline_r52_phase_episode_count);
+            S.r52_phase_episode_rebuild_fail_count=double(obj.staged_replan_predeadline_r52_phase_episode_rebuild_fail_count);
+            S.r52_corridor_row_count=double(obj.staged_replan_predeadline_r52_corridor_row_count);
+            S.r52_support_plane_fail_count=double(obj.staged_replan_predeadline_r52_support_plane_fail_count);
+            S.r52_spatial_qp_solution_count=double(obj.staged_replan_predeadline_r52_spatial_qp_solution_count);
+            S.r52_rejoin_time_trial_count=double(obj.staged_replan_predeadline_r52_rejoin_time_trial_count);
+            S.r52_selected_spatial_rejoin_s=double(obj.staged_replan_predeadline_r52_selected_spatial_rejoin_s);
+            S.r53_normal_bundle_node_count=double(obj.staged_replan_predeadline_r53_normal_bundle_node_count);
+            S.r53_normal_bundle_row_count=double(obj.staged_replan_predeadline_r53_normal_bundle_row_count);
+            S.r53_normal_bundle_singular_count=double(obj.staged_replan_predeadline_r53_normal_bundle_singular_count);
+            S.r53_affine_reduction_count=double(obj.staged_replan_predeadline_r53_affine_reduction_count);
+            S.r54_phase_candidate_count=double(obj.staged_replan_predeadline_r54_phase_candidate_count);
+            S.r54_phase_trial_count=double(obj.staged_replan_predeadline_r54_phase_trial_count);
+            S.r54_phase_base_certified_count=double(obj.staged_replan_predeadline_r54_phase_base_certified_count);
+            S.r54_phase_episode_pass_count=double(obj.staged_replan_predeadline_r54_phase_episode_pass_count);
+            S.r54_phase_episode_empty_count=double(obj.staged_replan_predeadline_r54_phase_episode_empty_count);
+            S.r54_selected_tau_multiple=double(obj.staged_replan_predeadline_r54_selected_tau_multiple);
+            S.r54_selected_alpha=double(obj.staged_replan_predeadline_r54_selected_alpha);
+            S.r54_selected_delay_s=double(obj.staged_replan_predeadline_r54_selected_delay_s);
+            S.r54_selected_first_unsafe_lead_s=double(obj.staged_replan_predeadline_r54_selected_first_unsafe_lead_s);
+            S.r54_max_first_unsafe_lead_s=double(obj.staged_replan_predeadline_r54_max_first_unsafe_lead_s);
+            S.r54_maneuver_horizon_coupling_count=double(obj.staged_replan_predeadline_r54_maneuver_horizon_coupling_count);
+            S.r55_phase_build_count=double(obj.staged_replan_predeadline_r55_phase_build_count);
+            S.r55_phase_build_fail_count=double(obj.staged_replan_predeadline_r55_phase_build_fail_count);
+            S.r55_phase_episode_pass_count=double(obj.staged_replan_predeadline_r55_phase_episode_pass_count);
+            S.r55_phase_episode_empty_count=double(obj.staged_replan_predeadline_r55_phase_episode_empty_count);
+            S.r55_mixed_side_episode_count=double(obj.staged_replan_predeadline_r55_mixed_side_episode_count);
+            S.r55_side_plus_count=double(obj.staged_replan_predeadline_r55_side_plus_count);
+            S.r55_side_minus_count=double(obj.staged_replan_predeadline_r55_side_minus_count);
+            S.r55_side_onebranch_count=double(obj.staged_replan_predeadline_r55_side_onebranch_count);
+            S.r55_side_both_failed_count=double(obj.staged_replan_predeadline_r55_side_both_failed_count);
+            S.r55_corridor_row_count=double(obj.staged_replan_predeadline_r55_corridor_row_count);
+            S.r55_obstacle_count=double(obj.staged_replan_predeadline_r55_obstacle_count);
+            S.r55_old_clock_binding_count=double(obj.staged_replan_predeadline_r55_old_clock_binding_count);
+            S.r55_maneuver_horizon_coupling_count=double(obj.staged_replan_predeadline_r55_maneuver_horizon_coupling_count);
+            S.r55_alpha=double(obj.staged_replan_predeadline_r55_alpha);
+            S.r55_delay_s=double(obj.staged_replan_predeadline_r55_delay_s);
+            S.r55_source_unsafe_start_s=double(obj.staged_replan_predeadline_r55_source_unsafe_start_s);
+            S.r55_source_unsafe_end_s=double(obj.staged_replan_predeadline_r55_source_unsafe_end_s);
+            S.r55_predicted_first_unsafe_t_s=double(obj.staged_replan_predeadline_r55_predicted_first_unsafe_t_s);
+            S.r55_predicted_last_unsafe_t_s=double(obj.staged_replan_predeadline_r55_predicted_last_unsafe_t_s);
+            S.r55_pre_unsafe_slack_s=double(obj.staged_replan_predeadline_r55_pre_unsafe_slack_s);
+            S.r55_post_unsafe_slack_s=double(obj.staged_replan_predeadline_r55_post_unsafe_slack_s);
+            S.r55_min_temporal_slack_s=double(obj.staged_replan_predeadline_r55_min_temporal_slack_s);
+            S.r55_phase_entry_transition_s=double(obj.staged_replan_predeadline_r55_phase_entry_transition_s);
+            S.r55_phase_exit_transition_s=double(obj.staged_replan_predeadline_r55_phase_exit_transition_s);
+            S.r55_source_phase_at_rejoin_s=double(obj.staged_replan_predeadline_r55_source_phase_at_rejoin_s);
+            S.r55_rejoin_clock_delay_s=double(obj.staged_replan_predeadline_r55_rejoin_clock_delay_s);
+            S.r55_min_ellipsoid_axis_m=double(obj.staged_replan_predeadline_r55_min_ellipsoid_axis_m);
+            S.r55_max_ellipsoid_axis_m=double(obj.staged_replan_predeadline_r55_max_ellipsoid_axis_m);
+            S.r55_max_rotation_orth_error=double(obj.staged_replan_predeadline_r55_max_rotation_orth_error);
+            S.r56_shadow_ran=double(obj.staged_replan_predeadline_r56_shadow_ran);
+            S.r56_source_qp_ok=double(obj.staged_replan_predeadline_r56_source_qp_ok);
+            S.r56_source_exact_c7=double(obj.staged_replan_predeadline_r56_source_exact_c7);
+            S.r56_source_knot_count=double(obj.staged_replan_predeadline_r56_source_knot_count);
+            S.r56_source_episode_count=double(obj.staged_replan_predeadline_r56_source_episode_count);
+            S.r56_source_corridor_row_count=double(obj.staged_replan_predeadline_r56_source_corridor_row_count);
+            S.r56_source_normal_row_count=double(obj.staged_replan_predeadline_r56_source_normal_row_count);
+            S.r56_source_side_plus_count=double(obj.staged_replan_predeadline_r56_source_side_plus_count);
+            S.r56_source_side_minus_count=double(obj.staged_replan_predeadline_r56_source_side_minus_count);
+            S.r56_source_side_fail_count=double(obj.staged_replan_predeadline_r56_source_side_fail_count);
+            S.r56_const_sample_count=double(obj.staged_replan_predeadline_r56_const_sample_count);
+            S.r56_const_dynamic_pass=double(obj.staged_replan_predeadline_r56_const_dynamic_pass);
+            S.r56_const_geometry_point_pass=double(obj.staged_replan_predeadline_r56_const_geometry_point_pass);
+            S.r56_entry_bestcase_pass=double(obj.staged_replan_predeadline_r56_entry_bestcase_pass);
+            S.r56_exit_bestcase_pass=double(obj.staged_replan_predeadline_r56_exit_bestcase_pass);
+            S.r56_yaw_source_regular=double(obj.staged_replan_predeadline_r56_yaw_source_regular);
+            S.r56_old_clock_binding_count=double(obj.staged_replan_predeadline_r56_old_clock_binding_count);
+            S.r56_horizon_duration_coupling_count=double(obj.staged_replan_predeadline_r56_horizon_duration_coupling_count);
+            S.r56_source_support_start_s=double(obj.staged_replan_predeadline_r56_source_support_start_s);
+            S.r56_source_rejoin_s=double(obj.staged_replan_predeadline_r56_source_rejoin_s);
+            S.r56_source_corr_v_ub=double(obj.staged_replan_predeadline_r56_source_corr_v_ub);
+            S.r56_source_corr_a_ub=double(obj.staged_replan_predeadline_r56_source_corr_a_ub);
+            S.r56_source_corr_j_ub=double(obj.staged_replan_predeadline_r56_source_corr_j_ub);
+            S.r56_source_min_hxy=double(obj.staged_replan_predeadline_r56_source_min_hxy);
+            S.r56_alpha_max_pointwise=double(obj.staged_replan_predeadline_r56_alpha_max_pointwise);
+            S.r56_const_max_vl=double(obj.staged_replan_predeadline_r56_const_max_vl);
+            S.r56_const_max_vq=double(obj.staged_replan_predeadline_r56_const_max_vq);
+            S.r56_const_min_sigma=double(obj.staged_replan_predeadline_r56_const_min_sigma);
+            S.r56_const_max_qdot=double(obj.staged_replan_predeadline_r56_const_max_qdot);
+            S.r56_const_min_geom_margin=double(obj.staged_replan_predeadline_r56_const_min_geom_margin);
+            S.r56_entry_Tmax_s=double(obj.staged_replan_predeadline_r56_entry_Tmax_s);
+            S.r56_entry_max_vq=double(obj.staged_replan_predeadline_r56_entry_max_vq);
+            S.r56_entry_min_sigma=double(obj.staged_replan_predeadline_r56_entry_min_sigma);
+            S.r56_entry_max_qdot=double(obj.staged_replan_predeadline_r56_entry_max_qdot);
+            S.r56_exit_Tmax_s=double(obj.staged_replan_predeadline_r56_exit_Tmax_s);
+            S.r56_exit_max_vq=double(obj.staged_replan_predeadline_r56_exit_max_vq);
+            S.r56_exit_min_sigma=double(obj.staged_replan_predeadline_r56_exit_min_sigma);
+            S.r56_exit_max_qdot=double(obj.staged_replan_predeadline_r56_exit_max_qdot);
+            S.r56_chain_rule_max_error=double(obj.staged_replan_predeadline_r56_chain_rule_max_error);
+            S.r56_shadow_ms=double(obj.staged_replan_predeadline_r56_shadow_ms);
+            S.r57_probe_ran=double(obj.staged_replan_predeadline_r57_probe_ran);
+            S.r57_source_qp_ok=double(obj.staged_replan_predeadline_r57_source_qp_ok);
+            S.r57_source_exact_c7=double(obj.staged_replan_predeadline_r57_source_exact_c7);
+            S.r57_speed_attempt=double(obj.staged_replan_predeadline_r57_speed_attempt);
+            S.r57_speed_pass=double(obj.staged_replan_predeadline_r57_speed_pass);
+            S.r57_speed_stageA_pass=double(obj.staged_replan_predeadline_r57_speed_stageA_pass);
+            S.r57_speed_stageB_attempt=double(obj.staged_replan_predeadline_r57_speed_stageB_attempt);
+            S.r57_speed_stageB_finite_witness=double(obj.staged_replan_predeadline_r57_speed_stageB_finite_witness);
+            S.r57_speed_stageB_repr_fail=double(obj.staged_replan_predeadline_r57_speed_stageB_repr_fail);
+            S.r57_heading_attempt=double(obj.staged_replan_predeadline_r57_heading_attempt);
+            S.r57_heading_pass=double(obj.staged_replan_predeadline_r57_heading_pass);
+            S.r57_heading_leaf_count=double(obj.staged_replan_predeadline_r57_heading_leaf_count);
+            S.r57_heading_split_count=double(obj.staged_replan_predeadline_r57_heading_split_count);
+            S.r57_geometry_attempt=double(obj.staged_replan_predeadline_r57_geometry_attempt);
+            S.r57_geometry_pass=double(obj.staged_replan_predeadline_r57_geometry_pass);
+            S.r57_commit_attempted=double(obj.staged_replan_predeadline_r57_commit_attempted);
+            S.r57_rejoin_selected=double(obj.staged_replan_predeadline_r57_rejoin_selected);
+            S.r57_old_clock_commit_binding_count=double(obj.staged_replan_predeadline_r57_old_clock_commit_binding_count);
+            S.r57_horizon_duration_coupling_count=double(obj.staged_replan_predeadline_r57_horizon_duration_coupling_count);
+            S.r57_speed_VL=double(obj.staged_replan_predeadline_r57_speed_VL);
+            S.r57_speed_A=double(obj.staged_replan_predeadline_r57_speed_A);
+            S.r57_speed_J=double(obj.staged_replan_predeadline_r57_speed_J);
+            S.r57_speed_sigma=double(obj.staged_replan_predeadline_r57_speed_sigma);
+            S.r57_speed_qdot=double(obj.staged_replan_predeadline_r57_speed_qdot);
+            S.r57_speed_VQ=double(obj.staged_replan_predeadline_r57_speed_VQ);
+            S.r57_heading_gamma=double(obj.staged_replan_predeadline_r57_heading_gamma);
+            S.r57_geometry_min_margin=double(obj.staged_replan_predeadline_r57_geometry_min_margin);
+            S.r57_source_support_start_s=double(obj.staged_replan_predeadline_r57_source_support_start_s);
+            S.r57_source_support_end_s=double(obj.staged_replan_predeadline_r57_source_support_end_s);
+            S.r57_source_corr_v_ub=double(obj.staged_replan_predeadline_r57_source_corr_v_ub);
+            S.r57_source_corr_a_ub=double(obj.staged_replan_predeadline_r57_source_corr_a_ub);
+            S.r57_source_corr_j_ub=double(obj.staged_replan_predeadline_r57_source_corr_j_ub);
+            S.r57_source_build_ms=double(obj.staged_replan_predeadline_r57_source_build_ms);
+            S.r57_speed_ms=double(obj.staged_replan_predeadline_r57_speed_ms);
+            S.r57_heading_ms=double(obj.staged_replan_predeadline_r57_heading_ms);
+            S.r57_geometry_ms=double(obj.staged_replan_predeadline_r57_geometry_ms);
+            S.r57_probe_ms=double(obj.staged_replan_predeadline_r57_probe_ms);
+            S.r58_shadow_ran=double(obj.staged_replan_predeadline_r58_shadow_ran);
+            S.r58r14_lowjet_seed_only=double(obj.staged_replan_predeadline_r58r14_lowjet_seed_only);
+            S.r58r14_active_reduced_dof=double(obj.staged_replan_predeadline_r58r14_active_reduced_dof);
+            S.r58r14_full_reduced_dof=double(obj.staged_replan_predeadline_r58r14_full_reduced_dof);
+            S.r58_speed_gate_rows=double(obj.staged_replan_predeadline_r58_speed_gate_rows);
+            S.r58_reference_only=double(obj.staged_replan_predeadline_r58_reference_only);
+            S.r58_fixed_rejoin_constraint_count=double(obj.staged_replan_predeadline_r58_fixed_rejoin_constraint_count);
+            S.r58_same_clock_binding_count=double(obj.staged_replan_predeadline_r58_same_clock_binding_count);
+            S.r58_horizon_duration_coupling_count=double(obj.staged_replan_predeadline_r58_horizon_duration_coupling_count);
+            S.r58_free_c7_constructive=double(obj.staged_replan_predeadline_r58_free_c7_constructive);
+            S.r58_terminal_offset_hold=double(obj.staged_replan_predeadline_r58_terminal_offset_hold);
+            S.r58_terminal_zero_derivative_order=double(obj.staged_replan_predeadline_r58_terminal_zero_derivative_order);
+            S.r58_source_knot_count=double(obj.staged_replan_predeadline_r58_source_knot_count);
+            S.r58_scalar_dof_count=double(obj.staged_replan_predeadline_r58_scalar_dof_count);
+            S.r58_spatial_dof_count=double(obj.staged_replan_predeadline_r58_spatial_dof_count);
+            S.r58_episode_count=double(obj.staged_replan_predeadline_r58_episode_count);
+            S.r58_component_count=double(obj.staged_replan_predeadline_r58_component_count);
+            S.r58_side_cache_plus_valid=double(obj.staged_replan_predeadline_r58_side_cache_plus_valid);
+            S.r58_side_cache_minus_valid=double(obj.staged_replan_predeadline_r58_side_cache_minus_valid);
+            S.r58_side_cache_fail=double(obj.staged_replan_predeadline_r58_side_cache_fail);
+            S.r58_bnb_nodes_popped=double(obj.staged_replan_predeadline_r58_bnb_nodes_popped);
+            S.r58_bnb_qp_solves=double(obj.staged_replan_predeadline_r58_bnb_qp_solves);
+            S.r58_bnb_qp_infeasible=double(obj.staged_replan_predeadline_r58_bnb_qp_infeasible);
+            S.r58_bnb_full_assignments=double(obj.staged_replan_predeadline_r58_bnb_full_assignments);
+            S.r58_bnb_speed_fail=double(obj.staged_replan_predeadline_r58_bnb_speed_fail);
+            S.r58_bnb_heading_fail=double(obj.staged_replan_predeadline_r58_bnb_heading_fail);
+            S.r58_bnb_geometry_fail=double(obj.staged_replan_predeadline_r58_bnb_geometry_fail);
+            S.r58_bnb_feasible_full=double(obj.staged_replan_predeadline_r58_bnb_feasible_full);
+            S.r58_bnb_max_queue=double(obj.staged_replan_predeadline_r58_bnb_max_queue);
+            S.r58_selected_side_plus=double(obj.staged_replan_predeadline_r58_selected_side_plus);
+            S.r58_selected_side_minus=double(obj.staged_replan_predeadline_r58_selected_side_minus);
+            S.r58_speed_pass=double(obj.staged_replan_predeadline_r58_speed_pass);
+            S.r58_heading_pass=double(obj.staged_replan_predeadline_r58_heading_pass);
+            S.r58_geometry_pass=double(obj.staged_replan_predeadline_r58_geometry_pass);
+            S.r58_needs_time_law=double(obj.staged_replan_predeadline_r58_needs_time_law);
+            S.r58_commit_attempted=double(obj.staged_replan_predeadline_r58_commit_attempted);
+            S.r58_rejoin_selected=double(obj.staged_replan_predeadline_r58_rejoin_selected);
+            S.r58_reference_tracking_inflation_m=double(obj.staged_replan_predeadline_r58_reference_tracking_inflation_m);
+            S.r58_support_start_s=double(obj.staged_replan_predeadline_r58_support_start_s);
+            S.r58_support_end_s=double(obj.staged_replan_predeadline_r58_support_end_s);
+            S.r58_terminal_offset_norm_m=double(obj.staged_replan_predeadline_r58_terminal_offset_norm_m);
+            S.r58_quantized_jet_max_abs_error=double(obj.staged_replan_predeadline_r58_quantized_jet_max_abs_error);
+            S.r58_legacy_join_max_abs_mismatch=double(obj.staged_replan_predeadline_r58_legacy_join_max_abs_mismatch);
+            S.r58_best_qp_cost=double(obj.staged_replan_predeadline_r58_best_qp_cost);
+            S.r58_speed_VL=double(obj.staged_replan_predeadline_r58_speed_VL);
+            S.r58_speed_A=double(obj.staged_replan_predeadline_r58_speed_A);
+            S.r58_speed_J=double(obj.staged_replan_predeadline_r58_speed_J);
+            S.r58_speed_sigma=double(obj.staged_replan_predeadline_r58_speed_sigma);
+            S.r58_speed_qdot=double(obj.staged_replan_predeadline_r58_speed_qdot);
+            S.r58_speed_VQ=double(obj.staged_replan_predeadline_r58_speed_VQ);
+            S.r58_heading_gamma=double(obj.staged_replan_predeadline_r58_heading_gamma);
+            S.r58_geometry_min_margin=double(obj.staged_replan_predeadline_r58_geometry_min_margin);
+            S.r58_build_ms=double(obj.staged_replan_predeadline_r58_build_ms);
+            S.r58_homotopy_ms=double(obj.staged_replan_predeadline_r58_homotopy_ms);
+            S.r58_certificate_ms=double(obj.staged_replan_predeadline_r58_certificate_ms);
+            S.r58_shadow_ms=double(obj.staged_replan_predeadline_r58_shadow_ms);
+            S.r58r2_node_scaled_variables=double(obj.staged_replan_predeadline_r58r2_node_scaled_variables);
+            S.r58r2_row_equilibrated=double(obj.staged_replan_predeadline_r58r2_row_equilibrated);
+            S.r58r2_root_qp_elided=double(obj.staged_replan_predeadline_r58r2_root_qp_elided);
+            S.r58r2_node_scale_min_s=double(obj.staged_replan_predeadline_r58r2_node_scale_min_s);
+            S.r58r2_node_scale_max_s=double(obj.staged_replan_predeadline_r58r2_node_scale_max_s);
+            S.r58r2_row_scale_min=double(obj.staged_replan_predeadline_r58r2_row_scale_min);
+            S.r58r2_row_scale_max=double(obj.staged_replan_predeadline_r58r2_row_scale_max);
+            S.r58r3_hessian_diag_equilibrated=double(obj.staged_replan_predeadline_r58r3_hessian_diag_equilibrated);
+            S.r58r3_equilibrated_cholesky_pass=double(obj.staged_replan_predeadline_r58r3_equilibrated_cholesky_pass);
+            S.r58r3_raw_hdiag_min=double(obj.staged_replan_predeadline_r58r3_raw_hdiag_min);
+            S.r58r3_raw_hdiag_max=double(obj.staged_replan_predeadline_r58r3_raw_hdiag_max);
+            S.r58r3_raw_hdiag_ratio=double(obj.staged_replan_predeadline_r58r3_raw_hdiag_ratio);
+            S.r58r3_eq_hdiag_min=double(obj.staged_replan_predeadline_r58r3_eq_hdiag_min);
+            S.r58r3_eq_hdiag_max=double(obj.staged_replan_predeadline_r58r3_eq_hdiag_max);
+            S.r58r4_normal_equalities_eliminated=double(obj.staged_replan_predeadline_r58r4_normal_equalities_eliminated);
+            S.r58r4_reduced_spatial_dof_count=double(obj.staged_replan_predeadline_r58r4_reduced_spatial_dof_count);
+            S.r58r4_elimination_build_fail=double(obj.staged_replan_predeadline_r58r4_elimination_build_fail);
+            S.r58r4_elimination_max_residual=double(obj.staged_replan_predeadline_r58r4_elimination_max_residual);
+            S.r58r5_dykstra_used=double(obj.staged_replan_predeadline_r58r5_dykstra_used);
+            S.r58r5_dykstra_converged_feasible=double(obj.staged_replan_predeadline_r58r5_dykstra_converged_feasible);
+            S.r58r5_dykstra_resource_fail=double(obj.staged_replan_predeadline_r58r5_dykstra_resource_fail);
+            S.r58r5_dykstra_degenerate_row_fail=double(obj.staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail);
+            S.r58r5_dykstra_max_sweeps_used=double(obj.staged_replan_predeadline_r58r5_dykstra_max_sweeps_used);
+            S.r58r5_dykstra_projection_count=double(obj.staged_replan_predeadline_r58r5_dykstra_projection_count);
+            S.r58r5_dykstra_optimal_kkt_count=double(obj.staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count);
+            S.r58r5_dykstra_max_violation=double(obj.staged_replan_predeadline_r58r5_dykstra_max_violation);
+            S.r58r5_dykstra_duality_gap=double(obj.staged_replan_predeadline_r58r5_dykstra_duality_gap);
+            S.r58r5_dykstra_stationarity_residual=double(obj.staged_replan_predeadline_r58r5_dykstra_stationarity_residual);
+            S.r58r5_dykstra_ms=double(obj.staged_replan_predeadline_r58r5_dykstra_ms);
+            S.r58r6_hildreth_used=double(obj.staged_replan_predeadline_r58r6_hildreth_used);
+            S.r58r6_kkt_converged_count=double(obj.staged_replan_predeadline_r58r6_kkt_converged_count);
+            S.r58r6_resource_fail_count=double(obj.staged_replan_predeadline_r58r6_resource_fail_count);
+            S.r58r6_max_sweeps_used=double(obj.staged_replan_predeadline_r58r6_max_sweeps_used);
+            S.r58r6_coordinate_updates=double(obj.staged_replan_predeadline_r58r6_coordinate_updates);
+            S.r58r6_max_primal_violation=double(obj.staged_replan_predeadline_r58r6_max_primal_violation);
+            S.r58r6_max_complementarity=double(obj.staged_replan_predeadline_r58r6_max_complementarity);
+            S.r58r6_duality_gap=double(obj.staged_replan_predeadline_r58r6_duality_gap);
+            S.r58r6_stationarity_residual=double(obj.staged_replan_predeadline_r58r6_stationarity_residual);
+            S.r58r6_max_lambda=double(obj.staged_replan_predeadline_r58r6_max_lambda);
+            S.r58r6_solver_ms=double(obj.staged_replan_predeadline_r58r6_solver_ms);
+            S.r58r6_prequant_scaled_jet_max_abs=double(obj.staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs);
+            S.r58r6_quantized_scaled_jet_rel_error=double(obj.staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error);
+            S.r58r6_quantized_physical_jet_max_abs_error=double(obj.staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error);
+            S.r58r6_failed_corr_v_ub=double(obj.staged_replan_predeadline_r58r6_failed_corr_v_ub);
+            S.r58r6_failed_corr_a_ub=double(obj.staged_replan_predeadline_r58r6_failed_corr_a_ub);
+            S.r58r6_failed_corr_j_ub=double(obj.staged_replan_predeadline_r58r6_failed_corr_j_ub);
+            S.r58r6_failed_speed_worst_vq=double(obj.staged_replan_predeadline_r58r6_failed_speed_worst_vq);
+            S.r58r6_failed_speed_worst_vl=double(obj.staged_replan_predeadline_r58r6_failed_speed_worst_vl);
+            S.r58r6_failed_speed_worst_sigma=double(obj.staged_replan_predeadline_r58r6_failed_speed_worst_sigma);
+            S.r58r6_failed_speed_worst_qdot=double(obj.staged_replan_predeadline_r58r6_failed_speed_worst_qdot);
+            S.r58r6_failed_speed_witness=double(obj.staged_replan_predeadline_r58r6_failed_speed_witness);
+            S.r58r7_constraint_generation_used=double(obj.staged_replan_predeadline_r58r7_constraint_generation_used);
+            S.r58r7_full_row_count_max=double(obj.staged_replan_predeadline_r58r7_full_row_count_max);
+            S.r58r7_outer_iterations_max=double(obj.staged_replan_predeadline_r58r7_outer_iterations_max);
+            S.r58r7_full_scans=double(obj.staged_replan_predeadline_r58r7_full_scans);
+            S.r58r7_rows_added=double(obj.staged_replan_predeadline_r58r7_rows_added);
+            S.r58r7_active_rows_max=double(obj.staged_replan_predeadline_r58r7_active_rows_max);
+            S.r58r7_subset_kkt_solves=double(obj.staged_replan_predeadline_r58r7_subset_kkt_solves);
+            S.r58r7_subset_kkt_converged=double(obj.staged_replan_predeadline_r58r7_subset_kkt_converged);
+            S.r58r7_subset_resource_fail=double(obj.staged_replan_predeadline_r58r7_subset_resource_fail);
+            S.r58r7_duplicate_add_fail=double(obj.staged_replan_predeadline_r58r7_duplicate_add_fail);
+            S.r58r7_full_optimality_closed=double(obj.staged_replan_predeadline_r58r7_full_optimality_closed);
+            S.r58r7_subset_sweeps_max=double(obj.staged_replan_predeadline_r58r7_subset_sweeps_max);
+            S.r58r7_coordinate_updates=double(obj.staged_replan_predeadline_r58r7_coordinate_updates);
+            S.r58r7_initial_worst_violation=double(obj.staged_replan_predeadline_r58r7_initial_worst_violation);
+            S.r58r7_final_max_violation=double(obj.staged_replan_predeadline_r58r7_final_max_violation);
+            S.r58r7_final_duality_gap=double(obj.staged_replan_predeadline_r58r7_final_duality_gap);
+            S.r58r7_final_complementarity=double(obj.staged_replan_predeadline_r58r7_final_complementarity);
+            S.r58r7_final_stationarity=double(obj.staged_replan_predeadline_r58r7_final_stationarity);
+            S.r58r7_solver_ms=double(obj.staged_replan_predeadline_r58r7_solver_ms);
+            S.r58r8_ipm_used=double(obj.staged_replan_predeadline_r58r8_ipm_used);
+            S.r58r8_ipm_converged=double(obj.staged_replan_predeadline_r58r8_ipm_converged);
+            S.r58r8_ipm_resource_fail=double(obj.staged_replan_predeadline_r58r8_ipm_resource_fail);
+            S.r58r8_ipm_factor_fail=double(obj.staged_replan_predeadline_r58r8_ipm_factor_fail);
+            S.r58r8_ipm_max_iterations=double(obj.staged_replan_predeadline_r58r8_ipm_max_iterations);
+            S.r58r8_ipm_newton_solves=double(obj.staged_replan_predeadline_r58r8_ipm_newton_solves);
+            S.r58r8_ipm_primal_residual=double(obj.staged_replan_predeadline_r58r8_ipm_primal_residual);
+            S.r58r8_ipm_dual_residual=double(obj.staged_replan_predeadline_r58r8_ipm_dual_residual);
+            S.r58r8_ipm_complementarity=double(obj.staged_replan_predeadline_r58r8_ipm_complementarity);
+            S.r58r8_ipm_duality_gap=double(obj.staged_replan_predeadline_r58r8_ipm_duality_gap);
+            S.r58r8_ipm_min_slack=double(obj.staged_replan_predeadline_r58r8_ipm_min_slack);
+            S.r58r8_ipm_min_lambda=double(obj.staged_replan_predeadline_r58r8_ipm_min_lambda);
+            S.r58r8_ipm_ms=double(obj.staged_replan_predeadline_r58r8_ipm_ms);
+            S.r58r8_newton_diag_equilibrated=double(obj.staged_replan_predeadline_r58r8_newton_diag_equilibrated);
+            S.r58r8_pcg_used=double(obj.staged_replan_predeadline_r58r8_pcg_used);
+            S.r58r8_pcg_resource_fail=double(obj.staged_replan_predeadline_r58r8_pcg_resource_fail);
+            S.r58r8_pcg_max_iterations=double(obj.staged_replan_predeadline_r58r8_pcg_max_iterations);
+            S.r58r8_pcg_final_rel_residual=double(obj.staged_replan_predeadline_r58r8_pcg_final_rel_residual);
+            S.r58r9_failure_count=double(obj.staged_replan_predeadline_r58r9_failure_count);
+            S.r58r9_failure_depth=double(obj.staged_replan_predeadline_r58r9_failure_depth);
+            S.r58r9_failure_last_side=double(obj.staged_replan_predeadline_r58r9_failure_last_side);
+            S.r58r9_failure_outer_iteration=double(obj.staged_replan_predeadline_r58r9_failure_outer_iteration);
+            S.r58r9_failure_active_rows=double(obj.staged_replan_predeadline_r58r9_failure_active_rows);
+            S.r58r9_failure_added_row=double(obj.staged_replan_predeadline_r58r9_failure_added_row);
+            S.r58r9_failure_ipm_iteration=double(obj.staged_replan_predeadline_r58r9_failure_ipm_iteration);
+            S.r58r9_failure_stage=double(obj.staged_replan_predeadline_r58r9_failure_stage);
+            S.r58r9_failure_pcg_iterations=double(obj.staged_replan_predeadline_r58r9_failure_pcg_iterations);
+            S.r58r9_failure_pcg_final_rel_residual=double(obj.staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual);
+            S.r58r9_failure_pcg_rhs_inf=double(obj.staged_replan_predeadline_r58r9_failure_pcg_rhs_inf);
+            S.r58r9_failure_D_min=double(obj.staged_replan_predeadline_r58r9_failure_D_min);
+            S.r58r9_failure_D_max=double(obj.staged_replan_predeadline_r58r9_failure_D_max);
+            S.r58r9_failure_D_ratio=double(obj.staged_replan_predeadline_r58r9_failure_D_ratio);
+            S.r58r9_failure_min_slack=double(obj.staged_replan_predeadline_r58r9_failure_min_slack);
+            S.r58r9_failure_min_lambda=double(obj.staged_replan_predeadline_r58r9_failure_min_lambda);
+            S.r58r9_failure_metric_max_abs_corr=double(obj.staged_replan_predeadline_r58r9_failure_metric_max_abs_corr);
+            S.r58r9_failure_metric_one_minus_corr=double(obj.staged_replan_predeadline_r58r9_failure_metric_one_minus_corr);
+            S.r58r9_full_scan_ms=double(obj.staged_replan_predeadline_r58r9_full_scan_ms);
+            S.r58r9_subset_solver_ms=double(obj.staged_replan_predeadline_r58r9_subset_solver_ms);
+            S.r58r9_pcg_ms=double(obj.staged_replan_predeadline_r58r9_pcg_ms);
+            S.r58r9_plus_failed=double(obj.staged_replan_predeadline_r58r9_plus_failed);
+            S.r58r9_minus_failed=double(obj.staged_replan_predeadline_r58r9_minus_failed);
+            S.r58r9_plus_failure_stage=double(obj.staged_replan_predeadline_r58r9_plus_failure_stage);
+            S.r58r9_minus_failure_stage=double(obj.staged_replan_predeadline_r58r9_minus_failure_stage);
+            S.r58r9_plus_failure_active_rows=double(obj.staged_replan_predeadline_r58r9_plus_failure_active_rows);
+            S.r58r9_minus_failure_active_rows=double(obj.staged_replan_predeadline_r58r9_minus_failure_active_rows);
+            S.r58r9_plus_failure_pcg_relres=double(obj.staged_replan_predeadline_r58r9_plus_failure_pcg_relres);
+            S.r58r9_minus_failure_pcg_relres=double(obj.staged_replan_predeadline_r58r9_minus_failure_pcg_relres);
+            S.r58r9_plus_metric_max_abs_corr=double(obj.staged_replan_predeadline_r58r9_plus_metric_max_abs_corr);
+            S.r58r9_minus_metric_max_abs_corr=double(obj.staged_replan_predeadline_r58r9_minus_metric_max_abs_corr);
+            S.r58r9_plus_cg_ms=double(obj.staged_replan_predeadline_r58r9_plus_cg_ms);
+            S.r58r9_minus_cg_ms=double(obj.staged_replan_predeadline_r58r9_minus_cg_ms);
+            S.r58r10_plus_primal_residual=double(obj.staged_replan_predeadline_r58r10_plus_primal_residual);
+            S.r58r10_plus_dual_residual=double(obj.staged_replan_predeadline_r58r10_plus_dual_residual);
+            S.r58r10_plus_mu=double(obj.staged_replan_predeadline_r58r10_plus_mu);
+            S.r58r10_plus_duality_gap=double(obj.staged_replan_predeadline_r58r10_plus_duality_gap);
+            S.r58r10_plus_kkt_tol=double(obj.staged_replan_predeadline_r58r10_plus_kkt_tol);
+            S.r58r10_plus_gap_tol=double(obj.staged_replan_predeadline_r58r10_plus_gap_tol);
+            S.r58r10_plus_last_sigma=double(obj.staged_replan_predeadline_r58r10_plus_last_sigma);
+            S.r58r10_plus_last_alpha_primal=double(obj.staged_replan_predeadline_r58r10_plus_last_alpha_primal);
+            S.r58r10_plus_last_alpha_dual=double(obj.staged_replan_predeadline_r58r10_plus_last_alpha_dual);
+            S.r58r10_plus_min_alpha_primal=double(obj.staged_replan_predeadline_r58r10_plus_min_alpha_primal);
+            S.r58r10_plus_min_alpha_dual=double(obj.staged_replan_predeadline_r58r10_plus_min_alpha_dual);
+            S.r58r10_plus_mu_ratio=double(obj.staged_replan_predeadline_r58r10_plus_mu_ratio);
+            S.r58r10_plus_D_min=double(obj.staged_replan_predeadline_r58r10_plus_D_min);
+            S.r58r10_plus_D_max=double(obj.staged_replan_predeadline_r58r10_plus_D_max);
+            S.r58r10_plus_D_ratio=double(obj.staged_replan_predeadline_r58r10_plus_D_ratio);
+            S.r58r10_plus_min_slack=double(obj.staged_replan_predeadline_r58r10_plus_min_slack);
+            S.r58r10_plus_min_lambda=double(obj.staged_replan_predeadline_r58r10_plus_min_lambda);
+            S.r58r10_plus_predictor_pcg_iterations=double(obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations);
+            S.r58r10_plus_corrector_pcg_iterations=double(obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations);
+            S.r58r10_plus_predictor_pcg_relres=double(obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_relres);
+            S.r58r10_plus_corrector_pcg_relres=double(obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_relres);
+            S.r58r10_minus_primal_residual=double(obj.staged_replan_predeadline_r58r10_minus_primal_residual);
+            S.r58r10_minus_dual_residual=double(obj.staged_replan_predeadline_r58r10_minus_dual_residual);
+            S.r58r10_minus_mu=double(obj.staged_replan_predeadline_r58r10_minus_mu);
+            S.r58r10_minus_duality_gap=double(obj.staged_replan_predeadline_r58r10_minus_duality_gap);
+            S.r58r10_minus_kkt_tol=double(obj.staged_replan_predeadline_r58r10_minus_kkt_tol);
+            S.r58r10_minus_gap_tol=double(obj.staged_replan_predeadline_r58r10_minus_gap_tol);
+            S.r58r10_minus_last_sigma=double(obj.staged_replan_predeadline_r58r10_minus_last_sigma);
+            S.r58r10_minus_last_alpha_primal=double(obj.staged_replan_predeadline_r58r10_minus_last_alpha_primal);
+            S.r58r10_minus_last_alpha_dual=double(obj.staged_replan_predeadline_r58r10_minus_last_alpha_dual);
+            S.r58r10_minus_min_alpha_primal=double(obj.staged_replan_predeadline_r58r10_minus_min_alpha_primal);
+            S.r58r10_minus_min_alpha_dual=double(obj.staged_replan_predeadline_r58r10_minus_min_alpha_dual);
+            S.r58r10_minus_mu_ratio=double(obj.staged_replan_predeadline_r58r10_minus_mu_ratio);
+            S.r58r10_minus_D_min=double(obj.staged_replan_predeadline_r58r10_minus_D_min);
+            S.r58r10_minus_D_max=double(obj.staged_replan_predeadline_r58r10_minus_D_max);
+            S.r58r10_minus_D_ratio=double(obj.staged_replan_predeadline_r58r10_minus_D_ratio);
+            S.r58r10_minus_min_slack=double(obj.staged_replan_predeadline_r58r10_minus_min_slack);
+            S.r58r10_minus_min_lambda=double(obj.staged_replan_predeadline_r58r10_minus_min_lambda);
+            S.r58r10_minus_predictor_pcg_iterations=double(obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations);
+            S.r58r10_minus_corrector_pcg_iterations=double(obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations);
+            S.r58r10_minus_predictor_pcg_relres=double(obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_relres);
+            S.r58r10_minus_corrector_pcg_relres=double(obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_relres);
+            S.r58r11_augmented_kkt_used=double(obj.staged_replan_predeadline_r58r11_augmented_kkt_used);
+            S.r58r11_augmented_kkt_solve_fail=double(obj.staged_replan_predeadline_r58r11_augmented_kkt_solve_fail);
+            S.r58r11_common_step_used=double(obj.staged_replan_predeadline_r58r11_common_step_used);
+            S.r58r11_augmented_kkt_max_dim=double(obj.staged_replan_predeadline_r58r11_augmented_kkt_max_dim);
+            S.r58r11_newton_solves=double(obj.staged_replan_predeadline_r58r11_newton_solves);
+            S.r58r11_newton_max_rel_residual=double(obj.staged_replan_predeadline_r58r11_newton_max_rel_residual);
+            S.r58r11_common_step_min=double(obj.staged_replan_predeadline_r58r11_common_step_min);
+            S.r58r11_common_step_last=double(obj.staged_replan_predeadline_r58r11_common_step_last);
+            S.r58r11_solver_ms=double(obj.staged_replan_predeadline_r58r11_solver_ms);
+            S.r47_event_ring=double(obj.r47_event_ring);
+            S.r47_event_ring_head=double(obj.r47_event_ring_head);
+            S.r47_event_ring_count=double(obj.r47_event_ring_count);
             S.native_episode_ms=double(obj.staged_replan_predeadline_native_episode_ms);
             S.native_hessian_ms=double(obj.staged_replan_predeadline_native_hessian_ms);
             S.native_corridor_ms=double(obj.staged_replan_predeadline_native_corridor_ms);
@@ -10872,51 +12790,217 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
-        function Y = af7r35_path_tangent_yaw_jet(obj,tg,P)
-            % Analytic yaw jet [psi,psi_dot,...,psi^(6)].
+        function L = af7r51_phase_layer_for_group(~,model,g)
+            L=[];
+            if ~isstruct(model) || ~isfield(model,'phase_layers') || ...
+                    isempty(model.phase_layers)
+                return;
+            end
+            ct=double(model.corrections(g).t0);
+            ix=find(arrayfun(@(x)double(x.correction_t0)==ct,model.phase_layers),1,'last');
+            if ~isempty(ix),L=model.phase_layers(ix);end
+        end
+
+
+        function S = af7r51_phase_jet7(obj,t,L)
+            % Derivatives [s,s',...,s^(7)] of the R51 C7 phase map.
+            S=zeros(8,1); t=double(t);
+            if isempty(L)
+                S(1)=t;S(2)=1;return;
+            end
+            if t<=double(L.t0)
+                S(1)=t;S(2)=1;return;
+            end
+            if t>=double(L.tE)
+                S(1)=t-double(L.delay);S(2)=1;return;
+            end
+            beta=1-double(L.alpha);
+            if t<double(L.tA)
+                ta=double(L.t0);tb=double(L.tA);
+                j0=zeros(8,1);j1=zeros(8,1);
+                j1(1)=double(L.tA)-double(L.sA);j1(2)=beta;
+                C=obj.bezier15_control_from_endpoint_jets_scalar(j0,j1,tb-ta);
+                D=obj.af7r51_scalar_bezier_derivatives(C,(t-ta)/(tb-ta),tb-ta,7);
+            elseif t<=double(L.tB)
+                delay=(double(L.tA)-double(L.sA))+beta*(t-double(L.tA));
+                S(1)=t-delay;S(2)=double(L.alpha);return;
+            else
+                ta=double(L.tB);tb=double(L.tE);
+                j0=zeros(8,1);j1=zeros(8,1);
+                j0(1)=double(L.tB)-double(L.sB);j0(2)=beta;
+                j1(1)=double(L.delay);
+                C=obj.bezier15_control_from_endpoint_jets_scalar(j0,j1,tb-ta);
+                D=obj.af7r51_scalar_bezier_derivatives(C,(t-ta)/(tb-ta),tb-ta,7);
+            end
+            S(1)=t-D(1);S(2)=1-D(2);S(3:8)=-D(3:8);
+        end
+
+
+        function D = af7r51_scalar_bezier_derivatives(~,C,u,T,maxOrder)
+            C=double(C(:).');u=max(0,min(1,double(u)));
+            D=zeros(maxOrder+1,1);Q=C;deg=numel(Q)-1;
+            for r=0:maxOrder
+                R=Q;
+                while numel(R)>1,R=(1-u)*R(1:end-1)+u*R(2:end);end
+                D(r+1)=R(1);
+                if r<maxOrder
+                    Q=(deg/T)*diff(Q);deg=deg-1;
+                end
+            end
+        end
+
+
+        function Fout = af7r51_compose_position_jet7(~,F,S)
+            % Taylor-series composition of a 3-vector jet through order 7.
+            assert(isequal(size(F),[3 8])&&numel(S)==8);
+            fact=arrayfun(@factorial,0:7);
+            q=zeros(1,8);q(2:8)=double(S(2:8)).'/fact(2:8);
+            coef=zeros(3,8);pw=zeros(1,8);pw(1)=1;
+            for k=0:7
+                coef=coef+(F(:,k+1)/fact(k+1))*pw;
+                if k==7,break;end
+                nx=zeros(1,8);
+                for i=0:7
+                    if pw(i+1)==0,continue;end
+                    for j=1:(7-i)
+                        if q(j+1)~=0
+                            nx(i+j+1)=nx(i+j+1)+pw(i+1)*q(j+1);
+                        end
+                    end
+                end
+                pw=nx;
+            end
+            Fout=coef.*fact;
+        end
+
+
+        function D = af7r51_group_correction_jet7(obj,t,G)
+            D=zeros(3,8);t=double(t);
+            if t<=double(G.t0)||t>=double(G.t1),return;end
+            s0=double(G.segment_t0(:).');s1=double(G.segment_t1(:).');
+            jj=find(t<=s1,1,'first');
+            if isempty(jj)||t<s0(jj),return;end
+            if iscell(G.control_points),cp=double(G.control_points{jj});
+            else,cp=double(G.control_points(:,:,jj));end
+            T=s1(jj)-s0(jj);u=max(0,min(1,(t-s0(jj))/T));
+            Q=cp;deg=15;
+            for r=0:7
+                R=Q;
+                while size(R,2)>1,R=(1-u)*R(:,1:end-1)+u*R(:,2:end);end
+                D(:,r+1)=R(:,1);
+                if r<7,Q=(deg/T)*diff(Q,1,2);deg=deg-1;end
+            end
+        end
+
+
+        function F = af7r51_position_jet7_model(obj,tg,model)
+            assert(iscell(obj.nominal_flat_derivative_fn)&& ...
+                numel(obj.nominal_flat_derivative_fn)>=8);
+            G=numel(model.corrections);T=zeros(1,G+1);T(G+1)=double(tg);
+            SJ=cell(1,G);
+            for gg=G:-1:1
+                L=obj.af7r51_phase_layer_for_group(model,gg);
+                SJ{gg}=obj.af7r51_phase_jet7(T(gg+1),L);
+                T(gg)=SJ{gg}(1);
+            end
+            tf0=double(model.flight_reference_time_origin);
+            tau=max(0,T(1)-tf0);F=zeros(3,8);
+            for r=0:7
+                z=double(obj.nominal_flat_derivative_fn{r+1}(tau));z=z(:);
+                assert(numel(z)==3&&all(isfinite(z)));
+                F(:,r+1)=z;
+            end
+            for gg=1:G
+                F=obj.af7r51_compose_position_jet7(F,SJ{gg});
+                F=F+obj.af7r51_group_correction_jet7(T(gg+1),model.corrections(gg));
+            end
+            assert(all(isfinite(F),'all'),'[AF7R51] phase position jet nonfinite.');
+        end
+
+
+        function p7 = af7r47_batch_position_derivative7(obj,tg,model)
+            F=obj.af7r51_position_jet7_model(double(tg),model);
+            p7=F(:,8);
+        end
+
+
+        function tsource = af7r51_phase_time_from_proposal(obj,tg,P)
+            tsource=double(tg);
+            if ~(isfield(P,'phase_reparameterized')&&logical(P.phase_reparameterized))
+                return;
+            end
+            L=struct('t0',P.phase_t0,'tA',P.phase_entry_end, ...
+                'tB',P.phase_flow_end,'tE',P.phase_exit_end, ...
+                'sA',P.phase_source_start,'sB',P.phase_source_end, ...
+                'alpha',P.phase_alpha,'delay',P.phase_delay_s);
+            S=obj.af7r51_phase_jet7(double(tg),L);tsource=S(1);
+        end
+
+
+        function Y = af7r35_path_tangent_yaw_jet(obj,baseFn,anchorFn,tg,P)
+            % AF7R47 analytic path-tangent yaw jet.
             %
-            % Let z(t)=vx+i*vy.  Because AF7R35 certifies a strict positive
-            % forward projection gamma>0, z never vanishes and remains in one
-            % open half-plane relative to heading_anchor_rad.  Thus
+            % Native authority proves, continuously,
+            %   v_old,xy(t)' v_new,xy(t) > 0.
+            % Therefore the new tangent stays in the open +/-pi/2 chart around
+            % the previous active tangent direction, even when that direction
+            % itself curves with time.
             %
-            %   psi = Im(log z)
-            %
-            % has one global C6 branch.  Higher derivatives are obtained from
-            % the power-series identity A'=A B', B=log A.  No numerical
-            % differentiation and no atan2(0,0) branch is used.
+            % Position is exact C7. Hence z=vx+i vy is C6 and nonzero. The
+            % log-derivative recurrence gives yaw derivatives 1..6 exactly
+            % from position derivatives 1..7.
 
             assert(isfield(P,'path_tangent_yaw_c6') && ...
                 logical(P.path_tangent_yaw_c6), ...
                 '[REPLANNER ERROR] path-tangent yaw requested without certificate.');
-            assert(isfield(P,'heading_base_velocity') && ...
-                numel(P.heading_base_velocity)==3, ...
-                '[REPLANNER ERROR] path-tangent yaw base velocity missing.');
+            assert(isfield(P,'path_tangent_batch_model') && ...
+                isstruct(P.path_tangent_batch_model), ...
+                '[REPLANNER ERROR] AF7R47 yaw batch model missing.');
 
-            vb=double(P.heading_base_velocity(:));
-            D=obj.evaluate_piecewise_bezier_correction_derivatives( ...
-                double(tg),P,7);
+            X=double(baseFn(double(tg)));
+            anchor_t=obj.af7r51_phase_time_from_proposal(double(tg),P);
+            A=double(anchorFn(anchor_t));
+            X=X(:); A=A(:);
+            assert(numel(X)>=28 && numel(A)>=28 && ...
+                all(isfinite(X(1:28))) && all(isfinite(A(1:28))), ...
+                '[REPLANNER ERROR] AF7R47 yaw source packet invalid.');
 
-            % z^(k), k=0..6, where z = p_dot_x + i p_dot_y.
+            % z^(k), k=0..5 from total canonical p^(1..6).
             Z=zeros(1,7);
-            Z(1)=complex(vb(1)+D(1,2),vb(2)+D(2,2));
-            for kk=1:6
-                Z(kk+1)=complex(D(1,kk+2),D(2,kk+2));
+            for kk=0:5
+                rr=kk+1;
+                Z(kk+1)=complex(X(4*rr+1),X(4*rr+2));
             end
 
+            % z^(6)=p^(7)_x+i p^(7)_y.
+            p7=obj.af7r47_batch_position_derivative7( ...
+                double(tg),P.path_tangent_batch_model);
+            Z(7)=complex(p7(1),p7(2));
+
             gamma=double(P.heading_gamma_m_s);
-            assert(isfinite(gamma)&&gamma>0&&abs(Z(1))>0, ...
+            assert(isfinite(gamma)&&gamma>0&&abs(Z(1))>=gamma, ...
                 '[REPLANNER ERROR] path-tangent yaw horizontal regularity lost.');
 
-            anchor=double(P.heading_anchor_rad);
-            raw=atan2(imag(Z(1)),real(Z(1)));
-            delta=atan2(sin(raw-anchor),cos(raw-anchor));
+            % Use the PREVIOUS active reference yaw only as an unwrap branch
+            % anchor. Reconstruct its tangent direction from its own velocity,
+            % then select the equivalent branch nearest its continuous yaw.
+            vb=complex(A(5),A(6));
+            assert(abs(vb)>0, ...
+                '[REPLANNER ERROR] previous active horizontal velocity vanished.');
+            baseRaw=atan2(imag(vb),real(vb));
+            baseYaw=A(4);
+            baseDelta=atan2(sin(baseRaw-baseYaw),cos(baseRaw-baseYaw));
+            baseTangent=baseYaw+baseDelta;
 
-            % The hard half-plane certificate makes this branch unique.
+            raw=atan2(imag(Z(1)),real(Z(1)));
+            delta=atan2(sin(raw-baseTangent),cos(raw-baseTangent));
+
+            % Native positive-dot certificate makes this branch unique.
             assert(cos(delta)>0, ...
-                '[REPLANNER ERROR] path-tangent yaw left certified heading chart.');
+                '[REPLANNER ERROR] AF7R47 tangent left certified active-base chart.');
 
             Y=zeros(7,1);
-            Y(1)=anchor+delta;
+            Y(1)=baseTangent+delta;
 
             % Taylor coefficients a_n=z^(n)/n!, b_n for log z.
             a=zeros(1,7);
@@ -10934,25 +13018,36 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             assert(all(isfinite(Y)), ...
-                '[REPLANNER ERROR] analytic path-tangent yaw jet is nonfinite.');
+                '[REPLANNER ERROR] analytic AF7R47 path-tangent yaw jet is nonfinite.');
         end
 
 
-        function xd = af7r35_apply_path_tangent_yaw(obj,baseFn,tg,P)
+        function xd = af7r35_apply_path_tangent_yaw(obj,baseFn,anchorFn,tg,P)
             xd=double(baseFn(double(tg)));
             xd=xd(:);
             if numel(xd)<28
                 xd=[xd;zeros(28-numel(xd),1)];
             end
-            if double(tg)<double(P.t0)
+
+            % Outside the new correction support the new position is identical
+            % to the previous active reference (constant terminal translation,
+            % when present, does not alter tangent direction). Preserve its
+            % already-certified yaw exactly.
+            if double(tg)<double(P.t0) || double(tg)>double(P.t1)
+                xa=double(anchorFn(double(tg)));
+                xa=xa(:);
+                assert(numel(xa)>=28 && all(isfinite(xa(4:4:28))), ...
+                    '[REPLANNER ERROR] previous active yaw authority unavailable.');
+                xd(4:4:28)=xa(4:4:28);
                 return;
             end
-            Y=obj.af7r35_path_tangent_yaw_jet(double(tg),P);
+
+            Y=obj.af7r35_path_tangent_yaw_jet( ...
+                baseFn,anchorFn,double(tg),P);
             for rr=0:6
                 xd(4*rr+4)=Y(rr+1);
             end
         end
-
 
         function xd = af7r34_apply_persistent_hold_eval(~,baseFn,tg,tEnd,offset)
             xd=baseFn(double(tg));
@@ -11723,6 +13818,9 @@ classdef REPLANNING_SYSTEM < handle
             [resourceOK,resourceReason,batchModel,resourceMeta]= ...
                 af7r58i_prepare_batch_model( ...
                     obj,P,targetVersion,double(t_commit));
+            if resourceOK
+                batchModel=obj.af7r51_append_phase_layer(batchModel,P);
+            end
             if ~resourceOK
                 reason=resourceReason;
                 return;
@@ -11839,11 +13937,23 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            [evalFnBase,flatEvalFnBase]= ...
-                af7r58i_make_canonical_eval_handles(obj,batchModel);
+            % AF7R47: snapshot the PREVIOUS active reference before the
+            % authority swap. Its continuous yaw supplies only the unwrap
+            % branch; the new yaw derivatives come from the new total C7 path.
+            yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
+            yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
+
+            if isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers)
+                [evalFnBase,flatEvalFnBase]= ...
+                    obj.af7r51_make_phase_native_eval_handles(batchModel);
+            else
+                [evalFnBase,flatEvalFnBase]= ...
+                    af7r58i_make_canonical_eval_handles(obj,batchModel);
+            end
             evalFn=evalFnBase;
             flatEvalFn=flatEvalFnBase;
             if isfield(P,'delay_preserving') && logical(P.delay_preserving) && ...
+                    ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)) && ...
                     isfield(P,'terminal_offset') && ...
                     numel(P.terminal_offset)==3
                 qhold=double(P.terminal_offset(:));
@@ -11856,12 +13966,13 @@ classdef REPLANNING_SYSTEM < handle
 
             if isfield(P,'path_tangent_yaw_c6') && ...
                     logical(P.path_tangent_yaw_c6)
+                P.path_tangent_batch_model=batchModel;
                 evalYawBase=evalFn;
                 flatYawBase=flatEvalFn;
                 evalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    evalYawBase,tg,P);
+                    evalYawBase,yawAnchorEvalFn,tg,P);
                 flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    flatYawBase,tg,P);
+                    flatYawBase,yawAnchorFlatFn,tg,P);
             end
 
             if nargin>=4 && ~isempty(t_hard_cycle) && ...
@@ -12026,13 +14137,17 @@ classdef REPLANNING_SYSTEM < handle
                         'continuity_order',6, ...
                         'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
                         'heading_anchor_rad',double(P.heading_anchor_rad), ...
-                        'source','C7_POSITION_PLUS_STRICT_HORIZONTAL_HALFPLANE_LOG_DERIVATIVE');
+                        'source','C7_POSITION_PLUS_ACTIVE_BASE_POSITIVE_DOT_LOG_DERIVATIVE');
                 end
                 R.path_parameterization=struct( ...
                     'kind','DIRECT_TIME_BEZIER_CORRECTION', ...
                     'path_derivative_order',7, ...
                     'time_derivative_order',7);
-                if isfield(P,'delay_preserving') && logical(P.delay_preserving)
+                if isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)
+                    R.path_parameterization.kind='GENERAL_C7_PHASE_REPARAMETERIZATION';
+                    R.path_parameterization.schedule_delay_s=double(P.phase_delay_s);
+                    R.rejoin_time=double(P.actual_rejoin_time);
+                elseif isfield(P,'delay_preserving') && logical(P.delay_preserving)
                     R.path_parameterization.kind='AFFINE_BASE_DELAY_PRESERVING_RETIMING';
                     R.path_parameterization.schedule_delay_s=double(P.schedule_delay_s);
                     R.rejoin_time=double(P.terminal_hold_start);
@@ -13354,6 +15469,37 @@ classdef REPLANNING_SYSTEM < handle
                 SHp=obj.build_sensor_horizon_for_target(SCp,SCp.reference_version); %#ok<NASGU>
             end
 
+            % AF7R48: obstacle-INDEPENDENT Stage2 primitive warm-up.
+            % This is a zero correction used only to JIT/allocate canonical
+            % resource/evaluator code paths. It contains no obstacle geometry,
+            % no bypass side, no collision time, and is never stored/committed.
+            % Therefore no obstacle-specific avoidance path exists pre-Flight.
+            if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                try
+                    tp0=double(t_now);
+                    tp1=tp0+double(obj.prediction_dt);
+                    P0=struct();
+                    P0.representation_code=2;
+                    P0.t0=tp0; P0.t1=tp1;
+                    P0.piecewise_segment_t0=tp0;
+                    P0.piecewise_segment_t1=tp1;
+                    P0.piecewise_control_points={zeros(3,16)};
+                    tv0=double(obj.active_reference_version)+1;
+                    [ok0,~,M0,~]=af7r58i_prepare_batch_model(obj,P0,tv0,tp0);
+                    if ok0
+                        [e0,f0]=af7r58i_make_canonical_eval_handles(obj,M0);
+                        e0(tp0+0.5*double(obj.prediction_dt)); %#ok<VUNUS>
+                        f0(tp0+0.5*double(obj.prediction_dt)); %#ok<VUNUS>
+                        Q0=obj.af7r48_native_eval_packet_from_batch_model(M0);
+                        af7r36_single_core_mex(2,Q0,[tp0 tp1]);
+                    end
+                    af7r58i_commit_spacing_guard(obj,tp0);
+                catch
+                    % Pure warm-up is non-authoritative. Failure here must not
+                    % create or suppress a Flight avoidance decision.
+                end
+            end
+
             % AF7R45: pre-motion prime of the exact packet-reuse branch.
             % Local outputs only; no runtime authority is modified.
             if strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
@@ -13474,10 +15620,11 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function [pL_ref,q_ref,source] = repaired_reference_packet(obj,t_now)
-            % AF7R41 exact rolling REPAIRED future-reference packet.
-            % Full rebuild uses the AF7R33 batch flat model.  On the normal
-            % one-dt live path, N-1 exact columns are reused and only the new
-            % tail point is evaluated.  No interpolation is used.
+            % AF7R41/R48 exact rolling REPAIRED future-reference packet.
+            % On the normal one-dt live path, N-1 exact columns are reused and
+            % only the new tail point is evaluated. Multi-tail/full rebuilds
+            % use the exact native active-reference evaluator when the stored
+            % canonical representation supports it; no interpolation is used.
             obj.assert_repaired_reference_current();
 
             N=round(obj.horizon_s/obj.prediction_dt)+1;
@@ -13547,8 +15694,15 @@ classdef REPLANNING_SYSTEM < handle
                         obj.active_reference_version,char(R.backend));
                 else
                     tq=t0+(N-m:N-1)*dt;
-                    [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
-                    Y=double(Y);
+                    if isfield(R,'native_position_eval_exact') && ...
+                            logical(R.native_position_eval_exact) && ...
+                            isfield(R,'native_eval_packet') && isstruct(R.native_eval_packet)
+                        Y=double(af7r36_single_core_mex(2,R.native_eval_packet,tq));
+                        valid=true(1,m);
+                    else
+                        [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                        Y=double(Y);
+                    end
                     assert(isequal(size(Y),[21 m]) && numel(valid)==m && ...
                         all(logical(valid(:))) && all(isfinite(Y),'all'), ...
                         '[REPLANNER ERROR] repaired rolling tail batch invalid.');
@@ -13563,8 +15717,15 @@ classdef REPLANNING_SYSTEM < handle
                 end
             else
                 tq=t0+(0:N-1)*dt;
-                [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
-                Y=double(Y);
+                if isfield(R,'native_position_eval_exact') && ...
+                        logical(R.native_position_eval_exact) && ...
+                        isfield(R,'native_eval_packet') && isstruct(R.native_eval_packet)
+                    Y=double(af7r36_single_core_mex(2,R.native_eval_packet,tq));
+                    valid=true(1,N);
+                else
+                    [Y,valid]=af7r33_flat_jet_batch_model(obj,tq,R.batch_flat_model);
+                    Y=double(Y);
+                end
                 assert(isequal(size(Y),[21 N]) && numel(valid)==N && ...
                     all(logical(valid(:))) && all(isfinite(Y),'all'), ...
                     '[REPLANNER ERROR] repaired full batch packet invalid.');
@@ -15424,13 +17585,21 @@ classdef REPLANNING_SYSTEM < handle
                 obj.assert_trigger_packet_certificate_current();
 
                 if obj.ENABLE_PROFILING, tk=tic; end
+                % AF7R48: trigger and native episode share the same
+                % raw enclosing ellipsoid plus Euclidean body/sweep radii.
+                % This removes the extra anisotropic scale-inflation used
+                % by the historical trigger without weakening the native
+                % continuous whole-body authority.
+                Dcomp=[ ...
+                    double(obj.r_load)+double(obj.d_margin)+double(obj.obstacle_packet.delta_payload_m); ...
+                    double(obj.r_drone)+double(obj.d_margin)+double(obj.obstacle_packet.delta_uav_m); ...
+                    double(obj.r_cable)+double(obj.d_margin)+double(obj.obstacle_packet.delta_cable_m)];
                 [triggered,jhit,obs_id,comp_code]= ...
                     g26_future_trigger_kernel_mex( ...
                         obj.horizon_s,obj.prediction_dt,obj.L_cable, ...
                         pL_ref,q_ref, ...
                         obj.obstacle_packet.C,obj.obstacle_packet.R, ...
-                        obj.obstacle_packet.Apay,obj.obstacle_packet.Auav, ...
-                        obj.obstacle_packet.Acable,obj.obstacle_packet.ids, ...
+                        obj.obstacle_packet.Araw,Dcomp,obj.obstacle_packet.ids, ...
                         double(active));
                 if obj.ENABLE_PROFILING, kernel_ms=1e3*toc(tk); end
             end
@@ -16081,9 +18250,11 @@ classdef REPLANNING_SYSTEM < handle
                 M=obj.obstacle_packet.count;
                 C_warm   = obj.obstacle_packet.C;
                 R_warm   = obj.obstacle_packet.R;
-                Ap_warm  = obj.obstacle_packet.Apay;
-                Aq_warm  = obj.obstacle_packet.Auav;
-                Ac_warm  = obj.obstacle_packet.Acable;
+                Araw_warm = obj.obstacle_packet.Araw;
+                D_warm=[ ...
+                    double(obj.r_load)+double(obj.d_margin)+double(obj.obstacle_packet.delta_payload_m); ...
+                    double(obj.r_drone)+double(obj.d_margin)+double(obj.obstacle_packet.delta_uav_m); ...
+                    double(obj.r_cable)+double(obj.d_margin)+double(obj.obstacle_packet.delta_cable_m)];
                 ids_warm = obj.obstacle_packet.ids;
                 act_warm = ones(1,M);
             else
@@ -16091,16 +18262,15 @@ classdef REPLANNING_SYSTEM < handle
                 C_warm   = [100;100;100];
                 R_mat    = eye(3);
                 R_warm   = R_mat(:);
-                Ap_warm  = [1;1;1];
-                Aq_warm  = [1;1;1];
-                Ac_warm  = [1;1;1];
+                Araw_warm = [1;1;1];
+                D_warm   = [0;0;0];
                 ids_warm = 1;
                 act_warm = 1;
             end
             for k=1:obj.warmup_calls
                 g26_future_trigger_kernel_mex( ...
                     obj.horizon_s,obj.prediction_dt,obj.L_cable, ...
-                    pL,q,C_warm,R_warm,Ap_warm,Aq_warm,Ac_warm,ids_warm,act_warm);
+                    pL,q,C_warm,R_warm,Araw_warm,D_warm,ids_warm,act_warm);
             end
             % 実障害物を用いた生形状幾何計算ルーチンの JIT ウォームアップ
             if ~isempty(obj.static_obstacle_map)
@@ -16167,129 +18337,142 @@ classdef REPLANNING_SYSTEM < handle
                 ''
                 'static inline V3 sub(V3 a,V3 b){ return {a.x-b.x,a.y-b.y,a.z-b.z}; }'
                 'static inline V3 add(V3 a,V3 b){ return {a.x+b.x,a.y+b.y,a.z+b.z}; }'
-                'static inline V3 mul(double s,V3 a){ return {s*a.x,s*a.y,s*a.z}; }'
+                'static inline V3 muls(double s,V3 a){ return {s*a.x,s*a.y,s*a.z}; }'
                 'static inline double dot(V3 a,V3 b){ return a.x*b.x+a.y*b.y+a.z*b.z; }'
-                'static inline double nrm(V3 a){ return std::sqrt(dot(a,a)); }'
+                'static inline double nrm2(V3 a){ return dot(a,a); }'
+                'static inline double nrm(V3 a){ return std::sqrt(nrm2(a)); }'
                 ''
                 'static inline V3 col3(const double* A,mwSize j){'
                 '    return {A[3*j],A[3*j+1],A[3*j+2]};'
                 '}'
                 ''
+                '// MATLAB stores each 3x3 R(:) column-major.'
                 'static inline V3 Rt(const double* R,V3 v){'
-                '    return {'
-                '        R[0]*v.x+R[1]*v.y+R[2]*v.z,'
-                '        R[3]*v.x+R[4]*v.y+R[5]*v.z,'
-                '        R[6]*v.x+R[7]*v.y+R[8]*v.z};'
+                '    return {R[0]*v.x+R[1]*v.y+R[2]*v.z,'
+                '            R[3]*v.x+R[4]*v.y+R[5]*v.z,'
+                '            R[6]*v.x+R[7]*v.y+R[8]*v.z};'
+                '}'
+                'static inline V3 Rmul(const double* R,V3 v){'
+                '    return {R[0]*v.x+R[3]*v.y+R[6]*v.z,'
+                '            R[1]*v.x+R[4]*v.y+R[7]*v.z,'
+                '            R[2]*v.x+R[5]*v.y+R[8]*v.z};'
                 '}'
                 ''
-                'static double pointLevel(V3 p,V3 c,const double* R,V3 a){'
-                '    V3 z=Rt(R,sub(p,c));'
-                '    z.x/=a.x; z.y/=a.y; z.z/=a.z;'
-                '    return nrm(z);'
+                'static inline bool finite3(V3 a){'
+                '    return std::isfinite(a.x)&&std::isfinite(a.y)&&std::isfinite(a.z);'
                 '}'
                 ''
-                'static double segmentLevel(V3 p0,V3 p1,V3 c,const double* R,V3 a){'
-                '    V3 z0=Rt(R,sub(p0,c));'
-                '    V3 z1=Rt(R,sub(p1,c));'
-                '    z0.x/=a.x; z0.y/=a.y; z0.z/=a.z;'
-                '    z1.x/=a.x; z1.y/=a.y; z1.z/=a.z;'
-                '    V3 d=sub(z1,z0);'
-                '    double den=dot(d,d);'
-                '    if(den<=std::numeric_limits<double>::epsilon()) return nrm(z0);'
-                '    double u=-dot(z0,d)/den;'
-                '    u=std::max(0.0,std::min(1.0,u));'
-                '    return nrm(add(z0,mul(u,d)));'
+                '// Same support-plane sufficient separation used by af7r36_core.hpp.'
+                'static bool pointMargin(V3 x,V3 c,const double* R,V3 ax,double rho,double& best){'
+                '    V3 d=sub(x,c); V3 y=Rt(R,d);'
+                '    V3 y2={y.x/(ax.x*ax.x),y.y/(ax.y*ax.y),y.z/(ax.z*ax.z)};'
+                '    V3 N[2]={Rmul(R,y2),d};'
+                '    best=-std::numeric_limits<double>::infinity(); bool ok=false;'
+                '    for(int k=0;k<2;k++){'
+                '        V3 n=N[k]; double nn=nrm(n);'
+                '        if(!(std::isfinite(nn)&&nn>0.0)) continue;'
+                '        V3 rn=Rt(R,n);'
+                '        V3 ar={ax.x*rn.x,ax.y*rn.y,ax.z*rn.z};'
+                '        double hs=dot(n,c)+nrm(ar);'
+                '        double m=(dot(n,x)-hs-rho*nn)/nn;'
+                '        if(std::isfinite(m)){ best=std::max(best,m); ok=true; }'
+                '    }'
+                '    return ok&&std::isfinite(best)&&best>0.0;'
+                '}'
+                ''
+                'static bool segmentMargin(V3 p0,V3 p1,V3 c,const double* R,V3 ax,double rho,double& best){'
+                '    V3 z0=Rt(R,sub(p0,c)),z1=Rt(R,sub(p1,c));'
+                '    z0={z0.x/ax.x,z0.y/ax.y,z0.z/ax.z};'
+                '    z1={z1.x/ax.x,z1.y/ax.y,z1.z/ax.z};'
+                '    V3 sv=sub(z1,z0); double ss=nrm2(sv),lam=0.0;'
+                '    if(ss>0.0){ lam=-dot(z0,sv)/ss; lam=std::max(0.0,std::min(1.0,lam)); }'
+                '    V3 xs=add(p0,muls(lam,sub(p1,p0))); V3 Y[3]={xs,p0,p1};'
+                '    best=-std::numeric_limits<double>::infinity(); bool ok=false;'
+                '    for(int iy=0;iy<3;iy++){'
+                '        V3 x=Y[iy],d=sub(x,c),yr=Rt(R,d);'
+                '        V3 y2={yr.x/(ax.x*ax.x),yr.y/(ax.y*ax.y),yr.z/(ax.z*ax.z)};'
+                '        V3 N[2]={Rmul(R,y2),d};'
+                '        for(int kn=0;kn<2;kn++){'
+                '            V3 n=N[kn]; double nn=nrm(n);'
+                '            if(!(std::isfinite(nn)&&nn>0.0)) continue;'
+                '            V3 rn=Rt(R,n); V3 ar={ax.x*rn.x,ax.y*rn.y,ax.z*rn.z};'
+                '            double hs=dot(n,c)+nrm(ar);'
+                '            double proj=std::min(dot(n,p0),dot(n,p1));'
+                '            double m=(proj-hs-rho*nn)/nn;'
+                '            if(std::isfinite(m)){ best=std::max(best,m); ok=true; }'
+                '        }'
+                '    }'
+                '    return ok&&std::isfinite(best)&&best>0.0;'
                 '}'
                 ''
                 'void mexFunction(int nlhs,mxArray* plhs[],int nrhs,const mxArray* prhs[]){'
-                '    if(nrhs!=12) mexErrMsgIdAndTxt("G26TRIGGER:MEX","Expected 12 inputs.");'
+                '    if(nrhs!=11) mexErrMsgIdAndTxt("G26TRIGGER:MEX","Expected 11 inputs.");'
                 '    if(nlhs>4) mexErrMsgIdAndTxt("G26TRIGGER:MEX","At most 4 outputs.");'
                 ''
                 '    double H=mxGetScalar(prhs[0]);'
                 '    double dt=mxGetScalar(prhs[1]);'
                 '    double L=mxGetScalar(prhs[2]);'
-                ''
                 '    const mxArray* pLmx=prhs[3];'
                 '    const mxArray* qmx=prhs[4];'
                 '    const mxArray* Cmx=prhs[5];'
                 '    const mxArray* Rmx=prhs[6];'
-                '    const mxArray* Apmx=prhs[7];'
-                '    const mxArray* Aqmx=prhs[8];'
-                '    const mxArray* Acmx=prhs[9];'
-                '    const mxArray* Idmx=prhs[10];'
-                '    const mxArray* Actmx=prhs[11];'
+                '    const mxArray* Amx=prhs[7];'
+                '    const mxArray* Dmx=prhs[8];'
+                '    const mxArray* Idmx=prhs[9];'
+                '    const mxArray* Actmx=prhs[10];'
                 ''
                 '    if(mxGetM(pLmx)!=3 || mxGetM(qmx)!=3)'
                 '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","pL,q must be 3xN.");'
-                ''
                 '    mwSize N=mxGetN(pLmx);'
                 '    if(mxGetN(qmx)!=N)'
                 '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","pL/q length mismatch.");'
                 ''
                 '    mwSize M=mxGetN(Cmx);'
-                ''
-                '    if(mxGetM(Cmx)!=3 || mxGetM(Rmx)!=9 ||'
-                '       mxGetM(Apmx)!=3 || mxGetM(Aqmx)!=3 || mxGetM(Acmx)!=3)'
-                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","bad obstacle matrix shape.");'
-                ''
-                '    if(mxGetN(Rmx)!=M || mxGetN(Apmx)!=M || mxGetN(Aqmx)!=M ||'
-                '       mxGetN(Acmx)!=M || mxGetNumberOfElements(Idmx)!=M ||'
-                '       mxGetNumberOfElements(Actmx)!=M)'
-                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","obstacle size mismatch.");'
+                '    if(mxGetM(Cmx)!=3 || mxGetM(Rmx)!=9 || mxGetM(Amx)!=3)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","bad raw obstacle matrix shape.");'
+                '    if(mxGetN(Rmx)!=M || mxGetN(Amx)!=M || mxGetNumberOfElements(Idmx)!=M ||'
+                '       mxGetNumberOfElements(Actmx)!=M || mxGetNumberOfElements(Dmx)!=3)'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","obstacle/radius size mismatch.");'
                 ''
                 '    const double* pL=mxGetPr(pLmx);'
                 '    const double* q=mxGetPr(qmx);'
                 '    const double* C=mxGetPr(Cmx);'
                 '    const double* Rf=mxGetPr(Rmx);'
-                '    const double* Ap=mxGetPr(Apmx);'
-                '    const double* Aq=mxGetPr(Aqmx);'
-                '    const double* Ac=mxGetPr(Acmx);'
+                '    const double* A=mxGetPr(Amx);'
+                '    const double* D=mxGetPr(Dmx);'
                 '    const double* ids=mxGetPr(Idmx);'
                 '    const double* active=mxGetPr(Actmx);'
+                '    if(!(std::isfinite(D[0])&&D[0]>=0.0&&std::isfinite(D[1])&&D[1]>=0.0&&'
+                '         std::isfinite(D[2])&&D[2]>=0.0))'
+                '        mexErrMsgIdAndTxt("G26TRIGGER:MEX","component radii must be finite nonnegative.");'
                 ''
                 '    mwSize nH=(mwSize)std::floor(H/dt+1e-12);'
                 '    mwSize i1=std::min(N-1,nH);'
-                ''
                 '    bool found=false;'
-                '    double jhit=mxGetNaN();'
-                '    double oid=mxGetNaN();'
-                '    double comp=mxGetNaN();'
+                '    double jhit=mxGetNaN(),oid=mxGetNaN(),comp=mxGetNaN();'
                 ''
                 '    for(mwSize j=0;j<=i1;j++){'
-                '        V3 pLj=col3(pL,j);'
-                '        V3 qj=col3(q,j);'
-                '        V3 pQj=sub(pLj,mul(L,qj));'
-                ''
-                '        double best=std::numeric_limits<double>::infinity();'
-                '        double bestComp=mxGetNaN();'
-                '        double bestOid=mxGetNaN();'
-                ''
+                '        V3 pLj=col3(pL,j),qj=col3(q,j);'
+                '        V3 pQj=sub(pLj,muls(L,qj));'
+                '        bool anyUnsafe=false;'
+                '        double worst=std::numeric_limits<double>::infinity();'
+                '        double bestComp=mxGetNaN(),bestOid=mxGetNaN();'
                 '        for(mwSize i=0;i<M;i++){'
                 '            if(!(active[i]>0.5)) continue;'
-                ''
                 '            V3 c={C[3*i],C[3*i+1],C[3*i+2]};'
                 '            const double* R=Rf+9*i;'
-                '            V3 ap={Ap[3*i],Ap[3*i+1],Ap[3*i+2]};'
-                '            V3 aq={Aq[3*i],Aq[3*i+1],Aq[3*i+2]};'
-                '            V3 ac={Ac[3*i],Ac[3*i+1],Ac[3*i+2]};'
-                ''
-                '            double sp=pointLevel(pLj,c,R,ap)-1.0;'
-                '            if(sp<best){ best=sp; bestComp=1; bestOid=ids[i]; }'
-                ''
-                '            double sq=pointLevel(pQj,c,R,aq)-1.0;'
-                '            if(sq<best){ best=sq; bestComp=2; bestOid=ids[i]; }'
-                ''
-                '            double sc=segmentLevel(pLj,pQj,c,R,ac)-1.0;'
-                '            if(sc<best){ best=sc; bestComp=3; bestOid=ids[i]; }'
+                '            V3 ax={A[3*i],A[3*i+1],A[3*i+2]};'
+                '            if(!(finite3(ax)&&ax.x>0.0&&ax.y>0.0&&ax.z>0.0))'
+                '                mexErrMsgIdAndTxt("G26TRIGGER:MEX","raw ellipsoid axes invalid.");'
+                '            double mp,mq,mc;'
+                '            bool sp=pointMargin(pLj,c,R,ax,D[0],mp);'
+                '            bool sq=pointMargin(pQj,c,R,ax,D[1],mq);'
+                '            bool sc=segmentMargin(pQj,pLj,c,R,ax,D[2],mc);'
+                '            if(!sp && (!anyUnsafe || mp<worst)){ anyUnsafe=true; worst=mp; bestComp=1; bestOid=ids[i]; }'
+                '            if(!sq && (!anyUnsafe || mq<worst)){ anyUnsafe=true; worst=mq; bestComp=2; bestOid=ids[i]; }'
+                '            if(!sc && (!anyUnsafe || mc<worst)){ anyUnsafe=true; worst=mc; bestComp=3; bestOid=ids[i]; }'
                 '        }'
-                ''
-                '        if(best<=0.0){'
-                '            found=true;'
-                '            jhit=(double)(j+1);'
-                '            oid=bestOid;'
-                '            comp=bestComp;'
-                '            break;'
-                '        }'
+                '        if(anyUnsafe){ found=true; jhit=(double)(j+1); oid=bestOid; comp=bestComp; break; }'
                 '    }'
                 ''
                 '    if(nlhs>0) plhs[0]=mxCreateLogicalScalar(found);'

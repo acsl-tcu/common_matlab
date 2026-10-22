@@ -1,0 +1,106 @@
+function A = AF7R58R2_CONDITIONED_GLOBAL_HOMOTOPY_AUDIT
+assert(evalin('base','exist(''D38'',''var'')==1'), ...
+    'Run: D38 = AF7R38_SPEED_ROOTCAUSE_AUDIT; first.');
+D38=evalin('base','D38');
+P=D38.pipeline;
+
+fprintf('\n====================================================================================================\n');
+fprintf(' AF7R58R2 | CONDITIONED FREE-C7 + GLOBAL HOMOTOPY REFERENCE SHADOW\n');
+fprintf(' reference-level only | NO COMMIT | NO FIXED REJOIN CLOCK\n');
+fprintf('====================================================================================================\n');
+
+F={ ...
+ 'r58_shadow_ran','r58_reference_only','r58_reference_tracking_inflation_m', ...
+ 'r58_fixed_rejoin_constraint_count','r58_same_clock_binding_count', ...
+ 'r58_horizon_duration_coupling_count','r58_free_c7_constructive', ...
+ 'r58_terminal_offset_hold','r58_terminal_zero_derivative_order', ...
+ 'r58_source_knot_count','r58_scalar_dof_count','r58_spatial_dof_count', ...
+ 'r58_episode_count','r58_component_count','r58_side_cache_plus_valid', ...
+ 'r58_side_cache_minus_valid','r58_side_cache_fail', ...
+ 'r58_bnb_nodes_popped','r58_bnb_qp_solves','r58_bnb_qp_infeasible', ...
+ 'r58_bnb_full_assignments','r58_bnb_speed_fail','r58_bnb_heading_fail', ...
+ 'r58_bnb_geometry_fail','r58_bnb_feasible_full','r58_bnb_max_queue', ...
+ 'r58_selected_side_plus','r58_selected_side_minus', ...
+ 'r58_speed_pass','r58_heading_pass','r58_geometry_pass','r58_needs_time_law', ...
+ 'r58_terminal_offset_norm_m','r58_quantized_jet_max_abs_error', ...
+ 'r58_legacy_join_max_abs_mismatch','r58_best_qp_cost', ...
+ 'r58_speed_VL','r58_speed_A','r58_speed_J','r58_speed_sigma', ...
+ 'r58_speed_qdot','r58_speed_VQ','r58_heading_gamma','r58_geometry_min_margin', ...
+ 'r58_commit_attempted','r58_rejoin_selected', ...
+ 'r58_build_ms','r58_homotopy_ms','r58_certificate_ms','r58_shadow_ms', ...
+ 'r58r2_node_scaled_variables','r58r2_row_equilibrated','r58r2_root_qp_elided', ...
+ 'r58r2_node_scale_min_s','r58r2_node_scale_max_s', ...
+ 'r58r2_row_scale_min','r58r2_row_scale_max', ...
+ 'native_total_ms','last_stage1_ms'};
+
+for k=1:numel(F)
+    f=F{k};
+    if isfield(P,f)
+        v=P.(f);
+        if isnumeric(v)||islogical(v)
+            if isscalar(v)
+                fprintf('%-66s = %.17g\n',f,double(v));
+            else
+                fprintf('%-66s = %s\n',f,mat2str(double(v),17));
+            end
+        else
+            fprintf('%-66s = %s\n',f,char(string(v)));
+        end
+    else
+        fprintf('%-66s = <NOT EXPOSED>\n',f);
+    end
+end
+
+fprintf('\n[THEORY / SOURCE CONTRACT]\n');
+src=fileread(which('af7r36_core.hpp'));
+p0=strfind(src,'AF7R58 FREE-C7 / GLOBAL-HOMOTOPY REFERENCE-CORE SHADOW');
+p1=strfind(src,'R.finite_sensing_limit=lim;');
+assert(~isempty(p0)&&~isempty(p1)&&p1(find(p1>p0(1),1))>p0(1), ...
+    'R58 shadow markers unavailable.');
+blk=src(p0(1):p1(find(p1>p0(1),1)));
+
+hasFixedRejoin=contains(blk,'actual_rejoin_time=') || contains(blk,'rejoin_safe(');
+hasOldClock=contains(blk,'ref.eval(t1)') || contains(blk,'ref.eval(tR)');
+hasH=contains(blk,'L.horizon');
+hasLiteral4=~isempty(regexp(blk,'(?<![A-Za-z0-9_])4\.0(?![A-Za-z0-9_])','once'));
+usesGreedy=contains(blk,'r55_choose_episode_rows');
+hasBNB=contains(src,'R58SearchNode') && contains(blk,'priority_queue');
+hasFullJets=contains(src,'r58_scalar_dofs') && contains(src,'r58_make_node_lattice');
+hasMSVCExactInt=contains(src,'r58_checked_mul_ll') && contains(src,'r58_checked_add_ll') && ~contains(src,'__int128');
+hasNodeScale=contains(src,'r58_node_scale') && contains(src,'sqrt(Tm*Tp)');
+hasRowEq=contains(src,'r58_equilibrate_rows');
+hasRootElide=contains(src,'exact root lower bound is zero');
+hasTerminalOffset=contains(src,'C.terminal_hold=true') && ...
+                  contains(src,'C.terminal_offset=C.cp.back().back()');
+
+fprintf(' fixed-rejoin acceptance appears in R58 shadow        = %d\n',hasFixedRejoin);
+fprintf(' old-clock target evaluation appears                  = %d\n',hasOldClock);
+fprintf(' H used as maneuver duration                          = %d\n',hasH);
+fprintf(' literal 4.0 in R58 shadow                            = %d\n',hasLiteral4);
+fprintf(' old local greedy side selector used                  = %d\n',usesGreedy);
+fprintf(' global best-first homotopy branch-and-bound present  = %d\n',hasBNB);
+fprintf(' free 0..7 interior jet representation present        = %d\n',hasFullJets);
+fprintf(' MSVC-portable checked-int64 exact lattice            = %d\n',hasMSVCExactInt);
+fprintf(' symmetric local node-variable scaling present        = %d\n',hasNodeScale);
+fprintf(' positive row equilibration present                    = %d\n',hasRowEq);
+fprintf(' exact zero root-QP lower bound used                   = %d\n',hasRootElide);
+fprintf(' free-position / zero-derivative terminal hold        = %d\n',hasTerminalOffset);
+
+closed=~hasFixedRejoin && ~hasOldClock && ~hasH && ~hasLiteral4 && ...
+       ~usesGreedy && hasBNB && hasFullJets && hasMSVCExactInt && hasNodeScale && hasRowEq && hasRootElide && hasTerminalOffset && ...
+       P.r58_reference_only==1 && P.r58_reference_tracking_inflation_m==0 && ...
+       P.r58_fixed_rejoin_constraint_count==0 && ...
+       P.r58_same_clock_binding_count==0 && ...
+       P.r58_commit_attempted==0 && P.r58_rejoin_selected==0;
+fprintf(' R58R2 REFERENCE-CORE GENERALITY CONTRACT CLOSED         = %d\n',closed);
+
+fprintf('\nInterpretation:\n');
+fprintf(' - terminal offset may be nonzero: intentional, and NOT a rejoin.\n');
+fprintf(' - full side sequence is selected globally in the finite +/- episode graph.\n');
+fprintf(' - if all geometric paths fail speed, needs_time_law=1; R58 inserts no arbitrary slowdown.\n');
+fprintf(' - controller/observer/tracking robustness is deliberately postponed.\n');
+fprintf('====================================================================================================\n');
+
+A=P;
+assignin('base','R58A',A);
+end

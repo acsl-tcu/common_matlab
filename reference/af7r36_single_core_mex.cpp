@@ -231,6 +231,66 @@ static mxArray* towmap_matrix(){
     }return M;
 }
 
+
+static mxArray* r52_gate_diag_matrix(){
+    // 49 columns; diagnostic only.
+    const mwSize N=(mwSize)G_r52_gate_diag.size(),C=49;
+    mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    auto f=[](double x){return std::isfinite(x)?x:NAN;};
+    for(mwSize i=0;i<N;++i){
+        const auto&d=G_r52_gate_diag[i];
+        double v[C]={
+            d.seq,(double)d.family,(double)d.exact_c7,f(d.max_ctrl),f(d.du),f(d.da),f(d.dj),
+            f(d.phase_alpha),f(d.phase_delay),f(d.actual_rejoin),
+            f(d.limit),f(d.base_VL),f(d.base_A),f(d.base_J),f(d.base_sigma),
+            f(d.A_Uv),f(d.A_Ua),f(d.A_Uj),f(d.A_sigma),f(d.A_VQ),
+            (double)d.A_cert,(double)d.A_impossible,(double)d.A_repr,
+            (double)d.B.attempted,(double)d.B.result_code,(double)d.B.leaf_count,(double)d.B.split_count,
+            f(d.B.worst_vq),f(d.B.worst_t),(double)d.B.worst_seg,f(d.B.worst_vl),
+            f(d.B.worst_sigma),f(d.B.worst_qdot),f(d.B.worst_witness),
+            (double)d.speed_pass,(double)d.H.attempted,(double)d.heading_pass,(double)d.H.reason,
+            f(d.H.min_g0),f(d.H.min_lb),(double)d.H.leaves,(double)d.H.splits,
+            f(d.heading_gamma),(double)d.rejoin_attempt,(double)d.rejoin_pass,
+            (double)d.geom_attempt,(double)d.geom_pass,f(d.geom_min_margin),
+            0.0
+        };
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }
+    return M;
+}
+
+
+static mxArray* r53_knot_diag_matrix(){
+    const mwSize N=(mwSize)G_r53_knot_diag.size(),C=18;
+    mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    auto f=[](double x){return std::isfinite(x)?x:NAN;};
+    for(mwSize i=0;i<N;++i){
+        const auto&r=G_r53_knot_diag[i];
+        double v[C]={
+            r.build_id,r.side,f(r.rejoin),f(r.corr_v),f(r.corr_a),f(r.corr_j),
+            r.node,f(r.knot),f(r.P.x),f(r.P.y),f(r.P.z),f(r.Pnorm),
+            f(r.V.x),f(r.V.y),f(r.V.z),f(r.Vnorm),f(r.prevT),f(r.nextT)
+        };
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }
+    return M;
+}
+static mxArray* r53_segment_diag_matrix(){
+    const mwSize N=(mwSize)G_r53_segment_diag.size(),C=15;
+    mxArray*M=mxCreateDoubleMatrix(N,C,mxREAL);double*p=mxGetPr(M);
+    auto f=[](double x){return std::isfinite(x)?x:NAN;};
+    for(mwSize i=0;i<N;++i){
+        const auto&r=G_r53_segment_diag[i];
+        double v[C]={
+            r.build_id,r.side,f(r.rejoin),f(r.corr_v),f(r.corr_a),f(r.corr_j),
+            r.seg,f(r.ta),f(r.tb),f(r.T),f(r.cp_norm),
+            f(r.vel_ub),f(r.acc_ub),f(r.jerk_ub),0.0
+        };
+        for(mwSize j=0;j<C;++j)p[i+N*j]=v[j];
+    }
+    return M;
+}
+
 static const mxArray* fld(const mxArray* s,const char* name){
     if(!mxIsStruct(s)) mexErrMsgIdAndTxt("AF7R34:Packet","packet must be struct.");
     const mxArray* v=mxGetField(s,0,name);
@@ -267,7 +327,7 @@ static mxArray* dscalar(double v){return mxCreateDoubleScalar(v);}
 // ============================================================================
 static mxArray* vecrow(const std::vector<double>&v);
 static const char* R28_REV="AF7R58ZZY_R28_NATIVE_ONCE_V1";
-static const char* PLANNER_REV="AF7R45R3_NATIVE_HEADING_BINDING_C7_V1";
+static const char* PLANNER_REV="AF7R58R14_C7_LOWJET_SEED_SHADOW_V1";
 
 static const mxArray* optfld(const mxArray* s,const char* name){
     if(!s||!mxIsStruct(s)||mxGetNumberOfElements(s)!=1) return nullptr;
@@ -463,11 +523,38 @@ static ActiveReference parse_ref(const mxArray* P){
     if(s0.size()!=S||s1.size()!=S) mexErrMsgIdAndTxt("AF7R34:Packet","repair segment size mismatch.");
     size_t G=rt0.size();
     if(rt1.size()!=G||offs.size()!=G+1) mexErrMsgIdAndTxt("AF7R34:Packet","repair group size mismatch.");
+
+    // AF7R51 optional general-C7 phase metadata. Historical packets without
+    // these fields remain exact identity-time references.
+    std::vector<double> pen,pt0,ptA,ptB,ptE,psA,psB,palpha,pdelay;
+    const mxArray* penA=optfld(P,"repair_phase_enabled");
+    if(penA){
+        pen=dvec(penA,"repair_phase_enabled");
+        pt0=dvec(fld(P,"repair_phase_t0"),"repair_phase_t0");
+        ptA=dvec(fld(P,"repair_phase_tA"),"repair_phase_tA");
+        ptB=dvec(fld(P,"repair_phase_tB"),"repair_phase_tB");
+        ptE=dvec(fld(P,"repair_phase_tE"),"repair_phase_tE");
+        psA=dvec(fld(P,"repair_phase_sA"),"repair_phase_sA");
+        psB=dvec(fld(P,"repair_phase_sB"),"repair_phase_sB");
+        palpha=dvec(fld(P,"repair_phase_alpha"),"repair_phase_alpha");
+        pdelay=dvec(fld(P,"repair_phase_delay"),"repair_phase_delay");
+        if(pen.size()!=G||pt0.size()!=G||ptA.size()!=G||ptB.size()!=G||
+                ptE.size()!=G||psA.size()!=G||psB.size()!=G||
+                palpha.size()!=G||pdelay.size()!=G)
+            mexErrMsgIdAndTxt("AF7R51:Packet","repair phase group size mismatch.");
+    }
     R.repairs.resize(G);
     for(size_t g=0;g<G;++g){
         long a=(long)std::llround(offs[g]),b=(long)std::llround(offs[g+1]);
         if(a<0||b<a||b>(long)S) mexErrMsgIdAndTxt("AF7R34:Packet","invalid repair offsets.");
         R.repairs[g].t0=rt0[g];R.repairs[g].t1=rt1[g];
+        if(!pen.empty() && pen[g]>0.5){
+            auto &ph=R.repairs[g].phase;
+            ph.enabled=true;ph.t0=pt0[g];ph.tA=ptA[g];ph.tB=ptB[g];ph.tE=ptE[g];
+            ph.sA=psA[g];ph.sB=psB[g];ph.alpha=palpha[g];ph.delay=pdelay[g];
+            if(!r51_phase_valid(ph))
+                mexErrMsgIdAndTxt("AF7R51:Packet","invalid repair phase metadata.");
+        }
         for(long j=a;j<b;++j){
             CorrSegment sg;sg.t0=s0[j];sg.t1=s1[j];sg.cp.resize(16);
             for(int k=0;k<16;++k)sg.cp[k]={cp[(3*k+0)+48*j],cp[(3*k+1)+48*j],cp[(3*k+2)+48*j]};
@@ -482,6 +569,29 @@ static Live parse_live(const mxArray* P){
     L.rL=scalar(fld(P,"r_load"),"r_load");L.rQ=scalar(fld(P,"r_drone"),"r_drone");L.rC=scalar(fld(P,"r_cable"),"r_cable");
     L.dmargin=scalar(fld(P,"d_margin"),"d_margin");L.sensor_range=scalar(fld(P,"sensor_range"),"sensor_range");
     L.horizon=scalar(fld(P,"horizon"),"horizon");L.tracking=scalar(fld(P,"tracking_inflation"),"tracking_inflation");
+    // R13 module-internal diagnostic switch, defaults OFF if absent.
+    const mxArray* r58diag=optfld(P,"r58_shadow_diagnostic_enabled");
+    if(r58diag){
+        if(mxGetNumberOfElements(r58diag)!=1)
+            mexErrMsgIdAndTxt("AF7R13:Flag","r58 shadow diagnostic flag must be 0 or 1.");
+        double f=mxIsLogical(r58diag)?(mxIsLogicalScalarTrue(r58diag)?1.0:0.0):
+                 scalar(r58diag,"r58_shadow_diagnostic_enabled");
+        if(!(f==0.0||f==1.0))
+            mexErrMsgIdAndTxt("AF7R13:Flag","r58 shadow diagnostic flag must be 0 or 1.");
+        L.r58_shadow_diagnostic_enabled=(f==1.0);
+    }
+    // R14 diagnostic-only nested C7 candidate family, strict 0/1 flag.
+    const mxArray* r14mode=optfld(P,"r58r14_lowjet_seed_only");
+    if(r14mode){
+        if(mxGetNumberOfElements(r14mode)!=1)
+            mexErrMsgIdAndTxt("AF7R14:Flag","R14 seed flag must be 0 or 1.");
+        const double f=mxIsLogical(r14mode) ?
+            (mxIsLogicalScalarTrue(r14mode)?1.0:0.0) :
+            scalar(r14mode,"r58r14_lowjet_seed_only");
+        if(!(f==0.0||f==1.0))
+            mexErrMsgIdAndTxt("AF7R14:Flag","R14 seed flag must be 0 or 1.");
+        L.r58r14_lowjet_seed_only=(f==1.0);
+    }
     return L;
 }
 static SpeedCert parse_speed(const mxArray* P){
@@ -610,6 +720,353 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
         "r45_convex_search_fallback_count",
         "r45_best_fixed_peak_req_m","r45_best_tangent_peak_req_m",
         "r45_max_peak_relief_m",
+        "r47_active_base_replan_count","r47_nonaffine_base_count",
+        "r47_heading_leaf_count","r47_heading_split_count",
+        "r48_natural_rejoin_trial_count","r48_natural_rejoin_selected_count",
+        "r48_exit_monotone_row_count","r48_natural_rejoin_seed_t1",
+        "r49_phase_timing_trial_count","r49_phase_gate_pass_count",
+        "r49_hard_certificate_trial_count",
+        "r49_selected_Ke","r49_selected_Kflow","r49_selected_Kx",
+        "r50_spatial_side_solution_count","r50_spatial_lateral_constraint_count",
+        "r50_entry_candidate_count","r50_exit_candidate_count",
+        "r50_best_spatial_velocity_norm",
+        "r51_phase_seed_count","r51_phase_seed_reject_count",
+        "r51_tangent_candidate_count","r51_tangent_certified_count",
+        "r51_phase_alpha","r51_phase_delay_s","r51_phase_exit_time_s",
+        "r52_phase_episode_count","r52_phase_episode_rebuild_fail_count",
+        "r52_corridor_row_count","r52_support_plane_fail_count",
+        "r52_spatial_qp_solution_count","r52_rejoin_time_trial_count",
+        "r52_selected_spatial_rejoin_s",
+        "r53_normal_bundle_node_count","r53_normal_bundle_row_count",
+        "r53_normal_bundle_singular_count","r53_affine_reduction_count",
+        "r54_phase_candidate_count","r54_phase_trial_count",
+        "r54_phase_base_certified_count","r54_phase_episode_pass_count",
+        "r54_phase_episode_empty_count","r54_selected_tau_multiple",
+        "r54_selected_alpha","r54_selected_delay_s",
+        "r54_selected_first_unsafe_lead_s","r54_max_first_unsafe_lead_s",
+        "r54_maneuver_horizon_coupling_count",
+        "r55_phase_build_count","r55_phase_build_fail_count",
+        "r55_phase_episode_pass_count","r55_phase_episode_empty_count",
+        "r55_mixed_side_episode_count","r55_side_plus_count",
+        "r55_side_minus_count","r55_side_onebranch_count",
+        "r55_side_both_failed_count","r55_corridor_row_count",
+        "r55_obstacle_count","r55_old_clock_binding_count",
+        "r55_maneuver_horizon_coupling_count",
+        "r55_alpha","r55_delay_s",
+        "r55_source_unsafe_start_s","r55_source_unsafe_end_s",
+        "r55_predicted_first_unsafe_t_s","r55_predicted_last_unsafe_t_s",
+        "r55_pre_unsafe_slack_s","r55_post_unsafe_slack_s",
+        "r55_min_temporal_slack_s",
+        "r55_phase_entry_transition_s","r55_phase_exit_transition_s",
+        "r55_source_phase_at_rejoin_s","r55_rejoin_clock_delay_s",
+        "r55_min_ellipsoid_axis_m","r55_max_ellipsoid_axis_m",
+        "r55_max_rotation_orth_error",
+        "r56_shadow_ran",
+        "r56_source_qp_ok",
+        "r56_source_exact_c7",
+        "r56_source_knot_count",
+        "r56_source_episode_count",
+        "r56_source_corridor_row_count",
+        "r56_source_normal_row_count",
+        "r56_source_side_plus_count",
+        "r56_source_side_minus_count",
+        "r56_source_side_fail_count",
+        "r56_const_sample_count",
+        "r56_const_dynamic_pass",
+        "r56_const_geometry_point_pass",
+        "r56_entry_bestcase_pass",
+        "r56_exit_bestcase_pass",
+        "r56_yaw_source_regular",
+        "r56_old_clock_binding_count",
+        "r56_horizon_duration_coupling_count",
+        "r56_source_support_start_s",
+        "r56_source_rejoin_s",
+        "r56_source_corr_v_ub",
+        "r56_source_corr_a_ub",
+        "r56_source_corr_j_ub",
+        "r56_source_min_hxy",
+        "r56_alpha_max_pointwise",
+        "r56_const_max_vl",
+        "r56_const_max_vq",
+        "r56_const_min_sigma",
+        "r56_const_max_qdot",
+        "r56_const_min_geom_margin",
+        "r56_entry_Tmax_s",
+        "r56_entry_max_vq",
+        "r56_entry_min_sigma",
+        "r56_entry_max_qdot",
+        "r56_exit_Tmax_s",
+        "r56_exit_max_vq",
+        "r56_exit_min_sigma",
+        "r56_exit_max_qdot",
+        "r56_chain_rule_max_error",
+        "r56_shadow_ms",
+        "r57_probe_ran",
+        "r57_source_qp_ok",
+        "r57_source_exact_c7",
+        "r57_speed_attempt",
+        "r57_speed_pass",
+        "r57_speed_stageA_pass",
+        "r57_speed_stageB_attempt",
+        "r57_speed_stageB_finite_witness",
+        "r57_speed_stageB_repr_fail",
+        "r57_heading_attempt",
+        "r57_heading_pass",
+        "r57_heading_leaf_count",
+        "r57_heading_split_count",
+        "r57_geometry_attempt",
+        "r57_geometry_pass",
+        "r57_commit_attempted",
+        "r57_rejoin_selected",
+        "r57_old_clock_commit_binding_count",
+        "r57_horizon_duration_coupling_count",
+        "r57_speed_VL",
+        "r57_speed_A",
+        "r57_speed_J",
+        "r57_speed_sigma",
+        "r57_speed_qdot",
+        "r57_speed_VQ",
+        "r57_heading_gamma",
+        "r57_geometry_min_margin",
+        "r57_source_support_start_s",
+        "r57_source_support_end_s",
+        "r57_source_corr_v_ub",
+        "r57_source_corr_a_ub",
+        "r57_source_corr_j_ub",
+        "r57_source_build_ms",
+        "r57_speed_ms",
+        "r57_heading_ms",
+        "r57_geometry_ms",
+        "r57_probe_ms",
+        "r58_shadow_ran",
+        "r58_reference_only",
+        "r58_fixed_rejoin_constraint_count",
+        "r58_same_clock_binding_count",
+        "r58_horizon_duration_coupling_count",
+        "r58_free_c7_constructive",
+        "r58_terminal_offset_hold",
+        "r58_terminal_zero_derivative_order",
+        "r58_source_knot_count",
+        "r58_scalar_dof_count",
+        "r58r14_lowjet_seed_only",
+        "r58r14_active_reduced_dof",
+        "r58r14_full_reduced_dof",
+        "r58_spatial_dof_count",
+        "r58_episode_count",
+        "r58_component_count",
+        "r58_side_cache_plus_valid",
+        "r58_side_cache_minus_valid",
+        "r58_side_cache_fail",
+        "r58_bnb_nodes_popped",
+        "r58_bnb_qp_solves",
+        "r58_bnb_qp_infeasible",
+        "r58_bnb_full_assignments",
+        "r58_bnb_speed_fail",
+        "r58_bnb_heading_fail",
+        "r58_bnb_geometry_fail",
+        "r58_bnb_feasible_full",
+        "r58_bnb_max_queue",
+        "r58_selected_side_plus",
+        "r58_selected_side_minus",
+        "r58_speed_pass",
+        "r58_heading_pass",
+        "r58_geometry_pass",
+        "r58_needs_time_law",
+        "r58_commit_attempted",
+        "r58_rejoin_selected",
+        "r58_reference_tracking_inflation_m",
+        "r58_support_start_s",
+        "r58_support_end_s",
+        "r58_terminal_offset_norm_m",
+        "r58_quantized_jet_max_abs_error",
+        "r58_legacy_join_max_abs_mismatch",
+        "r58_best_qp_cost",
+        "r58_speed_VL",
+        "r58_speed_A",
+        "r58_speed_J",
+        "r58_speed_sigma",
+        "r58_speed_qdot",
+        "r58_speed_VQ",
+        "r58_heading_gamma",
+        "r58_geometry_min_margin",
+        "r58_build_ms",
+        "r58_homotopy_ms",
+        "r58_certificate_ms",
+        "r58_shadow_ms",
+        "r58r2_node_scaled_variables",
+        "r58r2_row_equilibrated",
+        "r58r2_root_qp_elided",
+        "r58r2_node_scale_min_s",
+        "r58r2_node_scale_max_s",
+        "r58r2_row_scale_min",
+        "r58r2_row_scale_max",
+        "r58r3_hessian_diag_equilibrated",
+        "r58r3_equilibrated_cholesky_pass",
+        "r58r3_raw_hdiag_min",
+        "r58r3_raw_hdiag_max",
+        "r58r3_raw_hdiag_ratio",
+        "r58r3_eq_hdiag_min",
+        "r58r3_eq_hdiag_max",
+        "r58r4_normal_equalities_eliminated",
+        "r58r4_reduced_spatial_dof_count",
+        "r58r4_elimination_build_fail",
+        "r58r4_elimination_max_residual",
+        "r58r5_dykstra_used",
+        "r58r5_dykstra_converged_feasible",
+        "r58r5_dykstra_resource_fail",
+        "r58r5_dykstra_degenerate_row_fail",
+        "r58r5_dykstra_max_sweeps_used",
+        "r58r5_dykstra_projection_count",
+        "r58r5_dykstra_optimal_kkt_count",
+        "r58r5_dykstra_max_violation",
+        "r58r5_dykstra_duality_gap",
+        "r58r5_dykstra_stationarity_residual",
+        "r58r5_dykstra_ms",
+        "r58r6_hildreth_used",
+        "r58r6_kkt_converged_count",
+        "r58r6_resource_fail_count",
+        "r58r6_max_sweeps_used",
+        "r58r6_coordinate_updates",
+        "r58r6_max_primal_violation",
+        "r58r6_max_complementarity",
+        "r58r6_duality_gap",
+        "r58r6_stationarity_residual",
+        "r58r6_max_lambda",
+        "r58r6_solver_ms",
+        "r58r6_prequant_scaled_jet_max_abs",
+        "r58r6_quantized_scaled_jet_rel_error",
+        "r58r6_quantized_physical_jet_max_abs_error",
+        "r58r6_failed_corr_v_ub",
+        "r58r6_failed_corr_a_ub",
+        "r58r6_failed_corr_j_ub",
+        "r58r6_failed_speed_worst_vq",
+        "r58r6_failed_speed_worst_vl",
+        "r58r6_failed_speed_worst_sigma",
+        "r58r6_failed_speed_worst_qdot",
+        "r58r6_failed_speed_witness",
+        "r58r7_constraint_generation_used",
+        "r58r7_full_row_count_max",
+        "r58r7_outer_iterations_max",
+        "r58r7_full_scans",
+        "r58r7_rows_added",
+        "r58r7_active_rows_max",
+        "r58r7_subset_kkt_solves",
+        "r58r7_subset_kkt_converged",
+        "r58r7_subset_resource_fail",
+        "r58r7_duplicate_add_fail",
+        "r58r7_full_optimality_closed",
+        "r58r7_subset_sweeps_max",
+        "r58r7_coordinate_updates",
+        "r58r7_initial_worst_violation",
+        "r58r7_final_max_violation",
+        "r58r7_final_duality_gap",
+        "r58r7_final_complementarity",
+        "r58r7_final_stationarity",
+        "r58r7_solver_ms",
+        "r58r8_ipm_used",
+        "r58r8_ipm_converged",
+        "r58r8_ipm_resource_fail",
+        "r58r8_ipm_factor_fail",
+        "r58r8_ipm_max_iterations",
+        "r58r8_ipm_newton_solves",
+        "r58r8_ipm_primal_residual",
+        "r58r8_ipm_dual_residual",
+        "r58r8_ipm_complementarity",
+        "r58r8_ipm_duality_gap",
+        "r58r8_ipm_min_slack",
+        "r58r8_ipm_min_lambda",
+        "r58r8_ipm_ms",
+        "r58r8_newton_diag_equilibrated",
+        "r58r8_pcg_used",
+        "r58r8_pcg_resource_fail",
+        "r58r8_pcg_max_iterations",
+        "r58r8_pcg_final_rel_residual",
+        "r58r9_failure_count",
+        "r58r9_failure_depth",
+        "r58r9_failure_last_side",
+        "r58r9_failure_outer_iteration",
+        "r58r9_failure_active_rows",
+        "r58r9_failure_added_row",
+        "r58r9_failure_ipm_iteration",
+        "r58r9_failure_stage",
+        "r58r9_failure_pcg_iterations",
+        "r58r9_failure_pcg_final_rel_residual",
+        "r58r9_failure_pcg_rhs_inf",
+        "r58r9_failure_D_min",
+        "r58r9_failure_D_max",
+        "r58r9_failure_D_ratio",
+        "r58r9_failure_min_slack",
+        "r58r9_failure_min_lambda",
+        "r58r9_failure_metric_max_abs_corr",
+        "r58r9_failure_metric_one_minus_corr",
+        "r58r9_full_scan_ms",
+        "r58r9_subset_solver_ms",
+        "r58r9_pcg_ms",
+        "r58r9_plus_failed",
+        "r58r9_minus_failed",
+        "r58r9_plus_failure_stage",
+        "r58r9_minus_failure_stage",
+        "r58r9_plus_failure_active_rows",
+        "r58r9_minus_failure_active_rows",
+        "r58r9_plus_failure_pcg_relres",
+        "r58r9_minus_failure_pcg_relres",
+        "r58r9_plus_metric_max_abs_corr",
+        "r58r9_minus_metric_max_abs_corr",
+        "r58r9_plus_cg_ms",
+        "r58r9_minus_cg_ms",
+        "r58r10_plus_primal_residual",
+        "r58r10_plus_dual_residual",
+        "r58r10_plus_mu",
+        "r58r10_plus_duality_gap",
+        "r58r10_plus_kkt_tol",
+        "r58r10_plus_gap_tol",
+        "r58r10_plus_last_sigma",
+        "r58r10_plus_last_alpha_primal",
+        "r58r10_plus_last_alpha_dual",
+        "r58r10_plus_min_alpha_primal",
+        "r58r10_plus_min_alpha_dual",
+        "r58r10_plus_mu_ratio",
+        "r58r10_plus_D_min",
+        "r58r10_plus_D_max",
+        "r58r10_plus_D_ratio",
+        "r58r10_plus_min_slack",
+        "r58r10_plus_min_lambda",
+        "r58r10_plus_predictor_pcg_iterations",
+        "r58r10_plus_corrector_pcg_iterations",
+        "r58r10_plus_predictor_pcg_relres",
+        "r58r10_plus_corrector_pcg_relres",
+        "r58r10_minus_primal_residual",
+        "r58r10_minus_dual_residual",
+        "r58r10_minus_mu",
+        "r58r10_minus_duality_gap",
+        "r58r10_minus_kkt_tol",
+        "r58r10_minus_gap_tol",
+        "r58r10_minus_last_sigma",
+        "r58r10_minus_last_alpha_primal",
+        "r58r10_minus_last_alpha_dual",
+        "r58r10_minus_min_alpha_primal",
+        "r58r10_minus_min_alpha_dual",
+        "r58r10_minus_mu_ratio",
+        "r58r10_minus_D_min",
+        "r58r10_minus_D_max",
+        "r58r10_minus_D_ratio",
+        "r58r10_minus_min_slack",
+        "r58r10_minus_min_lambda",
+        "r58r10_minus_predictor_pcg_iterations",
+        "r58r10_minus_corrector_pcg_iterations",
+        "r58r10_minus_predictor_pcg_relres",
+        "r58r10_minus_corrector_pcg_relres",
+        "r58r11_augmented_kkt_used",
+        "r58r11_augmented_kkt_solve_fail",
+        "r58r11_common_step_used",
+        "r58r11_augmented_kkt_max_dim",
+        "r58r11_newton_solves",
+        "r58r11_newton_max_rel_residual",
+        "r58r11_common_step_min",
+        "r58r11_common_step_last",
+        "r58r11_solver_ms","r58_speed_gate_rows",
+        "phase_reparameterized","phase_t0","phase_entry_end","phase_flow_end",
+        "phase_exit_end","phase_source_start","phase_source_end","phase_alpha","phase_delay_s",
         "rejoin_search_ms","planner_native_revision"};
     mxArray*S=mxCreateStructMatrix(1,1,sizeof(fn)/sizeof(fn[0]),fn);
     auto set=[&](const char*n,mxArray*v){mxSetField(S,0,n,v);};
@@ -677,7 +1134,16 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
     if(R.cand.family==4)family="TOWING_C7_MIN_NORM_CONSTANT";
     if(R.cand.family==5)family="TOWING_C7_SPEED_OPT_SPLIT";
     if(R.cand.family==6)family="CURVED_C7_ZERO_JET_BELL";
-    if(R.cand.family==7)family="TANGENT_SUPPORT_CORRIDOR_C7";
+    if(R.cand.family==7){
+        if(R.cand.phase_reparameterized)
+            family="GENERAL_C7_WORLD3D_PHASE_CORRIDOR";
+        else if(R.cand.terminal_hold)
+            family="TOWING_PHASE_DELAY_C7";
+        else
+            family=(R.r47_active_base_replan_count>0)?
+                "ACTIVE_REFERENCE_TANGENT_SUPPORT_CORRIDOR_C7":
+                "TANGENT_SUPPORT_CORRIDOR_C7";
+    }
     set("candidate_family",mxCreateString(family));
     set("primary_candidate_count",dscalar(R.primary_candidate_count));
     set("primary_speed_pass_count",dscalar(R.primary_speed_pass));
@@ -744,7 +1210,7 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
     set("r33_support_end_s",dscalar(R.r33_support_end_s));
     set("r33_best_accel_ub",dscalar(R.r33_best_accel_ub));
     set("r33_best_jerk_ub",dscalar(R.r33_best_jerk_ub));
-    set("delay_preserving",logicalScalar(R.cand.terminal_hold));
+    set("delay_preserving",logicalScalar(R.cand.terminal_hold||R.cand.phase_reparameterized));
     set("terminal_hold_start",dscalar(R.cand.terminal_hold_start));
     {
         mxArray* v=mxCreateDoubleMatrix(3,1,mxREAL);
@@ -816,11 +1282,411 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
     set("r45_best_fixed_peak_req_m",dscalar(R.r45_best_fixed_peak_req_m));
     set("r45_best_tangent_peak_req_m",dscalar(R.r45_best_tangent_peak_req_m));
     set("r45_max_peak_relief_m",dscalar(R.r45_max_peak_relief_m));
+    set("r47_active_base_replan_count",dscalar(R.r47_active_base_replan_count));
+    set("r47_nonaffine_base_count",dscalar(R.r47_nonaffine_base_count));
+    set("r47_heading_leaf_count",dscalar(R.r47_heading_leaf_count));
+    set("r47_heading_split_count",dscalar(R.r47_heading_split_count));
+    set("r48_natural_rejoin_trial_count",dscalar(R.r48_natural_rejoin_trial_count));
+    set("r48_natural_rejoin_selected_count",dscalar(R.r48_natural_rejoin_selected_count));
+    set("r48_exit_monotone_row_count",dscalar(R.r48_exit_monotone_row_count));
+    set("r48_natural_rejoin_seed_t1",dscalar(R.r48_natural_rejoin_seed_t1));
+    set("r49_phase_timing_trial_count",dscalar(R.r49_phase_timing_trial_count));
+    set("r49_phase_gate_pass_count",dscalar(R.r49_phase_gate_pass_count));
+    set("r49_hard_certificate_trial_count",dscalar(R.r49_hard_certificate_trial_count));
+    set("r49_selected_Ke",dscalar((double)R.r49_selected_Ke));
+    set("r49_selected_Kflow",dscalar((double)R.r49_selected_Kflow));
+    set("r49_selected_Kx",dscalar((double)R.r49_selected_Kx));
+    set("r50_spatial_side_solution_count",dscalar(R.r50_spatial_side_solution_count));
+    set("r50_spatial_lateral_constraint_count",dscalar(R.r50_spatial_lateral_constraint_count));
+    set("r50_entry_candidate_count",dscalar(R.r50_entry_candidate_count));
+    set("r50_exit_candidate_count",dscalar(R.r50_exit_candidate_count));
+    set("r50_best_spatial_velocity_norm",dscalar(R.r50_best_spatial_velocity_norm));
+    set("r51_phase_seed_count",dscalar(R.r51_phase_seed_count));
+    set("r51_phase_seed_reject_count",dscalar(R.r51_phase_seed_reject_count));
+    set("r51_tangent_candidate_count",dscalar(R.r51_tangent_candidate_count));
+    set("r51_tangent_certified_count",dscalar(R.r51_tangent_certified_count));
+    set("r51_phase_alpha",dscalar(R.r51_phase_alpha));
+    set("r51_phase_delay_s",dscalar(R.r51_phase_delay_s));
+    set("r51_phase_exit_time_s",dscalar(R.r51_phase_exit_time_s));
+    set("r52_phase_episode_count",dscalar(R.r52_phase_episode_count));
+    set("r52_phase_episode_rebuild_fail_count",dscalar(R.r52_phase_episode_rebuild_fail_count));
+    set("r52_corridor_row_count",dscalar(R.r52_corridor_row_count));
+    set("r52_support_plane_fail_count",dscalar(R.r52_support_plane_fail_count));
+    set("r52_spatial_qp_solution_count",dscalar(R.r52_spatial_qp_solution_count));
+    set("r52_rejoin_time_trial_count",dscalar(R.r52_rejoin_time_trial_count));
+    set("r52_selected_spatial_rejoin_s",dscalar(R.r52_selected_spatial_rejoin_s));
+    set("r53_normal_bundle_node_count",dscalar(R.r53_normal_bundle_node_count));
+    set("r53_normal_bundle_row_count",dscalar(R.r53_normal_bundle_row_count));
+    set("r53_normal_bundle_singular_count",dscalar(R.r53_normal_bundle_singular_count));
+    set("r53_affine_reduction_count",dscalar(R.r53_affine_reduction_count));
+    set("r54_phase_candidate_count",dscalar(R.r54_phase_candidate_count));
+    set("r54_phase_trial_count",dscalar(R.r54_phase_trial_count));
+    set("r54_phase_base_certified_count",dscalar(R.r54_phase_base_certified_count));
+    set("r54_phase_episode_pass_count",dscalar(R.r54_phase_episode_pass_count));
+    set("r54_phase_episode_empty_count",dscalar(R.r54_phase_episode_empty_count));
+    set("r54_selected_tau_multiple",dscalar((double)R.r54_selected_tau_multiple));
+    set("r54_selected_alpha",dscalar(R.r54_selected_alpha));
+    set("r54_selected_delay_s",dscalar(R.r54_selected_delay_s));
+    set("r54_selected_first_unsafe_lead_s",dscalar(R.r54_selected_first_unsafe_lead_s));
+    set("r54_max_first_unsafe_lead_s",dscalar(R.r54_max_first_unsafe_lead_s));
+    set("r54_maneuver_horizon_coupling_count",dscalar(R.r54_maneuver_horizon_coupling_count));
+    set("r55_phase_build_count",dscalar(R.r55_phase_build_count));
+    set("r55_phase_build_fail_count",dscalar(R.r55_phase_build_fail_count));
+    set("r55_phase_episode_pass_count",dscalar(R.r55_phase_episode_pass_count));
+    set("r55_phase_episode_empty_count",dscalar(R.r55_phase_episode_empty_count));
+    set("r55_mixed_side_episode_count",dscalar(R.r55_mixed_side_episode_count));
+    set("r55_side_plus_count",dscalar(R.r55_side_plus_count));
+    set("r55_side_minus_count",dscalar(R.r55_side_minus_count));
+    set("r55_side_onebranch_count",dscalar(R.r55_side_onebranch_count));
+    set("r55_side_both_failed_count",dscalar(R.r55_side_both_failed_count));
+    set("r55_corridor_row_count",dscalar(R.r55_corridor_row_count));
+    set("r55_obstacle_count",dscalar(R.r55_obstacle_count));
+    set("r55_old_clock_binding_count",dscalar(R.r55_old_clock_binding_count));
+    set("r55_maneuver_horizon_coupling_count",dscalar(R.r55_maneuver_horizon_coupling_count));
+    set("r55_alpha",dscalar(R.r55_alpha));
+    set("r55_delay_s",dscalar(R.r55_delay_s));
+    set("r55_source_unsafe_start_s",dscalar(R.r55_source_unsafe_start_s));
+    set("r55_source_unsafe_end_s",dscalar(R.r55_source_unsafe_end_s));
+    set("r55_predicted_first_unsafe_t_s",dscalar(R.r55_predicted_first_unsafe_t_s));
+    set("r55_predicted_last_unsafe_t_s",dscalar(R.r55_predicted_last_unsafe_t_s));
+    set("r55_pre_unsafe_slack_s",dscalar(R.r55_pre_unsafe_slack_s));
+    set("r55_post_unsafe_slack_s",dscalar(R.r55_post_unsafe_slack_s));
+    set("r55_min_temporal_slack_s",dscalar(R.r55_min_temporal_slack_s));
+    set("r55_phase_entry_transition_s",dscalar(R.r55_phase_entry_transition_s));
+    set("r55_phase_exit_transition_s",dscalar(R.r55_phase_exit_transition_s));
+    set("r55_source_phase_at_rejoin_s",dscalar(R.r55_source_phase_at_rejoin_s));
+    set("r55_rejoin_clock_delay_s",dscalar(R.r55_rejoin_clock_delay_s));
+    set("r55_min_ellipsoid_axis_m",dscalar(R.r55_min_ellipsoid_axis_m));
+    set("r55_max_ellipsoid_axis_m",dscalar(R.r55_max_ellipsoid_axis_m));
+    set("r55_max_rotation_orth_error",dscalar(R.r55_max_rotation_orth_error));
+    set("r56_shadow_ran",dscalar(R.r56_shadow_ran));
+    set("r56_source_qp_ok",dscalar(R.r56_source_qp_ok));
+    set("r56_source_exact_c7",dscalar(R.r56_source_exact_c7));
+    set("r56_source_knot_count",dscalar(R.r56_source_knot_count));
+    set("r56_source_episode_count",dscalar(R.r56_source_episode_count));
+    set("r56_source_corridor_row_count",dscalar(R.r56_source_corridor_row_count));
+    set("r56_source_normal_row_count",dscalar(R.r56_source_normal_row_count));
+    set("r56_source_side_plus_count",dscalar(R.r56_source_side_plus_count));
+    set("r56_source_side_minus_count",dscalar(R.r56_source_side_minus_count));
+    set("r56_source_side_fail_count",dscalar(R.r56_source_side_fail_count));
+    set("r56_const_sample_count",dscalar(R.r56_const_sample_count));
+    set("r56_const_dynamic_pass",dscalar(R.r56_const_dynamic_pass));
+    set("r56_const_geometry_point_pass",dscalar(R.r56_const_geometry_point_pass));
+    set("r56_entry_bestcase_pass",dscalar(R.r56_entry_bestcase_pass));
+    set("r56_exit_bestcase_pass",dscalar(R.r56_exit_bestcase_pass));
+    set("r56_yaw_source_regular",dscalar(R.r56_yaw_source_regular));
+    set("r56_old_clock_binding_count",dscalar(R.r56_old_clock_binding_count));
+    set("r56_horizon_duration_coupling_count",dscalar(R.r56_horizon_duration_coupling_count));
+    set("r56_source_support_start_s",dscalar(R.r56_source_support_start_s));
+    set("r56_source_rejoin_s",dscalar(R.r56_source_rejoin_s));
+    set("r56_source_corr_v_ub",dscalar(R.r56_source_corr_v_ub));
+    set("r56_source_corr_a_ub",dscalar(R.r56_source_corr_a_ub));
+    set("r56_source_corr_j_ub",dscalar(R.r56_source_corr_j_ub));
+    set("r56_source_min_hxy",dscalar(R.r56_source_min_hxy));
+    set("r56_alpha_max_pointwise",dscalar(R.r56_alpha_max_pointwise));
+    set("r56_const_max_vl",dscalar(R.r56_const_max_vl));
+    set("r56_const_max_vq",dscalar(R.r56_const_max_vq));
+    set("r56_const_min_sigma",dscalar(R.r56_const_min_sigma));
+    set("r56_const_max_qdot",dscalar(R.r56_const_max_qdot));
+    set("r56_const_min_geom_margin",dscalar(R.r56_const_min_geom_margin));
+    set("r56_entry_Tmax_s",dscalar(R.r56_entry_Tmax_s));
+    set("r56_entry_max_vq",dscalar(R.r56_entry_max_vq));
+    set("r56_entry_min_sigma",dscalar(R.r56_entry_min_sigma));
+    set("r56_entry_max_qdot",dscalar(R.r56_entry_max_qdot));
+    set("r56_exit_Tmax_s",dscalar(R.r56_exit_Tmax_s));
+    set("r56_exit_max_vq",dscalar(R.r56_exit_max_vq));
+    set("r56_exit_min_sigma",dscalar(R.r56_exit_min_sigma));
+    set("r56_exit_max_qdot",dscalar(R.r56_exit_max_qdot));
+    set("r56_chain_rule_max_error",dscalar(R.r56_chain_rule_max_error));
+    set("r56_shadow_ms",dscalar(R.r56_shadow_ms));
+    set("r57_probe_ran",dscalar(R.r57_probe_ran));
+    set("r57_source_qp_ok",dscalar(R.r57_source_qp_ok));
+    set("r57_source_exact_c7",dscalar(R.r57_source_exact_c7));
+    set("r57_speed_attempt",dscalar(R.r57_speed_attempt));
+    set("r57_speed_pass",dscalar(R.r57_speed_pass));
+    set("r57_speed_stageA_pass",dscalar(R.r57_speed_stageA_pass));
+    set("r57_speed_stageB_attempt",dscalar(R.r57_speed_stageB_attempt));
+    set("r57_speed_stageB_finite_witness",dscalar(R.r57_speed_stageB_finite_witness));
+    set("r57_speed_stageB_repr_fail",dscalar(R.r57_speed_stageB_repr_fail));
+    set("r57_heading_attempt",dscalar(R.r57_heading_attempt));
+    set("r57_heading_pass",dscalar(R.r57_heading_pass));
+    set("r57_heading_leaf_count",dscalar(R.r57_heading_leaf_count));
+    set("r57_heading_split_count",dscalar(R.r57_heading_split_count));
+    set("r57_geometry_attempt",dscalar(R.r57_geometry_attempt));
+    set("r57_geometry_pass",dscalar(R.r57_geometry_pass));
+    set("r57_commit_attempted",dscalar(R.r57_commit_attempted));
+    set("r57_rejoin_selected",dscalar(R.r57_rejoin_selected));
+    set("r57_old_clock_commit_binding_count",dscalar(R.r57_old_clock_commit_binding_count));
+    set("r57_horizon_duration_coupling_count",dscalar(R.r57_horizon_duration_coupling_count));
+    set("r57_speed_VL",dscalar(R.r57_speed_VL));
+    set("r57_speed_A",dscalar(R.r57_speed_A));
+    set("r57_speed_J",dscalar(R.r57_speed_J));
+    set("r57_speed_sigma",dscalar(R.r57_speed_sigma));
+    set("r57_speed_qdot",dscalar(R.r57_speed_qdot));
+    set("r57_speed_VQ",dscalar(R.r57_speed_VQ));
+    set("r57_heading_gamma",dscalar(R.r57_heading_gamma));
+    set("r57_geometry_min_margin",dscalar(R.r57_geometry_min_margin));
+    set("r57_source_support_start_s",dscalar(R.r57_source_support_start_s));
+    set("r57_source_support_end_s",dscalar(R.r57_source_support_end_s));
+    set("r57_source_corr_v_ub",dscalar(R.r57_source_corr_v_ub));
+    set("r57_source_corr_a_ub",dscalar(R.r57_source_corr_a_ub));
+    set("r57_source_corr_j_ub",dscalar(R.r57_source_corr_j_ub));
+    set("r57_source_build_ms",dscalar(R.r57_source_build_ms));
+    set("r57_speed_ms",dscalar(R.r57_speed_ms));
+    set("r57_heading_ms",dscalar(R.r57_heading_ms));
+    set("r57_geometry_ms",dscalar(R.r57_geometry_ms));
+    set("r57_probe_ms",dscalar(R.r57_probe_ms));
+    // R13 rows are diagnostic-only and cannot grant reference acceptance.
+    {
+        const mwSize nr=(mwSize)R.r58_speed_gate_rows.size();
+        mxArray* g=mxCreateDoubleMatrix(nr,38,mxREAL);
+        double* p=mxGetPr(g);
+        for(mwSize i=0;i<nr;++i)
+            for(mwSize j=0;j<38;++j)
+                p[i+nr*j]=R.r58_speed_gate_rows[i][j];
+        set("r58_speed_gate_rows",g);
+    }
+    set("r58_shadow_ran",dscalar(R.r58_shadow_ran));
+    set("r58_reference_only",dscalar(R.r58_reference_only));
+    set("r58_fixed_rejoin_constraint_count",dscalar(R.r58_fixed_rejoin_constraint_count));
+    set("r58_same_clock_binding_count",dscalar(R.r58_same_clock_binding_count));
+    set("r58_horizon_duration_coupling_count",dscalar(R.r58_horizon_duration_coupling_count));
+    set("r58_free_c7_constructive",dscalar(R.r58_free_c7_constructive));
+    set("r58_terminal_offset_hold",dscalar(R.r58_terminal_offset_hold));
+    set("r58_terminal_zero_derivative_order",dscalar(R.r58_terminal_zero_derivative_order));
+    set("r58_source_knot_count",dscalar(R.r58_source_knot_count));
+    set("r58_scalar_dof_count",dscalar(R.r58_scalar_dof_count));
+    set("r58r14_lowjet_seed_only",dscalar(R.r58r14_lowjet_seed_only));
+    set("r58r14_active_reduced_dof",dscalar(R.r58r14_active_reduced_dof));
+    set("r58r14_full_reduced_dof",dscalar(R.r58r14_full_reduced_dof));
+    set("r58_spatial_dof_count",dscalar(R.r58_spatial_dof_count));
+    set("r58_episode_count",dscalar(R.r58_episode_count));
+    set("r58_component_count",dscalar(R.r58_component_count));
+    set("r58_side_cache_plus_valid",dscalar(R.r58_side_cache_plus_valid));
+    set("r58_side_cache_minus_valid",dscalar(R.r58_side_cache_minus_valid));
+    set("r58_side_cache_fail",dscalar(R.r58_side_cache_fail));
+    set("r58_bnb_nodes_popped",dscalar(R.r58_bnb_nodes_popped));
+    set("r58_bnb_qp_solves",dscalar(R.r58_bnb_qp_solves));
+    set("r58_bnb_qp_infeasible",dscalar(R.r58_bnb_qp_infeasible));
+    set("r58_bnb_full_assignments",dscalar(R.r58_bnb_full_assignments));
+    set("r58_bnb_speed_fail",dscalar(R.r58_bnb_speed_fail));
+    set("r58_bnb_heading_fail",dscalar(R.r58_bnb_heading_fail));
+    set("r58_bnb_geometry_fail",dscalar(R.r58_bnb_geometry_fail));
+    set("r58_bnb_feasible_full",dscalar(R.r58_bnb_feasible_full));
+    set("r58_bnb_max_queue",dscalar(R.r58_bnb_max_queue));
+    set("r58_selected_side_plus",dscalar(R.r58_selected_side_plus));
+    set("r58_selected_side_minus",dscalar(R.r58_selected_side_minus));
+    set("r58_speed_pass",dscalar(R.r58_speed_pass));
+    set("r58_heading_pass",dscalar(R.r58_heading_pass));
+    set("r58_geometry_pass",dscalar(R.r58_geometry_pass));
+    set("r58_needs_time_law",dscalar(R.r58_needs_time_law));
+    set("r58_commit_attempted",dscalar(R.r58_commit_attempted));
+    set("r58_rejoin_selected",dscalar(R.r58_rejoin_selected));
+    set("r58_reference_tracking_inflation_m",dscalar(R.r58_reference_tracking_inflation_m));
+    set("r58_support_start_s",dscalar(R.r58_support_start_s));
+    set("r58_support_end_s",dscalar(R.r58_support_end_s));
+    set("r58_terminal_offset_norm_m",dscalar(R.r58_terminal_offset_norm_m));
+    set("r58_quantized_jet_max_abs_error",dscalar(R.r58_quantized_jet_max_abs_error));
+    set("r58_legacy_join_max_abs_mismatch",dscalar(R.r58_legacy_join_max_abs_mismatch));
+    set("r58_best_qp_cost",dscalar(R.r58_best_qp_cost));
+    set("r58_speed_VL",dscalar(R.r58_speed_VL));
+    set("r58_speed_A",dscalar(R.r58_speed_A));
+    set("r58_speed_J",dscalar(R.r58_speed_J));
+    set("r58_speed_sigma",dscalar(R.r58_speed_sigma));
+    set("r58_speed_qdot",dscalar(R.r58_speed_qdot));
+    set("r58_speed_VQ",dscalar(R.r58_speed_VQ));
+    set("r58_heading_gamma",dscalar(R.r58_heading_gamma));
+    set("r58_geometry_min_margin",dscalar(R.r58_geometry_min_margin));
+    set("r58_build_ms",dscalar(R.r58_build_ms));
+    set("r58_homotopy_ms",dscalar(R.r58_homotopy_ms));
+    set("r58_certificate_ms",dscalar(R.r58_certificate_ms));
+    set("r58_shadow_ms",dscalar(R.r58_shadow_ms));
+    set("r58r2_node_scaled_variables",dscalar(R.r58r2_node_scaled_variables));
+    set("r58r2_row_equilibrated",dscalar(R.r58r2_row_equilibrated));
+    set("r58r2_root_qp_elided",dscalar(R.r58r2_root_qp_elided));
+    set("r58r2_node_scale_min_s",dscalar(R.r58r2_node_scale_min_s));
+    set("r58r2_node_scale_max_s",dscalar(R.r58r2_node_scale_max_s));
+    set("r58r2_row_scale_min",dscalar(R.r58r2_row_scale_min));
+    set("r58r2_row_scale_max",dscalar(R.r58r2_row_scale_max));
+    set("r58r3_hessian_diag_equilibrated",dscalar(R.r58r3_hessian_diag_equilibrated));
+    set("r58r3_equilibrated_cholesky_pass",dscalar(R.r58r3_equilibrated_cholesky_pass));
+    set("r58r3_raw_hdiag_min",dscalar(R.r58r3_raw_hdiag_min));
+    set("r58r3_raw_hdiag_max",dscalar(R.r58r3_raw_hdiag_max));
+    set("r58r3_raw_hdiag_ratio",dscalar(R.r58r3_raw_hdiag_ratio));
+    set("r58r3_eq_hdiag_min",dscalar(R.r58r3_eq_hdiag_min));
+    set("r58r3_eq_hdiag_max",dscalar(R.r58r3_eq_hdiag_max));
+    set("r58r4_normal_equalities_eliminated",dscalar(R.r58r4_normal_equalities_eliminated));
+    set("r58r4_reduced_spatial_dof_count",dscalar(R.r58r4_reduced_spatial_dof_count));
+    set("r58r4_elimination_build_fail",dscalar(R.r58r4_elimination_build_fail));
+    set("r58r4_elimination_max_residual",dscalar(R.r58r4_elimination_max_residual));
+    set("r58r5_dykstra_used",dscalar(R.r58r5_dykstra_used));
+    set("r58r5_dykstra_converged_feasible",dscalar(R.r58r5_dykstra_converged_feasible));
+    set("r58r5_dykstra_resource_fail",dscalar(R.r58r5_dykstra_resource_fail));
+    set("r58r5_dykstra_degenerate_row_fail",dscalar(R.r58r5_dykstra_degenerate_row_fail));
+    set("r58r5_dykstra_max_sweeps_used",dscalar(R.r58r5_dykstra_max_sweeps_used));
+    set("r58r5_dykstra_projection_count",dscalar(R.r58r5_dykstra_projection_count));
+    set("r58r5_dykstra_optimal_kkt_count",dscalar(R.r58r5_dykstra_optimal_kkt_count));
+    set("r58r5_dykstra_max_violation",dscalar(R.r58r5_dykstra_max_violation));
+    set("r58r5_dykstra_duality_gap",dscalar(R.r58r5_dykstra_duality_gap));
+    set("r58r5_dykstra_stationarity_residual",dscalar(R.r58r5_dykstra_stationarity_residual));
+    set("r58r5_dykstra_ms",dscalar(R.r58r5_dykstra_ms));
+    set("r58r6_hildreth_used",dscalar(R.r58r6_hildreth_used));
+    set("r58r6_kkt_converged_count",dscalar(R.r58r6_kkt_converged_count));
+    set("r58r6_resource_fail_count",dscalar(R.r58r6_resource_fail_count));
+    set("r58r6_max_sweeps_used",dscalar(R.r58r6_max_sweeps_used));
+    set("r58r6_coordinate_updates",dscalar(R.r58r6_coordinate_updates));
+    set("r58r6_max_primal_violation",dscalar(R.r58r6_max_primal_violation));
+    set("r58r6_max_complementarity",dscalar(R.r58r6_max_complementarity));
+    set("r58r6_duality_gap",dscalar(R.r58r6_duality_gap));
+    set("r58r6_stationarity_residual",dscalar(R.r58r6_stationarity_residual));
+    set("r58r6_max_lambda",dscalar(R.r58r6_max_lambda));
+    set("r58r6_solver_ms",dscalar(R.r58r6_solver_ms));
+    set("r58r6_prequant_scaled_jet_max_abs",dscalar(R.r58r6_prequant_scaled_jet_max_abs));
+    set("r58r6_quantized_scaled_jet_rel_error",dscalar(R.r58r6_quantized_scaled_jet_rel_error));
+    set("r58r6_quantized_physical_jet_max_abs_error",dscalar(R.r58r6_quantized_physical_jet_max_abs_error));
+    set("r58r6_failed_corr_v_ub",dscalar(R.r58r6_failed_corr_v_ub));
+    set("r58r6_failed_corr_a_ub",dscalar(R.r58r6_failed_corr_a_ub));
+    set("r58r6_failed_corr_j_ub",dscalar(R.r58r6_failed_corr_j_ub));
+    set("r58r6_failed_speed_worst_vq",dscalar(R.r58r6_failed_speed_worst_vq));
+    set("r58r6_failed_speed_worst_vl",dscalar(R.r58r6_failed_speed_worst_vl));
+    set("r58r6_failed_speed_worst_sigma",dscalar(R.r58r6_failed_speed_worst_sigma));
+    set("r58r6_failed_speed_worst_qdot",dscalar(R.r58r6_failed_speed_worst_qdot));
+    set("r58r6_failed_speed_witness",dscalar(R.r58r6_failed_speed_witness));
+    set("r58r7_constraint_generation_used",dscalar(R.r58r7_constraint_generation_used));
+    set("r58r7_full_row_count_max",dscalar(R.r58r7_full_row_count_max));
+    set("r58r7_outer_iterations_max",dscalar(R.r58r7_outer_iterations_max));
+    set("r58r7_full_scans",dscalar(R.r58r7_full_scans));
+    set("r58r7_rows_added",dscalar(R.r58r7_rows_added));
+    set("r58r7_active_rows_max",dscalar(R.r58r7_active_rows_max));
+    set("r58r7_subset_kkt_solves",dscalar(R.r58r7_subset_kkt_solves));
+    set("r58r7_subset_kkt_converged",dscalar(R.r58r7_subset_kkt_converged));
+    set("r58r7_subset_resource_fail",dscalar(R.r58r7_subset_resource_fail));
+    set("r58r7_duplicate_add_fail",dscalar(R.r58r7_duplicate_add_fail));
+    set("r58r7_full_optimality_closed",dscalar(R.r58r7_full_optimality_closed));
+    set("r58r7_subset_sweeps_max",dscalar(R.r58r7_subset_sweeps_max));
+    set("r58r7_coordinate_updates",dscalar(R.r58r7_coordinate_updates));
+    set("r58r7_initial_worst_violation",dscalar(R.r58r7_initial_worst_violation));
+    set("r58r7_final_max_violation",dscalar(R.r58r7_final_max_violation));
+    set("r58r7_final_duality_gap",dscalar(R.r58r7_final_duality_gap));
+    set("r58r7_final_complementarity",dscalar(R.r58r7_final_complementarity));
+    set("r58r7_final_stationarity",dscalar(R.r58r7_final_stationarity));
+    set("r58r7_solver_ms",dscalar(R.r58r7_solver_ms));
+    set("r58r8_ipm_used",dscalar(R.r58r8_ipm_used));
+    set("r58r8_ipm_converged",dscalar(R.r58r8_ipm_converged));
+    set("r58r8_ipm_resource_fail",dscalar(R.r58r8_ipm_resource_fail));
+    set("r58r8_ipm_factor_fail",dscalar(R.r58r8_ipm_factor_fail));
+    set("r58r8_ipm_max_iterations",dscalar(R.r58r8_ipm_max_iterations));
+    set("r58r8_ipm_newton_solves",dscalar(R.r58r8_ipm_newton_solves));
+    set("r58r8_ipm_primal_residual",dscalar(R.r58r8_ipm_primal_residual));
+    set("r58r8_ipm_dual_residual",dscalar(R.r58r8_ipm_dual_residual));
+    set("r58r8_ipm_complementarity",dscalar(R.r58r8_ipm_complementarity));
+    set("r58r8_ipm_duality_gap",dscalar(R.r58r8_ipm_duality_gap));
+    set("r58r8_ipm_min_slack",dscalar(R.r58r8_ipm_min_slack));
+    set("r58r8_ipm_min_lambda",dscalar(R.r58r8_ipm_min_lambda));
+    set("r58r8_ipm_ms",dscalar(R.r58r8_ipm_ms));
+    set("r58r8_newton_diag_equilibrated",dscalar(R.r58r8_newton_diag_equilibrated));
+    set("r58r8_pcg_used",dscalar(R.r58r8_pcg_used));
+    set("r58r8_pcg_resource_fail",dscalar(R.r58r8_pcg_resource_fail));
+    set("r58r8_pcg_max_iterations",dscalar(R.r58r8_pcg_max_iterations));
+    set("r58r8_pcg_final_rel_residual",dscalar(R.r58r8_pcg_final_rel_residual));
+    set("r58r9_failure_count",dscalar(R.r58r9_failure_count));
+    set("r58r9_failure_depth",dscalar(R.r58r9_failure_depth));
+    set("r58r9_failure_last_side",dscalar(R.r58r9_failure_last_side));
+    set("r58r9_failure_outer_iteration",dscalar(R.r58r9_failure_outer_iteration));
+    set("r58r9_failure_active_rows",dscalar(R.r58r9_failure_active_rows));
+    set("r58r9_failure_added_row",dscalar(R.r58r9_failure_added_row));
+    set("r58r9_failure_ipm_iteration",dscalar(R.r58r9_failure_ipm_iteration));
+    set("r58r9_failure_stage",dscalar(R.r58r9_failure_stage));
+    set("r58r9_failure_pcg_iterations",dscalar(R.r58r9_failure_pcg_iterations));
+    set("r58r9_failure_pcg_final_rel_residual",dscalar(R.r58r9_failure_pcg_final_rel_residual));
+    set("r58r9_failure_pcg_rhs_inf",dscalar(R.r58r9_failure_pcg_rhs_inf));
+    set("r58r9_failure_D_min",dscalar(R.r58r9_failure_D_min));
+    set("r58r9_failure_D_max",dscalar(R.r58r9_failure_D_max));
+    set("r58r9_failure_D_ratio",dscalar(R.r58r9_failure_D_ratio));
+    set("r58r9_failure_min_slack",dscalar(R.r58r9_failure_min_slack));
+    set("r58r9_failure_min_lambda",dscalar(R.r58r9_failure_min_lambda));
+    set("r58r9_failure_metric_max_abs_corr",dscalar(R.r58r9_failure_metric_max_abs_corr));
+    set("r58r9_failure_metric_one_minus_corr",dscalar(R.r58r9_failure_metric_one_minus_corr));
+    set("r58r9_full_scan_ms",dscalar(R.r58r9_full_scan_ms));
+    set("r58r9_subset_solver_ms",dscalar(R.r58r9_subset_solver_ms));
+    set("r58r9_pcg_ms",dscalar(R.r58r9_pcg_ms));
+    set("r58r9_plus_failed",dscalar(R.r58r9_plus_failed));
+    set("r58r9_minus_failed",dscalar(R.r58r9_minus_failed));
+    set("r58r9_plus_failure_stage",dscalar(R.r58r9_plus_failure_stage));
+    set("r58r9_minus_failure_stage",dscalar(R.r58r9_minus_failure_stage));
+    set("r58r9_plus_failure_active_rows",dscalar(R.r58r9_plus_failure_active_rows));
+    set("r58r9_minus_failure_active_rows",dscalar(R.r58r9_minus_failure_active_rows));
+    set("r58r9_plus_failure_pcg_relres",dscalar(R.r58r9_plus_failure_pcg_relres));
+    set("r58r9_minus_failure_pcg_relres",dscalar(R.r58r9_minus_failure_pcg_relres));
+    set("r58r9_plus_metric_max_abs_corr",dscalar(R.r58r9_plus_metric_max_abs_corr));
+    set("r58r9_minus_metric_max_abs_corr",dscalar(R.r58r9_minus_metric_max_abs_corr));
+    set("r58r9_plus_cg_ms",dscalar(R.r58r9_plus_cg_ms));
+    set("r58r9_minus_cg_ms",dscalar(R.r58r9_minus_cg_ms));
+    set("r58r10_plus_primal_residual",dscalar(R.r58r10_plus_primal_residual));
+    set("r58r10_plus_dual_residual",dscalar(R.r58r10_plus_dual_residual));
+    set("r58r10_plus_mu",dscalar(R.r58r10_plus_mu));
+    set("r58r10_plus_duality_gap",dscalar(R.r58r10_plus_duality_gap));
+    set("r58r10_plus_kkt_tol",dscalar(R.r58r10_plus_kkt_tol));
+    set("r58r10_plus_gap_tol",dscalar(R.r58r10_plus_gap_tol));
+    set("r58r10_plus_last_sigma",dscalar(R.r58r10_plus_last_sigma));
+    set("r58r10_plus_last_alpha_primal",dscalar(R.r58r10_plus_last_alpha_primal));
+    set("r58r10_plus_last_alpha_dual",dscalar(R.r58r10_plus_last_alpha_dual));
+    set("r58r10_plus_min_alpha_primal",dscalar(R.r58r10_plus_min_alpha_primal));
+    set("r58r10_plus_min_alpha_dual",dscalar(R.r58r10_plus_min_alpha_dual));
+    set("r58r10_plus_mu_ratio",dscalar(R.r58r10_plus_mu_ratio));
+    set("r58r10_plus_D_min",dscalar(R.r58r10_plus_D_min));
+    set("r58r10_plus_D_max",dscalar(R.r58r10_plus_D_max));
+    set("r58r10_plus_D_ratio",dscalar(R.r58r10_plus_D_ratio));
+    set("r58r10_plus_min_slack",dscalar(R.r58r10_plus_min_slack));
+    set("r58r10_plus_min_lambda",dscalar(R.r58r10_plus_min_lambda));
+    set("r58r10_plus_predictor_pcg_iterations",dscalar(R.r58r10_plus_predictor_pcg_iterations));
+    set("r58r10_plus_corrector_pcg_iterations",dscalar(R.r58r10_plus_corrector_pcg_iterations));
+    set("r58r10_plus_predictor_pcg_relres",dscalar(R.r58r10_plus_predictor_pcg_relres));
+    set("r58r10_plus_corrector_pcg_relres",dscalar(R.r58r10_plus_corrector_pcg_relres));
+    set("r58r10_minus_primal_residual",dscalar(R.r58r10_minus_primal_residual));
+    set("r58r10_minus_dual_residual",dscalar(R.r58r10_minus_dual_residual));
+    set("r58r10_minus_mu",dscalar(R.r58r10_minus_mu));
+    set("r58r10_minus_duality_gap",dscalar(R.r58r10_minus_duality_gap));
+    set("r58r10_minus_kkt_tol",dscalar(R.r58r10_minus_kkt_tol));
+    set("r58r10_minus_gap_tol",dscalar(R.r58r10_minus_gap_tol));
+    set("r58r10_minus_last_sigma",dscalar(R.r58r10_minus_last_sigma));
+    set("r58r10_minus_last_alpha_primal",dscalar(R.r58r10_minus_last_alpha_primal));
+    set("r58r10_minus_last_alpha_dual",dscalar(R.r58r10_minus_last_alpha_dual));
+    set("r58r10_minus_min_alpha_primal",dscalar(R.r58r10_minus_min_alpha_primal));
+    set("r58r10_minus_min_alpha_dual",dscalar(R.r58r10_minus_min_alpha_dual));
+    set("r58r10_minus_mu_ratio",dscalar(R.r58r10_minus_mu_ratio));
+    set("r58r10_minus_D_min",dscalar(R.r58r10_minus_D_min));
+    set("r58r10_minus_D_max",dscalar(R.r58r10_minus_D_max));
+    set("r58r10_minus_D_ratio",dscalar(R.r58r10_minus_D_ratio));
+    set("r58r10_minus_min_slack",dscalar(R.r58r10_minus_min_slack));
+    set("r58r10_minus_min_lambda",dscalar(R.r58r10_minus_min_lambda));
+    set("r58r10_minus_predictor_pcg_iterations",dscalar(R.r58r10_minus_predictor_pcg_iterations));
+    set("r58r10_minus_corrector_pcg_iterations",dscalar(R.r58r10_minus_corrector_pcg_iterations));
+    set("r58r10_minus_predictor_pcg_relres",dscalar(R.r58r10_minus_predictor_pcg_relres));
+    set("r58r10_minus_corrector_pcg_relres",dscalar(R.r58r10_minus_corrector_pcg_relres));
+    set("r58r11_augmented_kkt_used",dscalar(R.r58r11_augmented_kkt_used));
+    set("r58r11_augmented_kkt_solve_fail",dscalar(R.r58r11_augmented_kkt_solve_fail));
+    set("r58r11_common_step_used",dscalar(R.r58r11_common_step_used));
+    set("r58r11_augmented_kkt_max_dim",dscalar(R.r58r11_augmented_kkt_max_dim));
+    set("r58r11_newton_solves",dscalar(R.r58r11_newton_solves));
+    set("r58r11_newton_max_rel_residual",dscalar(R.r58r11_newton_max_rel_residual));
+    set("r58r11_common_step_min",dscalar(R.r58r11_common_step_min));
+    set("r58r11_common_step_last",dscalar(R.r58r11_common_step_last));
+    set("r58r11_solver_ms",dscalar(R.r58r11_solver_ms));
+    set("phase_reparameterized",logicalScalar(R.cand.phase_reparameterized));
+    set("phase_t0",dscalar(R.cand.phase.t0));
+    set("phase_entry_end",dscalar(R.cand.phase.tA));
+    set("phase_flow_end",dscalar(R.cand.phase.tB));
+    set("phase_exit_end",dscalar(R.cand.phase.tE));
+    set("phase_source_start",dscalar(R.cand.phase.sA));
+    set("phase_source_end",dscalar(R.cand.phase.sB));
+    set("phase_alpha",dscalar(R.cand.phase.alpha));
+    set("phase_delay_s",dscalar(R.cand.phase.delay));
     set("rejoin_search_ms",dscalar(R.tim.rejoin_search));
     set("planner_native_revision",mxCreateString(PLANNER_REV));
     mxArray* compiled=nullptr; bool compiledExact=false; double compiledMs=0.0;
     const mxArray* base=optfld(packet,"r28_compiled_base"); const mxArray* tv=optfld(packet,"r28_target_version");
-    if(R.success && base && tv){
+    if(R.success && !R.cand.phase_reparameterized && base && tv){
         const auto tc=std::chrono::steady_clock::now();
         const double targetVersion=scalar(tv,"r28_target_version");
         compiled=compiled_packet_struct(base,R.cand.seg0,R.cand.seg1,R.cand.cp,t0,outT1,targetVersion);
@@ -890,6 +1756,23 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
         if(op==10){
             if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7R7SHADOW:Arity","op10 -> matrix.");
             plhs[0]=r7shadow_matrix();return;
+        }
+        if(op==20){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7R52D2:Arity","op20 -> candidate gate matrix.");
+            plhs[0]=r52_gate_diag_matrix();return;
+        }
+        if(op==21){
+            if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7R52D2:Arity","op21 -> reset candidate gate diagnostics.");
+            r52_gate_diag_reset();
+            if(nlhs>0)plhs[0]=logicalScalar(true);return;
+        }
+        if(op==22){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7R53D3:Arity","op22 -> knot diagnostic matrix.");
+            plhs[0]=r53_knot_diag_matrix();return;
+        }
+        if(op==23){
+            if(nrhs!=1||nlhs!=1)mexErrMsgIdAndTxt("AF7R53D3:Arity","op23 -> segment diagnostic matrix.");
+            plhs[0]=r53_segment_diag_matrix();return;
         }
         if(op==11){
             if(nrhs!=1||nlhs>1)mexErrMsgIdAndTxt("AF7R7SHADOW:Arity","op11 clear.");

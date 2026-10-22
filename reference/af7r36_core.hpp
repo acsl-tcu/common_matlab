@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <queue>
 #include <vector>
 
 namespace af7r34 {
@@ -310,43 +311,258 @@ static inline Poly vector_control_from_jets(const std::array<Vec3,8>&j0,
 }
 
 struct CorrSegment { double t0=0,t1=0; Poly cp; };
-struct Correction { double t0=0,t1=0; std::vector<CorrSegment> seg; };
+
+// ===========================================================================
+// AF7R51 GENERAL C7 PHASE REPARAMETERIZATION
+//
+// The phase law is independent of the spatial shape of the base reference.
+// It maps physical time t to source/base-reference time s(t), with
+//
+//      0 < ds/dt <= 1
+//
+// continuously.  Therefore the vehicle may slow its progress through the
+// original parameterized spatial path, but never catches up to a later source
+// phase.  After the exit transition, s(t)=t-Delta and the delay Delta is held.
+//
+// This representation is valid for any C7 active reference: straight,
+// saddle/curved, or an already-repaired C7 path.
+// ===========================================================================
+struct R51PhaseSpec{
+    bool enabled=false;
+    double t0=0.0;     // phase transition support start
+    double tA=0.0;     // end 1 -> alpha transition
+    double tB=0.0;     // end constant-alpha flow
+    double tE=0.0;     // end alpha -> 1 transition
+    double sA=0.0;     // source phase at tA
+    double sB=0.0;     // source phase at tB
+    double alpha=1.0;  // constant flow ds/dt
+    double delay=0.0;  // persistent phase delay after tE
+};
+
+static inline double r51_scalar_eval(std::vector<double>P,double u){
+    while(P.size()>1){
+        std::vector<double>Q(P.size()-1);
+        for(size_t i=0;i+1<P.size();++i)Q[i]=(1.0-u)*P[i]+u*P[i+1];
+        P.swap(Q);
+    }
+    return P.empty()?0.0:P[0];
+}
+static inline std::vector<double> r51_diff_scalar(
+        std::vector<double>P,int r){
+    for(int k=0;k<r;++k){
+        if(P.size()<2)return {};
+        std::vector<double>Q(P.size()-1);
+        for(size_t i=0;i+1<P.size();++i)Q[i]=P[i+1]-P[i];
+        P.swap(Q);
+    }
+    return P;
+}
+
+
+static inline bool r51_phase_valid(const R51PhaseSpec&P){
+    if(!P.enabled)return true;
+    return fin(P.t0)&&fin(P.tA)&&fin(P.tB)&&fin(P.tE)&&
+           fin(P.sA)&&fin(P.sB)&&fin(P.alpha)&&fin(P.delay)&&
+           P.t0<P.tA&&P.tA<P.tB&&P.tB<P.tE&&
+           P.sB>P.sA&&P.alpha>0.0&&P.alpha<=1.0&&P.delay>=0.0;
+}
+
+static inline std::array<double,7> r51_delay_jet(
+        const R51PhaseSpec&P,double t){
+    std::array<double,7>D{};
+    if(!P.enabled||t<=P.t0)return D;
+    if(t>=P.tE){D[0]=P.delay;return D;}
+
+    const double beta=1.0-P.alpha;
+    std::vector<double> C;
+    double ta=0.0,tb=0.0;
+    if(t<P.tA){
+        ta=P.t0;tb=P.tA;
+        std::array<double,8>J0{},J1{};
+        J0[0]=0.0;J0[1]=0.0;
+        J1[0]=P.tA-P.sA;J1[1]=beta;
+        C=scalar_control_from_jets(J0,J1,tb-ta);
+    }else if(t<=P.tB){
+        D[0]=(P.tA-P.sA)+beta*(t-P.tA);
+        D[1]=beta;
+        return D;
+    }else{
+        ta=P.tB;tb=P.tE;
+        std::array<double,8>J0{},J1{};
+        J0[0]=P.tB-P.sB;J0[1]=beta;
+        J1[0]=P.delay;J1[1]=0.0;
+        C=scalar_control_from_jets(J0,J1,tb-ta);
+    }
+
+    const double T=tb-ta;
+    if(!(fin(T)&&T>0.0))return D;
+    double u=(t-ta)/T;
+    u=std::max(0.0,std::min(1.0,u));
+    std::vector<double> Q=C;
+    int deg=15;
+    D[0]=r51_scalar_eval(Q,u);
+    for(int r=1;r<=6;++r){
+        Q=r51_diff_scalar(Q,1);
+        const double sc=double(deg)/T;
+        for(double&x:Q)x*=sc;
+        --deg;
+        D[r]=r51_scalar_eval(Q,u);
+    }
+    return D;
+}
+
+static inline std::array<double,7> r51_phase_jet(
+        const R51PhaseSpec&P,double t){
+    auto D=r51_delay_jet(P,t);
+    std::array<double,7>S{};
+    S[0]=t-D[0];
+    S[1]=1.0-D[1];
+    for(int r=2;r<=6;++r)S[r]=-D[r];
+    return S;
+}
+
+static inline std::array<Vec3,7> r51_compose_vec_jet(
+        const std::array<Vec3,7>&F,const std::array<double,7>&S){
+    // Taylor-series composition to derivative order 6.
+    static const double fact[7]={1,1,2,6,24,120,720};
+    std::array<Vec3,7> coef{};
+    std::array<double,7> q{};
+    q[0]=0.0;
+    for(int r=1;r<=6;++r)q[r]=S[r]/fact[r];
+
+    std::array<double,7> pw{};pw[0]=1.0;
+    for(int k=0;k<=6;++k){
+        const double fk=1.0/fact[k];
+        for(int n=0;n<=6;++n)
+            coef[n]+=F[k]*(fk*pw[n]);
+        if(k==6)break;
+        std::array<double,7> nx{};
+        for(int i=0;i<=6;++i)if(pw[i]!=0.0)
+            for(int j=1;i+j<=6;++j)if(q[j]!=0.0)
+                nx[i+j]+=pw[i]*q[j];
+        pw=nx;
+    }
+    std::array<Vec3,7> out{};
+    for(int n=0;n<=6;++n)out[n]=coef[n]*fact[n];
+    return out;
+}
+
+static inline bool r51_phase_derivative_bounds(
+        const R51PhaseSpec&P,double&smin,double&smax,double&S2,double&S3){
+    if(!P.enabled){smin=smax=1.0;S2=S3=0.0;return true;}
+    if(!r51_phase_valid(P))return false;
+    smin=std::numeric_limits<double>::infinity();
+    smax=-std::numeric_limits<double>::infinity();
+    S2=S3=0.0;
+
+    auto consume=[&](const std::vector<double>&D0,double T)->bool{
+        if(!(fin(T)&&T>0.0&&D0.size()==16))return false;
+        auto D1=r51_diff_scalar(D0,1);
+        auto D2=r51_diff_scalar(D0,2);
+        auto D3=r51_diff_scalar(D0,3);
+        double f1=15.0/T;
+        double f2=15.0*14.0/(T*T);
+        double f3=15.0*14.0*13.0/(T*T*T);
+        for(double x:D1){double sp=1.0-f1*x;smin=std::min(smin,sp);smax=std::max(smax,sp);}
+        for(double x:D2)S2=std::max(S2,std::fabs(f2*x));
+        for(double x:D3)S3=std::max(S3,std::fabs(f3*x));
+        return true;
+    };
+
+    const double beta=1.0-P.alpha;
+    {
+        std::array<double,8>J0{},J1{};
+        J1[0]=P.tA-P.sA;J1[1]=beta;
+        if(!consume(scalar_control_from_jets(J0,J1,P.tA-P.t0),P.tA-P.t0))
+            return false;
+    }
+    smin=std::min(smin,P.alpha);smax=std::max(smax,P.alpha);
+    {
+        std::array<double,8>J0{},J1{};
+        J0[0]=P.tB-P.sB;J0[1]=beta;
+        J1[0]=P.delay;
+        if(!consume(scalar_control_from_jets(J0,J1,P.tE-P.tB),P.tE-P.tB))
+            return false;
+    }
+    const double tol=4096*epsd()*std::max(1.0,std::max(std::fabs(smin),std::fabs(smax)));
+    return fin(smin)&&fin(smax)&&fin(S2)&&fin(S3)&&
+           smin>0.0&&smax<=1.0+tol;
+}
+
+struct Correction { double t0=0,t1=0; std::vector<CorrSegment> seg; R51PhaseSpec phase; };
 
 struct ActiveReference {
     const NominalExpr* nominal=nullptr;
     double flight_t0=0;
     std::vector<Correction> repairs;
-    std::array<Vec3,7> eval(double t) const{
-        double tau=std::max(0.0,t-flight_t0);
-        auto y=nominal->eval(tau);
-        for(const auto& C:repairs){
-            if(t<=C.t0)continue;
 
-            // AF7R34: a nonzero final correction is a persistent schedule
-            // delay for an affine nominal reference. Historical repairs end
-            // at zero, so this branch is exactly a no-op for them.
-            if(t>=C.t1){
+    std::array<Vec3,7> eval(double t) const{
+        const size_t G=repairs.size();
+
+        // Bounded nonrecursive evaluation of sequential reference layers.
+        // Each layer may first reparameterize the previous layer by its C7
+        // phase map, then add its ordinary degree-15 spatial correction.
+        std::vector<double> T(G+1,t);
+        std::vector<std::array<double,7>> SJ(G);
+        for(size_t kk=G;kk>0;--kk){
+            const size_t g=kk-1;
+            SJ[g]=r51_phase_jet(repairs[g].phase,T[g+1]);
+            T[g]=SJ[g][0];
+        }
+
+        const double tau=std::max(0.0,T[0]-flight_t0);
+        auto y=nominal->eval(tau);
+
+        for(size_t g=0;g<G;++g){
+            const auto&C=repairs[g];
+            y=r51_compose_vec_jet(y,SJ[g]);
+            const double tg=T[g+1];
+
+            if(tg<=C.t0)continue;
+
+            if(!C.phase.enabled && tg>=C.t1){
+                // Historical constant-hold semantics.
                 if(!C.seg.empty()) y[0]+=C.seg.back().cp.back();
                 continue;
             }
 
             const CorrSegment* sp=nullptr;
-            for(const auto& s:C.seg){if(t<=s.t1){sp=&s;break;}}
-            if(!sp)continue;
-            if(t<sp->t0)continue;
-            double T=sp->t1-sp->t0,u=(t-sp->t0)/T;u=std::max(0.0,std::min(1.0,u));
+            for(const auto& q:C.seg){if(tg<=q.t1){sp=&q;break;}}
+            if(!sp||tg<sp->t0)continue;
+
+            const double TT=sp->t1-sp->t0;
+            if(!(fin(TT)&&TT>0.0))continue;
+            double u=(tg-sp->t0)/TT;
+            u=std::max(0.0,std::min(1.0,u));
             Poly D=sp->cp;
             y[0]+=decasteljau(D,u);
             int deg=15;
             for(int r=1;r<=6;++r){
                 Poly E(D.size()-1);
-                for(size_t i=0;i+1<D.size();++i)E[i]=(D[i+1]-D[i])*(double(deg)/T);
-                D.swap(E);--deg;y[r]+=decasteljau(D,u);
+                for(size_t i=0;i+1<D.size();++i)
+                    E[i]=(D[i+1]-D[i])*(double(deg)/TT);
+                D.swap(E);--deg;
+                y[r]+=decasteljau(D,u);
             }
         }
         return y;
     }
 };
+
+
+static inline std::array<Vec3,7> r51_phase_reference_eval(
+        const ActiveReference&ref,const R51PhaseSpec&P,double t){
+    if(!P.enabled)return ref.eval(t);
+    const auto S=r51_phase_jet(P,t);
+    auto b=ref.eval(S[0]);
+    return r51_compose_vec_jet(b,S);
+}
+
+static inline double r51_phase_inverse_flow(
+        const R51PhaseSpec&P,double sourceTime){
+    if(!P.enabled||!(P.alpha>0.0))return sourceTime;
+    return P.tA+(sourceTime-P.sA)/P.alpha;
+}
 
 // ------------------------ geometry support ---------------------------------
 struct Obstacle { Vec3 c; Mat3 R; Vec3 axes; double id=0; };
@@ -399,7 +615,103 @@ struct SpeedCert {
 };
 struct Live {
     double dt=0,g=9.81,L=0,rL=0,rQ=0,rC=0,dmargin=0,sensor_range=0,horizon=0,tracking=0;
+    // R13 diagnostic-only: no effects on hard acceptance or fallback.
+    bool r58_shadow_diagnostic_enabled=false;
+    bool r58r14_lowjet_seed_only=false;
 };
+
+// AF7R52D2 diagnostic-only gate trace.
+// It never grants acceptance and does not modify any planner parameter,
+// trajectory family, hard gate, runtime mass authority, or fallback semantics.
+struct R52StageBTrace {
+    int attempted=0;
+    int result_code=0; // 1 certified, 2 finite witness, 3 representability, 4 terminal failure
+    int leaf_count=0,split_count=0;
+    int worst_seg=-1;
+    double worst_t=std::numeric_limits<double>::quiet_NaN();
+    double worst_vq=-std::numeric_limits<double>::infinity();
+    double worst_vl=std::numeric_limits<double>::quiet_NaN();
+    double worst_sigma=std::numeric_limits<double>::quiet_NaN();
+    double worst_qdot=std::numeric_limits<double>::quiet_NaN();
+    double worst_witness=std::numeric_limits<double>::quiet_NaN();
+};
+
+struct R52HeadingTrace {
+    int attempted=0;
+    int reason=0; // 0 pass; 1 input; 2 Lipschitz; 3 midpoint/representation; 4 terminal gamma; 5 anchor
+    int leaves=0,splits=0;
+    double min_g0=std::numeric_limits<double>::infinity();
+    double min_lb=std::numeric_limits<double>::infinity();
+    double worst_a=std::numeric_limits<double>::quiet_NaN();
+    double worst_b=std::numeric_limits<double>::quiet_NaN();
+};
+
+struct R52CandidateGateDiag {
+    double seq=0;
+    int family=0;
+    int exact_c7=0;
+    double max_ctrl=std::numeric_limits<double>::quiet_NaN();
+    double du=std::numeric_limits<double>::quiet_NaN();
+    double da=std::numeric_limits<double>::quiet_NaN();
+    double dj=std::numeric_limits<double>::quiet_NaN();
+    double phase_alpha=std::numeric_limits<double>::quiet_NaN();
+    double phase_delay=std::numeric_limits<double>::quiet_NaN();
+    double actual_rejoin=std::numeric_limits<double>::quiet_NaN();
+
+    double limit=std::numeric_limits<double>::quiet_NaN();
+    double base_VL=std::numeric_limits<double>::quiet_NaN();
+    double base_A=std::numeric_limits<double>::quiet_NaN();
+    double base_J=std::numeric_limits<double>::quiet_NaN();
+    double base_sigma=std::numeric_limits<double>::quiet_NaN();
+
+    double A_Uv=std::numeric_limits<double>::quiet_NaN();
+    double A_Ua=std::numeric_limits<double>::quiet_NaN();
+    double A_Uj=std::numeric_limits<double>::quiet_NaN();
+    double A_sigma=std::numeric_limits<double>::quiet_NaN();
+    double A_VQ=std::numeric_limits<double>::quiet_NaN();
+    int A_cert=0,A_impossible=0,A_repr=0;
+
+    R52StageBTrace B;
+    int speed_pass=0;
+
+    R52HeadingTrace H;
+    int heading_pass=0;
+    double heading_gamma=std::numeric_limits<double>::quiet_NaN();
+
+    int rejoin_attempt=0,rejoin_pass=0;
+    int geom_attempt=0,geom_pass=0;
+    double geom_min_margin=std::numeric_limits<double>::quiet_NaN();
+};
+
+static std::vector<R52CandidateGateDiag> G_r52_gate_diag;
+static double G_r52_gate_diag_seq=0.0;
+
+struct R53KnotDiagRow{
+    double build_id=0,side=0,rejoin=0,corr_v=0,corr_a=0,corr_j=0,node=0,knot=0;
+    Vec3 P{},V{};
+    double Pnorm=0,Vnorm=0,prevT=0,nextT=0;
+};
+struct R53SegmentDiagRow{
+    double build_id=0,side=0,rejoin=0,corr_v=0,corr_a=0,corr_j=0;
+    double seg=0,ta=0,tb=0,T=0,cp_norm=0,vel_ub=0,acc_ub=0,jerk_ub=0;
+};
+static std::vector<R53KnotDiagRow> G_r53_knot_diag;
+static std::vector<R53SegmentDiagRow> G_r53_segment_diag;
+static double G_r53_build_seq=0.0;
+static inline void r53_shape_diag_reset(){
+    G_r53_knot_diag.clear();
+    G_r53_segment_diag.clear();
+    G_r53_build_seq=0.0;
+}
+static inline void r52_gate_diag_reset(){
+    G_r52_gate_diag.clear();
+    G_r52_gate_diag_seq=0.0;
+}
+static inline void r52_gate_diag_push(R52CandidateGateDiag d){
+    d.seq=++G_r52_gate_diag_seq;
+    if(G_r52_gate_diag.size()>=256)G_r52_gate_diag.erase(G_r52_gate_diag.begin());
+    G_r52_gate_diag.push_back(std::move(d));
+}
 struct Episode { int obs=0,comp=0; double start=0,end=0; };
 struct Component { double start=0,end=0; std::vector<int> episodes; };
 struct EpisodeCert {
@@ -421,7 +733,7 @@ struct Candidate {
     //         4 = towing minimum-norm constant family,
     //         5 = towing speed-optimized exact-C7 split family,
     //         6 = curved exact-C7 zero-jet bell migration family,
-    //         7 = affine-base progress-retimed exact-C7 primary.
+    //         7 = active-reference additive exact-C7 tangent-corridor primary.
     int family=0;
     bool constant_translation=false;
     bool exact_c7=false;
@@ -446,6 +758,9 @@ struct Candidate {
     double terminal_hold_start=0.0;
     Vec3 terminal_offset{};
     double schedule_delay=0.0;
+    // AF7R51 general source-phase reparameterization.
+    bool phase_reparameterized=false;
+    R51PhaseSpec phase;
 
     // AF7R35 path-tangent yaw theorem metadata.
     // If heading_c6 is true, the actual horizontal velocity stays in the
@@ -470,6 +785,9 @@ struct Candidate {
     bool legacy_float_endpoint_checker_pass=false;
 };
 struct PlanResult {
+    // R13: one row per R58 full-branch speed assessment (35 columns),
+    // constructed ONLY when explicitly running the non-committable R58 shadow.
+    std::vector<std::array<double,38>> r58_speed_gate_rows;
     bool success=false;int reason=0;
     EpisodeCert episode;
     Candidate cand;
@@ -602,6 +920,412 @@ struct PlanResult {
     double r45_best_fixed_peak_req_m=std::numeric_limits<double>::infinity();
     double r45_best_tangent_peak_req_m=std::numeric_limits<double>::infinity();
     double r45_max_peak_relief_m=0.0;
+    // AF7R47 active-reference replan / yaw-C6 diagnostics.
+    int r47_active_base_replan_count=0;
+    int r47_nonaffine_base_count=0;
+    int r47_heading_leaf_count=0;
+    int r47_heading_split_count=0;
+    // AF7R48 automatic natural-rejoin / no-overshoot diagnostics.
+    int r48_natural_rejoin_trial_count=0;
+    int r48_natural_rejoin_selected_count=0;
+    int r48_exit_monotone_row_count=0;
+    // AF7R49 constructive no-catch-up phase timing diagnostics.
+    int r49_phase_timing_trial_count=0;
+    int r49_phase_gate_pass_count=0;
+    int r49_hard_certificate_trial_count=0;
+    long long r49_selected_Ke=0;
+    long long r49_selected_Kflow=0;
+    long long r49_selected_Kx=0;
+    // AF7R50 phase/lateral decoupling diagnostics.
+    int r50_spatial_side_solution_count=0;
+    int r50_spatial_lateral_constraint_count=0;
+    int r50_entry_candidate_count=0;
+    int r50_exit_candidate_count=0;
+    double r50_best_spatial_velocity_norm=std::numeric_limits<double>::infinity();
+    // AF7R51 general-C7 phase/tangent primary diagnostics.
+    int r51_phase_seed_count=0;
+    int r51_phase_seed_reject_count=0;
+    int r51_tangent_candidate_count=0;
+    int r51_tangent_certified_count=0;
+    double r51_phase_alpha=std::numeric_limits<double>::quiet_NaN();
+    double r51_phase_delay_s=std::numeric_limits<double>::quiet_NaN();
+    double r51_phase_exit_time_s=std::numeric_limits<double>::quiet_NaN();
+    // AF7R52 general-C7 world-coordinate corridor diagnostics.
+    int r52_phase_episode_count=0;
+    int r52_phase_episode_rebuild_fail_count=0;
+    int r52_corridor_row_count=0;
+    int r52_support_plane_fail_count=0;
+    int r52_spatial_qp_solution_count=0;
+    int r52_rejoin_time_trial_count=0;
+    double r52_selected_spatial_rejoin_s=std::numeric_limits<double>::quiet_NaN();
+    int r53_normal_bundle_node_count=0;
+    int r53_normal_bundle_row_count=0;
+    int r53_normal_bundle_singular_count=0;
+    int r53_affine_reduction_count=0;
+    // AF7R54 horizon-decoupled adaptive phase continuation diagnostics.
+    int r54_phase_candidate_count=0;
+    int r54_phase_trial_count=0;
+    int r54_phase_base_certified_count=0;
+    int r54_phase_episode_pass_count=0;
+    int r54_phase_episode_empty_count=0;
+    long long r54_selected_tau_multiple=0;
+    double r54_selected_alpha=std::numeric_limits<double>::quiet_NaN();
+    double r54_selected_delay_s=std::numeric_limits<double>::quiet_NaN();
+    double r54_selected_first_unsafe_lead_s=std::numeric_limits<double>::quiet_NaN();
+    double r54_max_first_unsafe_lead_s=-std::numeric_limits<double>::infinity();
+    int r54_maneuver_horizon_coupling_count=0; // must remain exactly zero
+    // AF7R55 balanced time allocation + mixed oriented-ellipsoid corridor.
+    int r55_phase_build_count=0;
+    int r55_phase_build_fail_count=0;
+    int r55_phase_episode_pass_count=0;
+    int r55_phase_episode_empty_count=0;
+    int r55_mixed_side_episode_count=0;
+    int r55_side_plus_count=0;
+    int r55_side_minus_count=0;
+    int r55_side_onebranch_count=0;
+    int r55_side_both_failed_count=0;
+    int r55_corridor_row_count=0;
+    int r55_obstacle_count=0;
+    int r55_old_clock_binding_count=0;
+    int r55_maneuver_horizon_coupling_count=0;
+    double r55_alpha=std::numeric_limits<double>::quiet_NaN();
+    double r55_delay_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_source_unsafe_start_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_source_unsafe_end_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_predicted_first_unsafe_t_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_predicted_last_unsafe_t_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_pre_unsafe_slack_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_post_unsafe_slack_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_min_temporal_slack_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_phase_entry_transition_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_phase_exit_transition_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_source_phase_at_rejoin_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_rejoin_clock_delay_s=std::numeric_limits<double>::quiet_NaN();
+    double r55_min_ellipsoid_axis_m=std::numeric_limits<double>::infinity();
+    double r55_max_ellipsoid_axis_m=0.0;
+    double r55_max_rotation_orth_error=0.0;
+    // AF7R56 THEORY/SHADOW: source-phase load path + independent time law.
+    // Diagnostic only; none of these fields may grant production acceptance.
+    int r56_shadow_ran=0;
+    int r56_source_qp_ok=0;
+    int r56_source_exact_c7=0;
+    int r56_source_knot_count=0;
+    int r56_source_episode_count=0;
+    int r56_source_corridor_row_count=0;
+    int r56_source_normal_row_count=0;
+    int r56_source_side_plus_count=0;
+    int r56_source_side_minus_count=0;
+    int r56_source_side_fail_count=0;
+    int r56_const_sample_count=0;
+    int r56_const_dynamic_pass=0;
+    int r56_const_geometry_point_pass=0;
+    int r56_entry_bestcase_pass=0;
+    int r56_exit_bestcase_pass=0;
+    int r56_yaw_source_regular=0;
+    int r56_old_clock_binding_count=0;          // must remain zero
+    int r56_horizon_duration_coupling_count=0; // must remain zero
+    double r56_source_support_start_s=std::numeric_limits<double>::quiet_NaN();
+    double r56_source_rejoin_s=std::numeric_limits<double>::quiet_NaN();
+    double r56_source_corr_v_ub=std::numeric_limits<double>::quiet_NaN();
+    double r56_source_corr_a_ub=std::numeric_limits<double>::quiet_NaN();
+    double r56_source_corr_j_ub=std::numeric_limits<double>::quiet_NaN();
+    double r56_source_min_hxy=std::numeric_limits<double>::quiet_NaN();
+    double r56_alpha_max_pointwise=std::numeric_limits<double>::quiet_NaN();
+    double r56_const_max_vl=std::numeric_limits<double>::quiet_NaN();
+    double r56_const_max_vq=std::numeric_limits<double>::quiet_NaN();
+    double r56_const_min_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r56_const_max_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r56_const_min_geom_margin=std::numeric_limits<double>::quiet_NaN();
+    double r56_entry_Tmax_s=std::numeric_limits<double>::quiet_NaN();
+    double r56_entry_max_vq=std::numeric_limits<double>::quiet_NaN();
+    double r56_entry_min_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r56_entry_max_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r56_exit_Tmax_s=std::numeric_limits<double>::quiet_NaN();
+    double r56_exit_max_vq=std::numeric_limits<double>::quiet_NaN();
+    double r56_exit_min_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r56_exit_max_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r56_chain_rule_max_error=0.0;
+    double r56_shadow_ms=0.0;
+    // AF7R57 diagnostic-only continuous source-path probe.
+    // Never commits a candidate and never selects a production rejoin time.
+    int r57_probe_ran=0;
+    int r57_source_qp_ok=0;
+    int r57_source_exact_c7=0;
+    int r57_speed_attempt=0;
+    int r57_speed_pass=0;
+    int r57_speed_stageA_pass=0;
+    int r57_speed_stageB_attempt=0;
+    int r57_speed_stageB_finite_witness=0;
+    int r57_speed_stageB_repr_fail=0;
+    int r57_heading_attempt=0;
+    int r57_heading_pass=0;
+    int r57_heading_leaf_count=0;
+    int r57_heading_split_count=0;
+    int r57_geometry_attempt=0;
+    int r57_geometry_pass=0;
+    int r57_commit_attempted=0;               // must remain zero
+    int r57_rejoin_selected=0;                // must remain zero
+    int r57_old_clock_commit_binding_count=0; // must remain zero
+    int r57_horizon_duration_coupling_count=0;// must remain zero
+    double r57_speed_VL=std::numeric_limits<double>::quiet_NaN();
+    double r57_speed_A=std::numeric_limits<double>::quiet_NaN();
+    double r57_speed_J=std::numeric_limits<double>::quiet_NaN();
+    double r57_speed_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r57_speed_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r57_speed_VQ=std::numeric_limits<double>::quiet_NaN();
+    double r57_heading_gamma=std::numeric_limits<double>::quiet_NaN();
+    double r57_geometry_min_margin=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_support_start_s=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_support_end_s=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_corr_v_ub=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_corr_a_ub=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_corr_j_ub=std::numeric_limits<double>::quiet_NaN();
+    double r57_source_build_ms=0.0;
+    double r57_speed_ms=0.0;
+    double r57_heading_ms=0.0;
+    double r57_geometry_ms=0.0;
+    double r57_probe_ms=0.0;
+    // AF7R58 free-C7 / global-homotopy reference-core shadow.
+    int r58_shadow_ran=0;
+    int r58_reference_only=1;
+    int r58_fixed_rejoin_constraint_count=0;
+    int r58_same_clock_binding_count=0;
+    int r58_horizon_duration_coupling_count=0;
+    int r58_free_c7_constructive=0;
+    int r58_terminal_offset_hold=0;
+    int r58_terminal_zero_derivative_order=0;
+    int r58_source_knot_count=0;
+    int r58_scalar_dof_count=0;
+    int r58r14_lowjet_seed_only=0;
+    int r58r14_active_reduced_dof=0;
+    int r58r14_full_reduced_dof=0;
+    int r58_spatial_dof_count=0;
+    int r58_episode_count=0;
+    int r58_component_count=0;
+    int r58_side_cache_plus_valid=0;
+    int r58_side_cache_minus_valid=0;
+    int r58_side_cache_fail=0;
+    int r58_bnb_nodes_popped=0;
+    int r58_bnb_qp_solves=0;
+    int r58_bnb_qp_infeasible=0;
+    int r58_bnb_full_assignments=0;
+    int r58_bnb_speed_fail=0;
+    int r58_bnb_heading_fail=0;
+    int r58_bnb_geometry_fail=0;
+    int r58_bnb_feasible_full=0;
+    int r58_bnb_max_queue=0;
+    int r58_selected_side_plus=0;
+    int r58_selected_side_minus=0;
+    int r58_speed_pass=0;
+    int r58_heading_pass=0;
+    int r58_geometry_pass=0;
+    int r58_needs_time_law=0;
+    int r58_commit_attempted=0;
+    int r58_rejoin_selected=0;
+    double r58_reference_tracking_inflation_m=std::numeric_limits<double>::quiet_NaN();
+    double r58_support_start_s=std::numeric_limits<double>::quiet_NaN();
+    double r58_support_end_s=std::numeric_limits<double>::quiet_NaN();
+    double r58_terminal_offset_norm_m=std::numeric_limits<double>::quiet_NaN();
+    double r58_quantized_jet_max_abs_error=0.0;
+    double r58_legacy_join_max_abs_mismatch=0.0;
+    double r58_best_qp_cost=std::numeric_limits<double>::infinity();
+    double r58_speed_VL=std::numeric_limits<double>::quiet_NaN();
+    double r58_speed_A=std::numeric_limits<double>::quiet_NaN();
+    double r58_speed_J=std::numeric_limits<double>::quiet_NaN();
+    double r58_speed_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r58_speed_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r58_speed_VQ=std::numeric_limits<double>::quiet_NaN();
+    double r58_heading_gamma=std::numeric_limits<double>::quiet_NaN();
+    double r58_geometry_min_margin=std::numeric_limits<double>::quiet_NaN();
+    double r58_build_ms=0.0;
+    double r58_homotopy_ms=0.0;
+    double r58_certificate_ms=0.0;
+    double r58_shadow_ms=0.0;
+    // AF7R58R2 numerically equivalent conditioning diagnostics.
+    int r58r2_node_scaled_variables=0;
+    int r58r2_row_equilibrated=0;
+    int r58r2_root_qp_elided=0;
+    double r58r2_node_scale_min_s=std::numeric_limits<double>::infinity();
+    double r58r2_node_scale_max_s=0.0;
+    double r58r2_row_scale_min=std::numeric_limits<double>::infinity();
+    double r58r2_row_scale_max=0.0;
+    // AF7R58R3 exact-coordinate Hessian diagonal equilibration.
+    int r58r3_hessian_diag_equilibrated=0;
+    int r58r3_equilibrated_cholesky_pass=0;
+    double r58r3_raw_hdiag_min=std::numeric_limits<double>::infinity();
+    double r58r3_raw_hdiag_max=0.0;
+    double r58r3_raw_hdiag_ratio=std::numeric_limits<double>::infinity();
+    double r58r3_eq_hdiag_min=std::numeric_limits<double>::infinity();
+    double r58r3_eq_hdiag_max=0.0;
+    // AF7R58R4 analytical elimination of moving-normal equalities.
+    int r58r4_normal_equalities_eliminated=0;
+    int r58r4_reduced_spatial_dof_count=0;
+    int r58r4_elimination_build_fail=0;
+    double r58r4_elimination_max_residual=0.0;
+    // AF7R58R5 H-metric Dykstra solver diagnostics.
+    int r58r5_dykstra_used=0;
+    int r58r5_dykstra_converged_feasible=0;
+    int r58r5_dykstra_resource_fail=0;
+    int r58r5_dykstra_degenerate_row_fail=0;
+    int r58r5_dykstra_max_sweeps_used=0;
+    int r58r5_dykstra_projection_count=0;
+    int r58r5_dykstra_optimal_kkt_count=0;
+    double r58r5_dykstra_max_violation=std::numeric_limits<double>::infinity();
+    double r58r5_dykstra_duality_gap=std::numeric_limits<double>::infinity();
+    double r58r5_dykstra_stationarity_residual=std::numeric_limits<double>::infinity();
+    double r58r5_dykstra_ms=0.0;
+    // AF7R58R6 KKT-converged Hildreth dual coordinate-ascent diagnostics.
+    int r58r6_hildreth_used=0;
+    int r58r6_kkt_converged_count=0;
+    int r58r6_resource_fail_count=0;
+    int r58r6_max_sweeps_used=0;
+    int r58r6_coordinate_updates=0;
+    double r58r6_max_primal_violation=std::numeric_limits<double>::infinity();
+    double r58r6_max_complementarity=std::numeric_limits<double>::infinity();
+    double r58r6_duality_gap=std::numeric_limits<double>::infinity();
+    double r58r6_stationarity_residual=std::numeric_limits<double>::infinity();
+    double r58r6_max_lambda=0.0;
+    double r58r6_solver_ms=0.0;
+    double r58r6_prequant_scaled_jet_max_abs=0.0;
+    double r58r6_quantized_scaled_jet_rel_error=0.0;
+    double r58r6_quantized_physical_jet_max_abs_error=0.0;
+    double r58r6_failed_corr_v_ub=0.0;
+    double r58r6_failed_corr_a_ub=0.0;
+    double r58r6_failed_corr_j_ub=0.0;
+    double r58r6_failed_speed_worst_vq=-std::numeric_limits<double>::infinity();
+    double r58r6_failed_speed_worst_vl=std::numeric_limits<double>::quiet_NaN();
+    double r58r6_failed_speed_worst_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r58r6_failed_speed_worst_qdot=std::numeric_limits<double>::quiet_NaN();
+    double r58r6_failed_speed_witness=std::numeric_limits<double>::quiet_NaN();
+    // AF7R58R7 exact constraint-generation QP diagnostics.
+    int r58r7_constraint_generation_used=0;
+    int r58r7_full_row_count_max=0;
+    int r58r7_outer_iterations_max=0;
+    int r58r7_full_scans=0;
+    int r58r7_rows_added=0;
+    int r58r7_active_rows_max=0;
+    int r58r7_subset_kkt_solves=0;
+    int r58r7_subset_kkt_converged=0;
+    int r58r7_subset_resource_fail=0;
+    int r58r7_duplicate_add_fail=0;
+    int r58r7_full_optimality_closed=0;
+    int r58r7_subset_sweeps_max=0;
+    int r58r7_coordinate_updates=0;
+    double r58r7_initial_worst_violation=0.0;
+    double r58r7_final_max_violation=std::numeric_limits<double>::infinity();
+    double r58r7_final_duality_gap=std::numeric_limits<double>::infinity();
+    double r58r7_final_complementarity=std::numeric_limits<double>::infinity();
+    double r58r7_final_stationarity=std::numeric_limits<double>::infinity();
+    double r58r7_solver_ms=0.0;
+    // AF7R58R8 primal-dual Mehrotra subset-QP diagnostics.
+    int r58r8_ipm_used=0;
+    int r58r8_ipm_converged=0;
+    int r58r8_ipm_resource_fail=0;
+    int r58r8_ipm_factor_fail=0;
+    int r58r8_ipm_max_iterations=0;
+    int r58r8_ipm_newton_solves=0;
+    double r58r8_ipm_primal_residual=std::numeric_limits<double>::infinity();
+    double r58r8_ipm_dual_residual=std::numeric_limits<double>::infinity();
+    double r58r8_ipm_complementarity=std::numeric_limits<double>::infinity();
+    double r58r8_ipm_duality_gap=std::numeric_limits<double>::infinity();
+    double r58r8_ipm_min_slack=std::numeric_limits<double>::quiet_NaN();
+    double r58r8_ipm_min_lambda=std::numeric_limits<double>::quiet_NaN();
+    double r58r8_ipm_ms=0.0;
+    int r58r8_newton_diag_equilibrated=0;
+    int r58r8_pcg_used=0;
+    int r58r8_pcg_resource_fail=0;
+    int r58r8_pcg_max_iterations=0;
+    double r58r8_pcg_final_rel_residual=std::numeric_limits<double>::infinity();
+    // AF7R58R9 solver root-cause diagnostics only; no theory/acceptance change.
+    int r58r9_failure_count=0;
+    int r58r9_failure_depth=0;
+    int r58r9_failure_last_side=0;
+    int r58r9_failure_outer_iteration=0;
+    int r58r9_failure_active_rows=0;
+    int r58r9_failure_added_row=-1;
+    int r58r9_failure_ipm_iteration=0;
+    int r58r9_failure_stage=0; // 1 predictor-PCG, 2 corrector-PCG, 3 IPM iter limit
+    int r58r9_failure_pcg_iterations=0;
+    double r58r9_failure_pcg_final_rel_residual=std::numeric_limits<double>::infinity();
+    double r58r9_failure_pcg_rhs_inf=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_D_min=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_D_max=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_D_ratio=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_min_slack=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_min_lambda=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_failure_metric_max_abs_corr=0.0;
+    double r58r9_failure_metric_one_minus_corr=1.0;
+    double r58r9_full_scan_ms=0.0;
+    double r58r9_subset_solver_ms=0.0;
+    double r58r9_pcg_ms=0.0;
+
+    int r58r9_plus_failed=0;
+    int r58r9_minus_failed=0;
+    int r58r9_plus_failure_stage=0;
+    int r58r9_minus_failure_stage=0;
+    int r58r9_plus_failure_active_rows=0;
+    int r58r9_minus_failure_active_rows=0;
+    double r58r9_plus_failure_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_minus_failure_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_plus_metric_max_abs_corr=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_minus_metric_max_abs_corr=std::numeric_limits<double>::quiet_NaN();
+    double r58r9_plus_cg_ms=0.0;
+    double r58r9_minus_cg_ms=0.0;
+    // AF7R58R10 branch-specific central-path diagnostics only.
+    double r58r10_plus_primal_residual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_dual_residual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_mu=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_duality_gap=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_kkt_tol=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_gap_tol=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_last_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_last_alpha_primal=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_last_alpha_dual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_min_alpha_primal=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_min_alpha_dual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_mu_ratio=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_D_min=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_D_max=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_D_ratio=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_min_slack=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_min_lambda=std::numeric_limits<double>::quiet_NaN();
+    int r58r10_plus_predictor_pcg_iterations=0;
+    int r58r10_plus_corrector_pcg_iterations=0;
+    double r58r10_plus_predictor_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_plus_corrector_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+
+    double r58r10_minus_primal_residual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_dual_residual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_mu=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_duality_gap=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_kkt_tol=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_gap_tol=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_last_sigma=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_last_alpha_primal=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_last_alpha_dual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_min_alpha_primal=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_min_alpha_dual=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_mu_ratio=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_D_min=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_D_max=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_D_ratio=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_min_slack=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_min_lambda=std::numeric_limits<double>::quiet_NaN();
+    int r58r10_minus_predictor_pcg_iterations=0;
+    int r58r10_minus_corrector_pcg_iterations=0;
+    double r58r10_minus_predictor_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+    double r58r10_minus_corrector_pcg_relres=std::numeric_limits<double>::quiet_NaN();
+    // AF7R58R11 augmented-KKT complete-pivot Newton + common-step diagnostics.
+    int r58r11_augmented_kkt_used=0;
+    int r58r11_augmented_kkt_solve_fail=0;
+    int r58r11_common_step_used=0;
+    int r58r11_augmented_kkt_max_dim=0;
+    int r58r11_newton_solves=0;
+    double r58r11_newton_max_rel_residual=0.0;
+    double r58r11_common_step_min=1.0;
+    double r58r11_common_step_last=std::numeric_limits<double>::quiet_NaN();
+    double r58r11_solver_ms=0.0;
+    double r48_natural_rejoin_seed_t1=std::numeric_limits<double>::quiet_NaN();
 
     // AF7_TOWING_DIAG_V1 -- diagnostic-only; never grants acceptance.
     double finite_sensing_limit=std::numeric_limits<double>::quiet_NaN();
@@ -2262,6 +2986,37 @@ static inline bool r32_affine_base_exact(const ActiveReference&ref,double t0,dou
     }
     return true;
 }
+
+// AF7R47: synthesis guide for a general active C7 base reference.
+// This vector has NO safety authority. It only defines the 2-D correction
+// plane used by the compact R37 spatial QP. Safety remains in the unchanged
+// speed/rejoin/whole-body certificates.
+//
+// Prefer the actual active-reference velocity near the unsafe component.
+// If a local stationary point occurs, fall back to the spatial chord. No
+// maneuver-duration or obstacle-size tuning constant is introduced.
+static inline bool r47_active_progress_guide(
+        const ActiveReference&ref,double a,double b,Vec3&g){
+    if(!(fin(a)&&fin(b)&&b>a))return false;
+    const double T[3]={0.5*(a+b),a,b};
+    for(double t:T){
+        auto x=ref.eval(t);
+        const double nv=norm(x[1]);
+        if(finite(x[1])&&fin(nv)&&nv>0.0){
+            g=x[1];
+            return true;
+        }
+    }
+    auto xa=ref.eval(a),xb=ref.eval(b);
+    Vec3 d=xb[0]-xa[0];
+    const double nd=norm(d);
+    if(finite(d)&&fin(nd)&&nd>0.0){
+        g=d;
+        return true;
+    }
+    return false;
+}
+
 static inline void r32_add_lateral_equalities(std::vector<Row>&rows,Vec3 e){
     e=normalized(e);
     Row r;r.a.assign(6,0.0);r.b=0.0;r.a[0]=e.x;r.a[1]=e.y;r.a[2]=e.z;rows.push_back(r);
@@ -2279,6 +3034,33 @@ static inline bool r32_progress_monotone_exact(Vec3 vbase,const Candidate&C){
     }
     return true;
 }
+// AF7R48R1 exact no-catch-up progress gate for the delay-preserving affine-base family.
+// For e=vbase/||vbase||, every Bernstein control point of the total
+// longitudinal velocity must lie in [0, ||vbase||]. Because a Bezier curve
+// stays in the convex hull of its control values, this proves continuously
+//
+//      0 <= ds/dt <= 1
+//
+// relative to the original reference clock. Thus the avoidance trajectory
+// may fall behind but can never recover delay by running ahead of the source
+// reference. Binary64 guards are representability guards only.
+static inline bool r48_no_catchup_progress_exact(Vec3 vbase,const Candidate&C){
+    const double nv=norm(vbase);
+    if(!(fin(nv)&&nv>0))return false;
+    const Vec3 e=vbase/nv;
+    const double guard=256*epsd()*std::max(1.0,nv);
+    for(size_t s=0;s<C.cp.size();++s){
+        const double T=C.seg1[s]-C.seg0[s];
+        if(!(fin(T)&&T>0))return false;
+        Poly D=deriv_poly(C.cp[s],T,1);
+        for(const auto&dc:D){
+            const double vp=dot(e,vbase+dc);
+            if(!(fin(vp)&&vp>=-guard&&vp<=nv+guard))return false;
+        }
+    }
+    return true;
+}
+
 static inline double r32_affine_velocity_control_ub(Vec3 vbase,const Candidate&C){
     double ub=0.0;
     for(size_t s=0;s<C.cp.size();++s){
@@ -2363,6 +3145,470 @@ static inline std::vector<long long> r33_binary_chunks(long long units){
     }
     return c;
 }
+static inline SpeedCert r51_phase_base_certificate(
+        const SpeedCert&B,const Live&L,const R51PhaseSpec&P){
+    if(!P.enabled)return B;
+    SpeedCert S;
+    double smin=0,smax=0,S2=0,S3=0;
+    if(!r51_phase_derivative_bounds(P,smin,smax,S2,S3))return S;
+    smin=std::max(0.0,smin);
+    smax=std::min(1.0,std::max(0.0,smax));
+
+    S.VL=B.VL*smax;
+    S.A=B.A*smax*smax+B.VL*S2;
+    S.J=B.J*smax*smax*smax+3.0*B.A*smax*S2+B.VL*S3;
+
+    // Compare phased specific force against the certified old-reference
+    // specific force.  ||a_s-a|| <= A(1-sdot^2)+V|sddot|.
+    const double dA=B.A*std::max(0.0,1.0-smin*smin)+B.VL*S2;
+    S.sigma=B.sigma-dA;
+    if(!(fin(S.sigma)&&S.sigma>0.0&&fin(S.J)&&S.J>=0.0))return SpeedCert{};
+    S.qdot=S.J/S.sigma;
+    S.VQ=S.VL+L.L*S.qdot;
+    S.certified=fin(S.VQ)&&fin(S.VL)&&fin(S.A)&&fin(S.J)&&
+                fin(S.qdot)&&S.sigma>0.0;
+    S.stageA=false;
+    return S;
+}
+
+
+static inline EpisodeCert r51_warp_episode(
+        const EpisodeCert&E,const R51PhaseSpec&P){
+    EpisodeCert W=E;
+    if(!P.enabled)return W;
+    for(auto&e:W.ep){
+        e.start=r51_phase_inverse_flow(P,e.start);
+        e.end=r51_phase_inverse_flow(P,e.end);
+    }
+    for(auto&c:W.comp){
+        c.start=r51_phase_inverse_flow(P,c.start);
+        c.end=r51_phase_inverse_flow(P,c.end);
+    }
+    return W;
+}
+
+// AF7R52: rebuild unsafe episodes on the ACTUAL phase-composed reference.
+// No time-warp approximation of a previously built episode is used.
+static inline EpisodeCert r52_build_phase_episode(
+        const ActiveReference&ref,const R51PhaseSpec&phase,
+        const Live&L,const SpeedCert&base,
+        const std::vector<Obstacle>&obs,double t0,double searchEnd){
+    EpisodeCert E;
+    if(!(fin(t0)&&fin(searchEnd)&&searchEnd>t0&&L.dt>0&&!obs.empty()))return E;
+    const double tolMerge=64*epsd()*std::max({1.0,std::fabs(t0),std::fabs(searchEnd),std::fabs(L.dt)});
+    std::vector<Episode> raw;
+    for(size_t oi=0;oi<obs.size();++oi){
+        std::vector<std::pair<double,double>> stack{{t0,searchEnd}},unsafe;
+        while(!stack.empty()){
+            auto [ta,tb]=stack.back();stack.pop_back();
+            if(!(fin(ta)&&fin(tb)&&tb>ta))continue;
+            const double tc=0.5*(ta+tb),h=0.5*(tb-ta);
+            const bool splittable=fin(tc)&&tc>ta&&tc<tb;
+            ++E.leaves;
+            bool safe=false;
+            if(splittable){
+                auto x=r51_phase_reference_eval(ref,phase,tc);
+                Vec3 pL=x[0],sf=x[2]+Vec3{0,0,L.g};
+                const double ns=norm(sf);
+                if(fin(ns)&&ns>0){
+                    Vec3 q=sf*(-1.0/ns),pQ=pL-q*L.L;
+                    const double VC=std::max(base.VL,base.VQ);
+                    double mL,mQ,mC;
+                    const bool a=point_margin(pL,obs[oi],L.rL+L.dmargin+L.tracking+base.VL*h,mL);
+                    const bool b=point_margin(pQ,obs[oi],L.rQ+L.dmargin+L.tracking+base.VQ*h,mQ);
+                    const bool c=segment_margin(pQ,pL,obs[oi],L.rC+L.dmargin+L.tracking+VC*h,mC);
+                    safe=a&&b&&c;
+                }
+            }
+            if(safe){++E.safe_leaves;continue;}
+            if((tb-ta)<=L.dt+tolMerge || !splittable){
+                unsafe.push_back({ta,tb});++E.unsafe_leaves;
+                if(!splittable)++E.repr_fail;
+                continue;
+            }
+            stack.push_back({tc,tb});stack.push_back({ta,tc});++E.splits;
+        }
+        if(unsafe.empty())continue;
+        std::sort(unsafe.begin(),unsafe.end());
+        double s=unsafe[0].first,e=unsafe[0].second;
+        for(size_t k=1;k<unsafe.size();++k){
+            if(unsafe[k].first<=e+tolMerge)e=std::max(e,unsafe[k].second);
+            else{raw.push_back({(int)oi,0,s,e});s=unsafe[k].first;e=unsafe[k].second;}
+        }
+        raw.push_back({(int)oi,0,s,e});
+    }
+    if(raw.empty()){E.ok=true;return E;}
+    std::sort(raw.begin(),raw.end(),[](const Episode&a,const Episode&b){return a.start<b.start;});
+    const double tolT=64*epsd()*std::max({1.0,std::fabs(t0),std::fabs(searchEnd)});
+    for(size_t i=0;i<raw.size();++i){
+        if(E.comp.empty()||raw[i].start>E.comp.back().end+tolT){
+            Component c;c.start=raw[i].start;c.end=raw[i].end;c.episodes.push_back((int)i);E.comp.push_back(c);
+        }else{
+            E.comp.back().end=std::max(E.comp.back().end,raw[i].end);
+            E.comp.back().episodes.push_back((int)i);
+        }
+        raw[i].comp=(int)E.comp.size()-1;
+    }
+    E.ep=std::move(raw);E.ok=true;return E;
+}
+
+static inline bool r51_build_phase_seed(
+        const Live&L,const EpisodeCert&E,double t0,double searchEnd,
+        R51PhaseSpec&P){
+    P=R51PhaseSpec{};
+    if(E.comp.empty()||!(fin(t0)&&fin(searchEnd)&&searchEnd>t0))
+        return false;
+
+    const double h=r33_time_quantum(L.dt);
+    const double ts=r33_align_up(t0,h);
+    const double sA=E.comp.front().start;
+    const double sB=E.comp.back().end;
+    const double Ds=sB-sA;
+    const double tau=std::sqrt(L.L/L.g);
+    if(!(fin(h)&&h>0.0&&fin(ts)&&ts<sA&&fin(Ds)&&Ds>0.0&&
+         fin(tau)&&tau>0.0))
+        return false;
+
+    // Stretch the source-phase traversal by one suspended-load natural time.
+    // This is a physics-derived quality seed, not a maneuver-duration cap.
+    long long Kflow=(long long)std::ceil((Ds+tau)/h);
+    Kflow=std::max(1LL,Kflow);
+    const double Tf=(double)Kflow*h;
+    const double alpha=Ds/Tf;
+    if(!(fin(alpha)&&alpha>0.0&&alpha<=1.0))return false;
+    const double beta=1.0-alpha;
+    const double De=sA-ts;
+
+    // Exact no-catch-up entry interval inherited from the R49 Bernstein proof.
+    const double denLo=1.0-7.0*beta/15.0;
+    const double denHi=14.0-7.0*beta;
+    if(!(denLo>0.0&&denHi>0.0))return false;
+    const double TeLo=De/denLo;
+    const double TeHi=15.0*De/denHi;
+    if(!(fin(TeLo)&&fin(TeHi)&&TeHi>=TeLo&&TeLo>0.0))return false;
+
+    const double ratioMid=(1.0+14.0*beta)/30.0;
+    const double TeMid=De/(1.0-ratioMid);
+    long long Ke=(long long)std::llround(TeMid/h);
+    long long KeMin=(long long)std::ceil(
+        TeLo/h-64*epsd()*std::max(1.0,std::fabs(TeLo/h)));
+    long long KeMax=(long long)std::floor(
+        TeHi/h+64*epsd()*std::max(1.0,std::fabs(TeHi/h)));
+    KeMin=std::max(1LL,KeMin);
+    if(Ke<KeMin)Ke=KeMin;
+    if(Ke>KeMax)Ke=KeMax;
+    if(Ke<1||KeMax<KeMin)return false;
+
+    const double Te=(double)Ke*h;
+    long long Ktau=(long long)std::ceil(
+        tau/h-64*epsd()*std::max(1.0,std::fabs(tau/h)));
+    Ktau=std::max(1LL,Ktau);
+    long long Kx=std::max(Ke,Ktau);
+    double Tx=(double)Kx*h;
+
+    double tA=ts+Te;
+    double tB=tA+Tf;
+    double tE=tB+Tx;
+
+    if(!(tE<searchEnd-64*epsd()*std::max(1.0,std::fabs(searchEnd))))
+        return false;
+
+    const double sE=sB+0.5*(alpha+1.0)*Tx;
+    const double delay=tE-sE;
+    if(!(fin(delay)&&delay>0.0))return false;
+
+    P.enabled=true;
+    P.t0=ts;P.tA=tA;P.tB=tB;P.tE=tE;
+    P.sA=sA;P.sB=sB;P.alpha=alpha;P.delay=delay;
+    if(!r51_phase_valid(P))return false;
+
+    double smin=0,smax=0,S2=0,S3=0;
+    if(!r51_phase_derivative_bounds(P,smin,smax,S2,S3))
+        return false;
+    const double tol=4096*epsd()*std::max(1.0,std::max(std::fabs(smin),std::fabs(smax)));
+    return smin>0.0 && smax<=1.0+tol;
+}
+
+
+// ===========================================================================
+// AF7R54 HORIZON-DECOUPLED ADAPTIVE PHASE CONTINUATION
+//
+// H is NOT a maneuver duration.  The trigger horizon and the finite-sensing
+// theorem retain L.horizon elsewhere; this construction intentionally does not
+// read L.horizon at all.
+//
+// A phase candidate is indexed by an integer natural-time stretch multiple m:
+//
+//     Tf >= Ds + m*sqrt(L/g),      m = 1,2,4,...
+//
+// on the exact dyadic time grid.  For each Tf, the R49 Bernstein theorem is
+// used unchanged to choose an exact-C7 entry duration satisfying continuously
+//
+//     0 < ds/dt <= 1.
+//
+// The continuation has no arbitrary physical duration cap.  The only terminal
+// bound is the finite active-reference domain searchEnd.  Stronger slowdown
+// candidates are generated only while that domain can contain the complete
+// phase transition.  Every phase candidate rebuilds its own continuous unsafe
+// episode before any spatial corridor is synthesized.
+// ===========================================================================
+struct R54PhaseTrial{
+    R51PhaseSpec phase;
+    long long tau_multiple=0;
+};
+
+static inline bool r54_build_phase_from_tau_multiple(
+        const Live&L,const EpisodeCert&E,double t0,double searchEnd,
+        long long tauMultiple,R51PhaseSpec&P){
+    P=R51PhaseSpec{};
+    if(tauMultiple<1||E.comp.empty()||
+       !(fin(t0)&&fin(searchEnd)&&searchEnd>t0))return false;
+
+    const double h=r33_time_quantum(L.dt);
+    const double ts=r33_align_up(t0,h);
+    const double sA=E.comp.front().start;
+    const double sB=E.comp.back().end;
+    const double Ds=sB-sA;
+    const double tau=std::sqrt(L.L/L.g);
+    if(!(fin(h)&&h>0.0&&fin(ts)&&ts<sA&&fin(Ds)&&Ds>0.0&&
+         fin(tau)&&tau>0.0))return false;
+
+    const double targetFlow=Ds+(double)tauMultiple*tau;
+    if(!(fin(targetFlow)&&targetFlow>Ds))return false;
+    long long Kflow=(long long)std::ceil(
+        targetFlow/h-64*epsd()*std::max(1.0,std::fabs(targetFlow/h)));
+    Kflow=std::max(1LL,Kflow);
+    const double Tf=(double)Kflow*h;
+    if(!(fin(Tf)&&Tf>=Ds))return false;
+
+    const double alpha=Ds/Tf;
+    if(!(fin(alpha)&&alpha>0.0&&alpha<1.0))return false;
+    const double beta=1.0-alpha;
+    const double De=sA-ts;
+
+    // Exact R49 no-catch-up entry interval.
+    const double denLo=1.0-7.0*beta/15.0;
+    const double denHi=14.0-7.0*beta;
+    if(!(denLo>0.0&&denHi>0.0))return false;
+    const double TeLo=De/denLo;
+    const double TeHi=15.0*De/denHi;
+    if(!(fin(TeLo)&&fin(TeHi)&&TeHi>=TeLo&&TeLo>0.0))return false;
+
+    // Midpoint of the exact Bernstein-feasible interval maximizes distance
+    // from both longitudinal velocity faces ds/dt=0 and ds/dt=1.
+    const double ratioMid=(1.0+14.0*beta)/30.0;
+    const double TeMid=De/(1.0-ratioMid);
+    long long Ke=(long long)std::llround(TeMid/h);
+    long long KeMin=(long long)std::ceil(
+        TeLo/h-64*epsd()*std::max(1.0,std::fabs(TeLo/h)));
+    long long KeMax=(long long)std::floor(
+        TeHi/h+64*epsd()*std::max(1.0,std::fabs(TeHi/h)));
+    KeMin=std::max(1LL,KeMin);
+    if(Ke<KeMin)Ke=KeMin;
+    if(Ke>KeMax)Ke=KeMax;
+    if(Ke<1||KeMax<KeMin)return false;
+
+    const double Te=(double)Ke*h;
+    long long Ktau=(long long)std::ceil(
+        tau/h-64*epsd()*std::max(1.0,std::fabs(tau/h)));
+    Ktau=std::max(1LL,Ktau);
+    const long long Kx=std::max(Ke,Ktau);
+    const double Tx=(double)Kx*h;
+
+    const double tA=ts+Te;
+    const double tB=tA+Tf;
+    const double tE=tB+Tx;
+    if(!(fin(tE)&&tE<searchEnd-64*epsd()*std::max(1.0,std::fabs(searchEnd))))
+        return false;
+
+    const double sE=sB+0.5*(alpha+1.0)*Tx;
+    const double delay=tE-sE;
+    if(!(fin(delay)&&delay>0.0))return false;
+
+    P.enabled=true;
+    P.t0=ts;P.tA=tA;P.tB=tB;P.tE=tE;
+    P.sA=sA;P.sB=sB;P.alpha=alpha;P.delay=delay;
+    if(!r51_phase_valid(P))return false;
+
+    double smin=0.0,smax=0.0,S2=0.0,S3=0.0;
+    if(!r51_phase_derivative_bounds(P,smin,smax,S2,S3))return false;
+    const double tol=4096*epsd()*std::max(1.0,
+        std::max(std::fabs(smin),std::fabs(smax)));
+    return smin>0.0&&smax<=1.0+tol;
+}
+
+static inline std::vector<R54PhaseTrial> r54_phase_candidates(
+        const Live&L,const EpisodeCert&E,double t0,double searchEnd){
+    std::vector<R54PhaseTrial> out;
+    if(E.comp.empty())return out;
+
+    const double h=r33_time_quantum(L.dt);
+    const double ts=r33_align_up(t0,h);
+    const double Ds=E.comp.back().end-E.comp.front().start;
+    const double tau=std::sqrt(L.L/L.g);
+    if(!(fin(h)&&h>0.0&&fin(ts)&&fin(Ds)&&Ds>0.0&&fin(tau)&&tau>0.0&&
+         fin(searchEnd)&&searchEnd>ts))return out;
+
+    // Source-domain-derived upper bound only.  It is deliberately loose;
+    // r54_build_phase_from_tau_multiple applies the exact tE<searchEnd gate.
+    const double room=searchEnd-ts-Ds;
+    if(!(fin(room)&&room>tau))return out;
+    long long mDomain=(long long)std::floor(room/tau);
+    mDomain=std::max(1LL,mDomain);
+
+    auto add=[&](long long m){
+        if(m<1)return;
+        R51PhaseSpec P;
+        if(!r54_build_phase_from_tau_multiple(L,E,t0,searchEnd,m,P))return;
+        for(const auto&q:out)
+            if(q.tau_multiple==m)return;
+        out.push_back({P,m});
+    };
+
+    // Least slowdown first, then dyadic continuation.  These are search
+    // coordinates, not physical caps or tuning weights.
+    long long m=1;
+    while(m<=mDomain){
+        add(m);
+        if(m>mDomain/2)break;
+        m*=2;
+    }
+    // Also test the finite-domain edge if it is representable; this prevents
+    // the dyadic continuation from leaving a large unexamined tail.
+    add(mDomain);
+
+    std::sort(out.begin(),out.end(),[](const R54PhaseTrial&a,const R54PhaseTrial&b){
+        return a.tau_multiple<b.tau_multiple;
+    });
+    return out;
+}
+
+
+// ===========================================================================
+// AF7R55 BALANCED SOURCE-PHASE / REAL-TIME ALLOCATION
+//
+// The source path coordinate and wall-clock time are independent variables.
+// No equality p_new(t_r)=p_old(t_r) is imposed, and L.horizon is not read.
+//
+// For the current active reference let [s0,s1] be the complete unsafe
+// source-phase envelope.  Within the finite real-time support [t0,tE], choose
+// the constant-flow phase rate alpha so that the unsafe source midpoint maps
+// to the physical support midpoint.  For affine flow this exactly maximizes
+//
+//      min( t(s0)-t0, tE-t(s1) )
+//
+// without a scalar tuning weight.  Large/small obstacles change [s0,s1]
+// directly, so the timing changes from geometry rather than a size class.
+//
+// The C7 entry/exit phase transitions are symmetric degree-15 Hermite delay
+// transitions.  Their derivative bounds are certified afterwards by the
+// existing Bernstein authority r51_phase_derivative_bounds, proving
+//
+//      0 < ds/dt <= 1
+//
+// continuously.
+// ===========================================================================
+struct R55PhaseDiag{
+    double s0=0,s1=0,tFirst=0,tLast=0,preSlack=0,postSlack=0,minSlack=0;
+    double Te=0,Tx=0;
+};
+
+static inline double r55_align_down(double x,double h){
+    if(!(fin(x)&&fin(h)&&h>0.0))
+        return std::numeric_limits<double>::quiet_NaN();
+    const double q=x/h;
+    if(!(fin(q)&&std::fabs(q)<4503599627370496.0))
+        return std::numeric_limits<double>::quiet_NaN();
+    double k=std::floor(q),y=k*h;
+    if(y>x)y=(k-1.0)*h;
+    return y;
+}
+
+static inline bool r55_build_balanced_phase(
+        const Live&L,const EpisodeCert&E,double t0,double searchEnd,
+        R51PhaseSpec&P,R55PhaseDiag&D){
+    P=R51PhaseSpec{};D=R55PhaseDiag{};
+    if(E.comp.empty()||!(fin(t0)&&fin(searchEnd)&&searchEnd>t0))
+        return false;
+
+    const double h=r33_time_quantum(L.dt);
+    const double ts=r33_align_up(t0,h);
+    const double tE=r55_align_down(searchEnd,h);
+    const double s0=E.comp.front().start;
+    const double s1=E.comp.back().end;
+    const double tau=std::sqrt(L.L/L.g);
+    if(!(fin(h)&&h>0.0&&fin(ts)&&fin(tE)&&tE>ts&&
+         fin(s0)&&fin(s1)&&s1>s0&&fin(tau)&&tau>0.0&&ts<s0))
+        return false;
+
+    long long Ktau=(long long)std::ceil(
+        tau/h-64*epsd()*std::max(1.0,std::fabs(tau/h)));
+    Ktau=std::max(1LL,Ktau);
+    const double Ttau=(double)Ktau*h;
+
+    // Complete the 1 -> alpha transition before the first unsafe source phase.
+    const double preRoom=s0-ts;
+    const double TeMax=r55_align_down(preRoom-h,h);
+    if(!(fin(TeMax)&&TeMax>=h))return false;
+    const double Te=std::min(Ttau,TeMax);
+    const double tA=ts+Te;
+    if(!(tA<s0&&tA<tE))return false;
+
+    const double sMid=0.5*(s0+s1);
+    const double tMid=0.5*(ts+tE);
+
+    // With symmetric entry delay dA=(1-alpha)Te/2:
+    // sA=tA-dA=tA-Te/2+alpha*Te/2.
+    // Enforce s(tMid)=sMid and solve alpha analytically.
+    const double den=(tMid-tA)+0.5*Te;
+    const double num=sMid-(tA-0.5*Te);
+    if(!(fin(den)&&den>0.0&&fin(num)&&num>0.0))return false;
+    const double alpha=num/den;
+    if(!(fin(alpha)&&alpha>0.0&&alpha<=1.0))return false;
+
+    const double beta=1.0-alpha;
+    const double dA=0.5*beta*Te;
+    const double sA=tA-dA;
+    if(!(fin(sA)&&sA<s0))return false;
+
+    const double tFirst=tA+(s0-sA)/alpha;
+    const double tLast=tA+(s1-sA)/alpha;
+    if(!(fin(tFirst)&&fin(tLast)&&tA<tFirst&&tFirst<tLast&&tLast<tE))
+        return false;
+
+    // Reserve a C7 phase exit after the last unsafe source phase.
+    const double postRoom=tE-tLast;
+    const double TxMax=r55_align_down(postRoom-h,h);
+    if(!(fin(TxMax)&&TxMax>=h))return false;
+    const double Tx=std::min(Ttau,TxMax);
+    const double tB=tE-Tx;
+    if(!(tLast<tB&&tA<tB))return false;
+
+    const double sB=sA+alpha*(tB-tA);
+    const double sEnd=sB+0.5*(alpha+1.0)*Tx;
+    const double delay=tE-sEnd;
+    if(!(fin(sB)&&sB>s1&&fin(delay)&&delay>=0.0))return false;
+
+    P.enabled=true;
+    P.t0=ts;P.tA=tA;P.tB=tB;P.tE=tE;
+    P.sA=sA;P.sB=sB;P.alpha=alpha;P.delay=delay;
+    if(!r51_phase_valid(P))return false;
+
+    double smin=0.0,smax=0.0,S2=0.0,S3=0.0;
+    if(!r51_phase_derivative_bounds(P,smin,smax,S2,S3))return false;
+    const double tol=4096*epsd()*std::max(1.0,
+        std::max(std::fabs(smin),std::fabs(smax)));
+    if(!(smin>0.0&&smax<=1.0+tol))return false;
+
+    D.s0=s0;D.s1=s1;D.tFirst=tFirst;D.tLast=tLast;
+    D.preSlack=tFirst-ts;D.postSlack=tE-tLast;
+    D.minSlack=std::min(D.preSlack,D.postSlack);
+    D.Te=Te;D.Tx=Tx;
+    return fin(D.minSlack)&&D.minSlack>0.0;
+}
+
+
+
 static inline bool r33_dominates(
         double va,double aa,double ja,double vb,double ab,double jb){
     return va<=vb&&aa<=ab&&ja<=jb&&(va<vb||aa<ab||ja<jb);
@@ -3204,7 +4450,7 @@ static inline Candidate r36_build_curved_delay_candidate(
 
 
 // ===========================================================================
-// AF7R37 TRIGGER -> FREE-REJOIN EXACT-C7 SPATIAL SPLINE
+// AF7R37 HISTORICAL SAME-CLOCK FREE-REJOIN EXACT-C7 SPATIAL SPLINE (R48R1 production-unreachable)
 //
 // This phase removes the R36 "bend mainly inside the unsafe span" restriction.
 //
@@ -3712,6 +4958,84 @@ static inline std::vector<Row> r37_corridor_rows(
     return rows;
 }
 
+
+static inline std::vector<Row> r51_phase_corridor_rows(
+        const ActiveReference&ref,const R51PhaseSpec&phase,
+        const Live&L,const SpeedCert&base,
+        const std::vector<Obstacle>&obs,const EpisodeCert&E,int ei,Vec3 n,
+        const std::vector<double>&K,const R36Plane&B,Vec3 progressGuide,
+        R45CorridorDiag*diag=nullptr){
+    const int ns=r37_scalar_dofs(K),nvar=2*ns;
+    const auto&ep=E.ep[ei];
+    const auto&o=obs[ep.obs];
+
+    Vec3 eprog=normalized(progressGuide);
+    Vec3 elat=n-eprog*dot(n,eprog);
+    const double nl=norm(elat);
+    if(!(fin(nl)&&nl>0))
+        throw std::runtime_error("R51 degenerate local lateral direction");
+    elat=elat/nl;
+
+    const double VC=std::max(base.VL,base.VQ);
+    std::vector<std::pair<double,double>>sb;
+    double ta=ep.start,te=ep.end;
+    while(ta<te-8*epsd()*std::max(1.0,std::fabs(te))){
+        const double tb=std::min(te,ta+L.dt);
+        const double tc=0.5*(ta+tb),half=0.5*(tb-ta);
+        auto x=r51_phase_reference_eval(ref,phase,tc);
+        Vec3 pL=x[0],sf=x[2]+Vec3{0,0,L.g};
+        const double nf=norm(sf);
+        if(!(fin(nf)&&nf>0))
+            throw std::runtime_error("R51 phased-base flatness singular");
+        Vec3 q=sf*(-1.0/nf),pQ=pL-q*L.L;
+
+        const double rhoL=L.rL+L.dmargin+L.tracking+base.VL*half;
+        const double rhoQ=L.rQ+L.dmargin+L.tracking+base.VQ*half;
+        const double rhoC=L.rC+L.dmargin+L.tracking+VC*half;
+
+        R45ConvexEval F0=r45_corridor_eval_u(
+            pL,pQ,o,rhoL,rhoQ,rhoC,eprog,elat,0.0);
+        if(!F0.ok)
+            throw std::runtime_error("R51 support evaluation failed");
+
+        bool fb=false;
+        double req=r45_min_lateral_requirement(
+            pL,pQ,o,rhoL,rhoQ,rhoC,eprog,elat,fb);
+        if(!fin(req))
+            throw std::runtime_error("R51 tangent support minimization failed");
+
+        const double fixedReq=std::max(0.0,F0.value);
+        if(diag){
+            ++diag->intervals;
+            if(req<=0.0)++diag->zero_offset_intervals;
+            if(fb)++diag->search_fallbacks;
+            diag->fixed_peak=std::max(diag->fixed_peak,fixedReq);
+            diag->tangent_peak=std::max(diag->tangent_peak,req);
+        }
+
+        if(req>0.0)
+            req+=64*epsd()*std::max(1.0,std::fabs(req));
+
+        sb.push_back({ta,req});
+        sb.push_back({tb,req});
+        ta=tb;
+    }
+
+    auto hull=upper_hull(sb);
+    const double nb1=dot(elat,B.b1),nb2=dot(elat,B.b2);
+    std::vector<Row>rows;
+    for(auto [t,b]:hull){
+        auto w=r37_scalar_basis(K,t);
+        Row R;R.a.assign(nvar,0.0);R.b=b;
+        for(int q=0;q<ns;++q){
+            R.a[2*q+0]=w[q]*nb1;
+            R.a[2*q+1]=w[q]*nb2;
+        }
+        rows.push_back(std::move(R));
+    }
+    return rows;
+}
+
 struct R37Path{
     bool ok=false;
     std::vector<double>knots;
@@ -3735,6 +5059,68 @@ static inline R37Path r37_decode_path(
     }
     P.cost=q.cost;P.slack=q.slack;P.signs=signs;P.ok=true;
     return P;
+}
+
+// AF7R48 monotone exit-to-nominal sufficient conditions.
+//
+// For the final C7 exit segment, the correction is represented by a degree-15
+// Bezier polynomial from the last unsafe-component node to the exact zero jet
+// endpoint.  For every selected separating direction belonging to the last
+// unsafe component we constrain the scalar Bezier control polygon to be
+// nonnegative and nonincreasing.  By the Bezier convex-hull and derivative
+// properties this proves, continuously over the complete exit segment,
+//
+//   s(t) >= 0,   ds/dt <= 0,   s(t1)=0.
+//
+// Hence the correction cannot cross the nominal path and come back in any of
+// the selected certified bypass directions.  These are synthesis-quality
+// constraints only; the unchanged whole-body certificate remains safety
+// authority.
+static inline int r48_add_exit_monotone_rows(
+        std::vector<Row>&rows,const std::vector<double>&K,
+        const R36Plane&B,const std::vector<Vec3>&signedDirs){
+    const int N=(int)K.size(),ns=r37_scalar_dofs(K);
+    if(N<3||ns<=0||signedDirs.empty())return 0;
+    const int node=N-2;
+    const int qp=r37_scalar_index(node,0,N);
+    const int qv=r37_scalar_index(node,1,N);
+    if(qp<0||qv<0)return 0;
+    const double T=K.back()-K[N-2];
+    if(!(fin(T)&&T>0))return 0;
+
+    std::array<double,8>J0P{},J0V{},J1{};
+    J0P[0]=1.0;
+    J0V[1]=1.0;
+    const auto cP=scalar_control_from_jets(J0P,J1,T);
+    const auto cV=scalar_control_from_jets(J0V,J1,T);
+    const int nvar=2*ns;
+    int added=0;
+
+    auto push=[&](double ap,double av,double nb1,double nb2){
+        Row R;R.a.assign(nvar,0.0);R.b=0.0;
+        R.a[2*qp+0]=ap*nb1;
+        R.a[2*qp+1]=ap*nb2;
+        R.a[2*qv+0]=av*nb1;
+        R.a[2*qv+1]=av*nb2;
+        double ma=0.0;for(double x:R.a)ma=std::max(ma,std::fabs(x));
+        if(ma>0.0){rows.push_back(std::move(R));++added;}
+    };
+
+    for(Vec3 d:signedDirs){
+        double nb1=dot(d,B.b1),nb2=dot(d,B.b2);
+        const double nn=std::hypot(nb1,nb2);
+        if(!(fin(nn)&&nn>0))continue;
+        nb1/=nn;nb2/=nn;
+
+        // Scalar correction remains on the selected bypass side.
+        for(int k=0;k<15;++k)
+            push(cP[k],cV[k],nb1,nb2);
+
+        // Scalar control polygon is nonincreasing toward exact zero.
+        for(int k=0;k<15;++k)
+            push(cP[k]-cP[k+1],cV[k]-cV[k+1],nb1,nb2);
+    }
+    return added;
 }
 
 // AF7R38 constructive exact-real C7 proof
@@ -3761,6 +5147,358 @@ static inline R37Path r37_decode_path(
 // outer 8-point zero stencils make derivatives 0..7 exactly zero at support
 // endpoints. This is a theorem about the stored polynomials, not a tolerance.
 //
+// AF7R52: isotropic world-coordinate version of the R37 towing Hessian.
+static inline std::vector<double> r52_spatial_hessian3(
+        const std::vector<double>&K,double cableL,double gravity){
+    const int ns=r37_scalar_dofs(K);
+    if(ns<=0)return {};
+    const auto H2=r37_spatial_hessian(K,cableL,gravity);
+    const int n2=2*ns,n3=3*ns;
+    if((int)H2.size()!=n2*n2)return {};
+    std::vector<double>H3(n3*n3,0.0);
+    for(int i=0;i<ns;++i)for(int j=0;j<ns;++j){
+        const double hij=H2[(2*i)*n2+(2*j)];
+        for(int a=0;a<3;++a)H3[(3*i+a)*n3+(3*j+a)]=hij;
+    }
+    return H3;
+}
+
+static inline R37Path r52_decode_path3(
+        const QPSol&q,const std::vector<double>&K,const std::vector<int>&signs){
+    R37Path P;
+    const int N=(int)K.size(),ns=r37_scalar_dofs(K);
+    if(!q.ok||N<3||(int)q.z.size()!=3*ns)return P;
+    P.knots=K;P.P.assign(N,Vec3{});P.V.assign(N,Vec3{});
+    for(int node=1;node<N-1;++node){
+        const int qp=r37_scalar_index(node,0,N);
+        const int qv=r37_scalar_index(node,1,N);
+        P.P[node]={q.z[3*qp+0],q.z[3*qp+1],q.z[3*qp+2]};
+        P.V[node]={q.z[3*qv+0],q.z[3*qv+1],q.z[3*qv+2]};
+    }
+    P.cost=q.cost;P.slack=q.slack;P.signs=signs;P.ok=true;
+    return P;
+}
+
+
+// AF7R53D3 diagnostic-only shape recorder.
+static inline void r53_record_shape_diag(
+        const R37Path&P,const Candidate&C,int side){
+    const double id=++G_r53_build_seq;
+    const int N=(int)P.knots.size();
+
+    for(int j=0;j<N;++j){
+        R53KnotDiagRow R;
+        R.build_id=id;R.side=(double)side;R.rejoin=C.actual_rejoin_time;
+        R.corr_v=C.dub[0];R.corr_a=C.dub[1];R.corr_j=C.dub[2];
+        R.node=(double)j;R.knot=P.knots[j];
+        R.P=P.P[j];R.V=P.V[j];
+        R.Pnorm=norm(R.P);R.Vnorm=norm(R.V);
+        R.prevT=(j>0)?P.knots[j]-P.knots[j-1]:std::numeric_limits<double>::quiet_NaN();
+        R.nextT=(j+1<N)?P.knots[j+1]-P.knots[j]:std::numeric_limits<double>::quiet_NaN();
+        G_r53_knot_diag.push_back(R);
+    }
+
+    for(size_t s=0;s<C.cp.size();++s){
+        R53SegmentDiagRow R;
+        R.build_id=id;R.side=(double)side;R.rejoin=C.actual_rejoin_time;
+        R.corr_v=C.dub[0];R.corr_a=C.dub[1];R.corr_j=C.dub[2];
+        R.seg=(double)s;R.ta=C.seg0[s];R.tb=C.seg1[s];R.T=R.tb-R.ta;
+        if(!(fin(R.T)&&R.T>0.0))continue;
+
+        Poly D=C.cp[s];int deg=15;
+        for(const auto&q:D)R.cp_norm=std::max(R.cp_norm,norm(q));
+        for(int r=1;r<=3;++r){
+            Poly E(D.size()-1);
+            for(size_t i=0;i+1<D.size();++i)
+                E[i]=(D[i+1]-D[i])*(double(deg)/R.T);
+            D.swap(E);--deg;
+            const double ub=poly_norm_ub(D);
+            if(r==1)R.vel_ub=ub;
+            else if(r==2)R.acc_ub=ub;
+            else R.jerk_ub=ub;
+        }
+        G_r53_segment_diag.push_back(R);
+    }
+}
+
+struct R52SupportPlane{
+    bool ok=false;
+    Vec3 m{};
+    double req=std::numeric_limits<double>::infinity();
+    double u=0.0;
+};
+
+// Same convex exact-support minimization as R45, but returns the actual
+// separating plane. No fixed-normal fallback is permitted: numerical
+// inconclusiveness fails this candidate closed.
+static inline R52SupportPlane r52_best_support_plane(
+        const Vec3&pL,const Vec3&pQ,const Obstacle&o,
+        double rhoL,double rhoQ,double rhoC,Vec3 eprog,Vec3 elat){
+    R52SupportPlane O;
+    auto F=[&](double u){return r45_corridor_eval_u(
+        pL,pQ,o,rhoL,rhoQ,rhoC,eprog,elat,u);};
+    auto E0=F(0.0);
+    if(!E0.ok)return O;
+    double best=E0.value,bestu=0.0;
+    if(E0.value<=0.0){O.ok=true;O.m=elat;O.req=0.0;return O;}
+    if(E0.dmin<=0.0&&E0.dmax>=0.0){
+        O.ok=true;O.m=elat;O.req=std::max(0.0,E0.value);return O;
+    }
+    const int dir=(E0.dmax<0.0)?+1:-1;
+    double uprev=0.0,step=1.0,ulo=0.0,uhi=0.0;
+    R45ConvexEval Eprev=E0;
+    bool bracket=false;
+    for(int it=0;it<60;++it){
+        const double ucur=double(dir)*step;
+        auto Ec=F(ucur);
+        if(!Ec.ok)return O;
+        if(Ec.value<best){best=Ec.value;bestu=ucur;}
+        if(Ec.value<=0.0){best=0.0;bestu=ucur;break;}
+        if((dir>0&&Ec.dmax>=0.0)||(dir<0&&Ec.dmin<=0.0)){
+            if(dir>0){ulo=uprev;uhi=ucur;}else{ulo=ucur;uhi=uprev;}
+            bracket=true;break;
+        }
+        uprev=ucur;Eprev=Ec;step*=2.0;
+        if(!fin(step))return O;
+    }
+    if(best>0.0){
+        if(!bracket)return O;
+        for(int it=0;it<80;++it){
+            const double um=0.5*(ulo+uhi);
+            if(!(fin(um)&&um>ulo&&um<uhi))break;
+            auto Em=F(um);if(!Em.ok)return O;
+            if(Em.value<best){best=Em.value;bestu=um;}
+            if(Em.dmin<=0.0&&Em.dmax>=0.0)break;
+            if(Em.dmax<0.0)ulo=um;else if(Em.dmin>0.0)uhi=um;else break;
+            const double tol=256*epsd()*std::max({1.0,std::fabs(ulo),std::fabs(uhi)});
+            if((uhi-ulo)<=tol)break;
+        }
+    }
+    Vec3 m=elat+eprog*bestu;
+    if(!(finite(m)&&fin(norm(m))&&norm(m)>0.0&&fin(best)))return O;
+    O.ok=true;O.m=m;O.req=std::max(0.0,best);O.u=bestu;return O;
+}
+
+
+// AF7R53 GENERAL-C7 MOVING NORMAL-BUNDLE CONSTRAINT.
+//
+// Phase is the sole longitudinal/progress variable.  The world-3D avoidance
+// correction is constrained at every interior exact-C7 knot to the moving
+// normal bundle of the phase-composed active reference:
+//
+//   e^T P = 0,
+//   e^T V + e_dot^T P = 0,
+//   e = v_b/||v_b||,
+//   e_dot = (I-ee^T)a_b/||v_b||.
+//
+// No straight/fixed-plane/saddle/circle special case is used.
+// For an affine base, e_dot=0 and e is constant, so the construction reduces
+// exactly to the successful historical R45/R47 e^perp correction subspace.
+//
+// These are synthesis constraints only.  Safety acceptance remains the
+// unchanged exact-C7 / finite-sensing-speed / yaw-C6 / rejoin / whole-body
+// certificate chain.  Failure is fail-closed; no alternative family fallback
+// is introduced.
+static inline bool r53_add_moving_normal_bundle_rows3(
+        std::vector<Row>&rows,const std::vector<double>&K,
+        const ActiveReference&ref,const R51PhaseSpec&phase,
+        int&nodeCount,int&rowCount,int&singularCount){
+    const int N=(int)K.size(),ns=r37_scalar_dofs(K),nvar=3*ns;
+    if(N<3||ns<=0)return false;
+
+    for(int node=1;node<N-1;++node){
+        const double t=K[node];
+        auto x=r51_phase_reference_eval(ref,phase,t);
+        const Vec3 v=x[1],a=x[2];
+        const double nv=norm(v);
+        if(!(finite(v)&&finite(a)&&fin(nv)&&nv>0.0)){
+            ++singularCount;
+            return false;
+        }
+        const Vec3 e=v/nv;
+        const Vec3 edot=(a-e*dot(e,a))/nv;
+        if(!(finite(e)&&finite(edot))){
+            ++singularCount;
+            return false;
+        }
+
+        const int qp=r37_scalar_index(node,0,N);
+        const int qv=r37_scalar_index(node,1,N);
+        if(qp<0||qv<0){
+            ++singularCount;
+            return false;
+        }
+
+        auto push_eq=[&](Vec3 cp,Vec3 cv){
+            Row r;r.a.assign(nvar,0.0);r.b=0.0;
+            r.a[3*qp+0]=cp.x;r.a[3*qp+1]=cp.y;r.a[3*qp+2]=cp.z;
+            r.a[3*qv+0]=cv.x;r.a[3*qv+1]=cv.y;r.a[3*qv+2]=cv.z;
+            rows.push_back(r);
+            for(double&z:r.a)z=-z;
+            rows.push_back(std::move(r));
+            rowCount+=2;
+        };
+
+        push_eq(e,Vec3{});   // e^T P = 0
+        push_eq(edot,e);     // e^T V + e_dot^T P = 0
+        ++nodeCount;
+    }
+    return true;
+}
+
+static inline std::vector<Row> r52_phase_corridor_rows3(
+        const ActiveReference&ref,const R51PhaseSpec&phase,
+        const Live&L,const SpeedCert&base,const std::vector<Obstacle>&obs,
+        const EpisodeCert&E,int ei,int side,const std::vector<double>&K,
+        R45CorridorDiag*diag=nullptr){
+    const int ns=r37_scalar_dofs(K),nvar=3*ns;
+    const auto&ep=E.ep[ei];const auto&o=obs[ep.obs];
+    const double VC=std::max(base.VL,base.VQ);
+    std::vector<Row> rows;
+    double ta=ep.start,te=ep.end;
+    while(ta<te-8*epsd()*std::max(1.0,std::fabs(te))){
+        const double tb=std::min(te,ta+L.dt);
+        const double tc=0.5*(ta+tb),half=0.5*(tb-ta);
+        auto x=r51_phase_reference_eval(ref,phase,tc);
+        Vec3 pL=x[0],v=x[1],sf=x[2]+Vec3{0,0,L.g};
+        const double nv=norm(v),nf=norm(sf);
+        if(!(fin(nv)&&nv>0&&fin(nf)&&nf>0))
+            throw std::runtime_error("R52 phased local frame singular");
+        Vec3 eprog=v/nv;
+        Vec3 q=sf*(-1.0/nf),pQ=pL-q*L.L;
+        Vec3 n0=lateral_normal(o.R,o.axes,eprog);
+        Vec3 elat=(side>=0)?n0:n0*(-1.0);
+        elat=elat-eprog*dot(elat,eprog);
+        const double nl=norm(elat);
+        if(!(fin(nl)&&nl>0))throw std::runtime_error("R52 lateral projection singular");
+        elat=elat/nl;
+        const double rhoL=L.rL+L.dmargin+L.tracking+base.VL*half;
+        const double rhoQ=L.rQ+L.dmargin+L.tracking+base.VQ*half;
+        const double rhoC=L.rC+L.dmargin+L.tracking+VC*half;
+        auto SP=r52_best_support_plane(pL,pQ,o,rhoL,rhoQ,rhoC,eprog,elat);
+        if(!SP.ok)throw std::runtime_error("R52 support plane optimization failed");
+        if(diag){
+            ++diag->intervals;
+            if(SP.req<=0.0)++diag->zero_offset_intervals;
+            diag->tangent_peak=std::max(diag->tangent_peak,SP.req);
+        }
+        if(SP.req>0.0){
+            const double req=SP.req+64*epsd()*std::max(1.0,std::fabs(SP.req));
+            auto w=r37_scalar_basis(K,tc);
+            Row R;R.a.assign(nvar,0.0);R.b=req;
+            for(int qq=0;qq<ns;++qq){
+                R.a[3*qq+0]=w[qq]*SP.m.x;
+                R.a[3*qq+1]=w[qq]*SP.m.y;
+                R.a[3*qq+2]=w[qq]*SP.m.z;
+            }
+            rows.push_back(std::move(R));
+        }
+        ta=tb;
+    }
+    return rows;
+}
+
+
+// AF7R55 episode-local bypass side selection.
+//
+// Every row still uses the exact support function of the full oriented
+// ellipsoid (center, rotation, and all three semiaxes).  Both local homotopy
+// sides are evaluated for each episode; different obstacle episodes may pick
+// different sides.  This removes the old "one global side for every obstacle"
+// restriction without 2^N global enumeration.
+struct R55EpisodeRows{
+    bool ok=false;
+    int sign=0;
+    bool plus_ok=false,minus_ok=false;
+    double plus_peak=std::numeric_limits<double>::infinity();
+    double minus_peak=std::numeric_limits<double>::infinity();
+    double plus_sum=std::numeric_limits<double>::infinity();
+    double minus_sum=std::numeric_limits<double>::infinity();
+    R45CorridorDiag plus_diag{},minus_diag{};
+    std::vector<Row> rows;
+};
+
+static inline double r55_positive_row_sum(const std::vector<Row>&R){
+    double s=0.0;
+    for(const auto&r:R)if(fin(r.b)&&r.b>0.0)s+=r.b;
+    return s;
+}
+
+static inline R55EpisodeRows r55_choose_episode_rows(
+        const ActiveReference&ref,const R51PhaseSpec&phase,
+        const Live&L,const SpeedCert&base,const std::vector<Obstacle>&obs,
+        const EpisodeCert&E,int ei,const std::vector<double>&K){
+    R55EpisodeRows O;
+    std::vector<Row> plus,minus;
+    try{
+        plus=r52_phase_corridor_rows3(
+            ref,phase,L,base,obs,E,ei,+1,K,&O.plus_diag);
+        O.plus_ok=!plus.empty();
+    }catch(const std::runtime_error&){O.plus_ok=false;}
+    try{
+        minus=r52_phase_corridor_rows3(
+            ref,phase,L,base,obs,E,ei,-1,K,&O.minus_diag);
+        O.minus_ok=!minus.empty();
+    }catch(const std::runtime_error&){O.minus_ok=false;}
+
+    if(!O.plus_ok&&!O.minus_ok)return O;
+
+    if(O.plus_ok){
+        O.plus_peak=O.plus_diag.tangent_peak;
+        O.plus_sum=r55_positive_row_sum(plus);
+    }
+    if(O.minus_ok){
+        O.minus_peak=O.minus_diag.tangent_peak;
+        O.minus_sum=r55_positive_row_sum(minus);
+    }
+
+    if(O.plus_ok&&!O.minus_ok){
+        O.sign=+1;O.rows=std::move(plus);
+    }else if(!O.plus_ok&&O.minus_ok){
+        O.sign=-1;O.rows=std::move(minus);
+    }else{
+        // Lexicographic, not weighted: first minimize peak exact-support
+        // displacement requirement, then total positive row requirement.
+        const double sc=std::max({1.0,std::fabs(O.plus_peak),std::fabs(O.minus_peak)});
+        const double g=65536*epsd()*sc;
+        if(O.plus_peak<O.minus_peak-g){
+            O.sign=+1;O.rows=std::move(plus);
+        }else if(O.minus_peak<O.plus_peak-g){
+            O.sign=-1;O.rows=std::move(minus);
+        }else{
+            const double ss=std::max({1.0,std::fabs(O.plus_sum),std::fabs(O.minus_sum)});
+            const double gs=65536*epsd()*ss;
+            if(O.minus_sum<O.plus_sum-gs){
+                O.sign=-1;O.rows=std::move(minus);
+            }else{
+                O.sign=+1;O.rows=std::move(plus);
+            }
+        }
+    }
+    O.ok=!O.rows.empty();
+    return O;
+}
+
+static inline void r55_ellipsoid_audit(
+        const std::vector<Obstacle>&obs,int&count,double&amin,double&amax,double&orthErr){
+    count=(int)obs.size();
+    amin=std::numeric_limits<double>::infinity();
+    amax=0.0;orthErr=0.0;
+    for(const auto&o:obs){
+        const double ax[3]={o.axes.x,o.axes.y,o.axes.z};
+        for(double x:ax){
+            if(fin(x)){amin=std::min(amin,x);amax=std::max(amax,x);}
+        }
+        for(int i=0;i<3;++i)for(int j=0;j<3;++j){
+            double z=0.0;
+            for(int k=0;k<3;++k)z+=o.R(k,i)*o.R(k,j);
+            const double target=(i==j)?1.0:0.0;
+            if(fin(z))orthErr=std::max(orthErr,std::fabs(z-target));
+        }
+    }
+}
+
+
 static inline Candidate r37_build_candidate(
         const R37Path&P,double h,Vec3 vbase){
     Candidate C;
@@ -4132,12 +5870,15 @@ static inline void towmap_core_record_witness(int family,int seg,int nseg,double
 struct VLeaf {
     int seg=0;double ta=0,tb=0;Poly C0;double vl=0,al=0,jl=0,sigma=0,qdot=0,vq=0,wit=std::numeric_limits<double>::quiet_NaN();
 };
+static inline std::array<Vec3,7> r51_candidate_base_eval(
+        const ActiveReference&ref,const Candidate&C,double t);
+
 static inline VLeaf make_vleaf(const ActiveReference&ref,const Live&L,const SpeedCert&base,
-                               const Poly&C0,double ta,double tb,int seg){
+                               const Candidate&Cand,const Poly&C0,double ta,double tb,int seg){
     VLeaf f;f.seg=seg;f.ta=ta;f.tb=tb;f.C0=C0;double T=tb-ta;
     if(!(fin(T)&&T>0&&C0.size()==16)){f.vq=std::numeric_limits<double>::infinity();return f;}
     Poly C1=deriv_poly(C0,T,1),C2=deriv_poly(C0,T,2),C3=deriv_poly(C0,T,3);
-    double tc=0.5*(ta+tb),h=0.5*T;auto x=ref.eval(tc);Vec3 v0=x[1],a0=x[2],j0=x[3];
+    double tc=0.5*(ta+tb),h=0.5*T;auto x=r51_candidate_base_eval(ref,Cand,tc);Vec3 v0=x[1],a0=x[2],j0=x[3];
     f.vl=0;for(auto v:C1)f.vl=std::max(f.vl,norm(v+v0));f.vl+=base.A*h;
     f.al=0;for(auto a:C2)f.al=std::max(f.al,norm(a+a0));f.al+=base.J*h;
     Vec3 d1=decasteljau(C1,0.5),d2=decasteljau(C2,0.5),d3=decasteljau(C3,0.5);
@@ -4150,13 +5891,28 @@ static inline VLeaf make_vleaf(const ActiveReference&ref,const Live&L,const Spee
     return f;
 }
 static inline SpeedCert stageB_speed(const ActiveReference&ref,const Live&L,const SpeedCert&base,
-                                     const Candidate&C,double lim,bool&finiteWitness,bool&repr){
-    std::vector<VLeaf> leaves;for(size_t s=0;s<C.cp.size();++s)leaves.push_back(make_vleaf(ref,L,base,C.cp[s],C.seg0[s],C.seg1[s],(int)s));
+                                     const Candidate&C,double lim,bool&finiteWitness,bool&repr,
+                                     R52StageBTrace* dbg=nullptr){
+    if(dbg){*dbg=R52StageBTrace{};dbg->attempted=1;}
+    std::vector<VLeaf> leaves;for(size_t s=0;s<C.cp.size();++s)leaves.push_back(make_vleaf(ref,L,base,C,C.cp[s],C.seg0[s],C.seg1[s],(int)s));
     int splits=0;
+    auto update_dbg=[&](){
+        if(!dbg)return;
+        dbg->leaf_count=(int)leaves.size();dbg->split_count=splits;
+        for(const auto&f:leaves){
+            const double vv=fin(f.vq)?f.vq:std::numeric_limits<double>::infinity();
+            if(vv>dbg->worst_vq){
+                dbg->worst_vq=vv;dbg->worst_t=0.5*(f.ta+f.tb);dbg->worst_seg=f.seg;
+                dbg->worst_vl=f.vl;dbg->worst_sigma=f.sigma;dbg->worst_qdot=f.qdot;dbg->worst_witness=f.wit;
+            }
+        }
+    };
+    update_dbg();
     while(true){
         bool all=true;for(auto&f:leaves)if(!(fin(f.vq)&&f.vq<lim)){all=false;break;}
         if(all)break;
         for(auto&f:leaves)if(fin(f.wit)&&f.wit>=lim){finiteWitness=true;
+            if(dbg){update_dbg();dbg->result_code=2;dbg->worst_witness=f.wit;dbg->worst_t=0.5*(f.ta+f.tb);dbg->worst_seg=f.seg;}
             towmap_core_record_witness(C.family,f.seg,(int)C.cp.size(),0.5*(f.ta+f.tb),f.wit);return {};}
         int bi=-1;double bs=-std::numeric_limits<double>::infinity();
         for(int i=0;i<(int)leaves.size();++i)if(!fin(leaves[i].vq)||leaves[i].vq>=lim){
@@ -4164,32 +5920,61 @@ static inline SpeedCert stageB_speed(const ActiveReference&ref,const Live&L,cons
             if(sc>bs){bs=sc;bi=i;}
         }
         if(bi<0)break;auto old=leaves[bi];double tm=0.5*(old.ta+old.tb);
-        if(!(fin(tm)&&tm>old.ta&&tm<old.tb)){repr=true;return {};}
+        if(!(fin(tm)&&tm>old.ta&&tm<old.tb)){repr=true;if(dbg){update_dbg();dbg->result_code=3;}return {};}
         auto sp=split_half(old.C0);
-        leaves[bi]=make_vleaf(ref,L,base,sp.first,old.ta,tm,old.seg);
-        leaves.push_back(make_vleaf(ref,L,base,sp.second,tm,old.tb,old.seg));++splits;
+        leaves[bi]=make_vleaf(ref,L,base,C,sp.first,old.ta,tm,old.seg);
+        leaves.push_back(make_vleaf(ref,L,base,C,sp.second,tm,old.tb,old.seg));++splits;
+        update_dbg();
     }
     SpeedCert s;s.certified=true;s.stageA=false;s.leaf_count=(int)leaves.size();s.split_count=splits;
     s.VQ=0;s.VL=0;s.A=0;s.J=0;s.sigma=std::numeric_limits<double>::infinity();s.qdot=0;
     for(auto&f:leaves){if(!fin(f.vq)||!fin(f.sigma)||f.sigma<=0){s.certified=false;return s;}
         s.VQ=std::max(s.VQ,f.vq);s.VL=std::max(s.VL,f.vl);s.A=std::max(s.A,f.al);s.J=std::max(s.J,f.jl);
         s.sigma=std::min(s.sigma,f.sigma);s.qdot=std::max(s.qdot,f.qdot);}
-    if(!(s.VQ<lim&&s.sigma>0))s.certified=false;return s;
+    if(!(s.VQ<lim&&s.sigma>0))s.certified=false;
+    if(dbg){update_dbg();dbg->result_code=s.certified?1:4;}
+    return s;
 }
 
 // -------------------------- corrected candidate eval ------------------------
-static inline std::array<Vec3,7> candidate_eval(const ActiveReference&ref,const Candidate&C,double t){
-    auto y=ref.eval(t);
+static inline std::array<Vec3,7> r51_candidate_base_eval(
+        const ActiveReference&ref,const Candidate&C,double t){
+    if(!C.phase_reparameterized||!C.phase.enabled)
+        return ref.eval(t);
+    const auto S=r51_phase_jet(C.phase,t);
+    auto b=ref.eval(S[0]);
+    return r51_compose_vec_jet(b,S);
+}
+
+static inline std::array<Vec3,7> candidate_eval(
+        const ActiveReference&ref,const Candidate&C,double t){
+    auto y=r51_candidate_base_eval(ref,C,t);
     if(C.cp.empty()||t<=C.seg0.front())return y;
+
     if(t>=C.seg1.back()){
-        if(C.terminal_hold)y[0]+=C.terminal_offset;
+        if(!C.phase_reparameterized && C.terminal_hold)
+            y[0]+=C.terminal_offset;
         return y;
     }
-    int s=-1;for(int i=0;i<(int)C.cp.size();++i){if(t<=C.seg1[i]){s=i;break;}}
+
+    int s=-1;
+    for(int i=0;i<(int)C.cp.size();++i){
+        if(t<=C.seg1[i]){s=i;break;}
+    }
     if(s<0||t<C.seg0[s])return y;
-    double T=C.seg1[s]-C.seg0[s],u=std::max(0.0,std::min(1.0,(t-C.seg0[s])/T));Poly D=C.cp[s];
-    y[0]+=decasteljau(D,u);int deg=15;
-    for(int r=1;r<=6;++r){Poly E(D.size()-1);for(size_t i=0;i+1<D.size();++i)E[i]=(D[i+1]-D[i])*(double(deg)/T);D.swap(E);--deg;y[r]+=decasteljau(D,u);}
+
+    const double T=C.seg1[s]-C.seg0[s];
+    double u=std::max(0.0,std::min(1.0,(t-C.seg0[s])/T));
+    Poly D=C.cp[s];
+    y[0]+=decasteljau(D,u);
+    int deg=15;
+    for(int r=1;r<=6;++r){
+        Poly E(D.size()-1);
+        for(size_t i=0;i+1<D.size();++i)
+            E[i]=(D[i+1]-D[i])*(double(deg)/T);
+        D.swap(E);--deg;
+        y[r]+=decasteljau(D,u);
+    }
     return y;
 }
 static inline bool rejoin_safe(const ActiveReference&ref,const Live&L,const std::vector<Obstacle>&obs,
@@ -4238,16 +6023,20 @@ static inline GeometryCert wholebody(const ActiveReference&ref,const Live&L,cons
 // ---------------------------- top-level -------------------------------------
 // R36 fixed-terminal certificate primitive + minimum-deviation synthesis
 // -----------------------
-// The packet field `t1` / `search_end` is a finite source-derived reference
-// validity bound only. It is NOT used as the correction end any more.
+// The packet field `t1` / `search_end` is a finite source-derived active
+// reference-validity boundary. It is NOT a fixed physical avoidance-duration
+// parameter.
 //
-// The current maneuver is built over the nominal-unsafe component(s) that
-// cannot be separated by a certified return to the active base reference
-// before the next unsafe component begins. Separated future components remain
-// eligible for the existing recursive trigger/replanning architecture. Within
-// the selected scope, the rejoin duration is chosen automatically by a
-// finite source-domain search with no fixed maneuver-duration cap. Every
-// accepted trial still passes exactly the same:
+// AF7R47 currently certifies one fixed-t1 candidate per native call. The
+// historical repeated full-planner rejoin-shortening search was removed from
+// the hard cycle because it was quality-only and caused large online spikes.
+// Automatic shorter rejoin remains a later quality layer; when reintroduced
+// it must reuse the already-built episode/corridor rather than weaken or
+// duplicate the hard certificates.
+//
+// Every accepted candidate still passes exactly the same:
+//   * exact-C7 structural gate,
+//   * continuous path-tangent yaw-C6 regularity gate,
 //   * Stage-A/B finite-sensing speed certificate,
 //   * continuous rejoin-cell certificate,
 //   * continuous all-obstacle whole-body certificate.
@@ -4325,6 +6114,2560 @@ static inline bool c7r7_heading_regular(const ActiveReference&ref,const Candidat
     return true;
 }
 
+
+// AF7R47 ACTIVE-BASE PATH-TANGENT YAW C6 CERTIFICATE
+//
+// Let vb(t) be the horizontal velocity of the currently active certified
+// reference, and vn(t) the horizontal velocity after adding the new exact-C7
+// correction.  We certify
+//
+//      g(t) = vb_xy(t)' vn_xy(t) > 0
+//
+// continuously on [ta,tb].  Hence both horizontal velocities are nonzero and
+// the new tangent direction stays strictly within +/-pi/2 of the old tangent
+// direction at every time.  This provides a unique local branch transfer from
+// the already continuous old path-tangent yaw to the new path-tangent yaw.
+//
+// For one leaf I with midpoint tc and half-width h,
+//
+//   |g'(t)| <= A_b V_n + V_b A_n = Lg,
+//
+// where (V_b,A_b) are the certified active-reference bounds and (V_n,A_n)
+// are the newly certified candidate bounds. Therefore
+//
+//   g(t) >= g(tc) - Lg h.
+//
+// Subdivision terminates only when that continuous lower bound is positive.
+// If binary64 cannot form a strict midpoint first, certification fails closed.
+// There is no sampled acceptance and no fixed physical angle threshold.
+static inline bool r47_apply_heading_certificate(
+        const ActiveReference&ref,Candidate&C,
+        const SpeedCert&base,const SpeedCert&now,
+        double ta,double tb,double&gammaOut,double&anchorOut,
+        int&leafCount,int&splitCount,R52HeadingTrace* dbg=nullptr){
+    gammaOut=std::numeric_limits<double>::quiet_NaN();
+    anchorOut=std::numeric_limits<double>::quiet_NaN();
+    leafCount=0;splitCount=0;
+    if(dbg){*dbg=R52HeadingTrace{};dbg->attempted=1;}
+
+    if(!(base.certified&&now.certified&&
+            fin(base.VL)&&base.VL>0&&fin(base.A)&&base.A>=0&&
+            fin(now.VL)&&now.VL>0&&fin(now.A)&&now.A>=0&&
+            fin(ta)&&fin(tb)&&tb>ta)){
+        if(dbg)dbg->reason=1;
+        return false;
+    }
+
+    const double Lg=base.A*now.VL + base.VL*now.A;
+    if(!(fin(Lg)&&Lg>=0)){if(dbg)dbg->reason=2;return false;}
+
+    struct Leaf{double a,b;};
+    std::vector<Leaf> st;
+    st.push_back({ta,tb});
+    double minDot=std::numeric_limits<double>::infinity();
+
+    while(!st.empty()){
+        Leaf f=st.back();st.pop_back();
+        const double tc=0.5*(f.a+f.b);
+        const double h=0.5*(f.b-f.a);
+        if(!(fin(tc)&&fin(h)&&h>0&&tc>f.a&&tc<f.b)){
+            if(dbg){dbg->reason=3;dbg->worst_a=f.a;dbg->worst_b=f.b;}
+            return false;
+        }
+
+        const auto xb=r51_candidate_base_eval(ref,C,tc);
+        const auto xn=candidate_eval(ref,C,tc);
+        const double g0=xb[1].x*xn[1].x + xb[1].y*xn[1].y;
+        if(!fin(g0)){if(dbg)dbg->reason=3;return false;}
+
+        const double lb=g0-Lg*h;
+        if(dbg){
+            dbg->min_g0=std::min(dbg->min_g0,g0);
+            dbg->min_lb=std::min(dbg->min_lb,lb);
+            if(lb<=dbg->min_lb){dbg->worst_a=f.a;dbg->worst_b=f.b;}
+        }
+        ++leafCount;
+        if(fin(lb)&&lb>0.0){
+            minDot=std::min(minDot,lb);
+            continue;
+        }
+
+        st.push_back({tc,f.b});
+        st.push_back({f.a,tc});
+        ++splitCount;
+    }
+
+    if(dbg){dbg->leaves=leafCount;dbg->splits=splitCount;}
+    if(!(fin(minDot)&&minDot>0.0&&base.VL>0.0)){
+        if(dbg)dbg->reason=4;
+        return false;
+    }
+
+    // g <= ||vb_xy|| ||vn_xy|| <= Vb ||vn_xy||.
+    const double gamma=minDot/base.VL;
+    if(!(fin(gamma)&&gamma>0.0)){if(dbg)dbg->reason=4;return false;}
+
+    const auto x0=r51_candidate_base_eval(ref,C,ta);
+    const double nh=std::hypot(x0[1].x,x0[1].y);
+    if(!(fin(nh)&&nh>0.0)){if(dbg)dbg->reason=5;return false;}
+
+    C.heading_c6=true;
+    C.heading_gamma=gamma;
+    C.heading_anchor_rad=std::atan2(x0[1].y,x0[1].x);
+    C.heading_base_velocity=x0[1];
+    gammaOut=gamma;
+    anchorOut=C.heading_anchor_rad;
+    if(dbg){dbg->reason=0;dbg->leaves=leafCount;dbg->splits=splitCount;}
+    return true;
+}
+
+
+// ===========================================================================
+// AF7R57 GENERAL PATH-TANGENT YAW-C6 CERTIFICATE
+//
+// Exact-C7 position => horizontal velocity v_xy is C6.
+// If inf ||v_xy|| > 0 on a connected time interval, the normalized tangent
+// is C6 and has a global continuous C6 angle lift.  Certify nonvanishing by
+//
+//      ||v_xy(t)|| >= ||v_xy(tc)|| - A*h
+//
+// using the already certified total acceleration bound A.  No old-heading
+// half-plane, no physical angle threshold, and no fixed subdivision depth.
+// Binary64 midpoint exhaustion fails closed.
+// ===========================================================================
+static inline bool r57_apply_heading_certificate(
+        const ActiveReference&ref,Candidate&C,const SpeedCert&now,
+        double ta,double tb,double&gammaOut,double&anchorOut,
+        int&leafCount,int&splitCount){
+    gammaOut=std::numeric_limits<double>::quiet_NaN();
+    anchorOut=std::numeric_limits<double>::quiet_NaN();
+    leafCount=0;splitCount=0;
+
+    if(!(now.certified&&fin(now.A)&&now.A>=0.0&&
+         fin(ta)&&fin(tb)&&tb>ta))
+        return false;
+
+    struct Leaf{double a,b;};
+    std::vector<Leaf> st;
+    st.push_back({ta,tb});
+    double gamma=std::numeric_limits<double>::infinity();
+
+    while(!st.empty()){
+        const Leaf f=st.back();st.pop_back();
+        const double tc=0.5*(f.a+f.b);
+        const double h=0.5*(f.b-f.a);
+        if(!(fin(tc)&&fin(h)&&h>0.0&&tc>f.a&&tc<f.b))
+            return false;
+
+        const auto x=candidate_eval(ref,C,tc);
+        const double vxy=std::hypot(x[1].x,x[1].y);
+        const double lb=vxy-now.A*h;
+        ++leafCount;
+
+        if(fin(lb)&&lb>0.0){
+            gamma=std::min(gamma,lb);
+            continue;
+        }
+
+        st.push_back({tc,f.b});
+        st.push_back({f.a,tc});
+        ++splitCount;
+    }
+
+    if(!(fin(gamma)&&gamma>0.0))
+        return false;
+
+    const auto x0=candidate_eval(ref,C,ta);
+    const double h0=std::hypot(x0[1].x,x0[1].y);
+    if(!(fin(h0)&&h0>0.0))
+        return false;
+
+    C.heading_c6=true;
+    C.heading_gamma=gamma;
+    C.heading_anchor_rad=std::atan2(x0[1].y,x0[1].x);
+    C.heading_base_velocity=x0[1];
+    gammaOut=gamma;
+    anchorOut=C.heading_anchor_rad;
+    return true;
+}
+
+
+
+// ===========================================================================
+// AF7R58 FREE-C7 SOURCE-SPACE REFERENCE CORE
+//
+// At every interior source knot, correction jets d^(0)...d^(7) are free.
+// Adjacent degree-15 Bezier segments share the same node jet. The start jet
+// is zero. At the finite source-validity boundary only derivatives 1...7 are
+// zero; position is free and continues as a constant offset. No prescribed
+// zero-position rejoin or same-clock catch-up exists.
+//
+// QP variable z_r = d^(r) lambda_j^r with a symmetric local node scale
+// lambda_j=sqrt(T_- T_+) (terminal: T_-), so each variable has units
+// of length. This is an invertible coordinate transform only; physical
+// objective, constraints, and feasible trajectories are unchanged.
+// The moving-normal equalities are eliminated analytically before solving.
+// Each interior (P,V) pair is parameterized by four normal-bundle coordinates,
+// so no +/- equality-row pair reaches the active-set solver. A second
+// diagonal Hessian equilibration y_i=sqrt(H_ii) z_i is then applied
+// before the active-set solve; rows are transformed consistently and the
+// physical z is recovered exactly by the inverse coordinate map. Before storing a candidate, the shared node jets are projected
+// onto a common dyadic lattice in normalized Bernstein-difference
+// coordinates. Checked int64 endpoint-difference identities then provide a
+// constructive exact-real C7 proof even for unequal segment durations.
+//
+// Each unsafe episode caches both exact-support +/- corridor alternatives.
+// Best-first side-graph search uses the convex projection cost only as an
+// ordering key; NO branch is pruned by cost. Thus safety and side-graph
+// coverage do not rely on objective optimality. The finite numerical resource
+// guard may still fail closed before an existing feasible branch is found.
+// No local greedy side choice is used.
+//
+// Reference-only shadow: execution tracking/observer/HLC tubes are outside
+// this stage by design.
+//
+// R58R7 QP implementation uses exact constraint generation: each subset QP
+// is solved to KKT closure, then ALL omitted rows are checked. A violated row
+// is added and the process repeats. Once the subset optimum satisfies all
+// full rows, it is also the full-QP optimum by feasible-set inclusion. No row
+// is permanently discarded and no sampled/partial-row result can grant
+// acceptance.
+
+//
+// R58R8 solves each small generated subset with an infeasible-start
+// primal-dual Mehrotra method.  The Newton matrix is
+// H + A' diag(lambda./s) A and is SPD whenever H is SPD and s,lambda>0.
+// Thus no active-row independence assumption is required.  Full-row
+// optimality is still established only by the unchanged R58R7 all-row scan.
+
+
+//
+// R58R11 replaces the ill-conditioned normal-equation PCG solve by the
+// algebraically equivalent augmented Newton system in (dz,dlambda):
+// [H,-A'; Lambda*A,S]. Positive row/column equilibration and complete pivoting
+// are invertible numerical operations; the original Newton residual is checked
+// before the direction is accepted. No lambda/s normal equation is formed.
+//
+// R58R11 also uses one common primal/dual step.  Because the primal and dual
+// KKT residual equations are linear in the Newton direction, this guarantees
+// r_p^+=(1-alpha)r_p and r_d^+=(1-alpha)r_d in exact arithmetic.  Positivity
+// is enforced with the largest common step, moved by one binary64 value toward
+// zero only when the boundary is active.  No empirical step fraction is used.
+// ===========================================================================
+
+static inline double r58_ff(int r){
+    double f=1.0;
+    for(int k=0;k<r;++k)f*=double(15-k);
+    return f;
+}
+static inline double r58_tau_pow(double tau,int r){
+    double p=1.0;
+    for(int k=0;k<r;++k)p*=tau;
+    return p;
+}
+
+static inline double r58_node_scale(
+        const std::vector<double>&K,int node){
+    const int N=(int)K.size();
+    if(node<=0||node>=N)
+        return std::numeric_limits<double>::quiet_NaN();
+    const double Tm=K[node]-K[node-1];
+    if(!(fin(Tm)&&Tm>0.0))
+        return std::numeric_limits<double>::quiet_NaN();
+    if(node==N-1)return Tm;
+    const double Tp=K[node+1]-K[node];
+    if(!(fin(Tp)&&Tp>0.0))
+        return std::numeric_limits<double>::quiet_NaN();
+
+    // Symmetric minimax-log conditioning scale:
+    // lambda = sqrt(T_- T_+) minimizes
+    // max{|log(T_-/lambda)|, |log(T_+/lambda)|}.
+    return std::sqrt(Tm*Tp);
+}
+
+static inline int r58_scalar_dofs(const std::vector<double>&K){
+    const int N=(int)K.size();
+    return N>=2 ? 8*std::max(0,N-2)+1 : 0;
+}
+static inline int r58_scalar_index(int node,int r,int N){
+    if(node<=0||node>=N||r<0||r>7)return -1;
+    if(node==N-1)return r==0 ? 8*(N-2) : -1;
+    return 8*(node-1)+r;
+}
+
+static inline std::vector<double> r58_scalar_basis(
+        const std::vector<double>&K,double t){
+    const int N=(int)K.size(),ns=r58_scalar_dofs(K);
+    std::vector<double>w(ns,0.0);
+    if(N<2||ns<=0)return w;
+    const int s=r37_find_segment(K,t);
+    if(s<0)return w;
+    const double T=K[s+1]-K[s];
+    if(!(fin(T)&&T>0.0))return w;
+    double u=(t-K[s])/T;
+    u=std::max(0.0,std::min(1.0,u));
+
+    for(int a=0;a<2;++a){
+        const int node=(a==0)?s:s+1;
+        const double lambda=(node>0)?r58_node_scale(K,node):1.0;
+        if(node>0&&!(fin(lambda)&&lambda>0.0))return std::vector<double>(ns,0.0);
+        for(int r=0;r<=7;++r){
+            const int q=r58_scalar_index(node,r,N);
+            if(q<0)continue;
+            std::array<double,8>J0{},J1{};
+            const double jr=(node>0)?1.0/std::pow(lambda,r):1.0;
+            if(a==0)J0[r]=jr;else J1[r]=jr;
+            const auto cp=scalar_control_from_jets(J0,J1,T);
+            w[q]=r36_scalar_bezier_eval(cp,u);
+        }
+    }
+    return w;
+}
+
+static inline std::vector<double> r58_spatial_hessian3(
+        const std::vector<double>&K,double cableL,double gravity){
+    const int N=(int)K.size(),ns=r58_scalar_dofs(K);
+    if(N<2||ns<=0||!(fin(cableL)&&cableL>0&&fin(gravity)&&gravity>0))
+        return {};
+    const double tau=std::sqrt(cableL/gravity);
+    if(!(fin(tau)&&tau>0.0))return {};
+
+    const double tau2=tau*tau;
+    const double wr[4]={1.0/tau2,1.0,tau2,tau2*tau2};
+    std::vector<double>Hs(ns*ns,0.0);
+
+    for(int s=0;s<N-1;++s){
+        const double T=K[s+1]-K[s];
+        if(!(fin(T)&&T>0.0))return {};
+
+        std::vector<int>qv;
+        std::vector<std::vector<double>>CP;
+        for(int a=0;a<2;++a){
+            const int node=(a==0)?s:s+1;
+            for(int r=0;r<=7;++r){
+                const int q=r58_scalar_index(node,r,N);
+                if(q<0)continue;
+                std::array<double,8>J0{},J1{};
+                const double lambda=r58_node_scale(K,node);
+                if(!(fin(lambda)&&lambda>0.0))return {};
+                const double jr=1.0/std::pow(lambda,r);
+                if(a==0)J0[r]=jr;else J1[r]=jr;
+                qv.push_back(q);
+                CP.push_back(scalar_control_from_jets(J0,J1,T));
+            }
+        }
+
+        for(int d=0;d<=3;++d){
+            const int deg=15-d,ncp=16-d;
+            std::vector<std::vector<double>>D(CP.size());
+            double ff=1.0;
+            for(int q=0;q<d;++q)ff*=double(15-q);
+            for(size_t i=0;i<CP.size();++i){
+                D[i]=diff_scalar(CP[i],d);
+                const double sc=(d==0)?1.0:ff/std::pow(T,d);
+                for(double&v:D[i])v*=sc;
+            }
+            for(size_t i=0;i<D.size();++i)for(size_t j=0;j<D.size();++j){
+                double q=0.0;
+                for(int aa=0;aa<ncp;++aa)for(int bb=0;bb<ncp;++bb)
+                    q+=D[i][aa]*gram(deg,aa,bb)*D[j][bb];
+                Hs[qv[i]*ns+qv[j]]+=wr[d]*T*q;
+            }
+        }
+    }
+
+    const int n=3*ns;
+    std::vector<double>H(n*n,0.0);
+    for(int i=0;i<ns;++i)for(int j=0;j<ns;++j){
+        const double hij=Hs[i*ns+j];
+        for(int a=0;a<3;++a)
+            H[(3*i+a)*n+(3*j+a)]=hij;
+    }
+    return H;
+}
+
+static inline bool r58_add_moving_normal_rows(
+        std::vector<Row>&rows,const std::vector<double>&K,
+        const ActiveReference&ref,
+        int&nodeCount,int&rowCount,int&singularCount){
+    const int N=(int)K.size(),ns=r58_scalar_dofs(K),nvar=3*ns;
+    if(N<3||ns<=0)return false;
+
+    for(int node=1;node<N-1;++node){
+        const auto x=ref.eval(K[node]);
+        const Vec3 v=x[1],a=x[2];
+        const double nv=norm(v);
+        if(!(finite(v)&&finite(a)&&fin(nv)&&nv>0.0)){
+            ++singularCount;return false;
+        }
+        const Vec3 e=v/nv;
+        const Vec3 edot=(a-e*dot(e,a))/nv;
+        const int qp=r58_scalar_index(node,0,N);
+        const int qv=r58_scalar_index(node,1,N);
+        if(qp<0||qv<0){++singularCount;return false;}
+
+        auto push_eq=[&](Vec3 cp,Vec3 cv){
+            Row R;R.a.assign(nvar,0.0);R.b=0.0;
+            R.a[3*qp+0]=cp.x;R.a[3*qp+1]=cp.y;R.a[3*qp+2]=cp.z;
+            R.a[3*qv+0]=cv.x;R.a[3*qv+1]=cv.y;R.a[3*qv+2]=cv.z;
+            rows.push_back(R);
+            for(double&z:R.a)z=-z;
+            rows.push_back(std::move(R));
+            rowCount+=2;
+        };
+        push_eq(e,Vec3{});
+        const double lambda=r58_node_scale(K,node);
+        if(!(fin(lambda)&&lambda>0.0)){++singularCount;return false;}
+        push_eq(edot,e*(1.0/lambda));
+        ++nodeCount;
+    }
+    return true;
+}
+
+struct R58SideRows{
+    bool valid=false;
+    int sign=0;
+    double peak=0.0;
+    std::vector<Row>rows;
+};
+
+static inline R58SideRows r58_episode_rows(
+        const ActiveReference&ref,const Live&L,const SpeedCert&base,
+        const std::vector<Obstacle>&obs,const EpisodeCert&E,int ei,int side,
+        const std::vector<double>&K){
+    R58SideRows O;O.sign=side;
+    const int ns=r58_scalar_dofs(K),nvar=3*ns;
+    if(ns<=0)return O;
+    const auto&ep=E.ep[ei];const auto&o=obs[ep.obs];
+    const double VC=std::max(base.VL,base.VQ);
+    double ta=ep.start,te=ep.end;
+
+    while(ta<te-8*epsd()*std::max(1.0,std::fabs(te))){
+        const double tb=std::min(te,ta+L.dt);
+        const double tc=0.5*(ta+tb),half=0.5*(tb-ta);
+        auto x=ref.eval(tc);
+        Vec3 pL=x[0],v=x[1],sf=x[2]+Vec3{0,0,L.g};
+        const double nv=norm(v),nf=norm(sf);
+        if(!(fin(nv)&&nv>0.0&&fin(nf)&&nf>0.0))return O;
+
+        Vec3 eprog=v/nv;
+        Vec3 q=sf*(-1.0/nf),pQ=pL-q*L.L;
+        Vec3 n0=lateral_normal(o.R,o.axes,eprog);
+        Vec3 elat=(side>=0)?n0:n0*(-1.0);
+        elat=elat-eprog*dot(elat,eprog);
+        const double nl=norm(elat);
+        if(!(fin(nl)&&nl>0.0))return O;
+        elat=elat/nl;
+
+        const double rhoL=L.rL+L.dmargin+L.tracking+base.VL*half;
+        const double rhoQ=L.rQ+L.dmargin+L.tracking+base.VQ*half;
+        const double rhoC=L.rC+L.dmargin+L.tracking+VC*half;
+        auto SP=r52_best_support_plane(
+            pL,pQ,o,rhoL,rhoQ,rhoC,eprog,elat);
+        if(!SP.ok)return O;
+        O.peak=std::max(O.peak,SP.req);
+
+        if(SP.req>0.0){
+            const double req=SP.req+
+                64*epsd()*std::max(1.0,std::fabs(SP.req));
+            auto w=r58_scalar_basis(K,tc);
+            Row R;R.a.assign(nvar,0.0);R.b=req;
+            for(int qq=0;qq<ns;++qq){
+                R.a[3*qq+0]=w[qq]*SP.m.x;
+                R.a[3*qq+1]=w[qq]*SP.m.y;
+                R.a[3*qq+2]=w[qq]*SP.m.z;
+            }
+            O.rows.push_back(std::move(R));
+        }
+        ta=tb;
+    }
+    O.valid=true;
+    return O;
+}
+
+struct R58NodeLattice{
+    int e[3]{0,0,0};
+    long long q[3][8]{};
+};
+
+// MSVC-portable exact integer arithmetic for the dyadic C7 lattice.
+// No floating approximation is used in the endpoint-difference identities.
+// If a platform-int64 operation would overflow, construction fails closed.
+static_assert(std::numeric_limits<long long>::digits>=63,
+              "R58 requires at least signed 64-bit long long");
+
+static inline long long r58_checked_add_ll(long long a,long long b){
+    const long long hi=std::numeric_limits<long long>::max();
+    const long long lo=std::numeric_limits<long long>::min();
+    if((b>0&&a>hi-b)||(b<0&&a<lo-b))
+        throw std::runtime_error("R58 int64 add overflow");
+    return a+b;
+}
+static inline long long r58_checked_mul_ll(long long a,long long b){
+    const long long hi=std::numeric_limits<long long>::max();
+    const long long lo=std::numeric_limits<long long>::min();
+    if(a==0||b==0)return 0;
+    if(a==-1){
+        if(b==lo)throw std::runtime_error("R58 int64 mul overflow");
+        return -b;
+    }
+    if(b==-1){
+        if(a==lo)throw std::runtime_error("R58 int64 mul overflow");
+        return -a;
+    }
+    if(a>0){
+        if(b>0){
+            if(a>hi/b)throw std::runtime_error("R58 int64 mul overflow");
+        }else{
+            if(b<lo/a)throw std::runtime_error("R58 int64 mul overflow");
+        }
+    }else{
+        if(b>0){
+            if(a<lo/b)throw std::runtime_error("R58 int64 mul overflow");
+        }else{
+            // a<0,b<0.  Division by a is well-defined here because a!=-1.
+            if(a<hi/b)throw std::runtime_error("R58 int64 mul overflow");
+        }
+    }
+    return a*b;
+}
+static inline long long r58_binom_ll(int n,int k){
+    if(k<0||k>n)return 0;
+    long long v=1;
+    for(int i=1;i<=k;++i)v=v*(n-k+i)/i;
+    return v;
+}
+
+static inline R58NodeLattice r58_make_node_lattice(
+        const std::array<Vec3,8>&Z,double lambda,double h,
+        long long Km,long long Kp,bool terminal,
+        double&maxJetErr,double&maxPhysicalJetErr){
+    R58NodeLattice L;
+    if(!(fin(lambda)&&lambda>0&&fin(h)&&h>0&&Km>=1&&Kp>=0))
+        throw std::runtime_error("R58 invalid lattice request");
+
+    for(int ax=0;ax<3;++ax){
+        double b[8]{};
+        for(int r=0;r<=7;++r){
+            if(terminal&&r>0){b[r]=0.0;continue;}
+            const double z=(ax==0)?Z[r].x:((ax==1)?Z[r].y:Z[r].z);
+            const double jr=z/std::pow(lambda,r);
+            b[r]=jr*std::pow(h,r)/r58_ff(r);
+            if(!fin(b[r]))throw std::runtime_error("R58 nonfinite normalized jet");
+        }
+
+        double M=0.0;
+        const long long KK[2]={Km,Kp};
+        for(int side=0;side<2;++side){
+            const long long K=KK[side];
+            if(K<1)continue;
+            for(int k=0;k<=7;++k){
+                long double kp=1.0L;
+                for(int r=0;r<=k;++r){
+                    if(r>0)kp*=(long double)K;
+                    const long double v=
+                        std::fabs((long double)b[r])*kp*
+                        (long double)r58_binom_ll(k,r);
+                    if(!std::isfinite((double)v))
+                        throw std::runtime_error("R58 lattice magnitude overflow");
+                    M=std::max(M,(double)v);
+                }
+            }
+        }
+
+        int e=(M>0.0)?std::ilogb(M)-44:-1070;
+        e=std::max(-1070,std::min(1000,e));
+        L.e[ax]=e;
+
+        for(int r=0;r<=7;++r){
+            if(terminal&&r>0){L.q[ax][r]=0;continue;}
+            const double scaled=std::ldexp(b[r],-e);
+            if(!(fin(scaled)&&std::fabs(scaled)<4503599627370496.0))
+                throw std::runtime_error("R58 lattice quantization range");
+            L.q[ax][r]=std::llround(scaled);
+
+            const double bq=std::ldexp((double)L.q[ax][r],e);
+            const double jq=bq*r58_ff(r)/std::pow(h,r);
+            const double zq=jq*std::pow(lambda,r);
+            const double z=(ax==0)?Z[r].x:((ax==1)?Z[r].y:Z[r].z);
+            const double jr0=z/std::pow(lambda,r);
+            maxJetErr=std::max(maxJetErr,std::fabs(zq-z));
+            maxPhysicalJetErr=std::max(
+                maxPhysicalJetErr,std::fabs(jq-jr0));
+        }
+    }
+    return L;
+}
+
+static inline double r58_lattice_control(
+        const R58NodeLattice&L,int ax,long long K,int k,bool right){
+    long long sum=0;
+    for(int r=0;r<=k;++r){
+        long long term=L.q[ax][r];
+        for(int j=0;j<r;++j)
+            term=r58_checked_mul_ll(term,K);
+        term=r58_checked_mul_ll(term,r58_binom_ll(k,r));
+        if(right&&(r&1)){
+            if(term==std::numeric_limits<long long>::min())
+                throw std::runtime_error("R58 int64 sign overflow");
+            term=-term;
+        }
+        sum=r58_checked_add_ll(sum,term);
+    }
+
+    // Every integer up to 2^53 is exactly representable in binary64.
+    // Keep one bit of headroom for subsequent dyadic scaling/composition.
+    const long long exactLimit=(1LL<<52);
+    if(sum<=-exactLimit||sum>=exactLimit)
+        throw std::runtime_error("R58 control integer exactness range");
+
+    return std::ldexp((double)sum,L.e[ax]);
+}
+
+static inline Candidate r58_build_candidate(
+        const QPSol&q,const std::vector<double>&K,double h,
+        double cableL,double gravity,const std::vector<int>&signs,
+        double&maxJetErr,double&maxPhysicalJetErr,double&legacyMismatch,
+        std::array<double,3>&rawQPderivativeUB){
+    Candidate C;
+    const int N=(int)K.size(),ns=r58_scalar_dofs(K);
+    if(!q.ok||N<2||(int)q.z.size()!=3*ns)
+        throw std::runtime_error("R58 invalid QP solution");
+    if(!(fin(cableL)&&cableL>0.0&&fin(gravity)&&gravity>0.0))
+        throw std::runtime_error("R58 invalid physical scale");
+
+    std::vector<std::array<Vec3,8>>Z(N);
+    for(int node=1;node<N;++node){
+        for(int r=0;r<=7;++r){
+            const int qi=r58_scalar_index(node,r,N);
+            if(qi<0)continue;
+            Z[node][r]={
+                q.z[3*qi+0],q.z[3*qi+1],q.z[3*qi+2]};
+        }
+    }
+
+    // R13 diagnostic only: reconstruct the floating point QP-jet candidate
+    // before exact lattice projection and measure its Bernstein derivative UBs.
+    // NEVER use this non-lattice candidate for C7 proof or acceptance.
+    rawQPderivativeUB.fill(0.0);
+    for(int s=0;s<N-1;++s){
+        const double T=K[s+1]-K[s];
+        std::array<Vec3,8> j0{},j1{};
+        for(int r=0;r<=7;++r){
+            if(s>0){
+                const double lam=r58_node_scale(K,s);
+                j0[r]=Z[s][r]/std::pow(lam,r);
+            }
+            const double lam=r58_node_scale(K,s+1);
+            j1[r]=Z[s+1][r]/std::pow(lam,r);
+        }
+        const Poly pre=vector_control_from_jets(j0,j1,T);
+        for(int r=1;r<=3;++r){
+            const Poly der=deriv_poly(pre,T,r);
+            rawQPderivativeUB[r-1]=std::max(rawQPderivativeUB[r-1],
+                                             poly_norm_ub(der));
+        }
+    }
+    std::vector<R58NodeLattice>L(N);
+    maxJetErr=0.0;maxPhysicalJetErr=0.0;
+    for(int node=1;node<N;++node){
+        const double Tm=K[node]-K[node-1];
+        const long long Km=(long long)std::llround(Tm/h);
+        long long Kp=0;
+        if(node+1<N){
+            const double Tp=K[node+1]-K[node];
+            Kp=(long long)std::llround(Tp/h);
+            if(!(Kp>=1&&Tp==(double)Kp*h))
+                throw std::runtime_error("R58 right knot off exact grid");
+        }
+        if(!(Km>=1&&Tm==(double)Km*h))
+            throw std::runtime_error("R58 left knot off exact grid");
+        const double lambda=r58_node_scale(K,node);
+        if(!(fin(lambda)&&lambda>0.0))
+            throw std::runtime_error("R58 invalid node scale");
+        L[node]=r58_make_node_lattice(
+            Z[node],lambda,h,Km,Kp,node==N-1,
+            maxJetErr,maxPhysicalJetErr);
+    }
+
+    C.family=7;C.cost=q.cost;C.minSlack=q.slack;C.signs=signs;
+    C.constant_translation=false;
+    C.identity_time_law=true;
+    C.progress_retimed=false;
+    C.progress_scale=1.0;
+    C.schedule_delay=0.0;
+    C.phase_reparameterized=false;
+    C.trigger_to_free_rejoin=false;
+    C.actual_rejoin_time=std::numeric_limits<double>::quiet_NaN();
+    C.spatial_knot_count=N;
+    C.terminal_hold=true;
+    C.terminal_hold_start=K.back();
+
+    for(int s=0;s<N-1;++s){
+        const double T=K[s+1]-K[s];
+        const long long KK=(long long)std::llround(T/h);
+        if(!(KK>=1&&T==(double)KK*h))
+            throw std::runtime_error("R58 segment off exact grid");
+
+        Poly cp(16,Vec3{});
+        if(s>0){
+            for(int k=0;k<8;++k){
+                cp[k]={
+                    r58_lattice_control(L[s],0,KK,k,false),
+                    r58_lattice_control(L[s],1,KK,k,false),
+                    r58_lattice_control(L[s],2,KK,k,false)};
+            }
+        }
+        for(int k=0;k<8;++k){
+            cp[15-k]={
+                r58_lattice_control(L[s+1],0,KK,k,true),
+                r58_lattice_control(L[s+1],1,KK,k,true),
+                r58_lattice_control(L[s+1],2,KK,k,true)};
+        }
+
+        C.seg0.push_back(K[s]);
+        C.seg1.push_back(K[s+1]);
+        C.cp.push_back(std::move(cp));
+    }
+
+    C.terminal_offset=C.cp.back().back();
+    C.exact_c7=true;
+    C.exact_c7_constructive=true;
+    C.legacy_float_endpoint_checker_pass=r31_exact_c7_stored(C);
+
+    C.dub.fill(0.0);C.max_ctrl=0.0;
+    for(size_t s=0;s<C.cp.size();++s){
+        const double T=C.seg1[s]-C.seg0[s];
+        Poly D=C.cp[s];int deg=15;
+        for(const auto&v:D)C.max_ctrl=std::max(C.max_ctrl,norm(v));
+        for(int r=1;r<=6;++r){
+            Poly E(D.size()-1);
+            for(size_t i=0;i+1<D.size();++i)
+                E[i]=(D[i+1]-D[i])*(double(deg)/T);
+            D.swap(E);--deg;
+            C.dub[r-1]=std::max(C.dub[r-1],poly_norm_ub(D));
+        }
+    }
+
+    legacyMismatch=0.0;
+    for(size_t s=0;s+1<C.cp.size();++s){
+        const double TL=C.seg1[s]-C.seg0[s];
+        const double TR=C.seg1[s+1]-C.seg0[s+1];
+        for(int r=0;r<=7;++r){
+            const Vec3 a=r31_endpoint_derivative(C.cp[s],TL,r,true);
+            const Vec3 b=r31_endpoint_derivative(C.cp[s+1],TR,r,false);
+            legacyMismatch=std::max(legacyMismatch,norm(a-b));
+        }
+    }
+    return C;
+}
+
+
+
+
+struct R58NormalElim{
+    bool ok=false;
+    int nphys=0;
+    int nred=0;
+    std::vector<double>B; // z_phys = B * y_red, row-major [nphys x nred]
+    double maxResidual=0.0;
+};
+
+static inline bool r58_normal_plane_basis(
+        Vec3 e,Vec3&n1,Vec3&n2){
+    if(!(finite(e)&&fin(norm(e))&&norm(e)>0.0))return false;
+    e=e/norm(e);
+    // Deterministic axis least aligned with e.
+    const double ax=std::fabs(e.x),ay=std::fabs(e.y),az=std::fabs(e.z);
+    Vec3 a=(ax<=ay&&ax<=az)?Vec3{1,0,0}:((ay<=az)?Vec3{0,1,0}:Vec3{0,0,1});
+    n1=cross(e,a);
+    const double n=norm(n1);
+    if(!(fin(n)&&n>0.0))return false;
+    n1=n1/n;
+    n2=cross(e,n1);
+    const double n_2=norm(n2);
+    if(!(fin(n_2)&&n_2>0.0))return false;
+    n2=n2/n_2;
+    return true;
+}
+
+static inline R58NormalElim r58_build_normal_elimination(
+        const std::vector<double>&K,const ActiveReference&ref){
+    R58NormalElim O;
+    const int N=(int)K.size();
+    const int ns=r58_scalar_dofs(K);
+    const int nphys=3*ns;
+    if(N<2||ns<=0)return O;
+
+    const int nInterior=std::max(0,N-2);
+    const int nred=22*nInterior+3; // (P,V constrained =>4) + 6*3 higher jets; terminal P=3
+    if(nred<=0||nred>nphys)return O;
+
+    O.nphys=nphys;O.nred=nred;
+    O.B.assign(nphys*nred,0.0);
+
+    auto setB=[&](int prow,int col,double v){
+        O.B[prow*nred+col]+=v;
+    };
+    int col=0;
+
+    for(int node=1;node<N-1;++node){
+        const auto x=ref.eval(K[node]);
+        Vec3 v=x[1],a=x[2];
+        const double nv=norm(v);
+        if(!(finite(v)&&finite(a)&&fin(nv)&&nv>0.0))return R58NormalElim{};
+        const Vec3 e=v/nv;
+        const Vec3 edot=(a-e*dot(e,a))/nv;
+        Vec3 n1{},n2{};
+        if(!r58_normal_plane_basis(e,n1,n2))return R58NormalElim{};
+
+        const double lambda=r58_node_scale(K,node);
+        if(!(fin(lambda)&&lambda>0.0))return R58NormalElim{};
+
+        const int qp=r58_scalar_index(node,0,N);
+        const int qv=r58_scalar_index(node,1,N);
+        if(qp<0||qv<0)return R58NormalElim{};
+
+        auto add_vec=[&](int q,int c,Vec3 w){
+            setB(3*q+0,c,w.x);setB(3*q+1,c,w.y);setB(3*q+2,c,w.z);
+        };
+
+        // p1: P=n1*p1 and zV has the dependent longitudinal component.
+        add_vec(qp,col,n1);
+        add_vec(qv,col,e*(-lambda*dot(edot,n1)));
+        ++col;
+
+        // p2
+        add_vec(qp,col,n2);
+        add_vec(qv,col,e*(-lambda*dot(edot,n2)));
+        ++col;
+
+        // v1,v2 are the two free normal-plane components of scaled zV=lambda*V.
+        add_vec(qv,col,n1);++col;
+        add_vec(qv,col,n2);++col;
+
+        // Higher jets 2..7 are unconstrained 3-vectors.
+        for(int r=2;r<=7;++r){
+            const int q=r58_scalar_index(node,r,N);
+            if(q<0)return R58NormalElim{};
+            for(int ax=0;ax<3;++ax){
+                setB(3*q+ax,col,1.0);
+                ++col;
+            }
+        }
+
+        // Algebraic residual of E*B for this node over all columns constructed so far.
+        for(int c=0;c<col;++c){
+            Vec3 P{
+                O.B[(3*qp+0)*nred+c],
+                O.B[(3*qp+1)*nred+c],
+                O.B[(3*qp+2)*nred+c]};
+            Vec3 zV{
+                O.B[(3*qv+0)*nred+c],
+                O.B[(3*qv+1)*nred+c],
+                O.B[(3*qv+2)*nred+c]};
+            const double r0=dot(e,P);
+            const double r1=dot(edot,P)+dot(e,zV)/lambda;
+            O.maxResidual=std::max(O.maxResidual,std::fabs(r0));
+            O.maxResidual=std::max(O.maxResidual,std::fabs(r1));
+        }
+    }
+
+    // Terminal free position offset only.
+    const int qt=r58_scalar_index(N-1,0,N);
+    if(qt<0)return R58NormalElim{};
+    for(int ax=0;ax<3;++ax){
+        setB(3*qt+ax,col,1.0);
+        ++col;
+    }
+
+    if(col!=nred)return R58NormalElim{};
+    O.ok=true;
+    return O;
+}
+
+// R14: Construct a NESTED, optional low-jet C7 candidate space.
+// This is a candidate FAMILY, NOT a new hard constraint on the full planner.
+// Interior P and V normal-bundle coordinates remain free; jets 2..7 of the
+// correction are zero at interior nodes.  The moving-normal equalities are
+// still represented by the original, exact normal-elimination map B.
+// No approximation or sampled acceptance is introduced.
+static inline std::vector<int> r58r14_lowjet_indices(int knotCount){
+    std::vector<int> I;
+    if(knotCount<2)return I;
+    for(int j=0;j<knotCount-2;++j){
+        for(int q=0;q<4;++q)I.push_back(22*j+q);
+    }
+    const int tail=22*(knotCount-2);
+    for(int q=0;q<3;++q)I.push_back(tail+q);
+    return I;
+}
+static inline std::vector<double> r58r14_principal_hessian(
+        const std::vector<double>&H,int fullN,
+        const std::vector<int>&I){
+    const int n=(int)I.size();
+    if(fullN<1||(int)H.size()!=fullN*fullN||n<1)return {};
+    std::vector<double>R(n*n,0.0);
+    for(int a=0;a<n;++a){
+        if(I[a]<0||I[a]>=fullN)return {};
+        for(int b=0;b<n;++b){
+            if(I[b]<0||I[b]>=fullN)return {};
+            R[a*n+b]=H[I[a]*fullN+I[b]];
+        }
+    }
+    return R;
+}
+static inline bool r58r14_project_rows(
+        std::vector<Row>&rows,int fullN,const std::vector<int>&I){
+    for(auto&row:rows){
+        if((int)row.a.size()!=fullN)return false;
+        std::vector<double>a(I.size());
+        for(size_t j=0;j<I.size();++j){
+            if(I[j]<0||I[j]>=fullN)return false;
+            a[j]=row.a[I[j]];
+            if(!fin(a[j]))return false;
+        }
+        row.a.swap(a);
+    }
+    return true;
+}
+static inline QPSol r58r14_lift_solution(
+        const QPSol&q,int fullN,const std::vector<int>&I){
+    if(!q.ok||fullN<1||q.z.size()!=I.size())return QPSol{};
+    QPSol out=q;
+    out.z.assign(fullN,0.0);
+    for(size_t i=0;i<I.size();++i){
+        if(I[i]<0||I[i]>=fullN||!fin(q.z[i]))return QPSol{};
+        out.z[I[i]]=q.z[i];
+    }
+    return out;
+}
+
+static inline std::vector<double> r58_reduce_hessian(
+        const std::vector<double>&H,const R58NormalElim&E){
+    if(!E.ok||(int)H.size()!=E.nphys*E.nphys)return {};
+    std::vector<double>T(E.nphys*E.nred,0.0);
+    for(int i=0;i<E.nphys;++i)
+        for(int c=0;c<E.nred;++c){
+            double s=0.0;
+            for(int j=0;j<E.nphys;++j)
+                s+=H[i*E.nphys+j]*E.B[j*E.nred+c];
+            T[i*E.nred+c]=s;
+        }
+
+    std::vector<double>R(E.nred*E.nred,0.0);
+    for(int a=0;a<E.nred;++a)
+        for(int b=0;b<E.nred;++b){
+            double s=0.0;
+            for(int i=0;i<E.nphys;++i)
+                s+=E.B[i*E.nred+a]*T[i*E.nred+b];
+            R[a*E.nred+b]=s;
+        }
+    return R;
+}
+
+static inline bool r58_reduce_rows(
+        std::vector<Row>&rows,const R58NormalElim&E){
+    if(!E.ok)return false;
+    for(auto&R:rows){
+        if((int)R.a.size()!=E.nphys)return false;
+        std::vector<double>a(E.nred,0.0);
+        for(int c=0;c<E.nred;++c){
+            double s=0.0;
+            for(int i=0;i<E.nphys;++i)
+                s+=R.a[i]*E.B[i*E.nred+c];
+            if(!fin(s))return false;
+            a[c]=s;
+        }
+        R.a.swap(a);
+    }
+    return true;
+}
+
+static inline QPSol r58_expand_solution(
+        const QPSol&q,const R58NormalElim&E){
+    if(!q.ok||!E.ok||(int)q.z.size()!=E.nred)return QPSol{};
+    QPSol p=q;
+    p.z.assign(E.nphys,0.0);
+    for(int i=0;i<E.nphys;++i){
+        double s=0.0;
+        for(int c=0;c<E.nred;++c)
+            s+=E.B[i*E.nred+c]*q.z[c];
+        if(!fin(s))return QPSol{};
+        p.z[i]=s;
+    }
+    return p;
+}
+
+static inline bool r58_equilibrate_hessian(
+        const std::vector<double>&H,int n,
+        std::vector<double>&Heq,std::vector<double>&scale,
+        double&rawMin,double&rawMax,double&eqMin,double&eqMax){
+    if(n<=0||(int)H.size()!=n*n)return false;
+    scale.assign(n,0.0);
+    rawMin=std::numeric_limits<double>::infinity();
+    rawMax=0.0;
+    for(int i=0;i<n;++i){
+        const double d=H[i*n+i];
+        if(!(fin(d)&&d>0.0))return false;
+        rawMin=std::min(rawMin,d);
+        rawMax=std::max(rawMax,d);
+        scale[i]=std::sqrt(d);
+        if(!(fin(scale[i])&&scale[i]>0.0))return false;
+    }
+
+    Heq.assign(n*n,0.0);
+    eqMin=std::numeric_limits<double>::infinity();
+    eqMax=0.0;
+    for(int i=0;i<n;++i){
+        for(int j=0;j<n;++j){
+            const double v=H[i*n+j]/(scale[i]*scale[j]);
+            if(!fin(v))return false;
+            Heq[i*n+j]=v;
+        }
+        eqMin=std::min(eqMin,Heq[i*n+i]);
+        eqMax=std::max(eqMax,Heq[i*n+i]);
+    }
+    return true;
+}
+
+static inline bool r58_apply_variable_scaling_to_rows(
+        std::vector<Row>&rows,const std::vector<double>&scale){
+    for(auto&R:rows){
+        if(R.a.size()!=scale.size())return false;
+        for(size_t i=0;i<R.a.size();++i){
+            if(!(fin(scale[i])&&scale[i]>0.0))return false;
+            R.a[i]/=scale[i];
+            if(!fin(R.a[i]))return false;
+        }
+    }
+    return true;
+}
+
+static inline QPSol r58_unscale_solution(
+        const QPSol&q,const std::vector<double>&scale){
+    if(!q.ok||q.z.size()!=scale.size())return QPSol{};
+    QPSol u=q;
+    for(size_t i=0;i<u.z.size();++i){
+        if(!(fin(scale[i])&&scale[i]>0.0))return QPSol{};
+        u.z[i]/=scale[i];
+        if(!fin(u.z[i]))return QPSol{};
+    }
+    return u;
+}
+
+static inline bool r58_equilibrate_rows(
+        std::vector<Row>&rows,double&minScale,double&maxScale){
+    minScale=std::numeric_limits<double>::infinity();
+    maxScale=0.0;
+    for(auto&R:rows){
+        double s=std::fabs(R.b);
+        for(double a:R.a)s=std::max(s,std::fabs(a));
+        if(!(fin(s)&&s>0.0)){
+            // Zero >= 0 is redundant. Any zero row with positive b is infeasible.
+            if(R.b>0.0)return false;
+            s=1.0;
+        }
+        const double inv=1.0/s;
+        for(double&a:R.a)a*=inv;
+        R.b*=inv;
+        minScale=std::min(minScale,s);
+        maxScale=std::max(maxScale,s);
+    }
+    return true;
+}
+
+
+struct R58DykstraDiag{
+    bool feasible=false;
+    bool kktOptimal=false;
+    bool resourceFail=false;
+    bool degenerateRowFail=false;
+    int sweeps=0;
+    int projections=0;
+    double maxViolation=std::numeric_limits<double>::infinity();
+    double dualityGap=std::numeric_limits<double>::infinity();
+    double stationarityResidual=std::numeric_limits<double>::infinity();
+};
+
+// Same strictly-convex primal problem:
+//      min 0.5 z' H z   s.t. a_i' z >= b_i.
+//
+// In the H-metric, projection onto one halfspace is
+//
+//      z <- z + alpha H^{-1}a_i,
+//      alpha=(b_i-a_i'z)/(a_i'H^{-1}a_i).
+//
+// Dykstra correction for each halfspace is a scalar because each correction
+// remains parallel to H^{-1}a_i.  No working-set Gram matrix is formed, so
+// duplicate / nearly parallel corridor rows cannot create a singular active
+// set.
+//
+// Safety authority is ALL-row primal feasibility. If the finite computational
+// resource guard is reached first, fail closed. KKT/duality-gap closure is
+// diagnostic quality information only.
+static inline QPSol r58_solve_qp_dykstra(
+        const std::vector<double>&H,int n,const std::vector<Row>&rows,
+        R58DykstraDiag&diag){
+    QPSol out;
+    const int m=(int)rows.size();
+    if(n<=0||m<1)return out;
+    for(const auto&r:rows)
+        if((int)r.a.size()!=n||!fin(r.b))return out;
+
+    std::vector<double>Lc;
+    if(!chol(H,n,Lc))return out;
+
+    std::vector<std::vector<double>>X(m,std::vector<double>(n));
+    std::vector<double>gii(m,0.0);
+    for(int i=0;i<m;++i){
+        X[i]=cholsolve(Lc,n,rows[i].a);
+        double g=0.0,an=0.0;
+        for(int d=0;d<n;++d){
+            if(!fin(X[i][d]))return out;
+            g+=rows[i].a[d]*X[i][d];
+            an=std::max(an,std::fabs(rows[i].a[d]));
+        }
+        const double gtol=4096*epsd()*std::max(1.0,an*an);
+        if(!(fin(g)&&g>gtol)){
+            if(rows[i].b>4096*epsd()){
+                diag.degenerateRowFail=true;
+                return out;
+            }
+            gii[i]=0.0;
+        }else{
+            gii[i]=g;
+        }
+    }
+
+    std::vector<double>z(n,0.0);
+    std::vector<double>rho(m,0.0); // lambda_i = -rho_i >= 0 at convergence
+
+    auto verify=[&](double&maxViol,double&minSlack)->bool{
+        maxViol=0.0;
+        minSlack=std::numeric_limits<double>::infinity();
+        for(int i=0;i<m;++i){
+            double az=0.0,asc=1.0;
+            for(int d=0;d<n;++d){
+                az+=rows[i].a[d]*z[d];
+                asc=std::max(asc,std::fabs(rows[i].a[d]*z[d]));
+            }
+            if(!fin(az))return false;
+            const double sl=az-rows[i].b;
+            minSlack=std::min(minSlack,sl);
+            const double tol=8192*epsd()*
+                std::max({1.0,asc,std::fabs(az),std::fabs(rows[i].b)});
+            if(sl<-tol)maxViol=std::max(maxViol,-sl);
+        }
+        return true;
+    };
+
+    // Computational resource guard only. It never grants acceptance.
+    const int sweepMax=std::max(64,8*m+16*n+64);
+
+    for(int sweep=1;sweep<=sweepMax;++sweep){
+        int projectedThisSweep=0;
+
+        for(int i=0;i<m;++i){
+            if(gii[i]==0.0)continue;
+
+            // x = z + rho_i H^{-1}a_i
+            if(rho[i]!=0.0){
+                for(int d=0;d<n;++d)z[d]+=rho[i]*X[i][d];
+            }
+
+            double az=0.0;
+            for(int d=0;d<n;++d)az+=rows[i].a[d]*z[d];
+            if(!fin(az))return QPSol{};
+
+            if(az>=rows[i].b){
+                rho[i]=0.0;
+            }else{
+                const double alpha=(rows[i].b-az)/gii[i];
+                if(!(fin(alpha)&&alpha>=0.0))return QPSol{};
+                for(int d=0;d<n;++d)z[d]+=alpha*X[i][d];
+                rho[i]=-alpha;
+                ++projectedThisSweep;
+                ++diag.projections;
+            }
+        }
+
+        diag.sweeps=sweep;
+
+        double maxViol=0.0,minSlack=0.0;
+        if(!verify(maxViol,minSlack))return QPSol{};
+        diag.maxViolation=maxViol;
+
+        if(maxViol==0.0){
+            double qform=0.0;
+            for(int i=0;i<n;++i)
+                for(int j=0;j<n;++j)
+                    qform+=z[i]*H[i*n+j]*z[j];
+
+            double bLam=0.0;
+            for(int i=0;i<m;++i){
+                const double lam=-rho[i];
+                if(lam>0.0)bLam+=lam*rows[i].b;
+            }
+            const double gap=qform-bLam;
+            diag.dualityGap=gap;
+
+            double sres=0.0;
+            for(int d=0;d<n;++d){
+                double hz=0.0,atl=0.0;
+                for(int j=0;j<n;++j)hz+=H[d*n+j]*z[j];
+                for(int i=0;i<m;++i){
+                    const double lam=-rho[i];
+                    if(lam>0.0)atl+=rows[i].a[d]*lam;
+                }
+                sres=std::max(sres,std::fabs(hz-atl));
+            }
+            diag.stationarityResidual=sres;
+
+            const double gtol=16384*epsd()*
+                std::max({1.0,std::fabs(qform),std::fabs(bLam)});
+            const double stol=16384*epsd()*
+                std::max(1.0,std::sqrt(std::max(0.0,qform)));
+            diag.kktOptimal=
+                fin(gap)&&std::fabs(gap)<=gtol&&
+                fin(sres)&&sres<=stol;
+
+            const double c=0.5*qform;
+            if(!fin(c)||!fin(minSlack))return QPSol{};
+            out.ok=true;
+            out.z=z;
+            out.cost=c;
+            out.slack=minSlack;
+            diag.feasible=true;
+            return out;
+        }
+
+        if(projectedThisSweep==0){
+            diag.resourceFail=true;
+            return QPSol{};
+        }
+    }
+
+    diag.resourceFail=true;
+    return QPSol{};
+}
+
+
+struct R58HildrethDiag{
+    bool kktConverged=false;
+    bool resourceFail=false;
+    int sweeps=0;
+    int updates=0;
+    double maxPrimalViolation=std::numeric_limits<double>::infinity();
+    double maxComplementarity=std::numeric_limits<double>::infinity();
+    double dualityGap=std::numeric_limits<double>::infinity();
+    double stationarityResidual=std::numeric_limits<double>::infinity();
+    double maxLambda=0.0;
+};
+
+static inline double r58_gamma_k(int k){
+    const double u=epsd();
+    const double ku=double(std::max(1,k))*u;
+    if(!(fin(ku)&&ku<0.25))
+        return std::numeric_limits<double>::infinity();
+    return ku/(1.0-ku);
+}
+
+// Hildreth dual coordinate ascent for exactly the same strictly-convex QP:
+//
+//   min 0.5 z'H z,  a_i'z >= b_i.
+//
+// Dual:
+//   max_{lambda>=0} b'lambda - 0.5 lambda'G lambda,
+//   G=A H^{-1} A'.
+//
+// Coordinate update:
+//   lambda_i^+ = max(0, lambda_i + (b_i-a_i'z)/G_ii),
+//   z^+ = z + (lambda_i^+-lambda_i) H^{-1}a_i.
+//
+// Duplicate/parallel rows are harmless. R58R6 does NOT stop at mere primal
+// feasibility; it returns only after numerical KKT closure. Resource
+// exhaustion is fail-closed.
+static inline QPSol r58_solve_qp_hildreth(
+        const std::vector<double>&H,int n,const std::vector<Row>&rows,
+        R58HildrethDiag&diag){
+    QPSol out;
+    const int m=(int)rows.size();
+    if(n<=0||m<1)return out;
+    for(const auto&r:rows)
+        if((int)r.a.size()!=n||!fin(r.b))return out;
+
+    std::vector<double>Lc;
+    if(!chol(H,n,Lc))return out;
+
+    std::vector<std::vector<double>>X(m,std::vector<double>(n));
+    std::vector<double>gii(m,0.0);
+    for(int i=0;i<m;++i){
+        X[i]=cholsolve(Lc,n,rows[i].a);
+        double g=0.0,an=0.0;
+        for(int d=0;d<n;++d){
+            if(!fin(X[i][d]))return out;
+            g+=rows[i].a[d]*X[i][d];
+            an=std::max(an,std::fabs(rows[i].a[d]));
+        }
+        const double gtol=
+            16.0*r58_gamma_k(4*n+8)*std::max(1.0,an*an);
+        if(!(fin(g)&&g>gtol)){
+            if(rows[i].b>
+               16.0*r58_gamma_k(8)*std::max(1.0,std::fabs(rows[i].b)))
+                return out;
+            gii[i]=0.0;
+        }else gii[i]=g;
+    }
+
+    std::vector<double>z(n,0.0),lam(m,0.0);
+
+    auto kkt_check=[&](double&minSlack,double&cost)->bool{
+        diag.maxPrimalViolation=0.0;
+        diag.maxComplementarity=0.0;
+        diag.dualityGap=0.0;
+        diag.stationarityResidual=0.0;
+        diag.maxLambda=0.0;
+        minSlack=std::numeric_limits<double>::infinity();
+
+        double bLam=0.0;
+        for(int i=0;i<m;++i){
+            double az=0.0,absDot=0.0;
+            for(int d=0;d<n;++d){
+                az+=rows[i].a[d]*z[d];
+                absDot+=std::fabs(rows[i].a[d]*z[d]);
+            }
+            if(!fin(az))return false;
+            const double s=az-rows[i].b;
+            minSlack=std::min(minSlack,s);
+
+            const double ptol=
+                16.0*r58_gamma_k(2*n+8)*
+                std::max({1.0,absDot,std::fabs(az),std::fabs(rows[i].b)});
+            if(s<-ptol)
+                diag.maxPrimalViolation=
+                    std::max(diag.maxPrimalViolation,-s);
+
+            diag.maxComplementarity=
+                std::max(diag.maxComplementarity,lam[i]*std::fabs(s));
+            bLam+=lam[i]*rows[i].b;
+            diag.maxLambda=std::max(diag.maxLambda,lam[i]);
+        }
+
+        double qform=0.0;
+        for(int i=0;i<n;++i)
+            for(int j=0;j<n;++j)
+                qform+=z[i]*H[i*n+j]*z[j];
+        if(!fin(qform)||!fin(bLam))return false;
+        cost=0.5*qform;
+        diag.dualityGap=qform-bLam;
+
+        double statScale=1.0;
+        for(int d=0;d<n;++d){
+            double hz=0.0,atl=0.0;
+            for(int j=0;j<n;++j)hz+=H[d*n+j]*z[j];
+            for(int i=0;i<m;++i)atl+=rows[i].a[d]*lam[i];
+            diag.stationarityResidual=
+                std::max(diag.stationarityResidual,std::fabs(hz-atl));
+            statScale=std::max(statScale,std::fabs(hz)+std::fabs(atl));
+        }
+
+        const double gapScale=
+            std::max({1.0,std::fabs(qform),std::fabs(bLam)});
+        const double gapTol=
+            32.0*r58_gamma_k(4*n*n+4*m*n+16)*gapScale;
+        const double compTol=
+            32.0*r58_gamma_k(4*n+16)*
+            std::max(1.0,diag.maxLambda)*
+            std::max(1.0,std::sqrt(std::max(0.0,qform)));
+        const double statTol=
+            32.0*r58_gamma_k(4*m+4*n+16)*statScale;
+
+        return
+            diag.maxPrimalViolation==0.0 &&
+            fin(diag.dualityGap) &&
+            std::fabs(diag.dualityGap)<=gapTol &&
+            diag.maxComplementarity<=compTol &&
+            diag.stationarityResidual<=statTol;
+    };
+
+    // Computational guard only; reaching it never grants acceptance.
+    const int sweepMax=std::max(256,2*m+8*n+64);
+
+    for(int sweep=1;sweep<=sweepMax;++sweep){
+        int updatesThisSweep=0;
+
+        for(int i=0;i<m;++i){
+            if(gii[i]==0.0)continue;
+
+            double az=0.0;
+            for(int d=0;d<n;++d)az+=rows[i].a[d]*z[d];
+            if(!fin(az))return QPSol{};
+
+            const double trial=lam[i]+(rows[i].b-az)/gii[i];
+            if(!fin(trial))return QPSol{};
+            const double next=std::max(0.0,trial);
+            const double delta=next-lam[i];
+
+            if(delta!=0.0){
+                for(int d=0;d<n;++d)z[d]+=delta*X[i][d];
+                lam[i]=next;
+                ++updatesThisSweep;
+                ++diag.updates;
+            }
+        }
+
+        diag.sweeps=sweep;
+        double minSlack=0.0,cost=0.0;
+        if(kkt_check(minSlack,cost)){
+            out.ok=true;
+            out.z=z;
+            out.cost=cost;
+            out.slack=minSlack;
+            diag.kktConverged=true;
+            return out;
+        }
+
+        if(updatesThisSweep==0){
+            diag.resourceFail=true;
+            return QPSol{};
+        }
+    }
+
+    diag.resourceFail=true;
+    return QPSol{};
+}
+
+
+
+struct R58IPMDiag{
+    bool converged=false;
+    bool resourceFail=false;
+    bool factorFail=false;
+    bool pcgResourceFail=false;
+    int iterations=0;
+    int newtonSolves=0;
+    int pcgMaxIterations=0;
+    int failureStage=0;
+    int failurePCGIterations=0;
+    double pcgFinalRelResidual=std::numeric_limits<double>::infinity();
+    double failurePCGFinalRelResidual=std::numeric_limits<double>::infinity();
+    double failurePCGRhsInf=std::numeric_limits<double>::quiet_NaN();
+    double failureDMin=std::numeric_limits<double>::quiet_NaN();
+    double failureDMax=std::numeric_limits<double>::quiet_NaN();
+    double failureDRatio=std::numeric_limits<double>::quiet_NaN();
+    double pcgMs=0.0;
+
+    int predictorPCGIterations=0;
+    int correctorPCGIterations=0;
+    double predictorPCGRelResidual=std::numeric_limits<double>::quiet_NaN();
+    double correctorPCGRelResidual=std::numeric_limits<double>::quiet_NaN();
+
+    double lastSigma=std::numeric_limits<double>::quiet_NaN();
+    double lastAlphaPrimal=std::numeric_limits<double>::quiet_NaN();
+    double lastAlphaDual=std::numeric_limits<double>::quiet_NaN();
+    double minAlphaPrimal=1.0;
+    double minAlphaDual=1.0;
+    double lastMuRatio=std::numeric_limits<double>::quiet_NaN();
+    double kktTolerance=std::numeric_limits<double>::quiet_NaN();
+    double gapTolerance=std::numeric_limits<double>::quiet_NaN();
+    double currentDMin=std::numeric_limits<double>::quiet_NaN();
+    double currentDMax=std::numeric_limits<double>::quiet_NaN();
+    double currentDRatio=std::numeric_limits<double>::quiet_NaN();
+
+    bool augmentedKKTSolveFail=false;
+    int augmentedKKTMaxDim=0;
+    int augmentedKKTNewtonSolves=0;
+    double augmentedKKTMaxRelResidual=0.0;
+    double commonStepMin=1.0;
+    double commonStepLast=std::numeric_limits<double>::quiet_NaN();
+
+    double primalResidual=std::numeric_limits<double>::infinity();
+    double dualResidual=std::numeric_limits<double>::infinity();
+    double complementarity=std::numeric_limits<double>::infinity();
+    double dualityGap=std::numeric_limits<double>::infinity();
+    double minSlack=std::numeric_limits<double>::quiet_NaN();
+    double minLambda=std::numeric_limits<double>::quiet_NaN();
+};
+
+static inline double r58_inf_norm(const std::vector<double>&x){
+    double v=0.0;
+    for(double a:x){
+        if(!fin(a))return std::numeric_limits<double>::infinity();
+        v=std::max(v,std::fabs(a));
+    }
+    return v;
+}
+
+static inline double r58_max_step_positive(
+        const std::vector<double>&x,const std::vector<double>&dx){
+    double a=1.0;
+    for(size_t i=0;i<x.size();++i){
+        if(dx[i]<0.0){
+            const double ai=-x[i]/dx[i];
+            if(fin(ai))a=std::min(a,ai);
+        }
+    }
+    return std::max(0.0,std::min(1.0,a));
+}
+
+// Infeasible-start primal-dual Mehrotra method for
+//
+//   min 0.5 z' H z
+//   s.t. A z - s = b,  s >= 0.
+//
+// KKT:
+//   H z - A'lambda = 0,
+//   A z - s - b    = 0,
+//   S lambda       = 0,
+//   s,lambda >= 0.
+//
+// Eliminating ds and dlambda yields the SPD Newton matrix
+//
+//   M = H + A' diag(lambda./s) A,
+//
+// so linearly dependent / nearly parallel rows cannot create a singular
+// working-set Gram matrix.  Predictor-corrector centering uses Mehrotra's
+// sigma=(mu_aff/mu)^3.  The fraction-to-boundary factor is derived only from
+// binary64 precision: eta=1-sqrt(eps).  Acceptance requires backward-error
+// KKT closure; resource exhaustion fails closed.
+
+static inline bool r58_mehrotra_pcg(
+        const std::vector<double>&H,const std::vector<double>&Lh,int n,
+        const std::vector<Row>&rows,const std::vector<double>&D,
+        const std::vector<double>&rhs,std::vector<double>&x,
+        int&iters,double&relResidual){
+    const int m=(int)rows.size();
+    if(n<=0||(int)H.size()!=n*n||(int)Lh.size()!=n*n||
+       (int)D.size()!=m||(int)rhs.size()!=n)return false;
+
+    auto matvec=[&](const std::vector<double>&v,std::vector<double>&y)->bool{
+        y.assign(n,0.0);
+        for(int i=0;i<n;++i){
+            double s=0.0;
+            for(int j=0;j<n;++j)s+=H[i*n+j]*v[j];
+            y[i]=s;
+        }
+        for(int k=0;k<m;++k){
+            if(!(fin(D[k])&&D[k]>=0.0))return false;
+            double av=0.0;
+            for(int d=0;d<n;++d)av+=rows[k].a[d]*v[d];
+            const double w=D[k]*av;
+            if(!fin(w))return false;
+            for(int d=0;d<n;++d)y[d]+=rows[k].a[d]*w;
+        }
+        for(double q:y)if(!fin(q))return false;
+        return true;
+    };
+
+    auto dotv=[&](const std::vector<double>&a,const std::vector<double>&b){
+        double s=0.0;
+        for(int i=0;i<n;++i)s+=a[i]*b[i];
+        return s;
+    };
+
+    x.assign(n,0.0);
+    std::vector<double>r=rhs;
+    std::vector<double>z=cholsolve(Lh,n,r);
+    if((int)z.size()!=n)return false;
+    std::vector<double>p=z;
+    double rz=dotv(r,z);
+    if(!(fin(rz)&&rz>=0.0))return false;
+
+    const double rhsn=std::max(1.0,r58_inf_norm(rhs));
+    relResidual=r58_inf_norm(r)/rhsn;
+    const double tol=
+        64.0*r58_gamma_k(8*n*n+8*m*n+64);
+    if(relResidual<=tol){iters=0;return true;}
+
+    // In exact arithmetic SPD-CG terminates in <= n iterations.  The factor
+    // four is a floating-point resource allowance only; it never grants
+    // acceptance because residual closure is checked explicitly.
+    const int maxIt=std::max(8,4*n);
+
+    for(int k=1;k<=maxIt;++k){
+        std::vector<double>Mp;
+        if(!matvec(p,Mp))return false;
+        const double den=dotv(p,Mp);
+        if(!(fin(den)&&den>0.0))return false;
+        const double alpha=rz/den;
+        if(!fin(alpha))return false;
+
+        for(int i=0;i<n;++i){
+            x[i]+=alpha*p[i];
+            r[i]-=alpha*Mp[i];
+        }
+        relResidual=r58_inf_norm(r)/
+            std::max(1.0,rhsn+r58_inf_norm(x));
+        iters=k;
+        if(relResidual<=tol)return true;
+
+        z=cholsolve(Lh,n,r);
+        if((int)z.size()!=n)return false;
+        const double rzNew=dotv(r,z);
+        if(!(fin(rzNew)&&rzNew>=0.0))return false;
+        if(rz==0.0)return false;
+        const double beta=rzNew/rz;
+        if(!fin(beta))return false;
+        for(int i=0;i<n;++i)p[i]=z[i]+beta*p[i];
+        rz=rzNew;
+    }
+    return false;
+}
+
+
+
+static inline bool r58_dense_complete_pivot_solve(
+        const std::vector<double>&A0,const std::vector<double>&b0,int n,
+        std::vector<double>&x,double&relResidual){
+    if(n<=0||(int)A0.size()!=n*n||(int)b0.size()!=n)return false;
+    std::vector<double>A=A0,b=b0;
+    std::vector<double>cscale(n,1.0);
+    std::vector<int>perm(n);
+    for(int j=0;j<n;++j)perm[j]=j;
+
+    // Positive row scaling.
+    for(int i=0;i<n;++i){
+        double sc=std::fabs(b[i]);
+        for(int j=0;j<n;++j)sc=std::max(sc,std::fabs(A[i*n+j]));
+        sc=std::max(1.0,sc);
+        for(int j=0;j<n;++j)A[i*n+j]/=sc;
+        b[i]/=sc;
+    }
+    // Invertible column-variable scaling: x_j=y_j/c_j.
+    for(int j=0;j<n;++j){
+        double sc=0.0;
+        for(int i=0;i<n;++i)sc=std::max(sc,std::fabs(A[i*n+j]));
+        if(!(fin(sc)&&sc>0.0))return false;
+        cscale[j]=sc;
+        for(int i=0;i<n;++i)A[i*n+j]/=sc;
+    }
+
+    const double ptol=64.0*r58_gamma_k(8*n*n*n+64);
+
+    for(int k=0;k<n;++k){
+        int pi=k,pj=k;
+        double pv=0.0;
+        for(int i=k;i<n;++i)for(int j=k;j<n;++j){
+            double v=std::fabs(A[i*n+j]);
+            if(v>pv){pv=v;pi=i;pj=j;}
+        }
+        if(!(fin(pv)&&pv>ptol))return false;
+        if(pi!=k){
+            for(int j=0;j<n;++j)std::swap(A[k*n+j],A[pi*n+j]);
+            std::swap(b[k],b[pi]);
+        }
+        if(pj!=k){
+            for(int i=0;i<n;++i)std::swap(A[i*n+k],A[i*n+pj]);
+            std::swap(perm[k],perm[pj]);
+        }
+        const double piv=A[k*n+k];
+        if(!(fin(piv)&&std::fabs(piv)>ptol))return false;
+        for(int i=k+1;i<n;++i){
+            const double f=A[i*n+k]/piv;
+            A[i*n+k]=0.0;
+            for(int j=k+1;j<n;++j)A[i*n+j]-=f*A[k*n+j];
+            b[i]-=f*b[k];
+            if(!fin(b[i]))return false;
+        }
+    }
+
+    std::vector<double>yp(n,0.0);
+    for(int i=n-1;i>=0;--i){
+        double s=b[i];
+        for(int j=i+1;j<n;++j)s-=A[i*n+j]*yp[j];
+        const double piv=A[i*n+i];
+        if(!(fin(piv)&&std::fabs(piv)>ptol))return false;
+        yp[i]=s/piv;
+        if(!fin(yp[i]))return false;
+    }
+    std::vector<double>y(n,0.0);
+    for(int posi=0;posi<n;++posi)y[perm[posi]]=yp[posi];
+    x.assign(n,0.0);
+    for(int j=0;j<n;++j){
+        x[j]=y[j]/cscale[j];
+        if(!fin(x[j]))return false;
+    }
+
+    double rn=0.0,bn=0.0,xn=0.0;
+    for(int i=0;i<n;++i){
+        double ax=0.0;
+        for(int j=0;j<n;++j)ax+=A0[i*n+j]*x[j];
+        rn=std::max(rn,std::fabs(ax-b0[i]));
+        bn=std::max(bn,std::fabs(b0[i]));
+    }
+    for(double v:x)xn=std::max(xn,std::fabs(v));
+    relResidual=rn/std::max(1.0,bn+xn);
+    return fin(relResidual) &&
+        relResidual<=256.0*r58_gamma_k(12*n*n*n+128);
+}
+
+static inline QPSol r58_solve_qp_mehrotra(
+        const std::vector<double>&H,int n,const std::vector<Row>&rows,
+        R58IPMDiag&diag){
+    QPSol out;
+    const int m=(int)rows.size();
+    if(n<=0||m<1||(int)H.size()!=n*n)return out;
+    for(const auto&r:rows)
+        if((int)r.a.size()!=n||!fin(r.b))return out;
+
+    std::vector<double>Lh;
+    if(!chol(H,n,Lh)){
+        diag.factorFail=true;
+        return out;
+    }
+
+    std::vector<double>z(n,0.0),s(m,1.0),lam(m,1.0);
+    // Scale-free positive initialization after row equilibration.
+    for(int i=0;i<m;++i)
+        s[i]=std::max(1.0,std::fabs(rows[i].b));
+
+    auto residuals=[&](
+            std::vector<double>&rd,std::vector<double>&rp,
+            double&mu,double&pr,double&dr,double&gap,
+            double&minS,double&minL,double&cost)->bool{
+        rd.assign(n,0.0);
+        rp.assign(m,0.0);
+
+        std::vector<double>hz(n,0.0),atl(n,0.0);
+        for(int i=0;i<n;++i){
+            double v=0.0;
+            for(int j=0;j<n;++j)v+=H[i*n+j]*z[j];
+            hz[i]=v;
+        }
+        for(int i=0;i<m;++i){
+            for(int d=0;d<n;++d)
+                atl[d]+=rows[i].a[d]*lam[i];
+        }
+        for(int d=0;d<n;++d)rd[d]=hz[d]-atl[d];
+
+        double pscale=1.0;
+        for(int i=0;i<m;++i){
+            double az=0.0,absDot=0.0;
+            for(int d=0;d<n;++d){
+                az+=rows[i].a[d]*z[d];
+                absDot+=std::fabs(rows[i].a[d]*z[d]);
+            }
+            rp[i]=az-s[i]-rows[i].b;
+            pscale=std::max(
+                pscale,std::max({absDot,std::fabs(az),
+                                 std::fabs(s[i]),std::fabs(rows[i].b)}));
+        }
+
+        const double dscale=
+            std::max(1.0,std::max(r58_inf_norm(hz),r58_inf_norm(atl)));
+        pr=r58_inf_norm(rp)/pscale;
+        dr=r58_inf_norm(rd)/dscale;
+
+        mu=0.0;minS=std::numeric_limits<double>::infinity();
+        minL=std::numeric_limits<double>::infinity();
+        for(int i=0;i<m;++i){
+            if(!(fin(s[i])&&fin(lam[i])&&s[i]>0.0&&lam[i]>0.0))
+                return false;
+            mu+=s[i]*lam[i];
+            minS=std::min(minS,s[i]);
+            minL=std::min(minL,lam[i]);
+        }
+        mu/=double(m);
+
+        double q=0.0,bLam=0.0;
+        for(int i=0;i<n;++i)q+=z[i]*hz[i];
+        for(int i=0;i<m;++i)bLam+=rows[i].b*lam[i];
+        cost=0.5*q;
+        gap=std::fabs(q-bLam);
+
+        return fin(pr)&&fin(dr)&&fin(mu)&&fin(gap)&&fin(cost);
+    };
+
+    auto newton=[&](
+            const std::vector<double>&rd,
+            const std::vector<double>&rp,
+            const std::vector<double>&rc,
+            std::vector<double>&dz,
+            std::vector<double>&ds,
+            std::vector<double>&dl,
+            int stage)->bool{
+        const int N=n+m;
+        std::vector<double>K(N*N,0.0),br(N,0.0);
+
+        for(int i=0;i<n;++i){
+            br[i]=-rd[i];
+            for(int j=0;j<n;++j)K[i*N+j]=H[i*n+j];
+            for(int q=0;q<m;++q)K[i*N+(n+q)]=-rows[q].a[i];
+        }
+
+        double Dmin=std::numeric_limits<double>::infinity();
+        double Dmax=0.0;
+        for(int q=0;q<m;++q){
+            if(!(s[q]>0.0&&lam[q]>0.0&&fin(rc[q])&&fin(rp[q])))
+                return false;
+            for(int j=0;j<n;++j)
+                K[(n+q)*N+j]=lam[q]*rows[q].a[j];
+            K[(n+q)*N+(n+q)]=s[q];
+            br[n+q]=-rc[q]-lam[q]*rp[q];
+
+            const double Di=lam[q]/s[q];
+            if(Di>0.0)Dmin=std::min(Dmin,Di);
+            Dmax=std::max(Dmax,Di);
+        }
+        diag.currentDMin=fin(Dmin)?Dmin:0.0;
+        diag.currentDMax=Dmax;
+        diag.currentDRatio=(fin(Dmin)&&Dmin>0.0)?
+            Dmax/Dmin:std::numeric_limits<double>::infinity();
+
+        std::vector<double>sol;
+        double kres=std::numeric_limits<double>::infinity();
+        if(!r58_dense_complete_pivot_solve(K,br,N,sol,kres)){
+            diag.augmentedKKTSolveFail=true;
+            diag.failureStage=stage;
+            diag.failurePCGFinalRelResidual=kres;
+            diag.failurePCGRhsInf=r58_inf_norm(br);
+            diag.failureDMin=diag.currentDMin;
+            diag.failureDMax=diag.currentDMax;
+            diag.failureDRatio=diag.currentDRatio;
+            return false;
+        }
+        ++diag.augmentedKKTNewtonSolves;
+        diag.augmentedKKTMaxRelResidual=
+            std::max(diag.augmentedKKTMaxRelResidual,kres);
+        diag.augmentedKKTMaxDim=std::max(diag.augmentedKKTMaxDim,m);
+
+        dz.assign(sol.begin(),sol.begin()+n);
+        dl.assign(sol.begin()+n,sol.end());
+        ds.assign(m,0.0);
+        for(int q=0;q<m;++q){
+            double adz=0.0;
+            for(int d=0;d<n;++d)adz+=rows[q].a[d]*dz[d];
+            ds[q]=adz+rp[q];
+            if(!fin(ds[q])||!fin(dl[q]))return false;
+        }
+        if(stage==1){
+            diag.predictorPCGIterations=0;
+            diag.predictorPCGRelResidual=kres;
+        }else{
+            diag.correctorPCGIterations=0;
+            diag.correctorPCGRelResidual=kres;
+        }
+        ++diag.newtonSolves;
+        return true;
+    };
+
+    const int iterMax=std::max(64,2*(n+m)+16);
+
+    std::vector<double>rd,rp;
+    double mu=0.0,pr=0.0,dr=0.0,gap=0.0,minS=0.0,minL=0.0,cost=0.0;
+    double prevMu=std::numeric_limits<double>::quiet_NaN();
+
+    for(int it=1;it<=iterMax;++it){
+        diag.iterations=it;
+        if(!residuals(rd,rp,mu,pr,dr,gap,minS,minL,cost))
+            return QPSol{};
+
+        diag.primalResidual=pr;
+        diag.dualResidual=dr;
+        diag.complementarity=mu;
+        diag.dualityGap=gap;
+        diag.minSlack=minS;
+        diag.minLambda=minL;
+
+        const double tol=
+            64.0*r58_gamma_k(8*n*n+8*m*n+16*m+64);
+        const double gapScale=
+            std::max(1.0,2.0*std::fabs(cost)+gap);
+        diag.kktTolerance=tol;
+        diag.gapTolerance=tol*gapScale;
+        if(fin(prevMu)&&prevMu>0.0)
+            diag.lastMuRatio=mu/prevMu;
+        prevMu=mu;
+
+        if(pr<=tol && dr<=tol && mu<=tol*gapScale && gap<=tol*gapScale){
+            out.ok=true;
+            out.z=z;
+            out.cost=cost;
+
+            double minSlack=std::numeric_limits<double>::infinity();
+            for(int i=0;i<m;++i){
+                double az=0.0;
+                for(int d=0;d<n;++d)az+=rows[i].a[d]*z[d];
+                minSlack=std::min(minSlack,az-rows[i].b);
+            }
+            out.slack=minSlack;
+            diag.converged=true;
+            return out;
+        }
+
+        // Affine predictor: rc = S*lambda.
+        std::vector<double>rcAff(m,0.0);
+        for(int i=0;i<m;++i)rcAff[i]=s[i]*lam[i];
+
+        std::vector<double>dzAff,dsAff,dlAff;
+        if(!newton(rd,rp,rcAff,dzAff,dsAff,dlAff,1))
+            return QPSol{};
+
+        const double apAff=r58_max_step_positive(s,dsAff);
+        const double adAff=r58_max_step_positive(lam,dlAff);
+
+        double muAff=0.0;
+        for(int i=0;i<m;++i)
+            muAff+=(s[i]+apAff*dsAff[i])*
+                   (lam[i]+adAff*dlAff[i]);
+        muAff/=double(m);
+
+        double sigma=0.0;
+        if(mu>0.0&&fin(muAff)){
+            const double r=std::max(0.0,std::min(1.0,muAff/mu));
+            sigma=r*r*r;
+        }
+        diag.lastSigma=sigma;
+
+        // Predictor-corrector with second-order affine term.
+        std::vector<double>rc(m,0.0);
+        for(int i=0;i<m;++i)
+            rc[i]=s[i]*lam[i]+dsAff[i]*dlAff[i]-sigma*mu;
+
+        std::vector<double>dz,ds,dl;
+        if(!newton(rd,rp,rc,dz,ds,dl,2))
+            return QPSol{};
+
+        // Largest representable common step that remains strictly inside
+        // every positivity boundary. Each limiting ratio is moved by exactly
+        // one binary64 value toward zero before the minimum is taken.
+        double alpha=1.0;
+        for(int i=0;i<m;++i){
+            if(ds[i]<0.0){
+                const double r=-s[i]/ds[i];
+                if(!(fin(r)&&r>0.0))return QPSol{};
+                alpha=std::min(alpha,std::nextafter(r,0.0));
+            }
+            if(dl[i]<0.0){
+                const double r=-lam[i]/dl[i];
+                if(!(fin(r)&&r>0.0))return QPSol{};
+                alpha=std::min(alpha,std::nextafter(r,0.0));
+            }
+        }
+        if(!(fin(alpha)&&alpha>0.0)){
+            diag.resourceFail=true;
+            return QPSol{};
+        }
+
+        diag.lastAlphaPrimal=alpha;
+        diag.lastAlphaDual=alpha;
+        diag.minAlphaPrimal=std::min(diag.minAlphaPrimal,alpha);
+        diag.minAlphaDual=std::min(diag.minAlphaDual,alpha);
+        diag.commonStepLast=alpha;
+        diag.commonStepMin=std::min(diag.commonStepMin,alpha);
+
+        for(int d=0;d<n;++d)z[d]=std::fma(alpha,dz[d],z[d]);
+        for(int i=0;i<m;++i){
+            s[i]=std::fma(alpha,ds[i],s[i]);
+            lam[i]=std::fma(alpha,dl[i],lam[i]);
+            if(!(s[i]>0.0&&lam[i]>0.0&&fin(s[i])&&fin(lam[i])))
+                return QPSol{};
+        }
+    }
+
+    diag.resourceFail=true;
+    if(diag.failureStage==0)diag.failureStage=3;
+    double DminEnd=std::numeric_limits<double>::infinity();
+    double DmaxEnd=0.0;
+    for(int i=0;i<m;++i){
+        if(s[i]>0.0&&lam[i]>=0.0&&fin(s[i])&&fin(lam[i])){
+            const double Di=lam[i]/s[i];
+            if(Di>0.0)DminEnd=std::min(DminEnd,Di);
+            DmaxEnd=std::max(DmaxEnd,Di);
+        }
+    }
+    diag.currentDMin=fin(DminEnd)?DminEnd:0.0;
+    diag.currentDMax=DmaxEnd;
+    diag.currentDRatio=
+        (fin(DminEnd)&&DminEnd>0.0)?DmaxEnd/DminEnd:
+        std::numeric_limits<double>::infinity();
+    return QPSol{};
+}
+
+struct R58CGDiag{
+    bool fullOptimalityClosed=false;
+    bool subsetResourceFail=false;
+    bool duplicateAddFail=false;
+    int fullRowCount=0;
+    int outerIterations=0;
+    int fullScans=0;
+    int rowsAdded=0;
+    int activeRowsMax=0;
+    int subsetKKTSolves=0;
+    int subsetKKTConverged=0;
+    int subsetSweepsMax=0;
+    int coordinateUpdates=0;
+    int ipmConverged=0;
+    int ipmResourceFail=0;
+    int ipmFactorFail=0;
+    int ipmIterationsMax=0;
+    int ipmNewtonSolves=0;
+    int ipmPCGResourceFail=0;
+    int ipmPCGMaxIterations=0;
+    double ipmPCGFinalRelResidual=std::numeric_limits<double>::infinity();
+    double ipmPrimalResidual=std::numeric_limits<double>::infinity();
+    double ipmDualResidual=std::numeric_limits<double>::infinity();
+    double ipmComplementarity=std::numeric_limits<double>::infinity();
+    double ipmDualityGap=std::numeric_limits<double>::infinity();
+    double ipmMinSlack=std::numeric_limits<double>::quiet_NaN();
+    double ipmMinLambda=std::numeric_limits<double>::quiet_NaN();
+
+    int failureOuterIteration=0;
+    int failureActiveRows=0;
+    int failureAddedRow=-1;
+    int failureIPMIteration=0;
+    int failureStage=0;
+    int failurePCGIterations=0;
+    double failurePCGFinalRelResidual=std::numeric_limits<double>::infinity();
+    double failurePCGRhsInf=std::numeric_limits<double>::quiet_NaN();
+    double failureDMin=std::numeric_limits<double>::quiet_NaN();
+    double failureDMax=std::numeric_limits<double>::quiet_NaN();
+    double failureDRatio=std::numeric_limits<double>::quiet_NaN();
+    double failureMinSlack=std::numeric_limits<double>::quiet_NaN();
+    double failureMinLambda=std::numeric_limits<double>::quiet_NaN();
+    double failureMetricMaxAbsCorr=0.0;
+    double failurePrimalResidual=std::numeric_limits<double>::quiet_NaN();
+    double failureDualResidual=std::numeric_limits<double>::quiet_NaN();
+    double failureMu=std::numeric_limits<double>::quiet_NaN();
+    double failureDualityGap=std::numeric_limits<double>::quiet_NaN();
+    double failureKKTTol=std::numeric_limits<double>::quiet_NaN();
+    double failureGapTol=std::numeric_limits<double>::quiet_NaN();
+    double failureLastSigma=std::numeric_limits<double>::quiet_NaN();
+    double failureLastAlphaPrimal=std::numeric_limits<double>::quiet_NaN();
+    double failureLastAlphaDual=std::numeric_limits<double>::quiet_NaN();
+    double failureMinAlphaPrimal=std::numeric_limits<double>::quiet_NaN();
+    double failureMinAlphaDual=std::numeric_limits<double>::quiet_NaN();
+    double failureMuRatio=std::numeric_limits<double>::quiet_NaN();
+    int failurePredictorPCGIterations=0;
+    int failureCorrectorPCGIterations=0;
+    double failurePredictorPCGRelResidual=std::numeric_limits<double>::quiet_NaN();
+    double failureCorrectorPCGRelResidual=std::numeric_limits<double>::quiet_NaN();
+
+    double fullScanMs=0.0;
+    double subsetSolverMs=0.0;
+    double pcgMs=0.0;
+
+    int augmentedKKTSolveFail=0;
+    int augmentedKKTMaxDim=0;
+    int augmentedKKTNewtonSolves=0;
+    double augmentedKKTMaxRelResidual=0.0;
+    double commonStepMin=1.0;
+    double commonStepLast=std::numeric_limits<double>::quiet_NaN();
+
+    double initialWorstViolation=0.0;
+    double finalMaxViolation=std::numeric_limits<double>::infinity();
+    double finalDualityGap=std::numeric_limits<double>::infinity();
+    double finalComplementarity=std::numeric_limits<double>::infinity();
+    double finalStationarity=std::numeric_limits<double>::infinity();
+};
+
+static inline QPSol r58_solve_qp_constraint_generation(
+        const std::vector<double>&H,int n,const std::vector<Row>&rows,
+        R58CGDiag&diag){
+    QPSol out;
+    const int m=(int)rows.size();
+    diag.fullRowCount=m;
+    if(n<=0||m<1||(int)H.size()!=n*n)return out;
+    for(const auto&r:rows)
+        if((int)r.a.size()!=n||!fin(r.b))return out;
+
+    std::vector<double>Lc;
+    if(!chol(H,n,Lc))return out;
+
+    // Precompute H^{-1}a_i and metric diagonal once for the full row set.
+    std::vector<std::vector<double>>X(m,std::vector<double>(n));
+    std::vector<double>gii(m,0.0);
+    for(int i=0;i<m;++i){
+        X[i]=cholsolve(Lc,n,rows[i].a);
+        double g=0.0,an=0.0;
+        for(int d=0;d<n;++d){
+            if(!fin(X[i][d]))return out;
+            g+=rows[i].a[d]*X[i][d];
+            an=std::max(an,std::fabs(rows[i].a[d]));
+        }
+        const double gtol=
+            16.0*r58_gamma_k(4*n+8)*std::max(1.0,an*an);
+        if(!(fin(g)&&g>gtol)){
+            // SPD H implies a nonzero row has positive H^{-1}-metric norm.
+            // Numerically zero row: positive rhs is genuinely infeasible,
+            // otherwise it is redundant.
+            if(rows[i].b>
+               16.0*r58_gamma_k(8)*std::max(1.0,std::fabs(rows[i].b)))
+                return out;
+            gii[i]=0.0;
+        }else gii[i]=g;
+    }
+
+    std::vector<double>z(n,0.0),lambda(m,0.0);
+    std::vector<unsigned char>active(m,0);
+    std::vector<int>activeList;
+    activeList.reserve(std::min(m,n+8));
+
+    auto active_metric_max_abs_corr=[&]()->double{
+        double cmax=0.0;
+        const int ma=(int)activeList.size();
+        for(int p=0;p<ma;++p){
+            const int i=activeList[p];
+            if(!(gii[i]>0.0))continue;
+            for(int q=p+1;q<ma;++q){
+                const int j=activeList[q];
+                if(!(gii[j]>0.0))continue;
+                double gij=0.0;
+                for(int d=0;d<n;++d)
+                    gij+=rows[i].a[d]*X[j][d];
+                const double den=std::sqrt(gii[i]*gii[j]);
+                if(!(fin(den)&&den>0.0))continue;
+                const double rho=std::fabs(gij/den);
+                if(fin(rho))cmax=std::max(cmax,std::min(1.0,rho));
+            }
+        }
+        return cmax;
+    };
+
+    auto full_scan=[&](int&worstRow,double&maxViolation,
+                       double&minSlack)->bool{
+        const auto Tscan=std::chrono::steady_clock::now();
+        ++diag.fullScans;
+        worstRow=-1;
+        maxViolation=0.0;
+        minSlack=std::numeric_limits<double>::infinity();
+        double bestExcess=0.0;
+
+        for(int i=0;i<m;++i){
+            double az=0.0,absDot=0.0;
+            for(int d=0;d<n;++d){
+                az+=rows[i].a[d]*z[d];
+                absDot+=std::fabs(rows[i].a[d]*z[d]);
+            }
+            if(!fin(az)){
+                diag.fullScanMs+=std::chrono::duration<double,std::milli>(
+                    std::chrono::steady_clock::now()-Tscan).count();
+                return false;
+            }
+
+            const double slack=az-rows[i].b;
+            minSlack=std::min(minSlack,slack);
+
+            const double tol=
+                16.0*r58_gamma_k(2*n+8)*
+                std::max({1.0,absDot,std::fabs(az),std::fabs(rows[i].b)});
+            const double excess=-slack-tol;
+            if(excess>0.0){
+                maxViolation=std::max(maxViolation,-slack);
+                if(worstRow<0||excess>bestExcess){
+                    worstRow=i;
+                    bestExcess=excess;
+                }
+            }
+        }
+        diag.fullScanMs+=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-Tscan).count();
+        return true;
+    };
+
+    auto subset_kkt=[&](double&minSlack,double&cost,
+                        double&gap,double&comp,double&stat)->bool{
+        ++diag.subsetKKTSolves;
+        const int ma=(int)activeList.size();
+        if(ma<1)return false;
+
+        std::vector<Row>sub;
+        sub.reserve(ma);
+        for(int idx:activeList)sub.push_back(rows[idx]);
+
+        R58IPMDiag ID;
+        const auto Tsub=std::chrono::steady_clock::now();
+        QPSol q=r58_solve_qp_mehrotra(H,n,sub,ID);
+        diag.subsetSolverMs+=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-Tsub).count();
+        diag.pcgMs+=ID.pcgMs;
+
+        if(ID.augmentedKKTSolveFail)++diag.augmentedKKTSolveFail;
+        diag.augmentedKKTMaxDim=
+            std::max(diag.augmentedKKTMaxDim,ID.augmentedKKTMaxDim);
+        diag.augmentedKKTNewtonSolves+=ID.augmentedKKTNewtonSolves;
+        diag.augmentedKKTMaxRelResidual=
+            std::max(diag.augmentedKKTMaxRelResidual,ID.augmentedKKTMaxRelResidual);
+        diag.commonStepMin=std::min(diag.commonStepMin,ID.commonStepMin);
+        if(fin(ID.commonStepLast))diag.commonStepLast=ID.commonStepLast;
+
+        if(ID.converged)++diag.ipmConverged;
+        if(ID.resourceFail)++diag.ipmResourceFail;
+        if(ID.factorFail)++diag.ipmFactorFail;
+        diag.ipmIterationsMax=std::max(diag.ipmIterationsMax,ID.iterations);
+        diag.ipmNewtonSolves+=ID.newtonSolves;
+        if(ID.pcgResourceFail)++diag.ipmPCGResourceFail;
+        diag.ipmPCGMaxIterations=
+            std::max(diag.ipmPCGMaxIterations,ID.pcgMaxIterations);
+        if(fin(ID.pcgFinalRelResidual))
+            diag.ipmPCGFinalRelResidual=
+                std::min(diag.ipmPCGFinalRelResidual,ID.pcgFinalRelResidual);
+        if(fin(ID.primalResidual))
+            diag.ipmPrimalResidual=std::min(diag.ipmPrimalResidual,ID.primalResidual);
+        if(fin(ID.dualResidual))
+            diag.ipmDualResidual=std::min(diag.ipmDualResidual,ID.dualResidual);
+        if(fin(ID.complementarity))
+            diag.ipmComplementarity=std::min(diag.ipmComplementarity,ID.complementarity);
+        if(fin(ID.dualityGap))
+            diag.ipmDualityGap=std::min(diag.ipmDualityGap,ID.dualityGap);
+        if(fin(ID.minSlack))diag.ipmMinSlack=ID.minSlack;
+        if(fin(ID.minLambda))diag.ipmMinLambda=ID.minLambda;
+
+        if(!q.ok||!ID.converged){
+            diag.failureOuterIteration=diag.outerIterations;
+            diag.failureActiveRows=ma;
+            diag.failureAddedRow=activeList.empty()?-1:activeList.back();
+            diag.failureIPMIteration=ID.iterations;
+            diag.failureStage=ID.failureStage;
+            diag.failurePCGIterations=ID.failurePCGIterations;
+            diag.failurePCGFinalRelResidual=ID.failurePCGFinalRelResidual;
+            diag.failurePCGRhsInf=ID.failurePCGRhsInf;
+            diag.failureDMin=ID.failureDMin;
+            diag.failureDMax=ID.failureDMax;
+            diag.failureDRatio=ID.failureDRatio;
+            diag.failureMinSlack=ID.minSlack;
+            diag.failureMinLambda=ID.minLambda;
+            diag.failureMetricMaxAbsCorr=active_metric_max_abs_corr();
+            diag.failurePrimalResidual=ID.primalResidual;
+            diag.failureDualResidual=ID.dualResidual;
+            diag.failureMu=ID.complementarity;
+            diag.failureDualityGap=ID.dualityGap;
+            diag.failureKKTTol=ID.kktTolerance;
+            diag.failureGapTol=ID.gapTolerance;
+            diag.failureLastSigma=ID.lastSigma;
+            diag.failureLastAlphaPrimal=ID.lastAlphaPrimal;
+            diag.failureLastAlphaDual=ID.lastAlphaDual;
+            diag.failureMinAlphaPrimal=ID.minAlphaPrimal;
+            diag.failureMinAlphaDual=ID.minAlphaDual;
+            diag.failureMuRatio=ID.lastMuRatio;
+            diag.failurePredictorPCGIterations=ID.predictorPCGIterations;
+            diag.failureCorrectorPCGIterations=ID.correctorPCGIterations;
+            diag.failurePredictorPCGRelResidual=ID.predictorPCGRelResidual;
+            diag.failureCorrectorPCGRelResidual=ID.correctorPCGRelResidual;
+            if(ID.failureStage==3){
+                diag.failureDMin=ID.currentDMin;
+                diag.failureDMax=ID.currentDMax;
+                diag.failureDRatio=ID.currentDRatio;
+            }
+            diag.subsetResourceFail=true;
+            return false;
+        }
+
+        ++diag.subsetKKTConverged;
+        z=q.z;
+        minSlack=q.slack;
+        cost=q.cost;
+        gap=ID.dualityGap;
+        comp=ID.complementarity;
+        stat=std::max(ID.primalResidual,ID.dualResidual);
+        std::fill(lambda.begin(),lambda.end(),0.0);
+        return true;
+    };
+
+    // First full scan from z=0.
+    int worst=-1;
+    double maxViol=0.0,minSlack=0.0;
+    if(!full_scan(worst,maxViol,minSlack))return out;
+    diag.initialWorstViolation=maxViol;
+
+    // If z=0 already satisfies all rows, it is trivially the full optimum.
+    if(worst<0){
+        out.ok=true;
+        out.z=z;
+        out.cost=0.0;
+        out.slack=minSlack;
+        diag.fullOptimalityClosed=true;
+        diag.finalMaxViolation=0.0;
+        diag.finalDualityGap=0.0;
+        diag.finalComplementarity=0.0;
+        diag.finalStationarity=0.0;
+        return out;
+    }
+
+    // Outer loop is finite by construction: each failed full scan adds one
+    // previously inactive violated row, so there can be at most m additions.
+    for(int outer=1;outer<=m;++outer){
+        diag.outerIterations=outer;
+
+        if(worst<0||worst>=m)return QPSol{};
+        if(active[worst]){
+            diag.duplicateAddFail=true;
+            return QPSol{};
+        }
+        active[worst]=1;
+        activeList.push_back(worst);
+        ++diag.rowsAdded;
+        diag.activeRowsMax=
+            std::max(diag.activeRowsMax,(int)activeList.size());
+
+        double subsetMinSlack=0.0,cost=0.0,gap=0.0,comp=0.0,stat=0.0;
+        if(!subset_kkt(subsetMinSlack,cost,gap,comp,stat)){
+            if(!diag.subsetResourceFail)
+                diag.subsetResourceFail=true;
+            return QPSol{};
+        }
+
+        // Exact constraint-generation authority: scan ALL original rows.
+        if(!full_scan(worst,maxViol,minSlack))return QPSol{};
+        diag.finalMaxViolation=maxViol;
+        diag.finalDualityGap=std::fabs(gap);
+        diag.finalComplementarity=comp;
+        diag.finalStationarity=stat;
+
+        if(worst<0){
+            // The subset optimum is feasible for the full feasible set.
+            // Since F_full subset F_subset:
+            //   J_subset* <= J_full* <= J(z_subset*) = J_subset*.
+            // Therefore this is also the full-QP optimum.
+            out.ok=true;
+            out.z=z;
+            out.cost=cost;
+            out.slack=minSlack;
+            diag.fullOptimalityClosed=true;
+            return out;
+        }
+    }
+
+    // Reaching here would require more than m distinct violated rows, which is
+    // impossible without a logic/numerical inconsistency. Fail closed.
+    diag.duplicateAddFail=true;
+    return QPSol{};
+}
+
+struct R58SearchNode{
+    int depth=0;
+    std::vector<int>signs;
+    QPSol q;
+    double lb=std::numeric_limits<double>::infinity();
+    unsigned long long seq=0;
+};
+struct R58SearchGreater{
+    bool operator()(const R58SearchNode&a,const R58SearchNode&b)const{
+        if(a.lb!=b.lb)return a.lb>b.lb;
+        return a.seq>b.seq;
+    }
+};
+
+
+
+// ===========================================================================
+// AF7R56 THEORY/SHADOW
+//
+// Purpose:
+//   1) construct the LOAD spatial path in SOURCE PHASE
+//
+//          r(s) = p_active(s) + delta(s)
+//
+//      with exact-C7 delta(s), exact-support oriented-ellipsoid corridor rows,
+//      and moving-normal synthesis constraints;
+//
+//   2) evaluate an INDEPENDENT time law s(t) through exact chain-rule
+//      composition.  The shadow never changes the R55 production candidate,
+//      never grants acceptance, and never relaxes a hard certificate.
+//
+// Important suspended-load coupling:
+//   although the load path r(s) is a purely spatial/source-phase object, the
+//   cable direction q=-f_s/||f_s|| and UAV point p_Q=p_L-Lq depend on the
+//   chosen time law through r_ss*sdot^2+r_s*sddot.  Therefore R56 explicitly
+//   measures this residual geometry/time coupling instead of pretending that
+//   whole-body geometry is fully separable.
+//
+// No trigger horizon is used as a maneuver duration.
+// No equality to the old same-clock reference position is imposed.
+// ===========================================================================
+
+struct R56SourceSample{
+    double s=0.0;
+    Vec3 p{},v{},a{},j{};
+    double hxy=0.0;
+};
+
+struct R56DynDiag{
+    bool finite=true;
+    bool dynamic_pass=false;
+    bool geometry_point_pass=false;
+    int samples=0;
+    double maxVL=0.0,maxVQ=0.0,minSigma=std::numeric_limits<double>::infinity();
+    double maxQdot=0.0,minGeom=std::numeric_limits<double>::infinity();
+    double chainErr=0.0;
+};
+
+static inline double r56_vec_err(Vec3 a,Vec3 b){
+    return norm(a-b);
+}
+
+static inline std::array<double,7> r56_scalar_jet_from_control(
+        std::vector<double>C,double T,double tau){
+    std::array<double,7>S{};
+    if(!(fin(T)&&T>0.0&&C.size()==16&&fin(tau)))return S;
+    double u=std::max(0.0,std::min(1.0,tau/T));
+    std::vector<double>Q=C;
+    int deg=15;
+    S[0]=r51_scalar_eval(Q,u);
+    for(int r=1;r<=6;++r){
+        Q=r51_diff_scalar(Q,1);
+        const double sc=double(deg)/T;
+        for(double&x:Q)x*=sc;
+        --deg;
+        S[r]=r51_scalar_eval(Q,u);
+    }
+    return S;
+}
+
+static inline std::array<double,7> r56_entry_phase_jet(
+        double source0,double alpha,double T,double tau){
+    std::array<double,8>J0{},J1{};
+    J0[0]=source0;J0[1]=1.0;
+    J1[0]=source0+0.5*(1.0+alpha)*T;
+    J1[1]=alpha;
+    auto C=scalar_control_from_jets(J0,J1,T);
+    return r56_scalar_jet_from_control(C,T,tau);
+}
+
+static inline std::array<double,7> r56_exit_phase_jet(
+        double source0,double alpha,double T,double tau){
+    std::array<double,8>J0{},J1{};
+    J0[0]=source0;J0[1]=alpha;
+    J1[0]=source0+0.5*(1.0+alpha)*T;
+    J1[1]=1.0;
+    auto C=scalar_control_from_jets(J0,J1,T);
+    return r56_scalar_jet_from_control(C,T,tau);
+}
+
+static inline bool r56_towing_state_from_jet(
+        const std::array<Vec3,7>&Y,const Live&L,
+        double&VL,double&VQ,double&sigma,double&qdot,Vec3&pQ){
+    const Vec3 pL=Y[0],v=Y[1],a=Y[2],j=Y[3];
+    Vec3 sf=a+Vec3{0,0,L.g};
+    sigma=norm(sf);
+    if(!(fin(sigma)&&sigma>0.0&&finite(v)&&finite(j)))return false;
+    Vec3 q=sf*(-1.0/sigma);
+    Vec3 proj=j-q*dot(q,j);
+    Vec3 qd=proj*(-1.0/sigma);
+    pQ=pL-q*L.L;
+    VL=norm(v);qdot=norm(qd);VQ=norm(v-qd*L.L);
+    return fin(VL)&&fin(VQ)&&fin(qdot)&&finite(pQ);
+}
+
+static inline void r56_update_point_geometry(
+        const std::array<Vec3,7>&Y,const Live&L,
+        const std::vector<Obstacle>&obs,double&minGeom,bool&finiteAll){
+    double VL=0,VQ=0,sigma=0,qd=0;Vec3 pQ{};
+    if(!r56_towing_state_from_jet(Y,L,VL,VQ,sigma,qd,pQ)){
+        finiteAll=false;return;
+    }
+    const Vec3 pL=Y[0];
+    const double rhoL=L.rL+L.dmargin+L.tracking;
+    const double rhoQ=L.rQ+L.dmargin+L.tracking;
+    const double rhoC=L.rC+L.dmargin+L.tracking;
+    for(const auto&o:obs){
+        double mL=-std::numeric_limits<double>::infinity();
+        double mQ=-std::numeric_limits<double>::infinity();
+        double mC=-std::numeric_limits<double>::infinity();
+        (void)point_margin(pL,o,rhoL,mL);
+        (void)point_margin(pQ,o,rhoQ,mQ);
+        (void)segment_margin(pQ,pL,o,rhoC,mC);
+        if(!(fin(mL)&&fin(mQ)&&fin(mC))){
+            finiteAll=false;continue;
+        }
+        minGeom=std::min(minGeom,std::min(mL,std::min(mQ,mC)));
+    }
+}
+
+static inline R56DynDiag r56_eval_const_alpha_samples(
+        const std::vector<R56SourceSample>&S,const Live&L,
+        const std::vector<Obstacle>&obs,double alpha,double lim){
+    R56DynDiag D;
+    if(!(fin(alpha)&&alpha>0.0&&alpha<=1.0&&fin(lim)&&lim>0.0)||S.empty()){
+        D.finite=false;return D;
+    }
+    D.samples=(int)S.size();
+    const std::array<double,7>PJ={0.0,alpha,0.0,0.0,0.0,0.0,0.0};
+
+    for(const auto&Q:S){
+        std::array<Vec3,7>X{};
+        X[0]=Q.p;X[1]=Q.v;X[2]=Q.a;X[3]=Q.j;
+        // Higher derivatives are not required for the towing state here.
+        auto Y=r51_compose_vec_jet(X,PJ);
+
+        const Vec3 ve=Q.v*alpha;
+        const Vec3 ae=Q.a*(alpha*alpha);
+        const Vec3 je=Q.j*(alpha*alpha*alpha);
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[1],ve));
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[2],ae));
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[3],je));
+
+        double VL=0,VQ=0,sigma=0,qd=0;Vec3 pQ{};
+        if(!r56_towing_state_from_jet(Y,L,VL,VQ,sigma,qd,pQ)){
+            D.finite=false;continue;
+        }
+        D.maxVL=std::max(D.maxVL,VL);
+        D.maxVQ=std::max(D.maxVQ,VQ);
+        D.minSigma=std::min(D.minSigma,sigma);
+        D.maxQdot=std::max(D.maxQdot,qd);
+        r56_update_point_geometry(Y,L,obs,D.minGeom,D.finite);
+    }
+
+    D.dynamic_pass=D.finite&&fin(D.minSigma)&&D.minSigma>0.0&&
+                   fin(D.maxVQ)&&D.maxVQ<lim;
+    D.geometry_point_pass=D.finite&&fin(D.minGeom)&&D.minGeom>0.0;
+    return D;
+}
+
+static inline R56DynDiag r56_eval_transition(
+        const ActiveReference&ref,const Candidate&Cs,const Live&L,
+        const std::vector<Obstacle>&obs,double lim,
+        double source0,double alpha,double T,bool entry,double h){
+    R56DynDiag D;
+    if(!(fin(T)&&T>0.0&&fin(h)&&h>0.0&&fin(alpha)&&alpha>0.0&&alpha<=1.0)){
+        D.finite=false;return D;
+    }
+    long long N=(long long)std::ceil(T/h);
+    N=std::max(1LL,N);
+    for(long long k=0;k<=N;++k){
+        const double tau=T*double(k)/double(N);
+        const auto SJ=entry?
+            r56_entry_phase_jet(source0,alpha,T,tau):
+            r56_exit_phase_jet(source0,alpha,T,tau);
+        if(!(fin(SJ[0])&&fin(SJ[1])&&SJ[1]>0.0&&SJ[1]<=1.0+
+             4096*epsd()*std::max(1.0,std::fabs(SJ[1])))){
+            D.finite=false;continue;
+        }
+        auto X=candidate_eval(ref,Cs,SJ[0]);
+        auto Y=r51_compose_vec_jet(X,SJ);
+
+        const Vec3 ve=X[1]*SJ[1];
+        const Vec3 ae=X[2]*(SJ[1]*SJ[1])+X[1]*SJ[2];
+        const Vec3 je=X[3]*(SJ[1]*SJ[1]*SJ[1])+
+                      X[2]*(3.0*SJ[1]*SJ[2])+X[1]*SJ[3];
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[1],ve));
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[2],ae));
+        D.chainErr=std::max(D.chainErr,r56_vec_err(Y[3],je));
+
+        double VL=0,VQ=0,sigma=0,qd=0;Vec3 pQ{};
+        if(!r56_towing_state_from_jet(Y,L,VL,VQ,sigma,qd,pQ)){
+            D.finite=false;continue;
+        }
+        ++D.samples;
+        D.maxVL=std::max(D.maxVL,VL);
+        D.maxVQ=std::max(D.maxVQ,VQ);
+        D.minSigma=std::min(D.minSigma,sigma);
+        D.maxQdot=std::max(D.maxQdot,qd);
+        r56_update_point_geometry(Y,L,obs,D.minGeom,D.finite);
+    }
+    D.dynamic_pass=D.finite&&D.samples>0&&fin(D.minSigma)&&D.minSigma>0.0&&
+                   fin(D.maxVQ)&&D.maxVQ<lim;
+    D.geometry_point_pass=D.finite&&D.samples>0&&fin(D.minGeom)&&D.minGeom>0.0;
+    return D;
+}
+
+static inline double r56_align_down_positive(double x,double h){
+    if(!(fin(x)&&fin(h)&&h>0.0&&x>0.0))return 0.0;
+    double y=r37_align_down(x,h);
+    return (fin(y)&&y>0.0)?y:0.0;
+}
+
 // One exact hard-certificate attempt for a fixed maneuver scope and fixed t1.
 // No sampled acceptance is introduced here.
 static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L,const SpeedCert&base,
@@ -4350,29 +8693,596 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
 
     auto a=clk::now();
     int Cn=(int)E.comp.size(),Ne=(int)E.ep.size(),nvar=6*Cn;
-    std::vector<OrientedRows> OR(Ne);
 
-    auto ts=clk::now();
-    for(int e=0;e<Ne;++e){
-        auto ep=E.ep[e];
-        auto xa=ref.eval(ep.start),xb=ref.eval(ep.end);
-        Vec3 prog=xb[0]-xa[0];
-        if(norm(prog)<=128*epsd()*std::max(1.0,norm(xa[0]))) prog=ref.eval(0.5*(ep.start+ep.end))[1];
-        Vec3 n=lateral_normal(obs[ep.obs].R,obs[ep.obs].axes,prog);
-        OR[e].plus=corridor_rows(ref,L,base,obs,E,e,n,nvar);
-        OR[e].minus=corridor_rows(ref,L,base,obs,E,e,n*(-1),nvar);
-    }
-    R.tim.corridor=std::chrono::duration<double,std::milli>(clk::now()-ts).count();
+    // AF7R47: legacy affine/towing corridor construction is lazy. The R37/R45
+    // primary has its own exact-support corridor, so eagerly building the old
+    // fallback corridor before trying the primary was pure online overhead.
+    // If the primary does not certify, the historical rows are constructed
+    // exactly as before and all fallbacks remain available.
+    std::vector<OrientedRows> OR;
+    bool legacyCorridorReady=false;
+    auto ensure_legacy_corridor=[&]()->bool{
+        if(legacyCorridorReady)return true;
+        const auto tcorr=clk::now();
+        try{
+            OR.assign(Ne,OrientedRows{});
+            for(int e=0;e<Ne;++e){
+                auto ep=E.ep[e];
+                auto xa=ref.eval(ep.start),xb=ref.eval(ep.end);
+                Vec3 prog=xb[0]-xa[0];
+                if(norm(prog)<=128*epsd()*std::max(1.0,norm(xa[0])))
+                    prog=ref.eval(0.5*(ep.start+ep.end))[1];
+                Vec3 n=lateral_normal(obs[ep.obs].R,obs[ep.obs].axes,prog);
+                OR[e].plus=corridor_rows(ref,L,base,obs,E,e,n,nvar);
+                OR[e].minus=corridor_rows(ref,L,base,obs,E,e,n*(-1),nvar);
+            }
+        }catch(const std::runtime_error&){
+            OR.clear();
+            R.tim.corridor+=std::chrono::duration<double,std::milli>(
+                clk::now()-tcorr).count();
+            return false;
+        }
+        R.tim.corridor+=std::chrono::duration<double,std::milli>(
+            clk::now()-tcorr).count();
+        legacyCorridorReady=true;
+        return true;
+    };
 
     // The affine minimum-snap Hessian is built lazily only if the primary
     // minimum-deviation family cannot close the hard certificates.
     std::vector<double> Haff;
     R.tim.hessian=0.0;
+    auto ts=clk::now();
 
     double rhoBody=std::max({L.rQ,L.L+L.rL,L.L+L.rC});
     double lim=(L.sensor_range-rhoBody)/(L.horizon+L.dt);
     if(!(fin(lim)&&lim>0)){
         R.reason=16;R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();return R;
+    }
+
+    // ------------------------------------------------------------------
+    // AF7R58 FREE-C7 / GLOBAL-HOMOTOPY REFERENCE-CORE SHADOW
+    //
+    // The finite source boundary is a validity boundary, NOT a rejoin time.
+    // Correction position is free there; derivatives 1..7 are zero and the
+    // offset is held. No same-clock nominal position is targeted.
+    //
+    // Reference-level only: tracking inflation must be zero.
+    // ------------------------------------------------------------------
+    if(L.r58_shadow_diagnostic_enabled){
+        const auto Tr58=clk::now();
+        R.r58_shadow_ran=1;
+        R.r58_reference_tracking_inflation_m=L.tracking;
+        R.r58_episode_count=(int)E.ep.size();
+        R.r58_component_count=(int)E.comp.size();
+
+        const double h58=std::ldexp(1.0,std::ilogb(L.dt));
+        auto K58=r37_make_knots(E,t0,t1,h58);
+
+        if(K58.size()>=2&&L.tracking==0.0){
+            R.r58_support_start_s=K58.front();
+            R.r58_support_end_s=K58.back();
+            R.r58_source_knot_count=(int)K58.size();
+            R.r58_scalar_dof_count=r58_scalar_dofs(K58);
+            R.r58_spatial_dof_count=3*R.r58_scalar_dof_count;
+            R.r58r2_node_scaled_variables=1;
+            for(int node=1;node<(int)K58.size();++node){
+                const double lam=r58_node_scale(K58,node);
+                if(fin(lam)&&lam>0.0){
+                    R.r58r2_node_scale_min_s=
+                        std::min(R.r58r2_node_scale_min_s,lam);
+                    R.r58r2_node_scale_max_s=
+                        std::max(R.r58r2_node_scale_max_s,lam);
+                }
+            }
+
+            const auto Tb=clk::now();
+            auto H58phys=r58_spatial_hessian3(K58,L.L,L.g);
+            auto EL58=r58_build_normal_elimination(K58,ref);
+            if(!EL58.ok){
+                ++R.r58r4_elimination_build_fail;
+            }else{
+                R.r58r4_normal_equalities_eliminated=1;
+                R.r58r4_reduced_spatial_dof_count=EL58.nred;
+                R.r58r4_elimination_max_residual=EL58.maxResidual;
+            }
+
+            const bool lowJet58=L.r58r14_lowjet_seed_only;
+            const auto lowJetIndices58=lowJet58 ?
+                r58r14_lowjet_indices((int)K58.size()) : std::vector<int>{};
+            auto H58full=r58_reduce_hessian(H58phys,EL58);
+            auto H58=lowJet58 ? r58r14_principal_hessian(
+                H58full,EL58.nred,lowJetIndices58) : H58full;
+            std::vector<double>H58eq,varScale58;
+            double hdmin=0.0,hdmax=0.0,hemin=0.0,hemax=0.0;
+            const int nv58=lowJet58?(int)lowJetIndices58.size():EL58.nred;
+            R.r58r14_lowjet_seed_only=lowJet58?1:0;
+            R.r58r14_active_reduced_dof=nv58;
+            R.r58r14_full_reduced_dof=EL58.nred;
+            const bool heqOK=EL58.ok&&!H58.empty()&&
+                r58_equilibrate_hessian(
+                    H58,nv58,H58eq,varScale58,
+                    hdmin,hdmax,hemin,hemax);
+            if(heqOK){
+                R.r58r3_hessian_diag_equilibrated=1;
+                R.r58r3_raw_hdiag_min=hdmin;
+                R.r58r3_raw_hdiag_max=hdmax;
+                R.r58r3_raw_hdiag_ratio=hdmax/hdmin;
+                R.r58r3_eq_hdiag_min=hemin;
+                R.r58r3_eq_hdiag_max=hemax;
+                std::vector<double>Ltest;
+                R.r58r3_equilibrated_cholesky_pass=
+                    chol(H58eq,nv58,Ltest)?1:0;
+            }
+
+            std::vector<std::array<R58SideRows,2>>cache(E.ep.size());
+            bool cacheOK=heqOK&&R.r58r3_equilibrated_cholesky_pass==1;
+            if(cacheOK){
+                for(int ei=0;ei<(int)E.ep.size();++ei){
+                    cache[ei][0]=r58_episode_rows(
+                        ref,L,base,obs,E,ei,+1,K58);
+                    cache[ei][1]=r58_episode_rows(
+                        ref,L,base,obs,E,ei,-1,K58);
+                    if(cache[ei][0].valid){
+                        cache[ei][0].valid=r58_reduce_rows(cache[ei][0].rows,EL58);
+                        if(cache[ei][0].valid&&lowJet58)
+                            cache[ei][0].valid=r58r14_project_rows(
+                                cache[ei][0].rows,EL58.nred,lowJetIndices58);
+                    }
+                    if(cache[ei][1].valid){
+                        cache[ei][1].valid=r58_reduce_rows(cache[ei][1].rows,EL58);
+                        if(cache[ei][1].valid&&lowJet58)
+                            cache[ei][1].valid=r58r14_project_rows(
+                                cache[ei][1].rows,EL58.nred,lowJetIndices58);
+                    }
+                    if(cache[ei][0].valid)++R.r58_side_cache_plus_valid;
+                    if(cache[ei][1].valid)++R.r58_side_cache_minus_valid;
+                    if(!cache[ei][0].valid&&!cache[ei][1].valid){
+                        ++R.r58_side_cache_fail;cacheOK=false;break;
+                    }
+                }
+            }
+            R.r58_build_ms=
+                std::chrono::duration<double,std::milli>(clk::now()-Tb).count();
+
+            if(cacheOK){
+                const auto Th=clk::now();
+                const int M=(int)E.ep.size();
+                unsigned long long seq=0;
+
+                auto solve_partial=[&](const std::vector<int>&sg,int depth)->QPSol{
+                    std::vector<Row>rows;
+                    for(int i=0;i<depth;++i){
+                        const auto&SR=cache[i][sg[i]>0?0:1];
+                        if(!SR.valid)return QPSol{};
+                        rows.insert(rows.end(),SR.rows.begin(),SR.rows.end());
+                    }
+                    if(!r58_apply_variable_scaling_to_rows(rows,varScale58))
+                        return QPSol{};
+                    double rsmin=0.0,rsmax=0.0;
+                    if(!r58_equilibrate_rows(rows,rsmin,rsmax))
+                        return QPSol{};
+                    R.r58r2_row_equilibrated=1;
+                    R.r58r2_row_scale_min=
+                        std::min(R.r58r2_row_scale_min,rsmin);
+                    R.r58r2_row_scale_max=
+                        std::max(R.r58r2_row_scale_max,rsmax);
+                    ++R.r58_bnb_qp_solves;
+                    R.r58r7_constraint_generation_used=1;
+                    R58CGDiag CG;
+                    const auto Tcg=clk::now();
+                    QPSol q=r58_solve_qp_constraint_generation(
+                        H58eq,nv58,rows,CG);
+                    const double cgms=
+                        std::chrono::duration<double,std::milli>(
+                            clk::now()-Tcg).count();
+                    R.r58r7_solver_ms+=cgms;
+                    R.r58r8_ipm_ms+=cgms;
+
+                    R.r58r7_full_row_count_max=
+                        std::max(R.r58r7_full_row_count_max,CG.fullRowCount);
+                    R.r58r7_outer_iterations_max=
+                        std::max(R.r58r7_outer_iterations_max,CG.outerIterations);
+                    R.r58r7_full_scans+=CG.fullScans;
+                    R.r58r7_rows_added+=CG.rowsAdded;
+                    R.r58r7_active_rows_max=
+                        std::max(R.r58r7_active_rows_max,CG.activeRowsMax);
+                    R.r58r7_subset_kkt_solves+=CG.subsetKKTSolves;
+                    R.r58r7_subset_kkt_converged+=CG.subsetKKTConverged;
+                    if(CG.subsetResourceFail)++R.r58r7_subset_resource_fail;
+                    if(CG.duplicateAddFail)++R.r58r7_duplicate_add_fail;
+                    if(CG.fullOptimalityClosed)++R.r58r7_full_optimality_closed;
+                    R.r58r7_subset_sweeps_max=
+                        std::max(R.r58r7_subset_sweeps_max,CG.subsetSweepsMax);
+                    R.r58r7_coordinate_updates+=CG.coordinateUpdates;
+                    R.r58r7_initial_worst_violation=
+                        std::max(R.r58r7_initial_worst_violation,
+                                 CG.initialWorstViolation);
+                    if(fin(CG.finalMaxViolation))
+                        R.r58r7_final_max_violation=
+                            std::min(R.r58r7_final_max_violation,
+                                     CG.finalMaxViolation);
+                    if(fin(CG.finalDualityGap))
+                        R.r58r7_final_duality_gap=
+                            std::min(R.r58r7_final_duality_gap,
+                                     CG.finalDualityGap);
+                    if(fin(CG.finalComplementarity))
+                        R.r58r7_final_complementarity=
+                            std::min(R.r58r7_final_complementarity,
+                                     CG.finalComplementarity);
+                    if(fin(CG.finalStationarity))
+                        R.r58r7_final_stationarity=
+                            std::min(R.r58r7_final_stationarity,
+                                     CG.finalStationarity);
+
+                    R.r58r8_ipm_used=1;
+                    R.r58r8_newton_diag_equilibrated=0;
+                    R.r58r8_ipm_converged+=CG.ipmConverged;
+                    R.r58r8_ipm_resource_fail+=CG.ipmResourceFail;
+                    R.r58r8_ipm_factor_fail+=CG.ipmFactorFail;
+                    R.r58r8_ipm_max_iterations=
+                        std::max(R.r58r8_ipm_max_iterations,CG.ipmIterationsMax);
+                    R.r58r8_ipm_newton_solves+=CG.ipmNewtonSolves;
+                    R.r58r8_pcg_used=1;
+                    R.r58r8_pcg_resource_fail+=CG.ipmPCGResourceFail;
+                    R.r58r8_pcg_max_iterations=
+                        std::max(R.r58r8_pcg_max_iterations,CG.ipmPCGMaxIterations);
+                    if(fin(CG.ipmPCGFinalRelResidual))
+                        R.r58r8_pcg_final_rel_residual=
+                            std::min(R.r58r8_pcg_final_rel_residual,
+                                     CG.ipmPCGFinalRelResidual);
+
+                    R.r58r9_full_scan_ms+=CG.fullScanMs;
+                    R.r58r9_subset_solver_ms+=CG.subsetSolverMs;
+                    R.r58r9_pcg_ms+=CG.pcgMs;
+
+                    R.r58r11_augmented_kkt_used=1;
+                    R.r58r11_augmented_kkt_solve_fail+=CG.augmentedKKTSolveFail;
+                    R.r58r11_common_step_used=1;
+                    R.r58r11_augmented_kkt_max_dim=
+                        std::max(R.r58r11_augmented_kkt_max_dim,
+                                 CG.augmentedKKTMaxDim);
+                    R.r58r11_newton_solves+=CG.augmentedKKTNewtonSolves;
+                    R.r58r11_newton_max_rel_residual=
+                        std::max(R.r58r11_newton_max_rel_residual,
+                                 CG.augmentedKKTMaxRelResidual);
+                    R.r58r11_common_step_min=
+                        std::min(R.r58r11_common_step_min,CG.commonStepMin);
+                    if(fin(CG.commonStepLast))
+                        R.r58r11_common_step_last=CG.commonStepLast;
+                    R.r58r11_solver_ms+=cgms;
+
+                    if(!q.ok){
+                        ++R.r58r9_failure_count;
+                        R.r58r9_failure_depth=depth;
+                        R.r58r9_failure_last_side=sg.empty()?0:sg.back();
+                        R.r58r9_failure_outer_iteration=CG.failureOuterIteration;
+                        R.r58r9_failure_active_rows=CG.failureActiveRows;
+                        R.r58r9_failure_added_row=CG.failureAddedRow;
+                        R.r58r9_failure_ipm_iteration=CG.failureIPMIteration;
+                        R.r58r9_failure_stage=CG.failureStage;
+                        R.r58r9_failure_pcg_iterations=CG.failurePCGIterations;
+                        R.r58r9_failure_pcg_final_rel_residual=
+                            CG.failurePCGFinalRelResidual;
+                        R.r58r9_failure_pcg_rhs_inf=CG.failurePCGRhsInf;
+                        R.r58r9_failure_D_min=CG.failureDMin;
+                        R.r58r9_failure_D_max=CG.failureDMax;
+                        R.r58r9_failure_D_ratio=CG.failureDRatio;
+                        R.r58r9_failure_min_slack=CG.failureMinSlack;
+                        R.r58r9_failure_min_lambda=CG.failureMinLambda;
+                        R.r58r9_failure_metric_max_abs_corr=
+                            CG.failureMetricMaxAbsCorr;
+                        R.r58r9_failure_metric_one_minus_corr=
+                            1.0-CG.failureMetricMaxAbsCorr;
+
+                        if(depth==1&&!sg.empty()&&sg.back()>0){
+                            R.r58r9_plus_failed=1;
+                            R.r58r9_plus_failure_stage=CG.failureStage;
+                            R.r58r9_plus_failure_active_rows=CG.failureActiveRows;
+                            R.r58r9_plus_failure_pcg_relres=
+                                CG.failurePCGFinalRelResidual;
+                            R.r58r9_plus_metric_max_abs_corr=
+                                CG.failureMetricMaxAbsCorr;
+                            R.r58r9_plus_cg_ms=cgms;
+
+                            R.r58r10_plus_primal_residual=CG.failurePrimalResidual;
+                            R.r58r10_plus_dual_residual=CG.failureDualResidual;
+                            R.r58r10_plus_mu=CG.failureMu;
+                            R.r58r10_plus_duality_gap=CG.failureDualityGap;
+                            R.r58r10_plus_kkt_tol=CG.failureKKTTol;
+                            R.r58r10_plus_gap_tol=CG.failureGapTol;
+                            R.r58r10_plus_last_sigma=CG.failureLastSigma;
+                            R.r58r10_plus_last_alpha_primal=CG.failureLastAlphaPrimal;
+                            R.r58r10_plus_last_alpha_dual=CG.failureLastAlphaDual;
+                            R.r58r10_plus_min_alpha_primal=CG.failureMinAlphaPrimal;
+                            R.r58r10_plus_min_alpha_dual=CG.failureMinAlphaDual;
+                            R.r58r10_plus_mu_ratio=CG.failureMuRatio;
+                            R.r58r10_plus_D_min=CG.failureDMin;
+                            R.r58r10_plus_D_max=CG.failureDMax;
+                            R.r58r10_plus_D_ratio=CG.failureDRatio;
+                            R.r58r10_plus_min_slack=CG.failureMinSlack;
+                            R.r58r10_plus_min_lambda=CG.failureMinLambda;
+                            R.r58r10_plus_predictor_pcg_iterations=
+                                CG.failurePredictorPCGIterations;
+                            R.r58r10_plus_corrector_pcg_iterations=
+                                CG.failureCorrectorPCGIterations;
+                            R.r58r10_plus_predictor_pcg_relres=
+                                CG.failurePredictorPCGRelResidual;
+                            R.r58r10_plus_corrector_pcg_relres=
+                                CG.failureCorrectorPCGRelResidual;
+                        }else if(depth==1&&!sg.empty()&&sg.back()<0){
+                            R.r58r9_minus_failed=1;
+                            R.r58r9_minus_failure_stage=CG.failureStage;
+                            R.r58r9_minus_failure_active_rows=CG.failureActiveRows;
+                            R.r58r9_minus_failure_pcg_relres=
+                                CG.failurePCGFinalRelResidual;
+                            R.r58r9_minus_metric_max_abs_corr=
+                                CG.failureMetricMaxAbsCorr;
+                            R.r58r9_minus_cg_ms=cgms;
+
+                            R.r58r10_minus_primal_residual=CG.failurePrimalResidual;
+                            R.r58r10_minus_dual_residual=CG.failureDualResidual;
+                            R.r58r10_minus_mu=CG.failureMu;
+                            R.r58r10_minus_duality_gap=CG.failureDualityGap;
+                            R.r58r10_minus_kkt_tol=CG.failureKKTTol;
+                            R.r58r10_minus_gap_tol=CG.failureGapTol;
+                            R.r58r10_minus_last_sigma=CG.failureLastSigma;
+                            R.r58r10_minus_last_alpha_primal=CG.failureLastAlphaPrimal;
+                            R.r58r10_minus_last_alpha_dual=CG.failureLastAlphaDual;
+                            R.r58r10_minus_min_alpha_primal=CG.failureMinAlphaPrimal;
+                            R.r58r10_minus_min_alpha_dual=CG.failureMinAlphaDual;
+                            R.r58r10_minus_mu_ratio=CG.failureMuRatio;
+                            R.r58r10_minus_D_min=CG.failureDMin;
+                            R.r58r10_minus_D_max=CG.failureDMax;
+                            R.r58r10_minus_D_ratio=CG.failureDRatio;
+                            R.r58r10_minus_min_slack=CG.failureMinSlack;
+                            R.r58r10_minus_min_lambda=CG.failureMinLambda;
+                            R.r58r10_minus_predictor_pcg_iterations=
+                                CG.failurePredictorPCGIterations;
+                            R.r58r10_minus_corrector_pcg_iterations=
+                                CG.failureCorrectorPCGIterations;
+                            R.r58r10_minus_predictor_pcg_relres=
+                                CG.failurePredictorPCGRelResidual;
+                            R.r58r10_minus_corrector_pcg_relres=
+                                CG.failureCorrectorPCGRelResidual;
+                        }
+                    }else if(depth==1&&!sg.empty()&&sg.back()>0){
+                        R.r58r9_plus_cg_ms=cgms;
+                    }else if(depth==1&&!sg.empty()&&sg.back()<0){
+                        R.r58r9_minus_cg_ms=cgms;
+                    }
+                    if(fin(CG.ipmPrimalResidual))
+                        R.r58r8_ipm_primal_residual=
+                            std::min(R.r58r8_ipm_primal_residual,CG.ipmPrimalResidual);
+                    if(fin(CG.ipmDualResidual))
+                        R.r58r8_ipm_dual_residual=
+                            std::min(R.r58r8_ipm_dual_residual,CG.ipmDualResidual);
+                    if(fin(CG.ipmComplementarity))
+                        R.r58r8_ipm_complementarity=
+                            std::min(R.r58r8_ipm_complementarity,CG.ipmComplementarity);
+                    if(fin(CG.ipmDualityGap))
+                        R.r58r8_ipm_duality_gap=
+                            std::min(R.r58r8_ipm_duality_gap,CG.ipmDualityGap);
+                    if(fin(CG.ipmMinSlack))R.r58r8_ipm_min_slack=CG.ipmMinSlack;
+                    if(fin(CG.ipmMinLambda))R.r58r8_ipm_min_lambda=CG.ipmMinLambda;
+
+                    if(!q.ok)++R.r58_bnb_qp_infeasible;
+                    return q;
+                };
+
+                std::priority_queue<
+                    R58SearchNode,std::vector<R58SearchNode>,R58SearchGreater>pq;
+
+                R58SearchNode root58;
+                root58.depth=0;root58.seq=++seq;
+                // Base rows are homogeneous equalities and z=0 is feasible.
+                // H is positive definite after Cholesky authority, so the
+                // exact root lower bound is zero; no QP solve is necessary.
+                root58.q.ok=true;
+                root58.q.cost=0.0;
+                root58.q.slack=0.0;
+                root58.q.z.assign(nv58,0.0);
+                root58.lb=0.0;
+                R.r58r2_root_qp_elided=1;
+                pq.push(std::move(root58));
+
+                while(!pq.empty()&&!R.r58_bnb_feasible_full){
+                    R.r58_bnb_max_queue=
+                        std::max(R.r58_bnb_max_queue,(int)pq.size());
+                    auto N58=pq.top();pq.pop();
+                    ++R.r58_bnb_nodes_popped;
+
+                    if(N58.depth<M){
+                        const int ei=N58.depth;
+                        for(int si=0;si<2;++si){
+                            const int side=(si==0)?+1:-1;
+                            if(!cache[ei][si].valid)continue;
+
+                            R58SearchNode Cn;
+                            Cn.depth=N58.depth+1;
+                            Cn.signs=N58.signs;
+                            Cn.signs.push_back(side);
+                            Cn.seq=++seq;
+                            Cn.q=solve_partial(Cn.signs,Cn.depth);
+                            if(!Cn.q.ok)continue;
+                            Cn.lb=Cn.q.cost;
+                            pq.push(std::move(Cn));
+                        }
+                        continue;
+                    }
+
+                    ++R.r58_bnb_full_assignments;
+                    double qerr=0.0,qphys=0.0,joinmis=0.0;
+                    std::array<double,3> rawQPderivativeUB{};
+                    Candidate C58;
+                    try{
+                        QPSol qReduced=r58_unscale_solution(
+                            N58.q,varScale58);
+                        if(!qReduced.ok)continue;
+                        if(lowJet58){
+                            qReduced=r58r14_lift_solution(
+                                qReduced,EL58.nred,lowJetIndices58);
+                            if(!qReduced.ok)continue;
+                        }
+                        QPSol qPhysical=r58_expand_solution(qReduced,EL58);
+                        if(!qPhysical.ok)continue;
+                        for(double zv:qPhysical.z)
+                            R.r58r6_prequant_scaled_jet_max_abs=
+                                std::max(R.r58r6_prequant_scaled_jet_max_abs,
+                                         std::fabs(zv));
+                        C58=r58_build_candidate(
+                            qPhysical,K58,h58,L.L,L.g,N58.signs,
+                            qerr,qphys,joinmis,rawQPderivativeUB);
+                    }catch(const std::runtime_error&){
+                        continue;
+                    }
+
+                    R.r58_quantized_jet_max_abs_error=
+                        std::max(R.r58_quantized_jet_max_abs_error,qerr);
+                    R.r58r6_quantized_physical_jet_max_abs_error=
+                        std::max(R.r58r6_quantized_physical_jet_max_abs_error,
+                                 qphys);
+                    if(R.r58r6_prequant_scaled_jet_max_abs>0.0)
+                        R.r58r6_quantized_scaled_jet_rel_error=
+                            std::max(
+                                R.r58r6_quantized_scaled_jet_rel_error,
+                                qerr/R.r58r6_prequant_scaled_jet_max_abs);
+                    R.r58_legacy_join_max_abs_mismatch=
+                        std::max(R.r58_legacy_join_max_abs_mismatch,joinmis);
+
+                    if(!(C58.exact_c7&&C58.exact_c7_constructive))
+                        continue;
+
+                    const auto Tc=clk::now();
+                    SpeedCert sc58;
+                    auto tr58=tighten_stageA(C58,base,L.L,lim);
+                    if(tr58.certified){
+                        sc58=stageA_speed(tr58,base,L.L);
+                        if(!(sc58.certified&&sc58.VQ<lim))
+                            sc58=SpeedCert{};
+                    }
+                    R52StageBTrace SB58;
+                    bool finiteWitness58=false,repr58=false;
+                    if(!sc58.certified){
+                        sc58=stageB_speed(
+                            ref,L,base,C58,lim,
+                            finiteWitness58,repr58,&SB58);
+                    }
+                    // R13: diagnostic capture after the UNMODIFIED Stage-A / Stage-B
+                    // algorithms. Records do not feed acceptance or side selection.
+                    // Column order is declared in AF7R58R13_GATE_REPORT.m.
+                    const double sigmaA=base.sigma-tr58.U[1];
+                    const double vqA=sigmaA>0.0 ?
+                        base.VL+tr58.U[0]+L.L*(base.J+tr58.U[2])/sigmaA :
+                        std::numeric_limits<double>::infinity();
+                    const double qnan=std::numeric_limits<double>::quiet_NaN();
+                    std::array<double,38> r13row{{
+                        (double)(R.r58_bnb_full_assignments),
+                        N58.signs.empty()?0.0:(double)N58.signs.back(),
+                        (double)N58.signs.size(),
+                        (double)C58.cp.size(),N58.q.cost,lim,
+                        qerr,qphys,C58.dub[0],C58.dub[1],C58.dub[2],
+                        tr58.certified?1.0:0.0,
+                        tr58.impossible?1.0:0.0,
+                        tr58.repr?1.0:0.0,(double)tr58.splits,
+                        tr58.U[0],tr58.U[1],tr58.U[2],
+                        tr58.Lw[0],tr58.Lw[1],tr58.Lw[2],
+                        (double)SB58.attempted,(double)SB58.result_code,
+                        (double)SB58.leaf_count,(double)SB58.split_count,
+                        (double)SB58.worst_seg,SB58.worst_t,
+                        SB58.attempted?SB58.worst_vq:qnan,
+                        SB58.worst_witness,SB58.worst_sigma,SB58.worst_qdot,
+                        vqA,sigmaA,
+                        finiteWitness58?1.0:0.0,
+                        repr58?1.0:0.0,
+                        rawQPderivativeUB[0],
+                        rawQPderivativeUB[1],
+                        rawQPderivativeUB[2]
+                    }};
+                    R.r58_speed_gate_rows.push_back(r13row);
+                    if(!sc58.certified){
+                        ++R.r58_bnb_speed_fail;
+                        R.r58_needs_time_law=1;
+                        R.r58r6_failed_corr_v_ub=
+                            std::max(R.r58r6_failed_corr_v_ub,C58.dub[0]);
+                        R.r58r6_failed_corr_a_ub=
+                            std::max(R.r58r6_failed_corr_a_ub,C58.dub[1]);
+                        R.r58r6_failed_corr_j_ub=
+                            std::max(R.r58r6_failed_corr_j_ub,C58.dub[2]);
+                        if(fin(SB58.worst_vq)&&
+                           SB58.worst_vq>R.r58r6_failed_speed_worst_vq){
+                            R.r58r6_failed_speed_worst_vq=SB58.worst_vq;
+                            R.r58r6_failed_speed_worst_vl=SB58.worst_vl;
+                            R.r58r6_failed_speed_worst_sigma=SB58.worst_sigma;
+                            R.r58r6_failed_speed_worst_qdot=SB58.worst_qdot;
+                            R.r58r6_failed_speed_witness=SB58.worst_witness;
+                        }
+                        R.r58_certificate_ms+=
+                            std::chrono::duration<double,std::milli>(
+                                clk::now()-Tc).count();
+                        continue;
+                    }
+
+                    double gamma=std::numeric_limits<double>::quiet_NaN();
+                    double anchor=std::numeric_limits<double>::quiet_NaN();
+                    int hl=0,hs=0;
+                    if(!r57_apply_heading_certificate(
+                            ref,C58,sc58,t0,t1,gamma,anchor,hl,hs)){
+                        ++R.r58_bnb_heading_fail;
+                        R.r58_certificate_ms+=
+                            std::chrono::duration<double,std::milli>(
+                                clk::now()-Tc).count();
+                        continue;
+                    }
+
+                    auto G58=wholebody(
+                        ref,L,obs,t0,tm,R.hold_end,t1,C58,sc58);
+                    R.r58_certificate_ms+=
+                        std::chrono::duration<double,std::milli>(
+                            clk::now()-Tc).count();
+                    if(!G58.pass){
+                        ++R.r58_bnb_geometry_fail;
+                        continue;
+                    }
+
+                    R.r58_bnb_feasible_full=1;
+                    R.r58_free_c7_constructive=1;
+                    R.r58_terminal_offset_hold=1;
+                    R.r58_terminal_zero_derivative_order=7;
+                    R.r58_best_qp_cost=N58.q.cost;
+                    R.r58_terminal_offset_norm_m=norm(C58.terminal_offset);
+                    for(int sgn:N58.signs){
+                        if(sgn>0)++R.r58_selected_side_plus;
+                        else ++R.r58_selected_side_minus;
+                    }
+
+                    R.r58_speed_pass=1;
+                    R.r58_heading_pass=1;
+                    R.r58_geometry_pass=1;
+                    R.r58_speed_VL=sc58.VL;
+                    R.r58_speed_A=sc58.A;
+                    R.r58_speed_J=sc58.J;
+                    R.r58_speed_sigma=sc58.sigma;
+                    R.r58_speed_qdot=sc58.qdot;
+                    R.r58_speed_VQ=sc58.VQ;
+                    R.r58_heading_gamma=gamma;
+                    R.r58_geometry_min_margin=G58.minMargin;
+                }
+
+                R.r58_homotopy_ms=
+                    std::chrono::duration<double,std::milli>(
+                        clk::now()-Th).count();
+            }
+        }
+
+        R.r58_fixed_rejoin_constraint_count=0;
+        R.r58_same_clock_binding_count=0;
+        R.r58_horizon_duration_coupling_count=0;
+        R.r58_commit_attempted=0;
+        R.r58_rejoin_selected=0;
+        R.r58_reference_only=1;
+        R.r58_shadow_ms=
+            std::chrono::duration<double,std::milli>(clk::now()-Tr58).count();
     }
     R.finite_sensing_limit=lim; // AF7_TOWING_DIAG_V1
 
@@ -4392,11 +9302,24 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
         else
             std::stable_sort(candidates.begin(),candidates.end(),candidate_affine_less);
         for(auto cand:candidates){
+        R52CandidateGateDiag DG;
+        const bool trace52=(cand.family==7);
+        if(trace52){
+            DG.family=cand.family;DG.exact_c7=cand.exact_c7?1:0;DG.max_ctrl=cand.max_ctrl;
+            DG.du=cand.dub[0];DG.da=cand.dub[1];DG.dj=cand.dub[2];
+            DG.phase_alpha=(cand.phase_reparameterized&&cand.phase.enabled)?cand.phase.alpha:
+                std::numeric_limits<double>::quiet_NaN();
+            DG.phase_delay=(cand.phase_reparameterized&&cand.phase.enabled)?cand.phase.delay:
+                std::numeric_limits<double>::quiet_NaN();
+            DG.actual_rejoin=cand.actual_rejoin_time;DG.limit=lim;
+        }
+        auto push52=[&](){if(trace52)r52_gate_diag_push(DG);};
         const int r24cfi=(cand.family>=0&&cand.family<8)?cand.family:0;
         ++R.r24e_family_seen[r24cfi];
         if(cand.exact_c7)++R.r24e_family_exact[r24cfi];
         else{
             ++R.r24e_family_exact_reject[r24cfi];
+            push52();
             continue;
         }
 
@@ -4405,34 +9328,46 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
         if(cand.family==7 && cand.trigger_to_free_rejoin &&
                 !cand.exact_c7_constructive){
             ++R.r24e_family_exact_reject[r24cfi];
+            push52();
             continue;
         }
 
-        // AF7R35: current primary family must carry a constructive
-        // path-tangent C6 yaw regularity certificate before any speed/safety
-        // certificate is attempted.
-        if(cand.family==7 &&
-                !(cand.heading_c6&&fin(cand.heading_gamma)&&cand.heading_gamma>0))
-            continue;
-
             SpeedCert sc;
+            const SpeedCert bcert=(cand.phase_reparameterized&&cand.phase.enabled)?
+                r51_phase_base_certificate(base,L,cand.phase):base;
+            if(trace52){
+                DG.base_VL=bcert.VL;DG.base_A=bcert.A;DG.base_J=bcert.J;DG.base_sigma=bcert.sigma;
+            }
+            if(!bcert.certified){
+                ++R.r24e_family_speed_fail[r24cfi];
+                push52();
+                continue;
+            }
             if(branch==1) R.primary_min_envelope=std::min(R.primary_min_envelope,cand.max_ctrl);
-            auto tr=tighten_stageA(cand,base,L.L,lim);
+            auto tr=tighten_stageA(cand,bcert,L.L,lim);
+            if(trace52){
+                DG.A_Uv=tr.U[0];DG.A_Ua=tr.U[1];DG.A_Uj=tr.U[2];
+                DG.A_sigma=bcert.sigma-tr.U[1];
+                DG.A_VQ=(DG.A_sigma>0.0)?
+                    bcert.VL+tr.U[0]+L.L*(bcert.J+tr.U[2])/DG.A_sigma:
+                    std::numeric_limits<double>::infinity();
+                DG.A_cert=tr.certified?1:0;DG.A_impossible=tr.impossible?1:0;DG.A_repr=tr.repr?1:0;
+            }
             if(cand.family==7){
                 R.r31_best_correction_speed_ub=
                     std::min(R.r31_best_correction_speed_ub,cand.dub[0]);
-                const double dsig31=base.sigma-tr.U[1];
+                const double dsig31=bcert.sigma-tr.U[1];
                 const double dvq31=(dsig31>0.0)?
-                    base.VL+tr.U[0]+L.L*(base.J+tr.U[2])/dsig31:
+                    bcert.VL+tr.U[0]+L.L*(bcert.J+tr.U[2])/dsig31:
                     std::numeric_limits<double>::infinity();
                 if(fin(dvq31))
                     R.r31_best_stageA_uav_speed_ub=
                         std::min(R.r31_best_stageA_uav_speed_ub,dvq31);
             }
             if(branch==1){
-                const double dsig=base.sigma-tr.U[1];
+                const double dsig=bcert.sigma-tr.U[1];
                 const double dvq=(dsig>0.0)?
-                    base.VL+tr.U[0]+L.L*(base.J+tr.U[2])/dsig:
+                    bcert.VL+tr.U[0]+L.L*(bcert.J+tr.U[2])/dsig:
                     std::numeric_limits<double>::infinity();
                 if(fin(dvq) && dvq<R.primary_min_stageA_vq){
                     R.primary_min_stageA_vq=dvq;
@@ -4442,14 +9377,16 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                 if(tr.certified) ++R.primary_stageA_certified_count;
             }
             if(tr.certified){
-                sc=stageA_speed(tr,base,L.L);
+                sc=stageA_speed(tr,bcert,L.L);
                 if(sc.certified&&sc.VQ<lim){
                     cand.dub[0]=tr.U[0];cand.dub[1]=tr.U[1];cand.dub[2]=tr.U[2];
                 }else sc.certified=false;
             }
             if(!sc.certified){
                 bool wit=false,rp=false;
-                sc=stageB_speed(ref,L,base,cand,lim,wit,rp);
+                R52StageBTrace Bdbg;
+                sc=stageB_speed(ref,L,bcert,cand,lim,wit,rp,trace52?&Bdbg:nullptr);
+                if(trace52)DG.B=Bdbg;
                 if(branch==1){
                     if(wit) ++R.primary_stageB_finite_witness_count;
                     if(rp) ++R.primary_stageB_repr_fail_count;
@@ -4458,236 +9395,321 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
             }
             if(!sc.certified){
                 ++R.r24e_family_speed_fail[r24cfi];
+                push52();
                 continue;
             }
+            if(trace52)DG.speed_pass=1;
             ++R.r24e_family_speed_pass[r24cfi];
             ++R.speed_pass;
             if(branch==1) ++R.primary_speed_pass; else if(branch==2) ++R.fallback_speed_pass; else if(branch==3) ++R.towing_speed_pass;
-            if(!rejoin_safe(ref,L,obs,t1,cand,sc)) continue;
+
+            // AF7R47: yaw regularity is certified on the TOTAL active-base
+            // plus candidate trajectory, after the hard speed certificate has
+            // supplied continuous V/A bounds. This supports replanning from
+            // an already-curved C7 active reference.
+            // AF7R47 absolute smoothness contract:
+            // Every exact-C7 candidate, including historical fallbacks, must
+            // certify the TOTAL path-tangent yaw as C6 before it can reach
+            // rejoin/geometry acceptance. No fallback can silently revert to
+            // a non-path-tangent yaw convention.
+            ++R.r35_heading_candidate_count;
+            double gamma=std::numeric_limits<double>::quiet_NaN();
+            double anchor=std::numeric_limits<double>::quiet_NaN();
+            int hLeaves=0,hSplits=0;
+            R52HeadingTrace Hdbg;
+            if(trace52)DG.H.attempted=1;
+            if(!r47_apply_heading_certificate(
+                    ref,cand,bcert,sc,t0,t1,
+                    gamma,anchor,hLeaves,hSplits,trace52?&Hdbg:nullptr)){
+                if(trace52)DG.H=Hdbg;
+                ++R.r35_heading_reject_count;
+                push52();
+                continue;
+            }
+            if(trace52){DG.H=Hdbg;DG.heading_pass=1;DG.heading_gamma=gamma;}
+            ++R.r35_heading_pass_count;
+            if(cand.family==7 && cand.trigger_to_free_rejoin)
+                ++R.r37_heading_pass_count;
+            R.r47_heading_leaf_count+=hLeaves;
+            R.r47_heading_split_count+=hSplits;
+            if(!fin(R.r35_best_heading_gamma_m_s)||
+                    gamma>R.r35_best_heading_gamma_m_s)
+                R.r35_best_heading_gamma_m_s=gamma;
+
+            if(trace52)DG.rejoin_attempt=1;
+            if(!rejoin_safe(ref,L,obs,t1,cand,sc)){push52();continue;}
+            if(trace52)DG.rejoin_pass=1;
             ++R.rejoin_pass;++R.geom_tests;
             if(branch==1){++R.primary_rejoin_pass;++R.primary_geom_tests;}
             else if(branch==2){++R.fallback_rejoin_pass;++R.fallback_geom_tests;}
             else if(branch==3){++R.towing_rejoin_pass;++R.towing_geom_tests;}
+            if(trace52)DG.geom_attempt=1;
             auto G=wholebody(ref,L,obs,t0,tm,R.hold_end,t1,cand,sc);
+            if(trace52){DG.geom_pass=G.pass?1:0;DG.geom_min_margin=G.minMargin;}
             if(G.pass){
-                if(branch==3 && !c7r7_heading_regular(ref,cand,sc,t0,t1))continue;
+                push52();
                 R.success=true;R.reason=0;R.cand=std::move(cand);R.speed=sc;R.geom=G;return true;
             }
+            push52();
         }
         return false;
     };
 
     // ------------------------------------------------------------------
-    // PRIMARY R37/R45: trigger -> free-rejoin generic exact-C7 spatial spline
-    // with tangent-support corridor relief.
+    // AF7R55 PRIMARY: BALANCED SOURCE-PHASE / REAL-TIME ALLOCATION
+    //                 + EPISODE-LOCAL ORIENTED-ELLIPSOID SIDE SELECTION
+    //                 + WORLD-3D MOVING-NORMAL EXACT-C7 CORRECTION.
     //
-    // For this fixed-t1 certificate primitive, t1 is the rejoin deadline.
-    // The actual exact-grid rejoin is the largest representable time <= t1.
-    // MATLAB may independently search shorter deadlines; every accepted trial
-    // is rebuilt and passed through these same hard certificates.
+    // H is not a maneuver duration.
+    // No same-clock old-reference position is imposed at rejoin.
+    // No phase x rejoin Cartesian-product enumeration is performed.
     // ------------------------------------------------------------------
     ts=clk::now();
     {
-        const double sA=E.comp.front().start;
-        const double sB=E.comp.back().end;
-        Vec3 vbase{};
-        const bool affineBase=r32_affine_base_exact(ref,t0,sA,sB,t1,vbase);
-        R.r32_affine_base_detected=affineBase?1:0;
+        ++R.r51_phase_seed_count;
+        if(!ref.repairs.empty())++R.r47_active_base_replan_count;
 
-        if(affineBase){
-            R.r32_nominal_progress_speed=norm(vbase);
-            const R36Plane B37=r36_plane(vbase);
+        Vec3 av{};
+        const bool ab=r32_affine_base_exact(
+            ref,t0,E.comp.front().start,E.comp.back().end,t1,av);
+        R.r32_affine_base_detected=ab?1:0;
+        if(!ab)++R.r47_nonaffine_base_count;
 
-            // Exact representation grid only; this is a numerical storage
-            // quantum, not a maneuver-duration rule.
-            const double h37=std::ldexp(1.0,std::ilogb(L.dt));
-            auto K=r37_make_knots(E,t0,t1,h37);
+        r55_ellipsoid_audit(
+            obs,R.r55_obstacle_count,R.r55_min_ellipsoid_axis_m,
+            R.r55_max_ellipsoid_axis_m,R.r55_max_rotation_orth_error);
 
-            if(K.size()>=3 && K.front()<E.comp.front().start &&
-                    K.back()>E.comp.back().end){
-                R.r37_support_start_s=K.front();
-                R.r37_actual_rejoin_s=K.back();
-                R.r37_knot_count=(int)K.size();
+        ++R.r55_phase_build_count;
+        R51PhaseSpec phase;
+        R55PhaseDiag PD;
 
-                std::vector<double>H37;
-                try{
-                    H37=r37_spatial_hessian(K,L.L,L.g);
-                }catch(const std::runtime_error&){
-                    H37.clear();
-                }
+        if(!r55_build_balanced_phase(L,E,t0,t1,phase,PD)){
+            ++R.r55_phase_build_fail_count;
+        }else{
+            R.r55_alpha=phase.alpha;
+            R.r55_delay_s=phase.delay;
+            R.r55_source_unsafe_start_s=PD.s0;
+            R.r55_source_unsafe_end_s=PD.s1;
+            R.r55_predicted_first_unsafe_t_s=PD.tFirst;
+            R.r55_predicted_last_unsafe_t_s=PD.tLast;
+            R.r55_pre_unsafe_slack_s=PD.preSlack;
+            R.r55_post_unsafe_slack_s=PD.postSlack;
+            R.r55_min_temporal_slack_s=PD.minSlack;
+            R.r55_phase_entry_transition_s=PD.Te;
+            R.r55_phase_exit_transition_s=PD.Tx;
 
-                if(!H37.empty()){
-                    std::vector<Candidate>cands;
-                    std::vector<int>sg37(Ne,1);
+            R.r51_phase_alpha=phase.alpha;
+            R.r51_phase_delay_s=phase.delay;
+            R.r51_phase_exit_time_s=phase.tE;
+            R.r34_selected_alpha=phase.alpha;
+            R.r34_selected_delay_s=phase.delay;
+            R.r34_selected_hold_start_s=phase.tE;
 
-                    std::function<void(int)>rec37=[&](int k){
-                        if(k<Ne){
-                            sg37[k]=1;rec37(k+1);
-                            sg37[k]=-1;rec37(k+1);
-                            return;
-                        }
-                        ++R.r37_side_assignments;
+            const auto SR=r51_phase_jet(phase,phase.tE);
+            R.r55_source_phase_at_rejoin_s=SR[0];
+            R.r55_rejoin_clock_delay_s=phase.tE-SR[0];
 
-                        std::vector<Row>rows;
-                        try{
-                            for(int ei=0;ei<Ne;++ei){
-                                auto ep=E.ep[ei];
-                                auto xa=ref.eval(ep.start),xb=ref.eval(ep.end);
-                                Vec3 prog=xb[0]-xa[0];
-                                if(norm(prog)<=128*epsd()*
-                                        std::max(1.0,norm(xa[0])))
-                                    prog=ref.eval(0.5*(ep.start+ep.end))[1];
+            const SpeedCert phaseBase=r51_phase_base_certificate(base,L,phase);
+            if(phaseBase.certified){
+                EpisodeCert Ep=r52_build_phase_episode(
+                    ref,phase,L,phaseBase,obs,phase.t0,phase.tE);
+                ++R.r52_phase_episode_count;
 
-                                Vec3 n0=lateral_normal(
-                                    obs[ep.obs].R,obs[ep.obs].axes,prog);
-                                Vec3 n=(sg37[ei]>0)?n0:n0*(-1.0);
-                                R45CorridorDiag D45;
-                                auto rr=r37_corridor_rows(
-                                    ref,L,base,obs,E,ei,n,K,B37,vbase,&D45);
-                                rows.insert(rows.end(),rr.begin(),rr.end());
+                if(!Ep.ok){
+                    ++R.r52_phase_episode_rebuild_fail_count;
+                }else if(Ep.comp.empty()||Ep.ep.empty()){
+                    ++R.r55_phase_episode_empty_count;
 
-                                R.r45_tangent_interval_count+=D45.intervals;
-                                R.r45_zero_offset_interval_count+=D45.zero_offset_intervals;
-                                R.r45_convex_search_fallback_count+=D45.search_fallbacks;
-                                R.r45_best_fixed_peak_req_m=
-                                    std::min(R.r45_best_fixed_peak_req_m,D45.fixed_peak);
-                                R.r45_best_tangent_peak_req_m=
-                                    std::min(R.r45_best_tangent_peak_req_m,D45.tangent_peak);
-                                R.r45_max_peak_relief_m=
-                                    std::max(R.r45_max_peak_relief_m,
-                                        D45.fixed_peak-D45.tangent_peak);
-                            }
-                        }catch(const std::runtime_error&){
-                            ++R.r28_flow_grid_reject;
-                            return;
-                        }
+                    Candidate C;
+                    C.family=7;C.exact_c7=true;C.exact_c7_constructive=true;
+                    C.phase_reparameterized=true;C.phase=phase;
+                    C.progress_retimed=true;C.identity_time_law=false;
+                    C.progress_scale=phase.alpha;C.schedule_delay=phase.delay;
+                    C.retime_entry_T=phase.tA-phase.t0;
+                    C.retime_flow_T=phase.tB-phase.tA;
+                    C.retime_exit_T=phase.tE-phase.tB;
+                    C.terminal_hold=false;C.terminal_hold_start=phase.tE;
+                    C.actual_rejoin_time=phase.tE;C.trigger_to_free_rejoin=true;
+                    C.seg0={phase.t0};C.seg1={phase.tE};
+                    C.cp={Poly(16,Vec3{})};C.dub.fill(0.0);C.max_ctrl=0.0;
 
-                        const int nvar=2*r37_scalar_dofs(K);
-                        QPSol q=solve_qp_active_exchange(H37,nvar,rows);
+                    std::vector<Candidate>one{C};
+                    if(certify_candidates(one,true,1)){
+                        R.r52_selected_spatial_rejoin_s=R.cand.actual_rejoin_time;
+                        R.r37_actual_rejoin_s=R.cand.actual_rejoin_time;
+                        R.r35_selected_heading_gamma_m_s=R.cand.heading_gamma;
+                        R.r35_selected_heading_anchor_rad=R.cand.heading_anchor_rad;
+                        R.tim.synthesis=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+                        R.tim.candidate=R.tim.synthesis;
+                        R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();
+                        return R;
+                    }
+                }else{
+                    ++R.r55_phase_episode_pass_count;
 
-                        // Numerical failure of the scalable exchange solver
-                        // never relaxes the corridor. Rebuild the historical
-                        // fixed-separator rows and use the original exact
-                        // subset enumerator, whose row count is small for that
-                        // conservative corridor.
-                        if(!q.ok){
-                            std::vector<Row>fixedRows;
-                            try{
-                                for(int ei=0;ei<Ne;++ei){
-                                    auto ep=E.ep[ei];
-                                    auto xa=ref.eval(ep.start),xb=ref.eval(ep.end);
-                                    Vec3 prog=xb[0]-xa[0];
-                                    if(norm(prog)<=128*epsd()*std::max(1.0,norm(xa[0])))
-                                        prog=ref.eval(0.5*(ep.start+ep.end))[1];
-                                    Vec3 n0=lateral_normal(obs[ep.obs].R,obs[ep.obs].axes,prog);
-                                    Vec3 n=(sg37[ei]>0)?n0:n0*(-1.0);
-                                    auto rr=r45_fixed_corridor_rows(ref,L,base,obs,E,ei,n,K,B37);
-                                    fixedRows.insert(fixedRows.end(),rr.begin(),rr.end());
+                    const double h55=std::ldexp(1.0,std::ilogb(L.dt));
+                    const double firstUnsafe=Ep.comp.front().start;
+                    const double lastUnsafe=Ep.comp.back().end;
+                    const double tR=phase.tE;
+
+                    auto K=r37_make_knots(Ep,phase.t0,tR,h55);
+                    if(K.size()>=3&&K.front()<firstUnsafe&&K.back()>lastUnsafe){
+                        R.r37_support_start_s=K.front();
+                        R.r37_actual_rejoin_s=K.back();
+                        R.r37_knot_count=(int)K.size();
+
+                        std::vector<double>H55;
+                        const auto th55=clk::now();
+                        try{H55=r52_spatial_hessian3(K,L.L,L.g);}
+                        catch(const std::runtime_error&){H55.clear();}
+                        R.tim.hessian+=std::chrono::duration<double,std::milli>(
+                            clk::now()-th55).count();
+
+                        if(!H55.empty()){
+                            std::vector<Row>rows;
+                            std::vector<int>signs;
+                            bool rowsOK=true;
+
+                            const auto tcorr=clk::now();
+                            for(int ei=0;ei<(int)Ep.ep.size();++ei){
+                                auto ER=r55_choose_episode_rows(
+                                    ref,phase,L,phaseBase,obs,Ep,ei,K);
+                                if(!ER.ok){
+                                    rowsOK=false;
+                                    ++R.r55_side_both_failed_count;
+                                    break;
                                 }
-                            }catch(const std::runtime_error&){
-                                return;
+
+                                ++R.r55_mixed_side_episode_count;
+                                if(ER.sign>0)++R.r55_side_plus_count;
+                                else ++R.r55_side_minus_count;
+                                if(ER.plus_ok!=ER.minus_ok)
+                                    ++R.r55_side_onebranch_count;
+
+                                const auto&D=(ER.sign>0)?ER.plus_diag:ER.minus_diag;
+                                R.r45_tangent_interval_count+=D.intervals;
+                                R.r45_zero_offset_interval_count+=D.zero_offset_intervals;
+                                R.r45_best_tangent_peak_req_m=
+                                    std::min(R.r45_best_tangent_peak_req_m,D.tangent_peak);
+
+                                signs.push_back(ER.sign);
+                                R.r55_corridor_row_count+=(int)ER.rows.size();
+                                rows.insert(rows.end(),ER.rows.begin(),ER.rows.end());
                             }
-                            q=solve_qp(H37,nvar,fixedRows);
-                        }
-                        if(!q.ok)return;
-                        ++R.r37_spatial_qp_solutions;
+                            R.tim.corridor+=std::chrono::duration<double,std::milli>(
+                                clk::now()-tcorr).count();
 
-                        R37Path P=r37_decode_path(q,K,B37,sg37);
-                        if(!P.ok)return;
+                            if(rowsOK&&!rows.empty()){
+                                int nc=0,rc=0,sc=0;
+                                if(r53_add_moving_normal_bundle_rows3(
+                                        rows,K,ref,phase,nc,rc,sc)){
+                                    R.r53_normal_bundle_node_count+=nc;
+                                    R.r53_normal_bundle_row_count+=rc;
+                                    R.r53_normal_bundle_singular_count+=sc;
+                                    if(ab)++R.r53_affine_reduction_count;
 
-                        try{
-                            Candidate C=r37_build_candidate(P,h37,vbase);
-                            if(!C.exact_c7 || !C.exact_c7_constructive){
-                                ++R.r31_exact_join_reject;
-                                return;
+                                    const int nv=3*r37_scalar_dofs(K);
+                                    const auto tq=clk::now();
+                                    QPSol q=solve_qp_active_exchange(H55,nv,rows);
+                                    R.tim.qp+=std::chrono::duration<double,std::milli>(
+                                        clk::now()-tq).count();
+
+                                    if(q.ok){
+                                        ++R.r37_spatial_qp_solutions;
+                                        ++R.r52_spatial_qp_solution_count;
+                                        R37Path P55=r52_decode_path3(q,K,signs);
+
+                                        if(P55.ok){
+                                            try{
+                                                Candidate C=r37_build_candidate(P55,h55,Vec3{});
+                                                if(C.exact_c7&&C.exact_c7_constructive){
+                                                    C.phase_reparameterized=true;
+                                                    C.phase=phase;
+                                                    C.progress_retimed=true;
+                                                    C.identity_time_law=false;
+                                                    C.progress_scale=phase.alpha;
+                                                    C.schedule_delay=phase.delay;
+                                                    C.retime_entry_T=firstUnsafe-phase.t0;
+                                                    C.retime_flow_T=lastUnsafe-firstUnsafe;
+                                                    C.retime_exit_T=tR-lastUnsafe;
+                                                    C.terminal_hold=false;
+                                                    C.terminal_hold_start=tR;
+                                                    C.actual_rejoin_time=tR;
+                                                    C.trigger_to_free_rejoin=true;
+
+                                                    r53_record_shape_diag(P55,C,0);
+                                                    ++R.r37_exact_c7_candidates;
+                                                    ++R.r38_constructive_c7_count;
+                                                    ++R.r51_tangent_candidate_count;
+                                                    if(C.legacy_float_endpoint_checker_pass)
+                                                        ++R.r38_legacy_float_checker_pass_count;
+                                                    else
+                                                        ++R.r38_legacy_float_false_reject_count;
+
+                                                    const double vu=phaseBase.VL+C.dub[0];
+                                                    if(vu<R.r37_best_total_velocity_ub){
+                                                        R.r37_best_total_velocity_ub=vu;
+                                                        R.r37_best_accel_ub=C.dub[1];
+                                                        R.r37_best_jerk_ub=C.dub[2];
+                                                        R.r32_best_pre_speed_ub=vu;
+                                                        R.r32_best_progress_scale=phase.alpha;
+                                                        R.r32_best_entry_T=C.retime_entry_T;
+                                                        R.r32_best_flow_T=C.retime_flow_T;
+                                                        R.r32_best_exit_T=C.retime_exit_T;
+                                                    }
+
+                                                    std::vector<Candidate>one{C};
+                                                    if(certify_candidates(one,true,1)){
+                                                        ++R.r51_tangent_certified_count;
+                                                        R.r52_selected_spatial_rejoin_s=
+                                                            R.cand.actual_rejoin_time;
+                                                        R.r37_actual_rejoin_s=
+                                                            R.cand.actual_rejoin_time;
+                                                        R.r35_selected_heading_gamma_m_s=
+                                                            R.cand.heading_gamma;
+                                                        R.r35_selected_heading_anchor_rad=
+                                                            R.cand.heading_anchor_rad;
+                                                        R.r34_selected_delay_s=
+                                                            R.cand.schedule_delay;
+                                                        R.r34_selected_hold_start_s=
+                                                            R.cand.actual_rejoin_time;
+                                                        R.r34_selected_alpha=
+                                                            R.cand.progress_scale;
+                                                        R.r34_selected_velocity_ub=R.speed.VL;
+                                                        R.r34_selected_accel_ub=R.speed.A;
+                                                        R.r34_selected_jerk_ub=R.speed.J;
+                                                        R.tim.synthesis=
+                                                            std::chrono::duration<double,std::milli>(
+                                                                clk::now()-a).count();
+                                                        R.tim.candidate=R.tim.synthesis;
+                                                        R.tim.total=
+                                                            std::chrono::duration<double,std::milli>(
+                                                                clk::now()-T0).count();
+                                                        return R;
+                                                    }
+                                                }else{
+                                                    ++R.r31_exact_join_reject;
+                                                }
+                                            }catch(const std::runtime_error&){}
+                                        }
+                                    }
+                                }else{
+                                    R.r53_normal_bundle_singular_count+=std::max(1,sc);
+                                }
                             }
-                            ++R.r37_exact_c7_candidates;
-                            ++R.r38_constructive_c7_count;
-                            if(C.legacy_float_endpoint_checker_pass)
-                                ++R.r38_legacy_float_checker_pass_count;
-                            else
-                                ++R.r38_legacy_float_false_reject_count;
-
-                            ++R.r35_heading_candidate_count;
-                            double gamma=std::numeric_limits<double>::quiet_NaN();
-                            double anchor=std::numeric_limits<double>::quiet_NaN();
-                            if(!r35_apply_heading_certificate(
-                                    vbase,C,gamma,anchor)){
-                                ++R.r35_heading_reject_count;
-                                return;
-                            }
-                            ++R.r35_heading_pass_count;
-                            ++R.r37_heading_pass_count;
-                            if(!fin(R.r35_best_heading_gamma_m_s)||
-                                    gamma>R.r35_best_heading_gamma_m_s)
-                                R.r35_best_heading_gamma_m_s=gamma;
-
-                            const double vu=r32_affine_velocity_control_ub(vbase,C);
-                            if(vu<R.r37_best_total_velocity_ub){
-                                R.r37_best_total_velocity_ub=vu;
-                                R.r37_best_accel_ub=C.dub[1];
-                                R.r37_best_jerk_ub=C.dub[2];
-                                R.r32_best_pre_speed_ub=vu;
-                                R.r32_best_progress_scale=1.0;
-                                R.r32_best_entry_T=E.comp.front().start-K.front();
-                                R.r32_best_flow_T=E.comp.back().end-E.comp.front().start;
-                                R.r32_best_exit_T=K.back()-E.comp.back().end;
-                            }
-                            cands.push_back(std::move(C));
-                        }catch(const std::runtime_error&){
-                            ++R.r28_flow_grid_reject;
-                        }
-                    };
-                    rec37(0);
-
-                    // Quality only. Safety remains in certify_candidates().
-                    // For the same rejoin deadline, prefer lower cable-driving
-                    // jerk bound, then lower acceleration, then smaller
-                    // deviation envelope. No arbitrary weighted sum.
-                    std::stable_sort(cands.begin(),cands.end(),
-                        [](const Candidate&a,const Candidate&b){
-                            if(a.dub[2]<b.dub[2])return true;
-                            if(b.dub[2]<a.dub[2])return false;
-                            if(a.dub[1]<b.dub[1])return true;
-                            if(b.dub[1]<a.dub[1])return false;
-                            return candidate_envelope_less(a,b);
-                        });
-
-                    R.tim.qp+=std::chrono::duration<double,std::milli>(
-                        clk::now()-ts).count();
-                    auto tc37=clk::now();
-
-                    // Preserve the quality order above. envelopeOrder=false
-                    // would normally invoke the affine cost order, so certify
-                    // one candidate at a time in the already-established
-                    // lexicographic towing-quality order.
-                    for(size_t i=0;i<cands.size();++i){
-                        std::vector<Candidate>one;
-                        one.push_back(cands[i]);
-                        if(certify_candidates(one,true,4)){
-                            R.r35_selected_heading_gamma_m_s=R.cand.heading_gamma;
-                            R.r35_selected_heading_anchor_rad=R.cand.heading_anchor_rad;
-                            R.r37_actual_rejoin_s=R.cand.actual_rejoin_time;
-                            R.tim.candidate_build+=
-                                std::chrono::duration<double,std::milli>(
-                                    clk::now()-tc37).count();
-                            R.tim.synthesis=
-                                std::chrono::duration<double,std::milli>(
-                                    clk::now()-a).count();
-                            R.tim.candidate=R.tim.synthesis;
-                            R.tim.total=
-                                std::chrono::duration<double,std::milli>(
-                                    clk::now()-T0).count();
-                            return R;
                         }
                     }
-                    R.tim.candidate_build+=
-                        std::chrono::duration<double,std::milli>(
-                            clk::now()-tc37).count();
                 }
             }
         }
     }
+
+    // Single production theory: no alternative trajectory-family fallback.
+    R.reason=55;
+    R.tim.synthesis=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+    R.tim.candidate=R.tim.synthesis;
+    R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();
+    return R;
 
     // ------------------------------------------------------------------
     // PRIMARY R25F: CURVED_C7_ZERO_JET_BELL (family 6).
@@ -4788,6 +9810,16 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
         }
         R.tim.candidate_build+=
             std::chrono::duration<double,std::milli>(clk::now()-tc25).count();
+    }
+
+    // AF7R47: only now, after the active-reference R37/R45 primary and
+    // the independent bell family have failed, construct the historical
+    // fallback corridor. This changes timing only, never safety semantics.
+    if(!ensure_legacy_corridor()){
+        R.reason=23;
+        R.tim.synthesis=std::chrono::duration<double,std::milli>(clk::now()-a).count();
+        R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();
+        return R;
     }
 
     // ------------------------------------------------------------------
@@ -5302,18 +10334,20 @@ static inline HeadingTopoR10B heading_topology_r10b(
 
 static inline PlanResult plan(const ActiveReference&ref,const Live&L,const SpeedCert&base,
                               const std::vector<Obstacle>&obs,double t0,double tm,double t1){
-    // R37 layering contract:
-    //   This native entry point certifies ONE FIXED terminal time t1.
-    //   It does not perform adaptive time search internally.
+    // AF7R48 automatic natural rejoin.
     //
-    // The MATLAB REPLANNING_SYSTEM owns adaptive rejoin selection by calling
-    // this fixed-t1 primitive repeatedly.  Keeping the layers separate gives
-    // two critical properties:
-    //   (1) the full-domain previously flown t1 remains an exact fail-safe
-    //       witness, so a failed compact/adaptive search cannot suppress
-    //       obstacle avoidance; and
-    //   (2) every shorter candidate is independently passed through the same
-    //       finite-sensing, rejoin and continuous whole-body certificates.
+    // `t1` is only the finite source/reference-validity boundary.  After the
+    // unsafe episode is built once, we form one physics-derived shorter
+    // quality trial
+    //
+    //   T_exit = max(T_entry, T_unsafe_scope) + sqrt(L/g),
+    //
+    // where sqrt(L/g) is the suspended-load natural time scale.  There is no
+    // fixed physical maneuver-duration constant and no arbitrary weighted
+    // objective.  The shorter trial is accepted ONLY if the complete unchanged
+    // exact-C7 -> yaw-C6 -> speed -> rejoin -> whole-body hard certificate
+    // stack closes.  Otherwise the original full source-domain deadline is
+    // certified as a fail-safe fallback.
     //
     // Spatial synthesis hierarchy inside plan_fixed_scope():
     //   primary  = exact minimum integrated squared deviation with affine unsafe spans;
@@ -5321,6 +10355,8 @@ static inline PlanResult plan(const ActiveReference&ref,const Live&L,const Speed
     // Safety is never an objective term; it remains a hard certificate.
     using clk=std::chrono::steady_clock;
     const auto Tall=clk::now();
+    r52_gate_diag_reset();
+    r53_shape_diag_reset();
     PlanResult OUT;
     OUT.search_end=t1;
     OUT.selected_t1=t1;
@@ -5343,11 +10379,16 @@ static inline PlanResult plan(const ActiveReference&ref,const Live&L,const Speed
         return OUT;
     }
 
-    OUT=plan_fixed_scope(ref,L,base,obs,t0,tm,t1,E);
+    // AF7R51: one source-domain call.  The general phase/tangent primary
+    // selects its physical phase exit internally from the actual unsafe
+    // episode and suspended-load natural time. Re-running the complete planner
+    // at alternate same-clock deadlines is neither needed nor allowed.
+    PlanResult Q=plan_fixed_scope(ref,L,base,obs,t0,tm,t1,E);
+    OUT=std::move(Q);
     G_c7front_rows.clear();
-    /* R8: obsolete R6B homotopy execution disabled; production result unchanged. */
     OUT.search_end=t1;
-    OUT.selected_t1=t1;
+    OUT.selected_t1=(OUT.success && fin(OUT.cand.actual_rejoin_time))?
+        OUT.cand.actual_rejoin_time:t1;
     OUT.rejoin_attempts=1;
     OUT.rejoin_safe_trials=OUT.success?1:0;
     OUT.rejoin_scope_components=(int)E.comp.size();
@@ -5356,10 +10397,9 @@ static inline PlanResult plan(const ActiveReference&ref,const Live&L,const Speed
     OUT.search_rejoin_pass_total=OUT.rejoin_pass;
     OUT.search_geom_tests_total=OUT.geom_tests;
     OUT.spatial_envelope_priority=true;
-    if(!E.comp.empty()){
-        OUT.rejoin_selected_duration=t1-E.comp.back().end;
-        OUT.rejoin_seed_duration=std::max(L.dt,E.comp.front().start-t0);
-    }
+    if(!E.comp.empty())
+        OUT.rejoin_selected_duration=OUT.selected_t1-E.comp.back().end;
+    OUT.rejoin_seed_duration=OUT.rejoin_selected_duration;
     OUT.rejoin_next_gap=std::numeric_limits<double>::infinity();
     OUT.tim.episode=episodeMs;
     OUT.tim.rejoin_search=0.0;
