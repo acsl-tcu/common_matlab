@@ -327,7 +327,7 @@ static mxArray* dscalar(double v){return mxCreateDoubleScalar(v);}
 // ============================================================================
 static mxArray* vecrow(const std::vector<double>&v);
 static const char* R28_REV="AF7R58ZZY_R28_NATIVE_ONCE_V1";
-static const char* PLANNER_REV="AF7R58R14_C7_LOWJET_SEED_SHADOW_V1";
+static const char* PLANNER_REV="AF7R58R16_C7_LOWJET_REFERENCE_BRIDGE_V1";
 
 static const mxArray* optfld(const mxArray* s,const char* name){
     if(!s||!mxIsStruct(s)||mxGetNumberOfElements(s)!=1) return nullptr;
@@ -570,6 +570,13 @@ static Live parse_live(const mxArray* P){
     L.dmargin=scalar(fld(P,"d_margin"),"d_margin");L.sensor_range=scalar(fld(P,"sensor_range"),"sensor_range");
     L.horizon=scalar(fld(P,"horizon"),"horizon");L.tracking=scalar(fld(P,"tracking_inflation"),"tracking_inflation");
     // R13 module-internal diagnostic switch, defaults OFF if absent.
+    const mxArray* bridge16=optfld(P,"r58r16_reference_bridge");
+    if(bridge16){
+        const double f=scalar(bridge16,"r58r16_reference_bridge");
+        if(f!=0.0&&f!=1.0)
+            mexErrMsgIdAndTxt("R16:Bridge","r58r16_reference_bridge must be 0 or 1.");
+        L.r58r16_reference_bridge=(f==1.0);
+    }
     const mxArray* r58diag=optfld(P,"r58_shadow_diagnostic_enabled");
     if(r58diag){
         if(mxGetNumberOfElements(r58diag)!=1)
@@ -1064,7 +1071,7 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
         "r58r11_newton_max_rel_residual",
         "r58r11_common_step_min",
         "r58r11_common_step_last",
-        "r58r11_solver_ms","r58_speed_gate_rows",
+        "r58r11_solver_ms","r58_speed_gate_rows","r58r16_connected_candidate",
         "phase_reparameterized","phase_t0","phase_entry_end","phase_flow_end",
         "phase_exit_end","phase_source_start","phase_source_end","phase_alpha","phase_delay_s",
         "rejoin_search_ms","planner_native_revision"};
@@ -1135,7 +1142,9 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
     if(R.cand.family==5)family="TOWING_C7_SPEED_OPT_SPLIT";
     if(R.cand.family==6)family="CURVED_C7_ZERO_JET_BELL";
     if(R.cand.family==7){
-        if(R.cand.phase_reparameterized)
+        if(R.r58r16_connected_candidate)
+            family="AF7R58R16_LOWJET_FREE_TERMINAL_OFFSET_C7";
+        else if(R.cand.phase_reparameterized)
             family="GENERAL_C7_WORLD3D_PHASE_CORRIDOR";
         else if(R.cand.terminal_hold)
             family="TOWING_PHASE_DELAY_C7";
@@ -1446,6 +1455,7 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
                 p[i+nr*j]=R.r58_speed_gate_rows[i][j];
         set("r58_speed_gate_rows",g);
     }
+    set("r58r16_connected_candidate",dscalar(R.r58r16_connected_candidate));
     set("r58_shadow_ran",dscalar(R.r58_shadow_ran));
     set("r58_reference_only",dscalar(R.r58_reference_only));
     set("r58_fixed_rejoin_constraint_count",dscalar(R.r58_fixed_rejoin_constraint_count));
@@ -1734,6 +1744,17 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
             /* R11: R10B heading runtime hook disabled while motion authority is audited. */
             c7front_push(t0,tm,searchEnd);
             plhs[0]=result_struct(Q,t0,tm,searchEnd,O,P);return;
+        }
+        // R23 setup-only prewarm: no candidate, no obstacle data and no
+        // acceptance side effects. This must run before Flight from MATLAB.
+        if(op==24){
+            if(nrhs!=1||nlhs!=1)
+                mexErrMsgIdAndTxt("AF7R23:Arity","prewarm op24 -> logical true.");
+            const auto& G=r58r23_gram_table();
+            const auto& B=r58r23_binomial_table();
+            if(!(fin(G[0][0])&&fin(B[7][3])))
+                mexErrMsgIdAndTxt("AF7R23:Prewarm","constant coefficient initialization failed.");
+            plhs[0]=logicalScalar(true);return;
         }
         if(op==6){
             if(nrhs!=1||nlhs!=1) mexErrMsgIdAndTxt("AF7TOWMAP:Arity","diag op: op -> matrix.");

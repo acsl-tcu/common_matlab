@@ -1,0 +1,29 @@
+AF7R58R17 | 25-MS BYPASS RESEARCH DIAGNOSTIC, NO COMMIT
+classification=STAGE2_PASS__STAGE3_PRECOMMIT_PASS__NOT_COMMITTED
+stage1_deadline_would_reject=1
+stage2_deadline_would_reject=1
+stage1_generated=1 stage2_entered=1 stage2_prepared=1 stage3_readonly_entered=1
+native_connected=1 native_success=1
+speed/heading/geometry=1 / 1 / 1
+family=AF7R58R16_LOWJET_FREE_TERMINAL_OFFSET_C7
+stage1_wall_ms=68.2166 stage1_cycle_ms=85.8341
+stage2_wall_ms=82.9539 stage2_cycle_ms=85.8341
+stage3_precommit_reason=PRECOMMIT_CHECK_PASS__NOT_ATOMIC_COMMIT
+commit_attempted=0 activation_confirmed=0
+NOTE: R17 may exceed 25 ms; never use it as a production timing or flight-safe result.
+NOTE: Stage3 is a READ-ONLY precommit check; atomic activation and runtime hot guard are NOT exercised.
+
+TIMELINE (event, sim_t_s, stage_ms, cycle_ms)
+RUN_INITIALIZED | NaN | NaN | NaN
+STAGE1_ENTERED | 13.25 | NaN | NaN
+STAGE1_NATIVE_RETURNED | 13.25 | 68.2166 | 92.0544
+STAGE1_25MS_WOULD_REJECT | 13.25 | 68.2166 | 92.0544
+STAGE1_GENERATED | 13.25 | 68.2166 | 92.0544
+STAGE2_ENTERED | 13.275 | NaN | 92.0544
+STAGE2_25MS_WOULD_REJECT | 13.275 | 82.9539 | 85.8341
+STAGE2_CERTIFIED_AND_PREPARED | 13.275 | 82.9539 | 85.8341
+STAGE3_PRECOMMIT_READY_NO_COMMIT | 13.3 | 0 | 85.8341
+STAGE1_ENTERED | 20.65 | NaN | 85.8341
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 20.65 | NaN | 85.8341
+STAGE1_ENTERED | 22.725 | NaN | 85.8341
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 22.725 | NaN | 85.8341

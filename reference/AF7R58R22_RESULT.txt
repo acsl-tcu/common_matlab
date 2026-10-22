@@ -1,0 +1,36 @@
+AF7R58R22 | DIRECT LOWJET HESSIAN + SHARED EVAL PACKET | NO COMMIT
+classification=STAGE2_PASS__STAGE3_PRECOMMIT_PASS__NOT_COMMITTED
+stage1_ms=31.7229 stage2_ms=16.8763
+stage1_cycle_event_ms=45.3547 stage2_cycle_event_ms=20.0059
+stage1_deadline_would_reject=1 stage2_deadline_would_reject=0
+stage1_native_packet_ms=8.4627 stage1_native_mex_ms=16.989
+stage2_total_bundle_ms=15.1333
+stage2_model_ms=2.2821
+stage2_sensor_ms=4.7673
+stage2_eval_handles_ms=3.8542
+stage2_cache_ms=2.3169
+stage2_native_eval_packet_ms=0.996
+stage2_native_eval_ms=0.828
+r58_build_ms=10.4549
+r58_homotopy_ms=5.5093
+r58_certificate_ms=2.2697
+r58_shadow_ms=15.985
+native_connected=1 native_success=1
+speed_heading_geometry=1 1 1
+active_source_stage1_requests=0
+active_source_stage2_prepared=0
+ACTUAL_COMMIT=0; 25ms deadline remains unchanged; diagnostic bypass is not flight safe.
+
+EVENTS
+RUN_INITIALIZED | NaN | NaN | NaN
+STAGE1_ENTERED | 13.25 | NaN | NaN
+STAGE1_NATIVE_RETURNED | 13.25 | 31.7229 | 45.3547
+STAGE1_25MS_WOULD_REJECT | 13.25 | 31.7229 | 45.3547
+STAGE1_GENERATED | 13.25 | 31.7229 | 45.3547
+STAGE2_ENTERED | 13.275 | NaN | 45.3547
+STAGE2_CERTIFIED_AND_PREPARED | 13.275 | 16.8763 | 20.0059
+STAGE3_PRECOMMIT_READY_NO_COMMIT | 13.3 | 0 | 20.0059
+STAGE1_ENTERED | 20.65 | NaN | 20.0059
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 20.65 | NaN | 20.0059
+STAGE1_ENTERED | 22.725 | NaN | 20.0059
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 22.725 | NaN | 20.0059

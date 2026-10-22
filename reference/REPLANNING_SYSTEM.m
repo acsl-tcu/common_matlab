@@ -182,7 +182,50 @@ classdef REPLANNING_SYSTEM < handle
         % non-committable computation; 1 enables full QP/speed provenance.
         % This does NOT disable the production replanner or any hard certificate.
         ENABLE_AF7R58_SHADOW_DIAGNOSTIC = 1;
-        ENABLE_AF7R58R14_LOWJET_SEED_ONLY = 1; % R14 diagnostic: nested C7 low-jet family, non-committable
+        ENABLE_AF7R58R14_LOWJET_SEED_ONLY = 1; % R14 low-jet family
+        ENABLE_AF7R58R16_REFERENCE_BRIDGE = 1; % R16 opt-in: reference-only production proposal, deadline unchanged
+        % R17 simulation DIAGNOSTIC: records to MAT even if base workspace clears.
+        % Allows Stage1/2 to CONTINUE AFTER 25-ms MISSES to inspect downstream
+        % certificates; it NEVER ACTIVATES ANY REFERENCE in Stage3.
+        % OFF in all normal use; must not be used for flight or timing benchmarks.
+        ENABLE_AF7R58R17_DIAG_CONTINUE_LATE = 1; % R18 preconfigured research only (NO COMMIT)
+        % R26: defer all non-authoritative 500+ scalar diagnostic latches.
+        % The candidate remains the original stage-1 return; copies are COW.
+        % R26: cache legacy R15 diagnostics inside MATLAB object during Flight.
+        % Publish once after Flight; no root application-data copies per event.
+        r26_r15_status = struct();
+        r26_r15_status_valid = false;
+        r26_deferred_candidate = struct();
+        r26_deferred_pending = false;
+        r26_diagnostic_materialization_ms = NaN;
+        % REFERENCE_ONLY simulation-only atomic activation experiment.
+        % Opt-in token is accepted only from the verified headless runner.
+        R26_SIMULATION_ONLY_EXPERIMENT = false;
+        r26_sim_commit_attempted = 0;
+        r26_sim_commit_succeeded = 0;
+        % R25: diagnostic events buffered in the object until post-Flight flush.
+        r25_event_capture = struct();
+        r25_event_capture_valid = false;
+        % R20: same certified candidate/Stage1-3, Flight disk-I/O disabled.
+        % Numeric timings are diagnostic only. Never grant certificate or commit.
+        r20_stage1_future_ms = NaN;
+        r20_stage1_context_ms = NaN;
+        r20_stage1_native_call_ms = NaN;
+        r20_native_packet_ms = NaN;
+        r20_native_mex_ms = NaN;
+        r20_native_wrapper_ms = NaN;
+        r20_native_internal_ms = NaN;
+        r20_stage2_cert_ms = NaN;
+        r20_stage2_bundle_ms = NaN;
+        r20_stage2_other_ms = NaN;
+        % R22 substage measurements, observational only (no acceptance use).
+        r22_stage2_model_ms = NaN;
+        r22_stage2_sensor_ms = NaN;
+        r22_stage2_eval_handles_ms = NaN;
+        r22_stage2_cache_ms = NaN;
+        r22_stage2_native_eval_packet_ms = NaN;
+        r22_stage2_native_eval_ms = NaN;
+
         r12_tail_prime_done = false;
         r12_tail_prime_ms = NaN;
 
@@ -418,7 +461,7 @@ classdef REPLANNING_SYSTEM < handle
         % -----------------------------------------------------------------
         % Backward-compatible alias of AVOIDANCE_COMMIT_POLICY.
         % New code should use AVOIDANCE_COMMIT_POLICY.
-        AVOIDANCE_CERTIFICATE_MODE   = 'EXECUTION_AWARE';
+        AVOIDANCE_CERTIFICATE_MODE   = 'REFERENCE_ONLY';
 
         % Evaluate both layers independently so the SAME candidate can be
         % compared without rerunning the trajectory generator.
@@ -430,7 +473,7 @@ classdef REPLANNING_SYSTEM < handle
         %                      as full-system safety authority.
         %   'EXECUTION_AWARE': final-system path; fail closed until tracking,
         %                      actuator, numerical and backup layers close.
-        AVOIDANCE_COMMIT_POLICY      = 'EXECUTION_AWARE';
+        AVOIDANCE_COMMIT_POLICY      = 'REFERENCE_ONLY';
         ENABLE_AUTO_REPLAN_COMMIT    = true;
 
         reference_only_evaluation_count = 0;
@@ -2103,6 +2146,13 @@ classdef REPLANNING_SYSTEM < handle
                     obj.set_avoidance_commit_policy('REFERENCE_ONLY');
                 end
             end
+            if isfield(opts,'R26_SIMULATION_ONLY_EXPERIMENT')
+                assert(islogical(opts.R26_SIMULATION_ONLY_EXPERIMENT) && ...
+                    isscalar(opts.R26_SIMULATION_ONLY_EXPERIMENT), ...
+                    '[R26] simulation-only opt-in must be logical scalar.');
+                obj.R26_SIMULATION_ONLY_EXPERIMENT= ...
+                    opts.R26_SIMULATION_ONLY_EXPERIMENT;
+            end
             if isfield(opts,'ENABLE_AUTO_REPLAN_COMMIT')
                 obj.ENABLE_AUTO_REPLAN_COMMIT= ...
                     logical(opts.ENABLE_AUTO_REPLAN_COMMIT);
@@ -2507,6 +2557,11 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             obj.clear_state_sensor_values(0.0);
+
+            if logical(obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE)
+                obj.r17_assert_research_only();
+                obj.r17_capture('RUN_INITIALIZED',NaN,NaN,struct());
+            end
 
             if obj.ENABLE_ALL_LOG
                 fprintf(['[REPLANNING_SYSTEM] initialized | sensor=%.3f m | H=%.3f s | ' ...
@@ -5370,6 +5425,12 @@ classdef REPLANNING_SYSTEM < handle
                 % prime_locked_backend_kernel_variants() then warms the
                 % exact selected callback before Flight.
                 af7r36_runtime_prime(obj);
+                % R23: compile/startup-only constant Bernstein coefficient
+                % initialization. Does not touch live mass, obstacles,
+                % controller, reference version or safety certificates.
+                r23_prime_ok=af7r36_single_core_mex(24);
+                assert(islogical(r23_prime_ok) && isscalar(r23_prime_ok) && r23_prime_ok, ...
+                    '[R23] Native setup coefficient prewarm failed.');
                 fn=@(CTX)obj.af7r46_single_core_proposal_compact(CTX);
             end
 
@@ -5402,6 +5463,7 @@ classdef REPLANNING_SYSTEM < handle
             assert(exist('af7r36_single_core_mex','file')==3, ...
                 '[AF7R48] AF7R36 native core MEX missing.');
 
+            r20_wrapper_tic=tic; % R20 diagnostic timer, no acceptance authority.
             % Source-binding authority: archived/native-source copies must
             % never shadow the active reference helper.  A mismatched packet
             % builder changes the planner contract even when the class/MEX are
@@ -5424,8 +5486,19 @@ classdef REPLANNING_SYSTEM < handle
             pkt=af7r34_make_core_packet(obj,CTX,struct('t1',referenceEnd));
             pkt.r58_shadow_diagnostic_enabled=logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC);
             pkt.r58r14_lowjet_seed_only=logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY);
+            pkt.r58r16_reference_bridge=double(logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE));
+            if pkt.r58r16_reference_bridge
+                assert(pkt.r58_shadow_diagnostic_enabled && ...
+                    pkt.r58r14_lowjet_seed_only && ...
+                    strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                    double(pkt.tracking_inflation)==0, ...
+                    '[R16] bridge requires R58 shadow+lowjet, REFERENCE_ONLY, zero tracking inflation.');
+            end
             pkt=obj.af7r51_attach_phase_packet_metadata(pkt,[]);
+            obj.r20_native_packet_ms=1e3*toc(r20_wrapper_tic);
+            r20_mex_tic=tic;
             RAWbase=af7r36_single_core_mex(1,pkt);
+            obj.r20_native_mex_ms=1e3*toc(r20_mex_tic);
 
             % Version binding is carried by the ordinary result schema; no
             % extra MEX opcode or external helper is introduced.
@@ -5433,7 +5506,7 @@ classdef REPLANNING_SYSTEM < handle
                 isfield(RAWbase,'planner_native_revision') && ...
                 ischar(RAWbase.planner_native_revision) && ...
                 strcmp(RAWbase.planner_native_revision, ...
-                    'AF7R58R14_C7_LOWJET_SEED_SHADOW_V1'), ...
+                    'AF7R58R16_C7_LOWJET_REFERENCE_BRIDGE_V1'), ...
                 ['[R38] af7r36_single_core_mex revision mismatch. ' ...
                  'Replace ALL THREE R25E production source files: ' ...
                  'REPLANNING_SYSTEM.m, af7r36_core.hpp, and af7r36_single_core_mex.cpp; ' ...
@@ -5447,6 +5520,9 @@ classdef REPLANNING_SYSTEM < handle
             % If it does not close, the source-validity boundary referenceEnd
             % is tried as a fail-safe. No fixed physical maneuver time is used.
             RAW=RAWbase;
+            isBridge16=logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                isfield(RAW,'r58r16_connected_candidate') && ...
+                logical(RAW.r58r16_connected_candidate);
             certTests=1; safeTrials=double(logical(RAW.success));
             seedDur=NaN; selectedT1=double(RAW.t1); selected=false;
             if isfield(RAW,'rejoin_attempt_count'),certTests=double(RAW.rejoin_attempt_count);end
@@ -5539,6 +5615,7 @@ classdef REPLANNING_SYSTEM < handle
             % Preserve the historical native payload because downstream
             % production code in this authority may inspect it.
             P.native_raw=RAW;
+            P.r16_free_offset_bridge=isBridge16;
             P.r48_natural_rejoin_trial_count=NaN;
             P.r48_natural_rejoin_selected_count=NaN;
             P.r48_exit_monotone_row_count=NaN;
@@ -5552,9 +5629,28 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            assert(isfield(RAW,'phase_reparameterized') && ...
+            if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE)
+                assert(isBridge16, ...
+                    '[R16] Native low-jet reference candidate not connected.');
+            end
+            if isBridge16
+                assert(logical(RAW.stored_c7_exact) && ...
+                    logical(RAW.constructive_exact_c7) && ...
+                    logical(RAW.path_tangent_yaw_c6) && ...
+                    logical(RAW.geometry_pass) && ...
+                    ~logical(RAW.phase_reparameterized) && ...
+                    logical(RAW.delay_preserving) && ...
+                    logical(RAW.r58_speed_pass) && ...
+                    logical(RAW.r58_heading_pass) && ...
+                    logical(RAW.r58_geometry_pass) && ...
+                    isfinite(double(RAW.terminal_hold_start)) && ...
+                    numel(RAW.terminal_offset)==3 && ...
+                    all(isfinite(double(RAW.terminal_offset(:)))), ...
+                    '[R16] R14 exact C7, yaw, speed, geometry or hold theorem missing.');
+            end
+            assert(isBridge16 || (isfield(RAW,'phase_reparameterized') && ...
                     logical(RAW.phase_reparameterized) && ...
-                    isfield(RAW,'delay_preserving') && logical(RAW.delay_preserving), ...
+                    isfield(RAW,'delay_preserving') && logical(RAW.delay_preserving)), ...
                 ['[AF7R51] production candidate lacks the general no-catch-up ' ...
                  'phase layer. Same-clock rejoin is forbidden.']);
 
@@ -5608,20 +5704,30 @@ classdef REPLANNING_SYSTEM < handle
             P.phase_source_end=double(RAW.phase_source_end);
             P.phase_alpha=double(RAW.phase_alpha);
             P.phase_delay_s=double(RAW.phase_delay_s);
-            assert(P.phase_reparameterized && ...
-                all(isfinite([P.phase_t0 P.phase_entry_end P.phase_flow_end ...
-                              P.phase_exit_end P.phase_source_start ...
-                              P.phase_source_end P.phase_alpha P.phase_delay_s])) && ...
-                P.phase_t0<P.phase_entry_end && ...
-                P.phase_entry_end<P.phase_flow_end && ...
-                P.phase_flow_end<P.phase_exit_end && ...
-                P.phase_source_end>P.phase_source_start && ...
-                P.phase_alpha>0 && P.phase_alpha<=1 && P.phase_delay_s>=0, ...
-                '[AF7R51] invalid native phase metadata.');
-            P.delay_preserving=true;
-            P.schedule_delay_s=P.phase_delay_s;
-            P.terminal_hold_start=NaN;
-            P.terminal_offset=zeros(3,1);
+            if ~isBridge16
+                assert(P.phase_reparameterized && ...
+                    all(isfinite([P.phase_t0 P.phase_entry_end P.phase_flow_end ...
+                                  P.phase_exit_end P.phase_source_start ...
+                                  P.phase_source_end P.phase_alpha P.phase_delay_s])) && ...
+                    P.phase_t0<P.phase_entry_end && ...
+                    P.phase_entry_end<P.phase_flow_end && ...
+                    P.phase_flow_end<P.phase_exit_end && ...
+                    P.phase_source_end>P.phase_source_start && ...
+                    P.phase_alpha>0 && P.phase_alpha<=1 && P.phase_delay_s>=0, ...
+                    '[AF7R51] invalid native phase metadata.');
+                P.delay_preserving=true;
+                P.schedule_delay_s=P.phase_delay_s;
+                P.terminal_hold_start=NaN;
+                P.terminal_offset=zeros(3,1);
+            else
+                % Preserve native exact free terminal offset, no fabricated
+                % source clock, no forced spatial rejoin.
+                P.delay_preserving=true;
+                P.phase_reparameterized=false;
+                P.schedule_delay_s=0;
+                P.terminal_hold_start=double(RAW.terminal_hold_start);
+                P.terminal_offset=double(RAW.terminal_offset(:));
+            end
             P.path_tangent_yaw_c6=false;
             P.heading_gamma_m_s=NaN;
             P.heading_anchor_rad=NaN;
@@ -5650,6 +5756,7 @@ classdef REPLANNING_SYSTEM < handle
             P.trigger_to_free_rejoin=false;
             P.identity_time_law=false;
             P.actual_rejoin_time=double(P.phase_exit_end);
+            if isBridge16,P.actual_rejoin_time=NaN;end
             P.spatial_knot_count=NaN;
             if isfield(RAW,'trigger_to_free_rejoin')
                 P.trigger_to_free_rejoin=logical(RAW.trigger_to_free_rejoin);
@@ -5756,6 +5863,9 @@ classdef REPLANNING_SYSTEM < handle
             G.final_system_authority=false;
             P.geometry_shadow_certificate=G;
 
+            obj.r20_native_wrapper_ms=max(0.0,1e3*toc(r20_wrapper_tic) ...
+                -obj.r20_native_packet_ms-obj.r20_native_mex_ms);
+            obj.r20_native_internal_ms=double(RAW.total_ms);
             obj.compact_native_proposal_count=obj.compact_native_proposal_count+1;
         end
 
@@ -6609,6 +6719,229 @@ classdef REPLANNING_SYSTEM < handle
             end
         end
 
+        function r17_assert_research_only(obj)
+            % Fail closed if a deployment policy would mistake R17 as runtime.
+            assert(logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
+                logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
+                logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                strcmpi(char(obj.AVOIDANCE_CERTIFICATE_MODE),'REFERENCE_ONLY') && ...
+                logical(obj.ENABLE_STAGED_REPLAN_PIPELINE), ...
+                '[R17] diagnostic late-continuation requires R58/R14/R16 and REFERENCE_ONLY staged research mode.');
+        end
+
+        function r25_publish_capture(obj)
+            % Called AFTER the headless Flight loop: preserves the existing
+            % R17/R20/R23 report format and result access without per-event
+            % root application-data serialization during Flight.
+            assert(obj.r25_event_capture_valid, ...
+                '[R25] No local event capture to publish.');
+            if obj.r26_r15_status_valid
+                setappdata(0,'AF7R58R15_LAST_STATUS',obj.r26_r15_status);
+            end
+            obj.r25_event_capture.r26_sim_commit_attempted=double(obj.r26_sim_commit_attempted);
+            obj.r25_event_capture.r26_sim_commit_succeeded=double(obj.r26_sim_commit_succeeded);
+            obj.r25_event_capture.r27_commit_flag_at_end=logical(obj.R26_SIMULATION_ONLY_EXPERIMENT);
+            obj.r25_event_capture.r26_deferred_pending=logical(obj.r26_deferred_pending);
+            setappdata(0,'AF7R58R17_LAST_CAPTURE',obj.r25_event_capture);
+        end
+
+        function r17_capture(obj,event_name,t_now,stage_ms,P)
+            % R20: strictly memory-backed events, NO Flight disk I/O.
+            % Minimal numeric snapshot persists through clearvars/clear all;
+            % R15 in-memory req15 gating is intentionally bypassed.
+            if ~logical(obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE),return;end
+            % R25: no root appdata get/set inside Flight; journal only.
+            % This changes diagnostics only, never the planner decision.
+            key='AF7R58R17_LAST_CAPTURE';
+            try
+                if strcmp(event_name,'RUN_INITIALIZED')
+                    D=struct();
+                    D.schema='AF7R58R17_DIAG_ONLY_NO_COMMIT_V1';
+                    D.run_start_datenum=now;
+                    D.events=struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{});
+                    D.native_connected=NaN;
+                    D.native_success=NaN;
+                    D.native_family='';
+                    D.native_speed_pass=NaN;
+                    D.native_heading_pass=NaN;
+                    D.native_geometry_pass=NaN;
+                    D.stage1_ms=NaN;
+                    D.stage1_cycle_ms=NaN;
+                    D.stage2_ms=NaN;
+                    D.stage2_cycle_ms=NaN;
+                    D.stage3_precommit_ready=NaN;
+                    D.stage3_precommit_reason='NOT_REACHED';
+                    % R18 research-only native exception provenance. Keep the
+                    % exact C++ MEX message across base-workspace resets.
+                    D.native_exception_captured=false;
+                    D.native_exception_identifier='';
+                    D.native_exception_message='';
+                    D.native_exception_stack=struct('file',{},'name',{},'line',{});
+                    D.native_exception_time_s=NaN;
+                    D.commit_attempted=false;
+                    D.activation_confirmed=false;
+                    % R21: report whether any planner call actually originated
+                    % from a REPAIRED (already-avoiding) active reference.
+                    % Read-only source/version audit, no new acceptance gate.
+                    D.r21_active_base_stage1_requests=0;
+                    D.r21_active_base_native_returns=0;
+                    D.r21_active_base_stage2_prepared=0;
+                    D.r21_last_source_mode='';
+                    D.r21_last_source_version=NaN;
+                    D.r21_first_active_replan_time_s=NaN;
+                    D.r21_last_known_obstacle_count=NaN;
+                elseif obj.r25_event_capture_valid
+                    D=obj.r25_event_capture;
+                else
+                    % Not a prior-run snapshot: preserve the missing-init fault.
+                    D=struct('schema','AF7R58R17_DIAG_ONLY_NO_COMMIT_V1', ...
+                        'run_start_datenum',NaN, ...
+                        'events',struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{}));
+                end
+                E=struct('name',char(event_name),'time_s',double(t_now), ...
+                    'stage_ms',double(stage_ms), ...
+                    'cycle_ms',double(obj.generator_last_cycle_critical_ms));
+                D.events(end+1)=E;
+                D.last_event=char(event_name);
+                if strcmp(event_name,'STAGE1_ENTERED')
+                    D.r21_last_source_mode=char(obj.active_reference_mode);
+                    D.r21_last_source_version=double(obj.active_reference_version);
+                    D.r21_last_known_obstacle_count=nnz(obj.simulated_sensor_memory_mask);
+                    if strcmpi(char(obj.active_reference_mode),'REPAIRED')
+                        D.r21_active_base_stage1_requests= ...
+                            D.r21_active_base_stage1_requests+1;
+                        if ~isfinite(D.r21_first_active_replan_time_s)
+                            D.r21_first_active_replan_time_s=double(t_now);
+                        end
+                    end
+                elseif strcmp(event_name,'STAGE1_NATIVE_RETURNED') && ...
+                        strcmpi(char(obj.active_reference_mode),'REPAIRED')
+                    D.r21_active_base_native_returns= ...
+                        D.r21_active_base_native_returns+1;
+                elseif strcmp(event_name,'STAGE2_CERTIFIED_AND_PREPARED') && ...
+                        strcmpi(char(obj.staged_replan_source_mode),'REPAIRED')
+                    D.r21_active_base_stage2_prepared= ...
+                        D.r21_active_base_stage2_prepared+1;
+                end
+                % R18 capture is observational only; it never changes a
+                % planner decision, deadline or certificate. Persistent MAT
+                % output is already confined to the explicit R17 diagnostic.
+                if isstruct(P) && isfield(P,'native_exception') && ...
+                        isstruct(P.native_exception)
+                    NX=P.native_exception;
+                    if isfield(NX,'identifier')
+                        D.native_exception_identifier=char(NX.identifier);
+                    end
+                    if isfield(NX,'message')
+                        D.native_exception_message=char(NX.message);
+                    end
+                    if isfield(NX,'stack')
+                        D.native_exception_stack=NX.stack;
+                    end
+                    D.native_exception_captured=true;
+                    D.native_exception_time_s=double(t_now);
+                end
+                if strncmp(event_name,'STAGE1_',7)
+                    if isfinite(stage_ms),D.stage1_ms=double(stage_ms);end
+                    D.stage1_cycle_ms=double(obj.generator_last_cycle_critical_ms);
+                elseif strncmp(event_name,'STAGE2_',7)
+                    if isfinite(stage_ms),D.stage2_ms=double(stage_ms);end
+                    D.stage2_cycle_ms=double(obj.generator_last_cycle_critical_ms);
+                elseif strcmp(event_name,'STAGE3_PRECOMMIT_READY_NO_COMMIT')
+                    D.stage3_precommit_ready=true;
+                    D.stage3_precommit_reason='PRECOMMIT_CHECK_PASS__NOT_ATOMIC_COMMIT';
+                elseif strncmp(event_name,'STAGE3_PRECOMMIT_REJECT__',25)
+                    D.stage3_precommit_ready=false;
+                    D.stage3_precommit_reason=char(event_name);
+                end
+                if isstruct(P) && isfield(P,'native_raw') && isstruct(P.native_raw)
+                    Q=P.native_raw;
+                    if isfield(Q,'r58r16_connected_candidate')
+                        D.native_connected=double(Q.r58r16_connected_candidate);
+                    end
+                    if isfield(Q,'success'),D.native_success=double(Q.success);end
+                    if isfield(Q,'candidate_family')
+                        D.native_family=char(Q.candidate_family);
+                    end
+                    if isfield(Q,'r58_speed_pass')
+                        D.native_speed_pass=double(Q.r58_speed_pass);
+                    end
+                    if isfield(Q,'r58_heading_pass')
+                        D.native_heading_pass=double(Q.r58_heading_pass);
+                    end
+                    if isfield(Q,'r58_geometry_pass')
+                        D.native_geometry_pass=double(Q.r58_geometry_pass);
+                    end
+                end
+                D.r22_profile=struct( ...
+                    'stage2_model_ms',double(obj.r22_stage2_model_ms), ...
+                    'stage2_sensor_ms',double(obj.r22_stage2_sensor_ms), ...
+                    'stage2_eval_handles_ms',double(obj.r22_stage2_eval_handles_ms), ...
+                    'stage2_cache_ms',double(obj.r22_stage2_cache_ms), ...
+                    'stage2_native_eval_packet_ms',double(obj.r22_stage2_native_eval_packet_ms), ...
+                    'stage2_native_eval_ms',double(obj.r22_stage2_native_eval_ms), ...
+                    'r58_build_ms',double(obj.staged_replan_predeadline_r58_build_ms), ...
+                    'r58_homotopy_ms',double(obj.staged_replan_predeadline_r58_homotopy_ms), ...
+                    'r58_certificate_ms',double(obj.staged_replan_predeadline_r58_certificate_ms), ...
+                    'r58_shadow_ms',double(obj.staged_replan_predeadline_r58_shadow_ms));
+                D.r20_profile=struct( ...
+                    'stage1_future_ms',double(obj.r20_stage1_future_ms), ...
+                    'stage1_context_ms',double(obj.r20_stage1_context_ms), ...
+                    'stage1_native_call_ms',double(obj.r20_stage1_native_call_ms), ...
+                    'native_packet_ms',double(obj.r20_native_packet_ms), ...
+                    'native_mex_ms',double(obj.r20_native_mex_ms), ...
+                    'native_wrapper_ms',double(obj.r20_native_wrapper_ms), ...
+                    'native_internal_ms',double(obj.r20_native_internal_ms), ...
+                    'stage2_reference_cert_ms',double(obj.r20_stage2_cert_ms), ...
+                    'stage2_bundle_ms',double(obj.r20_stage2_bundle_ms), ...
+                    'stage2_other_ms',double(obj.r20_stage2_other_ms));
+                obj.r25_event_capture=D;
+                obj.r25_event_capture_valid=true;
+            catch ME
+                warning('AF7R58R17:CaptureFailed','R17 diagnostic capture failed: %s',ME.message);
+            end
+        end
+
+        function [ok,reason] = r17_precommit_check(obj,B,t_now,t_hard_cycle)
+            % Read-only version of PREMUTATION and cache-shape checks of
+            % activate_staged_reference_only_bundle. This cannot establish
+            % its full runtime guard or commit success; no activation occurs.
+            ok=false;reason='';
+            if ~(isstruct(B)&&isfield(B,'schema')&& ...
+                    strcmp(char(B.schema),'AF7R58ZZV_PREPARED_COMMIT_V2') && ...
+                    isfield(B,'prevalidated')&&logical(B.prevalidated) && ...
+                    isfield(B,'post_commit_reference_cache'))
+                reason='STAGED_BUNDLE_SCHEMA_MISMATCH';return;
+            end
+            sc=max([1,abs(double(t_now)),abs(double(B.activation_time))]);
+            if abs(double(t_now)-double(B.activation_time))>64*eps(sc)
+                reason='STAGED_ACTIVATION_TIME_MISMATCH';return;
+            end
+            if ~strcmp(char(obj.active_reference_mode),char(B.source_mode)) || ...
+                    double(obj.active_reference_version)~=double(B.source_version)
+                reason='STAGED_SOURCE_REFERENCE_STALE';return;
+            end
+            if ~isequaln(obj.staged_reference_only_dependency_key(),B.dependency_key) || ...
+                    ~isequaln(obj.active_speed_certificate,B.speed_source) || ...
+                    ~isequaln(obj.static_obstacle_map,B.static_map)
+                reason='STAGED_DEPENDENCY_OR_MAP_STALE';return;
+            end
+            Cpost=B.post_commit_reference_cache;
+            if ~(isstruct(Cpost)&&isfield(Cpost,'reference_version') && ...
+                    isfield(Cpost,'t0') && ...
+                    double(Cpost.reference_version)==double(B.target_version) && ...
+                    abs(double(Cpost.t0)-(double(t_now)+double(obj.prediction_dt)))<= ...
+                        64*eps(max(1,abs(double(Cpost.t0)))))
+                reason='STAGED_POST_COMMIT_CACHE_SHAPE_OR_TIME';return;
+            end
+            if toc(t_hard_cycle)>double(obj.prediction_dt)
+                reason='STAGED_ATOMIC_CONTROL_PERIOD_WOULD_EXCEED';return;
+            end
+            ok=true;
+            reason='PRECOMMIT_CHECK_PASS__ATOMIC_GUARD_NOT_EVALUATED';
+        end
+
         function K = staged_reference_only_dependency_key(obj)
             % Exact subset that can affect the current native REFERENCE_ONLY
             % generator/certificate/packet path.  Estimated mL/HLC state is
@@ -6733,6 +7066,14 @@ classdef REPLANNING_SYSTEM < handle
             t_now=double(time.t);
             dt=double(obj.prediction_dt);
             ta=t_now+2*dt; % exactly two compute-pipeline intervals
+            % R26: stale deferred data from a previous candidate must never
+            % appear as current on a fresh Stage1 request.
+            obj.r26_deferred_candidate=struct();
+            obj.r26_deferred_pending=false;
+            if logical(obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE)
+                obj.r17_assert_research_only();
+                obj.r17_capture('STAGE1_ENTERED',t_now,NaN,struct());
+            end
             if ~(isfinite(ta)&&isfinite(double(collision_time))&& ...
                     double(collision_time)>ta)
                 obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
@@ -6741,6 +7082,9 @@ classdef REPLANNING_SYSTEM < handle
                 obj.generator_last_status_code=-60;
                 obj.staged_replan_last_reason= ...
                     'INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE';
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture(obj.staged_replan_last_reason,t_now,NaN,struct());
+                end
                 return;
             end
 
@@ -7140,6 +7484,7 @@ classdef REPLANNING_SYSTEM < handle
             ts=tic;
             [pL_future,q_future,ref_source,xd_nom_a,xd_active_a]= ...
                 obj.staged_reference_packet_at(ta,varargin_in);
+            obj.r20_stage1_future_ms=1e3*toc(ts);
 
             % For the locked AF7R36 packet, the authoritative geometry comes
             % from the active-reference batch model and obstacle packet.
@@ -7156,15 +7501,19 @@ classdef REPLANNING_SYSTEM < handle
 
             elapsed_before=toc(t_hard_cycle);
             budget_remaining=max(0,dt-elapsed_before);
+            r20_ctx_tic=tic;
             CTX=obj.build_generator_request_context_compact( ...
                 ta,elapsed_before,budget_remaining, ...
                 xd_nom_a,xd_active_a,pQ_a,pL_a,q_a,cable_residual_a, ...
                 active,all_dists,pL_future,q_future,ref_source, ...
                 ttc_a,double(collision_time),obs_id,comp_name,comp_code, ...
                 pL_collision,q_collision,pQ_collision,jhit_a);
+            obj.r20_stage1_context_ms=1e3*toc(r20_ctx_tic);
 
             try
+                r20_native_call_tic=tic;
                 candidate=obj.af7r46_single_core_proposal_compact(CTX);
+                obj.r20_stage1_native_call_ms=1e3*toc(r20_native_call_tic);
             catch ME
                 % AF7R36 R14C: preserve the first real Stage1 native error.
                 obj.staged_replan_native_error_count= ...
@@ -7184,6 +7533,17 @@ classdef REPLANNING_SYSTEM < handle
                 obj.staged_replan_last_reason= ...
                     ['STAGE1_NATIVE_ERROR__' ME.identifier];
                 obj.r47_record_pipeline_event(1,t_now,1e3*toc(ts),struct(),-61);
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    % Preserve the actual MEX C++ exception text, not only
+                    % AF7R34:Exception. MATLAB call stack is diagnostic only.
+                    nativeException18=struct( ...
+                        'identifier',char(ME.identifier), ...
+                        'message',char(ME.message), ...
+                        'stack',ME.stack);
+                    obj.r17_capture(obj.staged_replan_last_reason, ...
+                        t_now,1e3*toc(ts), ...
+                        struct('native_exception',nativeException18));
+                end
                 return;
             end
 
@@ -7194,7 +7554,1158 @@ classdef REPLANNING_SYSTEM < handle
             obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
             obj.generator_request_count=obj.generator_request_count+1;
             obj.staged_replan_stage1_count=obj.staged_replan_stage1_count+1;
+            if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                % This capture has no dependency on the legacy R15 req15 list.
+                obj.r17_capture('STAGE1_NATIVE_RETURNED',t_now,stage_ms,candidate);
+            end
 
+            % R26: no 500+ per-property diagnostic export inside the
+            % 25-ms control cycle. None of these fields is read by the
+            % candidate, certificate, freshness or activation decisions.
+            % Materialize on demand in get_staged_pipeline_status().
+            obj.r26_deferred_candidate=candidate;
+            obj.r26_deferred_pending=true;
+
+            obj.r47_record_pipeline_event( ...
+                1,t_now,stage_ms,candidate,obj.field_scalar(candidate,'reason_code'));
+
+            % AF7R58R15: diagnostic-only export independent of caller workspace.
+            % Root application data is MATLAB-process-local, survives clearvars
+            % and does NOT retain a controller/plant/agent handle. Never grants
+            % acceptance or changes trajectory, deadline or hard certificates.
+            % Deliberately restricted to explicit R58+R14 research diagnostics.
+            if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
+                    logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
+                    isstruct(candidate) && isfield(candidate,'native_raw') && ...
+                    isstruct(candidate.native_raw)
+                N15=candidate.native_raw;
+                req15={'r58_shadow_ran', 'r58r14_lowjet_seed_only', ...
+                    'r58r14_active_reduced_dof', 'r58r14_full_reduced_dof', ...
+                    'r58_bnb_full_assignments', 'r58_bnb_qp_solves', ...
+                    'r58_bnb_feasible_full', 'r58_bnb_speed_fail', ...
+                    'r58_speed_pass', 'r58_heading_pass', 'r58_geometry_pass', ...
+                    'r58_speed_gate_rows', 'r58_shadow_ms', ...
+                    'r58_homotopy_ms', 'r58_build_ms', ...
+                    'r58_reference_only', 'r58_commit_attempted'};
+                if all(isfield(N15,req15))
+                    snap15=struct();
+                    for ii15=1:numel(req15)
+                        nm15=req15{ii15};
+                        snap15.(nm15)=double(N15.(nm15));
+                    end
+                    snap15.r16_requested=double(logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE));
+                    snap15.r16_connected=double(obj.field_scalar(N15,'r58r16_connected_candidate'));
+                    snap15.r16_native_success=double(obj.field_scalar(N15,'success'));
+                    snap15.r16_native_geometry=double(obj.field_scalar(N15,'geometry_pass'));
+                    snap15.r16_native_candidate_family=char(N15.candidate_family);
+                    snap15.last_stage1_ms=double(stage_ms);
+                    snap15.r15_trigger_time_s=double(t_now);
+                    snap15.r15_source='NATIVE_R14_POST_STAGE1_NUMERIC_ONLY';
+                    % Capturing a single 38-column diagnostic matrix involves
+                    % no file IO in Flight; writing reports is post-simulation.
+                    obj.r26_r15_status=snap15;
+                    obj.r26_r15_status_valid=true;
+                end
+            end
+
+            % AF7R25G development runtime policy:
+            % - final target remains <= hard_modify_deadline_s (4 ms),
+            % - but staged development execution is allowed to proceed while
+            %   the complete Stage-1 sensor-to-candidate cycle remains inside
+            %   the 25-ms control period.
+            % This does NOT bypass exact-C7/speed/rejoin/whole-body safety.
+            if obj.generator_last_cycle_critical_ms>1e3*dt
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture('STAGE1_25MS_WOULD_REJECT',t_now,stage_ms,candidate);
+                    % R17 ONLY: continue reference-certificate diagnostics;
+                    % Stage3 will NEVER call activate_staged_reference_only_bundle.
+                else
+                    obj.generator_deadline_fail_count= ...
+                        obj.generator_deadline_fail_count+1;
+                    obj.generator_last_status_code=-62;
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.staged_replan_last_reason='STAGE1_CONTROL_PERIOD_EXCEEDED';
+                    if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                            obj.r26_r15_status_valid
+                        v16=obj.r26_r15_status;
+                        v16.r16_stage1_status='STAGE1_CONTROL_PERIOD_EXCEEDED';
+                        v16.r16_stage1_cycle_ms=double(obj.generator_last_cycle_critical_ms);
+                        obj.r26_r15_status=v16;
+                    end
+                    return;
+                end
+            end
+
+            if ~(isstruct(candidate)&&isfield(candidate,'success')&& ...
+                    logical(candidate.success))
+                obj.generator_validation_fail_count= ...
+                    obj.generator_validation_fail_count+1;
+                obj.generator_last_status_code=21;
+                obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                obj.staged_replan_last_reason='STAGE1_PROPOSAL_NOT_CERTIFIED';
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture(obj.staged_replan_last_reason,t_now,stage_ms,candidate);
+                end
+                return;
+            end
+
+            assert(abs(double(candidate.t0)-ta)<=64*eps(max(1,abs(ta))), ...
+                '[AF7R58ZZU] staged candidate t0 is not activation time.');
+
+            obj.staged_replan_candidate=candidate;
+            if isfield(candidate,'candidate_family')
+                obj.staged_replan_last_candidate_family=char(candidate.candidate_family);
+            else
+                obj.staged_replan_last_candidate_family='';
+            end
+            obj.staged_replan_rref=struct();
+            obj.staged_replan_bundle=struct();
+            obj.staged_replan_request_time=t_now;
+            obj.staged_replan_activation_time=ta;
+            obj.staged_replan_source_mode=char(obj.active_reference_mode);
+            obj.staged_replan_source_version=double(obj.active_reference_version);
+            obj.staged_replan_known_mask=logical(active(:).');
+            obj.staged_replan_static_map=obj.static_obstacle_map;
+            obj.staged_replan_dependency_key= ...
+                obj.staged_reference_only_dependency_key();
+            obj.staged_replan_speed_source=obj.active_speed_certificate;
+            obj.staged_replan_obstacle_id=double(obs_id);
+            obj.staged_replan_component_code=double(comp_code);
+            obj.staged_replan_component_name=char(comp_name);
+            obj.staged_replan_collision_time=double(collision_time);
+            obj.staged_replan_initial_ttc=double(ttc);
+            obj.staged_replan_pL_collision=double(pL_collision(:));
+            obj.staged_replan_q_collision=double(q_collision(:));
+            obj.staged_replan_pQ_collision=double(pQ_collision(:));
+            obj.staged_replan_hit_index=double(jhit);
+            obj.staged_replan_state='GENERATED';
+            obj.staged_replan_last_reason='STAGE1_GENERATED';
+            if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                obj.r17_capture('STAGE1_GENERATED',t_now,stage_ms,candidate);
+            end
+            if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                    obj.r26_r15_status_valid
+                v16=obj.r26_r15_status;
+                v16.r16_stage1_status='STAGE1_GENERATED';
+                v16.r16_stage1_cycle_ms=double(obj.generator_last_cycle_critical_ms);
+                obj.r26_r15_status=v16;
+            end
+            obj.generator_candidate_count=obj.generator_candidate_count+1;
+            obj.generator_last_status_code=40;
+        end
+
+
+        function advance_staged_replan_pipeline(obj,t_hard_cycle,t_now, ...
+                active,need_replan,obs_id,comp_code)
+            state=char(obj.staged_replan_state);
+            if strcmp(state,'IDLE')
+                return;
+            end
+
+            t_now=double(t_now);
+            dt=double(obj.prediction_dt);
+            ta=double(obj.staged_replan_activation_time);
+            scale=max([1,abs(t_now),abs(ta)]);
+            tol=64*eps(scale);
+
+            if ~logical(need_replan)
+                obj.staged_replan_stale_reject_count= ...
+                    obj.staged_replan_stale_reject_count+1;
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture('TRIGGER_CLEARED',t_now,NaN,struct());
+                end
+                obj.reset_staged_replan_pipeline('TRIGGER_CLEARED',false);
+                return;
+            end
+
+            fresh = ...
+                strcmp(char(obj.active_reference_mode), ...
+                    char(obj.staged_replan_source_mode)) && ...
+                double(obj.active_reference_version)== ...
+                    double(obj.staged_replan_source_version) && ...
+                isequal(logical(active(:).'), ...
+                    logical(obj.staged_replan_known_mask(:).')) && ...
+                isequaln(obj.static_obstacle_map,obj.staged_replan_static_map) && ...
+                isequaln(obj.staged_reference_only_dependency_key(), ...
+                    obj.staged_replan_dependency_key) && ...
+                isequaln(obj.active_speed_certificate, ...
+                    obj.staged_replan_speed_source) && ...
+                isequaln(double(obs_id),double(obj.staged_replan_obstacle_id)) && ...
+                isequaln(double(comp_code),double(obj.staged_replan_component_code));
+
+            if ~fresh
+                obj.staged_replan_stale_reject_count= ...
+                    obj.staged_replan_stale_reject_count+1;
+                obj.generator_last_status_code=-63;
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture('PIPELINE_SOURCE_OR_SENSOR_STALE',t_now,NaN,struct());
+                end
+                obj.reset_staged_replan_pipeline( ...
+                    'PIPELINE_SOURCE_OR_SENSOR_STALE',true);
+                return;
+            end
+
+            if strcmp(state,'GENERATED')
+                t_stage2=double(obj.staged_replan_request_time)+dt;
+                if t_now<t_stage2-tol
+                    return;
+                end
+                if t_now>t_stage2+tol
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.generator_last_status_code=-64;
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture('STAGE2_GRID_MISSED',t_now,NaN,struct());
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        'STAGE2_GRID_MISSED',true);
+                    return;
+                end
+
+                ts=tic;
+                P=obj.staged_replan_candidate;
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture('STAGE2_ENTERED',t_now,NaN,P);
+                end
+                try
+                    r20_cert_tic=tic;
+                    Rref=obj.evaluate_reference_only_proposal_certificate(P);
+                    obj.r20_stage2_cert_ms=1e3*toc(r20_cert_tic);
+                catch ME
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture(['STAGE2_CERTIFICATE_EXCEPTION__' char(ME.identifier)],t_now,1e3*toc(ts),P);
+                    end
+                    rethrow(ME);
+                end
+                obj.reference_only_evaluation_count= ...
+                    obj.reference_only_evaluation_count+1;
+                if ~(isstruct(Rref)&&isfield(Rref,'certified')&& ...
+                        logical(Rref.certified))
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.generator_validation_fail_count= ...
+                        obj.generator_validation_fail_count+1;
+                    obj.generator_last_status_code=33;
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture('STAGE2_REFERENCE_CERTIFICATE_REJECT',t_now,1e3*toc(ts),P);
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        'STAGE2_REFERENCE_CERTIFICATE_REJECT',true);
+                    return;
+                end
+
+                try
+                    r20_bundle_tic=tic;
+                    [ok,reason,B]=obj.prepare_staged_reference_only_bundle(P,ta);
+                    obj.r20_stage2_bundle_ms=1e3*toc(r20_bundle_tic);
+                catch ME
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture(['STAGE2_PREP_EXCEPTION__' char(ME.identifier)],t_now,1e3*toc(ts),P);
+                    end
+                    rethrow(ME);
+                end
+                obj.staged_replan_last_stage2_ms=1e3*toc(ts);
+                obj.r20_stage2_other_ms=obj.staged_replan_last_stage2_ms ...
+                    -obj.r20_stage2_cert_ms-obj.r20_stage2_bundle_ms;
+                obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
+                obj.staged_replan_stage2_count=obj.staged_replan_stage2_count+1;
+                r47code=41;
+                if ~ok,r47code=31;end
+                obj.r47_record_pipeline_event( ...
+                    2,t_now,obj.staged_replan_last_stage2_ms,P,r47code);
+
+                if ~ok
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.generator_validation_fail_count= ...
+                        obj.generator_validation_fail_count+1;
+                    obj.generator_last_status_code=31;
+                    if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                            obj.r26_r15_status_valid
+                        s16=obj.r26_r15_status;
+                        s16.r16_stage2_status=['STAGE2_PREP_REJECT__' char(reason)];
+                        s16.r16_stage2_ms=double(obj.staged_replan_last_stage2_ms);
+                        obj.r26_r15_status=s16;
+                    end
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture(['STAGE2_PREP_REJECT__' char(reason)],t_now,obj.staged_replan_last_stage2_ms,P);
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        ['STAGE2_PREP_REJECT__' char(reason)],true);
+                    return;
+                end
+                % AF7R25G: same development rule for Stage 2.
+                % Final <=4 ms compliance is reported separately; Stage 2 may
+                % continue only while the whole cycle remains <=25 ms.
+                if obj.generator_last_cycle_critical_ms>1e3*dt
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture('STAGE2_25MS_WOULD_REJECT',t_now,obj.staged_replan_last_stage2_ms,P);
+                    else
+                        obj.generator_deadline_fail_count= ...
+                            obj.generator_deadline_fail_count+1;
+                        obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                        obj.generator_last_status_code=-65;
+                        if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                                obj.r26_r15_status_valid
+                            s16=obj.r26_r15_status;
+                            s16.r16_stage2_status='STAGE2_CONTROL_PERIOD_EXCEEDED';
+                            s16.r16_stage2_ms=double(obj.staged_replan_last_stage2_ms);
+                            obj.r26_r15_status=s16;
+                        end
+                        obj.reset_staged_replan_pipeline( ...
+                            'STAGE2_CONTROL_PERIOD_EXCEEDED',true);
+                        return;
+                    end
+                end
+
+                obj.staged_replan_rref=Rref;
+                obj.staged_replan_bundle=B;
+                obj.staged_replan_state='PREPARED';
+                obj.staged_replan_last_reason='STAGE2_CERTIFIED_AND_PREPARED';
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    obj.r17_capture('STAGE2_CERTIFIED_AND_PREPARED',t_now,obj.staged_replan_last_stage2_ms,P);
+                end
+                if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                        obj.r26_r15_status_valid
+                    s16=obj.r26_r15_status;
+                    s16.r16_stage2_status='STAGE2_CERTIFIED_AND_PREPARED';
+                    s16.r16_stage2_ms=double(obj.staged_replan_last_stage2_ms);
+                    obj.r26_r15_status=s16;
+                end
+                obj.generator_last_status_code=41;
+                return;
+            end
+
+            if strcmp(state,'PREPARED')
+                if t_now<ta-tol
+                    return;
+                end
+                if t_now>ta+tol
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.generator_last_status_code=-66;
+                    if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                        obj.r17_capture('STAGE3_ACTIVATION_GRID_MISSED',t_now,NaN,struct());
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        'STAGE3_ACTIVATION_GRID_MISSED',true);
+                    return;
+                end
+
+                if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
+                    % R17 is normally strictly non-mutating. R26 introduces a
+                    % separate headless-simulation-only opt-in that exercises
+                    % the ORIGINAL atomic commit after the ORIGINAL precheck.
+                    [ready17,reason17]=obj.r17_precommit_check( ...
+                        obj.staged_replan_bundle,t_now,t_hard_cycle);
+                    if ~ready17
+                        obj.r17_capture(['STAGE3_PRECOMMIT_REJECT__' reason17],t_now,0,struct());
+                        obj.reset_staged_replan_pipeline('R26_PRECOMMIT_REJECT',true);
+                        return;
+                    end
+                    if ~obj.R26_SIMULATION_ONLY_EXPERIMENT
+                        obj.r17_capture('R27_STAGE3_RUNTIME_SIM_FLAG_FALSE',t_now,0,struct());
+                        obj.r17_capture('STAGE3_PRECOMMIT_READY_NO_COMMIT',t_now,0,struct());
+                        obj.reset_staged_replan_pipeline('R17_DIAGNOSTIC_NO_ACTIVATION',false);
+                        return;
+                    end
+                    % Provenance guard: the opt-in cannot activate through
+                    % a real flight-control entry point or a different runner.
+                    % The experiment intentionally does not claim real-time
+                    % or plant-tracking safety when Stage1 overran 25 ms.
+                    stk26=dbstack;
+                    names26={stk26.name};
+                    assert(any(contains(names26,'run_flight_headless')), ...
+                        '[R26] simulation-only commit forbidden outside run_flight_headless.');
+                    assert(strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY') && ...
+                        strcmpi(char(obj.AVOIDANCE_CERTIFICATE_MODE),'REFERENCE_ONLY') && ...
+                        logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                        strcmpi(char(obj.OBSERVER_HARD_SUPPORT_MODE),'SIM_NUMERIC_TRUTH'), ...
+                        '[R26] simulation-only requires original reference-only bridge and SIM_NUMERIC_TRUTH.');
+                    obj.r17_capture('R27_STAGE3_RUNTIME_SIM_FLAG_TRUE',t_now,0,struct());
+                    obj.r26_sim_commit_attempted=obj.r26_sim_commit_attempted+1;
+                    obj.r17_capture('STAGE3_SIM_ONLY_PRECOMMIT_PASS',t_now,0,struct());
+                    % Continue to the original atomic activation below.
+                end
+                ts=tic;
+                [ok,reason]=obj.activate_staged_reference_only_bundle( ...
+                    obj.staged_replan_bundle,t_now,t_hard_cycle);
+                obj.staged_replan_last_stage3_ms=1e3*toc(ts);
+                if obj.R26_SIMULATION_ONLY_EXPERIMENT
+                    if ok
+                        obj.r26_sim_commit_succeeded=obj.r26_sim_commit_succeeded+1;
+                        obj.r17_capture('STAGE3_SIM_ONLY_ATOMIC_COMMIT_PASS', ...
+                            t_now,obj.staged_replan_last_stage3_ms,struct());
+                    else
+                        obj.r17_capture(['STAGE3_SIM_ONLY_ATOMIC_COMMIT_REJECT__' char(reason)], ...
+                            t_now,obj.staged_replan_last_stage3_ms,struct());
+                    end
+                end
+                r47code=30;
+                if ~ok,r47code=-67;end
+                obj.r47_record_pipeline_event( ...
+                    3,t_now,obj.staged_replan_last_stage3_ms, ...
+                    obj.staged_replan_candidate,r47code);
+
+                if ok
+                    obj.staged_replan_commit_count= ...
+                        obj.staged_replan_commit_count+1;
+                    obj.generator_validation_pass_count= ...
+                        obj.generator_validation_pass_count+1;
+                    obj.generator_last_status_code=30;
+                    if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                            obj.r26_r15_status_valid
+                        s16=obj.r26_r15_status;
+                        s16.r16_stage3_status='STAGE3_ATOMIC_COMMIT_CLOSED';
+                        s16.r16_stage3_ms=double(obj.staged_replan_last_stage3_ms);
+                        s16.r16_activation_confirmed=1;
+                        obj.r26_r15_status=s16;
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        'STAGE3_ATOMIC_COMMIT_CLOSED',false);
+                else
+                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
+                    obj.generator_validation_fail_count= ...
+                        obj.generator_validation_fail_count+1;
+                    obj.generator_last_status_code=-67;
+                    if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
+                            obj.r26_r15_status_valid
+                        s16=obj.r26_r15_status;
+                        s16.r16_stage3_status=['STAGE3_COMMIT_REJECT__' char(reason)];
+                        s16.r16_stage3_ms=double(obj.staged_replan_last_stage3_ms);
+                        s16.r16_activation_confirmed=0;
+                        obj.r26_r15_status=s16;
+                    end
+                    obj.reset_staged_replan_pipeline( ...
+                        ['STAGE3_COMMIT_REJECT__' char(reason)],true);
+                end
+            end
+        end
+
+
+        function Q = af7r48_native_eval_packet_from_batch_model(obj,model)
+            % AF7R48 exact serialization of the already-certified canonical
+            % position-flat model for af7r36_single_core_mex op=2.
+            % No trajectory generation or safety decision occurs here.
+            assert(isstruct(model) && isfield(model,'certified') && ...
+                logical(model.certified) && ...
+                isfield(model,'flight_reference_time_origin') && ...
+                isfield(model,'corrections'), ...
+                '[REPLANNER ERROR] invalid canonical batch model for native evaluation.');
+
+            Q=struct();
+            Q.flight_t0=double(model.flight_reference_time_origin);
+            C=model.corrections;
+            G=numel(C);
+            Q.repair_t0=zeros(1,G);
+            Q.repair_t1=zeros(1,G);
+            Q.repair_offsets=zeros(1,G+1);
+            S=0;
+            for g=1:G
+                assert(isfield(C(g),'t0')&&isfield(C(g),'t1')&& ...
+                    isfield(C(g),'segment_t0')&&isfield(C(g),'segment_t1')&& ...
+                    isfield(C(g),'control_points'));
+                Q.repair_t0(g)=double(C(g).t0);
+                Q.repair_t1(g)=double(C(g).t1);
+                s0=double(C(g).segment_t0(:).');
+                s1=double(C(g).segment_t1(:).');
+                assert(numel(s0)==numel(s1));
+                Q.repair_offsets(g)=S;
+                S=S+numel(s0);
+            end
+            Q.repair_offsets(G+1)=S;
+            Q.repair_seg0=zeros(1,S);
+            Q.repair_seg1=zeros(1,S);
+            Q.repair_cp=zeros(48,S);
+            jj=0;
+            for g=1:G
+                s0=double(C(g).segment_t0(:).');
+                s1=double(C(g).segment_t1(:).');
+                CP=C(g).control_points;
+                for k=1:numel(s0)
+                    jj=jj+1;
+                    Q.repair_seg0(jj)=s0(k);
+                    Q.repair_seg1(jj)=s1(k);
+                    if iscell(CP)
+                        cp=double(CP{k});
+                    else
+                        A=double(CP);
+                        if ndims(A)==3
+                            cp=A(:,:,k);
+                        elseif isequal(size(A),[3 16]) && numel(s0)==1
+                            cp=A;
+                        else
+                            error('[REPLANNER ERROR] unsupported canonical control-point storage.');
+                        end
+                    end
+                    assert(isequal(size(cp),[3 16]) && all(isfinite(cp),'all'));
+                    Q.repair_cp(:,jj)=cp(:);
+                end
+            end
+            assert(jj==S && isfinite(Q.flight_t0));
+            Q=obj.af7r51_attach_phase_packet_metadata(Q,model);
+        end
+
+
+        function model = af7r51_append_phase_layer(~,model,P)
+            % AF7R51 phase metadata is orthogonal to the historical additive
+            % correction schema. Match layers by exact correction t0.
+            if ~isfield(model,'phase_layers') || ~isstruct(model.phase_layers)
+                model.phase_layers=struct('correction_t0',{},'t0',{},'tA',{}, ...
+                    'tB',{},'tE',{},'sA',{},'sB',{},'alpha',{},'delay',{});
+            end
+            % Prune metadata whose correction group was already pruned by the
+            % canonical resource helper.
+            if ~isempty(model.phase_layers)
+                ct=arrayfun(@(c)double(c.t0),model.corrections);
+                keep=false(1,numel(model.phase_layers));
+                for k=1:numel(model.phase_layers)
+                    keep(k)=any(ct==double(model.phase_layers(k).correction_t0));
+                end
+                model.phase_layers=model.phase_layers(keep);
+            end
+            if ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized))
+                return;
+            end
+            L=struct( ...
+                'correction_t0',double(P.t0), ...
+                't0',double(P.phase_t0), ...
+                'tA',double(P.phase_entry_end), ...
+                'tB',double(P.phase_flow_end), ...
+                'tE',double(P.phase_exit_end), ...
+                'sA',double(P.phase_source_start), ...
+                'sB',double(P.phase_source_end), ...
+                'alpha',double(P.phase_alpha), ...
+                'delay',double(P.phase_delay_s));
+            vals=[L.correction_t0 L.t0 L.tA L.tB L.tE L.sA L.sB L.alpha L.delay];
+            assert(all(isfinite(vals)) && L.t0<L.tA && L.tA<L.tB && ...
+                L.tB<L.tE && L.sA<L.sB && L.alpha>0 && L.alpha<=1 && L.delay>=0, ...
+                '[AF7R51] invalid phase layer at commit.');
+            model.phase_layers(end+1)=L;
+        end
+
+
+        function Q = af7r51_attach_phase_packet_metadata(obj,Q,model)
+            if nargin<3 || isempty(model)
+                if strcmpi(char(obj.active_reference_mode),'REPAIRED')
+                    obj.assert_repaired_reference_current();
+                    model=obj.active_repaired_reference.batch_flat_model;
+                else
+                    model=struct('corrections',struct([]),'phase_layers',struct([]));
+                end
+            end
+            G=numel(model.corrections);
+            Q.repair_phase_enabled=zeros(1,G);
+            Q.repair_phase_t0=zeros(1,G);
+            Q.repair_phase_tA=zeros(1,G);
+            Q.repair_phase_tB=zeros(1,G);
+            Q.repair_phase_tE=zeros(1,G);
+            Q.repair_phase_sA=zeros(1,G);
+            Q.repair_phase_sB=zeros(1,G);
+            Q.repair_phase_alpha=ones(1,G);
+            Q.repair_phase_delay=zeros(1,G);
+            if ~isfield(model,'phase_layers') || isempty(model.phase_layers)
+                return;
+            end
+            for g=1:G
+                ct=double(model.corrections(g).t0);
+                ix=find(arrayfun(@(x)double(x.correction_t0)==ct,model.phase_layers),1,'last');
+                if isempty(ix),continue;end
+                L=model.phase_layers(ix);
+                Q.repair_phase_enabled(g)=1;
+                Q.repair_phase_t0(g)=double(L.t0);
+                Q.repair_phase_tA(g)=double(L.tA);
+                Q.repair_phase_tB(g)=double(L.tB);
+                Q.repair_phase_tE(g)=double(L.tE);
+                Q.repair_phase_sA(g)=double(L.sA);
+                Q.repair_phase_sB(g)=double(L.sB);
+                Q.repair_phase_alpha(g)=double(L.alpha);
+                Q.repair_phase_delay(g)=double(L.delay);
+            end
+        end
+
+
+        function [evalFn,flatEvalFn] = af7r51_make_phase_native_eval_handles(obj,model)
+            Q=obj.af7r48_native_eval_packet_from_batch_model(model);
+            evalFn=@(tg)obj.af7r51_native_phase_eval(Q,double(tg));
+            flatEvalFn=evalFn;
+        end
+
+
+        function xd = af7r51_native_phase_eval(~,Q,tg)
+            Y=af7r36_single_core_mex(2,Q,double(tg));
+            assert(isequal(size(Y),[21 1]) && all(isfinite(Y(:))), ...
+                '[AF7R51] native phase reference evaluation failed.');
+            xd=zeros(28,1);
+            for r=0:6
+                xd(4*r+(1:3))=Y(3*r+(1:3),1);
+            end
+        end
+
+
+        function [ok,reason,B] = prepare_staged_reference_only_bundle(obj,P,t_commit)
+            ok=false;
+            reason='';
+            B=struct();
+
+            if ~obj.ENABLE_AUTO_REPLAN_COMMIT
+                reason='AUTO_COMMIT_DISABLED'; return;
+            end
+            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
+                reason='NOT_REFERENCE_ONLY_COMMIT_POLICY'; return;
+            end
+            if ~(isstruct(P)&&isfield(P,'success')&&logical(P.success))
+                reason='PROPOSAL_NOT_SUCCESSFUL'; return;
+            end
+
+            [spacingOK,~,~,spacingReason]= ...
+                af7r58i_commit_spacing_guard(obj,double(t_commit));
+            if ~spacingOK
+                reason=spacingReason; return;
+            end
+
+            G=P.geometry_shadow_certificate;
+            SC=P.reference_speed_certificate;
+            if ~(isstruct(G)&&isfield(G,'certified')&&logical(G.certified) && ...
+                    isfield(G,'continuous_time')&&logical(G.continuous_time) && ...
+                    isfield(G,'sampled_acceptance')&&~logical(G.sampled_acceptance))
+                reason='REFERENCE_GEOMETRY_CERTIFICATE_NOT_CLOSED'; return;
+            end
+            if ~(isstruct(SC)&&isfield(SC,'certified')&&logical(SC.certified))
+                reason='REFERENCE_SPEED_CERTIFICATE_NOT_CLOSED'; return;
+            end
+
+            targetVersion=double(obj.active_reference_version)+1;
+            if double(SC.reference_version)~=targetVersion
+                reason='REFERENCE_SPEED_CERTIFICATE_VERSION_MISMATCH'; return;
+            end
+            if ~(isfield(SC,'continuous_time')&&logical(SC.continuous_time) && ...
+                    isfield(SC,'sampled_acceptance')&&~logical(SC.sampled_acceptance) && ...
+                    isfield(SC,'specific_force_norm_LB_m_s2') && ...
+                    isnumeric(SC.specific_force_norm_LB_m_s2) && ...
+                    isscalar(SC.specific_force_norm_LB_m_s2) && ...
+                    isfinite(double(SC.specific_force_norm_LB_m_s2)) && ...
+                    double(SC.specific_force_norm_LB_m_s2)>0)
+                reason='REFERENCE_ONLY_CONTINUOUS_FLATNESS_CERTIFICATE_NOT_CLOSED'; return;
+            end
+            if ~(isfield(P,'c7_exact')&&logical(P.c7_exact))
+                reason='REFERENCE_ONLY_C7_CERTIFICATE_NOT_CLOSED'; return;
+            end
+
+            r22_model_tic=tic;
+            [resourceOK,resourceReason,batchModel,resourceMeta]= ...
+                af7r58i_prepare_batch_model( ...
+                    obj,P,targetVersion,double(t_commit));
+            if resourceOK
+                batchModel=obj.af7r51_append_phase_layer(batchModel,P);
+            end
+            if resourceOK && isfield(P,'r16_free_offset_bridge') && ...
+                    logical(P.r16_free_offset_bridge)
+                % Exact representation identity is mandatory: never transfer
+                % the native mathematical certificate to DIFFERENT bytes.
+                candidates=batchModel.corrections;
+                targetIx=find(arrayfun(@(x)double(x.t0)==double(P.t0),candidates));
+                if numel(targetIx)~=1
+                    reason='R16_CANONICAL_CORRECTION_IDENTITY_MISSING';return;
+                end
+                item=candidates(targetIx);
+                s0=double(P.piecewise_segment_t0(:).');
+                s1=double(P.piecewise_segment_t1(:).');
+                if ~isequal(double(item.segment_t0(:).'),s0) || ...
+                   ~isequal(double(item.segment_t1(:).'),s1)
+                    reason='R16_CANONICAL_KNOT_IDENTITY_MISMATCH';return;
+                end
+                orig=P.piecewise_control_points;
+                canon=item.control_points;
+                if ~iscell(orig)
+                    reason='R16_NATIVE_CP_SCHEMA_MISMATCH';return;
+                end
+                if isnumeric(canon) && ndims(canon)==3
+                    canon=arrayfun(@(j)double(canon(:,:,j)), ...
+                        1:size(canon,3),'UniformOutput',false);
+                end
+                if ~(iscell(canon)&&numel(orig)==numel(canon))
+                    reason='R16_CANONICAL_CP_SCHEMA_MISMATCH';return;
+                end
+                for jj=1:numel(orig)
+                    if ~isequal(double(orig{jj}),double(canon{jj}))
+                        reason='R16_CANONICAL_CONTROL_POINT_MISMATCH';return;
+                    end
+                end
+                if isempty(orig) || ...
+                   ~isequal(double(orig{end}(:,end)),double(P.terminal_offset(:)))
+                    reason='R16_TERMINAL_OFFSET_NOT_EXACT';return;
+                end
+            end
+            obj.r22_stage2_model_ms=1e3*toc(r22_model_tic);
+            if ~resourceOK
+                reason=resourceReason; return;
+            end
+
+            r22_sensor_tic=tic;
+            % Exact rebuild is intentional in the staged-preparation cycle.
+            % No cache/reuse theorem is needed for timing here.
+            sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
+            packetNew=obj.prepare_obstacle_packet_fast_target( ...
+                obj.obstacle_packet,sweepNew,targetVersion);
+            sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+            if ~(isstruct(sensorNew)&&isfield(sensorNew,'certified')&& ...
+                    logical(sensorNew.certified))
+                reason='STAGED_TARGET_SENSOR_HORIZON_OPEN'; return;
+            end
+            obj.r22_stage2_sensor_ms=1e3*toc(r22_sensor_tic);
+            r22_eval_handles_tic=tic;
+            depNew=obj.runtime_dependency_signature;
+            depNew.reference_mode='REPAIRED';
+            depNew.reference_version=double(targetVersion);
+
+            % AF7R47: snapshot the PREVIOUS active reference before the
+            % authority swap. Its continuous yaw supplies only the unwrap
+            % branch; the new yaw derivatives come from the new total C7 path.
+            yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
+            yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
+
+            % R22: The R16 / phase branch previously serialized the SAME
+            % canonical C7 model twice: once for the evaluation handles and
+            % once for the post-commit rolling cache. Store the exact native
+            % packet once and reuse the same byte arrays in both consumers.
+            r22_shared_native_eval_packet=[];
+            if (isfield(P,'r16_free_offset_bridge') && ...
+                    logical(P.r16_free_offset_bridge)) || ...
+                    (isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers))
+                r22_pkt_tic=tic;
+                r22_shared_native_eval_packet= ...
+                    obj.af7r48_native_eval_packet_from_batch_model(batchModel);
+                obj.r22_stage2_native_eval_packet_ms=1e3*toc(r22_pkt_tic);
+                evalFnBase=@(tg)obj.af7r51_native_phase_eval( ...
+                    r22_shared_native_eval_packet,double(tg));
+                flatEvalFnBase=evalFnBase;
+            else
+                [evalFnBase,flatEvalFnBase]= ...
+                    af7r58i_make_canonical_eval_handles(obj,batchModel);
+                obj.r22_stage2_native_eval_packet_ms=0;
+            end
+            evalFn=evalFnBase;
+            flatEvalFn=flatEvalFnBase;
+            if isfield(P,'delay_preserving') && logical(P.delay_preserving) && ...
+                    ~(isfield(P,'r16_free_offset_bridge') && logical(P.r16_free_offset_bridge)) && ...
+                    ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)) && ...
+                    isfield(P,'terminal_offset') && ...
+                    numel(P.terminal_offset)==3
+                qhold=double(P.terminal_offset(:));
+                thold=double(P.t1);
+                evalFn=@(tg)obj.af7r34_apply_persistent_hold_eval( ...
+                    evalFnBase,tg,thold,qhold);
+                flatEvalFn=@(tg)obj.af7r34_apply_persistent_hold_flat( ...
+                    flatEvalFnBase,tg,thold,qhold);
+            end
+
+            if isfield(P,'path_tangent_yaw_c6') && ...
+                    logical(P.path_tangent_yaw_c6)
+                P.path_tangent_batch_model=batchModel;
+                evalYawBase=evalFn;
+                flatYawBase=flatEvalFn;
+                evalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
+                    evalYawBase,yawAnchorEvalFn,tg,P);
+                flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
+                    flatYawBase,yawAnchorFlatFn,tg,P);
+            end
+
+            smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
+            if isfield(P,'representation_code')&&double(P.representation_code)==2
+                smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_TOWING_CORRIDORS';
+            end
+            if isfield(P,'piecewise_candidate_family') && ...
+                    strcmpi(char(P.piecewise_candidate_family),'CURVED_C7_ZERO_JET_BELL')
+                smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_ZERO_JET_BELL';
+            end
+            if isfield(P,'piecewise_candidate_family') && ...
+                    strcmpi(char(P.piecewise_candidate_family),'CURVED_SPATIAL_C7_DELAY_PRESERVING')
+                smoothSource='PIECEWISE_DEGREE15_BEZIER_CURVED_SPATIAL_C7_DELAY_PRESERVING';
+            end
+            smooth=struct( ...
+                'certified',logical(P.c7_exact), ...
+                'continuous_time',true, ...
+                'sampled_acceptance',false, ...
+                'continuity_order',7, ...
+                'reference_mode','REPAIRED', ...
+                'reference_version',targetVersion, ...
+                'valid_from',double(P.t0), ...
+                'valid_until',double(P.t1), ...
+                'source',smoothSource);
+
+            geom=G;
+            geom.reference_mode='REPAIRED';
+            geom.reference_version=targetVersion;
+            geom.valid_from=double(P.t0);
+            geom.valid_until=double(P.t1);
+            geom.reference_only_authority=true;
+            geom.final_system_authority=false;
+
+            R=struct();
+            R.valid=true;
+            R.backend='BEZIER_D15_C7';
+            R.eval_fn=evalFn;
+            R.flat_eval_fn=flatEvalFn;
+            R.valid_from=double(P.t0);
+            R.valid_until=Inf;
+            if isfield(P,'r16_free_offset_bridge') && logical(P.r16_free_offset_bridge)
+                R.valid_until=double(P.t1); % only proved finite support
+            end
+            R.reference_version=targetVersion;
+            R.source='AF7R58ZZU_STAGED_REFERENCE_ONLY_COMMIT';
+            R.yaw_policy='C6_INDEPENDENT';
+            if isfield(P,'path_tangent_yaw_c6') && logical(P.path_tangent_yaw_c6)
+                R.yaw_policy='PATH_TANGENT_C6_EXACT';
+                R.yaw_c6_certificate=struct( ...
+                    'certified',true, ...
+                    'continuous_time',true, ...
+                    'sampled_acceptance',false, ...
+                    'continuity_order',6, ...
+                    'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
+                    'heading_anchor_rad',double(P.heading_anchor_rad), ...
+                    'source','C7_POSITION_PLUS_ACTIVE_BASE_POSITIVE_DOT_LOG_DERIVATIVE');
+            end
+            R.path_parameterization=struct( ...
+                'kind','DIRECT_TIME_BEZIER_CORRECTION', ...
+                'path_derivative_order',7, ...
+                'time_derivative_order',7);
+            if isfield(P,'r16_free_offset_bridge') && logical(P.r16_free_offset_bridge)
+                R.path_parameterization.kind='EXACT_C7_FREE_TERMINAL_OFFSET_HOLD';
+                R.path_parameterization.identity_time_law=true;
+                R.path_parameterization.terminal_hold_start=double(P.terminal_hold_start);
+                R.path_parameterization.terminal_offset=double(P.terminal_offset(:));
+                R.rejoin_time=Inf; % no spatial rejoin was proved
+            elseif isfield(P,'trigger_to_free_rejoin') && logical(P.trigger_to_free_rejoin)
+                R.path_parameterization.kind='SPATIAL_C7_IDENTITY_TIME_C6_PHASE_A';
+                R.path_parameterization.path_derivative_order=7;
+                R.path_parameterization.time_derivative_order=6;
+                R.path_parameterization.identity_time_law=true;
+                R.rejoin_time=double(P.actual_rejoin_time);
+            elseif isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)
+                R.path_parameterization.kind='GENERAL_C7_PHASE_REPARAMETERIZATION';
+                R.path_parameterization.schedule_delay_s=double(P.phase_delay_s);
+                R.rejoin_time=double(P.actual_rejoin_time);
+            elseif isfield(P,'delay_preserving') && logical(P.delay_preserving)
+                R.path_parameterization.kind='AFFINE_BASE_DELAY_PRESERVING_RETIMING';
+                R.path_parameterization.schedule_delay_s=double(P.schedule_delay_s);
+                R.rejoin_time=double(P.terminal_hold_start);
+            else
+                R.rejoin_time=double(P.t1);
+            end
+            R.representation=struct( ...
+                'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
+                't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
+                'displacement',double(P.displacement(:)), ...
+                'candidate_family',char(P.piecewise_candidate_family), ...
+                'delay_preserving',logical(P.delay_preserving), ...
+                'terminal_hold_start',double(P.terminal_hold_start), ...
+                'terminal_offset',double(P.terminal_offset(:)), ...
+                'schedule_delay_s',double(P.schedule_delay_s), ...
+                'path_tangent_yaw_c6',logical(P.path_tangent_yaw_c6), ...
+                'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
+                'heading_anchor_rad',double(P.heading_anchor_rad), ...
+                'trigger_to_free_rejoin',logical(P.trigger_to_free_rejoin), ...
+                'identity_time_law',logical(P.identity_time_law), ...
+                'actual_rejoin_time',double(P.actual_rejoin_time), ...
+                'spatial_knot_count',double(P.spatial_knot_count), ...
+                'adaptive_rejoin_selected',logical(P.adaptive_rejoin_selected), ...
+                'baseline_t1',double(P.adaptive_rejoin_baseline_t1), ...
+                'selected_envelope_m',double(P.adaptive_rejoin_selected_envelope_m), ...
+                'baseline_envelope_m',double(P.adaptive_rejoin_baseline_envelope_m), ...
+                'certificate_tests',double(P.rejoin_search_full_certificate_tests), ...
+                'safe_trial_count',double(P.rejoin_search_endpoint_safe_count), ...
+                'primary_candidate_count',double(P.primary_candidate_count), ...
+                'primary_speed_pass_count',double(P.primary_speed_pass_count), ...
+                'primary_rejoin_pass_count',double(P.primary_rejoin_pass_count), ...
+                'primary_geometry_test_count',double(P.primary_geometry_test_count), ...
+                'fallback_candidate_count',double(P.fallback_candidate_count));
+            R.batch_flat_model=batchModel;
+            R.resource_certificate=resourceMeta.contract;
+            R.resource_state=resourceMeta;
+            R.authority_split=struct( ...
+                'controller_packet','eval_fn', ...
+                'mathematical_flat_jet','flat_eval_fn', ...
+                'legacy_high_derivative_slots_used_for_geometry',false);
+
+            obj.r22_stage2_eval_handles_ms=1e3*toc(r22_eval_handles_tic);
+            r22_cache_tic=tic;
+            % Pre-build the first packet that will be requested AFTER the
+            % t_commit authority swap.  The commit cycle itself has already
+            % evaluated its pre-commit packet, so the first repaired packet is
+            % at t_commit+dt.  Moving this full N-point batch into Stage 2
+            % removes the post-commit cold rebuild from the next Flight cycle.
+            dt=double(obj.prediction_dt);
+            H=double(obj.horizon_s);
+            N=round(H/dt)+1;
+            tCache=double(t_commit)+dt;
+            tqCache=tCache+(0:N-1)*dt;
+            if isfield(P,'r16_free_offset_bridge') && ...
+                    logical(P.r16_free_offset_bridge) && tqCache(end)>double(P.t1)
+                reason='R16_FUTURE_CACHE_EXCEEDS_CERTIFIED_VALIDITY';return;
+            end
+            % AF7R48: this is evaluation of an already-certified C7 model,
+            % not replanning. For ordinary direct-time candidates use the
+            % exact native active-reference evaluator (same nominal AST and
+            % stored degree-15 control polygons as the planner). This removes
+            % the 161-point MATLAB batch cold spike from Stage2.
+            % AF7R48R1: the native ActiveReference evaluator already carries
+            % the final correction control value after each repair t1. For the
+            % exact-affine delay-preserving family this is exactly the proved
+            % schedule-shift offset p_base(t-Delta)-p_base(t), so the native
+            % 161-point cache path remains exact and does not need the slow
+            % MATLAB batch fallback.
+            useNativeCache=true;
+            if useNativeCache
+                if isempty(r22_shared_native_eval_packet)
+                    r22_pkt_tic=tic;
+                    evalPacket=obj.af7r48_native_eval_packet_from_batch_model(batchModel);
+                    obj.r22_stage2_native_eval_packet_ms=1e3*toc(r22_pkt_tic);
+                else
+                    evalPacket=r22_shared_native_eval_packet;
+                end
+                r22_native_eval_tic=tic;
+                Ycache=double(af7r36_single_core_mex(2,evalPacket,tqCache));
+                obj.r22_stage2_native_eval_ms=1e3*toc(r22_native_eval_tic);
+                validCache=true(1,N);
+                R.native_eval_packet=evalPacket;
+                R.native_position_eval_exact=true;
+            else
+                R.native_eval_packet=struct();
+                R.native_position_eval_exact=false;
+                [Ycache,validCache]= ...
+                    af7r33_flat_jet_batch_model(obj,tqCache,batchModel);
+                Ycache=double(Ycache);
+            end
+            if ~(isequal(size(Ycache),[21 N]) && numel(validCache)==N && ...
+                    all(logical(validCache(:))) && all(isfinite(Ycache),'all'))
+                reason='STAGED_POSTCOMMIT_CACHE_BATCH_INVALID'; return;
+            end
+            pLcache=Ycache(1:3,:);
+            sfcache=Ycache(7:9,:)+[0;0;double(obj.gravity)];
+            nscache=sqrt(sum(sfcache.^2,1));
+            if ~(all(isfinite(nscache))&&all(nscache>0))
+                reason='STAGED_POSTCOMMIT_CACHE_FLATNESS_SINGULAR'; return;
+            end
+            qcache=-sfcache./nscache;
+            postCache=struct( ...
+                'reference_version',double(targetVersion), ...
+                't0',double(tCache),'dt',dt,'H',H, ...
+                'pL',pLcache,'q',qcache);
+
+            obj.r22_stage2_cache_ms=1e3*toc(r22_cache_tic);
+            B=struct( ...
+                'schema','AF7R58ZZV_PREPARED_COMMIT_V2', ...
+                'source_mode',char(obj.active_reference_mode), ...
+                'source_version',double(obj.active_reference_version), ...
+                'target_version',double(targetVersion), ...
+                'activation_time',double(t_commit), ...
+                'dependency_key',obj.staged_reference_only_dependency_key(), ...
+                'speed_source',obj.active_speed_certificate, ...
+                'known_mask',logical(obj.staged_replan_known_mask(:).'), ...
+                'static_map',obj.static_obstacle_map, ...
+                'reference',R, ...
+                'certificates',struct( ...
+                    'reference_only',true,'smoothness',smooth,'geometry',geom), ...
+                'speed',SC, ...
+                'sweep',sweepNew, ...
+                'packet',packetNew, ...
+                'sensor',sensorNew, ...
+                'dep',depNew, ...
+                'post_commit_reference_cache',postCache, ...
+                'prevalidated',true);
+            obj.staged_replan_postcommit_cache_prepare_count= ...
+                obj.staged_replan_postcommit_cache_prepare_count+1;
+            ok=true;
+            reason='STAGED_COMMIT_BUNDLE_AND_POSTCACHE_PREPARED';
+        end
+
+
+        function [ok,reason] = activate_staged_reference_only_bundle( ...
+                obj,B,t_now,t_hard_cycle)
+            ok=false;
+            reason='';
+
+            if ~(isstruct(B)&&isfield(B,'schema')&& ...
+                    strcmp(char(B.schema),'AF7R58ZZV_PREPARED_COMMIT_V2') && ...
+                    isfield(B,'prevalidated')&&logical(B.prevalidated) && ...
+                    isfield(B,'post_commit_reference_cache'))
+                reason='STAGED_BUNDLE_SCHEMA_MISMATCH'; return;
+            end
+
+            scale=max([1,abs(double(t_now)),abs(double(B.activation_time))]);
+            if abs(double(t_now)-double(B.activation_time))>64*eps(scale)
+                reason='STAGED_ACTIVATION_TIME_MISMATCH'; return;
+            end
+            if ~strcmp(char(obj.active_reference_mode),char(B.source_mode)) || ...
+                    double(obj.active_reference_version)~=double(B.source_version)
+                reason='STAGED_SOURCE_REFERENCE_STALE'; return;
+            end
+            if ~isequaln(obj.staged_reference_only_dependency_key(),B.dependency_key) || ...
+                    ~isequaln(obj.active_speed_certificate,B.speed_source) || ...
+                    ~isequaln(obj.static_obstacle_map,B.static_map)
+                reason='STAGED_DEPENDENCY_OR_MAP_STALE'; return;
+            end
+
+            old=struct( ...
+                'mode',obj.active_reference_mode, ...
+                'version',obj.active_reference_version, ...
+                'ref',obj.active_repaired_reference, ...
+                'cert',obj.active_repaired_certificates, ...
+                'speed',obj.active_speed_certificate, ...
+                'sweep',obj.trigger_sweep_inflation, ...
+                'packet',obj.obstacle_packet, ...
+                'sensor',obj.sensor_horizon_certificate, ...
+                'dep',obj.runtime_dependency_signature, ...
+                'stale',obj.certificate_stale, ...
+                'level',obj.active_repaired_safety_level, ...
+                'time',obj.last_replan_commit_time);
+
+            try
+                obj.active_repaired_reference=B.reference;
+                obj.active_repaired_certificates=B.certificates;
+                obj.active_reference_mode='REPAIRED';
+                obj.active_reference_version=double(B.target_version);
+                obj.active_repaired_safety_level='REFERENCE_ONLY';
+                obj.active_speed_certificate=B.speed;
+                obj.trigger_sweep_inflation=B.sweep;
+                obj.obstacle_packet=B.packet;
+                obj.sensor_horizon_certificate=B.sensor;
+                obj.runtime_dependency_signature=B.dep;
+                obj.certificate_stale=obj.empty_certificate_stale_state();
+                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
+                obj.certificate_stale.HLC_ROBUST_CERT=true;
+                obj.last_replan_commit_time=double(t_now);
+
+                % Stage 2 already performed all expensive construction and
+                % continuous certificate closure.  At Stage 3, after exact
+                % source/dependency/map freshness checks above, only the
+                % version/staleness hot guard is required.
+                obj.assert_runtime_core_certificates_current_hot();
+
+                % The main loop must still close inside its 25-ms period.
+                if toc(t_hard_cycle)>double(obj.prediction_dt)
+                    obj.active_reference_mode=old.mode;
+                    obj.active_reference_version=old.version;
+                    obj.active_repaired_reference=old.ref;
+                    obj.active_repaired_certificates=old.cert;
+                    obj.active_speed_certificate=old.speed;
+                    obj.trigger_sweep_inflation=old.sweep;
+                    obj.obstacle_packet=old.packet;
+                    obj.sensor_horizon_certificate=old.sensor;
+                    obj.runtime_dependency_signature=old.dep;
+                    obj.certificate_stale=old.stale;
+                    obj.active_repaired_safety_level=old.level;
+                    obj.last_replan_commit_time=old.time;
+                    obj.generator_deadline_fail_count= ...
+                        obj.generator_deadline_fail_count+1;
+                    reason='STAGED_ATOMIC_CONTROL_PERIOD_EXCEEDED';
+                    return;
+                end
+
+                Cpost=B.post_commit_reference_cache;
+                assert(isstruct(Cpost) && ...
+                    double(Cpost.reference_version)==double(B.target_version) && ...
+                    abs(double(Cpost.t0)-(double(t_now)+double(obj.prediction_dt)))<= ...
+                        64*eps(max(1,abs(double(Cpost.t0)))), ...
+                    '[AF7R58ZZV] prepared post-commit reference cache is stale.');
+                obj.repaired_reference_cache=Cpost;
+                obj.repaired_reference_cache_valid=true;
+                obj.reference_only_prepared_packet_cache_valid=false;
+                obj.reference_only_prepared_packet_cache=struct();
+
+                obj.replan_commit_count=obj.replan_commit_count+1;
+                obj.reference_only_commit_count= ...
+                    obj.reference_only_commit_count+1;
+                obj.replan_request_active=false;
+
+                obj.last_replan_status=struct( ...
+                    'requested',true, ...
+                    'committed',true, ...
+                    'safety_mode','REFERENCE_ONLY', ...
+                    'safety_level','REFERENCE_ONLY', ...
+                    'full_system_authority',false, ...
+                    'reference_version',double(B.target_version), ...
+                    'backend','BEZIER_D15_C7', ...
+                    'commit_time',double(t_now), ...
+                    'rejoin_time',double(B.reference.rejoin_time), ...
+                    'staged_pipeline',true, ...
+                    'pipeline_intervals',2);
+
+                ok=true;
+                reason='STAGED_REFERENCE_ONLY_COMMIT_CLOSED';
+            catch ME
+                obj.active_reference_mode=old.mode;
+                obj.active_reference_version=old.version;
+                obj.active_repaired_reference=old.ref;
+                obj.active_repaired_certificates=old.cert;
+                obj.active_speed_certificate=old.speed;
+                obj.trigger_sweep_inflation=old.sweep;
+                obj.obstacle_packet=old.packet;
+                obj.sensor_horizon_certificate=old.sensor;
+                obj.runtime_dependency_signature=old.dep;
+                obj.certificate_stale=old.stale;
+                obj.active_repaired_safety_level=old.level;
+                obj.last_replan_commit_time=old.time;
+                reason=ME.message;
+            end
+        end
+
+
+        function r47_record_pipeline_event(obj,stageCode,t_now,stage_ms,P,statusCode)
+            % AF7R47 bounded diagnostic ring. Never grants/rejects control.
+            try
+                cap=double(obj.r47_event_ring_capacity);
+                wid=double(obj.r47_event_ring_width);
+                if ~(cap==64 && wid==18 && isequal(size(obj.r47_event_ring),[64 18]))
+                    return;
+                end
+                r=nan(1,18);
+                r(1)=double(obj.r47_event_ring_count)+1;
+                r(2)=double(t_now);
+                r(3)=double(stageCode);
+                r(4)=double(stage_ms);
+                r(6)=double(statusCode);
+
+                if isstruct(P)
+                    if isfield(P,'success'),r(5)=double(logical(P.success));end
+                    if isfield(P,'t0'),r(7)=double(P.t0);end
+                    if isfield(P,'t1'),r(8)=double(P.t1);end
+                    if isfield(P,'native_raw') && isstruct(P.native_raw)
+                        N=P.native_raw;
+                        names={'episode_ms','hessian_ms','corridor_ms','qp_ms', ...
+                            'candidate_build_ms','synthesis_ms','candidate_ms','total_ms', ...
+                            'r45_tangent_interval_count'};
+                        cols=9:17;
+                        for kk=1:numel(names)
+                            if isfield(N,names{kk})
+                                v=double(N.(names{kk}));
+                                if isscalar(v),r(cols(kk))=v;end
+                            end
+                        end
+                    end
+                    if isfield(P,'geometry_shadow_certificate') && ...
+                            isstruct(P.geometry_shadow_certificate) && ...
+                            isfield(P.geometry_shadow_certificate,'certified')
+                        r(18)=double(logical(P.geometry_shadow_certificate.certified));
+                    end
+                end
+
+                j=mod(double(obj.r47_event_ring_head),cap)+1;
+                obj.r47_event_ring(j,:)=r;
+                obj.r47_event_ring_head=j;
+                obj.r47_event_ring_count=min(cap,double(obj.r47_event_ring_count)+1);
+            catch
+                % Diagnostics must never affect the planning/control path.
+            end
+        end
+
+
+        function r26_materialize_deferred_diagnostics(obj)
+            % NONAUTHORITATIVE: called only when someone requests the full
+            % diagnostic status, never on the ordinary flight cycle.
+            if ~obj.r26_deferred_pending
+                return;
+            end
+            candidate=obj.r26_deferred_candidate;
+            obj.r26_deferred_pending=false;
+            t_r26_materialize=tic;
             % AF7R36 R16C: corrected compact/native schema latch.
             obj.staged_replan_predeadline_candidate_seen=true;
             obj.staged_replan_predeadline_candidate_success= ...
@@ -7756,895 +9267,12 @@ classdef REPLANNING_SYSTEM < handle
                     logical(candidate.adaptive_rejoin_selected);
             end
 
-            obj.r47_record_pipeline_event( ...
-                1,t_now,stage_ms,candidate,obj.field_scalar(candidate,'reason_code'));
-
-            % AF7R58R15: diagnostic-only export independent of caller workspace.
-            % Root application data is MATLAB-process-local, survives clearvars
-            % and does NOT retain a controller/plant/agent handle. Never grants
-            % acceptance or changes trajectory, deadline or hard certificates.
-            % Deliberately restricted to explicit R58+R14 research diagnostics.
-            if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
-                    logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
-                    isstruct(candidate) && isfield(candidate,'native_raw') && ...
-                    isstruct(candidate.native_raw)
-                N15=candidate.native_raw;
-                req15={'r58_shadow_ran', 'r58r14_lowjet_seed_only', ...
-                    'r58r14_active_reduced_dof', 'r58r14_full_reduced_dof', ...
-                    'r58_bnb_full_assignments', 'r58_bnb_qp_solves', ...
-                    'r58_bnb_feasible_full', 'r58_bnb_speed_fail', ...
-                    'r58_speed_pass', 'r58_heading_pass', 'r58_geometry_pass', ...
-                    'r58_speed_gate_rows', 'r58_shadow_ms', ...
-                    'r58_homotopy_ms', 'r58_build_ms', ...
-                    'r58_reference_only', 'r58_commit_attempted'};
-                if all(isfield(N15,req15))
-                    snap15=struct();
-                    for ii15=1:numel(req15)
-                        nm15=req15{ii15};
-                        snap15.(nm15)=double(N15.(nm15));
-                    end
-                    snap15.last_stage1_ms=double(stage_ms);
-                    snap15.r15_trigger_time_s=double(t_now);
-                    snap15.r15_source='NATIVE_R14_POST_STAGE1_NUMERIC_ONLY';
-                    % Capturing a single 38-column diagnostic matrix involves
-                    % no file IO in Flight; writing reports is post-simulation.
-                    setappdata(0,'AF7R58R15_LAST_STATUS',snap15);
-                end
-            end
-
-            % AF7R25G development runtime policy:
-            % - final target remains <= hard_modify_deadline_s (4 ms),
-            % - but staged development execution is allowed to proceed while
-            %   the complete Stage-1 sensor-to-candidate cycle remains inside
-            %   the 25-ms control period.
-            % This does NOT bypass exact-C7/speed/rejoin/whole-body safety.
-            if obj.generator_last_cycle_critical_ms>1e3*dt
-                obj.generator_deadline_fail_count= ...
-                    obj.generator_deadline_fail_count+1;
-                obj.generator_last_status_code=-62;
-                obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                obj.staged_replan_last_reason='STAGE1_CONTROL_PERIOD_EXCEEDED';
-                return;
-            end
-
-            if ~(isstruct(candidate)&&isfield(candidate,'success')&& ...
-                    logical(candidate.success))
-                obj.generator_validation_fail_count= ...
-                    obj.generator_validation_fail_count+1;
-                obj.generator_last_status_code=21;
-                obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                obj.staged_replan_last_reason='STAGE1_PROPOSAL_NOT_CERTIFIED';
-                return;
-            end
-
-            assert(abs(double(candidate.t0)-ta)<=64*eps(max(1,abs(ta))), ...
-                '[AF7R58ZZU] staged candidate t0 is not activation time.');
-
-            obj.staged_replan_candidate=candidate;
-            if isfield(candidate,'candidate_family')
-                obj.staged_replan_last_candidate_family=char(candidate.candidate_family);
-            else
-                obj.staged_replan_last_candidate_family='';
-            end
-            obj.staged_replan_rref=struct();
-            obj.staged_replan_bundle=struct();
-            obj.staged_replan_request_time=t_now;
-            obj.staged_replan_activation_time=ta;
-            obj.staged_replan_source_mode=char(obj.active_reference_mode);
-            obj.staged_replan_source_version=double(obj.active_reference_version);
-            obj.staged_replan_known_mask=logical(active(:).');
-            obj.staged_replan_static_map=obj.static_obstacle_map;
-            obj.staged_replan_dependency_key= ...
-                obj.staged_reference_only_dependency_key();
-            obj.staged_replan_speed_source=obj.active_speed_certificate;
-            obj.staged_replan_obstacle_id=double(obs_id);
-            obj.staged_replan_component_code=double(comp_code);
-            obj.staged_replan_component_name=char(comp_name);
-            obj.staged_replan_collision_time=double(collision_time);
-            obj.staged_replan_initial_ttc=double(ttc);
-            obj.staged_replan_pL_collision=double(pL_collision(:));
-            obj.staged_replan_q_collision=double(q_collision(:));
-            obj.staged_replan_pQ_collision=double(pQ_collision(:));
-            obj.staged_replan_hit_index=double(jhit);
-            obj.staged_replan_state='GENERATED';
-            obj.staged_replan_last_reason='STAGE1_GENERATED';
-            obj.generator_candidate_count=obj.generator_candidate_count+1;
-            obj.generator_last_status_code=40;
+            obj.r26_diagnostic_materialization_ms=1e3*toc(t_r26_materialize);
         end
-
-
-        function advance_staged_replan_pipeline(obj,t_hard_cycle,t_now, ...
-                active,need_replan,obs_id,comp_code)
-            state=char(obj.staged_replan_state);
-            if strcmp(state,'IDLE')
-                return;
-            end
-
-            t_now=double(t_now);
-            dt=double(obj.prediction_dt);
-            ta=double(obj.staged_replan_activation_time);
-            scale=max([1,abs(t_now),abs(ta)]);
-            tol=64*eps(scale);
-
-            if ~logical(need_replan)
-                obj.staged_replan_stale_reject_count= ...
-                    obj.staged_replan_stale_reject_count+1;
-                obj.reset_staged_replan_pipeline('TRIGGER_CLEARED',false);
-                return;
-            end
-
-            fresh = ...
-                strcmp(char(obj.active_reference_mode), ...
-                    char(obj.staged_replan_source_mode)) && ...
-                double(obj.active_reference_version)== ...
-                    double(obj.staged_replan_source_version) && ...
-                isequal(logical(active(:).'), ...
-                    logical(obj.staged_replan_known_mask(:).')) && ...
-                isequaln(obj.static_obstacle_map,obj.staged_replan_static_map) && ...
-                isequaln(obj.staged_reference_only_dependency_key(), ...
-                    obj.staged_replan_dependency_key) && ...
-                isequaln(obj.active_speed_certificate, ...
-                    obj.staged_replan_speed_source) && ...
-                isequaln(double(obs_id),double(obj.staged_replan_obstacle_id)) && ...
-                isequaln(double(comp_code),double(obj.staged_replan_component_code));
-
-            if ~fresh
-                obj.staged_replan_stale_reject_count= ...
-                    obj.staged_replan_stale_reject_count+1;
-                obj.generator_last_status_code=-63;
-                obj.reset_staged_replan_pipeline( ...
-                    'PIPELINE_SOURCE_OR_SENSOR_STALE',true);
-                return;
-            end
-
-            if strcmp(state,'GENERATED')
-                t_stage2=double(obj.staged_replan_request_time)+dt;
-                if t_now<t_stage2-tol
-                    return;
-                end
-                if t_now>t_stage2+tol
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_last_status_code=-64;
-                    obj.reset_staged_replan_pipeline( ...
-                        'STAGE2_GRID_MISSED',true);
-                    return;
-                end
-
-                ts=tic;
-                P=obj.staged_replan_candidate;
-                Rref=obj.evaluate_reference_only_proposal_certificate(P);
-                obj.reference_only_evaluation_count= ...
-                    obj.reference_only_evaluation_count+1;
-                if ~(isstruct(Rref)&&isfield(Rref,'certified')&& ...
-                        logical(Rref.certified))
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_validation_fail_count= ...
-                        obj.generator_validation_fail_count+1;
-                    obj.generator_last_status_code=33;
-                    obj.reset_staged_replan_pipeline( ...
-                        'STAGE2_REFERENCE_CERTIFICATE_REJECT',true);
-                    return;
-                end
-
-                [ok,reason,B]=obj.prepare_staged_reference_only_bundle(P,ta);
-                obj.staged_replan_last_stage2_ms=1e3*toc(ts);
-                obj.generator_last_cycle_critical_ms=1e3*toc(t_hard_cycle);
-                obj.staged_replan_stage2_count=obj.staged_replan_stage2_count+1;
-                r47code=41;
-                if ~ok,r47code=31;end
-                obj.r47_record_pipeline_event( ...
-                    2,t_now,obj.staged_replan_last_stage2_ms,P,r47code);
-
-                if ~ok
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_validation_fail_count= ...
-                        obj.generator_validation_fail_count+1;
-                    obj.generator_last_status_code=31;
-                    obj.reset_staged_replan_pipeline( ...
-                        ['STAGE2_PREP_REJECT__' char(reason)],true);
-                    return;
-                end
-                % AF7R25G: same development rule for Stage 2.
-                % Final <=4 ms compliance is reported separately; Stage 2 may
-                % continue only while the whole cycle remains <=25 ms.
-                if obj.generator_last_cycle_critical_ms>1e3*dt
-                    obj.generator_deadline_fail_count= ...
-                        obj.generator_deadline_fail_count+1;
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_last_status_code=-65;
-                    obj.reset_staged_replan_pipeline( ...
-                        'STAGE2_CONTROL_PERIOD_EXCEEDED',true);
-                    return;
-                end
-
-                obj.staged_replan_rref=Rref;
-                obj.staged_replan_bundle=B;
-                obj.staged_replan_state='PREPARED';
-                obj.staged_replan_last_reason='STAGE2_CERTIFIED_AND_PREPARED';
-                obj.generator_last_status_code=41;
-                return;
-            end
-
-            if strcmp(state,'PREPARED')
-                if t_now<ta-tol
-                    return;
-                end
-                if t_now>ta+tol
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_last_status_code=-66;
-                    obj.reset_staged_replan_pipeline( ...
-                        'STAGE3_ACTIVATION_GRID_MISSED',true);
-                    return;
-                end
-
-                ts=tic;
-                [ok,reason]=obj.activate_staged_reference_only_bundle( ...
-                    obj.staged_replan_bundle,t_now,t_hard_cycle);
-                obj.staged_replan_last_stage3_ms=1e3*toc(ts);
-                r47code=30;
-                if ~ok,r47code=-67;end
-                obj.r47_record_pipeline_event( ...
-                    3,t_now,obj.staged_replan_last_stage3_ms, ...
-                    obj.staged_replan_candidate,r47code);
-
-                if ok
-                    obj.staged_replan_commit_count= ...
-                        obj.staged_replan_commit_count+1;
-                    obj.generator_validation_pass_count= ...
-                        obj.generator_validation_pass_count+1;
-                    obj.generator_last_status_code=30;
-                    obj.reset_staged_replan_pipeline( ...
-                        'STAGE3_ATOMIC_COMMIT_CLOSED',false);
-                else
-                    obj.staged_replan_fail_count=obj.staged_replan_fail_count+1;
-                    obj.generator_validation_fail_count= ...
-                        obj.generator_validation_fail_count+1;
-                    obj.generator_last_status_code=-67;
-                    obj.reset_staged_replan_pipeline( ...
-                        ['STAGE3_COMMIT_REJECT__' char(reason)],true);
-                end
-            end
-        end
-
-
-        function Q = af7r48_native_eval_packet_from_batch_model(obj,model)
-            % AF7R48 exact serialization of the already-certified canonical
-            % position-flat model for af7r36_single_core_mex op=2.
-            % No trajectory generation or safety decision occurs here.
-            assert(isstruct(model) && isfield(model,'certified') && ...
-                logical(model.certified) && ...
-                isfield(model,'flight_reference_time_origin') && ...
-                isfield(model,'corrections'), ...
-                '[REPLANNER ERROR] invalid canonical batch model for native evaluation.');
-
-            Q=struct();
-            Q.flight_t0=double(model.flight_reference_time_origin);
-            C=model.corrections;
-            G=numel(C);
-            Q.repair_t0=zeros(1,G);
-            Q.repair_t1=zeros(1,G);
-            Q.repair_offsets=zeros(1,G+1);
-            S=0;
-            for g=1:G
-                assert(isfield(C(g),'t0')&&isfield(C(g),'t1')&& ...
-                    isfield(C(g),'segment_t0')&&isfield(C(g),'segment_t1')&& ...
-                    isfield(C(g),'control_points'));
-                Q.repair_t0(g)=double(C(g).t0);
-                Q.repair_t1(g)=double(C(g).t1);
-                s0=double(C(g).segment_t0(:).');
-                s1=double(C(g).segment_t1(:).');
-                assert(numel(s0)==numel(s1));
-                Q.repair_offsets(g)=S;
-                S=S+numel(s0);
-            end
-            Q.repair_offsets(G+1)=S;
-            Q.repair_seg0=zeros(1,S);
-            Q.repair_seg1=zeros(1,S);
-            Q.repair_cp=zeros(48,S);
-            jj=0;
-            for g=1:G
-                s0=double(C(g).segment_t0(:).');
-                s1=double(C(g).segment_t1(:).');
-                CP=C(g).control_points;
-                for k=1:numel(s0)
-                    jj=jj+1;
-                    Q.repair_seg0(jj)=s0(k);
-                    Q.repair_seg1(jj)=s1(k);
-                    if iscell(CP)
-                        cp=double(CP{k});
-                    else
-                        A=double(CP);
-                        if ndims(A)==3
-                            cp=A(:,:,k);
-                        elseif isequal(size(A),[3 16]) && numel(s0)==1
-                            cp=A;
-                        else
-                            error('[REPLANNER ERROR] unsupported canonical control-point storage.');
-                        end
-                    end
-                    assert(isequal(size(cp),[3 16]) && all(isfinite(cp),'all'));
-                    Q.repair_cp(:,jj)=cp(:);
-                end
-            end
-            assert(jj==S && isfinite(Q.flight_t0));
-            Q=obj.af7r51_attach_phase_packet_metadata(Q,model);
-        end
-
-
-        function model = af7r51_append_phase_layer(~,model,P)
-            % AF7R51 phase metadata is orthogonal to the historical additive
-            % correction schema. Match layers by exact correction t0.
-            if ~isfield(model,'phase_layers') || ~isstruct(model.phase_layers)
-                model.phase_layers=struct('correction_t0',{},'t0',{},'tA',{}, ...
-                    'tB',{},'tE',{},'sA',{},'sB',{},'alpha',{},'delay',{});
-            end
-            % Prune metadata whose correction group was already pruned by the
-            % canonical resource helper.
-            if ~isempty(model.phase_layers)
-                ct=arrayfun(@(c)double(c.t0),model.corrections);
-                keep=false(1,numel(model.phase_layers));
-                for k=1:numel(model.phase_layers)
-                    keep(k)=any(ct==double(model.phase_layers(k).correction_t0));
-                end
-                model.phase_layers=model.phase_layers(keep);
-            end
-            if ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized))
-                return;
-            end
-            L=struct( ...
-                'correction_t0',double(P.t0), ...
-                't0',double(P.phase_t0), ...
-                'tA',double(P.phase_entry_end), ...
-                'tB',double(P.phase_flow_end), ...
-                'tE',double(P.phase_exit_end), ...
-                'sA',double(P.phase_source_start), ...
-                'sB',double(P.phase_source_end), ...
-                'alpha',double(P.phase_alpha), ...
-                'delay',double(P.phase_delay_s));
-            vals=[L.correction_t0 L.t0 L.tA L.tB L.tE L.sA L.sB L.alpha L.delay];
-            assert(all(isfinite(vals)) && L.t0<L.tA && L.tA<L.tB && ...
-                L.tB<L.tE && L.sA<L.sB && L.alpha>0 && L.alpha<=1 && L.delay>=0, ...
-                '[AF7R51] invalid phase layer at commit.');
-            model.phase_layers(end+1)=L;
-        end
-
-
-        function Q = af7r51_attach_phase_packet_metadata(obj,Q,model)
-            if nargin<3 || isempty(model)
-                if strcmpi(char(obj.active_reference_mode),'REPAIRED')
-                    obj.assert_repaired_reference_current();
-                    model=obj.active_repaired_reference.batch_flat_model;
-                else
-                    model=struct('corrections',struct([]),'phase_layers',struct([]));
-                end
-            end
-            G=numel(model.corrections);
-            Q.repair_phase_enabled=zeros(1,G);
-            Q.repair_phase_t0=zeros(1,G);
-            Q.repair_phase_tA=zeros(1,G);
-            Q.repair_phase_tB=zeros(1,G);
-            Q.repair_phase_tE=zeros(1,G);
-            Q.repair_phase_sA=zeros(1,G);
-            Q.repair_phase_sB=zeros(1,G);
-            Q.repair_phase_alpha=ones(1,G);
-            Q.repair_phase_delay=zeros(1,G);
-            if ~isfield(model,'phase_layers') || isempty(model.phase_layers)
-                return;
-            end
-            for g=1:G
-                ct=double(model.corrections(g).t0);
-                ix=find(arrayfun(@(x)double(x.correction_t0)==ct,model.phase_layers),1,'last');
-                if isempty(ix),continue;end
-                L=model.phase_layers(ix);
-                Q.repair_phase_enabled(g)=1;
-                Q.repair_phase_t0(g)=double(L.t0);
-                Q.repair_phase_tA(g)=double(L.tA);
-                Q.repair_phase_tB(g)=double(L.tB);
-                Q.repair_phase_tE(g)=double(L.tE);
-                Q.repair_phase_sA(g)=double(L.sA);
-                Q.repair_phase_sB(g)=double(L.sB);
-                Q.repair_phase_alpha(g)=double(L.alpha);
-                Q.repair_phase_delay(g)=double(L.delay);
-            end
-        end
-
-
-        function [evalFn,flatEvalFn] = af7r51_make_phase_native_eval_handles(obj,model)
-            Q=obj.af7r48_native_eval_packet_from_batch_model(model);
-            evalFn=@(tg)obj.af7r51_native_phase_eval(Q,double(tg));
-            flatEvalFn=evalFn;
-        end
-
-
-        function xd = af7r51_native_phase_eval(~,Q,tg)
-            Y=af7r36_single_core_mex(2,Q,double(tg));
-            assert(isequal(size(Y),[21 1]) && all(isfinite(Y(:))), ...
-                '[AF7R51] native phase reference evaluation failed.');
-            xd=zeros(28,1);
-            for r=0:6
-                xd(4*r+(1:3))=Y(3*r+(1:3),1);
-            end
-        end
-
-
-        function [ok,reason,B] = prepare_staged_reference_only_bundle(obj,P,t_commit)
-            ok=false;
-            reason='';
-            B=struct();
-
-            if ~obj.ENABLE_AUTO_REPLAN_COMMIT
-                reason='AUTO_COMMIT_DISABLED'; return;
-            end
-            if ~strcmpi(char(obj.AVOIDANCE_COMMIT_POLICY),'REFERENCE_ONLY')
-                reason='NOT_REFERENCE_ONLY_COMMIT_POLICY'; return;
-            end
-            if ~(isstruct(P)&&isfield(P,'success')&&logical(P.success))
-                reason='PROPOSAL_NOT_SUCCESSFUL'; return;
-            end
-
-            [spacingOK,~,~,spacingReason]= ...
-                af7r58i_commit_spacing_guard(obj,double(t_commit));
-            if ~spacingOK
-                reason=spacingReason; return;
-            end
-
-            G=P.geometry_shadow_certificate;
-            SC=P.reference_speed_certificate;
-            if ~(isstruct(G)&&isfield(G,'certified')&&logical(G.certified) && ...
-                    isfield(G,'continuous_time')&&logical(G.continuous_time) && ...
-                    isfield(G,'sampled_acceptance')&&~logical(G.sampled_acceptance))
-                reason='REFERENCE_GEOMETRY_CERTIFICATE_NOT_CLOSED'; return;
-            end
-            if ~(isstruct(SC)&&isfield(SC,'certified')&&logical(SC.certified))
-                reason='REFERENCE_SPEED_CERTIFICATE_NOT_CLOSED'; return;
-            end
-
-            targetVersion=double(obj.active_reference_version)+1;
-            if double(SC.reference_version)~=targetVersion
-                reason='REFERENCE_SPEED_CERTIFICATE_VERSION_MISMATCH'; return;
-            end
-            if ~(isfield(SC,'continuous_time')&&logical(SC.continuous_time) && ...
-                    isfield(SC,'sampled_acceptance')&&~logical(SC.sampled_acceptance) && ...
-                    isfield(SC,'specific_force_norm_LB_m_s2') && ...
-                    isnumeric(SC.specific_force_norm_LB_m_s2) && ...
-                    isscalar(SC.specific_force_norm_LB_m_s2) && ...
-                    isfinite(double(SC.specific_force_norm_LB_m_s2)) && ...
-                    double(SC.specific_force_norm_LB_m_s2)>0)
-                reason='REFERENCE_ONLY_CONTINUOUS_FLATNESS_CERTIFICATE_NOT_CLOSED'; return;
-            end
-            if ~(isfield(P,'c7_exact')&&logical(P.c7_exact))
-                reason='REFERENCE_ONLY_C7_CERTIFICATE_NOT_CLOSED'; return;
-            end
-
-            [resourceOK,resourceReason,batchModel,resourceMeta]= ...
-                af7r58i_prepare_batch_model( ...
-                    obj,P,targetVersion,double(t_commit));
-            if resourceOK
-                batchModel=obj.af7r51_append_phase_layer(batchModel,P);
-            end
-            if ~resourceOK
-                reason=resourceReason; return;
-            end
-
-            % Exact rebuild is intentional in the staged-preparation cycle.
-            % No cache/reuse theorem is needed for timing here.
-            sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
-            packetNew=obj.prepare_obstacle_packet_fast_target( ...
-                obj.obstacle_packet,sweepNew,targetVersion);
-            sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
-            if ~(isstruct(sensorNew)&&isfield(sensorNew,'certified')&& ...
-                    logical(sensorNew.certified))
-                reason='STAGED_TARGET_SENSOR_HORIZON_OPEN'; return;
-            end
-            depNew=obj.runtime_dependency_signature;
-            depNew.reference_mode='REPAIRED';
-            depNew.reference_version=double(targetVersion);
-
-            % AF7R47: snapshot the PREVIOUS active reference before the
-            % authority swap. Its continuous yaw supplies only the unwrap
-            % branch; the new yaw derivatives come from the new total C7 path.
-            yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
-            yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
-
-            if isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers)
-                [evalFnBase,flatEvalFnBase]= ...
-                    obj.af7r51_make_phase_native_eval_handles(batchModel);
-            else
-                [evalFnBase,flatEvalFnBase]= ...
-                    af7r58i_make_canonical_eval_handles(obj,batchModel);
-            end
-            evalFn=evalFnBase;
-            flatEvalFn=flatEvalFnBase;
-            if isfield(P,'delay_preserving') && logical(P.delay_preserving) && ...
-                    ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)) && ...
-                    isfield(P,'terminal_offset') && ...
-                    numel(P.terminal_offset)==3
-                qhold=double(P.terminal_offset(:));
-                thold=double(P.t1);
-                evalFn=@(tg)obj.af7r34_apply_persistent_hold_eval( ...
-                    evalFnBase,tg,thold,qhold);
-                flatEvalFn=@(tg)obj.af7r34_apply_persistent_hold_flat( ...
-                    flatEvalFnBase,tg,thold,qhold);
-            end
-
-            if isfield(P,'path_tangent_yaw_c6') && ...
-                    logical(P.path_tangent_yaw_c6)
-                P.path_tangent_batch_model=batchModel;
-                evalYawBase=evalFn;
-                flatYawBase=flatEvalFn;
-                evalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    evalYawBase,yawAnchorEvalFn,tg,P);
-                flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
-                    flatYawBase,yawAnchorFlatFn,tg,P);
-            end
-
-            smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
-            if isfield(P,'representation_code')&&double(P.representation_code)==2
-                smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_TOWING_CORRIDORS';
-            end
-            if isfield(P,'piecewise_candidate_family') && ...
-                    strcmpi(char(P.piecewise_candidate_family),'CURVED_C7_ZERO_JET_BELL')
-                smoothSource='PIECEWISE_DEGREE15_BEZIER_C7_ZERO_JET_BELL';
-            end
-            if isfield(P,'piecewise_candidate_family') && ...
-                    strcmpi(char(P.piecewise_candidate_family),'CURVED_SPATIAL_C7_DELAY_PRESERVING')
-                smoothSource='PIECEWISE_DEGREE15_BEZIER_CURVED_SPATIAL_C7_DELAY_PRESERVING';
-            end
-            smooth=struct( ...
-                'certified',logical(P.c7_exact), ...
-                'continuous_time',true, ...
-                'sampled_acceptance',false, ...
-                'continuity_order',7, ...
-                'reference_mode','REPAIRED', ...
-                'reference_version',targetVersion, ...
-                'valid_from',double(P.t0), ...
-                'valid_until',double(P.t1), ...
-                'source',smoothSource);
-
-            geom=G;
-            geom.reference_mode='REPAIRED';
-            geom.reference_version=targetVersion;
-            geom.valid_from=double(P.t0);
-            geom.valid_until=double(P.t1);
-            geom.reference_only_authority=true;
-            geom.final_system_authority=false;
-
-            R=struct();
-            R.valid=true;
-            R.backend='BEZIER_D15_C7';
-            R.eval_fn=evalFn;
-            R.flat_eval_fn=flatEvalFn;
-            R.valid_from=double(P.t0);
-            R.valid_until=Inf;
-            R.reference_version=targetVersion;
-            R.source='AF7R58ZZU_STAGED_REFERENCE_ONLY_COMMIT';
-            R.yaw_policy='C6_INDEPENDENT';
-            if isfield(P,'path_tangent_yaw_c6') && logical(P.path_tangent_yaw_c6)
-                R.yaw_policy='PATH_TANGENT_C6_EXACT';
-                R.yaw_c6_certificate=struct( ...
-                    'certified',true, ...
-                    'continuous_time',true, ...
-                    'sampled_acceptance',false, ...
-                    'continuity_order',6, ...
-                    'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
-                    'heading_anchor_rad',double(P.heading_anchor_rad), ...
-                    'source','C7_POSITION_PLUS_ACTIVE_BASE_POSITIVE_DOT_LOG_DERIVATIVE');
-            end
-            R.path_parameterization=struct( ...
-                'kind','DIRECT_TIME_BEZIER_CORRECTION', ...
-                'path_derivative_order',7, ...
-                'time_derivative_order',7);
-            if isfield(P,'trigger_to_free_rejoin') && logical(P.trigger_to_free_rejoin)
-                R.path_parameterization.kind='SPATIAL_C7_IDENTITY_TIME_C6_PHASE_A';
-                R.path_parameterization.path_derivative_order=7;
-                R.path_parameterization.time_derivative_order=6;
-                R.path_parameterization.identity_time_law=true;
-                R.rejoin_time=double(P.actual_rejoin_time);
-            elseif isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)
-                R.path_parameterization.kind='GENERAL_C7_PHASE_REPARAMETERIZATION';
-                R.path_parameterization.schedule_delay_s=double(P.phase_delay_s);
-                R.rejoin_time=double(P.actual_rejoin_time);
-            elseif isfield(P,'delay_preserving') && logical(P.delay_preserving)
-                R.path_parameterization.kind='AFFINE_BASE_DELAY_PRESERVING_RETIMING';
-                R.path_parameterization.schedule_delay_s=double(P.schedule_delay_s);
-                R.rejoin_time=double(P.terminal_hold_start);
-            else
-                R.rejoin_time=double(P.t1);
-            end
-            R.representation=struct( ...
-                'kind','BEZIER_D15_C7_TRANSLATION_BUMP', ...
-                't0',double(P.t0),'tm',double(P.tm),'t1',double(P.t1), ...
-                'displacement',double(P.displacement(:)), ...
-                'candidate_family',char(P.piecewise_candidate_family), ...
-                'delay_preserving',logical(P.delay_preserving), ...
-                'terminal_hold_start',double(P.terminal_hold_start), ...
-                'terminal_offset',double(P.terminal_offset(:)), ...
-                'schedule_delay_s',double(P.schedule_delay_s), ...
-                'path_tangent_yaw_c6',logical(P.path_tangent_yaw_c6), ...
-                'heading_gamma_m_s',double(P.heading_gamma_m_s), ...
-                'heading_anchor_rad',double(P.heading_anchor_rad), ...
-                'trigger_to_free_rejoin',logical(P.trigger_to_free_rejoin), ...
-                'identity_time_law',logical(P.identity_time_law), ...
-                'actual_rejoin_time',double(P.actual_rejoin_time), ...
-                'spatial_knot_count',double(P.spatial_knot_count), ...
-                'adaptive_rejoin_selected',logical(P.adaptive_rejoin_selected), ...
-                'baseline_t1',double(P.adaptive_rejoin_baseline_t1), ...
-                'selected_envelope_m',double(P.adaptive_rejoin_selected_envelope_m), ...
-                'baseline_envelope_m',double(P.adaptive_rejoin_baseline_envelope_m), ...
-                'certificate_tests',double(P.rejoin_search_full_certificate_tests), ...
-                'safe_trial_count',double(P.rejoin_search_endpoint_safe_count), ...
-                'primary_candidate_count',double(P.primary_candidate_count), ...
-                'primary_speed_pass_count',double(P.primary_speed_pass_count), ...
-                'primary_rejoin_pass_count',double(P.primary_rejoin_pass_count), ...
-                'primary_geometry_test_count',double(P.primary_geometry_test_count), ...
-                'fallback_candidate_count',double(P.fallback_candidate_count));
-            R.batch_flat_model=batchModel;
-            R.resource_certificate=resourceMeta.contract;
-            R.resource_state=resourceMeta;
-            R.authority_split=struct( ...
-                'controller_packet','eval_fn', ...
-                'mathematical_flat_jet','flat_eval_fn', ...
-                'legacy_high_derivative_slots_used_for_geometry',false);
-
-            % Pre-build the first packet that will be requested AFTER the
-            % t_commit authority swap.  The commit cycle itself has already
-            % evaluated its pre-commit packet, so the first repaired packet is
-            % at t_commit+dt.  Moving this full N-point batch into Stage 2
-            % removes the post-commit cold rebuild from the next Flight cycle.
-            dt=double(obj.prediction_dt);
-            H=double(obj.horizon_s);
-            N=round(H/dt)+1;
-            tCache=double(t_commit)+dt;
-            tqCache=tCache+(0:N-1)*dt;
-            % AF7R48: this is evaluation of an already-certified C7 model,
-            % not replanning. For ordinary direct-time candidates use the
-            % exact native active-reference evaluator (same nominal AST and
-            % stored degree-15 control polygons as the planner). This removes
-            % the 161-point MATLAB batch cold spike from Stage2.
-            % AF7R48R1: the native ActiveReference evaluator already carries
-            % the final correction control value after each repair t1. For the
-            % exact-affine delay-preserving family this is exactly the proved
-            % schedule-shift offset p_base(t-Delta)-p_base(t), so the native
-            % 161-point cache path remains exact and does not need the slow
-            % MATLAB batch fallback.
-            useNativeCache=true;
-            if useNativeCache
-                evalPacket=obj.af7r48_native_eval_packet_from_batch_model(batchModel);
-                Ycache=double(af7r36_single_core_mex(2,evalPacket,tqCache));
-                validCache=true(1,N);
-                R.native_eval_packet=evalPacket;
-                R.native_position_eval_exact=true;
-            else
-                R.native_eval_packet=struct();
-                R.native_position_eval_exact=false;
-                [Ycache,validCache]= ...
-                    af7r33_flat_jet_batch_model(obj,tqCache,batchModel);
-                Ycache=double(Ycache);
-            end
-            if ~(isequal(size(Ycache),[21 N]) && numel(validCache)==N && ...
-                    all(logical(validCache(:))) && all(isfinite(Ycache),'all'))
-                reason='STAGED_POSTCOMMIT_CACHE_BATCH_INVALID'; return;
-            end
-            pLcache=Ycache(1:3,:);
-            sfcache=Ycache(7:9,:)+[0;0;double(obj.gravity)];
-            nscache=sqrt(sum(sfcache.^2,1));
-            if ~(all(isfinite(nscache))&&all(nscache>0))
-                reason='STAGED_POSTCOMMIT_CACHE_FLATNESS_SINGULAR'; return;
-            end
-            qcache=-sfcache./nscache;
-            postCache=struct( ...
-                'reference_version',double(targetVersion), ...
-                't0',double(tCache),'dt',dt,'H',H, ...
-                'pL',pLcache,'q',qcache);
-
-            B=struct( ...
-                'schema','AF7R58ZZV_PREPARED_COMMIT_V2', ...
-                'source_mode',char(obj.active_reference_mode), ...
-                'source_version',double(obj.active_reference_version), ...
-                'target_version',double(targetVersion), ...
-                'activation_time',double(t_commit), ...
-                'dependency_key',obj.staged_reference_only_dependency_key(), ...
-                'speed_source',obj.active_speed_certificate, ...
-                'known_mask',logical(obj.staged_replan_known_mask(:).'), ...
-                'static_map',obj.static_obstacle_map, ...
-                'reference',R, ...
-                'certificates',struct( ...
-                    'reference_only',true,'smoothness',smooth,'geometry',geom), ...
-                'speed',SC, ...
-                'sweep',sweepNew, ...
-                'packet',packetNew, ...
-                'sensor',sensorNew, ...
-                'dep',depNew, ...
-                'post_commit_reference_cache',postCache, ...
-                'prevalidated',true);
-            obj.staged_replan_postcommit_cache_prepare_count= ...
-                obj.staged_replan_postcommit_cache_prepare_count+1;
-            ok=true;
-            reason='STAGED_COMMIT_BUNDLE_AND_POSTCACHE_PREPARED';
-        end
-
-
-        function [ok,reason] = activate_staged_reference_only_bundle( ...
-                obj,B,t_now,t_hard_cycle)
-            ok=false;
-            reason='';
-
-            if ~(isstruct(B)&&isfield(B,'schema')&& ...
-                    strcmp(char(B.schema),'AF7R58ZZV_PREPARED_COMMIT_V2') && ...
-                    isfield(B,'prevalidated')&&logical(B.prevalidated) && ...
-                    isfield(B,'post_commit_reference_cache'))
-                reason='STAGED_BUNDLE_SCHEMA_MISMATCH'; return;
-            end
-
-            scale=max([1,abs(double(t_now)),abs(double(B.activation_time))]);
-            if abs(double(t_now)-double(B.activation_time))>64*eps(scale)
-                reason='STAGED_ACTIVATION_TIME_MISMATCH'; return;
-            end
-            if ~strcmp(char(obj.active_reference_mode),char(B.source_mode)) || ...
-                    double(obj.active_reference_version)~=double(B.source_version)
-                reason='STAGED_SOURCE_REFERENCE_STALE'; return;
-            end
-            if ~isequaln(obj.staged_reference_only_dependency_key(),B.dependency_key) || ...
-                    ~isequaln(obj.active_speed_certificate,B.speed_source) || ...
-                    ~isequaln(obj.static_obstacle_map,B.static_map)
-                reason='STAGED_DEPENDENCY_OR_MAP_STALE'; return;
-            end
-
-            old=struct( ...
-                'mode',obj.active_reference_mode, ...
-                'version',obj.active_reference_version, ...
-                'ref',obj.active_repaired_reference, ...
-                'cert',obj.active_repaired_certificates, ...
-                'speed',obj.active_speed_certificate, ...
-                'sweep',obj.trigger_sweep_inflation, ...
-                'packet',obj.obstacle_packet, ...
-                'sensor',obj.sensor_horizon_certificate, ...
-                'dep',obj.runtime_dependency_signature, ...
-                'stale',obj.certificate_stale, ...
-                'level',obj.active_repaired_safety_level, ...
-                'time',obj.last_replan_commit_time);
-
-            try
-                obj.active_repaired_reference=B.reference;
-                obj.active_repaired_certificates=B.certificates;
-                obj.active_reference_mode='REPAIRED';
-                obj.active_reference_version=double(B.target_version);
-                obj.active_repaired_safety_level='REFERENCE_ONLY';
-                obj.active_speed_certificate=B.speed;
-                obj.trigger_sweep_inflation=B.sweep;
-                obj.obstacle_packet=B.packet;
-                obj.sensor_horizon_certificate=B.sensor;
-                obj.runtime_dependency_signature=B.dep;
-                obj.certificate_stale=obj.empty_certificate_stale_state();
-                obj.certificate_stale.ACTUATOR_DYNAMICS_CERT=true;
-                obj.certificate_stale.HLC_ROBUST_CERT=true;
-                obj.last_replan_commit_time=double(t_now);
-
-                % Stage 2 already performed all expensive construction and
-                % continuous certificate closure.  At Stage 3, after exact
-                % source/dependency/map freshness checks above, only the
-                % version/staleness hot guard is required.
-                obj.assert_runtime_core_certificates_current_hot();
-
-                % The main loop must still close inside its 25-ms period.
-                if toc(t_hard_cycle)>double(obj.prediction_dt)
-                    obj.active_reference_mode=old.mode;
-                    obj.active_reference_version=old.version;
-                    obj.active_repaired_reference=old.ref;
-                    obj.active_repaired_certificates=old.cert;
-                    obj.active_speed_certificate=old.speed;
-                    obj.trigger_sweep_inflation=old.sweep;
-                    obj.obstacle_packet=old.packet;
-                    obj.sensor_horizon_certificate=old.sensor;
-                    obj.runtime_dependency_signature=old.dep;
-                    obj.certificate_stale=old.stale;
-                    obj.active_repaired_safety_level=old.level;
-                    obj.last_replan_commit_time=old.time;
-                    obj.generator_deadline_fail_count= ...
-                        obj.generator_deadline_fail_count+1;
-                    reason='STAGED_ATOMIC_CONTROL_PERIOD_EXCEEDED';
-                    return;
-                end
-
-                Cpost=B.post_commit_reference_cache;
-                assert(isstruct(Cpost) && ...
-                    double(Cpost.reference_version)==double(B.target_version) && ...
-                    abs(double(Cpost.t0)-(double(t_now)+double(obj.prediction_dt)))<= ...
-                        64*eps(max(1,abs(double(Cpost.t0)))), ...
-                    '[AF7R58ZZV] prepared post-commit reference cache is stale.');
-                obj.repaired_reference_cache=Cpost;
-                obj.repaired_reference_cache_valid=true;
-                obj.reference_only_prepared_packet_cache_valid=false;
-                obj.reference_only_prepared_packet_cache=struct();
-
-                obj.replan_commit_count=obj.replan_commit_count+1;
-                obj.reference_only_commit_count= ...
-                    obj.reference_only_commit_count+1;
-                obj.replan_request_active=false;
-
-                obj.last_replan_status=struct( ...
-                    'requested',true, ...
-                    'committed',true, ...
-                    'safety_mode','REFERENCE_ONLY', ...
-                    'safety_level','REFERENCE_ONLY', ...
-                    'full_system_authority',false, ...
-                    'reference_version',double(B.target_version), ...
-                    'backend','BEZIER_D15_C7', ...
-                    'commit_time',double(t_now), ...
-                    'rejoin_time',double(B.reference.rejoin_time), ...
-                    'staged_pipeline',true, ...
-                    'pipeline_intervals',2);
-
-                ok=true;
-                reason='STAGED_REFERENCE_ONLY_COMMIT_CLOSED';
-            catch ME
-                obj.active_reference_mode=old.mode;
-                obj.active_reference_version=old.version;
-                obj.active_repaired_reference=old.ref;
-                obj.active_repaired_certificates=old.cert;
-                obj.active_speed_certificate=old.speed;
-                obj.trigger_sweep_inflation=old.sweep;
-                obj.obstacle_packet=old.packet;
-                obj.sensor_horizon_certificate=old.sensor;
-                obj.runtime_dependency_signature=old.dep;
-                obj.certificate_stale=old.stale;
-                obj.active_repaired_safety_level=old.level;
-                obj.last_replan_commit_time=old.time;
-                reason=ME.message;
-            end
-        end
-
-
-        function r47_record_pipeline_event(obj,stageCode,t_now,stage_ms,P,statusCode)
-            % AF7R47 bounded diagnostic ring. Never grants/rejects control.
-            try
-                cap=double(obj.r47_event_ring_capacity);
-                wid=double(obj.r47_event_ring_width);
-                if ~(cap==64 && wid==18 && isequal(size(obj.r47_event_ring),[64 18]))
-                    return;
-                end
-                r=nan(1,18);
-                r(1)=double(obj.r47_event_ring_count)+1;
-                r(2)=double(t_now);
-                r(3)=double(stageCode);
-                r(4)=double(stage_ms);
-                r(6)=double(statusCode);
-
-                if isstruct(P)
-                    if isfield(P,'success'),r(5)=double(logical(P.success));end
-                    if isfield(P,'t0'),r(7)=double(P.t0);end
-                    if isfield(P,'t1'),r(8)=double(P.t1);end
-                    if isfield(P,'native_raw') && isstruct(P.native_raw)
-                        N=P.native_raw;
-                        names={'episode_ms','hessian_ms','corridor_ms','qp_ms', ...
-                            'candidate_build_ms','synthesis_ms','candidate_ms','total_ms', ...
-                            'r45_tangent_interval_count'};
-                        cols=9:17;
-                        for kk=1:numel(names)
-                            if isfield(N,names{kk})
-                                v=double(N.(names{kk}));
-                                if isscalar(v),r(cols(kk))=v;end
-                            end
-                        end
-                    end
-                    if isfield(P,'geometry_shadow_certificate') && ...
-                            isstruct(P.geometry_shadow_certificate) && ...
-                            isfield(P.geometry_shadow_certificate,'certified')
-                        r(18)=double(logical(P.geometry_shadow_certificate.certified));
-                    end
-                end
-
-                j=mod(double(obj.r47_event_ring_head),cap)+1;
-                obj.r47_event_ring(j,:)=r;
-                obj.r47_event_ring_head=j;
-                obj.r47_event_ring_count=min(cap,double(obj.r47_event_ring_count)+1);
-            catch
-                % Diagnostics must never affect the planning/control path.
-            end
-        end
-
 
         function S = get_staged_pipeline_status(obj)
+            % R26 lazy equivalent of the old Stage1 diagnostic export.
+            obj.r26_materialize_deferred_diagnostics();
             S=struct();
             S.enabled=logical(obj.ENABLE_STAGED_REPLAN_PIPELINE);
             S.state=char(obj.staged_replan_state);
@@ -16241,6 +16869,18 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
+            if strcmpi(char(obj.active_reference_mode),'REPAIRED') && ...
+                    isstruct(obj.active_repaired_reference) && ...
+                    isfield(obj.active_repaired_reference,'path_parameterization') && ...
+                    isstruct(obj.active_repaired_reference.path_parameterization) && ...
+                    isfield(obj.active_repaired_reference.path_parameterization,'kind') && ...
+                    strcmp(char(obj.active_repaired_reference.path_parameterization.kind), ...
+                           'EXACT_C7_FREE_TERMINAL_OFFSET_HOLD')
+                % A nonzero held offset is not a proven spatial rejoin.
+                % Keep observations until another independently certified
+                % release condition becomes available. No fabricated timeout.
+                rel(mem)=Inf;
+            end
             releasable = mem & ~current_active & isfinite(rel) & ...
                 (t_now>=rel) & ~logical(obj.replan_request_active);
             if any(releasable)
@@ -17443,6 +18083,59 @@ classdef REPLANNING_SYSTEM < handle
                 y0(4),n0(4),y1(4),n1(4),Dq(1));
             [okPsi,psi1,kPsi]=obj.observer_unique_2pi_lift( ...
                 y0(6),n0(6),y1(6),n1(6),Dq(3));
+            % AF7R58R27: failure-only numerical provenance. This is never a
+            % replacement for the unique-lift proof: okPhi is unchanged.
+            % All setappdata work happens ONLY after the old check fails.
+            if ~okPhi
+                d27=struct();
+                d27.schema='AF7R58R27_ROLL_LIFT_FAILURE_V1';
+                d27.t_s=double(C1.event_time);
+                d27.h_s=double(h);
+                d27.roll0=double(y0(4));
+                d27.roll1=double(y1(4));
+                d27.roll0_error_ub=double(n0(4));
+                d27.roll1_error_ub=double(n1(4));
+                d27.roll_displacement_ub=double(Dq(1));
+                d27.yaw_displacement_ub=double(Dq(3));
+                d27.pitch_reach_ub=double(Theta);
+                d27.omega_reach_ub=double(Wf);
+                d27.sim_only_commit_flag=logical(obj.R26_SIMULATION_ONLY_EXPERIMENT);
+                d27.roll_principal_difference=double(y1(4)-y0(4));
+                % Reproduce the EXACT outward-rounding arithmetic from
+                % observer_unique_2pi_lift, not an approximate nearest wrap.
+                p27=2*pi;
+                lo27=d27.roll0-d27.roll0_error_ub-d27.roll_displacement_ub;
+                hi27=d27.roll0+d27.roll0_error_ub+d27.roll_displacement_ub;
+                scale27=max([1 abs(lo27) abs(hi27) abs(d27.roll1) ...
+                    d27.roll1_error_ub d27.roll_displacement_ub p27]);
+                guard27=64*eps(scale27);
+                lo27=lo27-guard27;
+                hi27=hi27+guard27;
+                rr27=d27.roll1_error_ub+guard27;
+                d27.kmin=ceil((lo27-(d27.roll1+rr27))/p27);
+                d27.kmax=floor((hi27-(d27.roll1-rr27))/p27);
+                d27.branch_count=max(0,d27.kmax-d27.kmin+1);
+                d27.reachable_lower=lo27;
+                d27.reachable_upper=hi27;
+                d27.round_guard=guard27;
+                d27.lift_solver_k=double(kPhi);
+                d27.lift_solver_success=logical(okPhi);
+                d27.measured_pitch0=double(y0(5));
+                d27.measured_pitch1=double(y1(5));
+                % Diagnostic snapshot is small and is saved on FAILURE ONLY.
+                % No certificate, controller, or state is changed here.
+                try
+                    setappdata(0,'AF7R58R27_ROLL_FAILURE',d27);
+                catch
+                    % Preserve the original fail-closed error even if capture
+                    % is unavailable in a non-desktop MATLAB deployment.
+                end
+                fprintf(2,['[R27] roll lift failure at t=%.9f s: ' ...
+                    'kmin=%g kmax=%g candidates=%g dmax=%.9g rad ' ...
+                    'roll0=%.9g roll1=%.9g\n'], ...
+                    d27.t_s,d27.kmin,d27.kmax,d27.branch_count, ...
+                    d27.roll_displacement_ub,d27.roll0,d27.roll1);
+            end
             assert(okPhi, ...
                 '[REPLANNER OBSERVER ERROR] roll 2*pi branch lift is not unique.');
             assert(okPsi, ...

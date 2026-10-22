@@ -1,0 +1,16 @@
+function Q = AF7R58R20_PREFLIGHT()
+% R20 source-bound diagnostic preflight. Never enables commit or bypasses cert.
+Q=AF7R58R19_PREFLIGHT();
+s=fileread(Q.source);
+assert(contains(s,'r20_stage2_bundle_ms') && ...
+    contains(s,'setappdata(0,key,D);') && ...
+    ~contains(s,"save(f,'D','-v7');") && ...
+    ~contains(s,"q=load(f,'D');D=q.D;"), ...
+    '[R20] In-Flight disk I/O was not removed from active source.');
+assert(exist('AF7R58R20_AUTO_RESULT','file')==2, ...
+    '[R20] R20 result reporter unavailable.');
+Q.flight_disk_io_disabled=true;
+Q.commit_forbidden=true;
+Q.native_rebuild_required=false;
+fprintf('AF7R58R20 PREFLIGHT PASS | NO FLIGHT DISK IO | NO COMMIT\n');
+end

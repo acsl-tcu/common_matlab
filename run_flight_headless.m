@@ -158,7 +158,15 @@ replan_opts.ENABLE_EXECUTION_AWARE_CERTIFICATE = ...
 replan_opts.AVOIDANCE_COMMIT_POLICY = AVOIDANCE_COMMIT_POLICY;
 replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
 
+% R26: HEADLESS SIMULATION ONLY. Exercises original atomic reference-only
+% commit after all reference-level gates. NOT real-time/flight-safe.
+replan_opts.R26_SIMULATION_ONLY_EXPERIMENT = true;
 replanner_instance = REPLANNING_SYSTEM(agent,nominal_ref,replan_opts);
+% AF7R58R27_RUNTIME_SIM_FLAG_ASSERT
+assert(logical(replanner_instance.R26_SIMULATION_ONLY_EXPERIMENT), ...
+    '[R27] Sim-only commit opt-in was lost during construction.');
+fprintf('[R27] effective sim-only commit flag = %d\n', ...
+    double(replanner_instance.R26_SIMULATION_ONLY_EXPERIMENT));
 
 avoidance_status = replanner_instance.get_avoidance_mode_status();
 fprintf(['[AVOIDANCE] commit=%s | ref-cert=%d | exec-cert=%d | ' ...
@@ -198,6 +206,13 @@ runtime_profile.simulation_plant_s = nan(size(ts:dt:te));
 runtime_profile.logger_s = nan(size(ts:dt:te));
 runtime_profile.full_iteration_s = nan(size(ts:dt:te));
 runtime_profile.k = 0;
+runtime_profile.r23_sensor_s = nan(size(ts:dt:te));
+runtime_profile.r23_estimator_s = nan(size(ts:dt:te));
+runtime_profile.r23_reference_s = nan(size(ts:dt:te));
+runtime_profile.r23_controller_s = nan(size(ts:dt:te));
+runtime_profile.r23_input_s = nan(size(ts:dt:te));
+runtime_profile.r23_other_s = nan(size(ts:dt:te));
+% AF7R58R23_SPIKE_PROBE_INSTALLED
 
 %% 6. Headless初期化
 % GUIの代わりに各phaseの関数を一度通す。
@@ -250,6 +265,11 @@ agent.controller.result.sensor_acquisition_total=sensor_acquisition_s;
 agent.controller.result.online_compute_total=online_before_plant_s;
 agent.controller.result.simulation_plant_total=simulation_plant_s;
 agent.controller.result.controllertime_total=control_plus_sim_plant_s;
+%% R25 pre-create ordinary LOGGER scalar fields before first logging
+r25_fields={'r25_sensor_ms','r25_estimator_ms','r25_reference_ms','r25_controller_ms','r25_input_ms','r25_online_ms','r25_plant_ms','r25_stage1_ms','r25_stage2_ms'};
+for r25_idx=1:numel(r25_fields)
+    agent.controller.result.(r25_fields{r25_idx})=NaN;
+end
 
 tLogger=tic;
 logger.logging(time,cha,agent,[]);
@@ -299,11 +319,21 @@ while time.t <= time.te
     end
     sensor_acquisition_s=toc(tAcquire);
 
+    r23_step=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"sensor",1,true);
+    r23_sensor_s=toc(r23_step);
+    r23_step=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"estimator",1,true);
+    r23_estimator_s=toc(r23_step);
+    r23_step=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"reference",1,true);
+    r23_reference_s=toc(r23_step);
+    r23_step=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"controller",1,true);
+    r23_controller_s=toc(r23_step);
+    r23_step=tic;
     do_prop_local(time,cha,cha,logger,env,agent,"input_transform",1,true);
+    r23_input_s=toc(r23_step);
 
     % Onboard-compute proxy:
     % connector acquisition + sensor + estimator + reference/replanner
@@ -321,6 +351,25 @@ while time.t <= time.te
 
     % Compatibility plot: simulation control path through numerical plant.
     agent.controller.result.controllertime_total=control_plus_sim_plant_s;
+    % R25: ordinary LOGGER logging, no separate Flight file I/O.
+    % These values are in milliseconds and are observable like other
+    % controller.result fields. No safety decision reads them.
+    agent.controller.result.r25_sensor_ms=1e3*r23_sensor_s;
+    agent.controller.result.r25_estimator_ms=1e3*r23_estimator_s;
+    agent.controller.result.r25_reference_ms=1e3*r23_reference_s;
+    agent.controller.result.r25_controller_ms=1e3*r23_controller_s;
+    agent.controller.result.r25_input_ms=1e3*r23_input_s;
+    agent.controller.result.r25_online_ms=1e3*online_before_plant_s;
+    agent.controller.result.r25_plant_ms=1e3*simulation_plant_s;
+    agent.controller.result.r25_stage1_ms=NaN;
+    agent.controller.result.r25_stage2_ms=NaN;
+    if abs(double(replanner_instance.staged_replan_request_time)-double(time.t))<=32*eps(max(1,abs(double(time.t))))
+        agent.controller.result.r25_stage1_ms=double(replanner_instance.staged_replan_last_stage1_ms);
+    end
+    if abs(double(replanner_instance.staged_replan_request_time)+double(replanner_instance.prediction_dt)-double(time.t))<=32*eps(max(1,abs(double(time.t))))
+        agent.controller.result.r25_stage2_ms=double(replanner_instance.staged_replan_last_stage2_ms);
+    end
+    % AF7R58R25_LOGGER_INSTALLED
 
     % LOGGER is simulation/diagnostic infrastructure. Measure separately
     % instead of silently including or excluding it from the 4 ms claim.
@@ -340,6 +389,12 @@ while time.t <= time.te
     runtime_profile.simulation_plant_s(rk)=simulation_plant_s;
     runtime_profile.logger_s(rk)=logger_s;
     runtime_profile.full_iteration_s(rk)=full_iteration_s;
+    runtime_profile.r23_sensor_s(rk)=r23_sensor_s;
+    runtime_profile.r23_estimator_s(rk)=r23_estimator_s;
+    runtime_profile.r23_reference_s(rk)=r23_reference_s;
+    runtime_profile.r23_controller_s(rk)=r23_controller_s;
+    runtime_profile.r23_input_s(rk)=r23_input_s;
+    runtime_profile.r23_other_s(rk)=(full_iteration_s-(sensor_acquisition_s+r23_sensor_s+r23_estimator_s+r23_reference_s+r23_controller_s+r23_input_s+simulation_plant_s+logger_s));
 
     time.t = time.t + dt;
 
@@ -367,7 +422,17 @@ runtime_profile.logger_s=runtime_profile.logger_s(1:Krt);
 runtime_profile.full_iteration_s=runtime_profile.full_iteration_s(1:Krt);
 
 if isempty(simulation_error)
-    disp("Simulation complete! Drawing plots...");
+    r23_fields={'r23_sensor_s','r23_estimator_s','r23_reference_s',
+    'r23_controller_s','r23_input_s','r23_other_s'};
+for r23_j=1:numel(r23_fields)
+    r23_f=r23_fields{r23_j};
+    r23_v=runtime_profile.(r23_f);
+    runtime_profile.(r23_f)=r23_v(1:Krt);
+end
+replanner_instance.r25_publish_capture();
+AF7R58R23_SPIKE_REPORT(runtime_profile);
+
+disp("Simulation complete! Drawing plots...");
 else
     disp("Simulation interrupted. Drawing all available partial plots before rethrow...");
 end

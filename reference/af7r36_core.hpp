@@ -284,19 +284,19 @@ static inline std::pair<Poly,Poly> split_half(const Poly&C){
 static inline double poly_norm_ub(const Poly&C){
     double u=0;for(auto v:C)u=std::max(u,norm(v));return u;
 }
+static inline const std::array<std::array<double,8>,8>& r58r23_binomial_table();
+
 static inline std::vector<double> scalar_control_from_jets(const std::array<double,8>&j0,
                                                            const std::array<double,8>&j1,double T){
     std::array<double,8> ds{},de{};ds[0]=j0[0];de[0]=j1[0];
     double ff=1;
     for(int r=1;r<=7;++r){ff*=16-r;ds[r]=j0[r]*std::pow(T,r)/ff;de[r]=j1[r]*std::pow(T,r)/ff;}
     std::vector<double>P(16,0);
-    auto choose=[](int n,int k)->double{
-        if(k<0||k>n)return 0; double v=1;for(int i=1;i<=k;++i)v*=double(n-k+i)/double(i);return v;
-    };
+    const auto& chooseTable=r58r23_binomial_table();
     for(int k=0;k<=7;++k){
         double v0=0,v1=0;
         for(int r=0;r<=k;++r){
-            double bc=choose(k,r);v0+=bc*ds[r];v1+=((r&1)?-1.0:1.0)*bc*de[r];
+            double bc=chooseTable[k][r];v0+=bc*ds[r];v1+=((r&1)?-1.0:1.0)*bc*de[r];
         }
         P[k]=v0;P[15-k]=v1;
     }
@@ -618,6 +618,7 @@ struct Live {
     // R13 diagnostic-only: no effects on hard acceptance or fallback.
     bool r58_shadow_diagnostic_enabled=false;
     bool r58r14_lowjet_seed_only=false;
+    bool r58r16_reference_bridge=false; // opt-in, reference-only proposal; normal commit guards stay active
 };
 
 // AF7R52D2 diagnostic-only gate trace.
@@ -1099,6 +1100,7 @@ struct PlanResult {
     int r58r14_lowjet_seed_only=0;
     int r58r14_active_reduced_dof=0;
     int r58r14_full_reduced_dof=0;
+    int r58r16_connected_candidate=0;
     int r58_spatial_dof_count=0;
     int r58_episode_count=0;
     int r58_component_count=0;
@@ -6424,7 +6426,36 @@ static inline std::vector<double> r58_scalar_basis(
     return w;
 }
 
-static inline std::vector<double> r58_spatial_hessian3(
+// R23: coefficients are independent of sensed obstacles, reference version,
+// payload estimate and current trajectory. Prewarm these one-time tables before
+// Flight; all runtime-dependent Hessian terms are STILL computed per candidate.
+static inline const std::array<std::array<double,256>,4>& r58r23_gram_table(){
+    static const auto G=[](){
+        std::array<std::array<double,256>,4> T{};
+        for(int d=0;d<=3;++d){
+            const int deg=15-d;
+            for(int a=0;a<=deg;++a)for(int b=0;b<=deg;++b)
+                T[d][16*a+b]=gram(deg,a,b);
+        }
+        return T;
+    }();
+    return G;
+}
+
+static inline const std::array<std::array<double,8>,8>& r58r23_binomial_table(){
+    static const auto B=[](){
+        std::array<std::array<double,8>,8> T{};
+        for(int n=0;n<=7;++n)for(int k=0;k<=n;++k){
+            double v=1.0;
+            for(int i=1;i<=k;++i)v*=double(n-k+i)/double(i);
+            T[n][k]=v;
+        }
+        return T;
+    }();
+    return B;
+}
+
+static inline std::vector<double> r58r22_scalar_hessian(
         const std::vector<double>&K,double cableL,double gravity){
     const int N=(int)K.size(),ns=r58_scalar_dofs(K);
     if(N<2||ns<=0||!(fin(cableL)&&cableL>0&&fin(gravity)&&gravity>0))
@@ -6434,6 +6465,8 @@ static inline std::vector<double> r58_spatial_hessian3(
 
     const double tau2=tau*tau;
     const double wr[4]={1.0/tau2,1.0,tau2,tau2*tau2};
+    // R23: same exact Gram values, now warmed from the setup-only opcode.
+    const auto& grams=r58r23_gram_table();
     std::vector<double>Hs(ns*ns,0.0);
 
     for(int s=0;s<N-1;++s){
@@ -6470,12 +6503,20 @@ static inline std::vector<double> r58_spatial_hessian3(
             for(size_t i=0;i<D.size();++i)for(size_t j=0;j<D.size();++j){
                 double q=0.0;
                 for(int aa=0;aa<ncp;++aa)for(int bb=0;bb<ncp;++bb)
-                    q+=D[i][aa]*gram(deg,aa,bb)*D[j][bb];
+                    q+=D[i][aa]*grams[d][16*aa+bb]*D[j][bb];
                 Hs[qv[i]*ns+qv[j]]+=wr[d]*T*q;
             }
         }
     }
 
+    return Hs;
+}
+
+static inline std::vector<double> r58_spatial_hessian3(
+        const std::vector<double>&K,double cableL,double gravity){
+    const int ns=r58_scalar_dofs(K);
+    const auto Hs=r58r22_scalar_hessian(K,cableL,gravity);
+    if((int)Hs.size()!=ns*ns||ns<=0)return {};
     const int n=3*ns;
     std::vector<double>H(n*n,0.0);
     for(int i=0;i<ns;++i)for(int j=0;j<ns;++j){
@@ -7064,6 +7105,89 @@ static inline std::vector<double> r58_reduce_hessian(
             R[a*E.nred+b]=s;
         }
     return R;
+}
+
+// R21: project straight to the R14 nested low-jet coordinates.
+// Algebraic identity: B_I^T H B_I == (B^T H B)[I,I].
+// The accumulation order for each retained term matches the old full
+// reduction, so no extra physical/mathematical assumption is introduced.
+static inline std::vector<double> r58_reduce_hessian_selected(
+        const std::vector<double>&H,const R58NormalElim&E,
+        const std::vector<int>&I){
+    if(!E.ok||(int)H.size()!=E.nphys*E.nphys||I.empty())return {};
+    const int n=(int)I.size();
+    for(int c:I)if(c<0||c>=E.nred)return {};
+    std::vector<double>T(E.nphys*n,0.0);
+    for(int i=0;i<E.nphys;++i)for(int c=0;c<n;++c){
+        double sum=0.0;
+        for(int j=0;j<E.nphys;++j)
+            sum+=H[i*E.nphys+j]*E.B[j*E.nred+I[c]];
+        T[i*n+c]=sum;
+    }
+    std::vector<double>R(n*n,0.0);
+    for(int a=0;a<n;++a)for(int b=0;b<n;++b){
+        double sum=0.0;
+        for(int i=0;i<E.nphys;++i)
+            sum+=E.B[i*E.nred+I[a]]*T[i*n+b];
+        R[a*n+b]=sum;
+    }
+    return R;
+}
+
+// R21: direct projection of original physical corridor rows.  Identical
+// constraints in the same nested variable space; no rows are discarded.
+// R22: form the EXACT same selected normal-elimination Hessian without
+// allocating the all-axis physical Hessian. H_phys[(3i+a),(3j+b)] is
+// H_scalar[i,j] when a==b and zero otherwise. Reuse precisely the R21
+// accumulation ordering (inner scalar j, then outer physical i).
+// This is a computing-representation change only; no objective/constraint
+// coefficient or safety-acceptance formula is intentionally changed.
+static inline std::vector<double> r58r22_lowjet_hessian_direct(
+        const std::vector<double>&K,double cableL,double gravity,
+        const R58NormalElim&E,const std::vector<int>&I){
+    const int ns=r58_scalar_dofs(K),n=3*ns,nsel=(int)I.size();
+    if(!E.ok||E.nphys!=n||ns<=0||I.empty())return {};
+    const auto Hs=r58r22_scalar_hessian(K,cableL,gravity);
+    if((int)Hs.size()!=ns*ns)return {};
+    for(int c:I)if(c<0||c>=E.nred)return {};
+    std::vector<double>T(n*nsel,0.0);
+    for(int i=0;i<n;++i){
+        const int qi=i/3,axis=i%3;
+        for(int c=0;c<nsel;++c){
+            double sum=0.0;
+            for(int j=0;j<ns;++j)
+                sum+=Hs[qi*ns+j]*E.B[(3*j+axis)*E.nred+I[c]];
+            T[i*nsel+c]=sum;
+        }
+    }
+    std::vector<double>R(nsel*nsel,0.0);
+    for(int a=0;a<nsel;++a)for(int b=0;b<nsel;++b){
+        double sum=0.0;
+        for(int i=0;i<n;++i)
+            sum+=E.B[i*E.nred+I[a]]*T[i*nsel+b];
+        R[a*nsel+b]=sum;
+    }
+    return R;
+}
+
+static inline bool r58_reduce_rows_selected(
+        std::vector<Row>&rows,const R58NormalElim&E,
+        const std::vector<int>&I){
+    if(!E.ok||I.empty())return false;
+    for(int c:I)if(c<0||c>=E.nred)return false;
+    for(auto&row:rows){
+        if((int)row.a.size()!=E.nphys)return false;
+        std::vector<double>a(I.size(),0.0);
+        for(size_t c=0;c<I.size();++c){
+            double sum=0.0;
+            for(int i=0;i<E.nphys;++i)
+                sum+=row.a[i]*E.B[i*E.nred+I[c]];
+            if(!fin(sum))return false;
+            a[c]=sum;
+        }
+        row.a.swap(a);
+    }
+    return true;
 }
 
 static inline bool r58_reduce_rows(
@@ -8751,6 +8875,9 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
     // ------------------------------------------------------------------
     if(L.r58_shadow_diagnostic_enabled){
         const auto Tr58=clk::now();
+        // Only the low-jet C7 family may be bridged. The bridge does NOT
+        // bypass execution-aware certification or change any acceptance test.
+        const bool bridge16=L.r58r16_reference_bridge&&L.r58r14_lowjet_seed_only&&L.tracking==0.0;
         R.r58_shadow_ran=1;
         R.r58_reference_tracking_inflation_m=L.tracking;
         R.r58_episode_count=(int)E.ep.size();
@@ -8777,7 +8904,6 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
             }
 
             const auto Tb=clk::now();
-            auto H58phys=r58_spatial_hessian3(K58,L.L,L.g);
             auto EL58=r58_build_normal_elimination(K58,ref);
             if(!EL58.ok){
                 ++R.r58r4_elimination_build_fail;
@@ -8790,9 +8916,11 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
             const bool lowJet58=L.r58r14_lowjet_seed_only;
             const auto lowJetIndices58=lowJet58 ?
                 r58r14_lowjet_indices((int)K58.size()) : std::vector<int>{};
-            auto H58full=r58_reduce_hessian(H58phys,EL58);
-            auto H58=lowJet58 ? r58r14_principal_hessian(
-                H58full,EL58.nred,lowJetIndices58) : H58full;
+            // Direct R22 low-jet Hessian: identical quadratic functional,
+            // but no intermediate 3*ns x 3*ns spatial matrix is built.
+            auto H58=lowJet58 ?
+                r58r22_lowjet_hessian_direct(K58,L.L,L.g,EL58,lowJetIndices58) :
+                r58_reduce_hessian(r58_spatial_hessian3(K58,L.L,L.g),EL58);
             std::vector<double>H58eq,varScale58;
             double hdmin=0.0,hdmax=0.0,hemin=0.0,hemax=0.0;
             const int nv58=lowJet58?(int)lowJetIndices58.size():EL58.nred;
@@ -8824,16 +8952,14 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                     cache[ei][1]=r58_episode_rows(
                         ref,L,base,obs,E,ei,-1,K58);
                     if(cache[ei][0].valid){
-                        cache[ei][0].valid=r58_reduce_rows(cache[ei][0].rows,EL58);
-                        if(cache[ei][0].valid&&lowJet58)
-                            cache[ei][0].valid=r58r14_project_rows(
-                                cache[ei][0].rows,EL58.nred,lowJetIndices58);
+                        cache[ei][0].valid=lowJet58 ?
+                            r58_reduce_rows_selected(cache[ei][0].rows,EL58,lowJetIndices58) :
+                            r58_reduce_rows(cache[ei][0].rows,EL58);
                     }
                     if(cache[ei][1].valid){
-                        cache[ei][1].valid=r58_reduce_rows(cache[ei][1].rows,EL58);
-                        if(cache[ei][1].valid&&lowJet58)
-                            cache[ei][1].valid=r58r14_project_rows(
-                                cache[ei][1].rows,EL58.nred,lowJetIndices58);
+                        cache[ei][1].valid=lowJet58 ?
+                            r58_reduce_rows_selected(cache[ei][1].rows,EL58,lowJetIndices58) :
+                            r58_reduce_rows(cache[ei][1].rows,EL58);
                     }
                     if(cache[ei][0].valid)++R.r58_side_cache_plus_valid;
                     if(cache[ei][1].valid)++R.r58_side_cache_minus_valid;
@@ -9245,6 +9371,11 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                         continue;
                     }
 
+                    // The normal hard candidate pipeline also tests
+                    // endpoint whole-body separation. Do NOT confuse an
+                    // arbitrary terminal offset with a spatial rejoin.
+                    if(bridge16 && !rejoin_safe(ref,L,obs,t1,C58,sc58))
+                        continue;
                     R.r58_bnb_feasible_full=1;
                     R.r58_free_c7_constructive=1;
                     R.r58_terminal_offset_hold=1;
@@ -9267,6 +9398,26 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                     R.r58_speed_VQ=sc58.VQ;
                     R.r58_heading_gamma=gamma;
                     R.r58_geometry_min_margin=G58.minMargin;
+                    if(bridge16){
+                        // Promote the EXACT already-certified C58 bytes.
+                        // No reoptimization, sampled validation, or alternative
+                        // polynomial representation is allowed here.
+                        if(!(C58.exact_c7&&C58.exact_c7_constructive&&
+                             C58.heading_c6&&C58.terminal_hold&&
+                             !C58.phase_reparameterized&&sc58.certified&&
+                             G58.pass&&C58.cp.size()==C58.seg0.size()&&
+                             !C58.cp.empty()&&
+                             fin(C58.terminal_hold_start)&&
+                             C58.terminal_hold_start<=t1&&
+                             finite(C58.terminal_offset)))continue;
+                        R.cand=std::move(C58);
+                        R.speed=sc58;
+                        R.geom=G58;
+                        R.speed_pass=1;
+                        R.rejoin_pass=1; // endpoint safety, not old-clock rejoin
+                        R.geom_tests=1;
+                        R.r58r16_connected_candidate=1;
+                    }
                 }
 
                 R.r58_homotopy_ms=
@@ -9283,6 +9434,25 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
         R.r58_reference_only=1;
         R.r58_shadow_ms=
             std::chrono::duration<double,std::milli>(clk::now()-Tr58).count();
+    }
+    if(R.r58r16_connected_candidate){
+        // Return the certified reference-level native proposal to the SAME
+        // MATLAB stage1/2/3 pipeline. Stage deadlines, freshness gates,
+        // and commit policy remain completely unchanged.
+        R.success=true;
+        R.reason=0;
+        R.r58_reference_only=1;
+        R.r58_commit_attempted=0;
+        R.selected_t1=t1; // finite certificate boundary, not forced rejoin
+        R.finite_sensing_limit=lim;
+        R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();
+        return R;
+    }
+    if(L.r58r16_reference_bridge){
+        // No unintended family fallback in explicit bridge mode.
+        R.reason=58;
+        R.tim.total=std::chrono::duration<double,std::milli>(clk::now()-T0).count();
+        return R;
     }
     R.finite_sensing_limit=lim; // AF7_TOWING_DIAG_V1
 

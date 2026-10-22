@@ -1,0 +1,32 @@
+AF7R58R19 | NATIVE BRIDGE SCALAR TYPE FIX TRIAGE | NO COMMIT
+classification=STAGE2_PASS__STAGE3_PRECOMMIT_PASS__NOT_COMMITTED
+stage1_generated=1
+stage2_entered=1
+stage2_prepared=1
+stage3_readonly_entered=1
+deadline_stage1_would_reject=1
+deadline_stage2_would_reject=1
+native_connected=1
+native_success=1
+speed/heading/geometry=1 / 1 / 1
+stage1_ms=68.2166
+stage2_ms=82.9539
+stage3_precommit_reason=PRECOMMIT_CHECK_PASS__NOT_ATOMIC_COMMIT
+native_exception_captured=0
+commit_attempted=0 activation_confirmed=0
+R19 is diagnostic-only: 25-ms deadline bypass does not grant flight safety.
+
+TIMELINE
+RUN_INITIALIZED | NaN | NaN | NaN
+STAGE1_ENTERED | 13.25 | NaN | NaN
+STAGE1_NATIVE_RETURNED | 13.25 | 68.2166 | 92.0544
+STAGE1_25MS_WOULD_REJECT | 13.25 | 68.2166 | 92.0544
+STAGE1_GENERATED | 13.25 | 68.2166 | 92.0544
+STAGE2_ENTERED | 13.275 | NaN | 92.0544
+STAGE2_25MS_WOULD_REJECT | 13.275 | 82.9539 | 85.8341
+STAGE2_CERTIFIED_AND_PREPARED | 13.275 | 82.9539 | 85.8341
+STAGE3_PRECOMMIT_READY_NO_COMMIT | 13.3 | 0 | 85.8341
+STAGE1_ENTERED | 20.65 | NaN | 85.8341
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 20.65 | NaN | 85.8341
+STAGE1_ENTERED | 22.725 | NaN | 85.8341
+INSUFFICIENT_LEAD_FOR_TWO_PERIOD_PIPELINE | 22.725 | NaN | 85.8341
