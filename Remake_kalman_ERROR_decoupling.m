@@ -66,8 +66,9 @@ end
 %% 2. 重みと可制御性判定の許容誤差
 % 元の状態座標での重みで重み変えたかったらここで
 Qfull = eye(n);
+
 if m == 4
-    R = diag([1, 0.1, 0.1, 1]);
+    R = 1000*diag([1, 1, 1, 1]);
 else
     R = eye(m);
 end
@@ -162,7 +163,7 @@ if ~exist(saveFolder, 'dir')
 end
 timeStamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss_SSS'));
 saveFileName = fullfile(saveFolder, ...
-    [baseName '_gain_controllable_dlqr_' timeStamp '.mat']);
+    [baseName '_gain_controllable_dlqr_Q1_R1000_' timeStamp '.mat']);
 save(saveFileName, ...
     'A', 'B', 'C', 'F', 'G', 'H', 'T', 'S', 'T_inv', 'kSteps', ...
     'nCont', 'nUncont', 'cIdx', 'ucIdx', 'Ac', 'Bc', 'Auc', ...

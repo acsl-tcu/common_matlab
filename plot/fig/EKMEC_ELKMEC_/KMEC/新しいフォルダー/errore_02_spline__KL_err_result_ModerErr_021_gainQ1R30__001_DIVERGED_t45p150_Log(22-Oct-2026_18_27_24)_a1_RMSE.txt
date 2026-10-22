@@ -1,0 +1,6 @@
+File: C:\Users\yuriy\github\common_matlab\plot\fig\EKMEC_ELKMEC_\KMEC\errore_02_spline__KL_err_result_ModerErr_021_gainQ1R30__001_DIVERGED_t45p150_Log(22-Oct-2026_18_27_24).mat
+Phase: fl
+p RMSE: 0.560343 0.185766 0.193482 (valid 1529/1529)
+sum = 0.939591
+v RMSE: 1.23536 0.339865 0.257837 (valid 1529/1529)
+sum = 1.83306

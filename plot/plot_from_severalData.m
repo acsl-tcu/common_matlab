@@ -214,7 +214,7 @@ for exp_idx = 1:numel(filenames)
                     elseif contains(settings.target(i), 'nominal_input') % MECのノミナル入力用
                         if contains(settings.target(i), '2:4'), ylabel = "Nominal torque input [Nm]";
                         else                                  , ylabel = "Nominal input [N] [Nm]"; end
-                    else % 知らない"input"用
+                    else % 知らない用
                         if contains(settings.target(i), '2:4'), ylabel = "Torque input [Nm]";
                         else                                  , ylabel = "Input [N] [Nm]"; end
                     end
@@ -227,11 +227,18 @@ for exp_idx = 1:numel(filenames)
         end
         if settings.target(i) == "controller.result.delta_u"
             ylabel = "Compensation input [N], [Nm]";
+            att = "";
         end
         logger.plot({settings.agent_id, settings.target(i), att}, ...
             'fig_num',i, 'color',fcolor, "phase",settings.phase, ...
             'FontSize',settings.fontsize, 'Linewidth',settings.linewidth)
+        if settings.target(i) == "controller.result.delta_u"
+            data = logger.data(1,settings.target(i),"e","phase",settings.phase);
+            fprintf("delta_uのデータ列数: %d\n", size(data,2));
 
+            h = findobj(gca,'Type','line');
+            fprintf("実際の描画線数: %d\n", numel(h));
+        end
         fig = gcf;
         ax = gca;
 

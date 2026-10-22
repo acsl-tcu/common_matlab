@@ -61,7 +61,22 @@ classdef MECKC < handle
             % load('koopman_common_z__gain_KD.mat','K_full');
             % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
             % load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');   % errorKLMEC
-            load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
+            % 
+            %E_LKMEC
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q1_R120261022_162810_553.mat','K_full');     %
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q5_R120261022_163146_400.mat','K_full');     %
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q10_R120261022_163321_494.mat','K_full');     %
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q30_R120261022_163558_085.mat','K_full');     %
+            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q1000_R120261022_171514_851.mat','K_full');     %
+            % 
+            % %E_KMEC
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R120261022_173543_365.mat','K_full');     %
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R520261022_173736_663.mat','K_full');     %
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1020261022_173842_243.mat','K_full');     %
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R30_20261022_174000_258.mat','K_full');     %
+            load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1000_20261022_174040_705.mat','K_full');     %
+
             % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
             % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
@@ -87,35 +102,6 @@ classdef MECKC < handle
             obj.result.z_p_back = z_p(14:26);
             obj.result.z_n_back = z_n(14:26);%ノミナル拡張状態の後半
 
-
-            % function T_ex = excitation_sweep_cos(t)
-            %
-            %     % ===== 設定値 =====
-            %     A = 2;
-            %     f_start = 0.1;
-            %     f_end   = 2;
-            %     T_sweep = 40.0;
-            %     t_start = 7.0;
-            %
-            %     % ===== 励起時間外 =====
-            %     if t < t_start || t >= t_start + T_sweep
-            %         T_ex = 0;
-            %         return
-            %     end
-            %
-            %     % 励起開始を t=0 とした相対時間
-            %     tau = t - t_start;
-            %
-            %     % 線形周波数スイープ
-            %     k = (f_end - f_start) / T_sweep;
-            %
-            %     % 位相
-            %     phase = 2*pi*(f_start*tau ...
-            %         + 0.5*k*tau^2);
-            %
-            %     % 励起入力
-            %     T_ex = A*cos(phase);
-            % end
             function T_ex = excitation_sweep_cos(t)
 
                 A = 2;
@@ -158,7 +144,7 @@ classdef MECKC < handle
                 T_ex = A * envelope * cos(phase);
             end
 
-           % obj.result.delta_u = 0;%unだけ確認したいとき
+            % obj.result.delta_u = 0;%unだけ確認したいとき
             obj.result.delta_u = -K_full*e;     %補償入力オン
             % obj.result.delta_u  = [excitation_sweep_cos(t); 0; 0; 0];   %励起入力オン
             % obj.result.delta_u  = -K_full*e + [excitation_sweep_cos(t);
