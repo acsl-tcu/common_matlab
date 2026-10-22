@@ -176,7 +176,7 @@ classdef REPLANNING_SYSTEM < handle
         LOG_SENSOR       = 0;  % 球状センサ障害物捕捉ログの個別スイッチ (20m内に障害物検知時)
         LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
-        ENABLE_LIGHT_RUNTIME_AUDIT = 0; % AF7R50C clean production-timing run: no in-run light audit
+        ENABLE_LIGHT_RUNTIME_AUDIT = 1; % R29 DIAGNOSTIC: LOGGER-safe do() decomposition; not production timing
         ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
         % R13 diagnostic-only R58 heavy shadow: 0 skips ~154-ms historical
         % non-committable computation; 1 enables full QP/speed provenance.
@@ -206,6 +206,12 @@ classdef REPLANNING_SYSTEM < handle
         % R25: diagnostic events buffered in the object until post-Flight flush.
         r25_event_capture = struct();
         r25_event_capture_valid = false;
+        % R28: observational ring buffer; never participates in safety proof.
+        % Capture only for the verified headless simulation experiment.
+        R28_SIM_OBSERVER_AUDIT = true;
+        r28_obs_ring = zeros(64,16);
+        r28_obs_ring_count = 0;
+        r28_obs_ring_head = 0;
         % R20: same certified candidate/Stage1-3, Flight disk-I/O disabled.
         % Numeric timings are diagnostic only. Never grant certificate or commit.
         r20_stage1_future_ms = NaN;
@@ -229,7 +235,7 @@ classdef REPLANNING_SYSTEM < handle
         r12_tail_prime_done = false;
         r12_tail_prime_ms = NaN;
 
-        SPIKE_CAPTURE_THRESHOLD_MS = 2.0; % rare-stage snapshot threshold [ms]
+        SPIKE_CAPTURE_THRESHOLD_MS = 10.0; % R29 DIAGNOSTIC-only logging threshold; not an acceptance limit
 
         % -----------------------------------------------------------------
         % 【離陸前コールドパス完全事前燃焼 (Pre-motion Prime) 設定】
@@ -2509,6 +2515,9 @@ classdef REPLANNING_SYSTEM < handle
             % existing production sensor/state interface.
             % -------------------------------------------------------------
             timing_props=[ ...
+                "r29_theta_old", "r29_theta_used", ...
+                "r29_roll_old", "r29_roll_used", ...
+                "r29_W_ub", "r29_Iw", ...
                 "rt_light_e2e_ms", ...
                 "rt_observer_ms", ...
                 "rt_spike_capture_time", ...
@@ -3310,6 +3319,23 @@ classdef REPLANNING_SYSTEM < handle
                 cp_output_state_ms=1e3*toc(t_light_e2e);
                 st.rt_light_e2e_ms=cp_output_state_ms;
                 st.rt_observer_ms=dt_observer_ms;
+                % R29 current-event observer certificate diagnostics for LOGGER.
+                RI29=obj.observer_hard_support_internal;
+                if isstruct(RI29) && isfield(RI29,'last_forward_support') && ...
+                        isstruct(RI29.last_forward_support) && ...
+                        isfield(RI29.last_forward_support,'r29_theta_used')
+                    FF29=RI29.last_forward_support;
+                    st.r29_theta_old=double(FF29.r29_theta_original);
+                    st.r29_theta_used=double(FF29.r29_theta_used);
+                    st.r29_roll_old=double(FF29.r29_roll_original);
+                    st.r29_roll_used=double(FF29.r29_roll_used);
+                    st.r29_W_ub=double(FF29.w_norm_ub_end);
+                    st.r29_Iw=double(FF29.Iw);
+                else
+                    st.r29_theta_old=NaN; st.r29_theta_used=NaN;
+                    st.r29_roll_old=NaN; st.r29_roll_used=NaN;
+                    st.r29_W_ub=NaN; st.r29_Iw=NaN;
+                end
 
                 % Capture only rare slow cycles. The production total above is
                 % measured before these diagnostic writes.
@@ -6759,7 +6785,8 @@ classdef REPLANNING_SYSTEM < handle
                     D=struct();
                     D.schema='AF7R58R17_DIAG_ONLY_NO_COMMIT_V1';
                     D.run_start_datenum=now;
-                    D.events=struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{});
+                    D.events=struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{}, ...
+                        'source_mode',{},'source_version',{});
                     D.native_connected=NaN;
                     D.native_success=NaN;
                     D.native_family='';
@@ -6797,11 +6824,14 @@ classdef REPLANNING_SYSTEM < handle
                     % Not a prior-run snapshot: preserve the missing-init fault.
                     D=struct('schema','AF7R58R17_DIAG_ONLY_NO_COMMIT_V1', ...
                         'run_start_datenum',NaN, ...
-                        'events',struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{}));
+                        'events',struct('name',{},'time_s',{},'stage_ms',{},'cycle_ms',{}, ...
+                            'source_mode',{},'source_version',{}));
                 end
                 E=struct('name',char(event_name),'time_s',double(t_now), ...
                     'stage_ms',double(stage_ms), ...
-                    'cycle_ms',double(obj.generator_last_cycle_critical_ms));
+                    'cycle_ms',double(obj.generator_last_cycle_critical_ms), ...
+                    'source_mode',char(obj.active_reference_mode), ...
+                    'source_version',double(obj.active_reference_version));
                 D.events(end+1)=E;
                 D.last_event=char(event_name);
                 if strcmp(event_name,'STAGE1_ENTERED')
@@ -17502,6 +17532,9 @@ classdef REPLANNING_SYSTEM < handle
             st.generator_last_cycle_critical_ms=obj.generator_last_cycle_critical_ms;
 
             % LOGGER-safe direct scalar timing mirrors.
+            st.r29_theta_old=NaN; st.r29_theta_used=NaN;
+            st.r29_roll_old=NaN; st.r29_roll_used=NaN;
+            st.r29_W_ub=NaN; st.r29_Iw=NaN;
             st.rt_light_e2e_ms=NaN;
             st.rt_spike_capture_time=NaN;
             st.rt_spike_total_ms=NaN;
@@ -17729,6 +17762,13 @@ classdef REPLANNING_SYSTEM < handle
                     '[REPLANNER OBSERVER ERROR] consecutive event interval is not positive.');
                 uPrev=obj.observer_get_previous_held_input();
                 F=obj.observer_one_step_support(h,uPrev,I);
+                % R29: 2-endpoint pitch enclosure, ONLY when original chart
+                % already closed. No unstated cross-singularity branch repair.
+                % Tightens, never enlarges, the original certified set.
+                if F.closed
+                    F=obj.observer_r29_tighten_chart_two_endpoints( ...
+                        F,I.previous_measurement,C);
+                end
                 if ~F.closed
                     % AF7R36 R18 exact chart-failure witness.
                     I.fail_count=I.fail_count+1;
@@ -17741,6 +17781,11 @@ classdef REPLANNING_SYSTEM < handle
                         double(F.roll_margin_rad),double(F.yaw_margin_rad), ...
                         double(F.Theta),double(F.Iw), ...
                         double(F.w_norm_ub_start),double(F.torque_norm));
+                end
+                if obj.R28_SIM_OBSERVER_AUDIT && ...
+                        obj.R26_SIMULATION_ONLY_EXPERIMENT && ...
+                        strcmpi(char(obj.OBSERVER_HARD_SUPPORT_MODE),'SIM_NUMERIC_TRUTH')
+                    obj.r28_trace_observer_forward(C,F,xhat);
                 end
                 K=obj.observer_contract_two_events(I.previous_measurement,C,F,xhat);
 
@@ -18032,6 +18077,66 @@ classdef REPLANNING_SYSTEM < handle
         end
 
 
+        function F = observer_r29_tighten_chart_two_endpoints(obj,F,C0,C1)
+            % R29 TWO-ENDPOINT SUPPORT THEOREM (no safety relaxation).
+            % For an absolutely continuous ZYX pitch theta on a certified
+            % nonsingular interval: |theta_dot| <= ||omega||. Given the
+            % certified Iw >= int_0^h ||omega||dt, at ANY interior time s,
+            % 2|theta(s)| <= |theta(0)| + |theta(h)| + Iw.
+            % Endpoint measurement intervals close |theta(0)| <= a0,
+            % |theta(h)| <= a1. Thus Theta2=(a0+a1+Iw)/2 is an upper
+            % bound. The ORIGINAL chart closure is required before applying
+            % this tightening, so no unproved singular crossing is assumed.
+            % ZYX roll/yaw inverse kinematic row norms <= sec(Theta2).
+            assert(F.closed && F.pitch_closed && ...
+                double(F.Theta)<pi/2, ...
+                '[R29] original ZYX chart not closed.');
+            v=[double(C0.y(5)),double(C1.y(5)), ...
+               double(C0.nu_abs_ub(5)),double(C1.nu_abs_ub(5)), ...
+               double(F.Iw),double(F.Theta)];
+            assert(numel(v)==6&&all(isfinite(v))&& ...
+                all(v(3:5)>=0), ...
+                '[R29] endpoint pitch/rotation bounds invalid.');
+            a0=abs(v(1))+v(3); a1=abs(v(2))+v(4);
+            theta2=0.5*(a0+a1+v(5));
+            pad=64*eps(max([1,abs(theta2),a0,a1,v(5)]));
+            theta2=theta2+pad;
+            theta_used=min(v(6),theta2);
+            assert(theta_used<pi/2 && theta_used>=0 && isfinite(theta_used), ...
+                '[R29] ZYX chart tightening invalid.');
+            dEuler=double(F.euler_coordinate_delta_abs_ub(:));
+            qAbs=double(F.q_abs_ub_interval(:));
+            Iw=double(F.Iw);
+            dTheta=Iw/cos(theta_used);
+            dTheta=obj.observer_nextfloat_up(dTheta);
+            dEuler(1)=min(dEuler(1),dTheta);
+            dEuler(3)=min(dEuler(3),dTheta);
+            q0=double(F.q_abs_start(:));
+            qAbs(1)=min(qAbs(1),q0(1)+dEuler(1));
+            qAbs(2)=theta_used;
+            qAbs(3)=min(qAbs(3),q0(3)+dEuler(3));
+            F.r29_theta_original=v(6);
+            F.r29_theta_two_end=theta2;
+            F.r29_theta_used=theta_used;
+            F.r29_roll_original=double(F.euler_coordinate_delta_abs_ub(1));
+            F.r29_roll_used=dEuler(1);
+            F.r29_two_end_used=logical(theta_used<v(6));
+            F.Theta=theta_used;
+            F.euler_coordinate_delta_abs_ub=dEuler;
+            F.q_abs_ub_interval=qAbs;
+            F.principal_roll_yaw_box_closed=all(qAbs([1,3])<pi);
+            F.full_closed=logical(F.principal_roll_yaw_box_closed);
+            if F.full_closed
+                F.closure_reason='ZYX_KINEMATIC_CHART_AND_PRINCIPAL_BOX_CLOSED';
+            else
+                F.closure_reason='ZYX_KINEMATIC_CHART_CLOSED__PRINCIPAL_ROLL_YAW_BOX_OPEN';
+            end
+            F.pitch_margin_rad=pi/2-theta_used;
+            F.roll_margin_rad=pi-qAbs(1);
+            F.yaw_margin_rad=pi-qAbs(3);
+            % F.closed unchanged. No other authority/certificate modified.
+        end
+
         function O = observer_contract_two_events(obj,C0,C1,F,xhat)
             y0=double(C0.y(:)); y1=double(C1.y(:));
             n0=double(C0.nu_abs_ub(:)); n1=double(C1.nu_abs_ub(:));
@@ -18122,6 +18227,58 @@ classdef REPLANNING_SYSTEM < handle
                 d27.lift_solver_success=logical(okPhi);
                 d27.measured_pitch0=double(y0(5));
                 d27.measured_pitch1=double(y1(5));
+                % R28: all fields below are diagnostics. They cannot close
+                % the roll lift ambiguity or change the original assertion.
+                d27.r28_schema='AF7R58R28_ROLL_REACH_AND_COMMIT_V1';
+                d27.r29_schema='AF7R58R29_TWO_ENDPOINT_CERTIFICATE_V1';
+                d27.r29_original_theta=double(F.r29_theta_original);
+                d27.r29_two_endpoint_theta=double(F.r29_theta_two_end);
+                d27.r29_used_theta=double(F.r29_theta_used);
+                d27.r29_original_roll_dq=double(F.r29_roll_original);
+                d27.r29_used_roll_dq=double(F.r29_roll_used);
+                d27.r28_Jdiag=double(F.Jdiag(:));
+                d27.r28_held_input=double(F.held_input(:));
+                d27.r28_energy_sqrt_start=double(F.w_sqrt_energy_ub_start);
+                d27.r28_energy_sqrt_end=double(F.w_sqrt_energy_ub_end);
+                d27.r28_energy_w_start=double(F.w_norm_ub_energy_start);
+                d27.r28_W0=double(F.w_norm_ub_start);
+                d27.r28_Iw=double(F.Iw);
+                d27.r28_q_abs_start=double(F.q_abs_start(:));
+                d27.r28_dEuler=double(F.euler_coordinate_delta_abs_ub(:));
+                d27.r28_pitch0_error_ub=double(n0(5));
+                d27.r28_pitch1_error_ub=double(n1(5));
+                d27.r28_estimated_omega=double(xhat.w(:));
+                d27.r28_plant_true_omega=double(obj.self.plant.state.w(:));
+                d27.r28_plant_true_euler=double(obj.self.plant.state.q(:));
+                d27.r28_source_mode=char(obj.active_reference_mode);
+                d27.r28_source_version=double(obj.active_reference_version);
+                d27.r28_commit_attempted=double(obj.r26_sim_commit_attempted);
+                d27.r28_commit_succeeded=double(obj.r26_sim_commit_succeeded);
+                d27.r28_stage_commit_count=double(obj.staged_replan_commit_count);
+                d27.r28_capture_valid=logical(obj.r25_event_capture_valid);
+                if obj.r25_event_capture_valid
+                    d27.r28_events=obj.r25_event_capture.events;
+                    d27.r28_active_source_requests= ...
+                        double(obj.r25_event_capture.r21_active_base_stage1_requests);
+                else
+                    d27.r28_events=struct([]);
+                    d27.r28_active_source_requests=NaN;
+                end
+                if obj.r28_obs_ring_count>0
+                    N28=size(obj.r28_obs_ring,1);
+                    inds28=mod(double(obj.r28_obs_ring_head)- ...
+                        double(obj.r28_obs_ring_count): ...
+                        double(obj.r28_obs_ring_head)-1,N28)+1;
+                    d27.r28_ring_columns={'time_s','dt_s','W0_ub','energy_start', ...
+                        'energy_end','Wf_ub','Iw_ub','Theta_ub','torque_norm', ...
+                        'roll_delta_ub','pitch_start_ub','est_omega_norm', ...
+                        'sim_true_omega_norm','roll_meas','pitch_meas','yaw_meas'};
+                    d27.r28_ring_data=double(obj.r28_obs_ring(inds28,:));
+                else
+                    d27.r28_ring_columns={};
+                    d27.r28_ring_data=zeros(0,16);
+                end
+                % Existing fail-closed solver and catch behavior unchanged.
                 % Diagnostic snapshot is small and is saved on FAILURE ONLY.
                 % No certificate, controller, or state is changed here.
                 try
@@ -18171,6 +18328,34 @@ classdef REPLANNING_SYSTEM < handle
                 'observer_error_norm_ub',eW);
         end
 
+
+        function r28_trace_observer_forward(obj,C,F,xhat)
+            % Only in a verified headless numerical-truth research run.
+            % The numerical plant and EKF norms are observational; neither
+            % can be promoted to a continuous-time hard-support certificate.
+            rr=zeros(1,16);
+            rr(1)=double(C.event_time);
+            rr(2)=double(F.h);
+            rr(3)=double(F.w_norm_ub_start);
+            rr(4)=double(F.w_sqrt_energy_ub_start);
+            rr(5)=double(F.w_sqrt_energy_ub_end);
+            rr(6)=double(F.w_norm_ub_end);
+            rr(7)=double(F.Iw);
+            rr(8)=double(F.Theta);
+            rr(9)=double(F.torque_norm);
+            rr(10)=double(F.euler_coordinate_delta_abs_ub(1));
+            rr(11)=double(F.q_abs_start(2));
+            rr(12)=double(norm(double(xhat.w(:))));
+            rr(13)=double(norm(double(obj.self.plant.state.w(:))));
+            rr(14)=double(C.y(4));
+            rr(15)=double(C.y(5));
+            rr(16)=double(C.y(6));
+            N=size(obj.r28_obs_ring,1);
+            i=mod(double(obj.r28_obs_ring_head),N)+1;
+            obj.r28_obs_ring(i,:)=rr;
+            obj.r28_obs_ring_head=i;
+            obj.r28_obs_ring_count=min(N,double(obj.r28_obs_ring_count)+1);
+        end
 
         function [ok,lifted,k] = observer_unique_2pi_lift(~,c0,r0,c1,r1,dmax)
             % Certified periodic lift theorem.

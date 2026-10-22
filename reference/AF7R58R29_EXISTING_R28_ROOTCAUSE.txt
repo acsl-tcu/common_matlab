@@ -1,0 +1,47 @@
+R29 | SOURCE-BOUND HISTORICAL R28 TRIAGE (NO MODIFICATION OF R28 DATA)
+
+A. STOPPING REASON
+  R28 actual event time: 23.675000000 s
+  R28 original Wf upper bound: 54.769234552 rad/s
+  same-event EKF ||omega||: 0.765789351 rad/s
+  same-event simulated numerical-plant ||omega||: 0.765505561 rad/s
+  old full-step integrated omega bound Iw: 1.354919480 rad
+  old pitch enclosure: 1.365966031 rad
+  old roll displacement bound: 6.661321429 rad
+  old 2pi admissible integer count: 3
+  two-endpoint pitch enclosure (mathematical, assuming certified nonsingular chart): 0.684074574 rad
+  corresponding roll displacement bound: 1.748273708 rad
+  nearest alternative 2pi lift: 6.281482063 rad
+  R29 theoretical endpoint tightening makes old R28 witness unique: 1
+  CAUTION: does NOT solve long-term angular-velocity support blow-up.
+
+B. UPSTREAM ROOT-CAUSE CLUES
+  start of available 64-step history t=22.100000: W_ub=38.754960 vs estimator=0.297166
+  end t=23.675000: W_ub=54.769235 vs estimator=0.765789
+  W_ub grow over available trace 16.014275 rad/s
+  2 norm supports: w_norm and sqrt(energy) are propagated recursively; measurement-derived omega-radius contraction is too broad to prevent accumulation.
+  source REPLANNING_SYSTEM.m observer_one_step_support: sqrtVend=sqrtV0 + tauNorm*h/sqrt(2*Jmin)
+  source observer_update_same_event: hidden omega energy=min(forward energy, contracted-ball energy)
+  true numerical plant / EKF are observational, NOT valid real-plant hard bounds.
+
+C. PROVEN CONTINUATION PATH FROM R28 EVENTS
+  atomic commit: 13.300 s; REPAIRED->REPAIRED replan and second atomic commit: 14.825 s
+  successful commits: 2
+  active-source Stage1 events: 1
+  roll observer failure: 23.675 s, different subsystem from C7 geometry proof.
+
+D. TIMING: PRIOR R23 SAME-SIM-TIME TRACE (SEPARATE RUN)
+  at t13.250: reference outside wall 79.3301 ms, Stage1 30.5916 ms, unassigned difference 48.7385 ms.
+  at t13.275: reference outside wall 28.0638 ms, Stage2 14.8098 ms, unassigned difference 13.2540 ms.
+  R23 Stage1 packet 8.1321 ms, MEX 16.2610 ms (internal 15.6721 ms); wrapper 2.4413 ms.
+  R23 Stage2 model 2.0134, sensor 4.4486, eval handles 3.0045, cache 1.7163, packet 0.8514, eval 0.8012 ms.
+  R28 stage1=32.0624 ms (13.25) and 17.6225 ms (14.775) on a DIFFERENT run.
+  DO NOT subtract timing values from different runs, or assert outside-minus-inside is all waste.
+  R29 switches existing LOGGER-safe do() light diagnostic ON, logs stage intervals and observer time.
+  Captured values are diagnostic only and add timing overhead; turn OFF for noninstrumented production benchmarks.
+
+E. UNRESOLVED, NOT HIDDEN
+  F.closed still requires original one-ended pitch bound <pi/2. Later runs may fail this separate chart condition.
+  Real-plant tracking tube, actuation reserve, arbitrary obstacles, and online deadline remain unproven.
+  Runtime effect after R29 patch must be measured in MATLAB; no MATLAB runtime available in this environment.
+  25-ms control cycle and 4-ms target must not be replaced by a waived acceptance threshold.
