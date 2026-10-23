@@ -8,9 +8,10 @@ close all hidden; clear ; clc;
 userpath('clear');
 end
 %%
+clc;
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % terminal time
+te = 650; % terminal time
 agentN = 1;
 time = TIME(ts,dt,te,agentN); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
@@ -35,25 +36,30 @@ agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを�
 plant = Model_EulerAngle(dt, initial_state, 1);
 % plant = Model_Quat13(dt, initial_state, 1);
 agent.plant = MODEL_CLASS(agent, plant);
+sigma = 0.1;
+% agent.plant.projection = @(x) [x(1:6);
+%                                x(7:9) + sigma^2*randn(3,1);
+%                                x(10:end)];
 
 % デフォルト物理パラメータ(DRONE_PARAM.m準拠: 2025/07/07時点)
 % 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
 % 10,11,12,13: km(各ロータ定数)=0.0301  |  14,15,16,17: k(推力定数)=8.0e-6  |  18: rotor_r=0.0392
 
 % ↓パラメータの上書き モデル誤差をプラントに与える
-agent.plant.param(1) = 0.7875; % ５％増->0.7875, ５％減->0.7125
+% agent.plant.param(1) = 1.0; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.8;
 
-agent.plant.param(6) = 0.18;
-agent.plant.param(7) = 0.18;
+agent.plant.param(6) = 0.12;
+agent.plant.param(7) = 0.12;
+agent.plant.param(8) = 0.12;
 % ===================================================================================================================================================
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 
 % agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
+% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
+agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -66,15 +72,12 @@ center = [0;0;takeoff_zd]; % 原点
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",[base'+1;takeoff_zd+1], "radius",[0,0,0]}, 4}); % point_hover
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",4, "center",center, "radius",1.0}, 4}); %                     circle
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5, "center",center, "radius",[1,1,0.25]}, 4}); %               saddle
-ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1}, 4}); %            lemniscate
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1, "yaw_follow",1}, 4}); % lemniscate
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",10, "center",center, "radius",[1,1,0]}, 4}); %               triangle
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); %                     flower
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); %                      heart
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); %                       star
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",20, "order",9, "point_dt",4.5, ...
-%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); %  spline9th 20 points
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",60, "order",9, "point_dt",2.5, ...
-%                                     "start_end",center', "xlim",[-1,1], "ylim",[0,0], "zlim",[takeoff_zd,takeoff_zd]}}); %  spline9th 60 points
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
 % 
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
@@ -84,12 +87,13 @@ ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",ce
 agent.reference.set_function_class("time_varying", ref) % 最終的なset
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",takeoff_zd));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
+agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENCE(agent)) % 最終的なset
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 %~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 
 
-agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
-% agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
+% agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
+agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
 
 % Learn Sim
 onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Activation=ReLU__1000000epoch.onnx";
@@ -115,6 +119,7 @@ ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100
 % ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
 
 % Learn Exp
+% ptName = "2026-7-23_11_28_41__DNN12__Exp_random__Euler__Activation=ReLU__100000epoch_model.pt";
 % onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__1000000epoch";
 % onnxName = "2026-2-3_9_53_19__DNN12__Plant_data_Exp_random__Euler__Activation=SiLU__100000epoch.onnx"; % 2025年度卒論で使用
 
@@ -131,8 +136,8 @@ agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
 % cha_allocation ==============================================
 agent.cha_allocation.f.reference = "time_varying";
-agent.cha_allocation.a.reference = "takeoff";
-agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
+agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.l.reference = "landing";
 
 agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
@@ -146,14 +151,15 @@ app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase",phase);
 
 app.logger.plot({1, "p", "er"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "q", "e"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "p1-p2", "er"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% show_animation(app);
+app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "controller.result.nominal_input", ""},"fig_num",54, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p1-p2", "re"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "p1-p2-p3", "re"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+show_animation(app);
 % plot_calc_time(app.logger, app.time);
 end
 
