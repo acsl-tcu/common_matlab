@@ -1,0 +1,8 @@
+R37 EXPERIMENTAL LIGHT-LOGGING ABLATION: NO SAFETY CLAIM
+events match: 1, gate summaries match: 1
+ref p50 7.243600 -> 7.238700 ms
+ref p95 8.612805 -> 8.762810 ms
+ref MAX 75.256400 -> 50.301300 ms
+full p50 16.967900 -> 17.028000 ms
+full >25 (controller excluded): 19 -> 18
+full closure error maxima 1.13686837722e-13 / 2.13162820728e-14 ms

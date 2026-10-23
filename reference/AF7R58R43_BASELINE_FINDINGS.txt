@@ -1,0 +1,35 @@
+R43 | R41 versus R42 timing forensic, OBSERVED not guaranteed hard RT
+source restore R41 SHA256: 7790cfca8f969fed06947ed4bdb2a787ec40e4240e771a58c13a63cc46b603e5
+R42 experiment source not retained in R43; reverted.
+cycles=1601
+reference_replanner: R41 p50/p95/max 7.4227/8.4066/49.8870; R42 7.4918/11.8050/55.3941 ms
+estimator: R41 p50/p95/max 2.1551/2.5522/5.2514; R42 2.2059/3.2127/13.8021 ms
+controller: R41 p50/p95/max 2.2103/2.6869/534.2654; R42 2.2601/3.6044/529.0656 ms
+logger: R41 p50/p95/max 4.0967/4.5036/5.9418; R42 4.1455/5.6075/18.8350 ms
+full_iteration: R41 p50/p95/max 17.2746/19.2584/551.2366; R42 17.5856/27.8771/547.1730 ms
+online_before_plant: R41 p50/p95/max 12.3479/13.9466/545.7174; R42 12.5765/20.6310/541.4028 ms
+R42 non-event large reference cycles (not all explained by QP):
+t=17.450, ref=55.3941, full=78.7254, estimator=2.2613, controller=9.3166, logger=8.3318
+t=13.250, ref=48.3488, full=59.1111, estimator=2.2092, controller=2.3486, logger=4.2160
+t=37.975, ref=35.2550, full=66.7832, estimator=6.0941, controller=8.6642, logger=12.3632
+t=14.775, ref=32.2817, full=42.5696, estimator=2.0175, controller=2.4700, logger=4.1490
+t=5.100, ref=32.0486, full=42.7294, estimator=2.6221, controller=2.3205, logger=4.0793
+t=34.550, ref=30.6018, full=59.9226, estimator=8.3215, controller=6.7145, logger=10.2391
+t=13.275, ref=30.0463, full=41.2370, estimator=2.2497, controller=2.4231, logger=4.2430
+t=40.425, ref=29.4675, full=56.1846, estimator=2.9430, controller=5.5034, logger=15.1857
+t=38.025, ref=29.2930, full=55.9656, estimator=10.1773, controller=6.9582, logger=5.3833
+t=13.300, ref=28.6282, full=39.2963, estimator=2.3366, controller=2.2626, logger=4.5127
+t=38.150, ref=28.4791, full=60.7174, estimator=4.1031, controller=6.4761, logger=13.6326
+t=34.500, ref=28.2124, full=67.0179, estimator=12.5512, controller=6.2544, logger=9.1817
+t=43.750, ref=28.1258, full=59.8795, estimator=8.8254, controller=3.6239, logger=15.7976
+t=43.775, ref=27.8816, full=49.7217, estimator=7.5926, controller=4.8728, logger=5.4129
+t=40.700, ref=25.8676, full=56.0084, estimator=13.4772, controller=4.6932, logger=8.3907
+t=5.500, ref=25.6224, full=63.2166, estimator=13.8021, controller=9.7357, logger=9.5198
+t=37.425, ref=24.3610, full=57.2316, estimator=9.7687, controller=5.2499, logger=14.8864
+t=40.800, ref=23.6645, full=56.3780, estimator=8.0446, controller=3.6736, logger=17.6653
+t=40.175, ref=23.6062, full=38.2492, estimator=3.9750, controller=2.8394, logger=5.5005
+t=14.800, ref=23.2929, full=33.5272, estimator=2.3552, controller=2.2341, logger=4.0284
+Do not attribute the 17.450s spike or broad p95 rise to R42 code without repeated interleaved runs.
+R42 event equality does NOT prove candidate control-point, yaw or safety-certificate numerical equivalence.
+Trigger: current code uses estimated UAV position to sense and reference future to predict; estimated closed-loop future not yet connected.
+Return: signed opposite side -1.338966 m is sampled witness; NOT an all-obstacle feasibility or overshoot-necessity theorem.

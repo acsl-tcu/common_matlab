@@ -176,7 +176,7 @@ classdef REPLANNING_SYSTEM < handle
         LOG_SENSOR       = 0;  % 球状センサ障害物捕捉ログの個別スイッチ (20m内に障害物検知時)
         LOG_TRIGGER      = 0;  % 将来衝突検知ログの個別スイッチ (衝突予測トリガー発火時)
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
-        ENABLE_LIGHT_RUNTIME_AUDIT = 1; % R29 DIAGNOSTIC: LOGGER-safe do() decomposition; not production timing
+        ENABLE_LIGHT_RUNTIME_AUDIT = 0; % R29 DIAGNOSTIC: LOGGER-safe do() decomposition; not production timing
         ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
         % R13 diagnostic-only R58 heavy shadow: 0 skips ~154-ms historical
         % non-committable computation; 1 enables full QP/speed provenance.
@@ -197,6 +197,7 @@ classdef REPLANNING_SYSTEM < handle
         r26_r15_status_valid = false;
         r26_deferred_candidate = struct();
         r26_deferred_pending = false;
+        r34_mirror_reset_pending = false; % R34 diagnostic-only deferred reset
         r26_diagnostic_materialization_ms = NaN;
         % REFERENCE_ONLY simulation-only atomic activation experiment.
         % Opt-in token is accepted only from the verified headless runner.
@@ -214,6 +215,8 @@ classdef REPLANNING_SYSTEM < handle
         r28_obs_ring_head = 0;
         % R20: same certified candidate/Stage1-3, Flight disk-I/O disabled.
         % Numeric timings are diagnostic only. Never grant certificate or commit.
+        % R41: event-only wall-clock closure recorder; diagnostic only.
+        r41_followup_cycles = 0;
         r20_stage1_future_ms = NaN;
         r20_stage1_context_ms = NaN;
         r20_stage1_native_call_ms = NaN;
@@ -2515,10 +2518,26 @@ classdef REPLANNING_SYSTEM < handle
             % existing production sensor/state interface.
             % -------------------------------------------------------------
             timing_props=[ ...
+                "rfortyone_trace_flag", "rfortyone_time_s", ...
+                "rfortyone_upstream_ms", "rfortyone_sensor_ms", ...
+                "rfortyone_stages_ms", "rfortyone_output_ms", ...
+                "rfortyone_total_ms", "rfortyone_closure_ms", ...
+                "rfortyone_source_version", ...
                 "r29_theta_old", "r29_theta_used", ...
                 "r29_roll_old", "r29_roll_used", ...
                 "r29_W_ub", "r29_Iw", ...
+                "r31_stage_start_ms", "r31_stage_advance_ms", ...
+                "r31_deferred_capture_ms", ...
+                "r31_nominal_pos_m", "r31_active_pos_m", ...
+                "r31_correction_pos_m", "r31_correction_norm_m", ...
                 "rt_light_e2e_ms", ...
+                "rtime_e_to_e_ms", "rtime_observer_ms", ...
+                "rtime_stage_start_ms", "rtime_stage_advance_ms", ...
+                "rtime_capture_ms", "rtime_correction_norm_m", "rtime_correction_xyz", ...
+                "rtime_sensor_gate_ms", "rtime_sensor_memory_ms", ...
+                "rtime_trigger_kernel_ms", "rtime_request_ms", ...
+                "rtime_advance_ms", "rtime_sensor_total_ms", ...
+                "rtime_sensor_closure_ms", ...
                 "rt_observer_ms", ...
                 "rt_spike_capture_time", ...
                 "rt_spike_total_ms", ...
@@ -2609,6 +2628,13 @@ classdef REPLANNING_SYSTEM < handle
             time=varargin{1};
             cha=varargin{2};
 
+            % R41: one clock per do(), three branch-independent checkpoints.
+            % No branch uses these values for acceptance, deadlines or control.
+            r41_clock=tic;
+            r41_pre_sensor=NaN;
+            r41_pre_stage=NaN;
+            r41_post_stage=NaN;
+
             % Single lightweight production wall timer for A/B diagnosis.
             % This remains active while the detailed multi-stage profiling
             % below is disabled.
@@ -2630,6 +2656,10 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
+            % R31: event-local wall timings. Diagnostic only, no branch authority.
+            r31_start_pipeline_ms=NaN;
+            r31_advance_pipeline_ms=NaN;
+            r31_deferred_capture_ms=NaN;
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_front_ms=1e3*toc(t_light_e2e);
             end
@@ -2841,10 +2871,15 @@ classdef REPLANNING_SYSTEM < handle
             % Sensor-dependent synchronous attempt accounting begins here.
             % AF7R58ZZQ normal planning budget = one control period; the
             % collision-prediction horizon remains fixed at H=4 s.
+            r41_pre_sensor=1e3*toc(r41_clock);
             t_hard_cycle=tic;
 
             [sensor_active,min_dist,min_id,all_dists]= ...
                 obj.raw_sensor_gate(pQ_cur,obj.static_obstacle_map);
+            % R36: captured outside accept/reject logic. Timing only.
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                r36_t_sensor_gate=1e3*toc(t_hard_cycle);
+            end
 
             % Initialization and synthetic Flight-prime calls may exercise
             % the sensor branch but are forbidden from teaching the simulated
@@ -2857,6 +2892,9 @@ classdef REPLANNING_SYSTEM < handle
                 double(time.t)>=tf_mem-1e-10*max(1,abs(tf_mem));
             active=obj.apply_simulated_sensor_memory( ...
                 sensor_active,double(time.t),real_sensor_memory_event);
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                r36_t_memory=1e3*toc(t_hard_cycle);
+            end
 
             if obj.ENABLE_PROFILING
                 obj.profiling.t_sensor_ms=1e3*toc(ts);
@@ -2906,6 +2944,10 @@ classdef REPLANNING_SYSTEM < handle
                     obj.trigger_core(active,pL_ref,q_ref,time.t);
             end
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                r36_t_trigger=1e3*toc(t_hard_cycle);
+            end
+
             if obj.setup_exact_do_prime_active && obj.setup_exact_force_hit
                 force_idx=max(1,obj.setup_exact_force_hit_calls);
                 if N>=2
@@ -2929,6 +2971,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.profiling.t_trigger_ms=1e3*toc(tt);
             end
 
+            r41_pre_stage=1e3*toc(r41_clock);
             if obj.ENABLE_PROFILING
                 t_replan_status=tic;
             end
@@ -2989,11 +3032,13 @@ classdef REPLANNING_SYSTEM < handle
 
                     if ~obj.setup_exact_do_prime_active && obj.generator_shadow_enabled
                         if obj.ENABLE_STAGED_REPLAN_PIPELINE
+                            r31_stage_start_clock=tic;
                             obj.start_staged_replan_pipeline( ...
                                 t_hard_cycle,time,cha,varargin, ...
                                 active,all_dists,ttc,collision_time, ...
                                 obs_id,comp_name,comp_code, ...
                                 pL_collision,q_collision,pQ_collision,jhit);
+                            r31_start_pipeline_ms=1e3*toc(r31_stage_start_clock);
                         else
                             obj.invoke_replan_generator_shadow( ...
                                 t_hard_cycle,time.t,xd_nom,xd_active_now, ...
@@ -3023,6 +3068,7 @@ classdef REPLANNING_SYSTEM < handle
                             pL_collision,q_collision,pQ_collision,jhit, ...
                             effective_horizon,N,triggerAuthoritySnapshot);
                         obj.trigger_event_capture_ms=1e3*toc(tevent);
+                        r31_deferred_capture_ms=obj.trigger_event_capture_ms;
                         obj.last_trigger_event.capture_runtime_ms= ...
                             double(obj.trigger_event_capture_ms);
                         if obj.trigger_event_count==1
@@ -3052,12 +3098,24 @@ classdef REPLANNING_SYSTEM < handle
                 obj.replan_request_component_code=NaN;
             end
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                r36_t_request=1e3*toc(t_hard_cycle);
+            end
+            % R40: advance_staged_replan_pipeline returns immediately in IDLE.
+            % Skip the empty call and its wall-timer in ordinary Flight;
+            % active pipeline and every certificate/commit branch are unchanged.
             if obj.ENABLE_STAGED_REPLAN_PIPELINE && ...
-                    ~obj.setup_exact_do_prime_active
+                    ~obj.setup_exact_do_prime_active && ...
+                    ~strcmp(char(obj.staged_replan_state),'IDLE')
+                r31_stage_advance_clock=tic;
                 obj.advance_staged_replan_pipeline( ...
                     t_hard_cycle,time.t,active,need_replan,obs_id,comp_code);
+                r31_advance_pipeline_ms=1e3*toc(r31_stage_advance_clock);
             end
 
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                r36_t_advance=1e3*toc(t_hard_cycle);
+            end
             if obj.ENABLE_PROFILING
                 obj.profiling.t_replan_status_ms=1e3*toc(t_replan_status);
                 t_output_write=tic;
@@ -3067,6 +3125,7 @@ classdef REPLANNING_SYSTEM < handle
                 cp_sensor_trigger_ms=1e3*toc(t_light_e2e);
             end
 
+            r41_post_stage=1e3*toc(r41_clock);
             st=obj.result.state;
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
@@ -3150,6 +3209,44 @@ classdef REPLANNING_SYSTEM < handle
             st.active_reference_mode=obj.active_reference_mode;
             st.active_reference_version=obj.active_reference_version;
             st.nominal_xd_table_used=protected_phase;
+
+            % R31: same-clock LOGGER fields, exact objects already evaluated.
+            % No future lookup, new obstacle access or candidate computation.
+            st.r31_stage_start_ms=r31_start_pipeline_ms;
+            st.rtime_stage_start_ms=r31_start_pipeline_ms;
+            st.r31_stage_advance_ms=r31_advance_pipeline_ms;
+            st.rtime_stage_advance_ms=r31_advance_pipeline_ms;
+            % R36 wall-clock decomposition covers the whole sensor-dependent
+            % interval. Endpoint differences are partitioned; no stopwatch
+            % interval is added twice. No claim of native/MEX substage closure.
+            if obj.ENABLE_LIGHT_RUNTIME_AUDIT
+                st.rtime_sensor_gate_ms=r36_t_sensor_gate;
+                st.rtime_sensor_memory_ms=r36_t_memory-r36_t_sensor_gate;
+                st.rtime_trigger_kernel_ms=r36_t_trigger-r36_t_memory;
+                st.rtime_request_ms=r36_t_request-r36_t_trigger;
+                st.rtime_advance_ms=r36_t_advance-r36_t_request;
+                st.rtime_sensor_total_ms=r36_t_advance;
+                st.rtime_sensor_closure_ms=r36_t_advance-( ...
+                    st.rtime_sensor_gate_ms+st.rtime_sensor_memory_ms+ ...
+                    st.rtime_trigger_kernel_ms+st.rtime_request_ms+ ...
+                    st.rtime_advance_ms);
+            else
+                st.rtime_sensor_gate_ms=NaN;
+                st.rtime_sensor_memory_ms=NaN;
+                st.rtime_trigger_kernel_ms=NaN;
+                st.rtime_request_ms=NaN;
+                st.rtime_advance_ms=NaN;
+                st.rtime_sensor_total_ms=NaN;
+                st.rtime_sensor_closure_ms=NaN;
+            end
+            st.r31_deferred_capture_ms=r31_deferred_capture_ms;
+            st.rtime_capture_ms=r31_deferred_capture_ms;
+            st.r31_nominal_pos_m=double(xd_nom(1:3));
+            st.r31_active_pos_m=double(st.xd(1:3));
+            st.r31_correction_pos_m=double(st.xd(1:3)-xd_nom(1:3));
+            st.r31_correction_norm_m=norm(st.r31_correction_pos_m);
+            st.rtime_correction_norm_m=st.r31_correction_norm_m;
+            st.rtime_correction_xyz=st.r31_correction_pos_m;
 
             % Full certificate structs remain authoritative in obj.*.
             % The fail-closed certificate guard above is unchanged.
@@ -3318,7 +3415,9 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 cp_output_state_ms=1e3*toc(t_light_e2e);
                 st.rt_light_e2e_ms=cp_output_state_ms;
+                st.rtime_e_to_e_ms=cp_output_state_ms;
                 st.rt_observer_ms=dt_observer_ms;
+                st.rtime_observer_ms=dt_observer_ms;
                 % R29 current-event observer certificate diagnostics for LOGGER.
                 RI29=obj.observer_hard_support_internal;
                 if isstruct(RI29) && isfield(RI29,'last_forward_support') && ...
@@ -3396,6 +3495,43 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
+            % R41: close the do() clock with mutually exclusive intervals.
+            % The first Stage1/Stage2/Stage3 cycle and a few postcommit
+            % cycles are recorded in LOGGER. The read-only trace never
+            % influences the trigger, optimizer, reference or activation.
+            r41_event=isfinite(r31_start_pipeline_ms) || ...
+                isfinite(r31_advance_pipeline_ms);
+            if double(obj.active_reference_version)~=active_version_at_eval
+                obj.r41_followup_cycles=8; % diagnostics only, not flight policy
+            end
+            r41_save=r41_event || double(obj.r41_followup_cycles)>0;
+            if r41_save
+                r41_end=1e3*toc(r41_clock);
+                st.rfortyone_trace_flag=1;
+                st.rfortyone_time_s=double(time.t);
+                st.rfortyone_upstream_ms=r41_pre_sensor;
+                st.rfortyone_sensor_ms=r41_pre_stage-r41_pre_sensor;
+                st.rfortyone_stages_ms=r41_post_stage-r41_pre_stage;
+                st.rfortyone_output_ms=r41_end-r41_post_stage;
+                st.rfortyone_total_ms=r41_end;
+                st.rfortyone_closure_ms=r41_end-( ...
+                    st.rfortyone_upstream_ms+st.rfortyone_sensor_ms+ ...
+                    st.rfortyone_stages_ms+st.rfortyone_output_ms);
+                st.rfortyone_source_version=double(obj.active_reference_version);
+            else
+                st.rfortyone_trace_flag=0;
+                st.rfortyone_time_s=NaN;
+                st.rfortyone_upstream_ms=NaN;
+                st.rfortyone_sensor_ms=NaN;
+                st.rfortyone_stages_ms=NaN;
+                st.rfortyone_output_ms=NaN;
+                st.rfortyone_total_ms=NaN;
+                st.rfortyone_closure_ms=NaN;
+                st.rfortyone_source_version=NaN;
+            end
+            if obj.r41_followup_cycles>0
+                obj.r41_followup_cycles=obj.r41_followup_cycles-1;
+            end
             result_out=obj.result;
         end
 
@@ -6769,7 +6905,69 @@ classdef REPLANNING_SYSTEM < handle
             obj.r25_event_capture.r26_sim_commit_succeeded=double(obj.r26_sim_commit_succeeded);
             obj.r25_event_capture.r27_commit_flag_at_end=logical(obj.R26_SIMULATION_ONLY_EXPERIMENT);
             obj.r25_event_capture.r26_deferred_pending=logical(obj.r26_deferred_pending);
+            % R38: profiles are purely diagnostic and have no consumers in
+            % the candidate, trigger, certificate or commit paths.  Materialize
+            % the same final observable values ONCE outside the Flight loop.
+            D=obj.r25_event_capture;
+                D.r22_profile=struct( ...
+                    'stage2_model_ms',double(obj.r22_stage2_model_ms), ...
+                    'stage2_sensor_ms',double(obj.r22_stage2_sensor_ms), ...
+                    'stage2_eval_handles_ms',double(obj.r22_stage2_eval_handles_ms), ...
+                    'stage2_cache_ms',double(obj.r22_stage2_cache_ms), ...
+                    'stage2_native_eval_packet_ms',double(obj.r22_stage2_native_eval_packet_ms), ...
+                    'stage2_native_eval_ms',double(obj.r22_stage2_native_eval_ms), ...
+                    'r58_build_ms',double(obj.staged_replan_predeadline_r58_build_ms), ...
+                    'r58_homotopy_ms',double(obj.staged_replan_predeadline_r58_homotopy_ms), ...
+                    'r58_certificate_ms',double(obj.staged_replan_predeadline_r58_certificate_ms), ...
+                    'r58_shadow_ms',double(obj.staged_replan_predeadline_r58_shadow_ms));
+                D.r20_profile=struct( ...
+                    'stage1_future_ms',double(obj.r20_stage1_future_ms), ...
+                    'stage1_context_ms',double(obj.r20_stage1_context_ms), ...
+                    'stage1_native_call_ms',double(obj.r20_stage1_native_call_ms), ...
+                    'native_packet_ms',double(obj.r20_native_packet_ms), ...
+                    'native_mex_ms',double(obj.r20_native_mex_ms), ...
+                    'native_wrapper_ms',double(obj.r20_native_wrapper_ms), ...
+                    'native_internal_ms',double(obj.r20_native_internal_ms), ...
+                    'stage2_reference_cert_ms',double(obj.r20_stage2_cert_ms), ...
+                    'stage2_bundle_ms',double(obj.r20_stage2_bundle_ms), ...
+                    'stage2_other_ms',double(obj.r20_stage2_other_ms));
+            obj.r25_event_capture=D;
             setappdata(0,'AF7R58R17_LAST_CAPTURE',obj.r25_event_capture);
+        end
+
+        function r35_capture_completed_stage1_marker(obj,event_name,t_now,stage_ms)
+            % R35: AFTER STAGE1_NATIVE_RETURNED has already recorded the
+            % candidate, these two subsequent events change only the event
+            % name/timestamp and Stage1 scalar clock fields. Reconstructing
+            % two full native diagnostic profiles is redundant.
+            % This method is DIAGNOSTIC ONLY. No candidate, proof, clock,
+            % staging or commit fields are changed here.
+            assert(strcmp(event_name,'STAGE1_25MS_WOULD_REJECT') || ...
+                   strcmp(event_name,'STAGE1_GENERATED'), ...
+                   '[R35] unsupported lightweight diagnostic marker.');
+            if ~logical(obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE)
+                return;
+            end
+            if ~obj.r25_event_capture_valid
+                % Same error-reporting behavior as the original diagnostic
+                % path if no preceding STAGE1_NATIVE_RETURNED was captured.
+                obj.r17_capture(event_name,t_now,stage_ms,struct());
+                return;
+            end
+            D=obj.r25_event_capture;
+            E=struct('name',char(event_name),'time_s',double(t_now), ...
+                'stage_ms',double(stage_ms), ...
+                'cycle_ms',double(obj.generator_last_cycle_critical_ms), ...
+                'source_mode',char(obj.active_reference_mode), ...
+                'source_version',double(obj.active_reference_version));
+            D.events(end+1)=E;
+            D.last_event=char(event_name);
+            if isfinite(stage_ms)
+                D.stage1_ms=double(stage_ms);
+            end
+            D.stage1_cycle_ms=double(obj.generator_last_cycle_critical_ms);
+            obj.r25_event_capture=D;
+            obj.r25_event_capture_valid=true;
         end
 
         function r17_capture(obj,event_name,t_now,stage_ms,P)
@@ -6904,28 +7102,8 @@ classdef REPLANNING_SYSTEM < handle
                         D.native_geometry_pass=double(Q.r58_geometry_pass);
                     end
                 end
-                D.r22_profile=struct( ...
-                    'stage2_model_ms',double(obj.r22_stage2_model_ms), ...
-                    'stage2_sensor_ms',double(obj.r22_stage2_sensor_ms), ...
-                    'stage2_eval_handles_ms',double(obj.r22_stage2_eval_handles_ms), ...
-                    'stage2_cache_ms',double(obj.r22_stage2_cache_ms), ...
-                    'stage2_native_eval_packet_ms',double(obj.r22_stage2_native_eval_packet_ms), ...
-                    'stage2_native_eval_ms',double(obj.r22_stage2_native_eval_ms), ...
-                    'r58_build_ms',double(obj.staged_replan_predeadline_r58_build_ms), ...
-                    'r58_homotopy_ms',double(obj.staged_replan_predeadline_r58_homotopy_ms), ...
-                    'r58_certificate_ms',double(obj.staged_replan_predeadline_r58_certificate_ms), ...
-                    'r58_shadow_ms',double(obj.staged_replan_predeadline_r58_shadow_ms));
-                D.r20_profile=struct( ...
-                    'stage1_future_ms',double(obj.r20_stage1_future_ms), ...
-                    'stage1_context_ms',double(obj.r20_stage1_context_ms), ...
-                    'stage1_native_call_ms',double(obj.r20_stage1_native_call_ms), ...
-                    'native_packet_ms',double(obj.r20_native_packet_ms), ...
-                    'native_mex_ms',double(obj.r20_native_mex_ms), ...
-                    'native_wrapper_ms',double(obj.r20_native_wrapper_ms), ...
-                    'native_internal_ms',double(obj.r20_native_internal_ms), ...
-                    'stage2_reference_cert_ms',double(obj.r20_stage2_cert_ms), ...
-                    'stage2_bundle_ms',double(obj.r20_stage2_bundle_ms), ...
-                    'stage2_other_ms',double(obj.r20_stage2_other_ms));
+                % R38: r20/r22 result-only profiles are materialized by
+                % r25_publish_capture after Flight; no hot-cycle rebuild.
                 obj.r25_event_capture=D;
                 obj.r25_event_capture_valid=true;
             catch ME
@@ -7118,398 +7296,15 @@ classdef REPLANNING_SYSTEM < handle
                 return;
             end
 
-            % AF7R46: clear per-request diagnostic mirrors. No decision authority.
-            obj.staged_replan_predeadline_native_episode_ms=NaN;
-            obj.staged_replan_predeadline_native_hessian_ms=NaN;
-            obj.staged_replan_predeadline_native_corridor_ms=NaN;
-            obj.staged_replan_predeadline_native_qp_ms=NaN;
-            obj.staged_replan_predeadline_native_candidate_build_ms=NaN;
-            obj.staged_replan_predeadline_native_synthesis_ms=NaN;
-            obj.staged_replan_predeadline_native_candidate_ms=NaN;
-            obj.staged_replan_predeadline_native_total_ms=NaN;
-            obj.staged_replan_predeadline_r48_natural_rejoin_trial_count=NaN;
-            obj.staged_replan_predeadline_r48_natural_rejoin_selected_count=NaN;
-            obj.staged_replan_predeadline_r48_exit_monotone_row_count=NaN;
-            obj.staged_replan_predeadline_r48_natural_rejoin_seed_t1=NaN;
-            obj.staged_replan_predeadline_r49_phase_timing_trial_count=NaN;
-            obj.staged_replan_predeadline_r49_phase_gate_pass_count=NaN;
-            obj.staged_replan_predeadline_r49_hard_certificate_trial_count=NaN;
-            obj.staged_replan_predeadline_r49_selected_Ke=NaN;
-            obj.staged_replan_predeadline_r49_selected_Kflow=NaN;
-            obj.staged_replan_predeadline_r49_selected_Kx=NaN;
-            obj.staged_replan_predeadline_r50_spatial_side_solution_count=NaN;
-            obj.staged_replan_predeadline_r50_spatial_lateral_constraint_count=NaN;
-            obj.staged_replan_predeadline_r50_entry_candidate_count=NaN;
-            obj.staged_replan_predeadline_r50_exit_candidate_count=NaN;
-            obj.staged_replan_predeadline_r50_best_spatial_velocity_norm=NaN;
-            obj.staged_replan_predeadline_r51_phase_seed_count=NaN;
-            obj.staged_replan_predeadline_r51_phase_seed_reject_count=NaN;
-            obj.staged_replan_predeadline_r51_tangent_candidate_count=NaN;
-            obj.staged_replan_predeadline_r51_tangent_certified_count=NaN;
-            obj.staged_replan_predeadline_r51_phase_alpha=NaN;
-            obj.staged_replan_predeadline_r51_phase_delay_s=NaN;
-            obj.staged_replan_predeadline_r51_phase_exit_time_s=NaN;
-            obj.staged_replan_predeadline_r52_phase_episode_count=NaN;
-            obj.staged_replan_predeadline_r52_phase_episode_rebuild_fail_count=NaN;
-            obj.staged_replan_predeadline_r52_corridor_row_count=NaN;
-            obj.staged_replan_predeadline_r52_support_plane_fail_count=NaN;
-            obj.staged_replan_predeadline_r52_spatial_qp_solution_count=NaN;
-            obj.staged_replan_predeadline_r52_rejoin_time_trial_count=NaN;
-            obj.staged_replan_predeadline_r52_selected_spatial_rejoin_s=NaN;
-            obj.staged_replan_predeadline_r53_normal_bundle_node_count=NaN;
-            obj.staged_replan_predeadline_r53_normal_bundle_row_count=NaN;
-            obj.staged_replan_predeadline_r53_normal_bundle_singular_count=NaN;
-            obj.staged_replan_predeadline_r53_affine_reduction_count=NaN;
-            obj.staged_replan_predeadline_r54_phase_candidate_count=NaN;
-            obj.staged_replan_predeadline_r54_phase_trial_count=NaN;
-            obj.staged_replan_predeadline_r54_phase_base_certified_count=NaN;
-            obj.staged_replan_predeadline_r54_phase_episode_pass_count=NaN;
-            obj.staged_replan_predeadline_r54_phase_episode_empty_count=NaN;
-            obj.staged_replan_predeadline_r54_selected_tau_multiple=NaN;
-            obj.staged_replan_predeadline_r54_selected_alpha=NaN;
-            obj.staged_replan_predeadline_r54_selected_delay_s=NaN;
-            obj.staged_replan_predeadline_r54_selected_first_unsafe_lead_s=NaN;
-            obj.staged_replan_predeadline_r54_max_first_unsafe_lead_s=NaN;
-            obj.staged_replan_predeadline_r54_maneuver_horizon_coupling_count=NaN;
-            obj.staged_replan_predeadline_r55_phase_build_count=NaN;
-            obj.staged_replan_predeadline_r55_phase_build_fail_count=NaN;
-            obj.staged_replan_predeadline_r55_phase_episode_pass_count=NaN;
-            obj.staged_replan_predeadline_r55_phase_episode_empty_count=NaN;
-            obj.staged_replan_predeadline_r55_mixed_side_episode_count=NaN;
-            obj.staged_replan_predeadline_r55_side_plus_count=NaN;
-            obj.staged_replan_predeadline_r55_side_minus_count=NaN;
-            obj.staged_replan_predeadline_r55_side_onebranch_count=NaN;
-            obj.staged_replan_predeadline_r55_side_both_failed_count=NaN;
-            obj.staged_replan_predeadline_r55_corridor_row_count=NaN;
-            obj.staged_replan_predeadline_r55_obstacle_count=NaN;
-            obj.staged_replan_predeadline_r55_old_clock_binding_count=NaN;
-            obj.staged_replan_predeadline_r55_maneuver_horizon_coupling_count=NaN;
-            obj.staged_replan_predeadline_r55_alpha=NaN;
-            obj.staged_replan_predeadline_r55_delay_s=NaN;
-            obj.staged_replan_predeadline_r55_source_unsafe_start_s=NaN;
-            obj.staged_replan_predeadline_r55_source_unsafe_end_s=NaN;
-            obj.staged_replan_predeadline_r55_predicted_first_unsafe_t_s=NaN;
-            obj.staged_replan_predeadline_r55_predicted_last_unsafe_t_s=NaN;
-            obj.staged_replan_predeadline_r55_pre_unsafe_slack_s=NaN;
-            obj.staged_replan_predeadline_r55_post_unsafe_slack_s=NaN;
-            obj.staged_replan_predeadline_r55_min_temporal_slack_s=NaN;
-            obj.staged_replan_predeadline_r55_phase_entry_transition_s=NaN;
-            obj.staged_replan_predeadline_r55_phase_exit_transition_s=NaN;
-            obj.staged_replan_predeadline_r55_source_phase_at_rejoin_s=NaN;
-            obj.staged_replan_predeadline_r55_rejoin_clock_delay_s=NaN;
-            obj.staged_replan_predeadline_r55_min_ellipsoid_axis_m=NaN;
-            obj.staged_replan_predeadline_r55_max_ellipsoid_axis_m=NaN;
-            obj.staged_replan_predeadline_r55_max_rotation_orth_error=NaN;
-            obj.staged_replan_predeadline_r56_shadow_ran=NaN;
-            obj.staged_replan_predeadline_r56_source_qp_ok=NaN;
-            obj.staged_replan_predeadline_r56_source_exact_c7=NaN;
-            obj.staged_replan_predeadline_r56_source_knot_count=NaN;
-            obj.staged_replan_predeadline_r56_source_episode_count=NaN;
-            obj.staged_replan_predeadline_r56_source_corridor_row_count=NaN;
-            obj.staged_replan_predeadline_r56_source_normal_row_count=NaN;
-            obj.staged_replan_predeadline_r56_source_side_plus_count=NaN;
-            obj.staged_replan_predeadline_r56_source_side_minus_count=NaN;
-            obj.staged_replan_predeadline_r56_source_side_fail_count=NaN;
-            obj.staged_replan_predeadline_r56_const_sample_count=NaN;
-            obj.staged_replan_predeadline_r56_const_dynamic_pass=NaN;
-            obj.staged_replan_predeadline_r56_const_geometry_point_pass=NaN;
-            obj.staged_replan_predeadline_r56_entry_bestcase_pass=NaN;
-            obj.staged_replan_predeadline_r56_exit_bestcase_pass=NaN;
-            obj.staged_replan_predeadline_r56_yaw_source_regular=NaN;
-            obj.staged_replan_predeadline_r56_old_clock_binding_count=NaN;
-            obj.staged_replan_predeadline_r56_horizon_duration_coupling_count=NaN;
-            obj.staged_replan_predeadline_r56_source_support_start_s=NaN;
-            obj.staged_replan_predeadline_r56_source_rejoin_s=NaN;
-            obj.staged_replan_predeadline_r56_source_corr_v_ub=NaN;
-            obj.staged_replan_predeadline_r56_source_corr_a_ub=NaN;
-            obj.staged_replan_predeadline_r56_source_corr_j_ub=NaN;
-            obj.staged_replan_predeadline_r56_source_min_hxy=NaN;
-            obj.staged_replan_predeadline_r56_alpha_max_pointwise=NaN;
-            obj.staged_replan_predeadline_r56_const_max_vl=NaN;
-            obj.staged_replan_predeadline_r56_const_max_vq=NaN;
-            obj.staged_replan_predeadline_r56_const_min_sigma=NaN;
-            obj.staged_replan_predeadline_r56_const_max_qdot=NaN;
-            obj.staged_replan_predeadline_r56_const_min_geom_margin=NaN;
-            obj.staged_replan_predeadline_r56_entry_Tmax_s=NaN;
-            obj.staged_replan_predeadline_r56_entry_max_vq=NaN;
-            obj.staged_replan_predeadline_r56_entry_min_sigma=NaN;
-            obj.staged_replan_predeadline_r56_entry_max_qdot=NaN;
-            obj.staged_replan_predeadline_r56_exit_Tmax_s=NaN;
-            obj.staged_replan_predeadline_r56_exit_max_vq=NaN;
-            obj.staged_replan_predeadline_r56_exit_min_sigma=NaN;
-            obj.staged_replan_predeadline_r56_exit_max_qdot=NaN;
-            obj.staged_replan_predeadline_r56_chain_rule_max_error=NaN;
-            obj.staged_replan_predeadline_r56_shadow_ms=NaN;
-            obj.staged_replan_predeadline_r57_probe_ran=NaN;
-            obj.staged_replan_predeadline_r57_source_qp_ok=NaN;
-            obj.staged_replan_predeadline_r57_source_exact_c7=NaN;
-            obj.staged_replan_predeadline_r57_speed_attempt=NaN;
-            obj.staged_replan_predeadline_r57_speed_pass=NaN;
-            obj.staged_replan_predeadline_r57_speed_stageA_pass=NaN;
-            obj.staged_replan_predeadline_r57_speed_stageB_attempt=NaN;
-            obj.staged_replan_predeadline_r57_speed_stageB_finite_witness=NaN;
-            obj.staged_replan_predeadline_r57_speed_stageB_repr_fail=NaN;
-            obj.staged_replan_predeadline_r57_heading_attempt=NaN;
-            obj.staged_replan_predeadline_r57_heading_pass=NaN;
-            obj.staged_replan_predeadline_r57_heading_leaf_count=NaN;
-            obj.staged_replan_predeadline_r57_heading_split_count=NaN;
-            obj.staged_replan_predeadline_r57_geometry_attempt=NaN;
-            obj.staged_replan_predeadline_r57_geometry_pass=NaN;
-            obj.staged_replan_predeadline_r57_commit_attempted=NaN;
-            obj.staged_replan_predeadline_r57_rejoin_selected=NaN;
-            obj.staged_replan_predeadline_r57_old_clock_commit_binding_count=NaN;
-            obj.staged_replan_predeadline_r57_horizon_duration_coupling_count=NaN;
-            obj.staged_replan_predeadline_r57_speed_VL=NaN;
-            obj.staged_replan_predeadline_r57_speed_A=NaN;
-            obj.staged_replan_predeadline_r57_speed_J=NaN;
-            obj.staged_replan_predeadline_r57_speed_sigma=NaN;
-            obj.staged_replan_predeadline_r57_speed_qdot=NaN;
-            obj.staged_replan_predeadline_r57_speed_VQ=NaN;
-            obj.staged_replan_predeadline_r57_heading_gamma=NaN;
-            obj.staged_replan_predeadline_r57_geometry_min_margin=NaN;
-            obj.staged_replan_predeadline_r57_source_support_start_s=NaN;
-            obj.staged_replan_predeadline_r57_source_support_end_s=NaN;
-            obj.staged_replan_predeadline_r57_source_corr_v_ub=NaN;
-            obj.staged_replan_predeadline_r57_source_corr_a_ub=NaN;
-            obj.staged_replan_predeadline_r57_source_corr_j_ub=NaN;
-            obj.staged_replan_predeadline_r57_source_build_ms=NaN;
-            obj.staged_replan_predeadline_r57_speed_ms=NaN;
-            obj.staged_replan_predeadline_r57_heading_ms=NaN;
-            obj.staged_replan_predeadline_r57_geometry_ms=NaN;
-            obj.staged_replan_predeadline_r57_probe_ms=NaN;
-            obj.staged_replan_predeadline_r58_shadow_ran=NaN;
-            obj.staged_replan_predeadline_r58r14_lowjet_seed_only=NaN;
-            obj.staged_replan_predeadline_r58r14_active_reduced_dof=NaN;
-            obj.staged_replan_predeadline_r58r14_full_reduced_dof=NaN;
-            obj.staged_replan_predeadline_r58_speed_gate_rows=zeros(0,38);
-            obj.staged_replan_predeadline_r58_reference_only=NaN;
-            obj.staged_replan_predeadline_r58_fixed_rejoin_constraint_count=NaN;
-            obj.staged_replan_predeadline_r58_same_clock_binding_count=NaN;
-            obj.staged_replan_predeadline_r58_horizon_duration_coupling_count=NaN;
-            obj.staged_replan_predeadline_r58_free_c7_constructive=NaN;
-            obj.staged_replan_predeadline_r58_terminal_offset_hold=NaN;
-            obj.staged_replan_predeadline_r58_terminal_zero_derivative_order=NaN;
-            obj.staged_replan_predeadline_r58_source_knot_count=NaN;
-            obj.staged_replan_predeadline_r58_scalar_dof_count=NaN;
-            obj.staged_replan_predeadline_r58_spatial_dof_count=NaN;
-            obj.staged_replan_predeadline_r58_episode_count=NaN;
-            obj.staged_replan_predeadline_r58_component_count=NaN;
-            obj.staged_replan_predeadline_r58_side_cache_plus_valid=NaN;
-            obj.staged_replan_predeadline_r58_side_cache_minus_valid=NaN;
-            obj.staged_replan_predeadline_r58_side_cache_fail=NaN;
-            obj.staged_replan_predeadline_r58_bnb_nodes_popped=NaN;
-            obj.staged_replan_predeadline_r58_bnb_qp_solves=NaN;
-            obj.staged_replan_predeadline_r58_bnb_qp_infeasible=NaN;
-            obj.staged_replan_predeadline_r58_bnb_full_assignments=NaN;
-            obj.staged_replan_predeadline_r58_bnb_speed_fail=NaN;
-            obj.staged_replan_predeadline_r58_bnb_heading_fail=NaN;
-            obj.staged_replan_predeadline_r58_bnb_geometry_fail=NaN;
-            obj.staged_replan_predeadline_r58_bnb_feasible_full=NaN;
-            obj.staged_replan_predeadline_r58_bnb_max_queue=NaN;
-            obj.staged_replan_predeadline_r58_selected_side_plus=NaN;
-            obj.staged_replan_predeadline_r58_selected_side_minus=NaN;
-            obj.staged_replan_predeadline_r58_speed_pass=NaN;
-            obj.staged_replan_predeadline_r58_heading_pass=NaN;
-            obj.staged_replan_predeadline_r58_geometry_pass=NaN;
-            obj.staged_replan_predeadline_r58_needs_time_law=NaN;
-            obj.staged_replan_predeadline_r58_commit_attempted=NaN;
-            obj.staged_replan_predeadline_r58_rejoin_selected=NaN;
-            obj.staged_replan_predeadline_r58_reference_tracking_inflation_m=NaN;
-            obj.staged_replan_predeadline_r58_support_start_s=NaN;
-            obj.staged_replan_predeadline_r58_support_end_s=NaN;
-            obj.staged_replan_predeadline_r58_terminal_offset_norm_m=NaN;
-            obj.staged_replan_predeadline_r58_quantized_jet_max_abs_error=NaN;
-            obj.staged_replan_predeadline_r58_legacy_join_max_abs_mismatch=NaN;
-            obj.staged_replan_predeadline_r58_best_qp_cost=NaN;
-            obj.staged_replan_predeadline_r58_speed_VL=NaN;
-            obj.staged_replan_predeadline_r58_speed_A=NaN;
-            obj.staged_replan_predeadline_r58_speed_J=NaN;
-            obj.staged_replan_predeadline_r58_speed_sigma=NaN;
-            obj.staged_replan_predeadline_r58_speed_qdot=NaN;
-            obj.staged_replan_predeadline_r58_speed_VQ=NaN;
-            obj.staged_replan_predeadline_r58_heading_gamma=NaN;
-            obj.staged_replan_predeadline_r58_geometry_min_margin=NaN;
+            % R34: defer only the 389 legacy diagnostic mirror resets.
+            % These are read exclusively by get_staged_pipeline_status().
+            % Both failed and successful requests are reset before lazy
+            % native diagnostic materialization. No safety field moved.
+            obj.r34_mirror_reset_pending=true;
             obj.staged_replan_predeadline_r58_build_ms=NaN;
-            obj.staged_replan_predeadline_r58_homotopy_ms=NaN;
             obj.staged_replan_predeadline_r58_certificate_ms=NaN;
+            obj.staged_replan_predeadline_r58_homotopy_ms=NaN;
             obj.staged_replan_predeadline_r58_shadow_ms=NaN;
-            obj.staged_replan_predeadline_r58r2_node_scaled_variables=NaN;
-            obj.staged_replan_predeadline_r58r2_row_equilibrated=NaN;
-            obj.staged_replan_predeadline_r58r2_root_qp_elided=NaN;
-            obj.staged_replan_predeadline_r58r2_node_scale_min_s=NaN;
-            obj.staged_replan_predeadline_r58r2_node_scale_max_s=NaN;
-            obj.staged_replan_predeadline_r58r2_row_scale_min=NaN;
-            obj.staged_replan_predeadline_r58r2_row_scale_max=NaN;
-            obj.staged_replan_predeadline_r58r3_hessian_diag_equilibrated=NaN;
-            obj.staged_replan_predeadline_r58r3_equilibrated_cholesky_pass=NaN;
-            obj.staged_replan_predeadline_r58r3_raw_hdiag_min=NaN;
-            obj.staged_replan_predeadline_r58r3_raw_hdiag_max=NaN;
-            obj.staged_replan_predeadline_r58r3_raw_hdiag_ratio=NaN;
-            obj.staged_replan_predeadline_r58r3_eq_hdiag_min=NaN;
-            obj.staged_replan_predeadline_r58r3_eq_hdiag_max=NaN;
-            obj.staged_replan_predeadline_r58r4_normal_equalities_eliminated=NaN;
-            obj.staged_replan_predeadline_r58r4_reduced_spatial_dof_count=NaN;
-            obj.staged_replan_predeadline_r58r4_elimination_build_fail=NaN;
-            obj.staged_replan_predeadline_r58r4_elimination_max_residual=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_used=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_converged_feasible=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_resource_fail=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_max_sweeps_used=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_projection_count=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_max_violation=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_stationarity_residual=NaN;
-            obj.staged_replan_predeadline_r58r5_dykstra_ms=NaN;
-            obj.staged_replan_predeadline_r58r6_hildreth_used=NaN;
-            obj.staged_replan_predeadline_r58r6_kkt_converged_count=NaN;
-            obj.staged_replan_predeadline_r58r6_resource_fail_count=NaN;
-            obj.staged_replan_predeadline_r58r6_max_sweeps_used=NaN;
-            obj.staged_replan_predeadline_r58r6_coordinate_updates=NaN;
-            obj.staged_replan_predeadline_r58r6_max_primal_violation=NaN;
-            obj.staged_replan_predeadline_r58r6_max_complementarity=NaN;
-            obj.staged_replan_predeadline_r58r6_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r6_stationarity_residual=NaN;
-            obj.staged_replan_predeadline_r58r6_max_lambda=NaN;
-            obj.staged_replan_predeadline_r58r6_solver_ms=NaN;
-            obj.staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs=NaN;
-            obj.staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error=NaN;
-            obj.staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_corr_v_ub=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_corr_a_ub=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_corr_j_ub=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_speed_worst_vq=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_speed_worst_vl=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_speed_worst_sigma=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_speed_worst_qdot=NaN;
-            obj.staged_replan_predeadline_r58r6_failed_speed_witness=NaN;
-            obj.staged_replan_predeadline_r58r7_constraint_generation_used=NaN;
-            obj.staged_replan_predeadline_r58r7_full_row_count_max=NaN;
-            obj.staged_replan_predeadline_r58r7_outer_iterations_max=NaN;
-            obj.staged_replan_predeadline_r58r7_full_scans=NaN;
-            obj.staged_replan_predeadline_r58r7_rows_added=NaN;
-            obj.staged_replan_predeadline_r58r7_active_rows_max=NaN;
-            obj.staged_replan_predeadline_r58r7_subset_kkt_solves=NaN;
-            obj.staged_replan_predeadline_r58r7_subset_kkt_converged=NaN;
-            obj.staged_replan_predeadline_r58r7_subset_resource_fail=NaN;
-            obj.staged_replan_predeadline_r58r7_duplicate_add_fail=NaN;
-            obj.staged_replan_predeadline_r58r7_full_optimality_closed=NaN;
-            obj.staged_replan_predeadline_r58r7_subset_sweeps_max=NaN;
-            obj.staged_replan_predeadline_r58r7_coordinate_updates=NaN;
-            obj.staged_replan_predeadline_r58r7_initial_worst_violation=NaN;
-            obj.staged_replan_predeadline_r58r7_final_max_violation=NaN;
-            obj.staged_replan_predeadline_r58r7_final_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r7_final_complementarity=NaN;
-            obj.staged_replan_predeadline_r58r7_final_stationarity=NaN;
-            obj.staged_replan_predeadline_r58r7_solver_ms=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_used=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_converged=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_resource_fail=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_factor_fail=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_max_iterations=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_newton_solves=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_primal_residual=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_dual_residual=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_complementarity=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_min_slack=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_min_lambda=NaN;
-            obj.staged_replan_predeadline_r58r8_ipm_ms=NaN;
-            obj.staged_replan_predeadline_r58r8_newton_diag_equilibrated=NaN;
-            obj.staged_replan_predeadline_r58r8_pcg_used=NaN;
-            obj.staged_replan_predeadline_r58r8_pcg_resource_fail=NaN;
-            obj.staged_replan_predeadline_r58r8_pcg_max_iterations=NaN;
-            obj.staged_replan_predeadline_r58r8_pcg_final_rel_residual=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_count=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_depth=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_last_side=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_outer_iteration=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_active_rows=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_added_row=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_ipm_iteration=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_stage=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_pcg_iterations=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_pcg_rhs_inf=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_D_min=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_D_max=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_D_ratio=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_min_slack=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_min_lambda=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_metric_max_abs_corr=NaN;
-            obj.staged_replan_predeadline_r58r9_failure_metric_one_minus_corr=NaN;
-            obj.staged_replan_predeadline_r58r9_full_scan_ms=NaN;
-            obj.staged_replan_predeadline_r58r9_subset_solver_ms=NaN;
-            obj.staged_replan_predeadline_r58r9_pcg_ms=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_failed=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_failed=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_failure_stage=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_failure_stage=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_failure_active_rows=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_failure_active_rows=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_failure_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_failure_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_metric_max_abs_corr=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_metric_max_abs_corr=NaN;
-            obj.staged_replan_predeadline_r58r9_plus_cg_ms=NaN;
-            obj.staged_replan_predeadline_r58r9_minus_cg_ms=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_primal_residual=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_dual_residual=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_mu=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_kkt_tol=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_gap_tol=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_last_sigma=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_last_alpha_primal=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_last_alpha_dual=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_min_alpha_primal=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_min_alpha_dual=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_mu_ratio=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_D_min=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_D_max=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_D_ratio=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_min_slack=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_min_lambda=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_primal_residual=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_dual_residual=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_mu=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_duality_gap=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_kkt_tol=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_gap_tol=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_last_sigma=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_last_alpha_primal=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_last_alpha_dual=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_min_alpha_primal=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_min_alpha_dual=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_mu_ratio=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_D_min=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_D_max=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_D_ratio=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_min_slack=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_min_lambda=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_relres=NaN;
-            obj.staged_replan_predeadline_r58r11_augmented_kkt_used=NaN;
-            obj.staged_replan_predeadline_r58r11_augmented_kkt_solve_fail=NaN;
-            obj.staged_replan_predeadline_r58r11_common_step_used=NaN;
-            obj.staged_replan_predeadline_r58r11_augmented_kkt_max_dim=NaN;
-            obj.staged_replan_predeadline_r58r11_newton_solves=NaN;
-            obj.staged_replan_predeadline_r58r11_newton_max_rel_residual=NaN;
-            obj.staged_replan_predeadline_r58r11_common_step_min=NaN;
-            obj.staged_replan_predeadline_r58r11_common_step_last=NaN;
-            obj.staged_replan_predeadline_r58r11_solver_ms=NaN;
-            obj.staged_replan_predeadline_rejoin_certificate_tests=NaN;
-            obj.staged_replan_predeadline_rejoin_safe_trial_count=NaN;
-            obj.staged_replan_predeadline_rejoin_baseline_t1=NaN;
-            obj.staged_replan_predeadline_rejoin_selected_t1=NaN;
-            obj.staged_replan_predeadline_rejoin_selected=false;
 
             ts=tic;
             [pL_future,q_future,ref_source,xd_nom_a,xd_active_a]= ...
@@ -7646,7 +7441,7 @@ classdef REPLANNING_SYSTEM < handle
             % This does NOT bypass exact-C7/speed/rejoin/whole-body safety.
             if obj.generator_last_cycle_critical_ms>1e3*dt
                 if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
-                    obj.r17_capture('STAGE1_25MS_WOULD_REJECT',t_now,stage_ms,candidate);
+                    obj.r35_capture_completed_stage1_marker('STAGE1_25MS_WOULD_REJECT',t_now,stage_ms);
                     % R17 ONLY: continue reference-certificate diagnostics;
                     % Stage3 will NEVER call activate_staged_reference_only_bundle.
                 else
@@ -7711,7 +7506,7 @@ classdef REPLANNING_SYSTEM < handle
             obj.staged_replan_state='GENERATED';
             obj.staged_replan_last_reason='STAGE1_GENERATED';
             if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
-                obj.r17_capture('STAGE1_GENERATED',t_now,stage_ms,candidate);
+                obj.r35_capture_completed_stage1_marker('STAGE1_GENERATED',t_now,stage_ms);
             end
             if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
                     obj.r26_r15_status_valid
@@ -7794,7 +7589,7 @@ classdef REPLANNING_SYSTEM < handle
                 ts=tic;
                 P=obj.staged_replan_candidate;
                 if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
-                    obj.r17_capture('STAGE2_ENTERED',t_now,NaN,P);
+                    obj.r17_capture('STAGE2_ENTERED',t_now,NaN,struct());
                 end
                 try
                     r20_cert_tic=tic;
@@ -7866,7 +7661,7 @@ classdef REPLANNING_SYSTEM < handle
                 % continue only while the whole cycle remains <=25 ms.
                 if obj.generator_last_cycle_critical_ms>1e3*dt
                     if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
-                        obj.r17_capture('STAGE2_25MS_WOULD_REJECT',t_now,obj.staged_replan_last_stage2_ms,P);
+                        obj.r17_capture('STAGE2_25MS_WOULD_REJECT',t_now,obj.staged_replan_last_stage2_ms,struct());
                     else
                         obj.generator_deadline_fail_count= ...
                             obj.generator_deadline_fail_count+1;
@@ -7890,7 +7685,7 @@ classdef REPLANNING_SYSTEM < handle
                 obj.staged_replan_state='PREPARED';
                 obj.staged_replan_last_reason='STAGE2_CERTIFIED_AND_PREPARED';
                 if obj.ENABLE_AF7R58R17_DIAG_CONTINUE_LATE
-                    obj.r17_capture('STAGE2_CERTIFIED_AND_PREPARED',t_now,obj.staged_replan_last_stage2_ms,P);
+                    obj.r17_capture('STAGE2_CERTIFIED_AND_PREPARED',t_now,obj.staged_replan_last_stage2_ms,struct());
                 end
                 if logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE) && ...
                         obj.r26_r15_status_valid
@@ -8730,6 +8525,399 @@ classdef REPLANNING_SYSTEM < handle
         function r26_materialize_deferred_diagnostics(obj)
             % NONAUTHORITATIVE: called only when someone requests the full
             % diagnostic status, never on the ordinary flight cycle.
+            % R34: the request-local NONAUTHORITATIVE diagnostics are reset
+            % lazily before native-field materialization. This must execute
+            % even when the Stage1 request had no native candidate.
+            if obj.r34_mirror_reset_pending
+                obj.staged_replan_predeadline_native_episode_ms=NaN;
+                obj.staged_replan_predeadline_native_hessian_ms=NaN;
+                obj.staged_replan_predeadline_native_corridor_ms=NaN;
+                obj.staged_replan_predeadline_native_qp_ms=NaN;
+                obj.staged_replan_predeadline_native_candidate_build_ms=NaN;
+                obj.staged_replan_predeadline_native_synthesis_ms=NaN;
+                obj.staged_replan_predeadline_native_candidate_ms=NaN;
+                obj.staged_replan_predeadline_native_total_ms=NaN;
+                obj.staged_replan_predeadline_r48_natural_rejoin_trial_count=NaN;
+                obj.staged_replan_predeadline_r48_natural_rejoin_selected_count=NaN;
+                obj.staged_replan_predeadline_r48_exit_monotone_row_count=NaN;
+                obj.staged_replan_predeadline_r48_natural_rejoin_seed_t1=NaN;
+                obj.staged_replan_predeadline_r49_phase_timing_trial_count=NaN;
+                obj.staged_replan_predeadline_r49_phase_gate_pass_count=NaN;
+                obj.staged_replan_predeadline_r49_hard_certificate_trial_count=NaN;
+                obj.staged_replan_predeadline_r49_selected_Ke=NaN;
+                obj.staged_replan_predeadline_r49_selected_Kflow=NaN;
+                obj.staged_replan_predeadline_r49_selected_Kx=NaN;
+                obj.staged_replan_predeadline_r50_spatial_side_solution_count=NaN;
+                obj.staged_replan_predeadline_r50_spatial_lateral_constraint_count=NaN;
+                obj.staged_replan_predeadline_r50_entry_candidate_count=NaN;
+                obj.staged_replan_predeadline_r50_exit_candidate_count=NaN;
+                obj.staged_replan_predeadline_r50_best_spatial_velocity_norm=NaN;
+                obj.staged_replan_predeadline_r51_phase_seed_count=NaN;
+                obj.staged_replan_predeadline_r51_phase_seed_reject_count=NaN;
+                obj.staged_replan_predeadline_r51_tangent_candidate_count=NaN;
+                obj.staged_replan_predeadline_r51_tangent_certified_count=NaN;
+                obj.staged_replan_predeadline_r51_phase_alpha=NaN;
+                obj.staged_replan_predeadline_r51_phase_delay_s=NaN;
+                obj.staged_replan_predeadline_r51_phase_exit_time_s=NaN;
+                obj.staged_replan_predeadline_r52_phase_episode_count=NaN;
+                obj.staged_replan_predeadline_r52_phase_episode_rebuild_fail_count=NaN;
+                obj.staged_replan_predeadline_r52_corridor_row_count=NaN;
+                obj.staged_replan_predeadline_r52_support_plane_fail_count=NaN;
+                obj.staged_replan_predeadline_r52_spatial_qp_solution_count=NaN;
+                obj.staged_replan_predeadline_r52_rejoin_time_trial_count=NaN;
+                obj.staged_replan_predeadline_r52_selected_spatial_rejoin_s=NaN;
+                obj.staged_replan_predeadline_r53_normal_bundle_node_count=NaN;
+                obj.staged_replan_predeadline_r53_normal_bundle_row_count=NaN;
+                obj.staged_replan_predeadline_r53_normal_bundle_singular_count=NaN;
+                obj.staged_replan_predeadline_r53_affine_reduction_count=NaN;
+                obj.staged_replan_predeadline_r54_phase_candidate_count=NaN;
+                obj.staged_replan_predeadline_r54_phase_trial_count=NaN;
+                obj.staged_replan_predeadline_r54_phase_base_certified_count=NaN;
+                obj.staged_replan_predeadline_r54_phase_episode_pass_count=NaN;
+                obj.staged_replan_predeadline_r54_phase_episode_empty_count=NaN;
+                obj.staged_replan_predeadline_r54_selected_tau_multiple=NaN;
+                obj.staged_replan_predeadline_r54_selected_alpha=NaN;
+                obj.staged_replan_predeadline_r54_selected_delay_s=NaN;
+                obj.staged_replan_predeadline_r54_selected_first_unsafe_lead_s=NaN;
+                obj.staged_replan_predeadline_r54_max_first_unsafe_lead_s=NaN;
+                obj.staged_replan_predeadline_r54_maneuver_horizon_coupling_count=NaN;
+                obj.staged_replan_predeadline_r55_phase_build_count=NaN;
+                obj.staged_replan_predeadline_r55_phase_build_fail_count=NaN;
+                obj.staged_replan_predeadline_r55_phase_episode_pass_count=NaN;
+                obj.staged_replan_predeadline_r55_phase_episode_empty_count=NaN;
+                obj.staged_replan_predeadline_r55_mixed_side_episode_count=NaN;
+                obj.staged_replan_predeadline_r55_side_plus_count=NaN;
+                obj.staged_replan_predeadline_r55_side_minus_count=NaN;
+                obj.staged_replan_predeadline_r55_side_onebranch_count=NaN;
+                obj.staged_replan_predeadline_r55_side_both_failed_count=NaN;
+                obj.staged_replan_predeadline_r55_corridor_row_count=NaN;
+                obj.staged_replan_predeadline_r55_obstacle_count=NaN;
+                obj.staged_replan_predeadline_r55_old_clock_binding_count=NaN;
+                obj.staged_replan_predeadline_r55_maneuver_horizon_coupling_count=NaN;
+                obj.staged_replan_predeadline_r55_alpha=NaN;
+                obj.staged_replan_predeadline_r55_delay_s=NaN;
+                obj.staged_replan_predeadline_r55_source_unsafe_start_s=NaN;
+                obj.staged_replan_predeadline_r55_source_unsafe_end_s=NaN;
+                obj.staged_replan_predeadline_r55_predicted_first_unsafe_t_s=NaN;
+                obj.staged_replan_predeadline_r55_predicted_last_unsafe_t_s=NaN;
+                obj.staged_replan_predeadline_r55_pre_unsafe_slack_s=NaN;
+                obj.staged_replan_predeadline_r55_post_unsafe_slack_s=NaN;
+                obj.staged_replan_predeadline_r55_min_temporal_slack_s=NaN;
+                obj.staged_replan_predeadline_r55_phase_entry_transition_s=NaN;
+                obj.staged_replan_predeadline_r55_phase_exit_transition_s=NaN;
+                obj.staged_replan_predeadline_r55_source_phase_at_rejoin_s=NaN;
+                obj.staged_replan_predeadline_r55_rejoin_clock_delay_s=NaN;
+                obj.staged_replan_predeadline_r55_min_ellipsoid_axis_m=NaN;
+                obj.staged_replan_predeadline_r55_max_ellipsoid_axis_m=NaN;
+                obj.staged_replan_predeadline_r55_max_rotation_orth_error=NaN;
+                obj.staged_replan_predeadline_r56_shadow_ran=NaN;
+                obj.staged_replan_predeadline_r56_source_qp_ok=NaN;
+                obj.staged_replan_predeadline_r56_source_exact_c7=NaN;
+                obj.staged_replan_predeadline_r56_source_knot_count=NaN;
+                obj.staged_replan_predeadline_r56_source_episode_count=NaN;
+                obj.staged_replan_predeadline_r56_source_corridor_row_count=NaN;
+                obj.staged_replan_predeadline_r56_source_normal_row_count=NaN;
+                obj.staged_replan_predeadline_r56_source_side_plus_count=NaN;
+                obj.staged_replan_predeadline_r56_source_side_minus_count=NaN;
+                obj.staged_replan_predeadline_r56_source_side_fail_count=NaN;
+                obj.staged_replan_predeadline_r56_const_sample_count=NaN;
+                obj.staged_replan_predeadline_r56_const_dynamic_pass=NaN;
+                obj.staged_replan_predeadline_r56_const_geometry_point_pass=NaN;
+                obj.staged_replan_predeadline_r56_entry_bestcase_pass=NaN;
+                obj.staged_replan_predeadline_r56_exit_bestcase_pass=NaN;
+                obj.staged_replan_predeadline_r56_yaw_source_regular=NaN;
+                obj.staged_replan_predeadline_r56_old_clock_binding_count=NaN;
+                obj.staged_replan_predeadline_r56_horizon_duration_coupling_count=NaN;
+                obj.staged_replan_predeadline_r56_source_support_start_s=NaN;
+                obj.staged_replan_predeadline_r56_source_rejoin_s=NaN;
+                obj.staged_replan_predeadline_r56_source_corr_v_ub=NaN;
+                obj.staged_replan_predeadline_r56_source_corr_a_ub=NaN;
+                obj.staged_replan_predeadline_r56_source_corr_j_ub=NaN;
+                obj.staged_replan_predeadline_r56_source_min_hxy=NaN;
+                obj.staged_replan_predeadline_r56_alpha_max_pointwise=NaN;
+                obj.staged_replan_predeadline_r56_const_max_vl=NaN;
+                obj.staged_replan_predeadline_r56_const_max_vq=NaN;
+                obj.staged_replan_predeadline_r56_const_min_sigma=NaN;
+                obj.staged_replan_predeadline_r56_const_max_qdot=NaN;
+                obj.staged_replan_predeadline_r56_const_min_geom_margin=NaN;
+                obj.staged_replan_predeadline_r56_entry_Tmax_s=NaN;
+                obj.staged_replan_predeadline_r56_entry_max_vq=NaN;
+                obj.staged_replan_predeadline_r56_entry_min_sigma=NaN;
+                obj.staged_replan_predeadline_r56_entry_max_qdot=NaN;
+                obj.staged_replan_predeadline_r56_exit_Tmax_s=NaN;
+                obj.staged_replan_predeadline_r56_exit_max_vq=NaN;
+                obj.staged_replan_predeadline_r56_exit_min_sigma=NaN;
+                obj.staged_replan_predeadline_r56_exit_max_qdot=NaN;
+                obj.staged_replan_predeadline_r56_chain_rule_max_error=NaN;
+                obj.staged_replan_predeadline_r56_shadow_ms=NaN;
+                obj.staged_replan_predeadline_r57_probe_ran=NaN;
+                obj.staged_replan_predeadline_r57_source_qp_ok=NaN;
+                obj.staged_replan_predeadline_r57_source_exact_c7=NaN;
+                obj.staged_replan_predeadline_r57_speed_attempt=NaN;
+                obj.staged_replan_predeadline_r57_speed_pass=NaN;
+                obj.staged_replan_predeadline_r57_speed_stageA_pass=NaN;
+                obj.staged_replan_predeadline_r57_speed_stageB_attempt=NaN;
+                obj.staged_replan_predeadline_r57_speed_stageB_finite_witness=NaN;
+                obj.staged_replan_predeadline_r57_speed_stageB_repr_fail=NaN;
+                obj.staged_replan_predeadline_r57_heading_attempt=NaN;
+                obj.staged_replan_predeadline_r57_heading_pass=NaN;
+                obj.staged_replan_predeadline_r57_heading_leaf_count=NaN;
+                obj.staged_replan_predeadline_r57_heading_split_count=NaN;
+                obj.staged_replan_predeadline_r57_geometry_attempt=NaN;
+                obj.staged_replan_predeadline_r57_geometry_pass=NaN;
+                obj.staged_replan_predeadline_r57_commit_attempted=NaN;
+                obj.staged_replan_predeadline_r57_rejoin_selected=NaN;
+                obj.staged_replan_predeadline_r57_old_clock_commit_binding_count=NaN;
+                obj.staged_replan_predeadline_r57_horizon_duration_coupling_count=NaN;
+                obj.staged_replan_predeadline_r57_speed_VL=NaN;
+                obj.staged_replan_predeadline_r57_speed_A=NaN;
+                obj.staged_replan_predeadline_r57_speed_J=NaN;
+                obj.staged_replan_predeadline_r57_speed_sigma=NaN;
+                obj.staged_replan_predeadline_r57_speed_qdot=NaN;
+                obj.staged_replan_predeadline_r57_speed_VQ=NaN;
+                obj.staged_replan_predeadline_r57_heading_gamma=NaN;
+                obj.staged_replan_predeadline_r57_geometry_min_margin=NaN;
+                obj.staged_replan_predeadline_r57_source_support_start_s=NaN;
+                obj.staged_replan_predeadline_r57_source_support_end_s=NaN;
+                obj.staged_replan_predeadline_r57_source_corr_v_ub=NaN;
+                obj.staged_replan_predeadline_r57_source_corr_a_ub=NaN;
+                obj.staged_replan_predeadline_r57_source_corr_j_ub=NaN;
+                obj.staged_replan_predeadline_r57_source_build_ms=NaN;
+                obj.staged_replan_predeadline_r57_speed_ms=NaN;
+                obj.staged_replan_predeadline_r57_heading_ms=NaN;
+                obj.staged_replan_predeadline_r57_geometry_ms=NaN;
+                obj.staged_replan_predeadline_r57_probe_ms=NaN;
+                obj.staged_replan_predeadline_r58_shadow_ran=NaN;
+                obj.staged_replan_predeadline_r58r14_lowjet_seed_only=NaN;
+                obj.staged_replan_predeadline_r58r14_active_reduced_dof=NaN;
+                obj.staged_replan_predeadline_r58r14_full_reduced_dof=NaN;
+                obj.staged_replan_predeadline_r58_speed_gate_rows=zeros(0,38);
+                obj.staged_replan_predeadline_r58_reference_only=NaN;
+                obj.staged_replan_predeadline_r58_fixed_rejoin_constraint_count=NaN;
+                obj.staged_replan_predeadline_r58_same_clock_binding_count=NaN;
+                obj.staged_replan_predeadline_r58_horizon_duration_coupling_count=NaN;
+                obj.staged_replan_predeadline_r58_free_c7_constructive=NaN;
+                obj.staged_replan_predeadline_r58_terminal_offset_hold=NaN;
+                obj.staged_replan_predeadline_r58_terminal_zero_derivative_order=NaN;
+                obj.staged_replan_predeadline_r58_source_knot_count=NaN;
+                obj.staged_replan_predeadline_r58_scalar_dof_count=NaN;
+                obj.staged_replan_predeadline_r58_spatial_dof_count=NaN;
+                obj.staged_replan_predeadline_r58_episode_count=NaN;
+                obj.staged_replan_predeadline_r58_component_count=NaN;
+                obj.staged_replan_predeadline_r58_side_cache_plus_valid=NaN;
+                obj.staged_replan_predeadline_r58_side_cache_minus_valid=NaN;
+                obj.staged_replan_predeadline_r58_side_cache_fail=NaN;
+                obj.staged_replan_predeadline_r58_bnb_nodes_popped=NaN;
+                obj.staged_replan_predeadline_r58_bnb_qp_solves=NaN;
+                obj.staged_replan_predeadline_r58_bnb_qp_infeasible=NaN;
+                obj.staged_replan_predeadline_r58_bnb_full_assignments=NaN;
+                obj.staged_replan_predeadline_r58_bnb_speed_fail=NaN;
+                obj.staged_replan_predeadline_r58_bnb_heading_fail=NaN;
+                obj.staged_replan_predeadline_r58_bnb_geometry_fail=NaN;
+                obj.staged_replan_predeadline_r58_bnb_feasible_full=NaN;
+                obj.staged_replan_predeadline_r58_bnb_max_queue=NaN;
+                obj.staged_replan_predeadline_r58_selected_side_plus=NaN;
+                obj.staged_replan_predeadline_r58_selected_side_minus=NaN;
+                obj.staged_replan_predeadline_r58_speed_pass=NaN;
+                obj.staged_replan_predeadline_r58_heading_pass=NaN;
+                obj.staged_replan_predeadline_r58_geometry_pass=NaN;
+                obj.staged_replan_predeadline_r58_needs_time_law=NaN;
+                obj.staged_replan_predeadline_r58_commit_attempted=NaN;
+                obj.staged_replan_predeadline_r58_rejoin_selected=NaN;
+                obj.staged_replan_predeadline_r58_reference_tracking_inflation_m=NaN;
+                obj.staged_replan_predeadline_r58_support_start_s=NaN;
+                obj.staged_replan_predeadline_r58_support_end_s=NaN;
+                obj.staged_replan_predeadline_r58_terminal_offset_norm_m=NaN;
+                obj.staged_replan_predeadline_r58_quantized_jet_max_abs_error=NaN;
+                obj.staged_replan_predeadline_r58_legacy_join_max_abs_mismatch=NaN;
+                obj.staged_replan_predeadline_r58_best_qp_cost=NaN;
+                obj.staged_replan_predeadline_r58_speed_VL=NaN;
+                obj.staged_replan_predeadline_r58_speed_A=NaN;
+                obj.staged_replan_predeadline_r58_speed_J=NaN;
+                obj.staged_replan_predeadline_r58_speed_sigma=NaN;
+                obj.staged_replan_predeadline_r58_speed_qdot=NaN;
+                obj.staged_replan_predeadline_r58_speed_VQ=NaN;
+                obj.staged_replan_predeadline_r58_heading_gamma=NaN;
+                obj.staged_replan_predeadline_r58_geometry_min_margin=NaN;
+                obj.staged_replan_predeadline_r58r2_node_scaled_variables=NaN;
+                obj.staged_replan_predeadline_r58r2_row_equilibrated=NaN;
+                obj.staged_replan_predeadline_r58r2_root_qp_elided=NaN;
+                obj.staged_replan_predeadline_r58r2_node_scale_min_s=NaN;
+                obj.staged_replan_predeadline_r58r2_node_scale_max_s=NaN;
+                obj.staged_replan_predeadline_r58r2_row_scale_min=NaN;
+                obj.staged_replan_predeadline_r58r2_row_scale_max=NaN;
+                obj.staged_replan_predeadline_r58r3_hessian_diag_equilibrated=NaN;
+                obj.staged_replan_predeadline_r58r3_equilibrated_cholesky_pass=NaN;
+                obj.staged_replan_predeadline_r58r3_raw_hdiag_min=NaN;
+                obj.staged_replan_predeadline_r58r3_raw_hdiag_max=NaN;
+                obj.staged_replan_predeadline_r58r3_raw_hdiag_ratio=NaN;
+                obj.staged_replan_predeadline_r58r3_eq_hdiag_min=NaN;
+                obj.staged_replan_predeadline_r58r3_eq_hdiag_max=NaN;
+                obj.staged_replan_predeadline_r58r4_normal_equalities_eliminated=NaN;
+                obj.staged_replan_predeadline_r58r4_reduced_spatial_dof_count=NaN;
+                obj.staged_replan_predeadline_r58r4_elimination_build_fail=NaN;
+                obj.staged_replan_predeadline_r58r4_elimination_max_residual=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_used=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_converged_feasible=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_resource_fail=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_degenerate_row_fail=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_max_sweeps_used=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_projection_count=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_optimal_kkt_count=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_max_violation=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_stationarity_residual=NaN;
+                obj.staged_replan_predeadline_r58r5_dykstra_ms=NaN;
+                obj.staged_replan_predeadline_r58r6_hildreth_used=NaN;
+                obj.staged_replan_predeadline_r58r6_kkt_converged_count=NaN;
+                obj.staged_replan_predeadline_r58r6_resource_fail_count=NaN;
+                obj.staged_replan_predeadline_r58r6_max_sweeps_used=NaN;
+                obj.staged_replan_predeadline_r58r6_coordinate_updates=NaN;
+                obj.staged_replan_predeadline_r58r6_max_primal_violation=NaN;
+                obj.staged_replan_predeadline_r58r6_max_complementarity=NaN;
+                obj.staged_replan_predeadline_r58r6_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r6_stationarity_residual=NaN;
+                obj.staged_replan_predeadline_r58r6_max_lambda=NaN;
+                obj.staged_replan_predeadline_r58r6_solver_ms=NaN;
+                obj.staged_replan_predeadline_r58r6_prequant_scaled_jet_max_abs=NaN;
+                obj.staged_replan_predeadline_r58r6_quantized_scaled_jet_rel_error=NaN;
+                obj.staged_replan_predeadline_r58r6_quantized_physical_jet_max_abs_error=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_corr_v_ub=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_corr_a_ub=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_corr_j_ub=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_speed_worst_vq=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_speed_worst_vl=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_speed_worst_sigma=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_speed_worst_qdot=NaN;
+                obj.staged_replan_predeadline_r58r6_failed_speed_witness=NaN;
+                obj.staged_replan_predeadline_r58r7_constraint_generation_used=NaN;
+                obj.staged_replan_predeadline_r58r7_full_row_count_max=NaN;
+                obj.staged_replan_predeadline_r58r7_outer_iterations_max=NaN;
+                obj.staged_replan_predeadline_r58r7_full_scans=NaN;
+                obj.staged_replan_predeadline_r58r7_rows_added=NaN;
+                obj.staged_replan_predeadline_r58r7_active_rows_max=NaN;
+                obj.staged_replan_predeadline_r58r7_subset_kkt_solves=NaN;
+                obj.staged_replan_predeadline_r58r7_subset_kkt_converged=NaN;
+                obj.staged_replan_predeadline_r58r7_subset_resource_fail=NaN;
+                obj.staged_replan_predeadline_r58r7_duplicate_add_fail=NaN;
+                obj.staged_replan_predeadline_r58r7_full_optimality_closed=NaN;
+                obj.staged_replan_predeadline_r58r7_subset_sweeps_max=NaN;
+                obj.staged_replan_predeadline_r58r7_coordinate_updates=NaN;
+                obj.staged_replan_predeadline_r58r7_initial_worst_violation=NaN;
+                obj.staged_replan_predeadline_r58r7_final_max_violation=NaN;
+                obj.staged_replan_predeadline_r58r7_final_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r7_final_complementarity=NaN;
+                obj.staged_replan_predeadline_r58r7_final_stationarity=NaN;
+                obj.staged_replan_predeadline_r58r7_solver_ms=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_used=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_converged=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_resource_fail=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_factor_fail=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_max_iterations=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_newton_solves=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_primal_residual=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_dual_residual=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_complementarity=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_min_slack=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_min_lambda=NaN;
+                obj.staged_replan_predeadline_r58r8_ipm_ms=NaN;
+                obj.staged_replan_predeadline_r58r8_newton_diag_equilibrated=NaN;
+                obj.staged_replan_predeadline_r58r8_pcg_used=NaN;
+                obj.staged_replan_predeadline_r58r8_pcg_resource_fail=NaN;
+                obj.staged_replan_predeadline_r58r8_pcg_max_iterations=NaN;
+                obj.staged_replan_predeadline_r58r8_pcg_final_rel_residual=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_count=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_depth=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_last_side=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_outer_iteration=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_active_rows=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_added_row=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_ipm_iteration=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_stage=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_pcg_iterations=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_pcg_final_rel_residual=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_pcg_rhs_inf=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_D_min=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_D_max=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_D_ratio=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_min_slack=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_min_lambda=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_metric_max_abs_corr=NaN;
+                obj.staged_replan_predeadline_r58r9_failure_metric_one_minus_corr=NaN;
+                obj.staged_replan_predeadline_r58r9_full_scan_ms=NaN;
+                obj.staged_replan_predeadline_r58r9_subset_solver_ms=NaN;
+                obj.staged_replan_predeadline_r58r9_pcg_ms=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_failed=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_failed=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_failure_stage=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_failure_stage=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_failure_active_rows=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_failure_active_rows=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_failure_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_failure_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_metric_max_abs_corr=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_metric_max_abs_corr=NaN;
+                obj.staged_replan_predeadline_r58r9_plus_cg_ms=NaN;
+                obj.staged_replan_predeadline_r58r9_minus_cg_ms=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_primal_residual=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_dual_residual=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_mu=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_kkt_tol=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_gap_tol=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_last_sigma=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_last_alpha_primal=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_last_alpha_dual=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_min_alpha_primal=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_min_alpha_dual=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_mu_ratio=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_D_min=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_D_max=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_D_ratio=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_min_slack=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_min_lambda=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_iterations=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_iterations=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_predictor_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r10_plus_corrector_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_primal_residual=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_dual_residual=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_mu=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_duality_gap=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_kkt_tol=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_gap_tol=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_last_sigma=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_last_alpha_primal=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_last_alpha_dual=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_min_alpha_primal=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_min_alpha_dual=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_mu_ratio=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_D_min=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_D_max=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_D_ratio=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_min_slack=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_min_lambda=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_iterations=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_iterations=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_predictor_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r10_minus_corrector_pcg_relres=NaN;
+                obj.staged_replan_predeadline_r58r11_augmented_kkt_used=NaN;
+                obj.staged_replan_predeadline_r58r11_augmented_kkt_solve_fail=NaN;
+                obj.staged_replan_predeadline_r58r11_common_step_used=NaN;
+                obj.staged_replan_predeadline_r58r11_augmented_kkt_max_dim=NaN;
+                obj.staged_replan_predeadline_r58r11_newton_solves=NaN;
+                obj.staged_replan_predeadline_r58r11_newton_max_rel_residual=NaN;
+                obj.staged_replan_predeadline_r58r11_common_step_min=NaN;
+                obj.staged_replan_predeadline_r58r11_common_step_last=NaN;
+                obj.staged_replan_predeadline_r58r11_solver_ms=NaN;
+                obj.staged_replan_predeadline_rejoin_certificate_tests=NaN;
+                obj.staged_replan_predeadline_rejoin_safe_trial_count=NaN;
+                obj.staged_replan_predeadline_rejoin_baseline_t1=NaN;
+                obj.staged_replan_predeadline_rejoin_selected_t1=NaN;
+                obj.staged_replan_predeadline_rejoin_selected=false;
+                obj.r34_mirror_reset_pending=false;
+            end
             if ~obj.r26_deferred_pending
                 return;
             end
@@ -17535,7 +17723,20 @@ classdef REPLANNING_SYSTEM < handle
             st.r29_theta_old=NaN; st.r29_theta_used=NaN;
             st.r29_roll_old=NaN; st.r29_roll_used=NaN;
             st.r29_W_ub=NaN; st.r29_Iw=NaN;
+            st.r31_stage_start_ms=NaN;
+            st.rtime_stage_start_ms=NaN;
+            st.r31_stage_advance_ms=NaN;
+            st.rtime_stage_advance_ms=NaN;
+            st.r31_deferred_capture_ms=NaN;
+            st.rtime_capture_ms=NaN;
+            st.r31_nominal_pos_m=nan(3,1);
+            st.r31_active_pos_m=nan(3,1);
+            st.r31_correction_pos_m=nan(3,1);
+            st.r31_correction_norm_m=NaN;
+            st.rtime_correction_norm_m=NaN;
             st.rt_light_e2e_ms=NaN;
+            st.rtime_e_to_e_ms=NaN;
+            st.rtime_observer_ms=NaN;
             st.rt_spike_capture_time=NaN;
             st.rt_spike_total_ms=NaN;
             st.rt_spike_stage_front_ms=NaN;

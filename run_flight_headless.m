@@ -30,7 +30,7 @@ userpath('clear');
 %% 1. SIMと同じ基本設定
 ts = 0;          % initial time
 dt = 0.025;      % sampling period
-te = 45;         % terminal time
+te = 55;         % terminal time
 time = TIME(ts,dt,te);
 
 % -------------------------------------------------------------------------

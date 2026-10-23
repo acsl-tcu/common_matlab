@@ -1,0 +1,11 @@
+R39R1 POST-RUN AUDIT | reference only, no safety claim
+input=AF7R58R23_SPIKE_REPORT.mat
+flight_cycles=1601
+reference_ms p50=7.1912 p95=8.54891 max=50.6851
+full_cycle_residual_ms=1.42108547e-14
+online_cycle_residual_ms=0.0206
+internal_closure_verified=0
+trigger_status=SOURCE_USES_ACTIVE_REFERENCE_FUTURE_FOR_TRIGGER
+return_status=SAMPLED_SIGNED_CORRECTION_EVALUATED
+stage1=2 stage2=2 commit=2
+return_signed_min_m=-1.33896576 at_t=35.675
