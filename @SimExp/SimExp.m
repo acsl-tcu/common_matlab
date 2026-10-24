@@ -60,6 +60,7 @@ properties (Access = public)
     update_timer;
     N = 1;
     t0 = 0;
+    cha_schedule = {}; % {cha, 終了時刻; ...} 時刻に応じてchaを自動切替(シミュレーションのみ)
 end
 
 % Callbacks that handle component events
