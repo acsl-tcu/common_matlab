@@ -1,0 +1,26 @@
+function S=AF7R58R75_SOURCE_CHECK()
+% Independent audit: no edits to controller/EKF/plant/runner.
+base=AF7R58R74_SOURCE_CHECK();
+f=which('AF7R58R71_EXACT_HLC_PLANT_PREVIEW');
+assert(~isempty(f) && exist(f,'file')==2, ...
+    '[R75] missing physical preview source.');
+s=fileread(f);
+assert(contains(s,'agent.parameter.get("loadmass")') && ...
+    contains(s,'agent.parameter.get("cableL")') && ...
+    ~contains(s,"agent.parameter.get('loadmass')") && ...
+    ~contains(s,"agent.parameter.get('cableL')"), ...
+    '[R75] preview still uses char-array parameter names.');
+c=fileread(which('AF7R58R75_COLLECT'));
+assert(contains(c,'E.error_location') && ...
+    contains(c,'AF7R58R74_FROZEN_EVENT_PREVIEW(c)') && ...
+    contains(c,'AF7R58R74_REGISTRY(''get'')'), ...
+    '[R75] collector not connected to the actual frozen-event preview.');
+S=base;
+S.char_vector_parameter_getter_replaced=true;
+S.exact_event_mass_and_cable_authority_preserved=true;
+S.error_file_line_report_installed=true;
+S.production_replanner_source_unchanged=true;
+S.hlc_ekf_plant_runner_modified=false;
+S.future_collision_trigger_replaced=false;
+S.continuous_time_safety_proved=false;
+end

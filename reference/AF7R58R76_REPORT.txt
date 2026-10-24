@@ -1,0 +1,19 @@
+R76 REPLANNER ONLY | SAME EVENT PHYSICAL VS REFERENCE COLLISION AUDIT
+status=ALL_SAME_EVENT_NUMERIC_COMPARISONS_AVAILABLE__NOT_CERTIFIED events=2
+error=
+event=1 t=13.250000000 ver=0 prediction=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED audit=SAME_EVENT_REFERENCE_VS_EKF_HLC_PLANT_SAMPLED__NO_CONTINUOUS_PROOF
+  known=2 samples=161 refSampleHit=1 physicalSampleHit=1 originalTrigger=1
+  referenceTTC=3.925 physicalTTC=3.925 originalTTC=4
+  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0198840703
+  nativeReference=1 nativePhysical=1 refNativeEqualsOld=1
+  error=
+event=2 t=14.675000000 ver=1 prediction=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED audit=SAME_EVENT_REFERENCE_VS_EKF_HLC_PLANT_SAMPLED__NO_CONTINUOUS_PROOF
+  known=2 samples=161 refSampleHit=1 physicalSampleHit=1 originalTrigger=1
+  referenceTTC=3.525 physicalTTC=3.425 originalTTC=4
+  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0225374638
+  nativeReference=1 nativePhysical=1 refNativeEqualsOld=1
+  error=
+NOTE: Numeric grid cannot prove between-sample safety, thrust/tension constraints, or closed-loop reachability.
+Production trigger unchanged; a negative numeric result MUST NOT be used as a safety certificate.
+MAT=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58R76_OUT.mat
+TXT=C:\Users\student\Documents\GitHub\common_matlab\reference\AF7R58R76_REPORT.txt

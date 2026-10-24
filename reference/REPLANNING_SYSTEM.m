@@ -1,4 +1,9 @@
 classdef REPLANNING_SYSTEM < handle
+% AF7R54-R1 SOURCE-BOUND THREE-TRACK REVISION:
+% * Stage2 avoid constructing previous-yaw snapshot closures unless path-tangent yaw needs them.
+% * Stage1/2 event-matched substage counters published only AFTER Flight.
+% * Sensor/trigger current EKF vs active-reference boundary diagnostics are SHADOW ONLY.
+% * No change in C7 generator, obstacle proof, actual trigger, HLC, plant or commit decisions.
 % AF7R52-GENERAL-C7-WORLD3D-PHASE:
 % - obstacle-specific avoidance synthesis remains forbidden before the real sensor+H=4 s trigger;
 % - trigger geometry uses the same raw-ellipsoid support + Euclidean body/sweep radii as the native episode authority;
@@ -178,6 +183,43 @@ classdef REPLANNING_SYSTEM < handle
         ENABLE_PROFILING = 0;  % 詳細多段 profiling は通常運用ではOFF
         ENABLE_LIGHT_RUNTIME_AUDIT = 0; % R29 DIAGNOSTIC: LOGGER-safe do() decomposition; not production timing
         ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL = 0; % failed/deadline-missed proposal theorem diagnostics are deferred
+        % R63 live EKF NOW geometry: all active, sensor-known obstacles only.
+        % This is an instantaneous risk detector, NOT an HLC physical future
+        % predictor, and must not authorize an uncertified reference commit.
+        % R64: distinguish an EKF-now unseparated protective geometry from
+        % a predicted reference hit with positive pre-collision lead.
+        % A NOW request is actionable but NOT a license to run the staged
+        % reference-only planner or claim closed-loop HLC safety.
+        r64_no_safe_lead = false;
+        r64_now_request_count = 0;
+        r64_abort_staged_count = 0;
+        % R67: numerical NECESSARY join-condition witnesses at atomic
+        % activation.  No per-cycle work, no disk I/O, no added margin.
+        r67_seam_ring = nan(32,12);
+        r67_seam_count = 0;
+        r68_seam_detail_ring = nan(128,35);
+        r68_seam_detail_count = 0;
+        ENABLE_R63_EKF_NOW_MONITOR = true;
+        r63_now_unsafe = false;
+        r63_now_obstacle_id = NaN;
+        r63_now_component_code = NaN;
+        r63_now_known_count = 0;
+        % R71R2: immutable, event-bound postflight audit snapshots.
+        % Diagnostic only: never influences the trigger, generator, certification or HLC.
+        r71r2_event_snapshots = struct([]);
+        % R73: audit-only; no snapshot error may stop the Flight loop.
+        r73_capture_error_count = 0;
+        r73_last_capture_error_id = '';
+        r73_last_capture_error_message = '';
+        r63_now_last_time_s = NaN;
+        r63_now_hit_cumulative = 0;
+        r63_prev_reference_trigger = false;
+        r63_prev_now_hit = false;
+        r63_now_event_ring = nan(32,12);
+        r63_now_event_count = 0;
+        r63_live_authority = struct([]);
+        r63_live_authority_count = 0;
+        ENABLE_AF7R57_DETAIL_RECORD = false; % diagnostics only: no hot-path event/packet copies in clean timing
         % R13 diagnostic-only R58 heavy shadow: 0 skips ~154-ms historical
         % non-committable computation; 1 enables full QP/speed provenance.
         % This does NOT disable the production replanner or any hard certificate.
@@ -234,6 +276,27 @@ classdef REPLANNING_SYSTEM < handle
         r22_stage2_cache_ms = NaN;
         r22_stage2_native_eval_packet_ms = NaN;
         r22_stage2_native_eval_ms = NaN;
+        % R52: diagnostic-only exact packet reuse counter for staged Stage2.
+        r52_stage2_exact_packet_reuse_count = 0;
+        r52_stage2_exact_packet_last_reused = false;
+        % R53: native canonical evaluator and post-commit packet share one
+        % serialization ONLY for path-tangent yaw and existing phase modes.
+        r53_native_tangent_shared_count = 0;
+        r53_native_tangent_shared_last = false;
+        % AF7R54 R1: bounded per-event non-authoritative timing and boundary.
+        r54_stage_ring = nan(64,27);
+        r54_stage_ring_count = 0;
+        r54_stage_ring_head = 0;
+        r54_last_trigger_boundary = struct();
+        r54_yaw_snapshot_skipped_count = 0;
+        % R55 observation-only bounded trigger/frame and native-timer rings.
+        r55_trigger_ring = nan(64,29);
+        r55_trigger_ring_count = 0;
+        r55_trigger_ring_head = 0;
+        r55_trigger_packets = cell(64,1);
+        r55_last_mex_split = nan(1,3);
+        % R56: same-event native R58 splits; diagnostic-only, no decision authority.
+        r56_r58_ring = nan(64,11);
 
         r12_tail_prime_done = false;
         r12_tail_prime_ms = NaN;
@@ -1366,7 +1429,410 @@ classdef REPLANNING_SYSTEM < handle
 
 
     methods (Access = public)
+        function R = r71_report_live_flight_frame(obj,tglobal)
+            % R71: read-only comparison of pre-adjust raw reference versus
+            % ACTUAL payload target delivered through SUSPENDED_LOAD_REF_ADJUST.
+            % Only for the live source-bound Flight adapter. No actuation.
+            assert(isfinite(tglobal) && isscalar(tglobal), ...
+                '[R71] a finite global time is required.');
+            R=struct('status','FRAME_SOURCE_UNVERIFIED', ...
+                'pre_adjust_position',nan(3,1),'hlc_payload_position',nan(3,1), ...
+                'cable_length',nan,'ekf_payload_position',nan(3,1), ...
+                'raw_to_estimate_gap_m',nan,'adjusted_to_estimate_gap_m',nan);
+            obj.r71_assert_live_flight_adapter();
+            rawFn=obj.snapshot_active_reference_eval_fn();
+            x=double(rawFn(double(tglobal))); x=x(:);
+            assert(numel(x)>=3 && all(isfinite(x(1:3))), ...
+                '[R71] invalid native active reference position.');
+            L=double(obj.self.parameter.get('cableL'));
+            s=obj.self.estimator.result.state;
+            pL=double(s.pL(:));
+            R.status='LIVE_FLIGHT_PRE_ADJUST_AND_HLC_PAYLOAD_FRAMES';
+            R.pre_adjust_position=x(1:3);
+            R.hlc_payload_position=x(1:3)-[0;0;L];
+            R.cable_length=L;
+            R.ekf_payload_position=pL;
+            R.raw_to_estimate_gap_m=norm(R.pre_adjust_position-pL);
+            R.adjusted_to_estimate_gap_m=norm(R.hlc_payload_position-pL);
+        end
 
+        function R = r71_predict_live_hlc_future(obj,tglobal)
+            % Replanner-side independent physical preview, NOT a safety
+            % certificate, NOT a production trigger or commit authority.
+            % Preserves ALL live HLC/EKF/plant instances and their results.
+            obj.r71_assert_live_flight_adapter();
+            fn=obj.snapshot_active_reference_eval_fn();
+            R=AF7R58R71_EXACT_HLC_PLANT_PREVIEW( ...
+                obj.self,fn,double(tglobal),double(obj.horizon_s), ...
+                double(obj.prediction_dt),double(obj.get_load_mass()));
+        end
+
+        function r71_assert_live_flight_adapter(obj)
+            % Strict source contract for the captured working setup: current
+            % Flight sload adapter converts xd(3) -> xd(3)-cableL.
+            % A changed implementation MUST be audited, never guessed.
+            A=obj.self.reference;
+            assert(isprop(A,'sload') && ...
+                isa(A.sload,'SUSPENDED_LOAD_REF_ADJUST'), ...
+                ['[R71] the expected Flight payload reference adapter is ' ...
+                 'not installed; forward prediction is not authorized.']);
+            L=double(obj.self.parameter.get('cableL'));
+            assert(isscalar(L) && isfinite(L) && L>0, ...
+                '[R71] invalid externally supplied cable length.');
+            adapterFile=which('SUSPENDED_LOAD_REF_ADJUST');
+            assert(~isempty(adapterFile) && isfile(adapterFile), ...
+                '[R71] actual reference adapter source could not be resolved.');
+            code=fileread(adapterFile);
+            code=regexprep(code,'\s+','');
+            assert(contains(code,'nxy(3)=xd(3)-L;'), ...
+                ['[R71] Flight target converter is not the verified ' ...
+                 'xd(3)-cableL implementation. Recheck model; no fallback.']);
+        end
+
+
+
+        function [hit,obs_id,component]=r63_live_now_gate(obj,pQ,pL,mask)
+            % Exact same conservative support-plane MEX as the reference
+            % trigger, queried at the actual EKF endpoints at t=NOW only.
+            % Assumes the already synchronized production obstacle packet.
+            % Conservative non-separation is NOT a contact witness.
+            hit=false;obs_id=NaN;component=NaN;
+            if ~any(mask),return;end
+            obj.assert_trigger_packet_certificate_current();
+            pQ=double(pQ(:));pL=double(pL(:));
+            L=double(obj.L_cable);
+            assert(numel(pQ)==3&&numel(pL)==3&&L>0&& ...
+                all(isfinite([pQ;pL])), '[R63] finite EKF endpoints required.');
+            q=(pL-pQ)/L; % preserve BOTH actual endpoints, not ref pL.
+            Dcomp=[ ...
+                double(obj.r_load)+double(obj.d_margin)+ ...
+                    double(obj.obstacle_packet.delta_payload_m); ...
+                double(obj.r_drone)+double(obj.d_margin)+ ...
+                    double(obj.obstacle_packet.delta_uav_m); ...
+                double(obj.r_cable)+double(obj.d_margin)+ ...
+                    double(obj.obstacle_packet.delta_cable_m)];
+            [hit,~,obs_id,component]=g26_future_trigger_kernel_mex( ...
+                0,double(obj.prediction_dt),L,pL,q, ...
+                obj.obstacle_packet.C,obj.obstacle_packet.R, ...
+                obj.obstacle_packet.Araw,Dcomp,obj.obstacle_packet.ids, ...
+                double(mask));
+            hit=logical(hit);
+        end
+
+        function F=r63_nominal_position_jet_global(obj,tglobal)
+            % Nominal position derivatives 0..7 in GLOBAL time. No
+            % fabricated nominal law, no finite differences/sampling.
+            tf0=double(obj.flight_reference_time_origin);
+            assert(isfinite(tf0), '[R63] flight time origin unavailable.');
+            tglobal=double(tglobal);
+            assert(isfinite(tglobal)&&tglobal>=tf0, ...
+                '[R63] nominal source cannot be evaluated before Flight.');
+            N=obj.nominal_flat_derivative_fn;
+            assert(iscell(N)&&numel(N)>=8&& ...
+                all(cellfun(@(f)isa(f,'function_handle'),N(1:8))), ...
+                '[R63] exact C7 nominal derivative authority unavailable.');
+            tau=tglobal-tf0;
+            F=zeros(3,8);
+            for k=1:8
+                z=double(N{k}(tau));z=z(:);
+                assert(numel(z)==3&&all(isfinite(z)), ...
+                    '[R63] non-finite exact nominal jet.');
+                F(:,k)=z;
+            end
+        end
+
+        function A=r63_live_c7_authority(obj,tglobal)
+            % Live actual active C7/nominal/phase authority; no historical
+            % R44 snapshot, no assumption s=t when phase layers exist.
+            % Replanner/plant/HLC are not modified by this getter.
+            tglobal=double(tglobal);
+            assert(isscalar(tglobal)&&isfinite(tglobal), ...
+                '[R63] finite global query time required.');
+            mode=upper(char(obj.active_reference_mode));
+            Sj=[tglobal 1 zeros(1,6)];
+            if strcmp(mode,'NOMINAL')
+                F=obj.r63_nominal_position_jet_global(tglobal);
+            elseif strcmp(mode,'REPAIRED')
+                obj.assert_repaired_reference_current();
+                R=obj.active_repaired_reference;
+                assert(isfield(R,'batch_flat_model') && ...
+                    isstruct(R.batch_flat_model) && ...
+                    isfield(R.batch_flat_model,'certified') && ...
+                    logical(R.batch_flat_model.certified), ...
+                    '[R63] certified active batch model missing.');
+                M=R.batch_flat_model;
+                assert(isfield(M,'corrections') && isstruct(M.corrections), ...
+                    '[R63] canonical correction model unavailable.');
+                % R64: an R16 exact C7 held-offset reference has an
+                % identity physical-time phase. A stale/general phase layer
+                % must not be silently multiplied into its 7-jet authority.
+                % Only try this exact no-phase path for the source-declared
+                % identity-time hold, never for general retiming.
+                phaseKind='';
+                if isfield(R,'path_parameterization') && ...
+                        isstruct(R.path_parameterization) && ...
+                        isfield(R.path_parameterization,'kind')
+                    phaseKind=char(R.path_parameterization.kind);
+                end
+                r64IdentityHold=strcmp(phaseKind, ...
+                    'EXACT_C7_FREE_TERMINAL_OFFSET_HOLD');
+                if r64IdentityHold
+                    M.phase_layers=struct([]);
+                end
+                F=obj.af7r51_position_jet7_model(tglobal,M);
+                % R67: a declared identity-time reference cannot publish a
+                % near-zero phase speed with zero delay. This is metadata,
+                % not a replacement for the canonical flat-jet check below.
+                if r64IdentityHold
+                    Sj=[tglobal 1 zeros(1,6)];
+                else
+                for gg=numel(M.corrections):-1:1
+                    LL=obj.af7r51_phase_layer_for_group(M,gg);
+                    outer=obj.af7r51_phase_jet7(Sj(1),LL);
+                    % The canonical Faà di Bruno routine also works for
+                    % scalar jets when represented as the first XYZ row.
+                    ss=obj.af7r51_compose_position_jet7( ...
+                        [outer(:).';zeros(2,8)],Sj(:));
+                    Sj=double(ss(1,:));
+                end
+                end
+            else
+                error('[R63] unknown active reference mode: %s',mode);
+            end
+            FN=obj.r63_nominal_position_jet_global(Sj(1));
+            assert(Sj(1)<=tglobal+64*eps(max(1,abs(tglobal))), ...
+                '[R63] current phase is ahead of clock; cannot enforce no-catchup.');
+            % Verify actual flat evaluator 0..6 against analytically
+            % evaluated canonical physical-time jets. High-order 7 is
+            % provided only by canonical exact C7 source.
+            if strcmp(mode,'REPAIRED')
+                xd=obj.active_repaired_reference.flat_eval_fn(tglobal);
+                xd=double(xd(:));
+            else
+                fh=obj.snapshot_active_reference_flat_eval_fn();
+                xd=double(fh(tglobal));xd=xd(:);
+            end
+            assert(numel(xd)>=27&&all(isfinite(xd(1:27))), ...
+                '[R63] exact active flat evaluator unavailable.');
+            err=0;
+            r64Consistent=true;
+            for k=0:6
+                lhs=F(:,k+1);
+                rhs=xd(4*k+(1:3));
+                diffk=abs(lhs-rhs);
+                err=max(err,max(diffk));
+                % Roundoff-only tolerance, not an ungrounded physical
+                % velocity/acceleration allowance. Compare each derivative
+                % independently to prevent a large 7th jet from masking a
+                % 1.5 m/s first-derivative error.
+                tol=512*max(eps(max(1,abs(lhs))), ...
+                    eps(max(1,abs(rhs))));
+                if any(diffk>tol)
+                    r64Consistent=false;
+                end
+            end
+            r64Status='LIVE_EXACT_JETS_VERIFIED__NOT_SAFETY_CERTIFIED';
+            if ~r64Consistent
+                r64Status='ACTIVE_FLAT_JET_MISMATCH__REJOIN_BLOCKED';
+            end
+            A=struct('valid',logical(r64Consistent),'status',r64Status, ...
+                'time_s',tglobal, ...
+                'reference_version',double(obj.active_reference_version), ...
+                'reference_mode',mode, ...
+                'nominal_jets_0_to_7',FN, ...
+                'active_jets_0_to_7',F, ...
+                'phase_jets_0_to_7',Sj, ...
+                'phase_delay_s',tglobal-Sj(1), ...
+                'flat_active_jet_consistency_error',err, ...
+                'sensor_known_count',NaN, ...
+                'current_ekf_pQ',nan(3,1), ...
+                'current_ekf_pL',nan(3,1), ...
+                'current_ekf_q',nan(3,1), ...
+                'estimated_mass_kg',NaN, ...
+                'reference_collision_ttc_s',NaN);
+        end
+
+        function OUT=r63_live_natural_rejoin_candidate(obj,tglobal,Tseed,beta,maxTrials)
+            % R63 real live authority -> R60 exact degree-15/17 C7 phase
+            % synthesis. This is an independent NON-COMMITTABLE candidate;
+            % all yaw, cable, obstacle, input, tracking certificates still
+            % have to be re-run before installing as an active reference.
+            A=obj.r63_live_c7_authority(tglobal);
+            assert(A.valid, '[R63] no exact live C7 authority.');
+            V=struct('t0_s',double(tglobal), ...
+                'initial_duration_s',double(Tseed), ...
+                'phase_delay_s',double(A.phase_delay_s), ...
+                'phase_slowdown_beta',double(beta), ...
+                'phase_start_jets_0_to_7',double(A.phase_jets_0_to_7), ...
+                'active_jets_0_to_7',double(A.active_jets_0_to_7), ...
+                'nominal_jets_fn',@(tg)obj.r63_nominal_position_jet_global(tg), ...
+                'nominal_position_fn',@(tg)obj.r63_nominal_position0(tg), ...
+                'max_trials',double(maxTrials), ...
+                'enforce_projected_no_overshoot',true);
+            % Use a nested local handle rather than a guessed arbitrary
+            % nominal path. The source is the current exact nominal provider.
+            OUT=AF7R58R60_C7_FREE_REJOIN(V);
+            OUT.r63_live_reference_version=double(A.reference_version);
+            OUT.r63_live_reference_mode=char(A.reference_mode);
+            OUT.r63_source_verified=true;
+            OUT.commit_allowed=false;
+            OUT.hlc_unchanged=true;
+            OUT.execution_and_yaw_proved=false;
+        end
+
+        function [ok,reason]=r67_certified_commit_seam( ...
+                obj,oldFlatFn,newFlatFn,tActivation,tStart)
+            % Exactly the same physical time on both sides of the atomic
+            % reference swap. The native continuous-time C7/safety proofs
+            % remain mandatory. This is a NECESSARY anti-teleport check:
+            % it does NOT prove all-time C7 or whole-body safety by itself.
+            % Crucially, Stage1 has already targeted Stage3 activation time.
+            ok=false; reason='R67_SEAM_EVALUATION_UNAVAILABLE';
+            d=nan(1,8);
+            ta=double(tActivation); tStart=double(tStart);
+            if ~isa(oldFlatFn,'function_handle') || ...
+                    ~isa(newFlatFn,'function_handle') || ...
+                    ~isscalar(ta) || ~isfinite(ta) || ...
+                    ~isscalar(tStart) || ~isfinite(tStart)
+                obj.r67_record_seam(ta,tStart,false,d);
+                return;
+            end
+            try
+                xo=double(oldFlatFn(ta)); xo=xo(:);
+                xn=double(newFlatFn(ta)); xn=xn(:);
+                if numel(xo)<28 || numel(xn)<28 || ...
+                        any(~isfinite(xo(1:28))) || ...
+                        any(~isfinite(xn(1:28)))
+                    reason='R67_SEAM_INVALID_FLAT_SCHEMA';
+                    obj.r67_record_seam(ta,tStart,false,d);return;
+                end
+                % Position derivative orders 0..6, in the actual HLC
+                % packet convention: [px py pz yaw] repeated per order.
+                allAgree=true;
+                for k=0:6
+                    ix=4*k+(1:3);
+                    a=xo(ix);b=xn(ix);
+                    d(k+1)=max(abs(a-b));
+                    % Floating-point representation error ONLY; not a
+                    % guessed tracking tube or a physical allowance.
+                    lim=4096*max(eps(max(1,abs(a))),eps(max(1,abs(b))));
+                    if any(abs(a-b)>lim),allAgree=false;end
+                end
+                yy=4:4:28;
+                ya=xo(yy);yb=xn(yy);
+                d(8)=max(abs(ya-yb));
+                ytol=4096*max(eps(max(1,abs(ya))),eps(max(1,abs(yb))));
+                if any(abs(ya-yb)>ytol),allAgree=false;end
+                % R68: source-bound diagnostic ONLY, not a safety policy.
+                % Record every yaw derivative, current velocity tangents and
+                % individual-order mismatch before the original reject/accept.
+                obj.r68_record_yaw_seam(ta,tStart,xo,xn,allAgree);
+                ok=logical(allAgree);
+                if ok
+                    reason='R67_ATOMIC_C6_JET_NECESSARY_CONDITION_PASS';
+                else
+                    reason='R67_ATOMIC_C6_JET_DISCONTINUITY__KEEP_OLD_REFERENCE';
+                end
+            catch
+                reason='R67_ATOMIC_SEAM_EVALUATOR_ERROR__KEEP_OLD_REFERENCE';
+            end
+            obj.r67_record_seam(ta,tStart,ok,d);
+        end
+
+        function r67_record_seam(obj,ta,tStart,passed,d)
+            % Exactly once per Stage2 proposal, never every Flight tick.
+            k=mod(double(obj.r67_seam_count),32)+1;
+            obj.r67_seam_ring(k,:)=[double(ta), ...
+                double(obj.active_reference_version),double(tStart), ...
+                double(logical(passed)),double(d(:).')];
+            obj.r67_seam_count=obj.r67_seam_count+1;
+        end
+
+        function r68_record_yaw_seam(obj,ta,tStart,xo,xn,passed)
+            % DIAGNOSTIC ONLY. Never changes a candidate or the HLC.
+            % World-time packet: [px py pz yaw] for derivative orders 0..6.
+            yy=4:4:28;
+            yo=double(xo(yy)); yn=double(xn(yy));
+            vo=double(xo(5:7)); vn=double(xn(5:7));
+            to=atan2(vo(2),vo(1));tn=atan2(vn(2),vn(1));
+            wo=atan2(sin(yo(1)-to),cos(yo(1)-to));
+            wn=atan2(sin(yn(1)-tn),cos(yn(1)-tn));
+            dy=abs(yo-yn);
+            lim=4096*max(eps(max(1,abs(yo))),eps(max(1,abs(yn))));
+            fi=find(dy>lim,1,'first');
+            if isempty(fi), firstMismatch=-1;
+            else, firstMismatch=double(fi)-1;
+            end
+            pp=reshape(1:28,4,7);
+            pp=pp(1:3,:);
+            posMax=max(abs(double(xo(pp(:)))-double(xn(pp(:)))));
+            wrapYaw0=atan2(sin(yo(1)-yn(1)),cos(yo(1)-yn(1)));
+            row=[double(ta),double(obj.active_reference_version), ...
+                 double(tStart),double(logical(passed)), ...
+                 yo(:).',yn(:).',vo(:).',vn(:).', ...
+                 to,tn,wo,wn,hypot(vo(1),vo(2)),hypot(vn(1),vn(2)), ...
+                 posMax,max(dy(1:6)),dy(7),firstMismatch,wrapYaw0];
+            assert(numel(row)==35,'[R68] seam diagnostic schema mismatch');
+            k=mod(double(obj.r68_seam_detail_count),128)+1;
+            obj.r68_seam_detail_ring(k,:)=row;
+            obj.r68_seam_detail_count=obj.r68_seam_detail_count+1;
+        end
+
+        function [ok,maxErr,reason]=r65_native_canonical_agreement( ...
+                obj,model,flatEvaluator,tCommit,tEnd,dt)
+            % General nominal source: NO line/circle/saddle assumption.
+            % Compare a newly generated canonical C7 model with the very
+            % same native flat evaluator that will be supplied to HLC.
+            % This rejects known wrong representations; three samples alone
+            % are NOT a mathematical all-time equivalence certificate.
+            ok=false; maxErr=Inf;
+            reason='R65_REFERENCE_NATIVE_CANONICAL_JET_NOT_VERIFIED';
+            if ~isa(flatEvaluator,'function_handle') || ...
+                    ~all(isfinite([tCommit,tEnd,dt])) || ...
+                    dt<=0 || tEnd<tCommit
+                return;
+            end
+            probe=unique([tCommit, min(tEnd,tCommit+dt), ...
+                tCommit+0.5*(tEnd-tCommit)]);
+            maxErr=0;
+            try
+                for kt=1:numel(probe)
+                    tg=probe(kt);
+                    C=obj.af7r51_position_jet7_model(tg,model);
+                    H=double(flatEvaluator(tg));H=H(:);
+                    if ~isequal(size(C),[3,8]) || numel(H)<27 || ...
+                            ~all(isfinite(C(:))) || ~all(isfinite(H(1:27)))
+                        reason='R65_REFERENCE_JET_NONFINITE_OR_BAD_SCHEMA';
+                        return;
+                    end
+                    for order=0:6
+                        canonical=C(:,order+1);
+                        actual=H(4*order+(1:3));
+                        err=abs(canonical-actual);
+                        maxErr=max(maxErr,max(err));
+                        % Roundoff-only comparison, independently scaled
+                        % per derivative.  This is NOT a physical slack.
+                        tol=512*max(eps(max(1,abs(canonical))), ...
+                            eps(max(1,abs(actual))));
+                        if any(err>tol)
+                            reason=sprintf( ...
+                                'R65_REFERENCE_JET_MISMATCH_ORDER_%d',order);
+                            return;
+                        end
+                    end
+                end
+            catch
+                reason='R65_REFERENCE_JET_EVALUATOR_FAILED';
+                return;
+            end
+            ok=true;
+            reason='R65_NATIVE_CANONICAL_SAMPLED_JETS_AGREE';
+        end
+
+        function p=r63_nominal_position0(obj,tg)
+            J=obj.r63_nominal_position_jet_global(tg);
+            p=J(:,1);
+        end
 
         function set_horizon(obj,H)
             obj.horizon_s=H;
@@ -2104,6 +2570,9 @@ classdef REPLANNING_SYSTEM < handle
             if isfield(opts,'ENABLE_LIGHT_RUNTIME_AUDIT')
                 obj.ENABLE_LIGHT_RUNTIME_AUDIT=logical(opts.ENABLE_LIGHT_RUNTIME_AUDIT);
             end
+            if isfield(opts,'ENABLE_AF7R57_DETAIL_RECORD')
+                obj.ENABLE_AF7R57_DETAIL_RECORD=logical(opts.ENABLE_AF7R57_DETAIL_RECORD);
+            end
             if isfield(opts,'ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL')
                 obj.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL=logical(opts.ENABLE_NONCOMMIT_DIAGNOSTIC_EVAL);
             end
@@ -2364,6 +2833,11 @@ classdef REPLANNING_SYSTEM < handle
                 "detected_point", ...
                 "detected_obstacles", ...
                 "need_replan", ...
+                "r64_ekf_now_request", ...
+                "r64_ekf_now_unseparated", ...
+                "r64_now_request_count", ...
+                "r64_abort_staged_count", ...
+                "r64_closed_loop_four_second_future_certified", ...
                 "relevant_obstacles", ...
                 "min_obstacle_id_point", ...
                 "min_dist_point", ...
@@ -2590,6 +3064,14 @@ classdef REPLANNING_SYSTEM < handle
                 obj.r17_assert_research_only();
                 obj.r17_capture('RUN_INITIALIZED',NaN,NaN,struct());
             end
+
+            % R71R2: root-scoped handle lookup for scripts whose runner
+            % variables remain local. Overwritten on EACH new Flight creation.
+            % Root appdata is diagnostic only; no saved physical parameters.
+            setappdata(0,'AF7R58R71R2_ACTIVE_REPLANNER',obj);
+            % R72: independent locked persistent registry. No runner edit.
+            % Replaces its previous Flight handle on each new construction.
+            AF7R58R74_REGISTRY('register',obj);
 
             if obj.ENABLE_ALL_LOG
                 fprintf(['[REPLANNING_SYSTEM] initialized | sensor=%.3f m | H=%.3f s | ' ...
@@ -2944,6 +3426,166 @@ classdef REPLANNING_SYSTEM < handle
                     obj.trigger_core(active,pL_ref,q_ref,time.t);
             end
 
+            % R71R2: record the actual SAME-EVENT estimator state and the
+            % exact active-reference evaluator for POST-FLIGHT prediction.
+            % Only one snapshot per reference version, max three debug rows.
+            % NEVER integrate the 4-second physical model in the Flight loop.
+            % The sensor mask, trigger and commit decisions are unchanged.
+            if logical(need_replan) && ~obj.setup_exact_do_prime_active && ...
+                    ~obj.generator_integration_prime_active && ...
+                    numel(obj.r71r2_event_snapshots)<3
+                try
+                already=false;
+                for r71r2_j=1:numel(obj.r71r2_event_snapshots)
+                    already=already || (double(obj.r71r2_event_snapshots(r71r2_j).reference_version) == ...
+                        double(obj.active_reference_version));
+                end
+                if ~already
+                    % Capture is immutable and detached from future EKF updates.
+                    stateFields={'p','q','v','w','pL','vL','pT','wL'};
+                    xCaptured=zeros(24,1);
+                    stCaptured=obj.self.estimator.result.state;
+                    for r71r2_j=1:8
+                        tmpCaptured=stCaptured.(stateFields{r71r2_j});
+                        valCaptured=double(tmpCaptured(:));
+                        assert(numel(valCaptured)==3 && all(isfinite(valCaptured)), ...
+                            '[R71R2] complete EKF state needed for physical preview');
+                        xCaptured(3*r71r2_j-2:3*r71r2_j)=valCaptured;
+                    end
+                    captured=struct( ...
+                        'time_s',double(time.t), ...
+                        'reference_version',double(obj.active_reference_version), ...
+                        'reference_mode',char(obj.active_reference_mode), ...
+                        'estimated_mass_kg',double(obj.loadmass), ...
+                        'cable_length_m',double(obj.L_cable), ...
+                        'plant_param',double(obj.self.plant.param(:)), ...
+                        'plant_dim',double(obj.self.plant.dim(:)), ...
+                        'plant_method_fn',obj.self.plant.method, ...
+                        'plant_solver_fn',obj.self.plant.solver, ...
+                        'parameter_class',char(class(obj.self.parameter)), ...
+                        'parameter_order',string(obj.self.parameter.parameter_order), ...
+                        'external_param',double(obj.self.parameter.parameter(:)), ...
+                        'controller_param',obj.self.controller.hlc_suspended.param, ...
+                        'horizon_s',double(obj.horizon_s), ...
+                        'prediction_dt',double(obj.prediction_dt), ...
+                        'state_x24',xCaptured, ...
+                        'raw_reference_fn',obj.snapshot_active_reference_eval_fn(), ...
+                        'r76_known_mask',logical(active(:).'), ...
+                        'r76_detected_mask',logical(sensor_active(:).'), ...
+                        'r76_packet',struct( ...
+                            'C',double(obj.obstacle_packet.C), ...
+                            'R',double(obj.obstacle_packet.R), ...
+                            'Araw',double(obj.obstacle_packet.Araw), ...
+                            'Apay',double(obj.obstacle_packet.Apay), ...
+                            'Auav',double(obj.obstacle_packet.Auav), ...
+                            'Acable',double(obj.obstacle_packet.Acable), ...
+                            'ids',double(obj.obstacle_packet.ids), ...
+                            'delta_payload_m',double(obj.obstacle_packet.delta_payload_m), ...
+                            'delta_uav_m',double(obj.obstacle_packet.delta_uav_m), ...
+                            'delta_cable_m',double(obj.obstacle_packet.delta_cable_m), ...
+                            'reference_version',double(obj.obstacle_packet.reference_version)), ...
+                        'r76_radii_m',[double(obj.r_load);double(obj.r_drone);double(obj.r_cable)], ...
+                        'r76_d_margin_m',double(obj.d_margin), ...
+                        'r76_reference_pL',double(pL_ref), ...
+                        'r76_reference_q',double(q_ref), ...
+                        'r76_original_trigger',logical(need_replan), ...
+                        'r76_original_ttc_s',double(ttc), ...
+                        'r76_original_obstacle_id',double(obs_id), ...
+                        'r76_original_component_code',double(comp_code), ...
+                        'r76_was_stage_latched',logical(pipeline_latched));
+                    if isempty(obj.r71r2_event_snapshots)
+                        % MATLAB struct([]) has no field schema.  Assigning
+                        % with (end+1) can raise heterogeneousStrucAssignment.
+                        % Assign the first structured value as a whole.
+                        obj.r71r2_event_snapshots=captured;
+                    else
+                        assert(isequal(fieldnames(obj.r71r2_event_snapshots), ...
+                            fieldnames(captured)), ...
+                            '[R73] inconsistent diagnostic snapshot schema');
+                        obj.r71r2_event_snapshots(end+1)=captured;
+                    end
+                    % R72 event-bound registration (max three events per Flight).
+                    % Also repairs a registry lost between construction and Flight.
+                    AF7R58R74_REGISTRY('capture',obj);
+                end
+                catch r73_capture_ME
+                    % Diagnostic failure is *not* a trigger, commit decision,
+                    % or physical safety certificate. Never stop the Flight
+                    % because an audit snapshot failed to serialize.
+                    obj.r73_capture_error_count=obj.r73_capture_error_count+1;
+                    obj.r73_last_capture_error_id=char(r73_capture_ME.identifier);
+                    obj.r73_last_capture_error_message=char(r73_capture_ME.message);
+                end
+            end
+
+            % R63: EKF-initialized instantaneous whole-body known-obstacle
+            % risk. This is deliberately INDEPENDENT of the reference-only
+            % Stage1/2/3 commit contract. A t=0 hazard cannot be fed into
+            % the two-period preview pipeline as though it had future lead.
+            % Full physical 4-s current-state HLC+plant rollout is still
+            % required before replacing the reference future trigger.
+            if obj.ENABLE_R63_EKF_NOW_MONITOR
+                [r63_hit,r63_obs,r63_comp]=obj.r63_live_now_gate( ...
+                    pQ_cur,pL_cur,active);
+                obj.r63_now_unsafe=logical(r63_hit);
+                obj.r63_now_obstacle_id=double(r63_obs);
+                obj.r63_now_component_code=double(r63_comp);
+                obj.r63_now_known_count=nnz(active);
+                obj.r63_now_last_time_s=double(time.t);
+                if r63_hit
+                    obj.r63_now_hit_cumulative=obj.r63_now_hit_cumulative+1;
+                end
+                % Fixed numeric ring only; no packet copies/file I/O in Flight.
+                % Capture a change or hazardous instant, not every 25-ms row.
+                r63_record=(r63_hit && ~obj.r63_prev_now_hit) || ...
+                    (need_replan && ~obj.r63_prev_reference_trigger);
+                obj.r63_prev_now_hit=logical(r63_hit);
+                obj.r63_prev_reference_trigger=logical(need_replan);
+                if r63_record
+                    ki=mod(obj.r63_now_event_count,32)+1;
+                    obj.r63_now_event_ring(ki,:)=[ ...
+                        double(time.t),double(obj.active_reference_version), ...
+                        double(nnz(active)),double(logical(need_replan)), ...
+                        double(logical(r63_hit)),double(r63_obs), ...
+                        double(r63_comp),double(ttc), ...
+                        norm(double(pL_cur(:))-double(pQ_cur(:))- ...
+                             double(obj.L_cable)*double(q_cur(:))), ...
+                        norm(double(pL_ref(:,1))-double(pQ_cur(:))), ...
+                        norm(double(pL_ref(:,1))-double(pL_cur(:))), ...
+                        double(obj.r63_now_hit_cumulative)];
+                    obj.r63_now_event_count=obj.r63_now_event_count+1;
+                end
+            end
+
+            % R64: measured protective-body geometry at NOW takes priority
+            % over the active-reference's future packet. Detection/memory and
+            % its original/raw shape gate above are completely unchanged.
+            % A NOW non-separation has TTC=0: it MUST NOT be misrepresented
+            % as a fresh, positive-lead, reference-only C7 planning request.
+            obj.r64_no_safe_lead=false;
+            if obj.ENABLE_R63_EKF_NOW_MONITOR && obj.r63_now_unsafe && ...
+                    ~obj.setup_exact_do_prime_active && ...
+                    ~obj.generator_integration_prime_active
+                obj.r64_no_safe_lead=true;
+                obj.r64_now_request_count=obj.r64_now_request_count+1;
+                if obj.ENABLE_STAGED_REPLAN_PIPELINE && ...
+                        ~strcmp(char(obj.staged_replan_state),'IDLE')
+                    obj.reset_staged_replan_pipeline( ...
+                        'R64_EKF_NOW_UNSEPARATED_NO_CERTIFIED_LEAD',false);
+                    obj.r64_abort_staged_count=obj.r64_abort_staged_count+1;
+                end
+                need_replan=true;
+                ttc=0;
+                collision_time=double(time.t);
+                obs_id=double(obj.r63_now_obstacle_id);
+                comp_code=double(obj.r63_now_component_code);
+                comp_name=obj.get_component_name(comp_code);
+                pL_collision=double(pL_cur(:));
+                pQ_collision=double(pQ_cur(:));
+                q_collision=double(q_cur(:));
+                jhit=1;
+            end
+
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
                 r36_t_trigger=1e3*toc(t_hard_cycle);
             end
@@ -2977,7 +3619,7 @@ classdef REPLANNING_SYSTEM < handle
             end
             % Replan generator is invoked only on a REAL Flight request edge.
             % Setup/warmup forced-hit paths never invoke the external generator.
-            if need_replan
+            if need_replan && ~obj.r64_no_safe_lead
                 % ---------------------------------------------------------
                 % Request identity, not only a boolean rising edge.
                 %
@@ -3009,6 +3651,142 @@ classdef REPLANNING_SYSTEM < handle
                 requestIdentityChanged = ~sameIdentity || retryableDeadlineMiss;
 
                 if requestIdentityChanged
+                    % R63: take ACTUAL live C7/phase jets and reference version
+                    % on the request edge. Numeric metadata only, at most 16
+                    % source snapshots. Never modifies proposal/commit.
+                    if obj.r63_live_authority_count<16 && ...
+                            ~obj.setup_exact_do_prime_active && ...
+                            ~obj.generator_integration_prime_active
+                        try
+                            LA=obj.r63_live_c7_authority(double(time.t));
+                            LA.sensor_known_count=double(nnz(active));
+                            LA.current_ekf_pQ=double(pQ_cur(:));
+                            LA.current_ekf_pL=double(pL_cur(:));
+                            LA.current_ekf_q=double(q_cur(:));
+                            LA.estimated_mass_kg=double(obj.get_load_mass());
+                            LA.reference_collision_ttc_s=double(ttc);
+                            if isempty(obj.r63_live_authority)
+                                obj.r63_live_authority=LA;
+                            else
+                                obj.r63_live_authority(end+1)=LA;
+                            end
+                            obj.r63_live_authority_count= ...
+                                obj.r63_live_authority_count+1;
+                        catch ME
+                            % Never invent missing authoritative jets.
+                            % Retain source identity and failure as a numeric
+                            % status; no change to the real safety decision.
+                            LA=struct('valid',false, ...
+                                'status',['LIVE_AUTHORITY_UNAVAILABLE__' char(ME.identifier)], ...
+                                'time_s',double(time.t), ...
+                                'reference_version',double(obj.active_reference_version), ...
+                                'reference_mode',char(obj.active_reference_mode), ...
+                                'nominal_jets_0_to_7',nan(3,8), ...
+                                'active_jets_0_to_7',nan(3,8), ...
+                                'phase_jets_0_to_7',nan(1,8), ...
+                                'phase_delay_s',NaN, ...
+                                'flat_active_jet_consistency_error',NaN, ...
+                                'sensor_known_count',double(nnz(active)), ...
+                                'current_ekf_pQ',double(pQ_cur(:)), ...
+                                'current_ekf_pL',double(pL_cur(:)), ...
+                                'current_ekf_q',double(q_cur(:)), ...
+                                'estimated_mass_kg',NaN, ...
+                                'reference_collision_ttc_s',double(ttc));
+                            if isempty(obj.r63_live_authority)
+                                obj.r63_live_authority=LA;
+                            else
+                                obj.r63_live_authority(end+1)=LA;
+                            end
+                            obj.r63_live_authority_count= ...
+                                obj.r63_live_authority_count+1;
+                        end
+                    end
+                    % R54: diagnostic ONLY. The collision trigger still uses
+                    % the existing active reference, not these estimates.
+                    % Never splice the EKF position into one future column.
+                    if obj.ENABLE_AF7R57_DETAIL_RECORD
+                    try
+                        obj.r54_last_trigger_boundary=struct( ...
+                            't',double(time.t), ...
+                            'reference_version',double(obj.active_reference_version), ...
+                            'reference_mode',char(obj.active_reference_mode), ...
+                            'sensor_ekf_pQ',double(pQ_cur(:)), ...
+                            'sensor_ekf_pL',double(pL_cur(:)), ...
+                            'sensor_ekf_q',double(q_cur(:)), ...
+                            'reference_pL_0',double(pL_ref(:,1)), ...
+                            'reference_q_0',double(q_ref(:,1)), ...
+                            'position_gap_m',norm(double(pL_cur(:))-double(pL_ref(:,1))), ...
+                            'cable_dir_gap',norm(double(q_cur(:))-double(q_ref(:,1))), ...
+                            'predicted_ttc_s',double(ttc), ...
+                            'predicted_component',char(comp_name), ...
+                            'trigger_uses_reference',true, ...
+                            'physical_closed_loop_predicted',false);
+                        % Preserve a small real-EKF input packet for the
+                        % subsequent controller/plant shadow. No guessed
+                        % dynamics or missing-state fallbacks are introduced.
+                        es=obj.self.estimator.result.state;
+                        fields={'v','vL','w','wL','q','pT','pL','p'};
+                        missing={};
+                        for ii=1:numel(fields)
+                            nm=fields{ii};
+                            if obj.has_prop_or_field(es,nm)
+                                val=double(es.(nm));
+                                if isnumeric(val) && ~isempty(val) && ...
+                                        all(isfinite(val(:)))
+                                    obj.r54_last_trigger_boundary.(['ekf_' nm])=val;
+                                else
+                                    missing{end+1}=nm; %#ok<AGROW>
+                                end
+                            else
+                                missing{end+1}=nm; %#ok<AGROW>
+                            end
+                        end
+                        obj.r54_last_trigger_boundary.ekf_missing_fields=missing;
+                        obj.r54_last_trigger_boundary.estimated_mL_kg= ...
+                            obj.get_load_mass();
+                        % R55 same-time physical/reference association.
+                        % This is observational; it never selects an avoidance
+                        % trajectory or changes the H=4 s trigger authority.
+                        r55_refQ=double(pL_ref(:,1))-double(obj.L_cable)*double(q_ref(:,1));
+                        r55_row=[double(time.t),double(obj.active_reference_version), ...
+                            double(pQ_cur(:)).',double(pL_cur(:)).', ...
+                            double(q_cur(:)).',double(pL_ref(:,1)).', ...
+                            double(q_ref(:,1)).',r55_refQ(:).', ...
+                            norm(double(pL_ref(:,1))-double(pQ_cur(:))), ...
+                            norm(double(pL_ref(:,1))-double(pL_cur(:))), ...
+                            norm(r55_refQ-double(pQ_cur(:))), ...
+                            norm(double(pL_ref(:,1))+double(obj.L_cable)*double(q_ref(:,1))-double(pL_cur(:))), ...
+                            double(ttc),double(comp_code),double(obj.L_cable), ...
+                            double(obj.get_load_mass()),double(nnz(active))];
+                        r55_i=mod(double(obj.r55_trigger_ring_head),64)+1;
+                        obj.r55_trigger_ring(r55_i,:)=r55_row;
+                        % Full masked packet retained ONLY for postflight
+                        % exact-kernel diagnostic replay: never include an
+                        % unsensed obstacle in safety or in replay.
+                        obj.r55_trigger_packets{r55_i}=struct( ...
+                            'pL_ref',double(pL_ref),'q_ref',double(q_ref), ...
+                            'pL_EKF',double(pL_cur(:)),'pQ_EKF',double(pQ_cur(:)), ...
+                            'q_EKF',double(q_cur(:)), ...
+                            'active',logical(active(:).'), ...
+                            'centers',double(obj.obstacle_packet.C), ...
+                            'rotations',double(obj.obstacle_packet.R), ...
+                            'axes',double(obj.obstacle_packet.Araw), ...
+                            'ids',double(obj.obstacle_packet.ids), ...
+                            'radii',[double(obj.r_load)+double(obj.d_margin)+double(obj.obstacle_packet.delta_payload_m); ...
+                                double(obj.r_drone)+double(obj.d_margin)+double(obj.obstacle_packet.delta_uav_m); ...
+                                double(obj.r_cable)+double(obj.d_margin)+double(obj.obstacle_packet.delta_cable_m)], ...
+                            'H',double(obj.horizon_s), ...
+                            'dt',double(obj.prediction_dt),'L',double(obj.L_cable), ...
+                            'xd_nom_now',double(xd_nom(:)), ...
+                            'xd_active_now',double(xd_active_now(:)), ...
+                            'reference_packet_source',char(ref_source), ...
+                            'estimator_mass_now_kg',double(obj.get_load_mass()));
+                        obj.r55_trigger_ring_head=r55_i;
+                        obj.r55_trigger_ring_count=min(64,double(obj.r55_trigger_ring_count)+1);
+                    catch
+                        % Diagnostic capture failure never changes decisions.
+                    end
+                    end % R57 non-authoritative trigger packet/estimator snapshot
 
                     % AF7R43: replay-event materialization is diagnostic.
                     % Preserve PRE-COMMIT authorities by copy-on-write now,
@@ -3096,6 +3874,17 @@ classdef REPLANNING_SYSTEM < handle
                 obj.replan_request_reference_version=-1;
                 obj.replan_request_obstacle_id=NaN;
                 obj.replan_request_component_code=NaN;
+                if obj.r64_no_safe_lead
+                    obj.last_replan_status=struct( ...
+                        'requested',true,'committed',false, ...
+                        'reason','EKF_NOW_UNSEPARATED__NO_CERTIFIED_PRECOLLISION_LEAD', ...
+                        'request_time',double(time.t), ...
+                        'trigger_ttc',0, ...
+                        'trigger_obstacle_id',double(obs_id), ...
+                        'trigger_component',char(comp_name), ...
+                        'backup_executed',false, ...
+                        'physical_contact_proved',false);
+                end
             end
 
             if obj.ENABLE_LIGHT_RUNTIME_AUDIT
@@ -3172,6 +3961,11 @@ classdef REPLANNING_SYSTEM < handle
 
             % Fixed scalar trigger fields first.
             st.need_replan=need_replan;
+            st.r64_ekf_now_request=logical(obj.r64_no_safe_lead);
+            st.r64_ekf_now_unseparated=logical(obj.r63_now_unsafe);
+            st.r64_now_request_count=double(obj.r64_now_request_count);
+            st.r64_abort_staged_count=double(obj.r64_abort_staged_count);
+            st.r64_closed_loop_four_second_future_certified=false;
             st.trigger_ttc=ttc;
             st.trigger_collision_time=collision_time;
             st.trigger_obstacle_id=obs_id;
@@ -3192,7 +3986,11 @@ classdef REPLANNING_SYSTEM < handle
             st.trigger_pL_collision=pL_collision;
             st.trigger_q_collision=q_collision;
             st.trigger_pQ_collision=pQ_collision;
-            st.trigger_reference_source=ref_source;
+            if obj.r64_no_safe_lead
+                st.trigger_reference_source='EKF_NOW_UNSEPARATED__NOT_FUTURE';
+            else
+                st.trigger_reference_source=ref_source;
+            end
             st.trigger_sensor_origin=pQ_cur;
             st.trigger_active_mask=double(active);
             st.trigger_raw_distances=all_dists;
@@ -5646,6 +6444,9 @@ classdef REPLANNING_SYSTEM < handle
 
             % Exact baseline witness at the full valid reference boundary.
             pkt=af7r34_make_core_packet(obj,CTX,struct('t1',referenceEnd));
+            % Diagnostic-only C++ floating pre-lattice candidate and 38-col trace.
+            % Defaults OFF; does not switch off R58R16 bridge or its certificates.
+            pkt.r58_detail_diagnostic_enabled=double(logical(obj.ENABLE_AF7R57_DETAIL_RECORD));
             pkt.r58_shadow_diagnostic_enabled=logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC);
             pkt.r58r14_lowjet_seed_only=logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY);
             pkt.r58r16_reference_bridge=double(logical(obj.ENABLE_AF7R58R16_REFERENCE_BRIDGE));
@@ -5661,6 +6462,17 @@ classdef REPLANNING_SYSTEM < handle
             r20_mex_tic=tic;
             RAWbase=af7r36_single_core_mex(1,pkt);
             obj.r20_native_mex_ms=1e3*toc(r20_mex_tic);
+            % Diagnostic only: clocks in the same native event. If a stale
+            % MEX was not rebuilt, leave NaN instead of inventing values.
+            if obj.ENABLE_AF7R57_DETAIL_RECORD
+                obj.r55_last_mex_split=nan(1,3);
+                r55_fields={'r55_mex_parse_ms','r55_mex_plan_ms','r55_mex_result_ms'};
+                if all(isfield(RAWbase,r55_fields))
+                    obj.r55_last_mex_split=double([ ...
+                        RAWbase.r55_mex_parse_ms,RAWbase.r55_mex_plan_ms, ...
+                        RAWbase.r55_mex_result_ms]);
+                end
+            end
 
             % Version binding is carried by the ordinary result schema; no
             % extra MEX opcode or external helper is introduced.
@@ -6916,6 +7728,10 @@ classdef REPLANNING_SYSTEM < handle
                     'stage2_cache_ms',double(obj.r22_stage2_cache_ms), ...
                     'stage2_native_eval_packet_ms',double(obj.r22_stage2_native_eval_packet_ms), ...
                     'stage2_native_eval_ms',double(obj.r22_stage2_native_eval_ms), ...
+                    'r52_stage2_exact_packet_reuse_count',double(obj.r52_stage2_exact_packet_reuse_count), ...
+                    'r52_stage2_exact_packet_last_reused',logical(obj.r52_stage2_exact_packet_last_reused), ...
+                    'r53_native_tangent_shared_count',double(obj.r53_native_tangent_shared_count), ...
+                    'r53_native_tangent_shared_last',logical(obj.r53_native_tangent_shared_last), ...
                     'r58_build_ms',double(obj.staged_replan_predeadline_r58_build_ms), ...
                     'r58_homotopy_ms',double(obj.staged_replan_predeadline_r58_homotopy_ms), ...
                     'r58_certificate_ms',double(obj.staged_replan_predeadline_r58_certificate_ms), ...
@@ -6931,6 +7747,46 @@ classdef REPLANNING_SYSTEM < handle
                     'stage2_reference_cert_ms',double(obj.r20_stage2_cert_ms), ...
                     'stage2_bundle_ms',double(obj.r20_stage2_bundle_ms), ...
                     'stage2_other_ms',double(obj.r20_stage2_other_ms));
+            % R54: materialize final ring only after Flight.
+            D.r54_stage_ring=double(obj.r54_stage_ring);
+            D.r54_stage_ring_head=double(obj.r54_stage_ring_head);
+            D.r54_stage_ring_count=double(obj.r54_stage_ring_count);
+            D.r54_stage_ring_columns={ ...
+                'time_s','stage_code','stage_total_ms','reason_code', ...
+                'future_or_cert_ms','context_or_bundle_ms', ...
+                'native_call_or_model_ms','native_packet_or_sensor_ms', ...
+                'native_mex_or_evalhandles_ms','native_wrapper_or_cache_ms', ...
+                'episode_or_native_packet_ms','hessian_or_native_eval_ms', ...
+                'corridor_or_tangent_yaw','qp_or_phase_reparameterized', ...
+                'candidate_build_or_delay_preserving', ...
+                'synthesis_or_rejoin_time','phase_delay_s', ...
+                'yaw_snapshot_skipped_cumulative', ...
+                'r53_shared_count','r52_reuse_count', ...
+                'r55_mex_parse_ms','r55_mex_plan_ms','r55_mex_result_ms', ...
+                'r55_phase_seed_or_terminal_offset_norm', ...
+                'r55_phase_certified_or_hold_start', ...
+                'r55_natural_trials_or_free_rejoin', ...
+                'r55_natural_selected_or_phase_seed'};
+            D.r55_trigger_ring=double(obj.r55_trigger_ring);
+            D.r55_trigger_ring_count=double(obj.r55_trigger_ring_count);
+            D.r55_trigger_ring_head=double(obj.r55_trigger_ring_head);
+            D.r55_trigger_packets=obj.r55_trigger_packets;
+            D.r56_r58_ring=double(obj.r56_r58_ring);
+            D.r54_yaw_snapshot_skipped_count= ...
+                double(obj.r54_yaw_snapshot_skipped_count);
+            D.r54_last_trigger_boundary=obj.r54_last_trigger_boundary;
+            % R63 single end-of-Flight flush; never write a disk file online.
+            D.r63_now_event_ring=obj.r63_now_event_ring;
+            D.r63_now_event_count=double(obj.r63_now_event_count);
+            D.r63_now_hit_count=double(obj.r63_now_hit_cumulative);
+            D.r63_live_authority=obj.r63_live_authority;
+            D.r63_live_authority_count=double(obj.r63_live_authority_count);
+            D.r64_now_request_count=double(obj.r64_now_request_count);
+            D.r64_abort_staged_count=double(obj.r64_abort_staged_count);
+            D.r67_seam_ring=double(obj.r67_seam_ring);
+            D.r67_seam_count=double(obj.r67_seam_count);
+            D.r68_seam_detail_ring=double(obj.r68_seam_detail_ring);
+            D.r68_seam_detail_count=double(obj.r68_seam_detail_count);
             obj.r25_event_capture=D;
             setappdata(0,'AF7R58R17_LAST_CAPTURE',obj.r25_event_capture);
         end
@@ -7399,7 +8255,8 @@ classdef REPLANNING_SYSTEM < handle
             % and does NOT retain a controller/plant/agent handle. Never grants
             % acceptance or changes trajectory, deadline or hard certificates.
             % Deliberately restricted to explicit R58+R14 research diagnostics.
-            if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
+            if obj.ENABLE_AF7R57_DETAIL_RECORD && ...
+                    logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
                     logical(obj.ENABLE_AF7R58R14_LOWJET_SEED_ONLY) && ...
                     isstruct(candidate) && isfield(candidate,'native_raw') && ...
                     isstruct(candidate.native_raw)
@@ -7843,21 +8700,26 @@ classdef REPLANNING_SYSTEM < handle
                 s0=double(C(g).segment_t0(:).');
                 s1=double(C(g).segment_t1(:).');
                 CP=C(g).control_points;
+                cpIsCell=iscell(CP);
+                if ~cpIsCell
+                    % Mathematically identical double() conversion, one per
+                    % correction group instead of one per time segment.
+                    A=double(CP);
+                    cpIsTensor=ndims(A)==3;
+                    cpIsSingle=isequal(size(A),[3 16]) && numel(s0)==1;
+                end
                 for k=1:numel(s0)
                     jj=jj+1;
                     Q.repair_seg0(jj)=s0(k);
                     Q.repair_seg1(jj)=s1(k);
-                    if iscell(CP)
+                    if cpIsCell
                         cp=double(CP{k});
+                    elseif cpIsTensor
+                        cp=A(:,:,k);
+                    elseif cpIsSingle
+                        cp=A;
                     else
-                        A=double(CP);
-                        if ndims(A)==3
-                            cp=A(:,:,k);
-                        elseif isequal(size(A),[3 16]) && numel(s0)==1
-                            cp=A;
-                        else
-                            error('[REPLANNER ERROR] unsupported canonical control-point storage.');
-                        end
+                        error('[REPLANNER ERROR] unsupported canonical control-point storage.');
                     end
                     assert(isequal(size(cp),[3 16]) && all(isfinite(cp),'all'));
                     Q.repair_cp(:,jj)=cp(:);
@@ -7928,9 +8790,12 @@ classdef REPLANNING_SYSTEM < handle
             if ~isfield(model,'phase_layers') || isempty(model.phase_layers)
                 return;
             end
+            % Same exact-equality and same last-match rule as the original;
+            % avoid rebuilding the full temporary array for each correction.
+            phaseStart=arrayfun(@(x)double(x.correction_t0),model.phase_layers);
             for g=1:G
                 ct=double(model.corrections(g).t0);
-                ix=find(arrayfun(@(x)double(x.correction_t0)==ct,model.phase_layers),1,'last');
+                ix=find(phaseStart==ct,1,'last');
                 if isempty(ix),continue;end
                 L=model.phase_layers(ix);
                 Q.repair_phase_enabled(g)=1;
@@ -8064,12 +8929,32 @@ classdef REPLANNING_SYSTEM < handle
             end
 
             r22_sensor_tic=tic;
-            % Exact rebuild is intentional in the staged-preparation cycle.
-            % No cache/reuse theorem is needed for timing here.
-            sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
-            packetNew=obj.prepare_obstacle_packet_fast_target( ...
-                obj.obstacle_packet,sweepNew,targetVersion);
-            sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+            % R52: use the ALREADY EXISTING exact-equality theorem that
+            % the non-staged commit path also uses (see lines near
+            % can_reuse_reference_only_runtime_packet_exact). This is NOT
+            % a geometric approximation or a replacement for certificates.
+            % The theorem checks live speed bounds, fixed dt, obstacle map,
+            % radii, and dependency signature. If not exact, preserve the
+            % original full rebuild path, unchanged.
+            r52Reuse=obj.can_reuse_reference_only_runtime_packet_exact( ...
+                obj.active_speed_certificate,SC, ...
+                obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                obj.sensor_horizon_certificate,obj.runtime_dependency_signature);
+            obj.r52_stage2_exact_packet_last_reused=logical(r52Reuse);
+            if r52Reuse
+                [sweepNew,packetNew,sensorNew,~]= ...
+                    obj.reuse_reference_only_runtime_packet_exact( ...
+                        obj.trigger_sweep_inflation,obj.obstacle_packet, ...
+                        obj.sensor_horizon_certificate,obj.runtime_dependency_signature, ...
+                        SC,targetVersion);
+                obj.r52_stage2_exact_packet_reuse_count= ...
+                    obj.r52_stage2_exact_packet_reuse_count+1;
+            else
+                sweepNew=obj.build_trigger_sweep_for_target(SC,targetVersion);
+                packetNew=obj.prepare_obstacle_packet_fast_target( ...
+                    obj.obstacle_packet,sweepNew,targetVersion);
+                sensorNew=obj.build_sensor_horizon_for_target(SC,targetVersion);
+            end
             if ~(isstruct(sensorNew)&&isfield(sensorNew,'certified')&& ...
                     logical(sensorNew.certified))
                 reason='STAGED_TARGET_SENSOR_HORIZON_OPEN'; return;
@@ -8083,17 +8968,52 @@ classdef REPLANNING_SYSTEM < handle
             % AF7R47: snapshot the PREVIOUS active reference before the
             % authority swap. Its continuous yaw supplies only the unwrap
             % branch; the new yaw derivatives come from the new total C7 path.
-            yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
-            yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
+            % R54: the snapshots feed ONLY af7r35_apply_path_tangent_yaw.
+            % Independent-yaw candidates never consume these closures. The
+            % R53 shared_count=0 alone does NOT identify candidate yaw policy.
+            % Skip allocation/validation of unused prior-reference closures;
+            % keep exact old expressions for the active tangent branch.
+            yawAnchorEvalFn=[];
+            yawAnchorFlatFn=[];
+            if ~(isfield(P,'path_tangent_yaw_c6') && ...
+                    logical(P.path_tangent_yaw_c6))
+                obj.r54_yaw_snapshot_skipped_count= ...
+                    obj.r54_yaw_snapshot_skipped_count+1;
+            end
+            if isfield(P,'path_tangent_yaw_c6') && ...
+                    logical(P.path_tangent_yaw_c6)
+                yawAnchorEvalFn=obj.snapshot_active_reference_eval_fn();
+                yawAnchorFlatFn=obj.snapshot_active_reference_flat_eval_fn();
+            end
 
             % R22: The R16 / phase branch previously serialized the SAME
             % canonical C7 model twice: once for the evaluation handles and
             % once for the post-commit rolling cache. Store the exact native
             % packet once and reuse the same byte arrays in both consumers.
             r22_shared_native_eval_packet=[];
-            if (isfield(P,'r16_free_offset_bridge') && ...
-                    logical(P.r16_free_offset_bridge)) || ...
-                    (isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers))
+            % R53: the post-commit full packet already uses the native exact
+            % canonical flat model. With PATH_TANGENT_C6_EXACT the yaw jet is
+            % replaced analytically below (AF7R47); the canonical base yaw
+            % slots have no authority within the correction support. Thus the
+            % same canonical native evaluator may supply the position jet to
+            % both consumers without making a second MATLAB closure tree.
+            %
+            % All OTHER policies retain the original branch. In particular,
+            % independent-yaw paths still use the legacy exact evaluator.
+            % The independent continuous-time geometry/dynamics/speed gates,
+            % postcommit full packet verification and freshness guards remain.
+            r53NativeTangent=isfield(P,'path_tangent_yaw_c6') && ...
+                logical(P.path_tangent_yaw_c6);
+            r53AlreadyNative=(isfield(P,'r16_free_offset_bridge') && ...
+                logical(P.r16_free_offset_bridge)) || ...
+                (isfield(batchModel,'phase_layers') && ~isempty(batchModel.phase_layers));
+            obj.r53_native_tangent_shared_last= ...
+                logical(r53NativeTangent && ~r53AlreadyNative);
+            if r53NativeTangent && ~r53AlreadyNative
+                obj.r53_native_tangent_shared_count= ...
+                    obj.r53_native_tangent_shared_count+1;
+            end
+            if r53AlreadyNative || r53NativeTangent
                 r22_pkt_tic=tic;
                 r22_shared_native_eval_packet= ...
                     obj.af7r48_native_eval_packet_from_batch_model(batchModel);
@@ -8105,6 +9025,33 @@ classdef REPLANNING_SYSTEM < handle
                 [evalFnBase,flatEvalFnBase]= ...
                     af7r58i_make_canonical_eval_handles(obj,batchModel);
                 obj.r22_stage2_native_eval_packet_ms=0;
+            end
+            % R65: the mathematical C7 source and the actual native packet
+            % consumed by HLC must describe the SAME physical-time position
+            % 0..6 jets.  The R63/R64 records exposed a 1.5 m/s difference
+            % after a REPAIRED commit.  A successful native proposal does not
+            % excuse a representation mismatch.  This is a deterministic
+            % regression/freshness gate, not a continuous-time safety proof.
+            % R66 regression repair: R65's sampled numerical JET equality
+            % rejected historically certified reference-only R16 C7
+            % corrections, preventing ALL avoidance (observed R65 ver=0).
+            % These old corrections do NOT consume a phase reparameterization;
+            % their pre-existing continuous-time native geometry/speed/C7,
+            % serialized control-point identity and atomic commit checks
+            % remain the binding hard certificates, UNMODIFIED.
+            % A NEW retimed/phase candidate does change representation and
+            % therefore MUST pass the extra numerical consistency guard.
+            % Never silently reinterpret a failed PHASE proposal as legacy.
+            if isfield(P,'phase_reparameterized') && ...
+                    logical(P.phase_reparameterized)
+                [r65JetOK,~,r65JetReason]= ...
+                    obj.r65_native_canonical_agreement( ...
+                        batchModel,flatEvalFnBase,double(t_commit), ...
+                        double(P.t1),double(obj.prediction_dt));
+                if ~r65JetOK
+                    reason=['R66_PHASE_JET_AUTHORITY_REJECT__' char(r65JetReason)];
+                    return;
+                end
             end
             evalFn=evalFnBase;
             flatEvalFn=flatEvalFnBase;
@@ -8130,6 +9077,15 @@ classdef REPLANNING_SYSTEM < handle
                     evalYawBase,yawAnchorEvalFn,tg,P);
                 flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
                     flatYawBase,yawAnchorFlatFn,tg,P);
+            end
+
+            [r67_join_ok,r67_join_reason]= ...
+                obj.r67_certified_commit_seam( ...
+                    obj.snapshot_active_reference_flat_eval_fn(), ...
+                    flatEvalFn,double(t_commit),double(P.t0));
+            if ~r67_join_ok
+                reason=r67_join_reason;
+                return;
             end
 
             smoothSource='DEGREE15_ENDPOINT_REPEATED_BEZIER_C7';
@@ -8474,6 +9430,8 @@ classdef REPLANNING_SYSTEM < handle
 
 
         function r47_record_pipeline_event(obj,stageCode,t_now,stage_ms,P,statusCode)
+            % R57: non-authoritative rings only; never gate R58R16 production bridge.
+            if ~obj.ENABLE_AF7R57_DETAIL_RECORD, return; end
             % AF7R47 bounded diagnostic ring. Never grants/rejects control.
             try
                 cap=double(obj.r47_event_ring_capacity);
@@ -8516,6 +9474,96 @@ classdef REPLANNING_SYSTEM < handle
                 obj.r47_event_ring(j,:)=r;
                 obj.r47_event_ring_head=j;
                 obj.r47_event_ring_count=min(cap,double(obj.r47_event_ring_count)+1);
+
+                % R54 event-specific timing uses only existing R20/R22 timers.
+                % Rows are keyed by the SAME circular slot as R47, so a
+                % 13.25 s Stage1 cannot be confused with the last Stage1.
+                z=nan(1,27);
+                z(1:4)=[double(t_now),double(stageCode), ...
+                        double(stage_ms),double(statusCode)];
+                if stageCode==1
+                    z(5)=double(obj.r20_stage1_future_ms);
+                    z(6)=double(obj.r20_stage1_context_ms);
+                    z(7)=double(obj.r20_stage1_native_call_ms);
+                    z(8)=double(obj.r20_native_packet_ms);
+                    z(9)=double(obj.r20_native_mex_ms);
+                    z(10)=double(obj.r20_native_wrapper_ms);
+                    z(21:23)=double(obj.r55_last_mex_split);
+                    if isstruct(P) && isfield(P,'native_raw') && ...
+                            isstruct(P.native_raw)
+                        NR=P.native_raw;
+                        z(11)=obj.field_scalar(NR,'episode_ms');
+                        z(12)=obj.field_scalar(NR,'hessian_ms');
+                        z(13)=obj.field_scalar(NR,'corridor_ms');
+                        z(14)=obj.field_scalar(NR,'qp_ms');
+                        z(15)=obj.field_scalar(NR,'candidate_build_ms');
+                        z(16)=obj.field_scalar(NR,'synthesis_ms');
+                        z(24)=obj.field_scalar(NR,'r51_phase_seed_count');
+                        z(25)=obj.field_scalar(NR,'r51_tangent_certified_count');
+                        z(26)=obj.field_scalar(NR,'r48_natural_rejoin_trial_count');
+                        z(27)=obj.field_scalar(NR,'r48_natural_rejoin_selected_count');
+                    end
+                elseif stageCode==2
+                    z(5)=double(obj.r20_stage2_cert_ms);
+                    z(6)=double(obj.r20_stage2_bundle_ms);
+                    z(7)=double(obj.r22_stage2_model_ms);
+                    z(8)=double(obj.r22_stage2_sensor_ms);
+                    z(9)=double(obj.r22_stage2_eval_handles_ms);
+                    z(10)=double(obj.r22_stage2_cache_ms);
+                    z(11)=double(obj.r22_stage2_native_eval_packet_ms);
+                    z(12)=double(obj.r22_stage2_native_eval_ms);
+                    if isstruct(P)
+                        if isfield(P,'path_tangent_yaw_c6')
+                            z(13)=double(logical(P.path_tangent_yaw_c6));
+                        end
+                        if isfield(P,'phase_reparameterized')
+                            z(14)=double(logical(P.phase_reparameterized));
+                        end
+                        if isfield(P,'delay_preserving')
+                            z(15)=double(logical(P.delay_preserving));
+                        end
+                        if isfield(P,'actual_rejoin_time')
+                            z(16)=double(P.actual_rejoin_time);
+                        end
+                        if isfield(P,'phase_delay_s')
+                            z(17)=double(P.phase_delay_s);
+                        end
+                        if isfield(P,'terminal_offset')
+                            z(24)=norm(double(P.terminal_offset(:)));
+                        end
+                        if isfield(P,'terminal_hold_start')
+                            z(25)=double(P.terminal_hold_start);
+                        end
+                        if isfield(P,'trigger_to_free_rejoin')
+                            z(26)=double(logical(P.trigger_to_free_rejoin));
+                        end
+                        if isfield(P,'r51_phase_seed_count')
+                            z(27)=double(P.r51_phase_seed_count);
+                        end
+                    end
+                    z(18)=double(obj.r54_yaw_snapshot_skipped_count);
+                    z(19)=double(obj.r53_native_tangent_shared_count);
+                    z(20)=double(obj.r52_stage2_exact_packet_reuse_count);
+                end
+                obj.r54_stage_ring(j,:)=z;
+                % R56: capture the R58 native counters from THIS Stage1.
+                % Older r20/r22 mirrors referred to the last event only.
+                u=nan(1,11);
+                u(1:3)=[double(t_now),double(stageCode),double(stage_ms)];
+                if stageCode==1 && isstruct(P) && ...
+                        isfield(P,'native_raw') && isstruct(P.native_raw)
+                    N56=P.native_raw;
+                    fields56={'r58_build_ms','r58_homotopy_ms', ...
+                        'r58_certificate_ms','r58_shadow_ms', ...
+                        'r58_bnb_qp_solves','r58_bnb_nodes_popped', ...
+                        'r58_bnb_full_assignments','r58r16_connected_candidate'};
+                    for ii56=1:numel(fields56)
+                        u(ii56+3)=obj.field_scalar(N56,fields56{ii56});
+                    end
+                end
+                obj.r56_r58_ring(j,:)=u;
+                obj.r54_stage_ring_head=j;
+                obj.r54_stage_ring_count=min(cap,double(obj.r54_stage_ring_count)+1);
             catch
                 % Diagnostics must never affect the planning/control path.
             end
@@ -13758,7 +14806,31 @@ classdef REPLANNING_SYSTEM < handle
             end
             for gg=1:G
                 F=obj.af7r51_compose_position_jet7(F,SJ{gg});
-                F=F+obj.af7r51_group_correction_jet7(T(gg+1),model.corrections(gg));
+                C=model.corrections(gg);
+                phaseL=obj.af7r51_phase_layer_for_group(model,gg);
+                if isempty(phaseL) && T(gg+1)>double(C.t0) && ...
+                        T(gg+1)>=double(C.t1)
+                    % Match native ActiveReference::eval: a phase-free C7
+                    % correction carries its constant terminal displacement
+                    % after its last interval. All 1..7 derivatives of that
+                    % constant correction are zero. No catch-up is imposed.
+                    if iscell(C.control_points)
+                        CPend=double(C.control_points{end});
+                    else
+                        CPall=double(C.control_points);
+                        if ndims(CPall)==3
+                            CPend=CPall(:,:,end);
+                        else
+                            CPend=CPall;
+                        end
+                    end
+                    assert(size(CPend,1)==3 && size(CPend,2)==16 && ...
+                        all(isfinite(CPend(:))), ...
+                        '[R66] invalid terminal correction control point.');
+                    F(:,1)=F(:,1)+CPend(:,end);
+                else
+                    F=F+obj.af7r51_group_correction_jet7(T(gg+1),C);
+                end
             end
             assert(all(isfinite(F),'all'),'[AF7R51] phase position jet nonfinite.');
         end
@@ -14796,9 +15868,37 @@ classdef REPLANNING_SYSTEM < handle
                 [evalFnBase,flatEvalFnBase]= ...
                     af7r58i_make_canonical_eval_handles(obj,batchModel);
             end
+            % R65: the mathematical C7 source and the actual native packet
+            % consumed by HLC must describe the SAME physical-time position
+            % 0..6 jets.  The R63/R64 records exposed a 1.5 m/s difference
+            % after a REPAIRED commit.  A successful native proposal does not
+            % excuse a representation mismatch.  This is a deterministic
+            % regression/freshness gate, not a continuous-time safety proof.
+            % R66 regression repair: R65's sampled numerical JET equality
+            % rejected historically certified reference-only R16 C7
+            % corrections, preventing ALL avoidance (observed R65 ver=0).
+            % These old corrections do NOT consume a phase reparameterization;
+            % their pre-existing continuous-time native geometry/speed/C7,
+            % serialized control-point identity and atomic commit checks
+            % remain the binding hard certificates, UNMODIFIED.
+            % A NEW retimed/phase candidate does change representation and
+            % therefore MUST pass the extra numerical consistency guard.
+            % Never silently reinterpret a failed PHASE proposal as legacy.
+            if isfield(P,'phase_reparameterized') && ...
+                    logical(P.phase_reparameterized)
+                [r65JetOK,~,r65JetReason]= ...
+                    obj.r65_native_canonical_agreement( ...
+                        batchModel,flatEvalFnBase,double(t_commit), ...
+                        double(P.t1),double(obj.prediction_dt));
+                if ~r65JetOK
+                    reason=['R66_PHASE_JET_AUTHORITY_REJECT__' char(r65JetReason)];
+                    return;
+                end
+            end
             evalFn=evalFnBase;
             flatEvalFn=flatEvalFnBase;
             if isfield(P,'delay_preserving') && logical(P.delay_preserving) && ...
+                    ~(isfield(P,'r16_free_offset_bridge') && logical(P.r16_free_offset_bridge)) && ...
                     ~(isfield(P,'phase_reparameterized') && logical(P.phase_reparameterized)) && ...
                     isfield(P,'terminal_offset') && ...
                     numel(P.terminal_offset)==3
@@ -14819,6 +15919,20 @@ classdef REPLANNING_SYSTEM < handle
                     evalYawBase,yawAnchorEvalFn,tg,P);
                 flatEvalFn=@(tg)obj.af7r35_apply_path_tangent_yaw( ...
                     flatYawBase,yawAnchorFlatFn,tg,P);
+            end
+
+            % R67: before ANY reference swap, assert the old and the new
+            % HLC flat packets have matching 0..6 position/yaw jets at the
+            % actual future Stage3 activation time. Source/certificates
+            % are unchanged. A candidate causing a plot/control teleport is
+            % never silently accepted as a valid C7 replan.
+            [r67_join_ok,r67_join_reason]= ...
+                obj.r67_certified_commit_seam( ...
+                    obj.snapshot_active_reference_flat_eval_fn(), ...
+                    flatEvalFn,double(t_commit),double(P.t0));
+            if ~r67_join_ok
+                reason=r67_join_reason;
+                return;
             end
 
             if nargin>=4 && ~isempty(t_hard_cycle) && ...

@@ -577,6 +577,15 @@ static Live parse_live(const mxArray* P){
             mexErrMsgIdAndTxt("R16:Bridge","r58r16_reference_bridge must be 0 or 1.");
         L.r58r16_reference_bridge=(f==1.0);
     }
+    const mxArray* detail58=optfld(P,"r58_detail_diagnostic_enabled");
+    if(detail58){
+        const double f=mxIsLogical(detail58) ?
+            (mxIsLogicalScalarTrue(detail58)?1.0:0.0) :
+            scalar(detail58,"r58_detail_diagnostic_enabled");
+        if(mxGetNumberOfElements(detail58)!=1||(f!=0.0&&f!=1.0))
+            mexErrMsgIdAndTxt("R58:Detail","r58_detail_diagnostic_enabled must be scalar 0 or 1.");
+        L.r58_detail_diagnostic_enabled=(f==1.0);
+    }
     const mxArray* r58diag=optfld(P,"r58_shadow_diagnostic_enabled");
     if(r58diag){
         if(mxGetNumberOfElements(r58diag)!=1)
@@ -1736,14 +1745,31 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
             const mxArray*P=prhs[1];
             std::string sig=str(fld(P,"nominal_signature"),"nominal_signature");
             if(!G_compiled||sig!=G_nominal.signature) mexErrMsgIdAndTxt("AF7R34:Reference","compiled nominal signature mismatch.");
+            // R55 diagnostic-only: distinguish native packet parsing, exact
+            // planner, and result serialization. No decision uses these clocks.
+            const auto r55_t0=std::chrono::steady_clock::now();
             ActiveReference R=parse_ref(P);Live L=parse_live(P);SpeedCert B=parse_speed(P);auto O=parse_obs(P);
             double t0=scalar(fld(P,"t0"),"t0"),tm=scalar(fld(P,"tm"),"tm");
             const mxArray* se=optfld(P,"search_end");
             double searchEnd=se?scalar(se,"search_end"):scalar(fld(P,"t1"),"t1");
+            const auto r55_t1=std::chrono::steady_clock::now();
             PlanResult Q=plan(R,L,B,O,t0,tm,searchEnd);
+            const auto r55_t2=std::chrono::steady_clock::now();
             /* R11: R10B heading runtime hook disabled while motion authority is audited. */
             c7front_push(t0,tm,searchEnd);
-            plhs[0]=result_struct(Q,t0,tm,searchEnd,O,P);return;
+            mxArray* r55_out=result_struct(Q,t0,tm,searchEnd,O,P);
+            const auto r55_t3=std::chrono::steady_clock::now();
+            const double r55_parse_ms=std::chrono::duration<double,std::milli>(r55_t1-r55_t0).count();
+            const double r55_plan_ms=std::chrono::duration<double,std::milli>(r55_t2-r55_t1).count();
+            const double r55_result_ms=std::chrono::duration<double,std::milli>(r55_t3-r55_t2).count();
+            const char* r55_names[]={"r55_mex_parse_ms","r55_mex_plan_ms","r55_mex_result_ms"};
+            const double r55_v[]={r55_parse_ms,r55_plan_ms,r55_result_ms};
+            for(int i=0;i<3;++i){
+                const int f=mxAddField(r55_out,r55_names[i]);
+                if(f<0) mexErrMsgIdAndTxt("R55:Timing","Failed to add diagnostic field.");
+                mxSetFieldByNumber(r55_out,0,f,dscalar(r55_v[i]));
+            }
+            plhs[0]=r55_out;return;
         }
         // R23 setup-only prewarm: no candidate, no obstacle data and no
         // acceptance side effects. This must run before Flight from MATLAB.

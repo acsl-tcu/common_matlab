@@ -30,7 +30,7 @@ userpath('clear');
 %% 1. SIMと同じ基本設定
 ts = 0;          % initial time
 dt = 0.025;      % sampling period
-te = 55;         % terminal time
+te = 65;         % terminal time
 time = TIME(ts,dt,te);
 
 % -------------------------------------------------------------------------
@@ -286,6 +286,10 @@ runtime_profile.online_before_plant_s(rk)=online_before_plant_s;
 runtime_profile.simulation_plant_s(rk)=simulation_plant_s;
 runtime_profile.logger_s(rk)=logger_s;
 runtime_profile.full_iteration_s(rk)=full_iteration_s;
+
+% R70: freshly validate EXTERNAL runtime authorities for THIS Flight.
+% Never re-use previous Flight snapshots; mass continues to update in replanner.do.
+R70_PREFLIGHT=AF7R58R70_PREFLIGHT_AUTHORITIES(agent,replanner_instance,time,replan_opts,nominal_ref);
 
 %% 8. Headless simulation loop
 % GUI版ではphase切替はGUI側が担当する。

@@ -1,0 +1,7 @@
+R72 POSTFLIGHT SAME-EVENT PREVIEW | REPLANNER ONLY
+status=FAIL_CLOSED_MISSING_OR_INCONSISTENT_RUNTIME_AUTHORITY | capture=0 | events=0
+error_id=
+error_message=[R71R2] no Flight trigger snapshot captured (no valid trigger or not a Flight run).
+registry_before: registered=1 registrations=1 captures=0 event_count=0
+HLC/EKF/PLANT/runner modified=0
+NOT a real-time trigger. NOT a continuous-time proof. No safety commit.

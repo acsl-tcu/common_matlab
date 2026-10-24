@@ -1,0 +1,22 @@
+R53 | COMPLETE REPLANNER SOURCE | STAGE2 NATIVE TANGENT SHARING
+production=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM.m
+capture_available=1
+tube=DEFERRED | return=UNCHANGED | trigger=UNCHANGED
+source_pairing=NEEDS_SAME_RUN_VERIFICATION
+r20.stage1_future_ms=1.9311
+r20.stage1_context_ms=0.296
+r20.stage1_native_call_ms=7.7017
+r20.native_packet_ms=4.4219
+r20.native_mex_ms=2.2186
+r20.native_wrapper_ms=2.0398
+r20.stage2_reference_cert_ms=0.3971
+r20.stage2_bundle_ms=11.2265
+r22.stage2_model_ms=2.1202
+r22.stage2_sensor_ms=1.7646
+r22.stage2_eval_handles_ms=4.1342
+r22.stage2_cache_ms=1.9451
+r22.stage2_native_eval_packet_ms=2.6239
+r22.stage2_native_eval_ms=1.3299
+r22.r52_stage2_exact_packet_reuse_count=0
+r22.r53_native_tangent_shared_count=0
+r22.r53_native_tangent_shared_last=0

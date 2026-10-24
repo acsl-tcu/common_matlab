@@ -1,0 +1,7 @@
+R60 C7 NATURAL TIME STRUCTURAL SELFTEST
+status=PASS_STRUCTURAL_ONLY__NOT_SAFE_FOR_COMMIT
+join_jet_error=9.6189068321236942e-14 end_offset_jet_error=0
+duration_s=7 delta_initial_s=0.33000000000000002 delta_final_s=1.19470588235294
+UNPROVEN: full physical HLC rollout, reference speed/yaw regularity,
+whole-body continuous-time safety, controller input and tension bounds.
+HLC SOURCE IS NEVER ALTERED. COMMIT ALLOWED=0.

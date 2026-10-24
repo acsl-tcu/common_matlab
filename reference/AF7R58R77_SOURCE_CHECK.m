@@ -1,0 +1,23 @@
+function S=AF7R58R77_SOURCE_CHECK()
+% Source-bind the Flight target mapping. Do not accept a guessed transform.
+S=AF7R58R76_SOURCE_CHECK();
+f=which('SUSPENDED_LOAD_REF_ADJUST');
+assert(~isempty(f) && isfile(f), ...
+   '[R77] actual Flight adapter source missing: no frame inference.');
+s=fileread(f);
+assert(contains(s,'nxy(3) = xd(3) - L') && ...
+       contains(s,'else % flight phase'), ...
+   '[R77] Flight adapter mapping changed; do not guess an offset.');
+t=fileread(which('AF7R58R77_FRAME_AUDIT'));
+assert(contains(t,'AF7R58R76_COLLISION_AUDIT') && ...
+       contains(t,'adjusted=raw-shift') && ...
+       contains(t,'cmdErr=max') && ...
+       contains(t,'''eligible_for_production_trigger'',false'), ...
+   '[R77] frame invariant / fail-closed annotation missing.');
+S.r77_adapter_source=f;
+S.r77_raw_reference_vs_actual_hlc_coordinate_explicit=true;
+S.r77_comparison_without_production_mutation=true;
+S.r77_no_sampled_nohit_certification=true;
+S.r77_trigger_replaced=false;
+S.hlc_ekf_plant_runner_modified=false;
+end

@@ -1,0 +1,14 @@
+R73 POSTFLIGHT SAME-EVENT PREVIEW | REPLANNER ONLY
+status=PARTIAL_OR_FAILED_EVENT_BOUND_PREVIEW__SEE_EVENTS | capture=1 | events=2
+error_id=
+error_message=[R71R2] flight parameters changed after the captured event. This postflight replay cannot certify the event model.
+snapshot_capture_errors=0 | last_id= | last_message=
+registry_before: registered=1 registrations=1 captures=2 event_count=2
+event=1 t=13.250000000 ver=0 status=FAIL_CLOSED_EVENT_REPLAY
+  raw_EKF_gap_m=2.07072714649 adjusted_EKF_gap_m=0.0823232774492
+  error_id= error_message=[R71R2] flight parameters changed after the captured event. This postflight replay cannot certify the event model.
+event=2 t=14.675000000 ver=1 status=FAIL_CLOSED_EVENT_REPLAY
+  raw_EKF_gap_m=2.07033002167 adjusted_EKF_gap_m=0.0753697763847
+  error_id= error_message=[R71R2] flight parameters changed after the captured event. This postflight replay cannot certify the event model.
+HLC/EKF/PLANT/runner modified=0
+NOT a real-time trigger. NOT a continuous-time proof. No safety commit.

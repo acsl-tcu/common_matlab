@@ -1,0 +1,11 @@
+R67 SOURCE-BOUND: Atomic activation seam necessary-condition gate.
+
+Evidence R66: reference versions 0 -> 1 -> 2 -> 3; 19.650 and 19.725 s commits only 75 ms apart. User plot shows an almost vertical snap at y~22m that may correspond to the reference swap; log does NOT contain full HLC reference time series, so cause not yet proven to be control vs plotting.
+
+R67: staged + ordinary reference-only candidate paths test old active HLC flat-jet and candidate HLC flat-jet at SAME activation time, position and yaw derivatives orders 0..6, with machine-ulp roundoff tolerance. If unequal, NO COMMIT; retain old trajectory. This is a necessary condition, NOT a proof of C7 or continuous-time whole-body safety. Existing geometry/speed/flatness certificates remain necessary. No path-shape special cases.
+
+Bug fix: non-staged R16 terminal hold used to apply a second terminal displacement despite native R16 already holding the displacement; match staged exclusion. Native C++ and HLC unchanged. Identity-time metadata never reinterpreted as tiny phase speed; actual native flat jets still checked separately.
+
+Residuals are recorded only per Stage2 proposal, emitted after Flight in reference directory. Source code static checks done; no MATLAB runtime available locally. Flight timing must be remeasured.
+
+NOT COMPLETE: current EKF based 4-second closed-loop HLC+plant future collision trigger; free-time natural return committed with full continuous C7/yaw C6 and whole-body certification; actuator/tension/tube/backup rigorous full execution guarantee; overhead <25ms. In particular R67 will reject discontinuous replans but cannot invent safe alternatives. Existing older oversized detours may remain.

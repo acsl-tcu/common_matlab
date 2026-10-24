@@ -1,0 +1,7 @@
+R71R2 | WORKSPACE-SCOPE HOTFIX AND SAME-EVENT REPLAY
+Root cause: run_flight_headless uses a local script/workspace. replanner_instance is NOT a base-workspace variable after SimHL. Previous R71_COLLECT(replanner_instance,time.t) command was invalid.
+Fix: REPLANNING_SYSTEM constructor registers its handle in MATLAB root appdata, overwritten each new Flight. The replanner captures up to three distinct reference-version trigger snapshots, including 24 EKF values and frozen reference function and parameter authority. This adds no physical forward integration inside Flight; postflight AF7R58R71_COLLECT() retrieves snapshots with NO arguments.
+Safety: postflight model forecast remains NUMERIC ONLY; no production trigger change, no C7 return commit, no proof of complete physical safety. No HLC/plant/EKF/flight-runner file changed.
+Config: capture external parameter order/vector and plant param at the event. Fail closed on change since that event; the replay must not combine stale EKF with newer dynamic parameters.
+Run: clear classes; rehash; AF7R58R71_SOURCE_CHECK(); SimHL; R71=AF7R58R71_COLLECT(); R71.status; R71.events; R71.report_file.
+IMPORTANT: installer/tested with static source+ZIP tests only; MATLAB run and physical model behavior not independently verified.

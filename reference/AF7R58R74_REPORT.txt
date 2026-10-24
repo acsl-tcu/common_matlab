@@ -1,0 +1,14 @@
+R74 POSTFLIGHT EVENT-FROZEN HLC+PLANT PREVIEW | REPLANNER ONLY
+status=PARTIAL_OR_FAILED_EVENT_BOUND_PREVIEW__SEE_EVENTS | capture=1 | events=2
+error_id=
+error_message=クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'l' が認識されません。
+snapshot_capture_errors=0 | last_id= | last_message=
+registry_before: registered=1 registrations=1 captures=2 event_count=2
+event=1 t=13.250000000 ver=0 status=FAIL_CLOSED_EVENT_REPLAY
+  raw_EKF_gap_m=2.0655959579 adjusted_EKF_gap_m=0.0787126455514
+  error_id=MATLAB:noSuchMethodOrField error_message=クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'l' が認識されません。
+event=2 t=14.675000000 ver=1 status=FAIL_CLOSED_EVENT_REPLAY
+  raw_EKF_gap_m=2.06534754097 adjusted_EKF_gap_m=0.0710811469986
+  error_id=MATLAB:noSuchMethodOrField error_message=クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'l' が認識されません。
+HLC/EKF/PLANT/runner modified=0 | mass authority=EKF AT EVENT
+NOT a real-time trigger. NOT a continuous-time proof. No safety commit.

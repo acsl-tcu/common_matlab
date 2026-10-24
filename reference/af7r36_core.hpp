@@ -260,6 +260,21 @@ static inline Vec3 decasteljau(Poly C,double u){
     }
     return C.front();
 }
+// AF7R58 clean arithmetic: allocation-free degree-15 Bernstein evaluation.
+// Same left-to-right de Casteljau order and Vec3 arithmetic as decasteljau().
+// Strictly used with degree <=15; dynamically sized paths keep legacy code.
+static inline Vec3 r58_decasteljau_fixed16(const Vec3* cp,int count,double u){
+    if(count<1||count>16||cp==nullptr)
+        throw std::runtime_error("R58 fixed Bernstein invalid degree");
+    std::array<Vec3,16> a{};
+    for(int i=0;i<count;++i)a[i]=cp[i];
+    for(int k=count;k>1;--k){
+        for(int i=0;i<k-1;++i)
+            a[i]=a[i]*(1-u)+a[i+1]*u;
+    }
+    return a[0];
+}
+
 static inline Poly deriv_poly(const Poly&C,double T,int order=1){
     Poly D=C;
     int deg=(int)D.size()-1;
@@ -534,15 +549,32 @@ struct ActiveReference {
             if(!(fin(TT)&&TT>0.0))continue;
             double u=(tg-sp->t0)/TT;
             u=std::max(0.0,std::min(1.0,u));
-            Poly D=sp->cp;
-            y[0]+=decasteljau(D,u);
-            int deg=15;
-            for(int r=1;r<=6;++r){
-                Poly E(D.size()-1);
-                for(size_t i=0;i+1<D.size();++i)
-                    E[i]=(D[i+1]-D[i])*(double(deg)/TT);
-                D.swap(E);--deg;
-                y[r]+=decasteljau(D,u);
+            if(sp->cp.size()==16){
+                // Same floating-point operations as the previous vector
+                // implementation, but without 100+ heap allocations per
+                // active-reference evaluation (position and derivatives 1..6).
+                std::array<Vec3,16> D{};
+                for(int i=0;i<16;++i)D[i]=sp->cp[i];
+                int n=16,deg=15;
+                y[0]+=r58_decasteljau_fixed16(D.data(),n,u);
+                for(int r=1;r<=6;++r){
+                    for(int i=0;i<n-1;++i)
+                        D[i]=(D[i+1]-D[i])*(double(deg)/TT);
+                    --n;--deg;
+                    y[r]+=r58_decasteljau_fixed16(D.data(),n,u);
+                }
+            }else{
+                // Non-degree-15 representation is never converted or approximated.
+                Poly D=sp->cp;
+                y[0]+=decasteljau(D,u);
+                int deg=15;
+                for(int r=1;r<=6;++r){
+                    Poly E(D.size()-1);
+                    for(size_t i=0;i+1<D.size();++i)
+                        E[i]=(D[i+1]-D[i])*(double(deg)/TT);
+                    D.swap(E);--deg;
+                    y[r]+=decasteljau(D,u);
+                }
             }
         }
         return y;
@@ -616,6 +648,7 @@ struct SpeedCert {
 struct Live {
     double dt=0,g=9.81,L=0,rL=0,rQ=0,rC=0,dmargin=0,sensor_range=0,horizon=0,tracking=0;
     // R13 diagnostic-only: no effects on hard acceptance or fallback.
+    bool r58_detail_diagnostic_enabled=false; // R58 pure diagnostics only; NEVER controls bridge or proof
     bool r58_shadow_diagnostic_enabled=false;
     bool r58r14_lowjet_seed_only=false;
     bool r58r16_reference_bridge=false; // opt-in, reference-only proposal; normal commit guards stay active
@@ -6769,7 +6802,7 @@ static inline Candidate r58_build_candidate(
         const QPSol&q,const std::vector<double>&K,double h,
         double cableL,double gravity,const std::vector<int>&signs,
         double&maxJetErr,double&maxPhysicalJetErr,double&legacyMismatch,
-        std::array<double,3>&rawQPderivativeUB){
+        std::array<double,3>&rawQPderivativeUB,bool collectRawQPDiag){
     Candidate C;
     const int N=(int)K.size(),ns=r58_scalar_dofs(K);
     if(!q.ok||N<2||(int)q.z.size()!=3*ns)
@@ -6790,6 +6823,8 @@ static inline Candidate r58_build_candidate(
     // R13 diagnostic only: reconstruct the floating point QP-jet candidate
     // before exact lattice projection and measure its Bernstein derivative UBs.
     // NEVER use this non-lattice candidate for C7 proof or acceptance.
+    rawQPderivativeUB.fill(std::numeric_limits<double>::quiet_NaN());
+    if(collectRawQPDiag){
     rawQPderivativeUB.fill(0.0);
     for(int s=0;s<N-1;++s){
         const double T=K[s+1]-K[s];
@@ -6808,6 +6843,7 @@ static inline Candidate r58_build_candidate(
             rawQPderivativeUB[r-1]=std::max(rawQPderivativeUB[r-1],
                                              poly_norm_ub(der));
         }
+    }
     }
     std::vector<R58NodeLattice>L(N);
     maxJetErr=0.0;maxPhysicalJetErr=0.0;
@@ -8944,6 +8980,12 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
             }
 
             std::vector<std::array<R58SideRows,2>>cache(E.ep.size());
+            // R56: row-wise scaling/equilibration commutes with concatenation.
+            // Precondition each immutable episode/side row ONCE rather than
+            // inside each repeated branch-and-bound partial QP solve.
+            // This changes no QP objective/feasible set or acceptance gate.
+            std::vector<std::array<std::array<double,2>,2>>
+                r56RowScales(E.ep.size());
             bool cacheOK=heqOK&&R.r58r3_equilibrated_cholesky_pass==1;
             if(cacheOK){
                 for(int ei=0;ei<(int)E.ep.size();++ei){
@@ -8960,6 +9002,20 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                         cache[ei][1].valid=lowJet58 ?
                             r58_reduce_rows_selected(cache[ei][1].rows,EL58,lowJetIndices58) :
                             r58_reduce_rows(cache[ei][1].rows,EL58);
+                    }
+                    // Every row's scale depends ONLY on that row; the
+                    // original solve_partial() did these two operations
+                    // AFTER concatenation, yielding the same row values.
+                    for(int si=0;si<2;++si){
+                        if(!cache[ei][si].valid)continue;
+                        auto& rows56=cache[ei][si].rows;
+                        double rmin56=0.0,rmax56=0.0;
+                        cache[ei][si].valid=
+                            r58_apply_variable_scaling_to_rows(rows56,varScale58) &&
+                            r58_equilibrate_rows(rows56,rmin56,rmax56);
+                        if(cache[ei][si].valid){
+                            r56RowScales[ei][si]={{rmin56,rmax56}};
+                        }
                     }
                     if(cache[ei][0].valid)++R.r58_side_cache_plus_valid;
                     if(cache[ei][1].valid)++R.r58_side_cache_minus_valid;
@@ -8978,16 +9034,16 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
 
                 auto solve_partial=[&](const std::vector<int>&sg,int depth)->QPSol{
                     std::vector<Row>rows;
+                    double rsmin=std::numeric_limits<double>::infinity();
+                    double rsmax=0.0;
                     for(int i=0;i<depth;++i){
-                        const auto&SR=cache[i][sg[i]>0?0:1];
+                        const int si=sg[i]>0?0:1;
+                        const auto&SR=cache[i][si];
                         if(!SR.valid)return QPSol{};
                         rows.insert(rows.end(),SR.rows.begin(),SR.rows.end());
+                        rsmin=std::min(rsmin,r56RowScales[i][si][0]);
+                        rsmax=std::max(rsmax,r56RowScales[i][si][1]);
                     }
-                    if(!r58_apply_variable_scaling_to_rows(rows,varScale58))
-                        return QPSol{};
-                    double rsmin=0.0,rsmax=0.0;
-                    if(!r58_equilibrate_rows(rows,rsmin,rsmax))
-                        return QPSol{};
                     R.r58r2_row_equilibrated=1;
                     R.r58r2_row_scale_min=
                         std::min(R.r58r2_row_scale_min,rsmin);
@@ -9258,7 +9314,8 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                                          std::fabs(zv));
                         C58=r58_build_candidate(
                             qPhysical,K58,h58,L.L,L.g,N58.signs,
-                            qerr,qphys,joinmis,rawQPderivativeUB);
+                            qerr,qphys,joinmis,rawQPderivativeUB,
+                            L.r58_detail_diagnostic_enabled);
                     }catch(const std::runtime_error&){
                         continue;
                     }
@@ -9294,9 +9351,9 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                             ref,L,base,C58,lim,
                             finiteWitness58,repr58,&SB58);
                     }
-                    // R13: diagnostic capture after the UNMODIFIED Stage-A / Stage-B
-                    // algorithms. Records do not feed acceptance or side selection.
-                    // Column order is declared in AF7R58R13_GATE_REPORT.m.
+                    // R58: 38-column gate trace is diagnostic ONLY. Do not spend
+                    // Flight time on it in clean production mode.
+                    if(L.r58_detail_diagnostic_enabled){
                     const double sigmaA=base.sigma-tr58.U[1];
                     const double vqA=sigmaA>0.0 ?
                         base.VL+tr58.U[0]+L.L*(base.J+tr58.U[2])/sigmaA :
@@ -9326,6 +9383,7 @@ static inline PlanResult plan_fixed_scope(const ActiveReference&ref,const Live&L
                         rawQPderivativeUB[2]
                     }};
                     R.r58_speed_gate_rows.push_back(r13row);
+                    }
                     if(!sc58.certified){
                         ++R.r58_bnb_speed_fail;
                         R.r58_needs_time_law=1;
