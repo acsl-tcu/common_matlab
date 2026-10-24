@@ -22,6 +22,8 @@ if exist("motive","var"); Setting.motive = motive;end
 if exist("env","var"); Setting.env = env;end
 if exist("in_prog_func","var"); Setting.in_prog_func = in_prog_func;end
 if exist("post_func","var"); Setting.post_func = post_func;end
+if exist("cha_schedule","var"); Setting.cha_schedule = cha_schedule;
+elseif isfield(Setting,"cha_schedule"); Setting = rmfield(Setting,"cha_schedule"); end
 
 app.initial_setting = Setting;
 app.set_mode();

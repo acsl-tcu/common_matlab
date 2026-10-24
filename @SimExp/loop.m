@@ -14,6 +14,14 @@ end
     tStart = tic;
     drawnow
     t2 = toc(tStart);
+    if app.isReady && ~isempty(app.cha_schedule) && ~contains('sq ',app.cha)
+      % cha_schedule = {cha, 終了時刻; ...} に従って時刻でchaを切り替える
+      idx = find(app.time.t < [app.cha_schedule{:,2}], 1);
+      if isempty(idx) % スケジュール終了
+        break
+      end
+      app.cha = char(app.cha_schedule{idx,1});
+    end
     if app.cha0 ~= app.cha % exec once per another key press
       switch app.cha
         case {'q',' '}
