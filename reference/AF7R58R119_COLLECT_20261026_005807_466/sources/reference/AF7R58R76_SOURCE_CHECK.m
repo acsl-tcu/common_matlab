@@ -1,0 +1,29 @@
+function S=AF7R58R76_SOURCE_CHECK()
+% R75 prerequisites and exact REPLANNER ONLY source binding.
+B=AF7R58R75_SOURCE_CHECK();
+p=which('REPLANNING_SYSTEM');s=fileread(p);
+assert(~isempty(meta.class.fromName('REPLANNING_SYSTEM')), ...
+    '[R76] MATLAB class parser failed.');
+for key={"'r76_packet',struct(","'r76_known_mask',logical(active(:).')", ...
+         "'r76_reference_pL',double(pL_ref)", ...
+         "'r76_reference_q',double(q_ref)", ...
+         "'r76_original_trigger',logical(need_replan)"}
+    assert(contains(s,key{1}),'[R76] missing same-event sensor/trigger snapshot.');
+end
+q=fileread(which('AF7R58R76_COLLISION_AUDIT'));
+assert(contains(q,'AF7R58R76_COLLISION_AUDIT') && ...
+    contains(q,'g26_future_trigger_kernel_mex') && ...
+    contains(q,'pL,(pL-pQ)/L') && ...
+    contains(q,'min_outer_normalized_clearance') && ...
+    contains(q,'eligible_for_trigger_replacement'',false'), ...
+    '[R76] physical numeric gate or fail-closed limits missing.');
+S=B;
+S.r76_same_event_known_obstacles_recorded=true;
+S.r76_original_reference_hit_recorded=true;
+S.r76_physical_whole_cable_sample_geometry=true;
+S.r76_existing_native_gate_reference_physical_comparison=true;
+S.r76_trigger_replaced=false;
+S.r76_continuous_safety_proved=false;
+S.r76_mass_authority='LATEST_EKF_AT_CAPTURE';
+S.hlc_ekf_plant_runner_modified=false;
+end

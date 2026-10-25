@@ -1794,6 +1794,112 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
             }
             plhs[0]=r55_out;return;
         }
+        // R114: compiled-source regression for production individual
+        // UAV-sphere, payload-sphere and full cable-segment separation.
+        // This exercises the SAME point_margin/segment_margin as op1.
+        // Test result is never a planner acceptance certificate.
+        if(op==26){
+            if(nrhs!=1||nlhs!=1)
+                mexErrMsgIdAndTxt("R114:Arity","op26 requires one output and no packet.");
+            Obstacle O;O.c={0.0,0.0,0.0};O.axes={2.0,0.5,0.4};O.R=Mat3::I();
+            double pm=0,sm=0,cm=0;
+            const bool pp=point_margin({0.0,2.0,0.0},O,0.1,pm);
+            const bool pc=point_margin({0.0,0.0,0.0},O,0.1,cm);
+            const bool cs=segment_margin({0.0,2.0,-1.0},{0.0,2.0,1.0},O,0.1,sm);
+            double mm=0;
+            const bool ci=segment_margin({0.0,0.0,-1.0},{0.0,0.0,1.0},O,0.1,mm);
+            const bool pass=pp&&!pc&&cs&&!ci&&pm>0.0&&sm>0.0;
+            const char* names[]={"status","source_revision","point_separated",
+                "point_collision_rejected","cable_separated",
+                "cable_collision_rejected","point_margin_m","cable_margin_m"};
+            mxArray* result=mxCreateStructMatrix(1,1,8,names);
+            mxSetField(result,0,"status",mxCreateString(pass?
+                "PASS_R114_COMPILED_REAL_CORE_GEOMETRY":
+                "FAIL_R114_COMPILED_REAL_CORE_GEOMETRY"));
+            mxSetField(result,0,"source_revision",mxCreateString("AF7R58R114_SOURCE_BOUND_SUPPORT_V1"));
+            mxSetField(result,0,"point_separated",logicalScalar(pp));
+            mxSetField(result,0,"point_collision_rejected",logicalScalar(!pc));
+            mxSetField(result,0,"cable_separated",logicalScalar(cs));
+            mxSetField(result,0,"cable_collision_rejected",logicalScalar(!ci));
+            mxSetField(result,0,"point_margin_m",dscalar(pm));
+            mxSetField(result,0,"cable_margin_m",dscalar(sm));
+            plhs[0]=result;return;
+        }
+        // R115: actual EKF endpoints; component-specific R114 support core.
+        // This is instantaneous protective non-separation ONLY, not a physical
+        // forecast or a certified full cable trajectory under state uncertainty.
+        if(op==27){
+            if(nrhs!=9 || nlhs<3 || nlhs>4)
+                mexErrMsgIdAndTxt("R115:Arity", "op27: op,pQ,pL,C,R,Araw,Dcomp,ids,mask -> hit,id,component,[margin].");
+            auto qv=dvec(prhs[1],"pQ"),lv=dvec(prhs[2],"pL");
+            auto dv=dvec(prhs[6],"Dcomp"),iv=dvec(prhs[7],"ids");
+            if(qv.size()!=3 || lv.size()!=3 || dv.size()!=3)
+                mexErrMsgIdAndTxt("R115:Shape","EKF endpoints and component radii must be length 3.");
+            const Vec3 q={qv[0],qv[1],qv[2]},l={lv[0],lv[1],lv[2]};
+            if(!finite(q)||!finite(l))
+                mexErrMsgIdAndTxt("R115:Finite","EKF endpoints must be finite.");
+            for(double d:dv)if(!fin(d)||d<0)
+                mexErrMsgIdAndTxt("R115:Radii","Component radii must be finite nonnegative.");
+            const size_t M=iv.size();
+            const mxArray *cA=prhs[3], *rA=prhs[4], *aA=prhs[5], *maskA=prhs[8];
+            if(!mxIsDouble(cA)||mxIsComplex(cA)||mxGetM(cA)!=3||mxGetN(cA)!=M||
+               !mxIsDouble(rA)||mxIsComplex(rA)||mxGetM(rA)!=9||mxGetN(rA)!=M||
+               !mxIsDouble(aA)||mxIsComplex(aA)||mxGetM(aA)!=3||mxGetN(aA)!=M||
+               mxGetNumberOfElements(maskA)!=M||
+               !(mxIsDouble(maskA)||mxIsLogical(maskA)))
+                mexErrMsgIdAndTxt("R115:ObstaclePacket","Invalid oriented-ellipsoid packet shapes.");
+            const double *cs=mxGetPr(cA), *rs=mxGetPr(rA), *ax=mxGetPr(aA);
+            double minMargin=std::numeric_limits<double>::infinity();
+            bool risk=false;double riskId=NAN;int riskComponent=0;
+            for(size_t j=0;j<M;++j){
+                const double known=mxIsLogical(maskA)?
+                    (mxGetLogicals(maskA)[j]?1.0:0.0):mxGetPr(maskA)[j];
+                if(!(known==0.0 || known==1.0))
+                    mexErrMsgIdAndTxt("R115:Mask","Sensor-known mask entries must be 0 or 1.");
+                if(known==0.0)continue; // UNKNOWN is not a mapped obstacle
+                Obstacle o;o.id=iv[j];o.c={cs[3*j],cs[3*j+1],cs[3*j+2]};
+                o.axes={ax[3*j],ax[3*j+1],ax[3*j+2]};
+                for(int row=0;row<3;++row)for(int col=0;col<3;++col)
+                    o.R(row,col)=rs[(row+3*col)+9*j];
+                if(!finite(o.c)||!finite(o.axes)||
+                   o.axes.x<=0||o.axes.y<=0||o.axes.z<=0||!fin(o.id))
+                    mexErrMsgIdAndTxt("R115:ObstacleFinite","Invalid sensed obstacle geometry.");
+                for(double rr:o.R.a)if(!fin(rr))
+                    mexErrMsgIdAndTxt("R115:Rotation","Invalid obstacle rotation matrix.");
+                // The SO(3) source is runtime authority. Reject malformed
+                // matrices, rather than silently using a distorted ellipsoid.
+                const Mat3 gram=mmul(transpose(o.R),o.R);
+                double maxOrtho=0;
+                for(int row=0;row<3;++row)for(int col=0;col<3;++col){
+                    const double target=(row==col)?1.0:0.0;
+                    maxOrtho=std::max(maxOrtho,std::fabs(gram(row,col)-target));
+                }
+                const double det=o.R(0,0)*(o.R(1,1)*o.R(2,2)-o.R(1,2)*o.R(2,1))-
+                    o.R(0,1)*(o.R(1,0)*o.R(2,2)-o.R(1,2)*o.R(2,0))+
+                    o.R(0,2)*(o.R(1,0)*o.R(2,1)-o.R(1,1)*o.R(2,0));
+                if(maxOrtho>1e-8 || std::fabs(det-1.0)>1e-8)
+                    mexErrMsgIdAndTxt("R115:NotSO3","Sensed ellipsoid rotation is not SO(3).");
+                double m=0;
+                // component codes: 1 payload, 2 UAV, 3 full cable
+                if(!point_margin(l,o,dv[0],m)){
+                    if(!risk){risk=true;riskId=o.id;riskComponent=1;}
+                }
+                minMargin=std::min(minMargin,m);
+                if(!point_margin(q,o,dv[1],m)){
+                    if(!risk){risk=true;riskId=o.id;riskComponent=2;}
+                }
+                minMargin=std::min(minMargin,m);
+                if(!segment_margin(q,l,o,dv[2],m)){
+                    if(!risk){risk=true;riskId=o.id;riskComponent=3;}
+                }
+                minMargin=std::min(minMargin,m);
+            }
+            plhs[0]=logicalScalar(risk);
+            plhs[1]=dscalar(riskId);
+            plhs[2]=dscalar(risk?double(riskComponent):NAN);
+            if(nlhs==4)plhs[3]=dscalar(minMargin);
+            return;
+        }
         // R23 setup-only prewarm: no candidate, no obstacle data and no
         // acceptance side effects. This must run before Flight from MATLAB.
         if(op==24){

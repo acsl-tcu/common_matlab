@@ -632,11 +632,78 @@ static inline double r51_phase_inverse_flow(
 // ------------------------ geometry support ---------------------------------
 struct Obstacle { Vec3 c; Mat3 R; Vec3 axes; double id=0; };
 
+// R114: Optional certificate-tightening NORMALS, never a distance-only acceptance.
+// All passes still require a positive exact ellipsoid SUPPORT-PLANE margin.
+// Existing fast two-normal proof is unchanged. Numerical projection is used
+// ONLY when the original plane did not separate (conservatism reduction).
+static inline double r114_support_margin(Vec3 n,Vec3 x,const Obstacle&o,double rho){
+    const double nn=norm(n);
+    if(!(fin(nn)&&nn>0.0&&fin(rho)&&rho>=0.0))
+        return -std::numeric_limits<double>::infinity();
+    Vec3 rn=tmul(o.R,n);
+    Vec3 an{o.axes.x*rn.x,o.axes.y*rn.y,o.axes.z*rn.z};
+    const double h=dot(n,o.c)+norm(an);
+    const double raw=(dot(n,x)-h-rho*nn)/nn;
+    // A strictly positive plane witness is only used away from the
+    // double precision rounding neighborhood of the support inequality.
+    const double round_guard=256.0*epsd()*
+        std::max({1.0,norm(x),norm(o.c),norm(o.axes),std::fabs(rho)});
+    return fin(raw)?raw-round_guard:-std::numeric_limits<double>::infinity();
+}
+
+static inline double r114_segment_support_margin(Vec3 n,Vec3 a,Vec3 b,
+                                                   const Obstacle&o,double rho){
+    return std::min(r114_support_margin(n,a,o,rho),
+                    r114_support_margin(n,b,o,rho));
+}
+
+// Convex ellipsoid nearest-surface projection of an OUTSIDE point.
+// Returned projection chooses a useful plane normal; it NEVER certifies safety.
+// The separately recomputed exact support-plane inequality is the certificate.
+static inline bool r114_ellipsoid_normal(Vec3 x,const Obstacle&o,Vec3&n,Vec3&surface){
+    if(!(finite(x)&&finite(o.c)&&finite(o.axes)&&
+         o.axes.x>0.0&&o.axes.y>0.0&&o.axes.z>0.0))return false;
+    Vec3 y=tmul(o.R,x-o.c);
+    const double a2[3]={o.axes.x*o.axes.x,o.axes.y*o.axes.y,o.axes.z*o.axes.z};
+    const double v[3]={y.x,y.y,y.z};
+    double phi0=0.0;
+    for(int i=0;i<3;++i)phi0+=v[i]*v[i]/a2[i];
+    if(!(fin(phi0)&&phi0>1.0))return false;
+    const auto phi=[&](double lambda){
+        double z=0.0;
+        for(int i=0;i<3;++i){
+            const double q=a2[i]+lambda;
+            if(!(fin(q)&&q>0.0))return std::numeric_limits<double>::infinity();
+            const double r=a2[i]*v[i]/q;
+            z+=r*r/a2[i];
+        }
+        return z;
+    };
+    double lo=0.0,hi=std::max({a2[0],a2[1],a2[2]});
+    for(int k=0;k<64&&phi(hi)>1.0;++k){
+        hi*=2.0;
+        if(!fin(hi))return false;
+    }
+    if(!(fin(hi)&&phi(hi)<=1.0))return false;
+    for(int k=0;k<48;++k){
+        double mid=lo+0.5*(hi-lo);
+        if(!(fin(mid)&&mid>lo&&mid<hi))break;
+        if(phi(mid)>1.0)lo=mid; else hi=mid;
+    }
+    const double lam=lo+0.5*(hi-lo);
+    Vec3 z{a2[0]*v[0]/(a2[0]+lam),a2[1]*v[1]/(a2[1]+lam),
+           a2[2]*v[2]/(a2[2]+lam)};
+    surface=o.c+mul(o.R,z);
+    n=x-surface;
+    return finite(surface)&&finite(n)&&norm(n)>0.0;
+}
+
 static inline bool point_margin(Vec3 x,const Obstacle&o,double rho,double&best){
     Vec3 d=x-o.c;Vec3 y=tmul(o.R,d);
     Vec3 y2{y.x/(o.axes.x*o.axes.x),y.y/(o.axes.y*o.axes.y),y.z/(o.axes.z*o.axes.z)};
     Vec3 n0=mul(o.R,y2),n1=d; Vec3 N[2]={n0,n1};
     best=-std::numeric_limits<double>::infinity();bool ok=false;
+    // Original fast path is retained IDENTICALLY; no new CPU work on pass.
     for(auto n:N){
         double nn=norm(n);if(!(fin(nn)&&nn>0))continue;
         Vec3 rn=tmul(o.R,n);Vec3 ar{o.axes.x*rn.x,o.axes.y*rn.y,o.axes.z*rn.z};
@@ -644,7 +711,13 @@ static inline bool point_margin(Vec3 x,const Obstacle&o,double rho,double&best){
         double m=(dot(n,x)-hs-rho*nn)/nn;
         if(fin(m)){best=std::max(best,m);ok=true;}
     }
-    return ok&&fin(best)&&best>0;
+    if(ok&&fin(best)&&best>0.0)return true;
+    Vec3 n{},surface{};
+    if(r114_ellipsoid_normal(x,o,n,surface)){
+        double m=r114_support_margin(n,x,o,rho);
+        if(fin(m)){best=std::max(best,m);ok=true;}
+    }
+    return ok&&fin(best)&&best>0.0;
 }
 static inline bool segment_margin(Vec3 p0,Vec3 p1,const Obstacle&o,double rho,double&best){
     Vec3 d0=p0-o.c,d1=p1-o.c;
@@ -668,7 +741,28 @@ static inline bool segment_margin(Vec3 p0,Vec3 p1,const Obstacle&o,double rho,do
             if(fin(m)){best=std::max(best,m);ok=true;}
         }
     }
-    return ok&&fin(best)&&best>0;
+    if(ok&&fin(best)&&best>0.0)return true;
+    // Alternating convex projections locate a GOOD NORMAL, but acceptance
+    // remains the exact plane sufficient condition for the entire segment.
+    const Vec3 e=p1-p0;const double ee=norm2(e);
+    const Vec3 seeds[3]={xs,p0,p1};
+    for(auto seed:seeds){
+        Vec3 x=seed;
+        for(int k=0;k<8;++k){
+            Vec3 n{},surface{};
+            if(!r114_ellipsoid_normal(x,o,n,surface))break;
+            const double margin=r114_segment_support_margin(n,p0,p1,o,rho);
+            if(fin(margin)){best=std::max(best,margin);ok=true;}
+            if(ok&&best>0.0)return true;
+            if(!(fin(ee)&&ee>0.0))break;
+            double u=dot(surface-p0,e)/ee;
+            u=std::max(0.0,std::min(1.0,u));
+            Vec3 next=p0+e*u;
+            if(norm(next-x)<=64.0*epsd()*std::max(1.0,norm(x)))break;
+            x=next;
+        }
+    }
+    return ok&&fin(best)&&best>0.0;
 }
 
 // ------------------------------- planner data -------------------------------

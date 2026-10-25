@@ -1,0 +1,16 @@
+function T=AF7R58R114_TEST()
+S=AF7R58R114_SOURCE_CHECK();
+assert(S.already_installed,'R114:SourceNotInstalled', ...
+    'R114 patched C++ source/header are not installed.');
+assert(exist('af7r36_single_core_mex','file')==3, ...
+    'R114:NativeMissing','Production native MEX is missing.');
+T=af7r36_single_core_mex(26);
+assert(isstruct(T) && ...
+    strcmp(char(T.status),'PASS_R114_COMPILED_REAL_CORE_GEOMETRY'), ...
+    'R114:NativeNotR114','Loaded production native MEX is not R114. Restart MATLAB.');
+assert(logical(af7r36_single_core_mex(24)), ...
+    'R114:PrewarmFailed','Production MEX op 24 prewarm rejected.');
+T.r111_main_unchanged=S.main_source_unchanged;
+T.production_main_sha256='8ba9621932ab35c775f0d0fd8468edf100cb7f44dc1f78fff86c658490ee3676';
+T.real_execution_hlc_certified=false;
+end
