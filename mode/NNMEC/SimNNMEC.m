@@ -11,7 +11,7 @@ end
 clc;
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 650; % terminal time
+te = 100; % terminal time
 agentN = 1;
 time = TIME(ts,dt,te,agentN); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
@@ -50,16 +50,16 @@ sigma = 0.1;
 % agent.plant.param(1) = 0.7; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.8;
 
-agent.plant.param(6) = 0.12;
-agent.plant.param(7) = 0.12;
-agent.plant.param(8) = 0.12;
+agent.plant.param(6) = 0.18;
+agent.plant.param(7) = 0.18;
+agent.plant.param(8) = 0.18;
 % ===================================================================================================================================================
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 
 % agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
-agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
+agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
+% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -77,7 +77,7 @@ ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",ce
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); %                     flower
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); %                      heart
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); %                       star
-ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
 % 
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
@@ -118,6 +118,9 @@ ptName = "2026-8-3_22_32_41__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__dt=20ms__
 ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model.pt"; % Middle48 24 12, step4, 25ms
 % ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
 
+
+ptName = "2026-10-23_22_56_53__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__100000epoch_model.pt";
+
 % Learn Exp
 % ptName = "2026-7-23_11_28_41__DNN12__Exp_random__Euler__Activation=ReLU__100000epoch_model.pt";
 % onnxName = "2026-5-15_16_37_24__DNN12__Plant_data_Exp_random__Euler__Activation=ReLU__1000000epoch";
@@ -141,6 +144,11 @@ agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.l.reference = "landing";
 
 agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
+
+% 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
+cha_schedule = {"t", 15;
+                "f", 45;
+                "l", 50};
 
 
 function post(app)
