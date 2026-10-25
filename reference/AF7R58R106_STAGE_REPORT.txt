@@ -1,0 +1,8 @@
+R106 ACTUAL EKF + KNOWN MASK SAME-EVENT AUDIT
+status=R106_R88_AVAILABLE_BUT_EKF_NOT_AUTHENTICATED snapshot_count=5 authenticated_count=0
+event=1 time=6.4750000000000245 version=0 known=1 ekf=R106_EKF_CAPTURE_UNAVAILABLE q_error=0.554689587 cable_error_m=5.10659655
+event=2 time=8.8250000000000579 version=0 known=2 ekf=R106_EKF_CAPTURE_UNAVAILABLE q_error=0.57083324 cable_error_m=5.14158482
+event=3 time=13.325000000000122 version=1 known=2 ekf=R106_EKF_CAPTURE_UNAVAILABLE q_error=0.570797471 cable_error_m=5.14154667
+event=4 time=19.674999999999951 version=2 known=2 ekf=R106_EKF_CAPTURE_UNAVAILABLE q_error=1.17092435 cable_error_m=6.34144029
+event=5 time=19.749999999999947 version=3 known=2 ekf=R106_EKF_CAPTURE_UNAVAILABLE q_error=1.13754206 cable_error_m=6.27469451
+UNPROVEN: closed-loop HLC future, torque/tension strength, tracking tube, infinite future, IEEE, 25ms, production atomic commit

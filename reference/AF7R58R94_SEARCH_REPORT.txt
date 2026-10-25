@@ -1,0 +1,224 @@
+R94 MULTISEGMENT REFERENCE-ONLY SEARCH - NEVER A PRODUCTION SAFETY PROOF
+status=NO_PARTIAL_CANDIDATE_AND_NO_INPUT_AUTHORITY__NOT_COMMITTABLE attempts=24 partial=0 candidate=0
+source_t=19.749999999999947 ver=3 estimated_mL_kg=0.019385350680083017 known_count=2
+input_authority_supplied=0 tension_rating_supplied=0
+best_partial_length=Inf duration=NaN phase_delay=NaN
+first_failed_reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED
+first_exception=
+attempt=1 T=0.45152364098573089 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=2 T=0.90304728197146178 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=3 T=0.90304728197146178 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=4 T=1.8060945639429236 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=5 T=1.8060945639429236 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=6 T=1.8060945639429236 delay=0.90304728197146178 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=7 T=3.6121891278858471 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=8 T=3.6121891278858471 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=9 T=3.6121891278858471 delay=0.90304728197146178 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=10 T=3.6121891278858471 delay=1.8060945639429236 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=11 T=7.2243782557716942 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=12 T=7.2243782557716942 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=13 T=7.2243782557716942 delay=0.90304728197146178 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=14 T=7.2243782557716942 delay=1.8060945639429236 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=15 T=7.2243782557716942 delay=3.6121891278858471 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=16 T=14.448756511543388 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=17 T=14.448756511543388 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=18 T=14.448756511543388 delay=0.90304728197146178 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=19 T=14.448756511543388 delay=1.8060945639429236 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=20 T=14.448756511543388 delay=3.6121891278858471 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=21 T=14.448756511543388 delay=7.2243782557716942 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+attempt=22 T=28.897513023086777 delay=0 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=23 T=28.897513023086777 delay=0.45152364098573089 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+attempt=24 T=28.897513023086777 delay=0.90304728197146178 status=R93_ALL_SEEDS_UNCERTIFIED seeds=8 geo_heading_kin=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.046788355115456 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.421691588110335 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.158308660680884 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.508029787681927 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=25.395259772208746 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.753813915773755 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=32.481715979432963 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=1 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.820259879980455 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.294433147659094 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.252569799171464 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=19.01795451465118 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.397180929702998 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=26.5595476532813 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.515791347633797 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=31.280134354282545 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=2 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.656744426536918 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.046788355115456 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.421691588110335 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.158308660680884 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.508029787681927 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=25.395259772208746 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.753813915773755 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=32.481715979432963 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=3 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.820259879980455 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=16.565685611771929 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=16.789084829901448 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.095733112852393 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.295685833464162 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.55736234999339 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.783043910702311 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.092790453174555 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=4 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.352350449419404 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=15.47491243536232 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.14301092456413 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.882285700340351 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.3261471288039 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=27.620155275644343 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.294609280696584 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=30.036588842683326 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=5 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.50007329176843 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.294433147659095 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.252569799171464 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=19.017954514651169 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.397180929702998 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=26.5595476532813 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.515791347633794 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=31.280134354282531 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=6 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.656744426536918 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.516941758612024 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.52970992281432 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.052683395180964 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=24.130384497755781 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.579572472106541 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.48706101231172 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=31.162286471413765 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=7 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.889499507832127 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.112970745159686 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.331640001552813 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=19.292569259224553 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.448827712511239 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=25.208021423005455 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.60664516718051 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=30.654218347562033 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=8 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.981644311446871 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.873161820051234 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.191267969437291 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=18.466439068225593 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.357359043243378 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=26.350424394172478 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.748536402222904 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=30.062277739883925 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=9 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.091111180230904 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=16.565685611771929 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=16.789084829901448 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.095733112852393 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.295685833464162 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.55736234999339 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.783043910702311 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=29.092790453174555 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=10 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.352350449419404 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.052665256684337 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=11 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=19.047981274718342 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.627608877420371 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=25.008568677731134 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=26.835734218417446 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.783683438743346 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=33.999458497183625 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=11 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.076305070440689 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=12 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.647339617008889 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=12 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=19.189261339776856 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=12 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.135409533164534 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=12 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.433939680903986 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=12 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=26.454752228087031 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=12 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.594613075689935 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=12 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=33.666435740744426 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=12 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.945491504025519 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=13 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.299077104801071 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=13 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=19.510906420379012 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=13 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=19.665382933825761 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=13 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=23.855405561027659 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=13 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=26.09790546383757 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=13 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.452498971983069 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=13 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=33.341341178047855 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=13 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.847682614468745 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=14 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=12.842350797168216 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=14 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=18.805723616448958 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=14 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=20.619798609269822 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=14 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=22.673580895507499 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=14 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=25.464833279913123 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=14 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.306544306074954 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=14 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=32.693850719899757 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=14 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.748396956055956 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=13.516941758612024 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=17.52970992281432 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.052683395180956 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=15 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=24.130384497755802 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=24.579572472106541 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=15 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.487061012311734 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=31.162286471413772 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=15 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.889499507832141 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=23.305467317324357 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=27.493676331003702 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=30.022521423610542 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=34.47083683786277 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=34.975809790320739 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.152467133799014 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=41.300600047538026 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=16 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=41.874531857487888 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=22.668280024844591 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=26.813699832930304 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=29.391567064552486 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=33.856277114393414 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=34.396799403398667 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=35.558624056017941 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=40.750207465557594 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=17 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=41.366545044404532 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=22.034458009394388 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=26.13723097423032 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=28.76382477275477 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=33.244543635350396 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=33.823745601312808 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=34.973585673684241 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=40.208787874190641 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=18 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=40.871329393650953 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.778730551501695 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=19 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=24.798782477746848 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=27.519347345177376 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=32.030080475002194 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=32.697591880695498 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=33.834871294122799 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=39.155916488182008 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=19 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=39.924001646032387 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=18.333211491573834 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=20 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=22.228378840037912 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=25.086991437786288 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=29.640386304803005 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=30.542978568566525 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=31.729116859307005 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=37.193584984765465 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=20 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=38.240711120974112 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=21 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=14.052665256684337 kpass=2 hpass=2 gpass=0 full_geo=0 full_ref=0 reason=seg1:INCONCLUSIVE_FLOAT_INTERVAL_RESOLUTION error=
+SEED attempt=21 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=19.047981274718342 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=21 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=20.627608877420371 kpass=1 hpass=1 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=21 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=25.008568677731134 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=21 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=26.835734218417446 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NUMERICAL_INTERIOR_SPEED_VIOLATION_WITNESS error=
+SEED attempt=21 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=28.783683438743346 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=21 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=33.999458497183625 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=21 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=36.076305070440689 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=44.431171337676979 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=49.564516069504684 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=50.999110530336253 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=55.03058878927348 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=55.086321861435735 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=56.911605032083159 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=61.184227448003192 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=22 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=61.243059895969139 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=43.761553169255635 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=48.876498515163561 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=50.332474231244163 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=54.372732098110333 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=54.43396861026352 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=56.243544440531707 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=60.531451826230636 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=23 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=60.596177497342268 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=1 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=43.09221547711671 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=2 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=48.188262064223572 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=3 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=49.66619775663893 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=4 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=53.7154551785097 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=5 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=2 polyline_m=53.782430109497 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=6 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=55.575944588385667 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=7 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=59.879627255021056 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+SEED attempt=24 seed=8 status=FAIL_CLOSED_REFERENCE_NOT_CERTIFIED segments=3 polyline_m=59.950513247487429 kpass=0 hpass=0 gpass=0 full_geo=0 full_ref=0 reason=seg1:NECESSARY_END_SPEED_LIMIT_VIOLATED error=
+UNPROVEN: tail, torques/closed-loop, robust tube, IEEE directed rounding, production commit

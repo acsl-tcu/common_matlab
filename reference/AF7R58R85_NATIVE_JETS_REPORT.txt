@@ -1,0 +1,8 @@
+R85 SOURCE-BOUND CURRENT ACTIVE NATIVE JET AUDIT (NO COMMIT)
+version=3 phase_identity_hold=1 samples=5
+t=19.750000000 ver=3 r63_valid=0 r63_err=1.5 flat_native_err=0 r63_native_err=1.5 yvel_flat=1.5 yvel_native=1.5 yvel_r63=1.74730896e-15 yvel_nom=1.5 status=R63_CANONICAL_RECONSTRUCTION_MISMATCH__NO_R81
+t=20.000000000 ver=3 r63_valid=0 r63_err=1.50000337 flat_native_err=0 r63_native_err=1.50000337 yvel_flat=1.50000377 yvel_native=1.50000377 yvel_r63=4.04247943e-07 yvel_nom=1.5 status=R63_CANONICAL_RECONSTRUCTION_MISMATCH__NO_R81
+t=23.500000000 ver=3 r63_valid=0 r63_err=1.49906964 flat_native_err=0 r63_native_err=1.49906964 yvel_flat=1.4986878 yvel_native=1.4986878 yvel_r63=-0.000381837079 yvel_nom=1.5 status=R63_CANONICAL_RECONSTRUCTION_MISMATCH__NO_R81
+t=37.000000000 ver=3 r63_valid=0 r63_err=1.49950247 flat_native_err=0 r63_native_err=1.49950247 yvel_flat=1.49929851 yvel_native=1.49929851 yvel_r63=-0.000203957712 yvel_nom=1.5 status=R63_CANONICAL_RECONSTRUCTION_MISMATCH__NO_R81
+t=44.500000000 ver=3 r63_valid=0 r63_err=1.50068805 flat_native_err=0 r63_native_err=1.50068805 yvel_flat=1.50096343 yvel_native=1.50096343 yvel_r63=0.000275378532 yvel_nom=1.5 status=R63_CANONICAL_RECONSTRUCTION_MISMATCH__NO_R81
+NONE OF THESE RESULTS PROVE CONTINUOUS CLOSED-LOOP SAFETY.

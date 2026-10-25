@@ -1,16 +1,22 @@
 R76 REPLANNER ONLY | SAME EVENT PHYSICAL VS REFERENCE COLLISION AUDIT
-status=ALL_SAME_EVENT_NUMERIC_COMPARISONS_AVAILABLE__NOT_CERTIFIED events=2
+status=ALL_SAME_EVENT_NUMERIC_COMPARISONS_AVAILABLE__NOT_CERTIFIED events=3
 error=
 event=1 t=13.250000000 ver=0 prediction=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED audit=SAME_EVENT_REFERENCE_VS_EKF_HLC_PLANT_SAMPLED__NO_CONTINUOUS_PROOF
   known=2 samples=161 refSampleHit=1 physicalSampleHit=1 originalTrigger=1
   referenceTTC=3.925 physicalTTC=3.925 originalTTC=4
-  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0198840703
+  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0198837673
   nativeReference=1 nativePhysical=1 refNativeEqualsOld=1
   error=
 event=2 t=14.675000000 ver=1 prediction=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED audit=SAME_EVENT_REFERENCE_VS_EKF_HLC_PLANT_SAMPLED__NO_CONTINUOUS_PROOF
   known=2 samples=161 refSampleHit=1 physicalSampleHit=1 originalTrigger=1
   referenceTTC=3.525 physicalTTC=3.425 originalTTC=4
-  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0225374638
+  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0225524074
+  nativeReference=1 nativePhysical=1 refNativeEqualsOld=1
+  error=
+event=3 t=19.675000000 ver=2 prediction=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED audit=SAME_EVENT_REFERENCE_VS_EKF_HLC_PLANT_SAMPLED__NO_CONTINUOUS_PROOF
+  known=2 samples=161 refSampleHit=1 physicalSampleHit=1 originalTrigger=1
+  referenceTTC=0 physicalTTC=0 originalTTC=3.325
+  physicalObs=3 physicalComponent=UAV minOuterMargin=-0.0191212449
   nativeReference=1 nativePhysical=1 refNativeEqualsOld=1
   error=
 NOTE: Numeric grid cannot prove between-sample safety, thrust/tension constraints, or closed-loop reachability.

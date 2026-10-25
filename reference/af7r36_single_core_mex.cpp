@@ -1717,6 +1717,19 @@ static mxArray* result_struct(const PlanResult&R,double t0,double tm,double sear
     set("compiled_native_ms",dscalar(compiledMs));set("compiled_native_revision",mxCreateString(R28_REV));
     return S;
 }
+// R78: correction 7-jet evaluated on exactly the native packet input.
+// Returns only the CORRECTION part (3xN); MATLAB adds its genuine nominal
+// seventh derivative.  For a phase-enabled group, throw rather than guess.
+static mxArray* r78_correction_jet7_matrix(const ActiveReference&R,const std::vector<double>&t){
+    mxArray*Y=mxCreateDoubleMatrix(3,t.size(),mxREAL);
+    double*p=mxGetPr(Y);
+    for(size_t k=0;k<t.size();++k){
+        const auto y=r78_correction_jet7_identity(R,t[k]);
+        p[3*k+0]=y.x;p[3*k+1]=y.y;p[3*k+2]=y.z;
+    }
+    return Y;
+}
+
 static mxArray* eval_matrix(const ActiveReference&R,const std::vector<double>&t){
     mxArray*Y=mxCreateDoubleMatrix(21,t.size(),mxREAL);double*p=mxGetPr(Y);
     for(size_t k=0;k<t.size();++k){auto y=R.eval(t[k]);for(int r=0;r<7;++r){p[(3*r+0)+21*k]=y[r].x;p[(3*r+1)+21*k]=y[r].y;p[(3*r+2)+21*k]=y[r].z;}}
@@ -1739,6 +1752,16 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
         if(op==2){
             if(nrhs!=3) mexErrMsgIdAndTxt("AF7R34:Arity","eval op: op, packet, times.");
             ActiveReference R=parse_ref(prhs[1]);auto t=dvec(prhs[2],"times");plhs[0]=eval_matrix(R,t);return;
+        }
+        // R78 opt-in native correction derivative 7 for identity-time groups.
+        // Existing op0/1/2 and revision contract are unchanged.
+        if(op==25){
+            if(nrhs!=3 || nlhs!=1)
+                mexErrMsgIdAndTxt("AF7R78:Arity","op25: op, exactPacket, times -> 3xN correction jet7.");
+            ActiveReference R=parse_ref(prhs[1]);
+            auto t=dvec(prhs[2],"times");
+            plhs[0]=r78_correction_jet7_matrix(R,t);
+            return;
         }
         if(op==1){
             if(nrhs!=2) mexErrMsgIdAndTxt("AF7R34:Arity","plan op: op, packet.");

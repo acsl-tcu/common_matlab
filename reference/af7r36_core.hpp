@@ -582,6 +582,39 @@ struct ActiveReference {
 };
 
 
+// R78: Native derivative order 7 of the *same serialized correction packet*
+// consumed by ActiveReference::eval(order 0..6).  No phase case only:
+// for a general retiming, p^(7) needs the entire seventh-order chain rule,
+// and MUST NOT be silently evaluated with the identity-time formula.
+// This routine DOES NOT authorize a trajectory or relax any hard certificate.
+static inline Vec3 r78_correction_jet7_identity(const ActiveReference&ref,double t){
+    Vec3 total{};
+    if(!fin(t))throw std::runtime_error("R78 nonfinite time");
+    for(const auto&C:ref.repairs){
+        if(C.phase.enabled)
+            throw std::runtime_error("R78 phase layer requires full seventh-order composition");
+        if(t<=C.t0 || t>=C.t1)continue; // same side conventions as ref.eval
+        const CorrSegment* sp=nullptr;
+        for(const auto&sg:C.seg){if(t<=sg.t1){sp=&sg;break;}}
+        if(!sp || t<sp->t0)continue;
+        const double T=sp->t1-sp->t0;
+        if(!(fin(T)&&T>0.0) || sp->cp.size()!=16)
+            throw std::runtime_error("R78 invalid degree-15 correction");
+        const double u=std::max(0.0,std::min(1.0,(t-sp->t0)/T));
+        std::array<Vec3,16> D{};
+        for(int i=0;i<16;++i)D[i]=sp->cp[i];
+        int n=16,deg=15;
+        for(int r=1;r<=7;++r){
+            for(int i=0;i<n-1;++i)
+                D[i]=(D[i+1]-D[i])*(double(deg)/T);
+            --n;--deg;
+        }
+        total+=r58_decasteljau_fixed16(D.data(),n,u);
+    }
+    return total;
+}
+
+
 static inline std::array<Vec3,7> r51_phase_reference_eval(
         const ActiveReference&ref,const R51PhaseSpec&P,double t){
     if(!P.enabled)return ref.eval(t);

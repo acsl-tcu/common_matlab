@@ -1,17 +1,22 @@
 R75 POSTFLIGHT EVENT-FROZEN HLC+PLANT PREVIEW | REPLANNER ONLY
-status=EVENT_FROZEN_POSTFLIGHT_NUMERIC_PREVIEWS__NOT_CERTIFIED | capture=1 | events=2
+status=EVENT_FROZEN_POSTFLIGHT_NUMERIC_PREVIEWS__NOT_CERTIFIED | capture=1 | events=3
 error_id=
 error_message=
 snapshot_capture_errors=0 | last_id= | last_message=
-registry_before: registered=1 registrations=1 captures=2 event_count=2
+registry_before: registered=1 registrations=1 captures=3 event_count=3
 event=1 t=13.250000000 ver=0 status=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED
-  raw_EKF_gap_m=2.06532231492 adjusted_EKF_gap_m=0.0785151741536
-  samples=161 mass_kg=0.0148441447137 cable_residual_m=8.76538198185e-05 saturation_samples=0
+  raw_EKF_gap_m=2.06510381121 adjusted_EKF_gap_m=0.0782688706342
+  samples=161 mass_kg=0.0149023233457 cable_residual_m=4.12418322407e-05 saturation_samples=0
   error_id= error_message=
   error_location=
 event=2 t=14.675000000 ver=1 status=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED
-  raw_EKF_gap_m=2.06594786262 adjusted_EKF_gap_m=0.0716256148695
-  samples=161 mass_kg=0.0158497137011 cable_residual_m=0.000118058582139 saturation_samples=0
+  raw_EKF_gap_m=2.06447942226 adjusted_EKF_gap_m=0.0702936514832
+  samples=161 mass_kg=0.0158429779524 cable_residual_m=6.20084161942e-05 saturation_samples=0
+  error_id= error_message=
+  error_location=
+event=3 t=19.675000000 ver=2 status=EKF_INITIALIZED_EXISTING_HLC_AND_PLANT_NUMERIC_ONLY__NOT_CERTIFIED
+  raw_EKF_gap_m=2.06429299586 adjusted_EKF_gap_m=0.0704241300124
+  samples=161 mass_kg=0.0185421577126 cable_residual_m=6.50513526536e-05 saturation_samples=5
   error_id= error_message=
   error_location=
 HLC/EKF/PLANT/runner modified=0 | mass authority=EKF AT EVENT

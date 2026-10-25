@@ -1,0 +1,46 @@
+function S=AF7R58R87_SOURCE_CHECK()
+% R87: strict SHA-bound 4-site runtime parameter-key type repair.
+% Existing MATLAB PARAMETER_CLASS/get consumes scalar string keys, NOT char.
+% Exactly three cableL calls and one gravity call inside R71/R83 become
+% string-scalars. Controller, EKF, plant, flight do/commit and C++ untouched.
+root=fileparts(mfilename('fullpath'));
+target=fullfile(root,'REPLANNING_SYSTEM.m');
+patchedFile=fullfile(root,'REPLANNING_SYSTEM_R87_PATCHED_SOURCE.txt');
+assert(isfile(target)&&isfile(patchedFile),'R87:RequiredSourceMissing');
+baseSHA='e55452c44b4eb77fbf33f1f422422b9b223d2844f85a1666a57178f07670deaa';
+patchSHA='694fe9c440b780a4168d10cf3a4f53bb20e17222409151c91c22b175ecee4d7d';
+h=AF7R58R87_SHA256_FILE(target);
+assert(strcmp(h,baseSHA)||strcmp(h,patchSHA), ...
+    'R87:SourceMismatch_NoModification');
+assert(strcmp(AF7R58R87_SHA256_FILE(patchedFile),patchSHA), ...
+    'R87:PackageSourceChecksumMismatch');
+T=fileread(target);P=fileread(patchedFile);
+% Check byte-for-byte surgery, including NO hidden changes in other code.
+old1='obj.self.parameter.get(''cableL'')';
+old2='obj.self.parameter.get(''gravity'')';
+new1='obj.self.parameter.get("cableL")';
+new2='obj.self.parameter.get("gravity")';
+assert(numel(strfind(P,old1))==0&&numel(strfind(P,old2))==0, ...
+    'R87:UnfixedCharKeyInPatchedCode');
+assert(numel(strfind(P,new1))==6&&numel(strfind(P,new2))==4, ...
+    'R87:UnexpectedParameterGetterCallSites');
+if strcmp(h,baseSHA)
+    assert(numel(strfind(T,old1))==3&&numel(strfind(T,old2))==1, ...
+        'R87:UnexpectedBaselineGetterCallSites');
+    rebuilt=strrep(strrep(T,old1,new1),old2,new2);
+    assert(isequal(rebuilt,P),'R87:AdditionalSourceDeltaForbidden');
+else
+    assert(isequal(T,P),'R87:InstalledSourceBytesDiffer');
+end
+assert(numel(strfind(P,'function R = r83_live_r81_natural_return_reference_only'))==1 && ...
+    numel(strfind(P,'function A = r86_live_serialized_c7_authority'))==1 && ...
+    contains(P,'A=obj.r86_live_serialized_c7_authority(double(tglobal));'), ...
+    'R87:LostNativeJetBinding');
+S=struct('status','PASS_R87_STRING_SCALAR_PARAMETER_KEY_SOURCE_BOUND', ...
+    'before_install',strcmp(h,baseSHA),'already_installed',strcmp(h,patchSHA), ...
+    'cableL_calls_repaired',3,'gravity_calls_repaired',1, ...
+    'source_sha256',h,'expected_after_sha256',patchSHA, ...
+    'flight_loop_changed',false,'generator_changed',false, ...
+    'controller_plant_ekf_changed',false, ...
+    'execution_safety_proved',false);
+end

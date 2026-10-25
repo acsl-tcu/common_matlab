@@ -1,0 +1,58 @@
+R79 SOURCE-BOUND GENERATOR WORK | REPLANNER ONLY
+
+OBSERVED R78 RESULT (user MATLAB R2026a):
+ - Native MEX C++17 compiled and native jet7 test PASS.
+ - Certified Stage3 reference commits at 13.300, 19.650 and 19.725 s.
+ - R68 seam logs: positional derivatives 0..6 and yaw 0..6 pass at all 3 commits.
+ - The plotted large fold is a generated path-shape failure, not a seam jump.
+ - R58R16 native branch promotes free terminal constant-offset correction then
+   returns before the separate phase / natural-rejoin candidate search.
+ - Native certified terminal offset is NOT itself a certified spatial rejoin.
+ - Existing REFERENCE_ONLY geometry does not account for true HLC frame
+   throughout native generator; old trigger and candidate commit remain unchanged.
+
+R79 ACTUALLY IMPLEMENTED (NEW source modules, not the production replanner):
+ - Degree-15 Hermite connector using position derivatives 0..7 at BOTH ends;
+   endpoint joins current path to a caller-specified DELAYED nominal phase.
+ - Position controls in physical HLC payload frame. Separate raw Flight
+   control points are translated by the external cable length (position only).
+ - Continuous-time known-ellipsoid support-plane certificate: deCasteljau
+   subdivisions + full Bernstein convex hull + physical payload-centered ball
+   radius max(rL, L+rC, L+rQ) covers whole cable, UAV and payload.
+ - Exact C6 path-tangent yaw chart certificate from Bernstein positive
+   horizontal velocity projection, conditional on C7 endpoint match.
+ - Separate conservative Bernstein velocity/acceleration/jerk and finite-
+   sensing kinematic bound. External gravity/L/VQ are mandatory inputs.
+ - Fail closed when support-plane proof is inconclusive or resource limited.
+ - A MATLAB selftest uses SYNTHETIC linear reference, safe/unsafe ellipsoids,
+   oriented obstacle and endpoint jets 0..7.
+
+CRITICAL LIMITATIONS / DO NOT CALL A COMPLETED TRAJECTORY REPAIR:
+ - R79 is a standalone candidate construction and conservative verification
+   primitive; NOT YET integrated into the native R58 branch or commit.
+ - The full post-connector future delayed nominal trajectory has no global
+   safety certificate here; no native atomic authority, input/tension,
+   observer/tracking tube or real-time generation claim.
+ - Body-ball certificate assumes taut exact length L and known STATIC obstacles.
+ - Even geometry+kinematic passing cannot authorize a production switch.
+ - Phase delay and terminal time must be computed from scenario and live
+   reference by higher-level optimizer; NO fixed maneuver-time defaults.
+ - Mass mL is not used in geometry; the existing active planner must use
+   latest EKF mL for execution validation. HLC, EKF and plant untouched.
+
+NEXT ACTUAL SOURCE INTEGRATION:
+ - Rebase native R58 full-body geometry on physical HLC payload frame,
+   preserving raw Flight output and sensor world coordinates.
+ - Add native delayed-phase terminal splice representation and include its
+   full support in atomic certification and release of known obstacles.
+ - Require full continuous-time geometry/kinematic/closed-loop certificate
+   and choose among certified candidates by exact non-detour objective.
+ - Then replace old sampled trigger using EKF latest state and an
+   interval-certified physical reachability bound; never infer safety from
+   161 sampled points alone.
+ - Numerical endpoint jets should be checked with magnitude-scaled error
+   budgets: high derivative orders on short degree-15 segments can amplify
+   floating-point roundoff. No formal outward-rounded interval proof yet.
+ - A successful geometric certificate is valid only for the exactly encoded
+   Bezier path and represented ellipsoids; model, actuator and real tracking
+   uncertainty require separately certified margins.
