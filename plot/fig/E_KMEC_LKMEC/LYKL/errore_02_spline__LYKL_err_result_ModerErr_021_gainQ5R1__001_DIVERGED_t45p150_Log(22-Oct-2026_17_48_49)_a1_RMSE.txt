@@ -1,0 +1,6 @@
+File: C:\Users\yuriy\github\common_matlab\Data\Sim_data\errore_02_spline__LYKL_err_result_ModerErr_021_gainQ5R1__001_DIVERGED_t45p150_Log(22-Oct-2026_17_48_49).mat
+Phase: fl
+p RMSE: 0.563298 0.185531 0.187248 (valid 1529/1529)
+sum = 0.936076
+v RMSE: 1.23609 0.338984 0.250994 (valid 1529/1529)
+sum = 1.82607

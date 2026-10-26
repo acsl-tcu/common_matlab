@@ -50,4 +50,4 @@ else
 end
 
 app = SimExp(Setting);
-app.run_auto_trials(1, "errore_02_spline__KL_err_result_ModerErr_021_gainQ1R1000_");%自動くりかえし
+app.run_auto_trials(1, "errore_02_spline__KL_err_result_ModerErr_021_gainQR1_");%自動くりかえし

@@ -57,7 +57,7 @@ settings.savefolder = folder;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % fsave = 0;
-fsave = 1;
+fsave = 0;
 % fsave = 5;
 % [Recomendation] Initially, you should check the figure with fsave = 0, then chose save style.
 % [推奨] 最初はfsave = 0でfigureを確認し，その後 保存形式を選択

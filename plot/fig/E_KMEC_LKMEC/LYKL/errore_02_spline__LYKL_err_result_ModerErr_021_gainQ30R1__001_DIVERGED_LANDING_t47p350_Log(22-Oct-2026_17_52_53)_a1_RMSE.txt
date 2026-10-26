@@ -1,0 +1,6 @@
+File: C:\Users\yuriy\github\common_matlab\Data\Sim_data\errore_02_spline__LYKL_err_result_ModerErr_021_gainQ30R1__001_DIVERGED_LANDING_t47p350_Log(22-Oct-2026_17_52_53).mat
+Phase: fl
+p RMSE: 0.326227 0.172379 0.143112 (valid 1617/1617)
+sum = 0.641717
+v RMSE: 1.03222 0.30928 0.434299 (valid 1617/1617)
+sum = 1.7758

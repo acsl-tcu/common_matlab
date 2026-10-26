@@ -60,7 +60,7 @@ classdef MECKC < handle
             % K_full=[zeros(4,24)];
             % load('koopman_common_z__gain_KD.mat','K_full');
             % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');   % errorKLMEC
+            load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');   % errorKLMEC
             % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
             % 
             %E_LKMEC
@@ -75,7 +75,7 @@ classdef MECKC < handle
             % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R520261022_173736_663.mat','K_full');     %
             % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1020261022_173842_243.mat','K_full');     %
             % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R30_20261022_174000_258.mat','K_full');     %
-            load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1000_20261022_174040_705.mat','K_full');     %
+            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1000_20261022_174040_705.mat','K_full');     %
 
             % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
             % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')

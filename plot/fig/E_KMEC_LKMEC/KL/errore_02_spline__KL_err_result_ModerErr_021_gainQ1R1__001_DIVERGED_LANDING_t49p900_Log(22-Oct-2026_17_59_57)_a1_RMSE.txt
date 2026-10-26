@@ -1,0 +1,6 @@
+File: C:\Users\yuriy\github\common_matlab\Data\Sim_data\errore_02_spline__KL_err_result_ModerErr_021_gainQ1R1__001_DIVERGED_LANDING_t49p900_Log(22-Oct-2026_17_59_57).mat
+Phase: fl
+p RMSE: 0.26582 0.166708 0.248083 (valid 1719/1719)
+sum = 0.680611
+v RMSE: 0.629427 0.286757 0.708097 (valid 1719/1719)
+sum = 1.62428
