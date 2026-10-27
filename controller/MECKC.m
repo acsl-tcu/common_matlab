@@ -58,38 +58,8 @@ classdef MECKC < handle
 
             %---可制御部分をデカップリング---%
             % K_full=[zeros(4,24)];
-            % load('koopman_common_z__gain_KD.mat','K_full');
-            % load('for_kl_spline_LYKL_gain_KD_LQR_check_20261005_181010.mat','K_full');
-            load('errore_02_spline__KL_err_gain_controllable_dlqr_20261015_171844_339.mat','K_full');   % errorKLMEC
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_20261015_172827_218.mat','K_full');     %
-            % 
-            %E_LKMEC
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q1_R120261022_162810_553.mat','K_full');     %
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q5_R120261022_163146_400.mat','K_full');     %
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q10_R120261022_163321_494.mat','K_full');     %
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q30_R120261022_163558_085.mat','K_full');     %
-            % load('errore_02_spline__LYKL_err_gain_controllable_dlqr_Q1000_R120261022_171514_851.mat','K_full');     %
-            % 
-            % %E_KMEC
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R120261022_173543_365.mat','K_full');     %
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R520261022_173736_663.mat','K_full');     %
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1020261022_173842_243.mat','K_full');     %
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R30_20261022_174000_258.mat','K_full');     %
-            % load('errore_02_spline__KL_err_gain_controllable_dlqr_Q1_R1000_20261022_174040_705.mat','K_full');     %
+            load('koopman_common_z__gain_KD.mat','K_full');
 
-            % load('4kidou_LYKL_gain_KCD_LQR.mat','K_full');
-            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full')
-            % load('include_inv_KL_gain_KD_fixed.mat','K_full')     ←一瞬で発散
-            % load('exp_de_kensyou_KL_gain_KCD_LQR_check_KudouSenpainode.mat','K_full');     %remakeのカルマン正準分解でのゲイン
-
-
-            % load('include_inv_ref_LYKL_gain_KD_fixed.mat','K_full'); % ←飛びはするがRMSEはおそらく低下
-
-            % load('4kidou_KL_again_KL_gain_KCD_LQR_check.mat','K_full');
-
-            % load('0708_second_new_LYKL_gain_KD_fixed.mat','K_full');
-
-            % % data = load('first_KL_gain_KD.mat');
             % % K = data.K;
             e = z_n-z_p;
             obj.result.e = e;
