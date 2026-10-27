@@ -1,6 +1,5 @@
 %RUN_STAGE3_DESIGNA  段階3：設計A（静的重みの連続時間 状態フィードバック H∞）
 P = ctow_params();
-% opt = struct('alpha',0.01, 'q_th',0, 'b_int',0.3, 'rho_v',0.003);   % 事前検討の初期値
 opt = struct('alpha',0.01, 'q_th',0, 'b_int',0.3, 'rho_v',0.003);   % 事前検討の初期値
 G = ctow_genplant_A(P, opt);
 gopt = ctow_hinf_gamma_opt(G.A, G.B1, G.B2, G.C1, G.rho_v);
@@ -15,9 +14,9 @@ mG2 = ctow_eval(P.K.G2, 'G2 (optimized)', P);
 save('stage3_designA.mat', 'K', 'gamma', 'gopt', 'opt', 'mA', 'mG1', 'mG2');
 
 % ---- 判定（手順書4章） ----
-c1 = mA.TD_inf < 1;                 % r in [0.5,3.5] のロバスト安定保証　‖T_Δ‖∞
-c2 = mA.sigma >= 0.3;               % 速さσ
-c3 = mA.stable_impl;                % 実装モデルで安定（tau 10/30/50 ms）τ_r
+c1 = mA.TD_inf < 1;                 % r in [0.5,3.5] のロバスト安定保証
+c2 = mA.sigma >= 0.3;               % 速さ
+c3 = mA.stable_impl;                % 実装モデルで安定（tau 10/30/50 ms）
 fprintf('\n判定: r保証(||TD||<1)=%d, 速さ(sigma>=0.3)=%d, 実装安定=%d\n', c1, c2, c3);
 if c1 && c2 && c3
     fprintf('判定: OK\n次のアクション: 段階4（周波数重み）と段階6（シミュレーション比較）へ進む。zeta_min は G1 より悪い見込み（手順書1.3）なので、値を記録しておくこと。\n');

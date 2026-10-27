@@ -21,6 +21,7 @@ P.ref.minReGv  = struct('G0',-0.01533,'G1',-0.02582,'G2',-0.00545);
 
 % 質量比 r = (想定担当質量)/(実際の有効質量) の不確かさ範囲
 P.r_lo = 0.5; P.r_hi = 3.5;
+% P.r_lo = 0.5; P.r_hi = 1;
 P.r0 = (P.r_lo + P.r_hi)/2;
 P.Wr = (P.r_hi - P.r_lo)/(P.r_hi + P.r_lo);
 end
