@@ -1,6 +1,0 @@
-R100 GENERATOR-LEVEL INTERIOR SPEED AND TIMING OPTIMIZATION, R99 INDEPENDENT CERT GATES
-status=NO_PARTIAL_CANDIDATE_AND_NO_INPUT_AUTHORITY__NOT_COMMITTABLE attempts=24 partial=0 full_ref=0
-source_t=19.749999999999947 reference_version=3 known_count=2 mL=0.019385350680083017
-first_reason=NECESSARY_ENDPOINT_UAV_TRAVEL_TIME_VIOLATION__NO_SEEDS
-first_exception=MATLAB:heterogeneousStrucAssignment:異なる構造体での添字による代入です。
-NO PROOF: full future, input torque/tension, HLC tracking tube, IEEE rounding, production trigger/commit.

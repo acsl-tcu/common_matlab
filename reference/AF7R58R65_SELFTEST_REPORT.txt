@@ -1,5 +1,0 @@
-R65 | REAL R61 OFFSET RETURN SCREEN | NOT A SAFETY CERTIFICATE
-status=PASS_OFFSET_RETURN_STRUCTURAL_ONLY
-actual_polygon_pass=1 negative_rejected=1 rotation_pass=1
-Bernstein radial upper=0
-natural_rejoin_committed=0 wholebody_proved=0 HLC_future_proved=0

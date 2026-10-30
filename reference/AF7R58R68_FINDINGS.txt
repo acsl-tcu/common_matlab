@@ -1,8 +1,0 @@
-R68 precise yaw seam instrument, based on user's exact R67 runtime sources.
-Source structural diff: adds one ring and read-only captures at R67 seam validation.
-R67 MAT proves 32 latest seam attempts all have position 0..6 mismatch ~1e-16 or 0, but yaw aggregate mismatch up to 1.3920. Which yaw derivative fails was unrecorded.
-R68 saves yaw 0..6 OLD vs NEW, geometry tangent consistency, XY velocities and first failed derivative order.
-If yaw-order 6 alone fails, consider failure of position-order 7 seam (necessary for tangent yaw C6).
-If low-order yaw fails despite velocity agreement, inspect old/new yaw reference conventions/wrapping; must not bypass safety by ignoring old yaw.
-No MATLAB executable here; run MATLAB parser check and SimHL.
-No algorithmic finish: 4 s EKF-initialized closed-loop predictor, certified natural C7 rejoin, whole-execution actuator guarantees missing.

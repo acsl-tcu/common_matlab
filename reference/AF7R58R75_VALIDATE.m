@@ -1,6 +1,0 @@
-function V=AF7R58R75_VALIDATE()
-V.source=AF7R58R75_SOURCE_CHECK();
-V.selftest=AF7R58R75_SELFTEST();
-V.status='R75_SOURCE_AND_ACTUAL_GETTER_SMOKE_PASS__4S_PREVIEW_UNVERIFIED';
-V.production_modules_modified=false;
-end

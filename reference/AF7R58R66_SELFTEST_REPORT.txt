@@ -1,2 +1,0 @@
-SOURCE_AND_HOLD_SEMANTICS_STRUCTURAL_PASS__NOT_SAFETY_CERTIFIED
-parser=1 hold=1 derivative_zero=1 baseline_scoped=1

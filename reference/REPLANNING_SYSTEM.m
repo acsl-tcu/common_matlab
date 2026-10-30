@@ -175,6 +175,16 @@ classdef REPLANNING_SYSTEM < handle
 
 
     properties (Access = public)
+        % R138: LEGACY modes are research-only Flight comparison switches.
+        % Both OFF = NOMINAL_ONLY: old future-reference trigger and old
+        % Stage1/2/3 candidate generation/commit do not run in REAL Flight.
+        % Sensor-known obstacles, EKF, plant, HLC, and R124 frozen event capture
+        % are NOT disabled. NEVER use NOMINAL_ONLY on a real aircraft.
+        R138_ENABLE_LEGACY_TRIGGER = true;
+        R138_ENABLE_LEGACY_GENERATOR = true;
+        % R139: research-only nominal-flight frozen-EKF capture cadence [s].
+        % This is a diagnostic logging interval, never the physical horizon.
+        R139_NOMINAL_CAPTURE_INTERVAL_S = 0.5;
         % -----------------------------------------------------------------
         % 【コンソールログ表示・プロファイリング制御スイッチ】
         % -----------------------------------------------------------------
@@ -216,6 +226,85 @@ classdef REPLANNING_SYSTEM < handle
         r108_live_physical_preview_fn = [];
         r108_live_c7_generator_fn = [];
         r108_dual_engine_armed = false;
+        % R172: strict replacement dispatch. Off unless both production
+        % proof/route providers are injected via constructor opts BEFORE Flight.
+        % Never use in physical flight without an independent safety review.
+        r172_strict_replacement = false;
+        % R181: SIMULATION ONLY. Current-EKF HLC+plant numeric preview
+        % may request a collision warning, but never authorize a reference
+        % repair, execution safety certificate or a physical-flight use.
+        r181_sim_preview_enabled = false;
+        % R191 lightweight real-time EKF geometry screen (simulation only).
+        % Actual HLC-plant reachability remains UNPROVED and never commits.
+        r191_fast_trigger_enabled = false;
+        r191_tick_count = 0;
+        r191_tick_ring = nan(4096,8);
+        r191_preview_max_ms = 0;
+        r191_first_event_snapshot = struct();
+        r181_last_trigger = struct();
+        r181_attempt_count = 0;
+        r181_numeric_warning_count = 0;
+        r181_error_count = 0;
+        r181_trigger_request = false;
+        r181_max_preview_ms = 0;
+        r181_first_warning_time_s = NaN;
+        r181_first_warning_obstacle_id = NaN;
+        r181_warning_ring = nan(128,7);
+        r181_warning_ring_count = 0;
+        % R182 | independent local 4s full-body interval-risk diagnostic.
+        % No global fmax*T^2 ball and no flight reference commit authority.
+        r182_model_possible_count = 0;
+        r182_model_conditional_clear_count = 0;
+        r182_interval_unknown_count = 0;
+        r182_first_possible_time_s = NaN;
+        r182_first_possible_obstacle_id = NaN;
+        r182_max_local_interpolation_m = 0;
+        % R188 | Flight-tick current EKF -> event identity (simulation only).
+        % These fields are observational and do not grant a commit proof.
+        r188_seen_reference_version = NaN;
+        r188_seen_obstacle_ids = zeros(1,0);
+        r188_last_event = struct();
+        r188_event_request_this_tick = false;
+        r188_pending_request = struct();
+        r188_new_event_count = 0;
+        r188_duplicate_suppressed_count = 0;
+        r188_unknown_count = 0;
+        r188_deadline_miss_count = 0;
+        r188_max_preview_ms = 0;
+        r188_first_event_time_s = NaN;
+        r188_first_event_obstacle_id = NaN;
+        r188_event_ring = nan(128,8);
+
+
+
+
+        % R189 simulation-only: C7 candidate synthesis on a real R188 event.
+        % Never enables a production reference commit or HLC input swap.
+        r189_sim_c7_enabled = false;
+        r189_last_trial = struct();
+        r189_trial_count = 0;
+        r189_generated_count = 0;
+        r189_proxy_hull_count = 0;
+        r189_trial_error_count = 0;
+        r189_max_trial_ms = 0;
+        % R190: bounded source-of-unknown ledger. No control/commit authority.
+        r190_first_preview_status = '';
+        r190_first_preview_error = '';
+        r190_first_interval_status = '';
+        r190_last_preview_status = '';
+        r190_last_preview_error = '';
+        r190_last_interval_status = '';
+        r190_numeric_no_contact_count = 0;
+        r190_hlc_preview_exception_count = 0;
+        r190_first_unknown_time_s = NaN;
+        r190_first_unknown_code = '';
+        r172_reachability_provider_fn = [];
+        r172_routes_provider_fn = [];
+        r172_obstacle_ledger_fn = [];
+        r172_execution_validator_fn = [];
+        r172_last_strict_trigger = struct();
+        r172_trigger_latch = struct([]);
+        r172_last_strict_generator = struct();
         r88_capture_enabled = false; % R108: nonproduction offline snapshot opt-in only
         r88_snapshot_version = NaN;
         r88_snapshots = struct([]);
@@ -3068,7 +3157,129 @@ classdef REPLANNING_SYSTEM < handle
 
             obj.self=self;
             obj.base_ref=base_ref;
+            % R172 strict mode is an opt-in research replacement; no silent
+            % legacy fallback. Binding is only valid at construction time.
+            if isfield(opts,'R172_STRICT_REPLACEMENT') && ...
+                    logical(opts.R172_STRICT_REPLACEMENT)
+                req172={'R172_REACHABILITY_PROVIDER','R172_ROUTE_PROVIDER', ...
+                        'R172_LEDGER_PROVIDER'};
+                assert(all(isfield(opts,req172)), ...
+                    'R172:MissingPreflightProviders', ...
+                    'New trigger/generator require all three same-tick providers.');
+                f172={opts.R172_REACHABILITY_PROVIDER, ...
+                      opts.R172_ROUTE_PROVIDER,opts.R172_LEDGER_PROVIDER};
+                assert(all(cellfun(@(f) isa(f,'function_handle'),f172)), ...
+                    'R172:ProviderMustBeFunction', ...
+                    'Strict replacement providers must be function handles.');
+                obj.r172_reachability_provider_fn=f172{1};
+                obj.r172_routes_provider_fn=f172{2};
+                obj.r172_obstacle_ledger_fn=f172{3};
+                % The separate production execution proof is not provided
+                % by the present research sources. Strict mode is therefore
+                % disabled for Flight until that proof authority is supplied.
+                assert(isfield(opts,'R172_EXECUTION_AUTHORITY_READY') && ...
+                       isequal(opts.R172_EXECUTION_AUTHORITY_READY,true) && ...
+                       isfield(opts,'R172_CERTIFICATE_VALIDATOR') && ...
+                       isa(opts.R172_CERTIFICATE_VALIDATOR,'function_handle'), ...
+                    'R172:FlightCertificateProducerMissing', ...
+                    ['Actual HLC torque/observer/yaw/tail continuous-time ' ...
+                     'validator is absent. No Flight strict replacement.']);
+                obj.r172_execution_validator_fn=opts.R172_CERTIFICATE_VALIDATOR;
+                obj.r172_strict_replacement=true;
+            end
+            % R138: setup-time mode selection; no edits to run/HLC/plant.
+            % Explicit constructor options override the environment mode.
+            r138_env_mode=upper(strtrim(getenv('AF7R58R138_LEGACY_MODE')));
+            if strcmp(r138_env_mode,'NOMINAL_ONLY')
+                obj.R138_ENABLE_LEGACY_TRIGGER=false;
+                obj.R138_ENABLE_LEGACY_GENERATOR=false;
+            elseif isempty(r138_env_mode) || strcmp(r138_env_mode,'LEGACY')
+                obj.R138_ENABLE_LEGACY_TRIGGER=true;
+                obj.R138_ENABLE_LEGACY_GENERATOR=true;
+            else
+                error('R138:UnknownMode', ...
+                    'Use AF7R58R138_LEGACY_MODE=LEGACY or NOMINAL_ONLY.');
+            end
+            if isfield(opts,'R138_ENABLE_LEGACY_TRIGGER')
+                obj.R138_ENABLE_LEGACY_TRIGGER=logical(opts.R138_ENABLE_LEGACY_TRIGGER);
+            end
+            if isfield(opts,'R138_ENABLE_LEGACY_GENERATOR')
+                obj.R138_ENABLE_LEGACY_GENERATOR=logical(opts.R138_ENABLE_LEGACY_GENERATOR);
+            end
+            % R174: strict new engines are mutually exclusive with legacy.
+            % This is NOT the R138 NOMINAL_ONLY mode: strict trigger and
+            % Stage1/2/3 remain enabled, subject to proof authority.
+            if obj.r172_strict_replacement
+                obj.R138_ENABLE_LEGACY_TRIGGER=false;
+                obj.R138_ENABLE_LEGACY_GENERATOR=false;
+            end
+            assert(isscalar(obj.R138_ENABLE_LEGACY_TRIGGER) && ...
+                   isscalar(obj.R138_ENABLE_LEGACY_GENERATOR), ...
+                   'R138:ScalarSwitchesRequired', 'R138 switches must be scalar 0/1.');
+            assert(obj.R138_ENABLE_LEGACY_TRIGGER || ...
+                   ~obj.R138_ENABLE_LEGACY_GENERATOR, ...
+                   'R138:InvalidMode', ...
+                   'Legacy generator ON while legacy trigger OFF is unsupported.');
+            if ~obj.R138_ENABLE_LEGACY_TRIGGER && ~obj.r172_strict_replacement
+                fprintf(['[R138] SIMULATION DIAGNOSTIC NOMINAL_ONLY: ' ...
+                    'old trigger=0, old generator/commit=0; ' ...
+                    'EKF/sensor/events remain ON. NOT SAFE FOR REAL FLIGHT.\n']);
+            end
 
+            % R181 opt-in is deliberately incompatible with strict production
+            % replacement.  It uses the unchanged HLC+plant numerical preview
+            % to TEST the trigger in the real Flight loop, with legacy planner
+            % OFF and with NO candidate commit.  Never use on a real UAV.
+            r181env=upper(strtrim(getenv('AF7R58R181_SIM_TRIGGER')));
+            if isempty(r181env) || strcmp(r181env,'OFF')
+                obj.r181_sim_preview_enabled=false;
+            elseif strcmp(r181env,'ON')
+                assert(~obj.r172_strict_replacement, ...
+                    'R181:StrictAndNumericPreviewMustNotMix');
+                obj.R138_ENABLE_LEGACY_TRIGGER=false;
+                obj.R138_ENABLE_LEGACY_GENERATOR=false;
+                obj.r181_sim_preview_enabled=true;
+                fprintf('[R181] SIM ONLY: live EKF/HLC/plant numeric trigger, old planner OFF, no avoidance commit.\n');
+            else
+                error('R181:BadSimulationMode','R181 mode must be ON or OFF.');
+            end
+
+            % R189 simulator must opt in explicitly BEFORE constructing object.
+            % Current-state HLC numeric preview remains R181/R182. This flag
+            % only adds C7 candidate work on a NEW R188 risk event.
+            env189=upper(strtrim(getenv('AF7R58R189_SIM_C7')));
+            if strcmp(env189,'ON')
+                assert(obj.r181_sim_preview_enabled && ...
+                    ~obj.r172_strict_replacement && ...
+                    ~obj.R138_ENABLE_LEGACY_TRIGGER && ...
+                    ~obj.R138_ENABLE_LEGACY_GENERATOR, ...
+                    'R189:MustUseSimulationOnlyPreview', ...
+                    'R189 requires R181=ON, legacy OFF, and no strict flight.');
+                obj.r189_sim_c7_enabled=true;
+                fprintf('[R189] SIM ONLY: numerical trigger -> C7 candidate; no commit.\n');
+            elseif ~isempty(env189) && ~strcmp(env189,'OFF')
+                error('R189:BadEnvironmentFlag', ...
+                    'AF7R58R189_SIM_C7 must be ON or OFF.');
+            end
+
+            % R191 real-time mode replaces expensive per-tick R71 numerical
+            % ODE solves with current-EKF full-cable linear-hull early warning.
+            % This mode is never a production safety/commit authority.
+            % Default ON for R181 simulated diagnostic: avoid 160 HLC+ODE
+            % shadow steps PER CONTROL TICK. Explicit OFF restores R181.
+            env191=upper(strtrim(getenv('AF7R58R191_FAST_TICK')));
+            if isempty(env191) || strcmp(env191,'ON')
+                assert(obj.r181_sim_preview_enabled && ...
+                    ~obj.r172_strict_replacement && ...
+                    ~obj.R138_ENABLE_LEGACY_TRIGGER && ...
+                    ~obj.R138_ENABLE_LEGACY_GENERATOR, ...
+                    'R191:SimulationModeRequired', ...
+                    'Requires simulation R181=ON, old planner OFF.');
+                obj.r191_fast_trigger_enabled=true;
+                fprintf('[R191] SIM ONLY: fast current-EKF whole-body 4s trigger; R71 ODE NOT in Flight.\n');
+            elseif ~strcmp(env191,'OFF')
+                error('R191:InvalidMode', 'FAST_TICK must be ON/OFF.');
+            end
             % AF7R58R15: a newly constructed simulation cannot silently
             % inherit the previous run's diagnostic result. This is setup-only.
             if logical(obj.ENABLE_AF7R58_SHADOW_DIAGNOSTIC) && ...
@@ -3153,6 +3364,10 @@ classdef REPLANNING_SYSTEM < handle
                 obj.ENABLE_STAGED_REPLAN_PIPELINE= ...
                     logical(opts.ENABLE_STAGED_REPLAN_PIPELINE);
             end
+            assert(~obj.r172_strict_replacement || ...
+                   obj.ENABLE_STAGED_REPLAN_PIPELINE, ...
+                   'R172:StagedPipelineRequired', ...
+                   'STRICT requires the Stage1/2/3 interface, no native nonstaged route.');
             if isfield(opts,'EXECUTION_AWARE_CERTIFICATE_FN')
                 fn=opts.EXECUTION_AWARE_CERTIFICATE_FN;
                 assert(isempty(fn)||isa(fn,'function_handle'), ...
@@ -3923,7 +4138,278 @@ classdef REPLANNING_SYSTEM < handle
                 isfinite(double(obj.staged_replan_collision_time)) && ...
                 double(obj.staged_replan_collision_time)>double(time.t);
 
-            if pipeline_latched
+            % R138: legacy-free real-Flight research comparison, preserving
+            % the nominal command and sensor-bound frozen EKF events.
+            % Pre-motion synthetic prime remains intact for source compatibility.
+            r138_nominal_only_real_flight = ...
+                ~obj.R138_ENABLE_LEGACY_TRIGGER && ...
+                ~obj.r172_strict_replacement && ...
+                real_sensor_memory_event && ...
+                ~obj.setup_exact_do_prime_active && ...
+                ~obj.generator_integration_prime_active;
+            % R174: strict does not enter the old nominal-only suppression.
+            % A missing reach/route/exec proof fails closed at preflight.
+            % R181 real invocation: a fresh current-state physical preview
+            % is evaluated on every known-obstacle Flight tick.  It is a
+            % separate simulation diagnostic; native Stage1/2/3 stays OFF.
+            if obj.r181_sim_preview_enabled && ...
+                    r138_nominal_only_real_flight && any(active)
+                r181clock=tic;
+                try
+                    if obj.r191_fast_trigger_enabled
+                        r181result=AF7R58R191_EKF_TICK_TRIGGER( ...
+                            obj,active,double(time.t), ...
+                            double(pQ_cur(:)),double(pL_cur(:)));
+                    else
+                        r181result=AF7R58R181_LIVE_TRIGGER(obj,active,double(time.t), ...
+                            double(pQ_cur(:)),double(pL_cur(:)));
+                    end
+                catch r181ME
+                    r181result=struct('status',['UNKNOWN_' char(r181ME.identifier)], ...
+                        'numeric_request',false,'first_obstacle_id',NaN, ...
+                        'first_component_code',0,'first_ttc_s',NaN, ...
+                        'numeric_min_margin_m',NaN, ...
+                        'error_message',char(r181ME.message), ...
+                        'execution_certified',false,'commit_authorized',false);
+                end
+                obj.r181_attempt_count=obj.r181_attempt_count+1;
+                obj.r181_max_preview_ms=max(obj.r181_max_preview_ms,1e3*toc(r181clock));
+                if startsWith(char(r181result.status),'UNKNOWN_')
+                    obj.r181_error_count=obj.r181_error_count+1;
+                end
+                if logical(r181result.numeric_request)
+                    obj.r181_numeric_warning_count=obj.r181_numeric_warning_count+1;
+                    if isnan(obj.r181_first_warning_time_s)
+                        obj.r181_first_warning_time_s=double(time.t);
+                        obj.r181_first_warning_obstacle_id= ...
+                            double(r181result.first_obstacle_id);
+                    end
+                    % Keep periodic status and same-obstacle event count
+                    % separate.  A repeated warning is never hidden.
+                    jj=mod(obj.r181_warning_ring_count,128)+1;
+                    obj.r181_warning_ring(jj,:)=[double(time.t), ...
+                        double(obj.active_reference_version), ...
+                        double(r181result.first_obstacle_id), ...
+                        double(r181result.first_component_code), ...
+                        double(r181result.first_ttc_s), ...
+                        double(r181result.numeric_min_margin_m), ...
+                        1e3*toc(r181clock)];
+                    obj.r181_warning_ring_count=obj.r181_warning_ring_count+1;
+                end
+                obj.r181_trigger_request=logical(r181result.numeric_request);
+                obj.r181_last_trigger=r181result;
+                % R190: distinguish R71 failures, sampled noncontact, and
+                % conditional interval-screen inconclusiveness in the SAME
+                % actual Flight tick. No source of collision authority is
+                % fabricated and no safety/commit gate is relaxed.
+                obj.r190_last_preview_status=char(r181result.status);
+                if isfield(r181result,'error_message')
+                    obj.r190_last_preview_error=char(r181result.error_message);
+                else
+                    obj.r190_last_preview_error='';
+                end
+                if isfield(r181result,'r182_status')
+                    obj.r190_last_interval_status=char(r181result.r182_status);
+                else
+                    obj.r190_last_interval_status='NOT_RUN';
+                end
+                if obj.r181_attempt_count==1
+                    obj.r190_first_preview_status=obj.r190_last_preview_status;
+                    obj.r190_first_preview_error=obj.r190_last_preview_error;
+                    obj.r190_first_interval_status=obj.r190_last_interval_status;
+                end
+                if strcmp(obj.r190_last_preview_status, ...
+                        'NUMERIC_CURRENT_EKF_HLC_PREVIEW_NO_CONTACT_SAMPLES__UNKNOWN_BETWEEN')
+                    obj.r190_numeric_no_contact_count= ...
+                        obj.r190_numeric_no_contact_count+1;
+                end
+                if startsWith(obj.r190_last_preview_status,'UNKNOWN_')
+                    obj.r190_hlc_preview_exception_count= ...
+                        obj.r190_hlc_preview_exception_count+1;
+                    if isnan(obj.r190_first_unknown_time_s)
+                        obj.r190_first_unknown_time_s=double(time.t);
+                        obj.r190_first_unknown_code=obj.r190_last_preview_status;
+                    end
+                end
+                % R188 DIRECT REAL-FLIGHT-CYCLE PATH (not offline replay).
+                % Current EKF/sensor/HLC preview is computed ABOVE. Publish a
+                % version+obstacle event without calling the planner twice.
+                % No physical safety proof => no candidate commit authority.
+                r188_elapsed_ms=1e3*toc(r181clock);
+                % R191 fixed-size in-memory tick timing. No disk I/O.
+                if obj.r191_fast_trigger_enabled
+                    obj.r191_tick_count=obj.r191_tick_count+1;
+                    kr191=mod(obj.r191_tick_count-1,4096)+1;
+                    sc=0;
+                    if isfield(r181result,'r182_model_unseparated') && ...
+                            logical(r181result.r182_model_unseparated),sc=1;end
+                    if startsWith(char(r181result.status),'UNKNOWN_'),sc=-1;end
+                    obj.r191_tick_ring(kr191,:)=[double(time.t), ...
+                        r188_elapsed_ms,double(nnz(active)),double(sc==1), ...
+                        double(obj.active_reference_version), ...
+                        double(obj.r188_new_event_count), ...
+                        double(obj.r189_generated_count),double(sc)];
+                    obj.r191_preview_max_ms=max( ...
+                        obj.r191_preview_max_ms,r188_elapsed_ms);
+                end
+                obj.r188_max_preview_ms=max(obj.r188_max_preview_ms,r188_elapsed_ms);
+                r188_deadline_met=isfinite(r188_elapsed_ms) && ...
+                    r188_elapsed_ms<=1e3*double(obj.prediction_dt);
+                if ~r188_deadline_met
+                    obj.r188_deadline_miss_count= ...
+                        obj.r188_deadline_miss_count+1;
+                end
+                [obj.r188_seen_reference_version, ...
+                 obj.r188_seen_obstacle_ids,r188_event] = ...
+                    AF7R58R188_RT_EVENT( ...
+                    obj.r188_seen_reference_version, ...
+                    obj.r188_seen_obstacle_ids,r181result, ...
+                    double(obj.obstacle_packet.ids(logical(active))), ...
+                    double(obj.active_reference_version),double(time.t), ...
+                    double(obj.horizon_s));
+                r188_event.preview_ms=r188_elapsed_ms;
+                r188_event.preview_under_period_budget=r188_deadline_met;
+                r188_event.full_closed_loop_safety_proved=false;
+                r188_event.production_commit_authorized=false;
+                obj.r188_last_event=r188_event;
+                obj.r188_event_request_this_tick=logical(r188_event.new_event);
+                if r188_event.unknown
+                    obj.r188_unknown_count=obj.r188_unknown_count+1;
+                elseif r188_event.repeated
+                    obj.r188_duplicate_suppressed_count= ...
+                        obj.r188_duplicate_suppressed_count+1;
+                elseif r188_event.new_event
+                    obj.r188_new_event_count=obj.r188_new_event_count+1;
+                    if isnan(obj.r188_first_event_time_s)
+                        obj.r188_first_event_time_s=double(time.t);
+                        obj.r188_first_event_obstacle_id= ...
+                            r188_event.obstacle_id;
+                    end
+                    obj.r188_pending_request=r188_event;
+                    % Capture only FIRST warned event with live EKF state,
+                    % obstacle source and current estimator mass (no disk I/O).
+                    if obj.r191_fast_trigger_enabled && ...
+                            isempty(fieldnames(obj.r191_first_event_snapshot))
+                        zs=obj.self.estimator.result.state;
+                        fields191={'p','q','v','w','pL','vL','pT','wL'};
+                        x191=zeros(24,1);
+                        for m191=1:8
+                            zz191=zs.(fields191{m191});
+                            z191=double(zz191(:));
+                            x191((3*m191-2):(3*m191))=z191;
+                        end
+                        obj.r191_first_event_snapshot=struct(...
+                            'time_s',double(time.t),...
+                            'reference_version',double(obj.active_reference_version),...
+                            'reference_mode',char(obj.active_reference_mode),...
+                            'ekf24',x191,'estimated_mass_kg',double(zs.mL),...
+                            'obstacle_ids',double(obj.obstacle_packet.ids(logical(active))),...
+                            'event',r188_event,...
+                            'note','SAME_TICK_EKF_SOURCE_NO_HLC_EXECUTION_PROOF');
+                    end
+                    kr188=mod(obj.r188_new_event_count-1,128)+1;
+                    obj.r188_event_ring(kr188,:)=[ ...
+                        double(time.t),double(obj.active_reference_version), ...
+                        double(r188_event.obstacle_id), ...
+                        double(r188_event.component_code), ...
+                        double(r188_event.first_ttc_s),r188_elapsed_ms, ...
+                        double(r188_deadline_met),double(r188_event.model_only)];
+                end
+
+
+                % R189 integrated C7 candidate construction ONLY on the
+                % newly latched Flight-tick obstacle/reference event.
+                % No false proof promotion, no Stage2/3 packet commit.
+                if obj.r189_sim_c7_enabled && r188_event.new_event
+                    obj.r189_trial_count=obj.r189_trial_count+1;
+                    try
+                        r189trial=AF7R58R189_C7_LIVE_TRIAL( ...
+                            obj,double(time.t),active,r188_event);
+                    catch r189ME
+                        r189trial=struct('generated',false, ...
+                            'geometric_reference_sufficient',false, ...
+                            'elapsed_ms',NaN, ...
+                            'status',['UNKNOWN_' char(r189ME.identifier)], ...
+                            'reason',char(r189ME.message), ...
+                            'production_commit_authorized',false);
+                        obj.r189_trial_error_count= ...
+                            obj.r189_trial_error_count+1;
+                    end
+                    obj.r189_last_trial=r189trial;
+                    if isfield(r189trial,'elapsed_ms') && ...
+                            isfinite(double(r189trial.elapsed_ms))
+                        obj.r189_max_trial_ms=max( ...
+                            obj.r189_max_trial_ms, ...
+                            double(r189trial.elapsed_ms));
+                    end
+                    if isfield(r189trial,'generated') && ...
+                            logical(r189trial.generated)
+                        obj.r189_generated_count=obj.r189_generated_count+1;
+                    end
+                    if isfield(r189trial,'geometric_reference_sufficient') && ...
+                            logical(r189trial.geometric_reference_sufficient)
+                        obj.r189_proxy_hull_count= ...
+                            obj.r189_proxy_hull_count+1;
+                    end
+                    % This computed proposal is not a validated HLC reference.
+                    assert(~isfield(r189trial,'production_commit_authorized') || ...
+                        ~logical(r189trial.production_commit_authorized), ...
+                        'R189:CandidateMustNotCarryCommitAuthority', ...
+                        'Research candidate incorrectly advertised as production.');
+                end
+
+                % The model-interval screening result is NOT equated with an
+                % actual collision. No unsafe candidate generation is armed.
+                if isfield(r181result,'r182_model_unseparated') && ...
+                        logical(r181result.r182_model_unseparated)
+                    obj.r182_model_possible_count=obj.r182_model_possible_count+1;
+                    if isnan(obj.r182_first_possible_time_s)
+                        obj.r182_first_possible_time_s=double(time.t);
+                        obj.r182_first_possible_obstacle_id= ...
+                            double(r181result.r182_first_obstacle_id);
+                    end
+                elseif isfield(r181result,'r182_conditional_clear') && ...
+                        logical(r181result.r182_conditional_clear)
+                    obj.r182_model_conditional_clear_count= ...
+                        obj.r182_model_conditional_clear_count+1;
+                else
+                    obj.r182_interval_unknown_count=obj.r182_interval_unknown_count+1;
+                end
+                if isfield(r181result,'r182_max_local_error_Q_m') && ...
+                        isfinite(double(r181result.r182_max_local_error_Q_m))
+                    obj.r182_max_local_interpolation_m=max( ...
+                        obj.r182_max_local_interpolation_m, ...
+                        double(r181result.r182_max_local_error_Q_m));
+                end
+                if isfield(r181result,'r182_max_local_error_L_m') && ...
+                        isfinite(double(r181result.r182_max_local_error_L_m))
+                    obj.r182_max_local_interpolation_m=max( ...
+                        obj.r182_max_local_interpolation_m, ...
+                        double(r181result.r182_max_local_error_L_m));
+                end
+            end
+            if r138_nominal_only_real_flight
+                assert(double(obj.active_reference_version)==0 && ...
+                       strcmp(char(obj.active_reference_mode),'NOMINAL') && ...
+                       strcmp(char(obj.staged_replan_state),'IDLE'), ...
+                       'R138:MixedReferenceForbidden', ...
+                       ['NOMINAL_ONLY requires a fresh Flight from nominal v0, ' ...
+                        'without a legacy repair or pending stage.']);
+                need_replan=false;
+                ttc=Inf;
+                collision_time=Inf;
+                comp_name='NONE';
+                pL_collision=nan(3,1);
+                q_collision=nan(3,1);
+                pQ_collision=nan(3,1);
+                jhit=0;
+                obs_id=NaN;
+                comp_code=0;
+                kernel_called=false;
+                kernel_ms=0;
+            elseif pipeline_latched && ~obj.r172_strict_replacement
+                % R173: the legacy cached request must NEVER bypass the
+                % same-EKF-tick strict physical trigger on later cycles.
                 % AF7R58ZZV:
                 % The ordinary H=4 s trigger already established this static-
                 % obstacle collision request on Stage 1.  During the following
@@ -3949,7 +4435,13 @@ classdef REPLANNING_SYSTEM < handle
                 obj.staged_replan_trigger_kernel_skip_count= ...
                     obj.staged_replan_trigger_kernel_skip_count+1;
             else
-                if obj.r108_dual_engine_armed
+                if obj.r172_strict_replacement
+                    [need_replan,ttc,collision_time,comp_name, ...
+                        pL_collision,q_collision,pQ_collision,jhit, ...
+                        obs_id,comp_code,kernel_called,kernel_ms] = ...
+                        AF7R58R172_STRICT_TRIGGER(obj,active,time.t, ...
+                            pQ_cur,pL_cur);
+                elseif obj.r108_dual_engine_armed
                     [need_replan,ttc,collision_time,comp_name, ...
                         pL_collision,q_collision,pQ_collision,jhit, ...
                         obs_id,comp_code,kernel_called,kernel_ms] = ...
@@ -3963,22 +4455,39 @@ classdef REPLANNING_SYSTEM < handle
                 end
             end
 
-            % R71R2: record the actual SAME-EVENT estimator state and the
-            % exact active-reference evaluator for POST-FLIGHT prediction.
-            % Only one snapshot per reference version, max three debug rows.
-            % NEVER integrate the 4-second physical model in the Flight loop.
-            % The sensor mask, trigger and commit decisions are unchanged.
+            % R124: capture SENSOR-KNOWN obstacle-set changes directly,
+            % independent of the LEGACY reference future-collision trigger.
+            % This immutable event is the future new-engine's actual EKF/HLC
+            % authority. No rollout, optimizer or file write occurs in Flight.
+            % Same version with NEW known obstacles is a NEW physical event.
+            % Collection is opt-in for simulation/research only.
             if obj.r108_keep_postflight_event_copies && ...
-                    logical(need_replan) && ~obj.setup_exact_do_prime_active && ...
-                    ~obj.generator_integration_prime_active && ...
-                    numel(obj.r71r2_event_snapshots)<3
+                    any(active) && real_sensor_memory_event && ...
+                    ~obj.setup_exact_do_prime_active && ...
+                    ~obj.generator_integration_prime_active
                 try
                 already=false;
                 for r71r2_j=1:numel(obj.r71r2_event_snapshots)
-                    already=already || (double(obj.r71r2_event_snapshots(r71r2_j).reference_version) == ...
-                        double(obj.active_reference_version));
+                    oldCapture=obj.r71r2_event_snapshots(r71r2_j);
+                    already=already || (double(oldCapture.reference_version)== ...
+                        double(obj.active_reference_version) && ...
+                        isequal(logical(oldCapture.r76_known_mask(:)),logical(active(:))));
                 end
-                if ~already
+                % R139: nominal-only Flight has no reference-version changes.
+                % Capture NEW frozen EKF/HLC/plant snapshots periodically
+                % after first sensing, without calling the old trigger or QP.
+                % This is only for offline physical-trigger development.
+                r139_periodic_due=false;
+                if r138_nominal_only_real_flight && already && ...
+                        ~isempty(obj.r71r2_event_snapshots)
+                    r139_step=double(obj.R139_NOMINAL_CAPTURE_INTERVAL_S);
+                    assert(isscalar(r139_step)&&isfinite(r139_step)&&r139_step>0, ...
+                        'R139:PositiveDiagnosticSamplingPeriodRequired');
+                    r139_last_time=double(obj.r71r2_event_snapshots(end).time_s);
+                    r139_periodic_due=double(time.t)>=r139_last_time+r139_step- ...
+                        64*eps(max(1,abs(double(time.t))));
+                end
+                if ~already || r139_periodic_due
                     % Capture is immutable and detached from future EKF updates.
                     stateFields={'p','q','v','w','pL','vL','pT','wL'};
                     xCaptured=zeros(24,1);
@@ -4031,6 +4540,49 @@ classdef REPLANNING_SYSTEM < handle
                         'r76_original_obstacle_id',double(obs_id), ...
                         'r76_original_component_code',double(comp_code), ...
                         'r76_was_stage_latched',logical(pipeline_latched));
+                    % Freeze activation-time C7 and event-time external
+                    % dynamics authorities. The historical event will NEVER
+                    % be reconstructed from a later reference version.
+                    captured.r124_sensor_range_m=double(obj.trigger_dist);
+                    captured.r124_gravity_m_s2=double(obj.gravity);
+                    captured.r124_event_origin='SENSOR_KNOWN_MASK_OR_VERSION_CHANGE';
+                    if r139_periodic_due
+                        captured.r124_event_origin='NOMINAL_PERIODIC_EKF_SNAPSHOT';
+                    end
+                    captured.r139_periodic_diagnostic=logical(r139_periodic_due);
+                    captured.r124_c7_binding=struct([]);
+                    captured.r124_c7_error='';
+                    try
+                        captured.r124_c7_binding=AF7R58R122_BIND_LIVE_C7( ...
+                            obj,double(time.t)+2*double(obj.prediction_dt));
+                        assert(double(captured.r124_c7_binding.reference_version)== ...
+                            double(obj.active_reference_version), ...
+                            'R124:ActivationSourceVersionDrift');
+                    catch r124_c7_ME
+                        captured.r124_c7_error=[char(r124_c7_ME.identifier) ': ' ...
+                            char(r124_c7_ME.message)];
+                        captured.r124_c7_binding=struct([]);
+                    end
+                    captured.r124_input_authority=struct([]);
+                    captured.r124_input_status='';
+                    try
+                        [i124,s124]=AF7R58R102_LIVE_INPUT_AUTHORITY(obj,[]);
+                        captured.r124_input_status=char(s124.status);
+                        if logical(s124.input_authorities_available)
+                            captured.r124_input_authority=i124;
+                        end
+                    catch r124_input_ME
+                        captured.r124_input_status=[char(r124_input_ME.identifier) ': ' ...
+                            char(r124_input_ME.message)];
+                    end
+                    captured.r138_legacy_trigger_enabled= ...
+                        logical(obj.R138_ENABLE_LEGACY_TRIGGER);
+                    captured.r138_legacy_generator_enabled= ...
+                        logical(obj.R138_ENABLE_LEGACY_GENERATOR);
+                    captured.r138_nominal_only_diagnostic= ...
+                        logical(r138_nominal_only_real_flight);
+                    captured.r124_physical_interval_proved=false;
+                    captured.r124_full_return_certified=false;
                     if isempty(obj.r71r2_event_snapshots)
                         % MATLAB struct([]) has no field schema.  Assigning
                         % with (end+1) can raise heterogeneousStrucAssignment.
@@ -4155,9 +4707,20 @@ classdef REPLANNING_SYSTEM < handle
             if obj.ENABLE_PROFILING
                 t_replan_status=tic;
             end
+            % R138: an EKF-now warning is still computed/logged, but it cannot
+            % trigger a legacy candidate or legacy Stage3 commit in nominal
+            % simulation-only diagnosis. This is NOT a safety backup.
+            if r138_nominal_only_real_flight
+                need_replan=false;
+                obj.replan_request_active=false;
+                obj.replan_request_reference_version=-1;
+                obj.replan_request_obstacle_id=NaN;
+                obj.replan_request_component_code=NaN;
+            end
             % Replan generator is invoked only on a REAL Flight request edge.
             % Setup/warmup forced-hit paths never invoke the external generator.
-            if need_replan && ~obj.r64_no_safe_lead
+            if need_replan && ~obj.r64_no_safe_lead && ...
+                    (obj.R138_ENABLE_LEGACY_GENERATOR || obj.r172_strict_replacement)
                 % ---------------------------------------------------------
                 % Request identity, not only a boolean rising edge.
                 %
@@ -4432,7 +4995,8 @@ classdef REPLANNING_SYSTEM < handle
             % R40: advance_staged_replan_pipeline returns immediately in IDLE.
             % Skip the empty call and its wall-timer in ordinary Flight;
             % active pipeline and every certificate/commit branch are unchanged.
-            if obj.ENABLE_STAGED_REPLAN_PIPELINE && ...
+            if (obj.R138_ENABLE_LEGACY_GENERATOR || obj.r172_strict_replacement) && ...
+                    obj.ENABLE_STAGED_REPLAN_PIPELINE && ...
                     ~obj.setup_exact_do_prime_active && ...
                     ~strcmp(char(obj.staged_replan_state),'IDLE')
                 r31_stage_advance_clock=tic;
@@ -8743,8 +9307,9 @@ classdef REPLANNING_SYSTEM < handle
             % historical copy, nominal-state substitution, or extra Flight I/O.
             % Native MEX continues consuming its original, unchanged CTX.
             try
-            if obj.r108_dual_engine_armed && ...
-                    ~isempty(obj.r108_live_c7_generator_fn) && ...
+            if (obj.r172_strict_replacement || ...
+                    (obj.r108_dual_engine_armed && ...
+                     ~isempty(obj.r108_live_c7_generator_fn))) && ...
                     ~obj.setup_exact_do_prime_active && ...
                     ~obj.generator_integration_prime_active
                 % R111: Elapsed compute time is measured, not used to
@@ -8783,7 +9348,9 @@ classdef REPLANNING_SYSTEM < handle
                 % certified HLC/plant tube. It cannot be set to nominal.
             end
                 r20_native_call_tic=tic;
-                if obj.r108_dual_engine_armed
+                if obj.r172_strict_replacement
+                    candidate=AF7R58R172_STRICT_GENERATOR(CTX,obj);
+                elseif obj.r108_dual_engine_armed
                     candidate=obj.r108_generator_dispatch(CTX);
                 else
                     candidate=obj.af7r46_single_core_proposal_compact(CTX);

@@ -26,9 +26,19 @@ L=double(replanner.self.parameter.get("cableL"));
 assert(isscalar(L)&&isfinite(L)&&L>0, ...
     'R122:RuntimeCableLengthRequired', ...
     'Runtime cableL authority is missing.');
-% Crucial: r63_live_c7_authority works in the ACTIVE reference,
-% including already repaired C7 trajectories and non-identity phase laws.
-A=replanner.r63_live_c7_authority(double(tGlobal));
+% Read exactly the ACTIVE controller-bound C7 authority, not a stale
+% nominal sample or a fresh reconstructed approximation.
+% R125: In REPAIRED mode the old R63 analytical reconstruction may
+% disagree with the *actual HLC-bound* MEX evaluator (observed previously
+% at order one). R86 reads orders 0..6 from the actual native evaluator
+% and derives order seven with the native serialized correction op=25;
+% it independently compares 0..6 against active flat_eval_fn. Never
+% reconstruct a repaired C7 boundary from an unverified R63 fallback.
+if strcmp(upper(char(replanner.active_reference_mode)),'REPAIRED')
+    A=replanner.r86_live_serialized_c7_authority(double(tGlobal));
+else
+    A=replanner.r63_live_c7_authority(double(tGlobal));
+end
 assert(isstruct(A)&&isfield(A,'valid') && isequal(A.valid,true) && ...
     isfield(A,'active_jets_0_to_7')&&isfield(A,'phase_jets_0_to_7')&& ...
     isfield(A,'reference_version')&&isfield(A,'nominal_jets_0_to_7'), ...
@@ -43,7 +53,17 @@ assert(isequal(size(J0),[3 8])&&isequal(size(JN),[3 8])&& ...
     'R122:InvalidActiveC7Shape','C7 jets/phase have invalid shapes.');
 % The source binding is the SAME nominal law already used by replanner;
 % it is NOT independent new gen_ref_line/circle/saddle source logic.
-N=AF7R58R122_NOMINAL_PAYLOAD_JETS(fns,flightT0,L,tGlobal);
+% For naturally retimed repaired references, the canonical nominal jet
+% is evaluated at the active PHASE, not at the wall-clock Flight time.
+% R122 previously compared different physical times and could reject a
+% perfectly valid non-identity phase. This never relaxes the equality test.
+phaseStart=double(P(1));
+assert(isscalar(phaseStart)&&isfinite(phaseStart) && ...
+    phaseStart>=flightT0 && ...
+    phaseStart<=tGlobal+64*eps(max(1,abs(tGlobal))), ...
+    'R122:InvalidNaturalPhase', ...
+    'Live phase must be inside the nominal Flight source and not ahead.');
+N=AF7R58R122_NOMINAL_PAYLOAD_JETS(fns,flightT0,L,phaseStart);
 Nraw=N;Nraw(3,1)=Nraw(3,1)+L;
 scale=max(1,max(abs(JN),abs(Nraw)));
 tol=1024*eps(scale);
@@ -51,10 +71,6 @@ assert(all(abs(JN(:)-Nraw(:))<=tol(:)), ...
     'R122:SourceMismatch', ...
     'Frozen nominal 7-jets disagree with live R63 source at this event.');
 J0(3,1)=J0(3,1)-L;
-phaseStart=P(1);
-assert(phaseStart>=flightT0 && phaseStart<=tGlobal+64*eps(max(1,abs(tGlobal))), ...
-    'R122:InvalidNaturalPhase', ...
-    'Live phase is not in nominal Flight time or is ahead of the clock.');
 B=struct();
 B.status='SOURCE_BOUND_C7_PAYLOAD_INTERNAL__NO_COMMIT';
 B.initial_reference_jets07=J0;
@@ -71,6 +87,12 @@ B.controller_packet_width=28;
 B.planner_position_derivative_order=7;
 B.controller_position_derivative_order=6;
 B.source_model_exact_seventh_available=true;
+B.active_c7_authority_source='R63_EXACT_NOMINAL';
+if strcmp(upper(char(A.reference_mode)),'REPAIRED')
+    B.active_c7_authority_source=char(A.r86_source);
+end
+B.active_flat_eval_0_to_6_verified=logical(A.valid);
+B.active_flat_eval_max_abs_jet_residual=double(A.flat_active_jet_consistency_error);
 B.position_payload_world=true;
 B.yaw_is_not_certified_by_this_binding=true;
 B.tail_is_not_certified_by_this_binding=true;

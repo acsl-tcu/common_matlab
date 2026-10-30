@@ -1,0 +1,19 @@
+R192_PREVIEW_ONLY__NO_FILES_CHANGED
+R192 PROTECTED CLEANUP
+--- read-only icacls for first 30 candidates ---
+No .m, .mex, .p, project code, tracked file or .git is a candidate.
+
+PREVIEW makes no changes. QUARANTINE moves only git-UNTRACKED generated reports.
+
+ARCHIVE_PREVIEW separately lists only untracked research ZIPs.
+
+PERMISSION_PREVIEW lists files with fileattrib errors or UserWrite=false (read-only; no admin actions).
+
+Action=PERMISSION_PREVIEW
+
+Git available=1
+
+Candidates=0 / bytes=0
+
+--- candidates ---
+

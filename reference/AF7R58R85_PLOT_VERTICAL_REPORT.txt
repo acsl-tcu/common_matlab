@@ -1,2 +1,0 @@
-R85 plotted line geometry audit - NOT actual trajectory proof
-Zero findings does not rule out a plot artifact or physical discontinuity.

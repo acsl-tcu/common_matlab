@@ -162,6 +162,10 @@ replan_opts.ENABLE_AUTO_REPLAN_COMMIT = ENABLE_AUTO_REPLAN_COMMIT;
 % commit after all reference-level gates. NOT real-time/flight-safe.
 replan_opts.R26_SIMULATION_ONLY_EXPERIMENT = true;
 replanner_instance = REPLANNING_SYSTEM(agent,nominal_ref,replan_opts);
+% R124: separate physically frozen first-sensed-obstacle events.
+% NO legacy trigger is used to decide WHEN these are captured; only sensor
+% memory changes and active source versions. No new engine commits in Flight.
+replanner_instance.r108_keep_postflight_event_copies = true;
 % AF7R58R27_RUNTIME_SIM_FLAG_ASSERT
 assert(logical(replanner_instance.R26_SIMULATION_ONLY_EXPERIMENT), ...
     '[R27] Sim-only commit opt-in was lost during construction.');

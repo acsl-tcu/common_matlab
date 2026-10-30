@@ -1,6 +1,0 @@
-R64 ACTUAL R61 C7 CONTROL-POLYGON QUALITY REGRESSION
-status=REAL_SOURCE_CONTROL_POLYGON_PASS__NOT_SAFETY_CERTIFIED
-initial_offset_m=3.9992492633402281
-projected_monotone=1 radial_nonexpansion=1 negative_rejected=1
-R63_measured_flat_jet_mismatch_max=1.4999999999999978
-C7 candidate quality ONLY. Full world trajectory/obstacle/HLC certification NOT proved.

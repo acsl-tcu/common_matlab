@@ -1,9 +1,0 @@
-AF7R58R18 | FULL MEX EXCEPTION PROVENANCE (DIAGNOSTIC ONLY)
-R17 classification = STAGE2_PASS__STAGE3_PRECOMMIT_PASS__NOT_COMMITTED
-native_exception_captured = 0
-No exact exception message in this capture. A fresh R18 simulation run is necessary.
-stage1_ms = 68.2166
-stage1_generated = 1
-stage2_entered = 1
-stage2_prepared = 1
-stage3_readonly_entered = 1

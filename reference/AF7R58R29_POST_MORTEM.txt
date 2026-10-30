@@ -1,8 +1,0 @@
-R29 | CURRENT SESSION POST MORTEM | NON-PRODUCTION DIAGNOSTIC
-classification=LIVE_INSTANCE__NO_R29_ROLL_FAILURE_RECORDED
-R29_roll_failure=0 t=NaN
-rollBound old/new = NaN / NaN
-theta old/new = NaN / NaN
-commit_attempts/success=2/2, mode=REPAIRED, version=2
-Stage1 count=2 Stage2 count=2 first_stage1_ms=28.773 last_stage1_ms=17.1138 last_stage2_ms=10.7399
-WARNING: not a certificate for real plant tracking, actuation, or time bound.
