@@ -43,8 +43,6 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         prepared_geometry
         previous_detected_mask = []  % 固定ID順で新規/離脱判定（setdiffを使わない）
         all_stationary = false
-        cached_visible = []          % 検知集合が同じ静止障害物だけ、元構造体を再利用
-        cached_ids = []              % IDsも同じ集合なら再生成しない
         all_obstacle_ids = []        % 元定義IDを初期化時に一度だけ確定
         static_log_obstacles = []    % 元形状のログを初期化時に確定（静止時のみ）
     end
@@ -62,15 +60,14 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             obj.obstacle_count=numel(obstacles);
             obj.previous_detected_mask=false(1,obj.obstacle_count);
             % 形状・姿勢・速度などの元定義はFlight中不変。
-            % 静止物体の場合は位置を毎周期計算せず、検知集合が変わる時だけ
-            % LOGGERへ渡す構造体配列を再構成する（検知そのものは毎tick再計算）。
+            % 静止物体の元構造体は最初に準備する。検知対象の選択は
+            % 毎tick同一のコード経路に統一し、イベント周期だけに現れる
+            % 別のキャッシュ更新/遅延実行分岐を作らない。
             obj.all_stationary=all([obj.prepared_geometry.is_stationary]);
             obj.all_obstacle_ids=[obj.obstacles.id];
-            obj.cached_visible=obj.obstacles(false(1,obj.obstacle_count));
-            obj.cached_ids=[];
             if obj.all_stationary
                 % 静止時、各障害物のログ構造体（位置を含む）は時間非依存。
-                % 検知集合が変わる周期も、その場でpositionを再計算しない。
+                % 動的なposition再計算は行わない。
                 % 2^N通りの集合は事前生成しない（障害物数に依存しない）。
                 obj.static_log_obstacles=obj.obstacles;
                 for k=1:obj.obstacle_count
@@ -143,48 +140,29 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 detected(k)= d <= obj.range_m+numerical_guard;
             end
 
-            % 検知・距離は毎周期、新規/離脱IDも毎周期確定させる。
-            % 静止障害物で前周期と検知集合が同じときだけ、元形状を含む
-            % LOGGER用構造体を再利用する。障害物数によらず事前列挙はしない。
-            same_mask=isequal(detected,obj.previous_detected_mask);
-            unchanged=obj.all_stationary && same_mask;
-            if unchanged
-                ids=obj.cached_ids;
-                visible=obj.cached_visible;
+            % 検知は毎周期、新規/離脱IDは前周期マスクとの差で決める。
+            % 検知集合が変わった時だけ動くコード経路を無くすため、
+            % 元障害物構造体の選択とID抽出は常に同じ箇所で行う。
+            % 全検知集合の事前列挙はしない（障害物数に指数依存しない）。
+            ids=obj.all_obstacle_ids(detected);
+            if isempty(ids), ids=[]; end  % 従来の空0x0契約
+            if obj.all_stationary
+                visible=obj.static_log_obstacles(detected);
             else
-                ids=obj.all_obstacle_ids(detected);
-                % 旧実装の [obstacles(mask).id] と空配列の寸法を一致させる。
-                % logical indexing は 1x0、旧連結は 0x0 を返し得る。
-                % 検知なしを表すログの型・形状も従来どおり [] に統一する。
-                if isempty(ids), ids=[]; end
-                if obj.all_stationary
-                    % 静止物体：定義のコピーも位置の再計算も行わず、選択のみ。
-                    visible=obj.static_log_obstacles(detected);
-                    obj.cached_ids=ids;
-                    obj.cached_visible=visible;
-                else
-                    % 動く障害物を含む場合は従来どおり現在時刻の位置を計算。
-                    visible=obj.obstacles(detected);
-                    for k=1:numel(visible)
-                        o=visible(k);
-                        visible(k).position=o.initial_position + ...
-                            (double(time_s)-o.reference_time_s)*o.velocity;
-                    end
+                % 速度を持つ障害物は必ず現在時刻から位置を求める。
+                visible=obj.obstacles(detected);
+                for k=1:numel(visible)
+                    o=visible(k);
+                    visible(k).position=o.initial_position + ...
+                        (double(time_s)-o.reference_time_s)*o.velocity;
                 end
             end
-            % 同じ検知集合ならイベントは空。不要な構造体インデックスをしない。
-            % 集合が変わったときは従来の論理マスク式・ID順をそのまま使う。
-            if same_mask
-                appeared=[];
-                disappeared=[];
-            else
-                appeared=obj.all_obstacle_ids(detected & ~obj.previous_detected_mask);
-                disappeared=obj.all_obstacle_ids(~detected & obj.previous_detected_mask);
-                % 元実装は該当IDがなければ 0x0 の [] を返していた。
-                % 検知ID・イベントIDの空配列契約を厳密に保存する。
-                if isempty(appeared), appeared=[]; end
-                if isempty(disappeared), disappeared=[]; end
-            end
+            entered_mask=detected & ~obj.previous_detected_mask;
+            exited_mask=~detected & obj.previous_detected_mask;
+            appeared=obj.all_obstacle_ids(entered_mask);
+            disappeared=obj.all_obstacle_ids(exited_mask);
+            if isempty(appeared), appeared=[]; end
+            if isempty(disappeared), disappeared=[]; end
             result=struct( ...
                 'time_s',double(time_s), ...
                 'uav_position_ekf_m',p, ...

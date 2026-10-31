@@ -348,6 +348,7 @@ classdef REPLANNING_SYSTEM < handle
             probe.observe(t,far);
             probe.set_log(false);
             probe.observe(t,p);
+
             obj.preflight_warmup_distance_checks=count;
             obj.preflight_warmup_ms=1000*toc(preflight_clock);
             obj.preflight_warmup_ready=true;
