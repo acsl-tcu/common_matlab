@@ -28,6 +28,14 @@ classdef REPLANNING_SYSTEM < handle
         last_logged_time_s=NaN
         SENSOR_RANGE_M=20
         last_sensor_result=struct() % ログOFFでも最新の検知結果は保持
+        preflight_warmup_ms=NaN % Flight/Armingより前の準備時間（周期時間に算入しない）
+        preflight_warmup_ready=false
+        preflight_warmup_distance_checks=0
+        % update()本体の初回実行経路を、初期化後・Arming前に一時実行する。
+        % 本番センサ、Flightログ、EKFの履歴は一切進めない。
+        preflight_update_ready=false
+        preflight_update_ms=NaN
+        preflight_update_samples_ms=[]
     end
 
     properties
@@ -83,6 +91,11 @@ classdef REPLANNING_SYSTEM < handle
             % センサの準備は一度だけ。形状定義側へ手を入れない。
             obj.sensor=SIMULATED_OBSTACLE_SENSOR(obj.obstacles,obj.SENSOR_RANGE_M, ...
                 obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
+            % 初回実行の関数準備を、Arming/Takeoff/Flightの前に済ませる。
+            % 本番センサのscan_count/ID履歴/LOGGERは一切進めない。
+            if obj.ENABLE_SENSOR
+                obj.preflight_sensor_warmup();
+            end
         end
 
         function yes=logging_enabled(obj)
@@ -166,6 +179,77 @@ classdef REPLANNING_SYSTEM < handle
             agent.reference.result=reference_result;
         end
 
+        function result=preflight_update(obj,time,agent)
+            % PREFLIGHT_UPDATE  Sim初期化後・Arming前にのみ呼ぶ。
+            % 実際の TIME/DRONE と現在の EKF/参照結果を使って update()全経路を
+            % 一時的に通す。初期コード実行に伴うスパイクをFlightへ持ち込まない。
+            %
+            % 一時センサに差し替え、agent.reference.resultと本クラスの全カウンタを
+            % 例外時も復元する。HLC/EKF/plant/通常LOGGERは呼び出さない。
+            % 時間減少は数学的保証ではないので、別途実Flightで検証する。
+            if obj.preflight_update_ready
+                result=struct('ready',true,'elapsed_ms',obj.preflight_update_ms, ...
+                    'samples_ms',obj.preflight_update_samples_ms);
+                return
+            end
+            live_status=obj.sensor.get_status();
+            if obj.frame_count~=0 || obj.replanner_timing_count~=0 || ...
+                    live_status.scan_count~=0
+                error('REPLANNING_SYSTEM:PreflightTooLate', ...
+                    'preflight_update はArmingの前、最初のupdateより前に実行してください。');
+            end
+            if ~(isobject(agent)&&isscalar(agent)&&isprop(agent,'reference'))
+                error('REPLANNING_SYSTEM:PreflightAgent','SimのDRONE agentが必要です。');
+            end
+            original_result=agent.reference.result;
+            if ~(isstruct(original_result)&&isscalar(original_result))
+                error('REPLANNING_SYSTEM:PreflightReference', ...
+                    'Sim初期化後のreference.resultが必要です。');
+            end
+
+            snapshot=struct();
+            snapshot.sensor=obj.sensor;
+            snapshot.reference_result=original_result;
+            snapshot.last_sensor_result=obj.last_sensor_result;
+            snapshot.frame_count=obj.frame_count;
+            snapshot.total_frame_time_ms=obj.total_frame_time_ms;
+            snapshot.last_logged_time_s=obj.last_logged_time_s;
+            snapshot.replanner_timing_count=obj.replanner_timing_count;
+            snapshot.replanner_timing_total_ms=obj.replanner_timing_total_ms;
+            snapshot.replanner_timing_max_ms=obj.replanner_timing_max_ms;
+
+            % 本番センサを使うと、最初のnewly_detected_idsが消える。
+            % ここでは同じ障害物・設定の独立センサだけを動かす。
+            obj.sensor=SIMULATED_OBSTACLE_SENSOR(obj.obstacles,obj.SENSOR_RANGE_M, ...
+                obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
+            restore_guard=onCleanup(@()obj.restore_preflight_update(agent,snapshot));
+            samples=zeros(8,1);  % 最初の5周期に集中した遅延の事前実行
+            startup=tic;
+            for k=1:numel(samples)
+                agent.reference.result=original_result;
+                tick_clock=tic;
+                obj.update(time,agent);
+                samples(k)=1000*toc(tick_clock); % 最終書戻しも含む外側の実測
+            end
+            total_ms=1000*toc(startup);
+            clear restore_guard  % 本番センサと全カウンタ、参照結果を復元
+
+            post_status=obj.sensor.get_status();
+            if ~isequaln(agent.reference.result,original_result) || ...
+                    obj.frame_count~=snapshot.frame_count || ...
+                    obj.replanner_timing_count~=snapshot.replanner_timing_count || ...
+                    post_status.scan_count~=live_status.scan_count || ...
+                    post_status.timing_count~=live_status.timing_count || ...
+                    ~isequaln(obj.last_sensor_result,snapshot.last_sensor_result)
+                error('REPLANNING_SYSTEM:PreflightRollback', ...
+                    '事前実行の状態復元に失敗しました。Flightを開始しないでください。');
+            end
+            obj.preflight_update_samples_ms=samples;
+            obj.preflight_update_ms=total_ms;
+            obj.preflight_update_ready=true;
+            result=struct('ready',true,'elapsed_ms',total_ms,'samples_ms',samples);
+        end
+
         function frame=observe_sensor(obj,time_s,current_ekf_uav_position)
             % EKF機体位置を必須入力とする。未指定なら黙って公称値を使わない。
             if ~obj.ENABLE_SENSOR
@@ -176,7 +260,11 @@ classdef REPLANNING_SYSTEM < handle
                 error('REPLANNING_SYSTEM:MissingEKF', ...
                     '現在時刻のEKF機体位置を第3引数へ渡してください。');
             end
-            obj.sensor.set_log(obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
+            % 設定が変わった周期だけ検証・設定する。
+            desired_log=obj.ENABLE_ALL_LOG && obj.LOG_SENSOR;
+            if obj.sensor.LOG_SENSOR ~= desired_log
+                obj.sensor.set_log(desired_log);
+            end
             frame=obj.sensor.observe(time_s,current_ekf_uav_position);
         end
 
@@ -210,7 +298,72 @@ classdef REPLANNING_SYSTEM < handle
             status.replanner_timing_total_ms=obj.replanner_timing_total_ms;
             status.replanner_timing_max_ms=obj.replanner_timing_max_ms;
             status.SENSOR_RANGE_M=obj.SENSOR_RANGE_M;
+            status.preflight_warmup_ready=obj.preflight_warmup_ready;
+            status.preflight_warmup_ms=obj.preflight_warmup_ms;
+            status.preflight_warmup_distance_checks=obj.preflight_warmup_distance_checks;
+            status.preflight_update_ready=obj.preflight_update_ready;
+            status.preflight_update_ms=obj.preflight_update_ms;
+            status.preflight_update_samples_ms=obj.preflight_update_samples_ms;
             status.sensor_status=obj.sensor.get_status();
+        end
+    end
+
+    methods (Access=private)
+        function preflight_sensor_warmup(obj)
+            % センサの初回実行コストをArming/Takeoff/Flightに持ち込まないための準備。
+            % 既存障害物定義だけを使う。幾何判定式・検知結果・ログ形式は変更しない。
+            %
+            % 本番センサをobserveすると初回のnewly_detected_idsが消えるため、
+            % 必ず独立した一時センサを使い、Flight用obj.sensorには触れない。
+            % この処理はREPLANNING_SYSTEMのコンストラクタ内（Arming前）で一度だけ実行。
+            preflight_clock=tic;
+            probe=SIMULATED_OBSTACLE_SENSOR(obj.obstacles,obj.SENSOR_RANGE_M,true);
+            shapes=OBSTACLE_GEOMETRY_QUERY.prepare(obj.obstacles);
+            count=0;
+            for k=1:numel(shapes)
+                s=shapes(k);
+                t=s.reference_time_s;
+                c=OBSTACLE_GEOMETRY_QUERY.center_at(s,t);
+                % 元形状に対する内部/外部の問い合わせを初回に通す。
+                % 距離は判定結果に使わず、コード経路の事前実行だけが目的。
+                OBSTACLE_GEOMETRY_QUERY.distance(c,s,t,c);
+                count=count+1;
+                % 外側の問い合わせも通す。判定ロジックは一切変更しない。
+                outside=c+s.rotation*[s.bounding_radius_m+obj.SENSOR_RANGE_M/2;0;0];
+                OBSTACLE_GEOMETRY_QUERY.distance(outside,s,t,c);
+                count=count+1;
+            end
+            if isempty(shapes)
+                t=0;
+                p=[0;0;0];
+                far=[obj.SENSOR_RANGE_M+1;0;0];
+            else
+                t=shapes(1).reference_time_s;
+                p=OBSTACLE_GEOMETRY_QUERY.center_at(shapes(1),t);
+                far=p+[shapes(1).bounding_radius_m+obj.SENSOR_RANGE_M+1;0;0];
+            end
+            % センサの観測、IDイベント、時間計測あり/なしの双方の経路を事前実行。
+            % probeの状態は破棄され、実Flightのscan_countは0のまま。
+            probe.observe(t,p);
+            probe.observe(t,far);
+            probe.set_log(false);
+            probe.observe(t,p);
+            obj.preflight_warmup_distance_checks=count;
+            obj.preflight_warmup_ms=1000*toc(preflight_clock);
+            obj.preflight_warmup_ready=true;
+        end
+
+        function restore_preflight_update(obj,agent,snapshot)
+            % onCleanupから呼ぶ。途中で例外が生じてもFlight状態を復元する。
+            obj.sensor=snapshot.sensor;
+            obj.last_sensor_result=snapshot.last_sensor_result;
+            obj.frame_count=snapshot.frame_count;
+            obj.total_frame_time_ms=snapshot.total_frame_time_ms;
+            obj.last_logged_time_s=snapshot.last_logged_time_s;
+            obj.replanner_timing_count=snapshot.replanner_timing_count;
+            obj.replanner_timing_total_ms=snapshot.replanner_timing_total_ms;
+            obj.replanner_timing_max_ms=snapshot.replanner_timing_max_ms;
+            agent.reference.result=snapshot.reference_result;
         end
     end
 

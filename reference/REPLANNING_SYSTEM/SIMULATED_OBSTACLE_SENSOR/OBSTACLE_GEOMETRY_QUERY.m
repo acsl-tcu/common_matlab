@@ -21,6 +21,7 @@ classdef OBSTACLE_GEOMETRY_QUERY
             blank = struct('id',0,'type','','dimensions',[], ...
                 'center0',[0;0;0],'rotation',eye(3),'velocity',[0;0;0], ...
                 'reference_time_s',0,'bounding_radius_m',NaN, ...
+                'is_stationary',false,'center_norm_m',NaN, ...
                 'outline',[],'vertices',[],'faces',[]);
             shapes = repmat(blank,1,numel(obstacles));
             for k = 1:numel(obstacles)
@@ -35,6 +36,10 @@ classdef OBSTACLE_GEOMETRY_QUERY
                 s.rotation = o.rotation;
                 s.velocity = o.velocity(:);
                 s.reference_time_s = o.reference_time_s;
+                s.is_stationary = all(s.velocity == 0);
+                if s.is_stationary
+                    s.center_norm_m = norm(s.center0);
+                end
                 switch type
                     case 'sphere'
                         s.bounding_radius_m = double(d(1));
@@ -88,9 +93,12 @@ classdef OBSTACLE_GEOMETRY_QUERY
             center=shape.center0+(double(time_s)-shape.reference_time_s)*shape.velocity;
         end
 
-        function d = distance(point_world,shape,time_s)
+        function d = distance(point_world,shape,time_s,center)
             % 原形状の占有領域に対する非負の最短距離 [m]。
-            center=OBSTACLE_GEOMETRY_QUERY.center_at(shape,time_s);
+            % 既存の3引数呼出しも維持する。4引数目はセンサが検証済みの中心。
+            if nargin<4
+                center=OBSTACLE_GEOMETRY_QUERY.center_at(shape,time_s);
+            end
             if any(~isfinite(center))
                 error('OBSTACLE_GEOMETRY_QUERY:Motion','障害物ID %d の位置が非有限です。',shape.id);
             end

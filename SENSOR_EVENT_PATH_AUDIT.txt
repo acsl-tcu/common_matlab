@@ -1,0 +1,6 @@
+PASS_SENSOR_EVENT_PATH_EQUIVALENCE
+cases=16 comparisons=3652 flight_replay=2602 errors=0
+baseline median/p95/max ms=0.015100 0.044400 6.027500
+modified median/p95/max ms=0.013800 0.030800 2.988700
+median_speedup=1.0942 IMPROVED_IN_THIS_CHECK
+NOTE PASSは検知出力同値を意味する。突出時間の消滅保証ではない。一回の実験で最大実行時間の保証はできない。

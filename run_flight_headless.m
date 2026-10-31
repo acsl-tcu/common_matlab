@@ -157,6 +157,13 @@ for cha_init = ['a','t','f','l']
     do_prop_local(time,cha_init,'0',logger,env,agent,'input_transform',1);
 end
 
+%% 6.5. REPLANNING_SYSTEMの完全な飛行前初期化
+% Sim初期化後の実EKF/参照構造体を使用し、Armingより前に実行。
+% 本番センサのscan/ID履歴・reference.result・LOGGERは変更しない。
+preflight_info = replanner_instance.preflight_update(time,agent);
+fprintf('[REPLANNING PREFLIGHT] full update path ready=%d | %.3f ms (pre-arm only)\n', ...
+    preflight_info.ready,preflight_info.elapsed_ms);
+
 %% 7. Arming
 fprintf('Arming...\n');
 time.t = 0;

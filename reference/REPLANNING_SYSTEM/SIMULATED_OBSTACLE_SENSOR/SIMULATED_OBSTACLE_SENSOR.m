@@ -41,7 +41,12 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
     properties (Access=private)
         obstacles
         prepared_geometry
-        previous_ids = []
+        previous_detected_mask = []  % 固定ID順で新規/離脱判定（setdiffを使わない）
+        all_stationary = false
+        cached_visible = []          % 検知集合が同じ静止障害物だけ、元構造体を再利用
+        cached_ids = []              % IDsも同じ集合なら再生成しない
+        all_obstacle_ids = []        % 元定義IDを初期化時に一度だけ確定
+        static_log_obstacles = []    % 元形状のログを初期化時に確定（静止時のみ）
     end
 
     methods
@@ -55,6 +60,24 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             obj.geometry_prepare_ms=1000*toc(startup);
             obj.obstacles=obstacles;
             obj.obstacle_count=numel(obstacles);
+            obj.previous_detected_mask=false(1,obj.obstacle_count);
+            % 形状・姿勢・速度などの元定義はFlight中不変。
+            % 静止物体の場合は位置を毎周期計算せず、検知集合が変わる時だけ
+            % LOGGERへ渡す構造体配列を再構成する（検知そのものは毎tick再計算）。
+            obj.all_stationary=all([obj.prepared_geometry.is_stationary]);
+            obj.all_obstacle_ids=[obj.obstacles.id];
+            obj.cached_visible=obj.obstacles(false(1,obj.obstacle_count));
+            obj.cached_ids=[];
+            if obj.all_stationary
+                % 静止時、各障害物のログ構造体（位置を含む）は時間非依存。
+                % 検知集合が変わる周期も、その場でpositionを再計算しない。
+                % 2^N通りの集合は事前生成しない（障害物数に依存しない）。
+                obj.static_log_obstacles=obj.obstacles;
+                for k=1:obj.obstacle_count
+                    obj.static_log_obstacles(k).position= ...
+                        obj.obstacles(k).initial_position;
+                end
+            end
         end
 
         function set_range(obj,range_m)
@@ -91,35 +114,76 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             detected=false(1,n);
             distances=nan(1,n);
             candidate_count=0;
+            % すべての障害物で共通の値を一度だけ計算する。
+            % 数値境界ガードの式と距離判定の意味は変更しない。
+            uav_norm=norm(p);
             for k=1:n
                 shape=obj.prepared_geometry(k);
-                center=OBSTACLE_GEOMETRY_QUERY.center_at(shape,time_s);
+                if shape.is_stationary
+                    center=shape.center0;
+                    center_norm=shape.center_norm_m;
+                else
+                    center=OBSTACLE_GEOMETRY_QUERY.center_at(shape,time_s);
+                    center_norm=norm(center);
+                end
                 if any(~isfinite(center))
                     error('SIMULATED_OBSTACLE_SENSOR:Motion', ...
                         '障害物ID %d の位置が有限ではありません。',shape.id);
                 end
                 % 外接球は早期「除外」だけ。これで検知確定とはしない。
                 lower_bound=norm(p-center)-shape.bounding_radius_m;
-                numerical_guard=64*eps(max([1, norm(p), norm(center),obj.range_m]));
+                numerical_guard=64*eps(max([1, uav_norm, center_norm, obj.range_m]));
                 if lower_bound>obj.range_m+numerical_guard
                     continue
                 end
                 candidate_count=candidate_count+1;
-                d=OBSTACLE_GEOMETRY_QUERY.distance(p,shape,time_s);
+                % 同じ障害物中心を幾何クエリに渡す（再計算しない）。
+                d=OBSTACLE_GEOMETRY_QUERY.distance(p,shape,time_s,center);
                 distances(k)=d;
                 detected(k)= d <= obj.range_m+numerical_guard;
             end
 
-            ids=[obj.obstacles(detected).id];
-            appeared=setdiff(ids,obj.previous_ids,'stable');
-            disappeared=setdiff(obj.previous_ids,ids,'stable');
-
-            % ログには模擬環境の全障害物ではなく、検知された物体のみを格納。
-            visible=obj.obstacles(detected);
-            for k=1:numel(visible)
-                o=visible(k);
-                visible(k).position=o.initial_position + ...
-                    (double(time_s)-o.reference_time_s)*o.velocity;
+            % 検知・距離は毎周期、新規/離脱IDも毎周期確定させる。
+            % 静止障害物で前周期と検知集合が同じときだけ、元形状を含む
+            % LOGGER用構造体を再利用する。障害物数によらず事前列挙はしない。
+            same_mask=isequal(detected,obj.previous_detected_mask);
+            unchanged=obj.all_stationary && same_mask;
+            if unchanged
+                ids=obj.cached_ids;
+                visible=obj.cached_visible;
+            else
+                ids=obj.all_obstacle_ids(detected);
+                % 旧実装の [obstacles(mask).id] と空配列の寸法を一致させる。
+                % logical indexing は 1x0、旧連結は 0x0 を返し得る。
+                % 検知なしを表すログの型・形状も従来どおり [] に統一する。
+                if isempty(ids), ids=[]; end
+                if obj.all_stationary
+                    % 静止物体：定義のコピーも位置の再計算も行わず、選択のみ。
+                    visible=obj.static_log_obstacles(detected);
+                    obj.cached_ids=ids;
+                    obj.cached_visible=visible;
+                else
+                    % 動く障害物を含む場合は従来どおり現在時刻の位置を計算。
+                    visible=obj.obstacles(detected);
+                    for k=1:numel(visible)
+                        o=visible(k);
+                        visible(k).position=o.initial_position + ...
+                            (double(time_s)-o.reference_time_s)*o.velocity;
+                    end
+                end
+            end
+            % 同じ検知集合ならイベントは空。不要な構造体インデックスをしない。
+            % 集合が変わったときは従来の論理マスク式・ID順をそのまま使う。
+            if same_mask
+                appeared=[];
+                disappeared=[];
+            else
+                appeared=obj.all_obstacle_ids(detected & ~obj.previous_detected_mask);
+                disappeared=obj.all_obstacle_ids(~detected & obj.previous_detected_mask);
+                % 元実装は該当IDがなければ 0x0 の [] を返していた。
+                % 検知ID・イベントIDの空配列契約を厳密に保存する。
+                if isempty(appeared), appeared=[]; end
+                if isempty(disappeared), disappeared=[]; end
             end
             result=struct( ...
                 'time_s',double(time_s), ...
@@ -138,7 +202,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 'occlusion_enabled',false, ...
                 'geometry_model','ORIGINAL_SOLID_DISTANCE_NO_APPROXIMATION');
 
-            obj.previous_ids=ids;
+            obj.previous_detected_mask=detected;
             obj.scan_count=obj.scan_count+1;
             if obj.LOG_SENSOR
                 measured_ms=1000*toc(clock);
