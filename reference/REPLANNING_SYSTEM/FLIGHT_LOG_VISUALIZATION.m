@@ -3,8 +3,10 @@ function FLIGHT_LOG_VISUALIZATION(logger, obstacles, show_plots, show_animation,
 % 実飛行ループの外で実行。元形状を楕円体へ近似しない。
 % 計測時間 Figure 9 は LOGGER に実際に保存された値だけを表示する。
 % 第8引数 replanner は任意。渡された場合だけ障害物読込時間も表示する。
-% ※旧runの controllertime_total は実際には motive〜plant の処理時間。
-%   LOGGER.logging と障害物log_frame は計測区間の外にあり、含まれない。
+% Figure 9 は同一のSim LOGGERから次の2種類を独立表示する。
+%   システム周期：MOTIVE～LOGGER.loggingと周期末の処理（runが記録）
+%   リプランナー：REPLANNING_SYSTEM.update内部（リプランナーが記録）
+% どちらも測定済みの値のみ表示。センサ時間はリプランナー時間の部分集合。
 if nargin < 8
     replanner = [];
 end
@@ -52,6 +54,7 @@ if show_plots
     % Figure 9: 既存Flightで計測された処理時間（全ログの時系列と分布）。
     % ログを取っていない項目に、推定値やゼロを入れて表示することはしない。
     plot_computation_timing(logger, t, dt, replanner);
+    plot_sensor_detections(logger, t);
 end
 
 if show_animation
@@ -289,93 +292,170 @@ end
 
 
 function plot_computation_timing(logger, t, dt, replanner)
-% 現行runは毎tickの処理終了時に controller.result.controllertime_total
-% を更新する。ただし名称に反して、計測範囲は motive〜plant のみ。
-% LOGGER保存/障害物log_frame/描画の時間は含まれない。
+% Figure 9: システム全体の1周期とリプランナーだけの時間を分離する。
+%   全周期       = runのMOTIVE～標準LOGGER.logging・周期内表示まで。
+%   リプランナー = REPLANNING_SYSTEM.updateのみ（センサ処理を含む）。
+% 元LOGGER.Dataに保存済みの実測値からだけグラフを作る。
 
-C = result_cells(logger.Data.agent(1), 'controller');
-n = numel(t);
-tick_ms = nan(n,1);
-for k = 1:min(n,numel(C))
-    seconds = member(C{k},'controllertime_total');
-    if isnumeric(seconds) && isreal(seconds) && isscalar(seconds) && ...
-            isfinite(seconds) && seconds >= 0
-        tick_ms(k) = double(seconds)*1000;
+n=numel(t);
+whole_ms=nan(n,1);
+if isfield(logger.Data,'system_cycle_time_ms')
+    raw=logger.Data.system_cycle_time_ms(:);
+    take=min(n,numel(raw));
+    whole_ms(1:take)=double(raw(1:take));
+end
+
+R=result_cells(logger.Data.agent(1),'reference');
+replanner_ms=nan(n,1);
+for k=1:min(n,numel(R))
+    value=member(R{k},'replanning_time_ms');
+    if isnumeric(value)&&isreal(value)&&isscalar(value) ...
+            &&isfinite(value)&&value>=0
+        replanner_ms(k)=double(value);
     end
 end
-% 最初のarmingフレームに残った過去の値は計測値とみなさない。
-if n > 0 && abs(t(1)) < eps
-    tick_ms(1) = NaN;
-end
 
-fig = figure(9); clf(fig);
-set(fig,'Name','Flight: recorded computation time','NumberTitle','off');
-valid = isfinite(t) & isfinite(tick_ms);
+fig=figure(9);clf(fig);
+set(fig,'Name','Sim system cycle / REPLANNING_SYSTEM computation times', ...
+    'NumberTitle','off');
 
-ax1 = subplot(2,1,1,'Parent',fig);
-hold(ax1,'on'); grid(ax1,'on'); box(ax1,'on');
+ax1=subplot(2,1,1,'Parent',fig);
+valid=isfinite(t)&isfinite(whole_ms)&whole_ms>=0;
+hold(ax1,'on');grid(ax1,'on');box(ax1,'on');
 if any(valid)
-    plot(ax1,t(valid),tick_ms(valid),'LineWidth',1.0, ...
-        'DisplayName','motive to plant (before LOGGER)');
-    if isnumeric(dt) && isscalar(dt) && isfinite(dt) && dt > 0
-        yline(ax1,dt*1000,'--',sprintf('dt = %.3g ms',dt*1000), ...
+    plot(ax1,t(valid),whole_ms(valid),'-','LineWidth',1.1, ...
+        'DisplayName','Whole Sim cycle (includes LOGGER.logging)');
+    if isnumeric(dt)&&isscalar(dt)&&isfinite(dt)&&dt>0
+        yline(ax1,dt*1000,'--',sprintf('dt = %.3f ms',dt*1000), ...
             'DisplayName','Sampling period');
     end
+    [med,p95,mx]=timing_summary(whole_ms(valid));
+    title(ax1,sprintf('Whole Sim cycle | N=%d, median %.3f ms, P95 %.3f ms, max %.3f ms', ...
+        nnz(valid),med,p95,mx));
+    fprintf('[TIMING] Whole Sim cycle incl. logger: N=%d | median=%.3f ms | P95=%.3f ms | max=%.3f ms\n', ...
+        nnz(valid),med,p95,mx);
     legend(ax1,'Location','best');
 else
-    text(ax1,0.5,0.5,'No per-tick timing recorded in LOGGER', ...
+    title(ax1,'Whole Sim cycle (not recorded)');
+    text(ax1,0.5,0.5,'No system_cycle_time_ms in Sim LOGGER', ...
         'Units','normalized','HorizontalAlignment','center');
 end
-xlabel(ax1,'Simulation time [s]'); ylabel(ax1,'Elapsed time [ms]');
-title(ax1,'Recorded processing time: motive / EKF / reference / HLC / plant');
+xlabel(ax1,'Simulation time [s]');ylabel(ax1,'Elapsed [ms]');
 hold(ax1,'off');
 
-ax2 = subplot(2,1,2,'Parent',fig);
-grid(ax2,'on'); box(ax2,'on');
-if any(valid)
-    values = tick_ms(valid);
-    histogram(ax2,values,'BinMethod','auto');
-    xlabel(ax2,'Elapsed time [ms]'); ylabel(ax2,'Number of cycles');
-    sorted = sort(values);
-    nValid = numel(sorted);
-    median_ms = median(sorted);
-    p95_ms = sorted(max(1,ceil(0.95*nValid)));
-    max_ms = sorted(end);
-    title(ax2,sprintf('N=%d, median=%.3f ms, P95=%.3f ms, max=%.3f ms', ...
-        nValid,median_ms,p95_ms,max_ms));
-    fprintf('[TIMING] motive-to-plant (excludes logging): N=%d | median=%.3f ms | P95=%.3f ms | max=%.3f ms\n', ...
-        nValid,median_ms,p95_ms,max_ms);
+ax2=subplot(2,1,2,'Parent',fig);
+valid_r=isfinite(t)&isfinite(replanner_ms)&replanner_ms>=0;
+hold(ax2,'on');grid(ax2,'on');box(ax2,'on');
+if any(valid_r)
+    plot(ax2,t(valid_r),replanner_ms(valid_r),'-','LineWidth',1.1, ...
+        'DisplayName','REPLANNING_SYSTEM.update');
+    [~,sensor_ms]=read_sensor_series(logger,t);
+    valid_s=isfinite(t)&isfinite(sensor_ms)&sensor_ms>=0;
+    if any(valid_s)
+        plot(ax2,t(valid_s),sensor_ms(valid_s),'-','LineWidth',0.8, ...
+            'DisplayName','Simulated sensor (part of replanner)');
+    end
+    [med,p95,mx]=timing_summary(replanner_ms(valid_r));
+    title(ax2,sprintf('Replanner only | N=%d, median %.4f ms, P95 %.4f ms, max %.4f ms', ...
+        nnz(valid_r),med,p95,mx));
+    fprintf('[TIMING] REPLANNING_SYSTEM.update: N=%d | median=%.4f ms | P95=%.4f ms | max=%.4f ms\n', ...
+        nnz(valid_r),med,p95,mx);
+    legend(ax2,'Location','best');
 else
-    text(ax2,0.5,0.5,'No recorded elapsed times', ...
+    title(ax2,'Replanner only (not recorded)');
+    text(ax2,0.5,0.5,'No replanning_time_ms in reference.result', ...
         'Units','normalized','HorizontalAlignment','center');
-    xlabel(ax2,'Elapsed time [ms]'); ylabel(ax2,'Number of cycles');
 end
+xlabel(ax2,'Simulation time [s]');ylabel(ax2,'Elapsed [ms]');
+hold(ax2,'off');
 
-% 障害物定義ロード/フレーム生成の累積時間はランタイム統計からのみ読める。
-% 毎tickの各モジュール時間とは区別し、可視化には実測値のみを書く。
+% 定義初期化時間は周期時間ではないためグラフに足さない。
 if ~isempty(replanner)
-    if isobject(replanner) && ismethod(replanner,'get_status')
-        status = replanner.get_status();
-    elseif isstruct(replanner) && isscalar(replanner)
-        status = replanner;
+    if isobject(replanner)&&ismethod(replanner,'get_status')
+        status=replanner.get_status();
+    elseif isstruct(replanner)&&isscalar(replanner)
+        status=replanner;
     else
         error('FLIGHT_LOG_VISUALIZATION:InvalidStatus', ...
-            '第8引数は get_status() 対応オブジェクトか状態構造体です。');
+            '第8引数はget_status対応オブジェクトか状態構造体です。');
     end
-    if isfield(status,'definition_load_ms') && ...
-            isfield(status,'total_frame_time_ms') && isfield(status,'frame_count')
-        load_ms = status.definition_load_ms;
-        sum_ms = status.total_frame_time_ms;
-        count = status.frame_count;
-        if isfinite(load_ms) && isfinite(sum_ms) && isfinite(count)
-            frame_mean_ms = NaN;
-            if count > 0, frame_mean_ms = sum_ms/count; end
-            sgtitle(fig,sprintf(['Obstacle definitions loaded: %.3f ms | ' ...
-                'log_frame total: %.3f ms (%d calls, avg %.5f ms)'], ...
-                load_ms,sum_ms,count,frame_mean_ms));
-            fprintf('[TIMING] obstacles: definition load=%.3f ms | frame total=%.3f ms | frames=%d | mean/frame=%.5f ms\n', ...
-                load_ms,sum_ms,count,frame_mean_ms);
-        end
+    if isfield(status,'definition_load_ms')
+        fprintf('[TIMING] Obstacle definition load (preflight only): %.3f ms\n', ...
+            status.definition_load_ms);
     end
 end
+end
+
+function [med,p95,mx]=timing_summary(values)
+values=sort(double(values(:)));
+med=median(values);
+p95=values(max(1,ceil(.95*numel(values))));
+mx=values(end);
+end
+
+function [count, elapsed, ids, newly, left] = read_sensor_series(logger,t)
+% Sim LOGGERの reference.result に保存されたセンサ結果のみを読む。
+% 検知しなかった回数を欠測・未記録と混同しない。
+n=numel(t);
+count=nan(n,1); elapsed=nan(n,1);
+ids=cell(n,1); newly=cell(n,1); left=cell(n,1);
+R=result_cells(logger.Data.agent(1),'reference');
+for k=1:min(n,numel(R))
+    f=member(R{k},'simulated_obstacle_sensor');
+    if ~(isstruct(f)&&isscalar(f)), continue; end
+    c=member(f,'detected_count');
+    if isnumeric(c)&&isscalar(c)&&isfinite(c),count(k)=double(c);end
+    ms=member(f,'elapsed_ms');
+    if isnumeric(ms)&&isscalar(ms)&&isfinite(ms)&&ms>=0
+        elapsed(k)=double(ms);
+    end
+    ids{k}=member(f,'detected_ids');
+    newly{k}=member(f,'newly_detected_ids');
+    left{k}=member(f,'left_range_ids');
+end
+end
+
+function plot_sensor_detections(logger, t)
+% Figure 10: センサの検知数・IDを、LOGGER保存値からそのまま可視化。
+[count,~,ids,newly,left]=read_sensor_series(logger,t);
+valid=isfinite(count);
+if ~any(valid)
+    fprintf('[SENSOR VISUAL] このFlightログにセンサ記録はありません。\n');
+    return;
+end
+fig=figure(10);clf(fig);
+set(fig,'Name','Sensor: detections from Sim LOGGER','NumberTitle','off');
+ax1=subplot(2,1,1,'Parent',fig);
+stairs(ax1,t(valid),count(valid),'LineWidth',1.3);
+grid(ax1,'on');box(ax1,'on');
+xlabel(ax1,'Time [s]');ylabel(ax1,'Detected obstacle count');
+title(ax1,'Detected obstacles inside the current EKF-centered sensor sphere');
+
+ax2=subplot(2,1,2,'Parent',fig);
+hold(ax2,'on');grid(ax2,'on');box(ax2,'on');
+allID=[];
+for k=1:numel(t)
+    v=ids{k};
+    if isnumeric(v)&&~isempty(v)
+        plot(ax2,t(k)*ones(size(v)),v,'.','MarkerSize',7, ...
+            'Color',[0.0 0.35 0.75]);
+        allID=[allID,reshape(v,1,[])]; %#ok<AGROW>
+    end
+    v=newly{k};
+    if isnumeric(v)&&~isempty(v)
+        plot(ax2,t(k)*ones(size(v)),v,'g^','MarkerSize',5, ...
+            'MarkerFaceColor','g');
+    end
+    v=left{k};
+    if isnumeric(v)&&~isempty(v)
+        plot(ax2,t(k)*ones(size(v)),v,'rv','MarkerSize',5, ...
+            'MarkerFaceColor','r');
+    end
+end
+if ~isempty(allID), yticks(ax2,unique(allID)); end
+xlabel(ax2,'Time [s]');ylabel(ax2,'Obstacle ID');
+title(ax2,'Blue: detected | Green: new | Red: left range');
+hold(ax2,'off');
+fprintf('[SENSOR VISUAL] samples=%d/%d | max detected=%g | observed IDs=%s\n', ...
+    nnz(valid),numel(t),max(count(valid)),mat2str(unique(allID)));
 end

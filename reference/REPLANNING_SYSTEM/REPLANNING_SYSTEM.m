@@ -1,125 +1,279 @@
 classdef REPLANNING_SYSTEM < handle
-    % REPLANNING_SYSTEM  障害物定義を読み込み、Sim LOGGER へ渡すだけの統括クラス。
+    % REPLANNING_SYSTEM  障害物読込と模擬センサの統括だけを行う。
     %
-    % 現段階で実行する仕事:
-    %   1. OBSTACLE_INFORMATION.definitions() を Flight ごとに一度読む。
-    %   2. 障害物の ID・元形状・位置・姿勢・速度をそのまま保持する。
-    %   3. Sim LOGGER 用の値型構造体を、必要な時刻に返す。
+    % 役割:
+    %   (1) 既存の OBSTACLE_INFORMATION.definitions() を Flight 毎に1回読む。
+    %   (2) 模擬センサへ検知半径・ログフラグ・障害物の原定義を渡す。
+    %   (3) 各時刻の現在EKF機体位置から検知結果を作り、Sim LOGGER へ渡す。
     %
-    % センサ、遮蔽、トリガ、衝突、経路生成、認証、マージン、近似は扱わない。
-    % コントローラや目標軌道を包まず、変更もしない。
+    % このクラスは軌道/制御/回避/予測/安全証明を実装しない。
+    % OBSTACLE_INFORMATION と OBSTACLE_SHAPES は変更せず、読み取るだけ。
     %
-    % 使い方:
-    %   options = struct('ENABLE_ALL_LOG',true,'LOG_OBSTACLES',true);
-    %   replanner = REPLANNING_SYSTEM(options);
-    %   frame = replanner.log_frame(time.t);
-    %   agent.reference.result.obstacle_information = frame;
-    %   logger.logging(time,cha,agent,[]);  % 従来の Sim LOGGER で保存される
+    % 実Flightでの使用例:
+    %   replanner = REPLANNING_SYSTEM(options);  % Flight前に1回
+    %   ...  % 同じtickでMOTIVE→EKF→通常の参照→HLC→plant
+    %   replanner.update(time, agent);          % Sim LOGGER.logging の直前
+    %   logger.logging(time, cha, agent, []);   % 既存Simの標準記録
+    %
+    % updateがEKFの位置取得・模擬センサ・reference.resultへの格納を統括する。
+    % runは個別のセンサや障害物ログを操作しない。Sim LOGGERは変更しない。
+    % HLCや通常参照の出力は変更しない。
 
-    properties (SetAccess = private)
-        obstacles           % 障害物の原定義（Flight 中は変更しない）
-        load_count = 0      % 原定義の読込回数
-        frame_count = 0     % LOGGER へ渡すために作ったフレーム数
-        load_time_ms = NaN
-        total_frame_time_ms = 0
-        last_logged_time_s = NaN
+    properties (SetAccess=private)
+        obstacles
+        load_count=0
+        frame_count=0
+        load_time_ms=NaN
+        total_frame_time_ms=0
+        last_logged_time_s=NaN
+        SENSOR_RANGE_M=20
+        last_sensor_result=struct() % ログOFFでも最新の検知結果は保持
     end
 
     properties
-        ENABLE_ALL_LOG = true
-        LOG_OBSTACLES = true
+        ENABLE_ALL_LOG=true
+        LOG_OBSTACLES=true
+        ENABLE_SENSOR=true
+        LOG_SENSOR=true
+        LOG_REPLANNER=true % update()単独の計測・Sim LOGGERへの記録
     end
 
-    properties (Access = private)
-        static_frame        % 静止障害物なら形状情報を毎回作り直さない
-        all_static = false
+    properties (Access=private)
+        sensor
+        static_frame
+        all_static=false
+        replanner_timing_count=0
+        replanner_timing_total_ms=0
+        replanner_timing_max_ms=0
     end
 
     methods
-        function obj = REPLANNING_SYSTEM(options)
-            if nargin < 1
-                options = struct();
+        function obj=REPLANNING_SYSTEM(options)
+            if nargin<1,options=struct();end
+            if ~isstruct(options)||~isscalar(options)
+                error('REPLANNING_SYSTEM:Options','設定はスカラー構造体で指定してください。');
             end
-            if ~isstruct(options) || ~isscalar(options)
-                error('REPLANNING_SYSTEM:Options', ...
-                    '設定はスカラー構造体で指定してください。');
-            end
-            allowed = {'ENABLE_ALL_LOG','LOG_OBSTACLES'};
-            names = fieldnames(options);
-            for i = 1:numel(names)
-                if ~ismember(names{i},allowed)
-                    error('REPLANNING_SYSTEM:UnknownOption', ...
-                        '現在の障害物読込専用クラスには設定 %s はありません。',names{i});
+            allowed={'ENABLE_ALL_LOG','LOG_OBSTACLES','ENABLE_SENSOR', ...
+                'LOG_SENSOR','LOG_REPLANNER','SENSOR_RANGE_M'};
+            names=fieldnames(options);
+            for k=1:numel(names)
+                field=names{k};value=options.(field);
+                if ~ismember(field,allowed)
+                    error('REPLANNING_SYSTEM:UnknownOption','未知の設定項目です: %s',field);
                 end
-                value = options.(names{i});
-                if ~(islogical(value) && isscalar(value)) && ...
-                        ~(isnumeric(value) && isscalar(value) && isreal(value) && ...
-                          isfinite(value) && (value == 0 || value == 1))
-                    error('REPLANNING_SYSTEM:InvalidFlag', ...
-                        '%s は true/false (または 0/1) としてください。',names{i});
+                if strcmp(field,'SENSOR_RANGE_M')
+                    REPLANNING_SYSTEM.check_range(value);
+                    obj.SENSOR_RANGE_M=double(value);
+                else
+                    REPLANNING_SYSTEM.check_flag(value,field);
+                    obj.(field)=logical(value);
                 end
-                obj.(names{i}) = logical(value);
             end
 
-            % 元定義の唯一の読み込み先。旧 ENVIRONMENT_* 関数は参照しない。
-            stopwatch = tic;
-            obj.obstacles = OBSTACLE_INFORMATION.definitions();
+            stopwatch=tic;
+            obj.obstacles=OBSTACLE_INFORMATION.definitions();
             OBSTACLE_INFORMATION.validate_list(obj.obstacles);
-            obj.load_count = 1;
-            obj.load_time_ms = 1000*toc(stopwatch);
-
-            % 今の静止障害物だけの実験では、毎周期の再定義・形状検証を省く。
-            obj.all_static = all(arrayfun(@(o) strcmp(o.motion,'static'),obj.obstacles));
+            obj.load_count=1;
+            obj.load_time_ms=1000*toc(stopwatch);
+            obj.all_static=all(arrayfun(@(o) strcmp(o.motion,'static'),obj.obstacles));
             if obj.all_static
-                obj.static_frame = struct('time_s',0,'obstacles',obj.obstacles);
+                obj.static_frame=struct('time_s',0,'obstacles',obj.obstacles);
             end
+
+            % センサの準備は一度だけ。形状定義側へ手を入れない。
+            obj.sensor=SIMULATED_OBSTACLE_SENSOR(obj.obstacles,obj.SENSOR_RANGE_M, ...
+                obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
         end
 
-        function yes = logging_enabled(obj)
-            yes = obj.ENABLE_ALL_LOG && obj.LOG_OBSTACLES;
+        function yes=logging_enabled(obj)
+            yes=obj.ENABLE_ALL_LOG&&obj.LOG_OBSTACLES;
         end
 
-        function frame = log_frame(obj,time_s)
-            % 時刻ごとの障害物情報を値型の構造体として返す。
-            % 保存担当は Sim の LOGGER。ここではディスクへ書かない。
-            if ~isnumeric(time_s) || ~isscalar(time_s) || ...
-                    ~isreal(time_s) || ~isfinite(time_s)
-                error('REPLANNING_SYSTEM:Time', ...
-                    '記録時刻は有限の実数スカラーで指定してください。');
-            end
-            if ~obj.logging_enabled()
-                frame = [];
-                return;
-            end
-            stopwatch = tic;
+        function frame=log_frame(obj,time_s)
+            % 既存Flightの障害物元定義ログを互換維持。センサ結果は混入しない。
+            REPLANNING_SYSTEM.check_time(time_s);
+            if ~obj.logging_enabled(),frame=[];return;end
+            stopwatch=tic;
             if obj.all_static
-                frame = obj.static_frame;
-                frame.time_s = double(time_s);
+                frame=obj.static_frame;
+                frame.time_s=double(time_s);
             else
-                % 将来の移動障害物では OBSTACLE_INFORMATION 側の時刻計算を使う。
-                frame = OBSTACLE_INFORMATION.log_frame(time_s);
+                frame=OBSTACLE_INFORMATION.log_frame(time_s);
             end
-            obj.frame_count = obj.frame_count+1;
-            obj.last_logged_time_s = double(time_s);
-            obj.total_frame_time_ms = obj.total_frame_time_ms + 1000*toc(stopwatch);
+            obj.frame_count=obj.frame_count+1;
+            obj.last_logged_time_s=double(time_s);
+            obj.total_frame_time_ms=obj.total_frame_time_ms+1000*toc(stopwatch);
         end
 
-        function status = get_status(obj)
-            % Flight 後の検証用。数値結果のみ返し、独自形式で保存しない。
-            status = struct();
-            status.source = which('OBSTACLE_INFORMATION');
-            status.count = numel(obj.obstacles);
-            status.ids = [obj.obstacles.id];
-            shapes = [obj.obstacles.geometry];
-            status.shapes = {shapes.type};
-            status.all_static = obj.all_static;
-            status.definition_load_count = obj.load_count;
-            status.definition_load_ms = obj.load_time_ms;
-            status.ENABLE_ALL_LOG = obj.ENABLE_ALL_LOG;
-            status.LOG_OBSTACLES = obj.LOG_OBSTACLES;
-            status.frame_count = obj.frame_count;
-            status.total_frame_time_ms = obj.total_frame_time_ms;
-            status.last_logged_time_s = obj.last_logged_time_s;
+        function update(obj,time,agent)
+            % Flightからの唯一の周期呼出し口。
+            %
+            % 前提：通常のSimフローで同tickのEKFが更新済みであり、
+            %       参照のdo()も終了してreference.resultが確定している。
+            % 保存：Simのlogger.loggingがreference.resultを記録する。
+            %       このメソッドで独自の保存やLOGGER.loggingは呼ばない。
+            %
+            % ENABLE_SENSORとLOG_SENSORは独立：ログを切っても検知は行う。
+            % ここからリプランナーの責務だけを計測する。
+            % 計測値は同じtickのreference.resultに保存し、標準LOGGERが回収する。
+            measure_replanner=obj.ENABLE_ALL_LOG && obj.LOG_REPLANNER;
+            if measure_replanner, update_clock=tic; end
+            time_s=REPLANNING_SYSTEM.require_sim_time(time);
+            if ~(isobject(agent)&&isscalar(agent)&&isprop(agent,'reference'))
+                error('REPLANNING_SYSTEM:Agent', ...
+                    'SimのDRONE agentを渡してください。');
+            end
+
+            % 参照結果へ追加するだけ。既存のxdや制御値は上書きしない。
+            reference_result=agent.reference.result;
+            if ~(isstruct(reference_result)&&isscalar(reference_result))
+                error('REPLANNING_SYSTEM:ReferenceResult', ...
+                    'agent.reference.resultがスカラー構造体ではありません。');
+            end
+
+            sensor_result=[];
+            if obj.ENABLE_SENSOR
+                p_now=REPLANNING_SYSTEM.require_ekf_uav_position(agent);
+                sensor_result=obj.observe_sensor(time_s,p_now);
+                obj.last_sensor_result=sensor_result;
+            else
+                obj.last_sensor_result=struct();
+            end
+
+            % ログONなら既存値を上書き。OFFに切り替えた場合だけ消す。
+            % 毎tickのrmfield→再追加は不要なので実行しない。
+            if obj.logging_enabled()
+                reference_result.obstacle_information=obj.log_frame(time_s);
+            elseif isfield(reference_result,'obstacle_information')
+                reference_result=rmfield(reference_result,'obstacle_information');
+            end
+            if obj.ENABLE_SENSOR && obj.ENABLE_ALL_LOG && obj.LOG_SENSOR
+                reference_result.simulated_obstacle_sensor=sensor_result;
+            elseif isfield(reference_result,'simulated_obstacle_sensor')
+                reference_result=rmfield(reference_result,'simulated_obstacle_sensor');
+            end
+            % センサ時間はこのupdate時間に含まれるため、二重加算しない。
+            % 末尾の結果プロパティ代入は計測範囲外（小さな固定オーバーヘッド）。
+            if measure_replanner
+                update_ms=1000*toc(update_clock);
+                reference_result.replanning_time_ms=update_ms;
+                obj.replanner_timing_count=obj.replanner_timing_count+1;
+                obj.replanner_timing_total_ms=obj.replanner_timing_total_ms+update_ms;
+                obj.replanner_timing_max_ms=max(obj.replanner_timing_max_ms,update_ms);
+            elseif isfield(reference_result,'replanning_time_ms')
+                reference_result=rmfield(reference_result,'replanning_time_ms');
+            end
+            agent.reference.result=reference_result;
+        end
+
+        function frame=observe_sensor(obj,time_s,current_ekf_uav_position)
+            % EKF機体位置を必須入力とする。未指定なら黙って公称値を使わない。
+            if ~obj.ENABLE_SENSOR
+                error('REPLANNING_SYSTEM:SensorDisabled', ...
+                    'ENABLE_SENSOR=false です。検知処理は無効です。');
+            end
+            if nargin<3
+                error('REPLANNING_SYSTEM:MissingEKF', ...
+                    '現在時刻のEKF機体位置を第3引数へ渡してください。');
+            end
+            obj.sensor.set_log(obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
+            frame=obj.sensor.observe(time_s,current_ekf_uav_position);
+        end
+
+        function set_sensor_range(obj,range_m)
+            % Flight途中も外部から値を更新可能。変更はセンサへ即座に反映。
+            REPLANNING_SYSTEM.check_range(range_m);
+            obj.sensor.set_range(range_m);
+            obj.SENSOR_RANGE_M=double(range_m);
+        end
+
+        function status=get_status(obj)
+            % 初期読込と元障害物ログの既存フィールドは変更しない。
+            status=struct();
+            status.source=which('OBSTACLE_INFORMATION');
+            status.count=numel(obj.obstacles);
+            status.ids=[obj.obstacles.id];
+            shapes=[obj.obstacles.geometry];
+            status.shapes={shapes.type};
+            status.all_static=obj.all_static;
+            status.definition_load_count=obj.load_count;
+            status.definition_load_ms=obj.load_time_ms;
+            status.ENABLE_ALL_LOG=obj.ENABLE_ALL_LOG;
+            status.LOG_OBSTACLES=obj.LOG_OBSTACLES;
+            status.frame_count=obj.frame_count;
+            status.total_frame_time_ms=obj.total_frame_time_ms;
+            status.last_logged_time_s=obj.last_logged_time_s;
+            status.ENABLE_SENSOR=obj.ENABLE_SENSOR;
+            status.LOG_SENSOR=obj.LOG_SENSOR;
+            status.LOG_REPLANNER=obj.LOG_REPLANNER;
+            status.replanner_timing_count=obj.replanner_timing_count;
+            status.replanner_timing_total_ms=obj.replanner_timing_total_ms;
+            status.replanner_timing_max_ms=obj.replanner_timing_max_ms;
+            status.SENSOR_RANGE_M=obj.SENSOR_RANGE_M;
+            status.sensor_status=obj.sensor.get_status();
+        end
+    end
+
+    methods (Static,Access=private)
+        function time_s=require_sim_time(time)
+            % SimのTIMEオブジェクト。テストでは同形のstructも可。
+            if isobject(time)&&isscalar(time)&&isprop(time,'t')
+                time_s=time.t;
+            elseif isstruct(time)&&isscalar(time)&&isfield(time,'t')
+                time_s=time.t;
+            else
+                error('REPLANNING_SYSTEM:TimeSource', ...
+                    '現在のSim TIMEオブジェクト（time.t）を渡してください。');
+            end
+            REPLANNING_SYSTEM.check_time(time_s);
+            time_s=double(time_s);
+        end
+
+        function p=require_ekf_uav_position(agent)
+            % 公称位置・plant真値・前tickへのフォールバックは禁止。
+            if ~(isobject(agent)&&isscalar(agent)&&isprop(agent,'estimator'))
+                error('REPLANNING_SYSTEM:Estimator', ...
+                    'agent.estimatorがありません。');
+            end
+            output=agent.estimator.result;
+            if ~(isstruct(output)&&isscalar(output)&&isfield(output,'state'))
+                error('REPLANNING_SYSTEM:EKFUnavailable', ...
+                    '現在tickのEKF推定状態stateが取得できません。');
+            end
+            state=output.state;
+            if isobject(state)&&isscalar(state)&&isprop(state,'p')
+                p=state.p;
+            elseif isstruct(state)&&isscalar(state)&&isfield(state,'p')
+                p=state.p;
+            else
+                error('REPLANNING_SYSTEM:EKFUnavailable', ...
+                    'EKF状態に機体位置pがありません。');
+            end
+            if ~(isnumeric(p)&&isreal(p)&&numel(p)==3&&all(isfinite(p(:))))
+                error('REPLANNING_SYSTEM:EKFInvalid', ...
+                    'EKFの機体位置pは有限の3次元実ベクトルでなければなりません。');
+            end
+            p=double(p(:));
+        end
+
+        function check_time(t)
+            if ~isnumeric(t)||~isscalar(t)||~isreal(t)||~isfinite(t)
+                error('REPLANNING_SYSTEM:Time','時刻は有限の実数を指定してください。');
+            end
+        end
+        function check_range(r)
+            if ~isnumeric(r)||~isscalar(r)||~isreal(r)||~isfinite(r)||r<=0
+                error('REPLANNING_SYSTEM:Range','検知半径は正の有限な実数 [m] です。');
+            end
+        end
+        function check_flag(v,name)
+            valid=islogical(v)&&isscalar(v);
+            valid=valid || (isnumeric(v)&&isscalar(v)&&isreal(v) ...
+                && isfinite(v)&&(v==0||v==1));
+            if ~valid
+                error('REPLANNING_SYSTEM:InvalidFlag', ...
+                    '%s は true/false または 0/1 としてください。',name);
+            end
         end
     end
 end

@@ -1,86 +1,187 @@
 classdef SIMULATED_OBSTACLE_SENSOR < handle
-    % Omnidirectional surface-range gate + explicitly defined center-ray LOS.
-    % LOS is a simulation convention, NOT a visibility theorem for every
-    % point of an extended obstacle (and not a physical sensor model).
-    properties (SetAccess = private)
+    % SIMULATED_OBSTACLE_SENSOR  機体中心の球形領域に入った障害物を発見する。
+    %
+    % 【このクラスの責務】
+    %   - 現在の EKF 機体位置と、設定された検知半径 [m] を受け取る。
+    %   - 障害物の「元の占有形状」と検知球の交差を調べる。
+    %   - 検知した ID、数、追加/離脱 ID と、元障害物情報を返す。
+    %   - LOG_SENSOR=true 時は毎回の処理時間を結果に記録する。
+    %
+    % 【このクラスではしないこと】
+    %   - 遮蔽、ノイズ、視野角、将来衝突予測、障害物の安全マージン付加
+    %   - 検知済み障害物を永久保存すること（後段の障害物記憶の担当）
+    %   - 目標軌道・HLC・plant の変更、独立した MAT/TXT 保存
+    %
+    % 【幾何判定】
+    %   機体中心p、障害物占有領域Oについて min_{x in O}||p-x|| <= range。
+    %   全形状共通の問い合わせは OBSTACLE_GEOMETRY_QUERY に委譲する。
+    %   遠方の障害物だけは安全な外接球下界で早期除外する。
+    %
+    % 例:
+    %   sensor = SIMULATED_OBSTACLE_SENSOR(obstacles,20,true);
+    %   frame = sensor.observe(time_s,ekf_uav_position);
+    %   % frame は Sim LOGGER へ渡せる通常の MATLAB 構造体。
+
+    properties (SetAccess=private)
         range_m
-        LOG_ENABLED = false
+        obstacle_count
         last_result = struct()
-        timing = struct('count',0,'total_ms',0,'max_ms',0,'last_ms',NaN)
-        timing_ring = nan(4096,2)
+        scan_count = 0
+        timing_count = 0
+        total_scan_time_ms = 0
+        max_scan_time_ms = 0
+        last_scan_time_ms = NaN
+        geometry_prepare_ms = NaN
     end
+
+    properties
+        LOG_SENSOR = false
+    end
+
+    properties (Access=private)
+        obstacles
+        prepared_geometry
+        previous_ids = []
+    end
+
     methods
-        function obj=SIMULATED_OBSTACLE_SENSOR(range_m,log_enabled)
-            assert(isnumeric(range_m)&&isscalar(range_m)&&isfinite(range_m)&&range_m>0, ...
-                'SIMULATED_OBSTACLE_SENSOR:MissingRange', ...
-                'Sensor range must come from the live replanner options.');
+        function obj=SIMULATED_OBSTACLE_SENSOR(obstacles,range_m,log_enabled)
+            if nargin<3, log_enabled=false; end
+            obj.validate_flag(log_enabled,'LOG_SENSOR');
+            obj.LOG_SENSOR=logical(log_enabled);
+            obj.set_range(range_m);
+            startup=tic;
+            obj.prepared_geometry=OBSTACLE_GEOMETRY_QUERY.prepare(obstacles);
+            obj.geometry_prepare_ms=1000*toc(startup);
+            obj.obstacles=obstacles;
+            obj.obstacle_count=numel(obstacles);
+        end
+
+        function set_range(obj,range_m)
+            % 外部設定は必ず統括クラス経由で指定する。
+            if ~(isnumeric(range_m)&&isscalar(range_m)&&isreal(range_m) ...
+                    && isfinite(range_m)&&range_m>0)
+                error('SIMULATED_OBSTACLE_SENSOR:Range', ...
+                    '検知距離は正の有限なスカラー [m] で指定してください。');
+            end
             obj.range_m=double(range_m);
-            obj.LOG_ENABLED=logical(log_enabled);
         end
+
         function set_log(obj,enabled)
-            obj.LOG_ENABLED=logical(enabled);
+            obj.validate_flag(enabled,'LOG_SENSOR');
+            obj.LOG_SENSOR=logical(enabled);
         end
-        function S=observe(obj,t,pQ,raw)
-            clk=[];if obj.LOG_ENABLED, clk=tic;end
-            assert(isnumeric(pQ)&&numel(pQ)==3&&all(isfinite(pQ(:))), ...
-                'SIMULATED_OBSTACLE_SENSOR:EKF','Missing valid current EKF UAV position.');
-            pQ=double(pQ(:));
-            M=numel(raw); dist=inf(1,M); in_range=false(1,M);
-            visible=false(1,M); occluded=false(1,M); ray_miss=false(1,M);
-            for i=1:M
-                dist(i)=OBSTACLE_INFORMATION.surface_distance(pQ,raw(i));
-                in_range(i)=dist(i)<=obj.range_m;
+
+        function result=observe(obj,time_s,p_uav_ekf)
+            % Flight各時刻に呼ぶ。EKF位置を入力せずには実行できない。
+            % 出力は「今回検知した障害物のみ」を後段に渡す。
+            % 毎周期の全障害物を後段へ渡す処理は行わない。
+            if ~(isnumeric(time_s)&&isscalar(time_s)&&isreal(time_s)&&isfinite(time_s))
+                error('SIMULATED_OBSTACLE_SENSOR:Time','観測時刻が不正です。');
             end
-            % This center-ray convention makes the occlusion rule explicit;
-            % a line blocked by another obstacle cannot produce detection.
-            for i=find(in_range)
-                c=double(raw(i).p_center(:)); v=c-pQ; Nv=norm(v);
-                if dist(i)==0, visible(i)=true;continue;end
-                if Nv<=0, error('SIMULATED_OBSTACLE_SENSOR:Ray','Invalid center-ray geometry.');end
-                % Every supported primitive is centered on p_center.
-                % For custom convex vertices the source must also provide an
-                % interior p_center; otherwise the center-ray is undefined.
-                if OBSTACLE_INFORMATION.surface_distance(c,raw(i))>1e-9
-                    error('SIMULATED_OBSTACLE_SENSOR:CenterOutside', ...
-                        'Obstacle %g has p_center outside its shape.',double(raw(i).id));
-                end
-                left=0;right=1;
-                for k=1:45
-                    mid=(left+right)/2;
-                    if OBSTACLE_INFORMATION.surface_distance(pQ+mid*v,raw(i))<=1e-10
-                        right=mid;
-                    else
-                        left=mid;
-                    end
-                end
-                stop=max(0,right-1e-7/max(1,Nv));
-                blocked=false;
-                for j=1:M
-                    if i==j,continue;end
-                    % Check other obstacles even if outside nominal sensor
-                    % range: they may occlude the ray to the target.
-                    [~,dj]=fminbnd(@(u) OBSTACLE_INFORMATION.surface_distance( ...
-                        pQ+u*stop*v,raw(j)),0,1);
-                    if dj<=1e-8, blocked=true;break;end
-                end
-                occluded(i)=blocked;
-                visible(i)=~blocked;
+            if ~(isnumeric(p_uav_ekf)&&isreal(p_uav_ekf)&&numel(p_uav_ekf)==3 ...
+                    && all(isfinite(p_uav_ekf(:))))
+                error('SIMULATED_OBSTACLE_SENSOR:EKF', ...
+                    '現在時刻の EKF 機体位置 [x;y;z] を明示的に渡してください。');
             end
-            visible_ids=[];if ~isempty(raw),visible_ids=[raw(visible).id];end
-            S=struct('time_s',double(t),'range_m',obj.range_m,'distances_m',dist, ...
-                'in_range_mask',in_range,'visible_mask',visible, ...
-                'occluded_mask',occluded,'ray_miss_mask',ray_miss, ...
-                'visible_ids',visible_ids, ...
-                'model','RANGE_SURFACE_PLUS_SINGLE_CENTER_RAY_LOS', ...
-                'full_surface_visibility_certified',false);
-            obj.last_result=S;
-            if obj.LOG_ENABLED
-                ms=1e3*toc(clk);obj.timing.count=obj.timing.count+1;
-                obj.timing.total_ms=obj.timing.total_ms+ms;
-                obj.timing.max_ms=max(obj.timing.max_ms,ms);
-                obj.timing.last_ms=ms;
-                k=mod(obj.timing.count-1,size(obj.timing_ring,1))+1;
-                obj.timing_ring(k,:)=[double(t),ms];
+            p=double(p_uav_ekf(:));
+            if obj.LOG_SENSOR,clock=tic;end
+
+            n=obj.obstacle_count;
+            detected=false(1,n);
+            distances=nan(1,n);
+            candidate_count=0;
+            for k=1:n
+                shape=obj.prepared_geometry(k);
+                center=OBSTACLE_GEOMETRY_QUERY.center_at(shape,time_s);
+                if any(~isfinite(center))
+                    error('SIMULATED_OBSTACLE_SENSOR:Motion', ...
+                        '障害物ID %d の位置が有限ではありません。',shape.id);
+                end
+                % 外接球は早期「除外」だけ。これで検知確定とはしない。
+                lower_bound=norm(p-center)-shape.bounding_radius_m;
+                numerical_guard=64*eps(max([1, norm(p), norm(center),obj.range_m]));
+                if lower_bound>obj.range_m+numerical_guard
+                    continue
+                end
+                candidate_count=candidate_count+1;
+                d=OBSTACLE_GEOMETRY_QUERY.distance(p,shape,time_s);
+                distances(k)=d;
+                detected(k)= d <= obj.range_m+numerical_guard;
+            end
+
+            ids=[obj.obstacles(detected).id];
+            appeared=setdiff(ids,obj.previous_ids,'stable');
+            disappeared=setdiff(obj.previous_ids,ids,'stable');
+
+            % ログには模擬環境の全障害物ではなく、検知された物体のみを格納。
+            visible=obj.obstacles(detected);
+            for k=1:numel(visible)
+                o=visible(k);
+                visible(k).position=o.initial_position + ...
+                    (double(time_s)-o.reference_time_s)*o.velocity;
+            end
+            result=struct( ...
+                'time_s',double(time_s), ...
+                'uav_position_ekf_m',p, ...
+                'sensor_range_m',obj.range_m, ...
+                'detected_count',numel(ids), ...
+                'detected_ids',ids, ...
+                'newly_detected_ids',appeared, ...
+                'left_range_ids',disappeared, ...
+                'detected_obstacles',visible, ...
+                'detected_distances_m',distances(detected), ...
+                'candidates_checked',candidate_count, ...
+                'obstacles_screened',n, ...
+                'elapsed_ms',NaN, ...
+                'time_measured',obj.LOG_SENSOR, ...
+                'occlusion_enabled',false, ...
+                'geometry_model','ORIGINAL_SOLID_DISTANCE_NO_APPROXIMATION');
+
+            obj.previous_ids=ids;
+            obj.scan_count=obj.scan_count+1;
+            if obj.LOG_SENSOR
+                measured_ms=1000*toc(clock);
+                result.elapsed_ms=measured_ms;
+                obj.timing_count=obj.timing_count+1;
+                obj.total_scan_time_ms=obj.total_scan_time_ms+measured_ms;
+                obj.max_scan_time_ms=max(obj.max_scan_time_ms,measured_ms);
+                obj.last_scan_time_ms=measured_ms;
+            end
+            obj.last_result=result;
+        end
+
+        function s=get_status(obj)
+            s=struct('range_m',obj.range_m, ...
+                'obstacles_available',obj.obstacle_count, ...
+                'scan_count',obj.scan_count, ...
+                'timing_count',obj.timing_count, ...
+                'time_total_ms',obj.total_scan_time_ms, ...
+                'time_max_ms',obj.max_scan_time_ms, ...
+                'time_last_ms',obj.last_scan_time_ms, ...
+                'geometry_prepare_ms',obj.geometry_prepare_ms, ...
+                'LOG_SENSOR',obj.LOG_SENSOR);
+            if obj.timing_count==0
+                s.time_mean_ms=NaN;
+            else
+                s.time_mean_ms=obj.total_scan_time_ms/obj.timing_count;
+            end
+            if isempty(fieldnames(obj.last_result))
+                s.last_detected_ids=[];
+            else
+                s.last_detected_ids=obj.last_result.detected_ids;
+            end
+        end
+    end
+
+    methods (Static,Access=private)
+        function validate_flag(value,name)
+            valid=islogical(value)&&isscalar(value);
+            valid=valid || (isnumeric(value)&&isscalar(value)&&isreal(value) ...
+                && isfinite(value)&&(value==0||value==1));
+            if ~valid
+                error('SIMULATED_OBSTACLE_SENSOR:Flag', ...
+                    '%s は true/false または 0/1 を指定してください。',name);
             end
         end
     end

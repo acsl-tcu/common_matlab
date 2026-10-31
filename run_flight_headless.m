@@ -1,10 +1,10 @@
 % run_flight_headless.m
 % ========================================================================
-% 単機吊荷シミュレーション（GUIなし）＋障害物定義の読込／LOGGER記録試験。
+% 単機吊荷シミュレーション（GUIなし）＋REPLANNING_SYSTEMを周期呼出し。
 % 終了後にLOGGERから軌道図・位置時系列・吊荷アニメーションを表示。
 %
-% 今回の REPLANNING_SYSTEM は障害物を読み込むだけです。
-% センサ・将来衝突判定・回避軌道・認証は実行しません。
+% REPLANNING_SYSTEM が障害物・模擬センサ・Sim LOGGER用結果を管理する。
+% 将来衝突判定・回避軌道・認証は実行しません。
 % 目標値は通常の TIME_VARYING_REFERENCE から HLC へ直接送ります。
 % HLC / EKF / plant / SUSPENDED_LOAD_REF_ADJUST は元のままです。
 % ========================================================================
@@ -19,9 +19,13 @@ te = 65;
 takeoff_end_s = 5;
 flight_end_s = 47;
 
-% ここが障害物情報の記録スイッチです。元の形状定義には影響しません。
+% リプランナー用の外部設定。元の障害物定義には影響しません。
 ENABLE_ALL_LOG = true;
 LOG_OBSTACLES = true;
+ENABLE_SENSOR = true;        % falseならセンサ計算自体を行わない
+LOG_SENSOR = true;           % falseでもENABLE_SENSOR=trueなら検知は実行する
+LOG_REPLANNER = true;        % REPLANNING_SYSTEM.update単独の処理時間を保存
+SENSOR_RANGE_M = 20;         % 模擬センサ半径[m]。Flightごとに自由に変更可能
 SAVE_LOG_AFTER_FLIGHT = true;  % Sim の LOGGER.save で Data/Sim_data に保存
 
 % 表示はFlight終了後のみ。制御・障害物定義・LOGGERには影響しない。
@@ -60,14 +64,12 @@ for path_index = 1:numel(all_paths)
 end
 addpath(usable_paths{:},'-end');
 module_dir = fullfile(project_root,'reference','REPLANNING_SYSTEM');
-obstacle_dir = fullfile(module_dir,'OBSTACLE_INFORMATION');
-if ~isfile(fullfile(module_dir,'REPLANNING_SYSTEM.m')) || ...
-        ~isfile(fullfile(obstacle_dir,'OBSTACLE_INFORMATION.m')) || ...
-        ~isfile(fullfile(obstacle_dir,'OBSTACLE_SHAPES.m'))
+if ~isfile(fullfile(module_dir,'REPLANNING_SYSTEM.m'))
     error('run_flight_headless:MissingSource', ...
-        'REPLANNING_SYSTEM と障害物定義の3ファイルを所定の場所へ配置してください。');
+        'reference/REPLANNING_SYSTEM/REPLANNING_SYSTEM.m がありません。');
 end
-addpath(module_dir,obstacle_dir,'-begin');
+% サブモジュールの構成は統括クラスに任せる。runは個別モジュールを呼ばない。
+addpath(genpath(module_dir),'-begin');
 expected_class = fullfile(module_dir,'REPLANNING_SYSTEM.m');
 if ~strcmpi(which('REPLANNING_SYSTEM'),expected_class)
     error('run_flight_headless:ShadowedClass', ...
@@ -78,6 +80,9 @@ end
 time = TIME(ts,dt,te);
 logger = LOGGER(1,numel(ts:dt:te)+2,0,[],[]);
 logger.display_on = false; % 全周期のコンソール出力は不要
+% システム全体の1周期時間は、Simの標準LOGGER.Dataに記録する。
+% アーミングはFlight周期とは別なので、最初のレコードはNaNのまま。
+logger.Data.system_cycle_time_ms = nan(size(logger.Data.t));
 
 %% 3. 機体・吊荷・センサ・EKF（既存の動作設定を維持）
 agent = DRONE;
@@ -128,14 +133,17 @@ agent.cha_allocation.f.reference = ["timevarying","sload"];
 agent.cha_allocation.l.reference = ["landing","sload"];
 env = [];
 
-%% 5. 障害物をFlightごとに1回読み込む（このクラスの仕事はこれだけ）
+%% 5. リプランナー初期化（障害物・模擬センサは内部で管理）
 obstacle_options = struct('ENABLE_ALL_LOG',ENABLE_ALL_LOG, ...
-                          'LOG_OBSTACLES',LOG_OBSTACLES);
+                          'LOG_OBSTACLES',LOG_OBSTACLES, ...
+                          'ENABLE_SENSOR',ENABLE_SENSOR, ...
+                          'LOG_SENSOR',LOG_SENSOR, ...
+                          'LOG_REPLANNER',LOG_REPLANNER, ...
+                          'SENSOR_RANGE_M',SENSOR_RANGE_M);
 replanner_instance = REPLANNING_SYSTEM(obstacle_options);
 obstacle_status = replanner_instance.get_status();
-fprintf('[OBSTACLES] loaded=%d | IDs=%s | static=%d | log=%d\n', ...
-    obstacle_status.count,mat2str(obstacle_status.ids), ...
-    obstacle_status.all_static,replanner_instance.logging_enabled());
+fprintf('[REPLANNING] obstacles=%d | sensor enabled=%d | range=%.3f m\n', ...
+    obstacle_status.count,obstacle_status.ENABLE_SENSOR,obstacle_status.SENSOR_RANGE_M);
 
 %% 6. Headless初期化（既存Simの各phaseを一度通す）
 disp('Initializing simulation states...');
@@ -161,13 +169,12 @@ do_prop_local(time,cha,cha,logger,env,agent,'reference',1);
 do_prop_local(time,cha,cha,logger,env,agent,'controller',1);
 do_prop_local(time,cha,cha,logger,env,agent,'input_transform',1);
 do_prop_local(time,cha,cha,logger,env,agent,'plant',1);
-if replanner_instance.logging_enabled()
-    agent.reference.result.obstacle_information = replanner_instance.log_frame(time.t);
-end
+% 模擬センサ実行・結果のSim LOGGER向け格納は、統括クラス内で行う。
+replanner_instance.update(time,agent);
 logger.logging(time,cha,agent,[]);
 time.k = logger.k;
 
-%% 8. Flight（推定器・目標軌道・制御系は元の動作）
+%% 8. Flight（通常Simの処理＋リプランナーを1回呼出し）
 fprintf('Starting simulation...\n');
 simulation_error = [];
 try
@@ -181,6 +188,8 @@ try
         end
         agent.cha = cha;
 
+        % [全システム周期] MOTIVEからLOGGER.loggingおよび周期内の処理まで。
+        % dt=25msは比較基準であり、計測値の上限・打切りには使わない。
         start_iteration = tic;
         motive.getData(agent);
         do_prop_local(time,cha,cha,logger,env,agent,'sensor',1);
@@ -189,14 +198,8 @@ try
         do_prop_local(time,cha,cha,logger,env,agent,'controller',1);
         do_prop_local(time,cha,cha,logger,env,agent,'input_transform',1);
         do_prop_local(time,cha,cha,logger,env,agent,'plant',1);
-        agent.controller.result.controllertime_total = toc(start_iteration);
-
-        % LOGGERが記録する reference.result に障害物定義を渡す。
-        % 軌道・制御・plantの入力には使用しない。
-        if replanner_instance.logging_enabled()
-            agent.reference.result.obstacle_information = ...
-                replanner_instance.log_frame(time.t);
-        end
+        replanner_instance.update(time,agent);
+        % logger.loggingはSim本来のデータ収集のまま維持する。
         logger.logging(time,cha,agent,[]);
         time.k = logger.k;
         time.t = time.t + dt;
@@ -204,6 +207,9 @@ try
         if mod(round(time.t/dt),round(5/dt)) == 0
             fprintf('Time: %.1f / %.1f s (phase %s)\n',time.t,time.te,cha);
         end
+        % LOGGER自身の書込みも含む実際の1周期時間を同じLOGGERに追記。
+        % このフィールドはrunが所有し、リプランナーには渡さない。
+        logger.Data.system_cycle_time_ms(logger.k) = 1000*toc(start_iteration);
     end
 catch caught_error
     simulation_error = caught_error;
@@ -215,8 +221,11 @@ end
 obstacle_status = replanner_instance.get_status();
 fprintf('[OBSTACLES] logged frames=%d / LOGGER records=%d | load=%.3f ms\n', ...
     obstacle_status.frame_count,logger.k,obstacle_status.definition_load_ms);
+s = obstacle_status.sensor_status;
+fprintf('[SENSOR] scans=%d | timing records=%d | mean=%.4f ms | max=%.4f ms | geometry prepare=%.3f ms\n', ...
+    s.scan_count,s.timing_count,s.time_mean_ms,s.time_max_ms,s.geometry_prepare_ms);
 if SAVE_LOG_AFTER_FLIGHT && logger.k > 0
-    logger.save('ObstacleDefinitionFlight');
+    logger.save('ObstacleSensorFlight');
     disp('[LOGGER] Saved by the normal Sim LOGGER into Data/Sim_data.');
 end
 
@@ -237,7 +246,7 @@ end
 if ~isempty(simulation_error)
     rethrow(simulation_error); % 部分ログを残したうえで元のエラーを返す。
 end
-fprintf('Simulation completed. Run CHECK_OBSTACLE_FLIGHT_LOG(logger,replanner_instance).\n');
+fprintf('Simulation completed. Run CHECK_SENSOR_FLIGHT_LOG(logger,replanner_instance).\n');
 
 %% 以下はheadless用の最小限の補助関数
 function y = motive_output(obj,data)
@@ -269,3 +278,5 @@ function do_prop_local(time,cha,fCha,logger,env,agent,prop,i)
             agent(i).(prop).(list(j)).do(time,fCha,logger,env,agent,i));
     end
 end
+
+
