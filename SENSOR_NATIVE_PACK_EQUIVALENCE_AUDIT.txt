@@ -1,0 +1,13 @@
+PASS_SENSOR_NATIVE_PACK_EQUIVALENCE
+sensor_source=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\SIMULATED_OBSTACLE_SENSOR\SIMULATED_OBSTACLE_SENSOR.m
+mex_source=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\SIMULATED_OBSTACLE_SENSOR\SENSOR_EVENT_IDS_NOHEAP_NATIVE.mexw64
+native_prepare_status=REUSED_EXISTING
+cases=16 comparisons=3652 flight_replay=2602 errors=0
+baseline median/p95/max ms=0.008400 0.015500 5.296600
+modified median/p95/max ms=0.008400 0.015600 1.095200
+median_speedup=1.0000 NOT_DEMONSTRATED
+Flight event t=5.125000 old/new ms=0.027400 0.038900
+Flight event t=14.350000 old/new ms=0.021900 0.039100
+Flight event t=19.000000 old/new ms=0.023700 0.035800
+Flight event t=38.350000 old/new ms=0.606000 0.035100
+NOTE PASSは検知出力同値を意味する。突出時間の消滅保証ではない。一回の実験で最大実行時間の保証はできない。

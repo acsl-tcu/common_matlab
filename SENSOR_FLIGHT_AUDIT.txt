@@ -2,8 +2,8 @@ PASS_SENSOR_FLIGHT_AND_SIM_LOGGER
 logger_records=2602 | sensor_records=2602 | missing=0
 obstacle_ids=[1 2 3] | observed_ids=[1;2;3]
 sensor_scans=2602 | timing_count=2602 | definition_load_count=1
-with_detection=1535 | time_median_ms=0.050600 | time_p95_ms=0.071100 | time_max_ms=0.968900
+with_detection=1535 | time_median_ms=0.035500 | time_p95_ms=0.051600 | time_max_ms=0.979800
 timing_status=RECORDED_AND_CHECKED
-replanner_median_ms=0.137400 | replanner_p95_ms=0.189100 | replanner_max_ms=1.353500
-cycle_median_ms=5.942100 | cycle_p95_ms=7.211100 | cycle_max_ms=539.765900
+replanner_median_ms=0.121000 | replanner_p95_ms=0.165200 | replanner_max_ms=1.347200
+cycle_median_ms=5.904600 | cycle_p95_ms=7.219400 | cycle_max_ms=507.426400
 failures=0

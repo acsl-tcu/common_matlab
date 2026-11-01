@@ -1,0 +1,9 @@
+PASS_FRESH_TRANSITION_REPLAY__CAUSE_NOT_PROVEN
+sensor=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\SIMULATED_OBSTACLE_SENSOR\SIMULATED_OBSTACLE_SENSOR.m
+records=2602 events=4 fresh_instances_per_log_mode=4 repetitions=12 error_count=0
+columns=time_s | original_flight_sensor_ms | fresh_no_timing_median_ms | fresh_no_timing_max_ms | fresh_timing_median_ms | fresh_timing_max_ms | repeat_no_timing_median_ms | repeat_timing_median_ms | previous_pose_timing_median_ms
+5.125000 0.443700 0.163550 0.382600 0.022900 0.156400 0.014300 0.013250 0.013300 
+14.350000 0.333400 0.023350 0.031100 0.026250 0.049000 0.012500 0.012900 0.013200 
+19.000000 0.043500 0.037950 0.041000 0.020800 0.035500 0.011650 0.012100 0.012400 
+38.350000 1.044600 0.028800 0.985800 0.024300 0.030300 0.009900 0.010400 0.011400 
+NOTE All replay measurements include the function call and last_result write. The Flight elapsed_ms excludes that write. A single MATLAB session cannot isolate all JIT or OS effects. This test does not certify a hard real-time bound.

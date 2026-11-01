@@ -156,7 +156,23 @@ classdef REPLANNING_SYSTEM < handle
             % ログONなら既存値を上書き。OFFに切り替えた場合だけ消す。
             % 毎tickのrmfield→再追加は不要なので実行しない。
             if obj.logging_enabled()
-                reference_result.obstacle_information=obj.log_frame(time_s);
+                if obj.all_static
+                    % Time was already validated by require_sim_time().
+                    % Inlining the constant-frame path avoids a second method
+                    % dispatch and redundant validation on every Flight tick.
+                    % Same obstacle data/clock/counters as log_frame(); direct
+                    % external log_frame() calls keep their original behavior.
+                    frame_clock=tic;
+                    frame=obj.static_frame;
+                    frame.time_s=time_s;
+                    obj.frame_count=obj.frame_count+1;
+                    obj.last_logged_time_s=time_s;
+                    obj.total_frame_time_ms=obj.total_frame_time_ms+1000*toc(frame_clock);
+                    reference_result.obstacle_information=frame;
+                else
+                    % Moving obstacle logging retains original code path.
+                    reference_result.obstacle_information=obj.log_frame(time_s);
+                end
             elseif isfield(reference_result,'obstacle_information')
                 reference_result=rmfield(reference_result,'obstacle_information');
             end

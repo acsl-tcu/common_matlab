@@ -32,6 +32,8 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         max_scan_time_ms = 0
         last_scan_time_ms = NaN
         geometry_prepare_ms = NaN
+        native_event_pack_available = false  % ID-only MEX ready before first observe()
+        native_event_pack_build_status = 'NOT_CHECKED'
     end
 
     properties
@@ -39,12 +41,15 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
     end
 
     properties (Access=private)
+        native_event_pack_enabled = false  % 可否確認後のみ変更可能。ログの中身は不変。
         obstacles
         prepared_geometry
         previous_detected_mask = []  % 固定ID順で新規/離脱判定（setdiffを使わない）
         all_stationary = false
         all_obstacle_ids = []        % 元定義IDを初期化時に一度だけ確定
         static_log_obstacles = []    % 元形状のログを初期化時に確定（静止時のみ）
+        result_template = struct() % 出力フィールド構造のみ初期化時に確定（検知結果は含めない）
+        empty_visible_obstacles = [] % 同一structスキーマの空集合。検知前のデータは含めない
     end
 
     methods
@@ -56,6 +61,11 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             startup=tic;
             obj.prepared_geometry=OBSTACLE_GEOMETRY_QUERY.prepare(obstacles);
             obj.geometry_prepare_ms=1000*toc(startup);
+            % Build only during sensor initialization (before Flight), never in observe().
+            % A matching prebuilt MEX in this source folder is reused as-is.
+            [obj.native_event_pack_available,obj.native_event_pack_build_status]= ...
+                SIMULATED_OBSTACLE_SENSOR.ensure_native_event_pack();
+            obj.native_event_pack_enabled=obj.native_event_pack_available;
             obj.obstacles=obstacles;
             obj.obstacle_count=numel(obstacles);
             obj.previous_detected_mask=false(1,obj.obstacle_count);
@@ -75,6 +85,31 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                         obj.obstacles(k).initial_position;
                 end
             end
+            % 空集合も元定義のフィールドを厳密に維持する。
+            % 空になった時にstruct配列へ論理インデックスする処理を省く。
+            if obj.all_stationary
+                obj.empty_visible_obstacles=obj.static_log_obstacles(false(1,obj.obstacle_count));
+            else
+                obj.empty_visible_obstacles=obj.obstacles(false(1,obj.obstacle_count));
+            end
+            % オンラインで検知していない元障害物は埋め込まない空の結果型。
+            % field順序・形状は元センサと一致する。
+            obj.result_template=struct( ...
+                'time_s',NaN, ...
+                'uav_position_ekf_m',zeros(3,1), ...
+                'sensor_range_m',obj.range_m, ...
+                'detected_count',0, ...
+                'detected_ids',[], ...
+                'newly_detected_ids',[], ...
+                'left_range_ids',[], ...
+                'detected_obstacles',obj.empty_visible_obstacles, ...
+                'detected_distances_m',[], ...
+                'candidates_checked',0, ...
+                'obstacles_screened',obj.obstacle_count, ...
+                'elapsed_ms',NaN, ...
+                'time_measured',obj.LOG_SENSOR, ...
+                'occlusion_enabled',false, ...
+                'geometry_model','ORIGINAL_SOLID_DISTANCE_NO_APPROXIMATION');
         end
 
         function set_range(obj,range_m)
@@ -90,6 +125,16 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         function set_log(obj,enabled)
             obj.validate_flag(enabled,'LOG_SENSOR');
             obj.LOG_SENSOR=logical(enabled);
+        end
+
+        function set_native_event_pack(obj,enabled)
+            % 診断・A/B比較用。MEXが存在しないときは明示的に停止する。
+            obj.validate_flag(enabled,'native_event_pack_enabled');
+            if logical(enabled) && ~obj.native_event_pack_available
+                error('SIMULATED_OBSTACLE_SENSOR:MexMissing', ...
+                    'SENSOR_EVENT_IDS_NOHEAP_NATIVE MEXが利用できません。');
+            end
+            obj.native_event_pack_enabled=logical(enabled);
         end
 
         function result=observe(obj,time_s,p_uav_ekf)
@@ -140,16 +185,35 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 detected(k)= d <= obj.range_m+numerical_guard;
             end
 
-            % 検知は毎周期、新規/離脱IDは前周期マスクとの差で決める。
-            % 検知集合が変わった時だけ動くコード経路を無くすため、
-            % 元障害物構造体の選択とID抽出は常に同じ箇所で行う。
-            % 全検知集合の事前列挙はしない（障害物数に指数依存しない）。
-            ids=obj.all_obstacle_ids(detected);
-            if isempty(ids), ids=[]; end  % 従来の空0x0契約
-            if obj.all_stationary
+            % 毎周期の検知判定は上で完了済み。この周期の検知集合のみ返す。
+            % 集合不変の周期は新規/離脱IDが必ず空：MEX呼出しで毎周期
+            % 3本のmxArrayを確保する必要がないため、その経路を省く。
+            % 集合変化時の既存MEXはそのまま使用し、ID順・型・空配列を維持。
+            % 障害物構造体の選択と距離判定は変更しない。
+            mask_changed=~isequal(detected,obj.previous_detected_mask);
+            if ~mask_changed
+                ids=obj.all_obstacle_ids(detected);
+                if isempty(ids), ids=[]; end
+                appeared=[];
+                disappeared=[];
+            elseif obj.native_event_pack_enabled
+                [ids,appeared,disappeared]=SENSOR_EVENT_IDS_NOHEAP_NATIVE( ...
+                    obj.all_obstacle_ids,detected,obj.previous_detected_mask);
+            else
+                ids=obj.all_obstacle_ids(detected);
+                if isempty(ids), ids=[]; end
+                entered_mask=detected & ~obj.previous_detected_mask;
+                exited_mask=~detected & obj.previous_detected_mask;
+                appeared=obj.all_obstacle_ids(entered_mask);
+                disappeared=obj.all_obstacle_ids(exited_mask);
+                if isempty(appeared), appeared=[]; end
+                if isempty(disappeared), disappeared=[]; end
+            end
+            if ~any(detected)
+                visible=obj.empty_visible_obstacles;
+            elseif obj.all_stationary
                 visible=obj.static_log_obstacles(detected);
             else
-                % 速度を持つ障害物は必ず現在時刻から位置を求める。
                 visible=obj.obstacles(detected);
                 for k=1:numel(visible)
                     o=visible(k);
@@ -157,28 +221,24 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                         (double(time_s)-o.reference_time_s)*o.velocity;
                 end
             end
-            entered_mask=detected & ~obj.previous_detected_mask;
-            exited_mask=~detected & obj.previous_detected_mask;
-            appeared=obj.all_obstacle_ids(entered_mask);
-            disappeared=obj.all_obstacle_ids(exited_mask);
-            if isempty(appeared), appeared=[]; end
-            if isempty(disappeared), disappeared=[]; end
-            result=struct( ...
-                'time_s',double(time_s), ...
-                'uav_position_ekf_m',p, ...
-                'sensor_range_m',obj.range_m, ...
-                'detected_count',numel(ids), ...
-                'detected_ids',ids, ...
-                'newly_detected_ids',appeared, ...
-                'left_range_ids',disappeared, ...
-                'detected_obstacles',visible, ...
-                'detected_distances_m',distances(detected), ...
-                'candidates_checked',candidate_count, ...
-                'obstacles_screened',n, ...
-                'elapsed_ms',NaN, ...
-                'time_measured',obj.LOG_SENSOR, ...
-                'occlusion_enabled',false, ...
-                'geometry_model','ORIGINAL_SOLID_DISTANCE_NO_APPROXIMATION');
+            % 検証済み高速化: スカラーstructのフィールド構造を初期化時に確定。
+            % 元データ・検知マスク・ログの意味を変えず、構築手順だけ変更する。
+            result=obj.result_template;
+            result.time_s=double(time_s);
+            result.uav_position_ekf_m=p;
+            result.sensor_range_m=obj.range_m;
+            result.detected_count=numel(ids);
+            result.detected_ids=ids;
+            result.newly_detected_ids=appeared;
+            result.left_range_ids=disappeared;
+            result.detected_obstacles=visible;
+            % 空配列の寸法も含め、元のMATLAB論理インデックスの結果を維持。
+            % 特に障害物1個が未検知のときに固定1x0を強制しない。
+            result.detected_distances_m=distances(detected);
+            result.candidates_checked=candidate_count;
+            result.time_measured=obj.LOG_SENSOR;
+            % obstacles_screened/elapsed_ms/occlusion_enabled/geometry_model は
+            % result_templateの不変フィールド。毎tick再設定しない。
 
             obj.previous_detected_mask=detected;
             obj.scan_count=obj.scan_count+1;
@@ -202,7 +262,10 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 'time_max_ms',obj.max_scan_time_ms, ...
                 'time_last_ms',obj.last_scan_time_ms, ...
                 'geometry_prepare_ms',obj.geometry_prepare_ms, ...
-                'LOG_SENSOR',obj.LOG_SENSOR);
+                'LOG_SENSOR',obj.LOG_SENSOR, ...
+                'native_event_pack_available',obj.native_event_pack_available, ...
+                'native_event_pack_enabled',obj.native_event_pack_enabled, ...
+                'native_event_pack_build_status',obj.native_event_pack_build_status);
             if obj.timing_count==0
                 s.time_mean_ms=NaN;
             else
@@ -213,6 +276,64 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             else
                 s.last_detected_ids=obj.last_result.detected_ids;
             end
+        end
+    end
+
+    methods (Static)
+        function [available,status]=ensure_native_event_pack()
+            % Compile a missing ID-only MEX next to this sensor class, exactly once.
+            % This is called by the constructor, NOT by observe()/Flight ticks.
+            % If the native backend cannot be prepared, the sensor retains its
+            % validated MATLAB path. No obstacle definition is disclosed here.
+            persistent failed_binary
+            sensor_dir=fileparts(mfilename('fullpath'));
+            binary=fullfile(sensor_dir,['SENSOR_EVENT_IDS_NOHEAP_NATIVE.' mexext]);
+            source=fullfile(sensor_dir,'SENSOR_EVENT_IDS_NOHEAP_NATIVE.cpp');
+            available=false;
+            status='MEX_MISSING';
+            if ~isfile(binary)
+                if ~isfile(source)
+                    status='SOURCE_MISSING_MATLAB_FALLBACK';
+                    warning('SIMULATED_OBSTACLE_SENSOR:NativeSourceMissing', ...
+                        'MEXとC++ソースがありません。MATLAB処理を使用します: %s',source);
+                    return
+                end
+                % Do not retry failed compilation in every temporary sensor
+                % created during the same preflight. clear classes resets it.
+                if isequal(failed_binary,binary)
+                    status='PREVIOUS_BUILD_FAILED_MATLAB_FALLBACK';
+                    return
+                end
+                try
+                    mex('-R2018a','-outdir',sensor_dir,source);
+                catch ME
+                    failed_binary=binary;
+                    status='BUILD_FAILED_MATLAB_FALLBACK';
+                    warning('SIMULATED_OBSTACLE_SENSOR:NativeBuildFailed', ...
+                        'MEXの自動ビルドに失敗。検知はMATLAB経路で継続します: %s',ME.message);
+                    return
+                end
+                status='BUILT_AUTOMATICALLY';
+            else
+                status='REUSED_EXISTING';
+            end
+            rehash
+            % Never call an identically named native module from another folder.
+            resolved=which('SENSOR_EVENT_IDS_NOHEAP_NATIVE');
+            if ~strcmpi(resolved,binary)
+                status='SHADOWED_MEX_MATLAB_FALLBACK';
+                warning('SIMULATED_OBSTACLE_SENSOR:NativeShadowed', ...
+                    '同名MEXのパスが一致しません。MATLAB経路を使用します。期待: %s / 実際: %s', ...
+                    binary,resolved);
+                return
+            end
+            if ~isfile(binary) || exist('SENSOR_EVENT_IDS_NOHEAP_NATIVE','file')~=3
+                status='MEX_NOT_LOADABLE_MATLAB_FALLBACK';
+                warning('SIMULATED_OBSTACLE_SENSOR:NativeNotLoadable', ...
+                    'MEXを認識できません。MATLAB経路を使用します: %s',binary);
+                return
+            end
+            available=true;
         end
     end
 
