@@ -1,0 +1,17 @@
+status=PASS_SYNTHETIC_ALL_SENSOR_SHAPES__NOT_FLIGHT_OR_TIME_CERTIFICATE
+shapes=12
+passed=12
+torus_hole_pass=1
+continuous_time_certified=0
+sphere pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=31.347000 
+ellipsoid pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=14.549800 
+box pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=4.634500 
+cylinder pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=1.429800 
+capsule pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=5.606900 
+cone pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=11.995900 
+frustum pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=2.013800 
+pyramid pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=14.523800 
+regular_prism pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=21.153100 
+torus pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=6.361700 
+polygon_prism pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=23.610300 
+polyhedron pass=1 clear=1 sphere=1 cable=1 unresolved=0 ms=27.017100 

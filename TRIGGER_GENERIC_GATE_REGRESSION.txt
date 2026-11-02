@@ -1,0 +1,19 @@
+status=PASS_GENERIC_SAMPLED_GEOMETRY_REGRESSION__NOT_FLIGHT_OR_TIME_PROOF
+shapes=12
+passed=12
+torus_hole=1
+future_type_support_fallback=1
+flight_tested=0
+continuous_time_certified=0
+sphere pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=2.270100 full_ms=49.664700 body_calls=1 cable_calls=0 pruned=0 
+ellipsoid pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=2.871900 full_ms=12.286900 body_calls=1 cable_calls=0 pruned=4 
+box pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.709700 full_ms=4.932700 body_calls=5 cable_calls=0 pruned=93 
+cylinder pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.619100 full_ms=0.699700 body_calls=3 cable_calls=0 pruned=51 
+capsule pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=2.344800 full_ms=4.174200 body_calls=4 cable_calls=0 pruned=84 
+cone pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=1.000800 full_ms=1.364600 body_calls=8 cable_calls=1 pruned=63 
+frustum pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.658600 full_ms=1.227700 body_calls=4 cable_calls=0 pruned=73 
+pyramid pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=2.012400 full_ms=5.299600 body_calls=11 cable_calls=4 pruned=103 
+regular_prism pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.748000 full_ms=5.830300 body_calls=4 cable_calls=0 pruned=55 
+torus pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.603100 full_ms=1.687400 body_calls=2 cable_calls=0 pruned=27 
+polygon_prism pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.644600 full_ms=5.040600 body_calls=5 cable_calls=0 pruned=101 
+polyhedron pass=1 oracle=1 first=1 crossing=1 far=1 first_ms=0.537500 full_ms=3.408900 body_calls=5 cable_calls=0 pruned=93 

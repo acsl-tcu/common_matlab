@@ -6,7 +6,7 @@ function FLIGHT_LOG_VISUALIZATION(logger, obstacles, show_plots, show_animation,
 % Figure 9 は同一のSim LOGGERから次の2種類を独立表示する。
 %   システム周期：MOTIVE～LOGGER.loggingと周期末の処理（runが記録）
 %   リプランナー：REPLANNING_SYSTEM.update内部（リプランナーが記録）
-% どちらも測定済みの値のみ表示。センサ時間はリプランナー時間の部分集合。
+% トリガ単独時間も実LOGGERから読む。センサ・トリガはいずれもリプランナーの内数。
 if nargin < 8
     replanner = [];
 end
@@ -71,6 +71,12 @@ if show_animation
     drawnow;
     if autoplay, replay(); end
 else
+    drawnow;
+end
+% Flight後、アニメーション窓で隠れがちなFigure 9を前面に出す。
+% 計測用Figureが生成された場合のみ実行。ログやFlight状態は変えない。
+if show_plots
+    figure(9);
     drawnow;
 end
 fprintf('[DISPLAY] 3D/position plots=%d | animation window=%d | autoplay=%d\n', ...
@@ -307,16 +313,22 @@ end
 
 R=result_cells(logger.Data.agent(1),'reference');
 replanner_ms=nan(n,1);
+trigger_ms=nan(n,1);
 for k=1:min(n,numel(R))
     value=member(R{k},'replanning_time_ms');
     if isnumeric(value)&&isreal(value)&&isscalar(value) ...
             &&isfinite(value)&&value>=0
         replanner_ms(k)=double(value);
     end
+    value=member(R{k},'trigger_time_ms');
+    if isnumeric(value)&&isreal(value)&&isscalar(value) && ...
+            isfinite(value)&&value>=0
+        trigger_ms(k)=double(value);
+    end
 end
 
 fig=figure(9);clf(fig);
-set(fig,'Name','Sim system cycle / REPLANNING_SYSTEM computation times', ...
+set(fig,'Name','Flight timing: whole cycle / replanner + sensor + trigger', ...
     'NumberTitle','off');
 
 ax1=subplot(2,1,1,'Parent',fig);
@@ -354,6 +366,28 @@ if any(valid_r)
     if any(valid_s)
         plot(ax2,t(valid_s),sensor_ms(valid_s),'-','LineWidth',0.8, ...
             'DisplayName','Simulated sensor (part of replanner)');
+    end
+    valid_t=isfinite(t)&isfinite(trigger_ms)&trigger_ms>=0;
+    if any(valid_t)
+        plot(ax2,t(valid_t),trigger_ms(valid_t),'-','LineWidth',1.0, ...
+            'DisplayName','Future collision trigger (inside replanner)');
+        [tmed,tp95,tmx]=timing_summary(trigger_ms(valid_t));
+        fprintf('[TIMING] Trigger evaluation: N=%d | median=%.4f ms | P95=%.4f ms | max=%.4f ms\n', ...
+            nnz(valid_t),tmed,tp95,tmx);
+        % This is wall time for trigger evaluation. A status of UNKNOWN or
+        % UNBOUND is still timed but not a completed 4s rollout.
+        predicted=0;
+        for ki=1:min(n,numel(R))
+            tr=member(R{ki},'future_collision_trigger');
+            if isstruct(tr)&&isscalar(tr)
+                pa=member(tr,'prediction_available');
+                if islogical(pa)&&isscalar(pa)&&pa, predicted=predicted+1;end
+            end
+        end
+        fprintf('[TIMING] Trigger predicted rollouts=%d/%d measured records; unbound/unknown durations are included.\n', ...
+            predicted,nnz(valid_t));
+    else
+        fprintf('[TIMING] Trigger evaluation: NOT RECORDED (no values invented).\n');
     end
     [med,p95,mx]=timing_summary(replanner_ms(valid_r));
     title(ax2,sprintf('Replanner only | N=%d, median %.4f ms, P95 %.4f ms, max %.4f ms', ...

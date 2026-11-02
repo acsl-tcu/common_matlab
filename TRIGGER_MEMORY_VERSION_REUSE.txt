@@ -1,0 +1,5 @@
+status=PASS_SYNTHETIC__FLIGHT_REUSE_TIMING_READ_ONLY_NOT_SAFETY
+known_ids=[11 28 33] memory_version=3 geometry_version=1
+flight=1 prediction_count=1521 prepared_count=1521 fast_reuse_count=1519
+geometry_median_ms=0.211700 trigger_median_ms=2.421550
+continuous_time_safe=0

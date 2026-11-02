@@ -1,0 +1,2 @@
+PASS_STRICT_SOURCE_PURITY_SYNTHETIC_ONLY
+pure_capture=1 pure_plain=1 mutable_rejected=1 random_rejected=1 external_rejected=1

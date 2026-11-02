@@ -1,0 +1,4 @@
+PASS_BERNSTEIN_CONTINUOUS_REFERENCE_GEOMETRY_SYNTHETIC_ONLY
+tests=29
+closed_loop_proved=0
+outward_rounding_proved=0

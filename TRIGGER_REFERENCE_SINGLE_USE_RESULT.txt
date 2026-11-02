@@ -1,0 +1,4 @@
+status=PASS_EXACT_REFERENCE_NO_DUPLICATE_FIRST_JET
+first_equal=1 second_equal=1
+first_counted_calls=6 second_counted_calls=6
+source_can_cache=0 validated_now_reuses=2

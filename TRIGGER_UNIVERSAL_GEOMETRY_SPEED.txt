@@ -1,0 +1,17 @@
+status=SYNTHETIC_GEOMETRY_TIMING__NOT_FLIGHT
+shapes=12
+samples=161
+errors=0
+NOT a 4s flight timing or numerical/continuous-time safety proof.
+sphere prepare_ms=1.116700 far_ms=18.496800 near_ms=5.596300 near_contact_samples=67 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+ellipsoid prepare_ms=0.531000 far_ms=0.734900 near_ms=2.856800 near_contact_samples=65 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+box prepare_ms=0.198000 far_ms=0.128900 near_ms=1.599700 near_contact_samples=61 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+cylinder prepare_ms=0.116300 far_ms=0.123000 near_ms=0.636700 near_contact_samples=59 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+capsule prepare_ms=0.443000 far_ms=1.079000 near_ms=2.237100 near_contact_samples=39 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+cone prepare_ms=0.309700 far_ms=0.051500 near_ms=1.816900 near_contact_samples=39 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+frustum prepare_ms=0.246700 far_ms=0.041000 near_ms=0.746700 near_contact_samples=55 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+pyramid prepare_ms=0.153700 far_ms=0.035000 near_ms=5.577100 near_contact_samples=41 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+regular_prism prepare_ms=0.313600 far_ms=0.043600 near_ms=8.600400 near_contact_samples=55 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+torus prepare_ms=0.142600 far_ms=0.059100 near_ms=0.425500 near_contact_samples=60 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+polygon_prism prepare_ms=0.555700 far_ms=0.045300 near_ms=8.048400 near_contact_samples=58 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 
+polyhedron prepare_ms=0.849100 far_ms=0.076500 near_ms=6.998900 near_contact_samples=61 unknown_samples=0 status=MEASURED_SYNTHETIC_ONLY 

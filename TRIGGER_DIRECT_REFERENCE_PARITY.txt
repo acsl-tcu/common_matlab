@@ -1,0 +1,5 @@
+status=PASS_DIRECT_REFERENCE_BITWISE_EQUIVALENCE__NOMINAL_ONLY
+matched=1
+source_eligible=1
+direct_evaluations=159 fallback_evaluations=0 checked_columns=160
+max_abs_error=0

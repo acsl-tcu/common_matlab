@@ -4,7 +4,7 @@
 % 終了後にLOGGERから軌道図・位置時系列・吊荷アニメーションを表示。
 %
 % REPLANNING_SYSTEM が障害物・模擬センサ・Sim LOGGER用結果を管理する。
-% 将来衝突判定・回避軌道・認証は実行しません。
+% 将来衝突の数値予測を参考計測します。回避軌道への自動反映・安全認証はしません。
 % 目標値は通常の TIME_VARYING_REFERENCE から HLC へ直接送ります。
 % HLC / EKF / plant / SUSPENDED_LOAD_REF_ADJUST は元のままです。
 % ========================================================================
@@ -25,7 +25,27 @@ LOG_OBSTACLES = true;
 ENABLE_SENSOR = true;        % falseならセンサ計算自体を行わない
 LOG_SENSOR = true;           % falseでもENABLE_SENSOR=trueなら検知は実行する
 LOG_REPLANNER = true;        % REPLANNING_SYSTEM.update単独の処理時間を保存
-SENSOR_RANGE_M = 20;         % 模擬センサ半径[m]。Flightごとに自由に変更可能
+SENSOR_RANGE_M = 20;         % 模擬センサ半,/径[m]。Flightごとに自由に変更可能
+
+% Future collision trigger: external Flight configuration (no fake model values).
+% The UAV and payload are separate spheres; cable is a FINITE line segment.
+% Cable radius=0 means an ideal thin taut cable, not a vibration allowance.
+% Only specify a positive cable radius for measured physical thickness;
+% uncertainty due to sway/slack must be handled by its state and proof.
+ENABLE_TRIGGER = true;
+LOG_TRIGGER = true;
+LOG_OBSTACLE_MEMORY = true;
+TRIGGER_HORIZON_S = 4.0;       % [s] prediction horizon; NEVER shortened by time limit
+% Explicit numerical integration accuracy (NOT physical error margins).
+TRIGGER_NUMERIC_ABS_TOL = 1e-10;
+TRIGGER_NUMERIC_REL_TOL = 1e-8;
+% The current reference evaluator supports f-phase only. The real phase
+% boundary is read from this run (do not extrapolate into landing).
+TRIGGER_FLIGHT_PHASE_END_S = flight_end_s;
+TRIGGER_UAV_RADIUS_M = 0.5;    % [m] spherical UAV radius, user-designated
+TRIGGER_PAYLOAD_RADIUS_M = 0.5;% [m] spherical payload radius, user-designated
+TRIGGER_CABLE_RADIUS_M = 0.0;  % [m] finite centerline; optional measured cross-section radius
+
 SAVE_LOG_AFTER_FLIGHT = true;  % Sim の LOGGER.save で Data/Sim_data に保存
 
 % 表示はFlight終了後のみ。制御・障害物定義・LOGGERには影響しない。
@@ -139,6 +159,16 @@ obstacle_options = struct('ENABLE_ALL_LOG',ENABLE_ALL_LOG, ...
                           'ENABLE_SENSOR',ENABLE_SENSOR, ...
                           'LOG_SENSOR',LOG_SENSOR, ...
                           'LOG_REPLANNER',LOG_REPLANNER, ...
+                          'LOG_OBSTACLE_MEMORY',LOG_OBSTACLE_MEMORY, ...
+                          'ENABLE_TRIGGER',ENABLE_TRIGGER, ...
+                          'LOG_TRIGGER',LOG_TRIGGER, ...
+                          'TRIGGER_HORIZON_S',TRIGGER_HORIZON_S, ...
+                          'TRIGGER_NUMERIC_ABS_TOL',TRIGGER_NUMERIC_ABS_TOL, ...
+                          'TRIGGER_NUMERIC_REL_TOL',TRIGGER_NUMERIC_REL_TOL, ...
+                          'TRIGGER_FLIGHT_PHASE_END_S',TRIGGER_FLIGHT_PHASE_END_S, ...
+                          'TRIGGER_UAV_RADIUS_M',TRIGGER_UAV_RADIUS_M, ...
+                          'TRIGGER_PAYLOAD_RADIUS_M',TRIGGER_PAYLOAD_RADIUS_M, ...
+                          'TRIGGER_CABLE_RADIUS_M',TRIGGER_CABLE_RADIUS_M, ...
                           'SENSOR_RANGE_M',SENSOR_RANGE_M);
 replanner_instance = REPLANNING_SYSTEM(obstacle_options);
 obstacle_status = replanner_instance.get_status();

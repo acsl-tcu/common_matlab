@@ -1,12 +1,12 @@
 classdef REPLANNING_SYSTEM < handle
-    % REPLANNING_SYSTEM  障害物読込と模擬センサの統括だけを行う。
+    % REPLANNING_SYSTEM  センサ、既知障害物メモリ、未来衝突トリガの統括。
     %
     % 役割:
     %   (1) 既存の OBSTACLE_INFORMATION.definitions() を Flight 毎に1回読む。
     %   (2) 模擬センサへ検知半径・ログフラグ・障害物の原定義を渡す。
     %   (3) 各時刻の現在EKF機体位置から検知結果を作り、Sim LOGGER へ渡す。
     %
-    % このクラスは軌道/制御/回避/予測/安全証明を実装しない。
+    % 現段階のトリガは将来予測の参考情報のみ。軌道変更や連続安全認証は行わない。
     % OBSTACLE_INFORMATION と OBSTACLE_SHAPES は変更せず、読み取るだけ。
     %
     % 実Flightでの使用例:
@@ -28,6 +28,27 @@ classdef REPLANNING_SYSTEM < handle
         last_logged_time_s=NaN
         SENSOR_RANGE_M=20
         last_sensor_result=struct() % ログOFFでも最新の検知結果は保持
+        last_memory_result=struct() % Observed-only cumulative knowledge, never future truth
+        last_trigger_result=struct() % Prediction-only; no control/trajectory alteration
+        trigger_count=0
+        trigger_time_total_ms=0
+        trigger_time_max_ms=0
+        trigger_authority_binding=[]
+        % Source parity is checked from the OFFLINE audit once per Flight;
+        % an unverified native engine MUST NOT consume milliseconds every tick.
+        % No sensor/plant/EKF/reference changes or synthetic warmup occur.
+        trigger_native_gate_checked=false
+        trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED' 
+        native_mex_preflight_build_status='NOT_CHECKED'
+        preflight_model_binding_ready=false
+        preflight_model_binding_ms=NaN
+        preflight_model_binding_status='NOT_PREBOUND'
+        isolated_first_use_prepare_ms=NaN
+        isolated_first_use_prepare_status='NOT_RUN'
+        first_flight_trace_enabled=false
+        first_flight_traces=struct([])
+        trigger_core=[]
+        trigger_reference_cache=[] % Only exact shared future-time samples; no preflight work
         preflight_warmup_ms=NaN % Flight/Armingより前の準備時間（周期時間に算入しない）
         preflight_warmup_ready=false
         preflight_warmup_distance_checks=0
@@ -44,10 +65,34 @@ classdef REPLANNING_SYSTEM < handle
         ENABLE_SENSOR=true
         LOG_SENSOR=true
         LOG_REPLANNER=true % update()単独の計測・Sim LOGGERへの記録
+        LOG_OBSTACLE_MEMORY=true % memory state log only, observation still updates
+        ENABLE_TRIGGER=true
+        LOG_TRIGGER=true
+        % Physical spherical body radii and cable material radius: MUST be
+        % specified from the actual Flight setup. NaN means UNBOUND, NOT 0.
+        % There is intentionally no guessed fallback for these dimensions.
+        TRIGGER_UAV_RADIUS_M=NaN
+        TRIGGER_PAYLOAD_RADIUS_M=NaN
+        TRIGGER_CABLE_RADIUS_M=NaN
+        % Trigger horizon is internal design default, externally overridable.
+        TRIGGER_HORIZON_S=4
+        % Numerical solver tolerances are integration accuracy controls only,
+        % not physical tracking/error inflation and not a safety certificate.
+        TRIGGER_NUMERIC_ABS_TOL=NaN
+        TRIGGER_NUMERIC_REL_TOL=NaN
+        % Side-effect-free same-phase reference is valid only before this
+        % externally supplied flight/landing transition.
+        TRIGGER_FLIGHT_PHASE_END_S=NaN
     end
 
     properties (Access=private)
         sensor
+        observed_memory
+        % Only shapes disclosed by the sensor AFTER actual observation.
+        % Reuses the sensor's prepared representation; never accesses
+        % precomputed geometry of obstacles not yet detected.
+        observed_prepared_shapes=[]
+        observed_prepared_ids=zeros(1,0)
         static_frame
         all_static=false
         replanner_timing_count=0
@@ -66,7 +111,11 @@ classdef REPLANNING_SYSTEM < handle
                 error('REPLANNING_SYSTEM:Options','設定はスカラー構造体で指定してください。');
             end
             allowed={'ENABLE_ALL_LOG','LOG_OBSTACLES','ENABLE_SENSOR', ...
-                'LOG_SENSOR','LOG_REPLANNER','SENSOR_RANGE_M'};
+                'LOG_SENSOR','LOG_REPLANNER','LOG_OBSTACLE_MEMORY', ...
+                'ENABLE_TRIGGER','LOG_TRIGGER','TRIGGER_UAV_RADIUS_M', ...
+                'TRIGGER_PAYLOAD_RADIUS_M','TRIGGER_CABLE_RADIUS_M', ...
+                'TRIGGER_HORIZON_S','TRIGGER_NUMERIC_ABS_TOL', ...
+                'TRIGGER_NUMERIC_REL_TOL','TRIGGER_FLIGHT_PHASE_END_S','SENSOR_RANGE_M'};
             names=fieldnames(options);
             for k=1:numel(names)
                 field=names{k};value=options.(field);
@@ -76,6 +125,19 @@ classdef REPLANNING_SYSTEM < handle
                 if strcmp(field,'SENSOR_RANGE_M')
                     REPLANNING_SYSTEM.check_range(value);
                     obj.SENSOR_RANGE_M=double(value);
+                elseif ismember(field,{'TRIGGER_NUMERIC_ABS_TOL', ...
+                        'TRIGGER_NUMERIC_REL_TOL','TRIGGER_FLIGHT_PHASE_END_S'})
+                    REPLANNING_SYSTEM.check_range(value);
+                    obj.(field)=double(value);
+                elseif strcmp(field,'TRIGGER_HORIZON_S')
+                    REPLANNING_SYSTEM.check_range(value);
+                    obj.TRIGGER_HORIZON_S=double(value);
+                elseif ismember(field,{'TRIGGER_UAV_RADIUS_M','TRIGGER_PAYLOAD_RADIUS_M'})
+                    REPLANNING_SYSTEM.check_range(value);
+                    obj.(field)=double(value);
+                elseif strcmp(field,'TRIGGER_CABLE_RADIUS_M')
+                    REPLANNING_SYSTEM.check_nonnegative(value,field);
+                    obj.(field)=double(value);
                 else
                     REPLANNING_SYSTEM.check_flag(value,field);
                     obj.(field)=logical(value);
@@ -88,6 +150,10 @@ classdef REPLANNING_SYSTEM < handle
                     'REPLANNING_STAGE_TIMING must be empty, 0, or 1.');
             end
             obj.stage_timing_enabled=strcmp(stage_env,'1');
+            % First 4 eligible Flight evaluations only. No file I/O, no
+            % synthetic sensor/flight/ODE calls. Optional; default OFF.
+            obj.first_flight_trace_enabled=strcmp( ...
+                strtrim(getenv('TRIGGER_FIRST_FLIGHT_TRACE')),'1');
 
             stopwatch=tic;
             obj.obstacles=OBSTACLE_INFORMATION.definitions();
@@ -102,9 +168,14 @@ classdef REPLANNING_SYSTEM < handle
             % センサの準備は一度だけ。形状定義側へ手を入れない。
             obj.sensor=SIMULATED_OBSTACLE_SENSOR(obj.obstacles,obj.SENSOR_RANGE_M, ...
                 obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
+            % An empty array is ONLY a schema. Memory never reads source truth.
+            obj.observed_memory=OBSERVED_OBSTACLE_MEMORY( ...
+                obj.sensor.empty_observed_obstacle_schema());
+            obj.trigger_core=FUTURE_COLLISION_TRIGGER(struct('horizon_s',obj.TRIGGER_HORIZON_S));
+            obj.trigger_reference_cache=TRIGGER_REFERENCE_WINDOW_CACHE();
             % No world-dependent simulated observations before Flight.
             % The sensor only prepares geometry/MEX; its scan history stays empty.
-            % Code-path warming uses an EMPTY synthetic world in preflight_update.
+            % preflight_update is a no-op; NO synthetic world and NO trial scans.
             obj.preflight_warmup_ready=false;
             obj.preflight_warmup_ms=NaN;
             obj.preflight_warmup_distance_checks=0;
@@ -163,19 +234,77 @@ classdef REPLANNING_SYSTEM < handle
 
             if stage_on,stage_marks(1)=1000*toc(stage_clock);end
             sensor_result=[];
+            if stage_on
+                % Optional detailed attribution; no allocations/tic on the
+                % ordinary production path with stage timing disabled.
+                detail_ms=nan(1,6);
+            end
             if obj.ENABLE_SENSOR
                 p_now=REPLANNING_SYSTEM.require_ekf_uav_position(agent);
-                if stage_on,stage_marks(2)=1000*toc(stage_clock);end
+                if stage_on
+                    stage_marks(2)=1000*toc(stage_clock);
+                    sensor_memory_clock=tic;
+                end
                 sensor_result=obj.observe_sensor(time_s,p_now);
+                if stage_on,detail_ms(1)=1000*toc(sensor_memory_clock);end
                 obj.last_sensor_result=sensor_result;
+                memory_result=obj.observed_memory.update(sensor_result);
+                if stage_on,detail_ms(2)=1000*toc(sensor_memory_clock)-detail_ms(1);end
+                % The sensor already prepared these very same shapes for
+                % its own true-solid queries. Adopt a prepared shape ONLY
+                % when its ID has JUST been learned from the real scan.
+                % Never use a source-world lookup or a preflight scan.
+                newly_learned=memory_result.newly_acquired_ids;
+                if ~isempty(newly_learned)
+                    shapes_now=obj.sensor.observed_prepared_only(newly_learned);
+                    if isempty(obj.observed_prepared_shapes)
+                        obj.observed_prepared_shapes=shapes_now;
+                    else
+                        obj.observed_prepared_shapes= ...
+                            [obj.observed_prepared_shapes shapes_now];
+                    end
+                    obj.observed_prepared_ids= ...
+                        [obj.observed_prepared_ids newly_learned];
+                end
+                obj.last_memory_result=memory_result;
+                if stage_on
+                    detail_ms(3)=1000*toc(sensor_memory_clock)- ...
+                        detail_ms(1)-detail_ms(2);
+                end
             else
                 if stage_on,stage_marks(2)=1000*toc(stage_clock);end
                 obj.last_sensor_result=struct();
+                obj.last_memory_result=struct();
             end
             if stage_on,stage_marks(3)=1000*toc(stage_clock);end
 
+            % Trigger evaluation uses ONLY the sensor-derived memory frame.
+            % No obstacle truth from obj.obstacles enters the trigger.
+            % No future sensing, no artificial warmup, no HLC/plant mutation.
+            trigger_clock=tic;
+            if ~obj.ENABLE_TRIGGER
+                trigger_result=struct('time_s',time_s,'status','DISABLED', ...
+                    'prediction_available',false,'considered_obstacle_ids',[], ...
+                    'possible_risk_ids',[],'new_event',false, ...
+                    'continuous_observed_set_safe',false,'reason','Explicitly disabled');
+            elseif ~obj.ENABLE_SENSOR
+                trigger_result=struct('time_s',time_s,'status','UNKNOWN_SENSOR_DISABLED', ...
+                    'prediction_available',false,'considered_obstacle_ids',[], ...
+                    'possible_risk_ids',[],'new_event',false, ...
+                    'continuous_observed_set_safe',false,'reason','Sensor disabled; unseen is not safe');
+            else
+                trigger_result=obj.evaluate_trigger(time,agent);
+            end
+            trigger_result.elapsed_ms=1000*toc(trigger_clock);
+            if stage_on,detail_ms(4)=trigger_result.elapsed_ms;end
+            obj.last_trigger_result=trigger_result;
+            obj.trigger_count=obj.trigger_count+1;
+            obj.trigger_time_total_ms=obj.trigger_time_total_ms+trigger_result.elapsed_ms;
+            obj.trigger_time_max_ms=max(obj.trigger_time_max_ms,trigger_result.elapsed_ms);
+
             % ログONなら既存値を上書き。OFFに切り替えた場合だけ消す。
             % 毎tickのrmfield→再追加は不要なので実行しない。
+            if stage_on,obstacle_log_clock=tic;end
             if obj.logging_enabled()
                 if obj.all_static
                     % Time was already validated by require_sim_time().
@@ -197,13 +326,36 @@ classdef REPLANNING_SYSTEM < handle
             elseif isfield(reference_result,'obstacle_information')
                 reference_result=rmfield(reference_result,'obstacle_information');
             end
-            if stage_on,stage_marks(4)=1000*toc(stage_clock);end
+            if stage_on
+                detail_ms(5)=1000*toc(obstacle_log_clock);
+                stage_marks(4)=1000*toc(stage_clock);
+            end
             if obj.ENABLE_SENSOR && obj.ENABLE_ALL_LOG && obj.LOG_SENSOR
                 reference_result.simulated_obstacle_sensor=sensor_result;
             elseif isfield(reference_result,'simulated_obstacle_sensor')
                 reference_result=rmfield(reference_result,'simulated_obstacle_sensor');
             end
-            if stage_on,stage_marks(5)=1000*toc(stage_clock);end
+            % Separate current-sensor logs from learned obstacle memory.
+            if obj.ENABLE_SENSOR && obj.ENABLE_ALL_LOG && obj.LOG_OBSTACLE_MEMORY
+                reference_result.observed_obstacle_memory=memory_result;
+            elseif isfield(reference_result,'observed_obstacle_memory')
+                reference_result=rmfield(reference_result,'observed_obstacle_memory');
+            end
+            if obj.ENABLE_ALL_LOG && obj.LOG_TRIGGER
+                reference_result.future_collision_trigger=trigger_result;
+                reference_result.trigger_time_ms=trigger_result.elapsed_ms;
+            else
+                if isfield(reference_result,'future_collision_trigger')
+                    reference_result=rmfield(reference_result,'future_collision_trigger');
+                end
+                if isfield(reference_result,'trigger_time_ms')
+                    reference_result=rmfield(reference_result,'trigger_time_ms');
+                end
+            end
+            if stage_on
+                stage_marks(5)=1000*toc(stage_clock);
+                detail_ms(6)=stage_marks(5)-stage_marks(4);
+            end
             % センサ時間はこのupdate時間に含まれるため、二重加算しない。
             % 末尾の結果プロパティ代入は計測範囲外（小さな固定オーバーヘッド）。
             if measure_replanner
@@ -221,88 +373,156 @@ classdef REPLANNING_SYSTEM < handle
                 % sensor attachment, timing bookkeeping. Includes toc overhead.
                 % Published through the ORIGINAL LOGGER (not a shadow logger).
                 reference_result.replanning_stage_ms=diff([0,stage_marks]);
+                reference_result.replanning_detail_ms=detail_ms;
+            elseif isfield(reference_result,'replanning_detail_ms')
+                % A new Flight that has detail timing OFF must not inherit
+                % previous detail data from a recycled reference struct.
+                reference_result=rmfield(reference_result,'replanning_detail_ms');
             end
             agent.reference.result=reference_result;
         end
 
         function result=preflight_update(obj,time,agent)
-            % PREFLIGHT_UPDATE  Sim初期化後・Arming前にのみ呼ぶ。
-            % 実際の TIME/DRONE と現在の EKF/参照結果を使って update()全経路を
-            % 一時的に通す。初期コード実行に伴うスパイクをFlightへ持ち込まない。
-            %
-            % 一時センサに差し替え、agent.reference.resultと本クラスの全カウンタを
-            % 例外時も復元する。HLC/EKF/plant/通常LOGGERは呼び出さない。
-            % 時間減少は数学的保証ではないので、別途実Flightで検証する。
-            if obj.preflight_update_ready
-                result=struct('ready',true,'elapsed_ms',obj.preflight_update_ms, ...
-                    'samples_ms',obj.preflight_update_samples_ms);
-                return
+            % Before arming: code/MEX checks plus STATIC binding to the
+            % REAL already-initialized controller/plant/physical parameters.
+            % No EKF/result read, no future reference evaluation, no HLC.do,
+            % no plant rollout, no sensor.observe, no obstacle ID access.
+            % Runtime HLC mass and latest EKF mass are read ONLY during Flight.
+            % On prebind failure, fail closed; NEVER retry inside update().
+            started=tic;
+            obj.preflight_update_ready=false;
+            obj.preflight_model_binding_ready=false;
+            obj.preflight_model_binding_ms=NaN;
+            obj.preflight_model_binding_status='NOT_PREBOUND';
+            obj.trigger_authority_binding=[];
+            % Do not carry a prior Flight's reference eligibility or jets.
+            obj.trigger_reference_cache.clear_source_audit();
+            obj.isolated_first_use_prepare_ms=NaN;
+            obj.isolated_first_use_prepare_status='NOT_RUN';
+            obj.trigger_native_gate_checked=true;
+            obj.trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
+            if obj.ENABLE_TRIGGER
+                try
+                    % SOFTWARE-ONLY MEX build/check, strictly BEFORE Flight.
+                    % Never compile, rehash or load an audit in update().
+                    build=TRIGGER_NATIVE_LOCAL_MEX('ensure');
+                    obj.native_mex_preflight_build_status=build.status;
+                    if ~build.ready
+                        error('REPLANNING_SYSTEM:NativeMexPreflight', ...
+                            'Native MEX not ready: %s (%s)', ...
+                            build.status,build.reason);
+                    end
+                    % MEX is approved ONLY if the preflight source pin has
+                    % verified either its current offline parity report or
+                    % the already verified executable-code fingerprint.
+                    % A fresh, different C++ numerical kernel is NOT approved.
+                    pin=TRIGGER_NATIVE_SOURCE_PIN_CACHE('prepare');
+                    obj.preflight_update_ready=logical(pin.passed);
+                    if pin.passed
+                        % Load the actual compiled native library BEFORE
+                        % Flight, without running it or touching agent,
+                        % estimator, sensor, obstacles or reference. This
+                        % uses the source-pinned MEX 'preload' entrypoint.
+                        % If the user did not explicitly REBUILD the MEX,
+                        % the old binary must NOT be silently accepted.
+                        preloaded=TRIGGER_SYMBOLIC_NATIVE_CORE('preload');
+                        assert(isequal(preloaded,true), ...
+                            'REPLANNING_SYSTEM:NativePreload', ...
+                            'The pinned MEX did not confirm code-only preload.');
+                        obj.trigger_native_gate_status= ...
+                            'OFFLINE_PARITY_PASSED_PENDING_NATIVE_HASH_PIN';
+                        report='PURE_SOURCE_PIN_AND_NATIVE_CODE_PRELOAD_PASS';
+                        % The real physical model and HLC were constructed by
+                        % the original runner before this method. Read their
+                        % immutable definitions and validate once here; the
+                        % phase-specific reference and current EKF remain
+                        % strictly unqueried. This removes cold-start model
+                        % binding from t=5 s rather than moving it to arming.
+                        model_clock=tic;
+                        geometry_source=@()struct( ...
+                            'r_uav_m',obj.TRIGGER_UAV_RADIUS_M, ...
+                            'r_payload_m',obj.TRIGGER_PAYLOAD_RADIUS_M, ...
+                            'r_cable_m',obj.TRIGGER_CABLE_RADIUS_M, ...
+                            'horizon_s',obj.TRIGGER_HORIZON_S);
+                        try
+                            obj.trigger_authority_binding= ...
+                                TRIGGER_FLIGHT_AUTHORITY(time,agent, ...
+                                    geometry_source,[]);
+                            % Only Flight-independent dt/H. This is a
+                            % preflight MEMORY ALLOCATION, not warmup,
+                            % prediction or an obstacle query.
+                            obj.trigger_core.prepare_static_timing( ...
+                                obj.trigger_authority_binding.flight.sample_dt_s,...
+                                obj.TRIGGER_HORIZON_S);
+                            obj.preflight_model_binding_ready=true;
+                            obj.preflight_model_binding_status= ...
+                                'REAL_STATIC_MODEL_BOUND__NO_EKF_OR_REFERENCE';
+                        catch model_error
+                            obj.trigger_authority_binding=[];
+                            obj.preflight_model_binding_ready=false;
+                            obj.preflight_model_binding_status= ...
+                                ['UNKNOWN_STATIC_BINDING__' model_error.identifier];
+                            obj.preflight_update_ready=false;
+                            report=obj.preflight_model_binding_status;
+                        end
+                        obj.preflight_model_binding_ms=1000*toc(model_clock);
+                        if obj.preflight_model_binding_ready
+                            % Analyze ONLY the pre-existing reference
+                            % function HANDLE and its immutable captured
+                            % numeric constants. NO function evaluation,
+                            % future reference samples, EKF, obstacle
+                            % lookup, or controller execution occurs here.
+                            % Any inaccessible/impure function is simply
+                            % evaluated without caching in actual Flight.
+                            try
+                                ref_fn=agent.reference.timevarying.func;
+                                obj.trigger_reference_cache.audit_immutable_source(ref_fn);
+                            catch
+                                % Optional optimization: never weaken the
+                                % model proof gate or block a valid Flight.
+                            end
+                            % Pre-Arming SOFTWARE-only JIT prepare on an
+                            % isolated mathematical fixture. This never
+                            % reads an EKF, the sensor, an actual obstacle,
+                            % real future reference, or modifies agent.
+                            % Failure is nonfatal: it is NOT a safety gate.
+                            pure_cfg=struct(...
+                                'sample_dt_s',obj.trigger_authority_binding.flight.sample_dt_s,...
+                                'horizon_s',obj.TRIGGER_HORIZON_S,...
+                                'r_uav_m',obj.TRIGGER_UAV_RADIUS_M,...
+                                'r_payload_m',obj.TRIGGER_PAYLOAD_RADIUS_M,...
+                                'r_cable_m',obj.TRIGGER_CABLE_RADIUS_M,...
+                                'cable_length_m',obj.trigger_authority_binding.flight.cable_length_m);
+                            pure=TRIGGER_ISOLATED_CODE_PREPARE(pure_cfg);
+                            obj.isolated_first_use_prepare_ms=pure.elapsed_ms;
+                            obj.isolated_first_use_prepare_status=pure.status;
+                        end
+                    else
+                        obj.trigger_native_gate_status=char(pin.status);
+                        report=['PURE_SOURCE_PIN_NOT_READY__' char(pin.status)];
+                    end
+                catch ME
+                    obj.preflight_update_ready=false;
+                    obj.preflight_model_binding_ready=false;
+                    obj.trigger_authority_binding=[];
+                    obj.preflight_model_binding_status= ...
+                        ['UNKNOWN_SOURCE_PREPARE__' ME.identifier];
+                    obj.trigger_native_gate_status= ...
+                        'UNKNOWN_PREFLIGHT_SOURCE_PIN_ERROR';
+                    report=['UNKNOWN_SOURCE_PIN_ERROR__' ME.identifier];
+                end
+            else
+                obj.preflight_update_ready=true;
+                report='TRIGGER_DISABLED__NO_SOURCE_PIN_REQUIRED';
             end
-            live_status=obj.sensor.get_status();
-            if obj.frame_count~=0 || obj.replanner_timing_count~=0 || ...
-                    live_status.scan_count~=0
-                error('REPLANNING_SYSTEM:PreflightTooLate', ...
-                    'preflight_update はArmingの前、最初のupdateより前に実行してください。');
-            end
-            if ~(isobject(agent)&&isscalar(agent)&&isprop(agent,'reference'))
-                error('REPLANNING_SYSTEM:PreflightAgent','SimのDRONE agentが必要です。');
-            end
-            original_result=agent.reference.result;
-            if ~(isstruct(original_result)&&isscalar(original_result))
-                error('REPLANNING_SYSTEM:PreflightReference', ...
-                    'Sim初期化後のreference.resultが必要です。');
-            end
-
-            snapshot=struct();
-            snapshot.sensor=obj.sensor;
-            snapshot.all_static=obj.all_static;
-            snapshot.static_frame=obj.static_frame;
-            snapshot.reference_result=original_result;
-            snapshot.last_sensor_result=obj.last_sensor_result;
-            snapshot.frame_count=obj.frame_count;
-            snapshot.total_frame_time_ms=obj.total_frame_time_ms;
-            snapshot.last_logged_time_s=obj.last_logged_time_s;
-            snapshot.replanner_timing_count=obj.replanner_timing_count;
-            snapshot.replanner_timing_total_ms=obj.replanner_timing_total_ms;
-            snapshot.replanner_timing_max_ms=obj.replanner_timing_max_ms;
-
-            % Warm ONLY the generic update path with an EMPTY synthetic world.
-            % Never observe, distance-query, or reveal any real obstacle before
-            % Flight. No true center, shape, or sensed mask enters the probe.
-            % The real sensor and world logger remain fully intact and are
-            % restored even when update raises an exception.
-            empty_obstacles=obj.obstacles([]);
-            temp_sensor=SIMULATED_OBSTACLE_SENSOR(empty_obstacles,obj.SENSOR_RANGE_M, ...
-                obj.ENABLE_ALL_LOG&&obj.LOG_SENSOR);
-            restore_guard=onCleanup(@()obj.restore_preflight_update(agent,snapshot));
-            obj.sensor=temp_sensor;
-            obj.all_static=true;
-            obj.static_frame=struct('time_s',0,'obstacles',empty_obstacles);
-            samples=zeros(8,1);  % Code-path preflight only; no world-dependent observation
-            startup=tic;
-            for k=1:numel(samples)
-                agent.reference.result=original_result;
-                tick_clock=tic;
-                obj.update(time,agent);
-                samples(k)=1000*toc(tick_clock); % 最終書戻しも含む外側の実測
-            end
-            total_ms=1000*toc(startup);
-            clear restore_guard  % 本番センサと全カウンタ、参照結果を復元
-
-            post_status=obj.sensor.get_status();
-            if ~isequaln(agent.reference.result,original_result) || ...
-                    obj.frame_count~=snapshot.frame_count || ...
-                    obj.replanner_timing_count~=snapshot.replanner_timing_count || ...
-                    post_status.scan_count~=live_status.scan_count || ...
-                    post_status.timing_count~=live_status.timing_count || ...
-                    ~isequaln(obj.last_sensor_result,snapshot.last_sensor_result)
-                error('REPLANNING_SYSTEM:PreflightRollback', ...
-                    '事前実行の状態復元に失敗しました。Flightを開始しないでください。');
-            end
-            obj.preflight_update_samples_ms=samples;
-            obj.preflight_update_ms=total_ms;
-            obj.preflight_update_ready=true;
-            result=struct('ready',true,'elapsed_ms',total_ms,'samples_ms',samples);
+            obj.preflight_update_ms=1000*toc(started);
+            obj.preflight_update_samples_ms=[];
+            result=struct('ready',obj.preflight_update_ready, ...
+                'elapsed_ms',obj.preflight_update_ms, ...
+                'samples_ms',[], 'status',report, ...
+                'static_model_bound',obj.preflight_model_binding_ready, ...
+                'static_model_binding_ms',obj.preflight_model_binding_ms, ...
+                'static_model_binding_status',obj.preflight_model_binding_status);
         end
 
         function frame=observe_sensor(obj,time_s,current_ekf_uav_position)
@@ -323,11 +543,300 @@ classdef REPLANNING_SYSTEM < handle
             frame=obj.sensor.observe(time_s,current_ekf_uav_position);
         end
 
+        function known=get_known_obstacle_frame(obj)
+            % Read-only snapshot. Contains no unseen/future source obstacles.
+            if ~obj.ENABLE_SENSOR || ~isstruct(obj.last_sensor_result) || ...
+                    ~isfield(obj.last_sensor_result,'time_s')
+                error('REPLANNING_SYSTEM:NoSensorFrame', ...
+                    'A real Flight sensor update is required.');
+            end
+            known=obj.observed_memory.known_frame(obj.last_sensor_result);
+            % Forward ONLY previously disclosed sensor-prepared geometry.
+            % The trigger validates raw type/dimensions/pose/ID before use.
+            if isequal(reshape(double(known.detected_ids),1,[]), ...
+                    obj.observed_prepared_ids) && ...
+                    numel(obj.observed_prepared_shapes)==numel(known.detected_ids)
+                known.prepared_sensor_shapes=obj.observed_prepared_shapes;
+            end
+        end
+
+        function configure_trigger_geometry(obj,r_uav_m,r_payload_m,r_cable_m)
+            % Actual physical dimensions: supplied by integrator, never inferred.
+            % Must be called before a bound flight; not a safety margin.
+            REPLANNING_SYSTEM.check_range(r_uav_m);
+            REPLANNING_SYSTEM.check_range(r_payload_m);
+            REPLANNING_SYSTEM.check_nonnegative(r_cable_m,'r_cable_m');
+            obj.TRIGGER_UAV_RADIUS_M=double(r_uav_m);
+            obj.TRIGGER_PAYLOAD_RADIUS_M=double(r_payload_m);
+            obj.TRIGGER_CABLE_RADIUS_M=double(r_cable_m);
+            obj.trigger_authority_binding=[];
+        end
+
+        function set_trigger_horizon(obj,horizon_s)
+            REPLANNING_SYSTEM.check_range(horizon_s);
+            obj.TRIGGER_HORIZON_S=double(horizon_s);
+            obj.trigger_core.set_horizon(horizon_s);
+            obj.trigger_authority_binding=[];
+        end
+
+        function R=evaluate_trigger(obj,time,agent)
+            % Errors are fail-closed UNKNOWN, never silently SAFE.
+            % A nominal prediction is for trigger requests, NOT safety cert.
+            t=REPLANNING_SYSTEM.require_sim_time(time);
+            % The same-tick observed-memory result already contains the
+            % exact cumulative IDs. Do NOT build/copy the complete geometry
+            % snapshot in arming/takeoff/landing or outside the certified
+            % reference phase: those phases cannot run the predictor.
+            % The genuine sensor.observe() and memory.update() above still
+            % execute at EVERY tick, including t=0. No sensing is skipped.
+            if ~isstruct(obj.last_memory_result) || ...
+                    ~isscalar(obj.last_memory_result) || ...
+                    ~isfield(obj.last_memory_result,'known_obstacle_ids')
+                R=struct('time_s',t,'horizon_s',obj.TRIGGER_HORIZON_S, ...
+                    'considered_obstacle_ids',zeros(1,0), ...
+                    'prediction_available',false, ...
+                    'possible_risk_ids',zeros(1,0),'new_event',false, ...
+                    'continuous_observed_set_safe',false, ...
+                    'status','UNKNOWN_OBSERVED_MEMORY_NOT_READY', ...
+                    'reason','No genuine current sensor-memory snapshot is available.');
+                return
+            end
+            ids=reshape(double(obj.last_memory_result.known_obstacle_ids),1,[]);
+            R=struct('time_s',t,'horizon_s',obj.TRIGGER_HORIZON_S, ...
+                'considered_obstacle_ids',ids,'prediction_available',false, ...
+                'possible_risk_ids',ids,'new_event',false, ...
+                'continuous_observed_set_safe',false, ...
+                'status','UNKNOWN','reason','');
+            if isempty(ids)
+                R.status='NO_KNOWN_OBSTACLES';
+                R.reason='No obstacle has been actually detected yet; unknown world remains unknown.';
+                return
+            end
+            if ~all(isfinite([obj.TRIGGER_UAV_RADIUS_M, ...
+                    obj.TRIGGER_PAYLOAD_RADIUS_M,obj.TRIGGER_CABLE_RADIUS_M]))
+                R.status='UNKNOWN_BODY_RADII_NOT_CONFIGURED';
+                R.reason='Set real spherical UAV/payload radii and cable radius in REPLANNING_SYSTEM; no defaults.';
+                return
+            end
+            % The existing future reference is phase-dependent. A future
+            % phase schedule cannot be invented; f-only nominal evaluator is
+            % explicitly marked as phase-conditional, not a certified truth.
+            if ~isprop(agent,'cha') || ~isequal(char(agent.cha),'f')
+                R.status='UNKNOWN_NONFLIGHT_PHASE';
+                R.reason='No side-effect-free verified future phase reference for takeoff/landing.';
+                return
+            end
+            % The original future reference evaluator is f-phase-only.
+            % DO NOT extend it into a future landing phase by pretending it
+            % continues forever. No hidden time-based prediction shortening.
+            if ~isfinite(obj.TRIGGER_FLIGHT_PHASE_END_S)
+                R.status='UNKNOWN_FUTURE_PHASE_END_NOT_BOUND';
+                R.reason='Flight phase endpoint must be supplied from run.';
+                return
+            end
+            if t+obj.TRIGGER_HORIZON_S>obj.TRIGGER_FLIGHT_PHASE_END_S
+                R.status='UNKNOWN_FUTURE_PHASE_CHANGE_UNMODELLED';
+                R.reason='Horizon crosses real Flight-to-landing phase; current nominal f reference is not valid there.';
+                return
+            end
+            % Never create/validate the static live model at the first f tick.
+            % If pre-arm binding was unavailable, refuse prediction rather
+            % than hiding the cost at t=5 or inventing physics fallbacks.
+            if ~obj.preflight_model_binding_ready || ...
+                    isempty(obj.trigger_authority_binding)
+                R.status='UNKNOWN_PREFLIGHT_STATIC_MODEL_NOT_BOUND';
+                R.reason=obj.preflight_model_binding_status;
+                return
+            end
+            % First-use tracing is armed ONLY after all real Flight phase
+            % guards. The first four genuine predictor ticks are captured
+            % into RAM, and saved OFFLINE after the Flight.
+            trace_first=obj.first_flight_trace_enabled && ...
+                numel(obj.first_flight_traces)<4;
+            if trace_first
+                trace_start=tic; trace_step=tic;
+                ft=struct('time_s',t,'known_frame_ms',NaN, ...
+                    'source_gate_ms',NaN,'reference_now_ms',NaN, ...
+                    'authority_create_ms',NaN,'authority_current_ms',NaN, ...
+                    'core_wall_ms',NaN,'pre_store_total_ms',NaN, ...
+                    'trigger_status','', 'core_trace',struct());
+            end
+            % Only the active f-phase can reach this full geometry snapshot.
+            % It is copied once for the LIVE current EKF prediction, never
+            % forged or reused from a different sensor tick.
+            try
+                sensed=obj.get_known_obstacle_frame();
+                if trace_first
+                    ft.known_frame_ms=1000*toc(trace_step);
+                    trace_step=tic;
+                end
+                if ~isequal(reshape(double(sensed.detected_ids),1,[]),ids)
+                    R.status='UNKNOWN_MEMORY_SNAPSHOT_MISMATCH';
+                    R.reason='Current sensor-memory IDs changed during evaluation.';
+                    return
+                end
+            catch ME
+                R.status='UNKNOWN_OBSERVED_GEOMETRY_BINDING';
+                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
+                return
+            end
+            % Cheap, once-per-Flight gate. The supplied source parity audit
+            % must already have passed OFFLINE. In particular, a failed audit
+            % is never reloaded, rehashed or retried on every Flight tick.
+            % A later successful audit becomes visible on the NEXT Flight.
+            % If audited true, the native predictor independently pins all
+            % original MATLAB source SHA-256 hashes and MEX binary SHA-256.
+            % The only source/executable validation is preflight_update().
+            % Never read an offline MAT file, hash or retry a verification
+            % at t=5 or later. This also avoids accidentally accepting an
+            % outdated audit that refers to a different rebuilt MEX.
+            if ~obj.trigger_native_gate_checked
+                R.status='UNKNOWN_NATIVE_PIN_PREFLIGHT_NOT_EXECUTED';
+                R.reason='Preflight source/executable check is mandatory.';
+                R.possible_risk_ids=ids;
+                R.continuous_observed_set_safe=false;
+                R.safe_to_commit=false;
+                return
+            end
+            if ~strcmp(obj.trigger_native_gate_status, ...
+                    'OFFLINE_PARITY_PASSED_PENDING_NATIVE_HASH_PIN')
+                R.status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
+                R.reason=obj.trigger_native_gate_status;
+                R.possible_risk_ids=ids;
+                R.continuous_observed_set_safe=false;
+                R.safe_to_commit=false;
+                return
+            end
+            if trace_first
+                ft.source_gate_ms=1000*toc(trace_step);
+                trace_step=tic;
+            end
+            try
+                nominal=agent.reference.timevarying;
+                if ~isa(nominal.func,'function_handle') || isempty(nominal.t)
+                    error('REPLANNING_SYSTEM:ReferenceNotBound', ...
+                        'Current nominal reference function and flight epoch are unavailable.');
+                end
+                % Only source-authorized f-phase adjustment: z<-z-cableL.
+                % The actual same-tick result must match this evaluator.
+                L=double(agent.parameter.get("cableL"));
+                future=@(tt)REPLANNING_SYSTEM.flight_reference_at(nominal,tt,L);
+                actual=agent.reference.result.state.xd;
+                predicted_now=future(t);
+                if ~isequal(size(actual),size(predicted_now)) || ...
+                        norm(double(actual(:))-predicted_now(:),inf)> ...
+                           128*eps(max(1,norm(double(actual(:)),inf)))
+                    error('REPLANNING_SYSTEM:ReferenceMismatch', ...
+                        'Future reference evaluator does not reproduce current actual HLC reference.');
+                end
+                if trace_first
+                    ft.reference_now_ms=1000*toc(trace_step);
+                    trace_step=tic;
+                end
+                if ~obj.preflight_model_binding_ready || ...
+                        isempty(obj.trigger_authority_binding)
+                    error('REPLANNING_SYSTEM:StaticBindingNotPrepared', ...
+                        'Static HLC/plant source not bound before arming: %s', ...
+                        obj.preflight_model_binding_status);
+                end
+                if trace_first
+                    % This measures validation/lookup ONLY, no construction.
+                    ft.authority_create_ms=1000*toc(trace_step);
+                    trace_step=tic;
+                end
+                [ekf,authority]=obj.trigger_authority_binding.current( ...
+                    time,agent,future);
+                if trace_first
+                    ft.authority_current_ms=1000*toc(trace_step);
+                    trace_step=tic;
+                end
+                % current() already used the real same-tick phase reference;
+                % no stale reference can survive from the static prebind.
+                % Prepare exact shared future reference samples only when
+                % the native predictor is actually invoked. The existing
+                % reference function remains the single source of truth.
+                % Fast native path: pass the already-verified NUMERIC
+                % Flight binding and the exact-time reference cache directly.
+                % This avoids two nested per-tick anonymous predictor
+                % wrappers and their extra request/result copies. The
+                % original predictor handle remains available for legacy
+                % synthetic/offline callers, but is NOT used by live Flight.
+                authority.native_reference_cache=obj.trigger_reference_cache;
+                authority.native_reference_source=nominal;
+                authority.native_validated_now_time_s=t;
+                authority.native_validated_now_jet=predicted_now;
+                % Exactly the only Flight reference semantics validated
+                % above. Never grant this contract to legacy callers.
+                authority.native_reference_contract= ...
+                    'VERIFIED_F_PHASE_NOMINAL_Z_MINUS_CABLEL';
+                authority.numeric_tolerances=[obj.TRIGGER_NUMERIC_ABS_TOL; ...
+                    obj.TRIGGER_NUMERIC_REL_TOL];
+                % Optional first-use stopwatch flows through the native
+                % predictor without altering physical inputs or decisions.
+                if trace_first
+                    authority.trace_first=true;
+                end
+                R=obj.trigger_core.evaluate(t,ekf,sensed,authority);
+                if trace_first
+                    ft.core_wall_ms=1000*toc(trace_step);
+                    if isfield(R,'first_use_trace')
+                        ft.core_trace=R.first_use_trace;
+                    end
+                end
+                R.future_reference_phase_certified=false;
+                R.future_reference_policy='SAME_F_PHASE_NOMINAL__PHASE_CHANGE_UNVERIFIED';
+                R.continuous_observed_set_safe=false;
+                R.safe_to_commit=false;
+                if strcmp(R.status,'CONDITIONAL_INTERVAL_GEOMETRY_PASS__MODEL_NOT_AUDITED')
+                    R.status='UNKNOWN_MODEL_AND_FUTURE_PHASE_CERTIFICATE';
+                end
+            catch ME
+                R.status='UNKNOWN_LIVE_MODEL_BINDING';
+                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
+                R.possible_risk_ids=ids;
+                R.continuous_observed_set_safe=false;
+                R.safe_to_commit=false;
+            end
+            if trace_first
+                ft.pre_store_total_ms=1000*toc(trace_start);
+                ft.trigger_status=char(R.status);
+                if isempty(obj.first_flight_traces)
+                    obj.first_flight_traces=ft;
+                else
+                    obj.first_flight_traces(end+1)=ft;
+                end
+            end
+        end
+
         function set_sensor_range(obj,range_m)
             % Flight途中も外部から値を更新可能。変更はセンサへ即座に反映。
             REPLANNING_SYSTEM.check_range(range_m);
             obj.sensor.set_range(range_m);
             obj.SENSOR_RANGE_M=double(range_m);
+        end
+
+        function P=predict_with_reference_cache(obj,request,original_predictor,nominal,L,validated_t,validated_jet)
+            % Exact-time reuse happens only inside active Flight prediction.
+            % It is NOT warmup; no diagnostic/nominal calls are injected.
+            future_times=double(request.time_s)+ ...
+                double(request.sample_times_s(1:end-1));
+            % Separate the REAL future-reference generation cost from the
+            % native rollout, especially at the first Flight tick.
+            ref_started=tic;
+            % No time rounding: reuse only if query time is exactly the
+            % already validated same-tick absolute time. Otherwise follow
+            % the prior source-evaluation path (not a guessed extrapolation).
+            if isequal(future_times(1),double(validated_t))
+                [ref_matrix,~]=obj.trigger_reference_cache.evaluate( ...
+                    nominal,future_times,L,request.reference_at,validated_jet);
+            else
+                [ref_matrix,~]=obj.trigger_reference_cache.evaluate( ...
+                    nominal,future_times,L,request.reference_at);
+            end
+            ref_elapsed_ms=1000*toc(ref_started);
+            request.reference_matrix=ref_matrix;
+            P=original_predictor(request);
+            P.reference_window_wall_ms=ref_elapsed_ms;
         end
 
         function status=get_status(obj)
@@ -361,31 +870,49 @@ classdef REPLANNING_SYSTEM < handle
             status.preflight_warmup_ms=obj.preflight_warmup_ms;
             status.preflight_warmup_distance_checks=obj.preflight_warmup_distance_checks;
             status.preflight_warmup_mode='DISABLED_NO_WORLD_PROBES';
-            status.preflight_update_mode='EMPTY_SYNTHETIC_WORLD';
+            status.preflight_update_mode='SOURCE_PIN_PLUS_REAL_STATIC_MODEL__NO_EKF_SENSOR_REFERENCE';
+            status.native_mex_preflight_build_status= ...
+                obj.native_mex_preflight_build_status;
             status.stage_timing_enabled=obj.stage_timing_enabled;
             status.stage_timing_labels={'input_validation','EKF_read', ...
-                'sensor_and_result','obstacle_log','sensor_log_attach','timing_bookkeeping'};
+                'sensor_and_memory','trigger_and_obstacle_log', ...
+                'result_attachment','timing_bookkeeping'};
+            status.detail_timing_labels={'sensor_observe_wall', ...
+                'memory_update_wall','prepared_geometry_handoff_wall', ...
+                'trigger_evaluate_wall','obstacle_log_wall', ...
+                'result_attachment_wall'};
             status.preflight_update_ready=obj.preflight_update_ready;
             status.preflight_update_ms=obj.preflight_update_ms;
             status.preflight_update_samples_ms=obj.preflight_update_samples_ms;
             status.sensor_status=obj.sensor.get_status();
-        end
-    end
-
-    methods (Access=private)
-        function restore_preflight_update(obj,agent,snapshot)
-            % onCleanupから呼ぶ。途中で例外が生じてもFlight状態を復元する。
-            obj.sensor=snapshot.sensor;
-            obj.all_static=snapshot.all_static;
-            obj.static_frame=snapshot.static_frame;
-            obj.last_sensor_result=snapshot.last_sensor_result;
-            obj.frame_count=snapshot.frame_count;
-            obj.total_frame_time_ms=snapshot.total_frame_time_ms;
-            obj.last_logged_time_s=snapshot.last_logged_time_s;
-            obj.replanner_timing_count=snapshot.replanner_timing_count;
-            obj.replanner_timing_total_ms=snapshot.replanner_timing_total_ms;
-            obj.replanner_timing_max_ms=snapshot.replanner_timing_max_ms;
-            agent.reference.result=snapshot.reference_result;
+            status.LOG_OBSTACLE_MEMORY=obj.LOG_OBSTACLE_MEMORY;
+            status.memory_status=obj.observed_memory.get_status();
+            status.ENABLE_TRIGGER=obj.ENABLE_TRIGGER;
+            status.LOG_TRIGGER=obj.LOG_TRIGGER;
+            status.TRIGGER_HORIZON_S=obj.TRIGGER_HORIZON_S;
+            status.TRIGGER_NUMERIC_ABS_TOL=obj.TRIGGER_NUMERIC_ABS_TOL;
+            status.TRIGGER_NUMERIC_REL_TOL=obj.TRIGGER_NUMERIC_REL_TOL;
+            status.TRIGGER_FLIGHT_PHASE_END_S=obj.TRIGGER_FLIGHT_PHASE_END_S;
+            status.TRIGGER_UAV_RADIUS_M=obj.TRIGGER_UAV_RADIUS_M;
+            status.TRIGGER_PAYLOAD_RADIUS_M=obj.TRIGGER_PAYLOAD_RADIUS_M;
+            status.TRIGGER_CABLE_RADIUS_M=obj.TRIGGER_CABLE_RADIUS_M;
+            status.trigger_count=obj.trigger_count;
+            status.trigger_time_total_ms=obj.trigger_time_total_ms;
+            status.trigger_time_max_ms=obj.trigger_time_max_ms;
+            status.last_trigger_result=obj.last_trigger_result;
+            status.trigger_native_gate_checked=obj.trigger_native_gate_checked;
+            status.trigger_native_gate_status=obj.trigger_native_gate_status;
+            status.trigger_flight_binding_created=~isempty(obj.trigger_authority_binding);
+            status.trigger_continuous_certified=false;
+            status.trigger_reference_cache=obj.trigger_reference_cache.get_status();
+            status.trigger_static_preparation=obj.trigger_core.static_preparation_status();
+            status.first_flight_trace_enabled=obj.first_flight_trace_enabled;
+            status.first_flight_traces=obj.first_flight_traces;
+            status.preflight_model_binding_ready=obj.preflight_model_binding_ready;
+            status.preflight_model_binding_ms=obj.preflight_model_binding_ms;
+            status.preflight_model_binding_status=obj.preflight_model_binding_status;
+            status.isolated_first_use_prepare_ms=obj.isolated_first_use_prepare_ms;
+            status.isolated_first_use_prepare_status=obj.isolated_first_use_prepare_status;
         end
     end
 
@@ -402,6 +929,18 @@ classdef REPLANNING_SYSTEM < handle
             end
             REPLANNING_SYSTEM.check_time(time_s);
             time_s=double(time_s);
+        end
+
+        function xd=flight_reference_at(nominal,absolute_time_s,cable_length_m)
+            % Actual TIME_VARYING_REFERENCE.func and its Flight epoch.
+            % This is valid ONLY while the active phase remains 'f'.
+            xd=nominal.func(double(absolute_time_s)-double(nominal.t));
+            assert(isnumeric(xd)&&isreal(xd)&&iscolumn(xd) && ...
+                numel(xd)>=4&&all(isfinite(xd)), ...
+                'REPLANNING_SYSTEM:FlightReference', ...
+                'Original nominal reference must supply a finite column jet.');
+            xd=double(xd);
+            xd(3)=xd(3)-double(cable_length_m);
         end
 
         function p=require_ekf_uav_position(agent)
@@ -436,9 +975,22 @@ classdef REPLANNING_SYSTEM < handle
                 error('REPLANNING_SYSTEM:Time','時刻は有限の実数を指定してください。');
             end
         end
+        function check_budget(value)
+            assert(isnumeric(value)&&isscalar(value)&&isreal(value)&& ...
+                (isinf(value)&&value>0 || isfinite(value)&&value>0), ...
+                'REPLANNING_SYSTEM:ComputeBudget', ...
+                'Computation budget must be positive milliseconds or Inf (unrestricted).');
+        end
+
         function check_range(r)
             if ~isnumeric(r)||~isscalar(r)||~isreal(r)||~isfinite(r)||r<=0
                 error('REPLANNING_SYSTEM:Range','検知半径は正の有限な実数 [m] です。');
+            end
+        end
+        function check_nonnegative(v,name)
+            if ~(isnumeric(v)&&isscalar(v)&&isreal(v)&&isfinite(v)&&v>=0)
+                error('REPLANNING_SYSTEM:Nonnegative', ...
+                    '%s must be a finite nonnegative physical value.',name);
             end
         end
         function check_flag(v,name)

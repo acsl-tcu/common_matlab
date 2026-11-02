@@ -1,6 +1,0 @@
-PASS_SENSOR_STEADY_PATH_EQUIVALENCE
-cases=15 comparisons=3572 flight_replay=2602 errors=0
-baseline median/p95/max ms=0.017400 0.040000 13.683800
-modified median/p95/max ms=0.013300 0.027700 2.959700
-median_speedup=1.3083 IMPROVED_IN_THIS_CHECK
-NOTE PASSは検知出力同値を意味する。計算時間は実測環境依存。一回の実験で最大実行時間の保証はできない。

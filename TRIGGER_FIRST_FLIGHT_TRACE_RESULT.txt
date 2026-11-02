@@ -1,0 +1,83 @@
+status=READ_ONLY_FIRST_FOUR_REAL_FLIGHT_TICKS__NO_SAFETY_PROOF
+trace_enabled=1 records=4
+preflight_ready=1 preflight_ms=92.697300
+preflight_mex=EXISTING_LOCAL_MEX__PARITY_PIN_STILL_REQUIRED
+flight_gate=OFFLINE_PARITY_PASSED_PENDING_NATIVE_HASH_PIN
+mex_source_pin=REBUILT_MEX_SAME_VERIFIED_EXECUTABLE_CODE__NOMINAL_ONLY passed=1
+compiled_mex_sha256=d7cec00c2e2bf2bf65f35a156b0d41c72c35e7fe13db38429a7738e044d16d27
+compiled_mex_path=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_SYMBOLIC_NATIVE_CORE.mexw64
+compiled_mex_matches_restored=0
+mex_resolution_paths:
+  C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_SYMBOLIC_NATIVE_CORE.mexw64
+
+TICK 1 t=5.000000 s status=UNKNOWN_CONTINUOUS_INTERVAL_OR_MODEL
+  known_frame_ms                         1.188900 ms
+  source_gate_ms                         0.448700 ms
+  reference_now_ms                       2.415700 ms
+  authority_create_ms                    0.195000 ms
+  authority_current_ms                   3.434300 ms
+  core_wall_ms                          28.268900 ms
+  pre_store_total_ms                    36.267800 ms
+  core.trigger_pre_predictor_ms          3.705800 ms
+  core.predictor_wrapped_wall_ms        14.954600 ms
+  core.reference_window_ms               8.038900 ms
+  core.predictor_setup_ms                1.134500 ms
+  core.mex_native_call_ms                2.072700 ms
+  core.native_internal_hlc_ms            0.636000 ms
+  core.native_internal_integrator_ms     0.214200 ms
+  core.geometry_wall_ms                  0.696600 ms
+  core.predictor_wrapper_residual_ms  3.708500
+
+TICK 2 t=5.025000 s status=UNKNOWN_CONTINUOUS_INTERVAL_OR_MODEL
+  known_frame_ms                         0.731800 ms
+  source_gate_ms                         0.012900 ms
+  reference_now_ms                       0.193500 ms
+  authority_create_ms                    0.031500 ms
+  authority_current_ms                   1.996400 ms
+  core_wall_ms                          12.835400 ms
+  pre_store_total_ms                    15.885700 ms
+  core.trigger_pre_predictor_ms          2.049500 ms
+  core.predictor_wrapped_wall_ms         7.468700 ms
+  core.reference_window_ms               4.527600 ms
+  core.predictor_setup_ms                0.441500 ms
+  core.mex_native_call_ms                1.598700 ms
+  core.native_internal_hlc_ms            0.665900 ms
+  core.native_internal_integrator_ms     0.211500 ms
+  core.geometry_wall_ms                  0.902100 ms
+  core.predictor_wrapper_residual_ms  0.900900
+
+TICK 3 t=5.050000 s status=UNKNOWN_CONTINUOUS_INTERVAL_OR_MODEL
+  known_frame_ms                         1.096900 ms
+  source_gate_ms                         0.015700 ms
+  reference_now_ms                       0.191700 ms
+  authority_create_ms                    0.032900 ms
+  authority_current_ms                   1.460500 ms
+  core_wall_ms                          12.780300 ms
+  pre_store_total_ms                    15.673800 ms
+  core.trigger_pre_predictor_ms          2.611400 ms
+  core.predictor_wrapped_wall_ms         4.838600 ms
+  core.reference_window_ms               2.349900 ms
+  core.predictor_setup_ms                0.485000 ms
+  core.mex_native_call_ms                1.189600 ms
+  core.native_internal_hlc_ms            0.560400 ms
+  core.native_internal_integrator_ms     0.200500 ms
+  core.geometry_wall_ms                  0.757300 ms
+  core.predictor_wrapper_residual_ms  0.814100
+
+TICK 4 t=5.075000 s status=UNKNOWN_CONTINUOUS_INTERVAL_OR_MODEL
+  known_frame_ms                         0.678300 ms
+  source_gate_ms                         0.015300 ms
+  reference_now_ms                       0.182500 ms
+  authority_create_ms                    0.032200 ms
+  authority_current_ms                   1.115700 ms
+  core_wall_ms                          27.546000 ms
+  pre_store_total_ms                    29.663900 ms
+  core.trigger_pre_predictor_ms          9.539300 ms
+  core.predictor_wrapped_wall_ms         6.625700 ms
+  core.reference_window_ms               1.752700 ms
+  core.predictor_setup_ms                0.768400 ms
+  core.mex_native_call_ms                1.251100 ms
+  core.native_internal_hlc_ms            0.579800 ms
+  core.native_internal_integrator_ms     0.196900 ms
+  core.geometry_wall_ms                  1.613200 ms
+  core.predictor_wrapper_residual_ms  2.853500

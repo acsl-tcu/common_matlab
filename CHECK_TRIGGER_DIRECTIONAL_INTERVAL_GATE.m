@@ -1,0 +1,33 @@
+function R=CHECK_TRIGGER_DIRECTIONAL_INTERVAL_GATE()
+% Pure synthetic mathematical regression. NEVER claims Flight safety.
+s=struct('id',1,'type','sphere','center0',[0;0;0], ...
+    'rotation',eye(3),'dimensions',1,'bounding_radius_m',1, ...
+    'is_stationary',true);
+U=[3;0;0];L=[4;0;0];
+a=TRIGGER_DIRECTIONAL_INTERVAL_GATE.evaluate(U,U,L,L,s,.5,.5,0);
+assert(a.conditionally_clear && all(a.separated_intervals(:)), ...
+    'CHECK_TRIGGER_DIRECTIONAL_INTERVAL_GATE:Separated','Separated cable failed.');
+U=[-2;0;0];L=[2;0;0];
+b=TRIGGER_DIRECTIONAL_INTERVAL_GATE.evaluate(U,U,L,L,s,.5,.5,0);
+assert(~b.conditionally_clear && ~b.separated_cable(1,1), ...
+    'CHECK_TRIGGER_DIRECTIONAL_INTERVAL_GATE:Collision','Cable crossing falsely excluded.');
+% Both endpoints could roam across the obstacle at intermediate times.
+Ulo=[-3;-0.1;-0.1];Uhi=[3;0.1;0.1];
+c=TRIGGER_DIRECTIONAL_INTERVAL_GATE.evaluate(Ulo,Uhi,L,L,s,.5,.5,0);
+assert(~c.conditionally_clear, ...
+    'CHECK_TRIGGER_DIRECTIONAL_INTERVAL_GATE:Interval','Roaming box falsely excluded.');
+s.is_stationary=false;
+d=TRIGGER_DIRECTIONAL_INTERVAL_GATE.evaluate([3;0;0],[3;0;0], ...
+    [4;0;0],[4;0;0],s,.5,.5,0);
+assert(~d.conditionally_clear, ...
+    'CHECK_TRIGGER_DIRECTIONAL_INTERVAL_GATE:Moving','Moving obstacle falsely excluded.');
+R=struct('status','PASS_SYNTHETIC_DIRECTIONAL_BOX_THEOREM_ONLY', ...
+    'cases',4,'model_reachability_proved',false, ...
+    'outward_rounding_proved',false,'closed_loop_safety',false);
+folder=fileparts(mfilename('fullpath'));
+save(fullfile(folder,'TRIGGER_DIRECTIONAL_INTERVAL_GATE_TEST.mat'),'R');
+fid=fopen(fullfile(folder,'TRIGGER_DIRECTIONAL_INTERVAL_GATE_TEST.txt'),'wt');
+assert(fid>=0,'Cannot save test report');cleanup=onCleanup(@()fclose(fid));
+fprintf(fid,'%s\ncases=%d\nclosed_loop_safety=%d\n', ...
+    R.status,R.cases,R.closed_loop_safety);
+end

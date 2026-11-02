@@ -1,0 +1,11 @@
+status=READ_ONLY_STATIC_BINDING_AND_FIRST_TICK__NOT_SAFETY_PROOF
+preflight_model_binding_ready=1
+preflight_model_binding_ms=20.644600
+preflight_model_binding_status=REAL_STATIC_MODEL_BOUND__NO_EKF_OR_REFERENCE
+preflight_update_ms=44.545800
+native_gate=OFFLINE_PARITY_PASSED_PENDING_NATIVE_HASH_PIN
+first_t=5.000000
+first_authority_create_ms=0.236300
+first_authority_current_ms=7.493100
+first_core_ms=36.910300
+first_total_ms=48.868600

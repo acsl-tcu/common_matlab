@@ -34,6 +34,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         geometry_prepare_ms = NaN
         native_event_pack_available = false  % ID-only MEX ready before first observe()
         native_event_pack_build_status = 'NOT_CHECKED'
+        native_event_pack_preload_status = 'NOT_ATTEMPTED'
     end
 
     properties
@@ -66,6 +67,33 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             [obj.native_event_pack_available,obj.native_event_pack_build_status]= ...
                 SIMULATED_OBSTACLE_SENSOR.ensure_native_event_pack();
             obj.native_event_pack_enabled=obj.native_event_pack_available;
+            % Load the ID-only MEX code BEFORE the first sensor cycle. The
+            % empty arrays contain NO obstacle IDs, positions or detections.
+            % This is NOT a sensor.scan/observe and cannot modify any sensor
+            % history, detection mask, actual EKF state, or world knowledge.
+            % The MEX source is unchanged; this never recompiles it.
+            if obj.native_event_pack_available
+                try
+                    [cold_now,cold_new,cold_left]= ...
+                        SENSOR_EVENT_IDS_NOHEAP_NATIVE( ...
+                            zeros(1,0),false(1,0),false(1,0));
+                    assert(isempty(cold_now)&&isempty(cold_new)&& ...
+                        isempty(cold_left), ...
+                        'SIMULATED_OBSTACLE_SENSOR:NativePreload', ...
+                        'ID-only preload must have empty outputs.');
+                    obj.native_event_pack_preload_status= ...
+                        'CODE_ONLY_LOADED__ZERO_IDS_NO_SENSOR_OBSERVATION';
+                catch ME
+                    % The already supported MATLAB ID-event path retains
+                    % the same exact detection semantics. Make it explicit.
+                    obj.native_event_pack_enabled=false;
+                    obj.native_event_pack_preload_status= ...
+                        ['MEX_PRELOAD_FAILED__MATLAB_ID_PATH__' ME.identifier];
+                end
+            else
+                obj.native_event_pack_preload_status= ...
+                    'NATIVE_ID_MEX_UNAVAILABLE__MATLAB_ID_PATH';
+            end
             obj.obstacles=obstacles;
             obj.obstacle_count=numel(obstacles);
             obj.previous_detected_mask=false(1,obj.obstacle_count);
@@ -125,6 +153,40 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         function set_log(obj,enabled)
             obj.validate_flag(enabled,'LOG_SENSOR');
             obj.LOG_SENSOR=logical(enabled);
+        end
+
+        function empty_schema=empty_observed_obstacle_schema(obj)
+            % Pure schema transfer. The array is EMPTY (numel==0); this
+            % neither scans nor exposes any real or unseen obstacle data.
+            % Allows memory to allocate a compatible result layout before
+            % the very first genuinely observed obstacle is encountered.
+            empty_schema=obj.empty_visible_obstacles;
+            assert(isstruct(empty_schema)&&isempty(empty_schema), ...
+                'SIMULATED_OBSTACLE_SENSOR:SchemaNonempty', ...
+                'Only an empty observed-obstacle schema may be exported.');
+        end
+
+        function shapes=observed_prepared_only(obj,observed_ids)
+            % Reveal ONLY the geometry belonging to the latest REAL scan.
+            % The sensor already prepared its shape-distance oracle before
+            % Flight for sensing. No true geometry of unseen obstacles is
+            % exposed, no scan is issued, and no observation is fabricated.
+            assert(isnumeric(observed_ids)&&isreal(observed_ids) && ...
+                isvector(observed_ids)&&all(isfinite(observed_ids(:))) && ...
+                all(observed_ids(:)==fix(observed_ids(:))) && ...
+                numel(unique(observed_ids))==numel(observed_ids), ...
+                'SIMULATED_OBSTACLE_SENSOR:ObservedIDs', ...
+                'Only unique real observed obstacle IDs are accepted.');
+            ids=reshape(double(observed_ids),1,[]);
+            if isempty(ids)
+                shapes=obj.prepared_geometry([]);
+                return
+            end
+            [present,indices]=ismember(ids,obj.all_obstacle_ids);
+            assert(all(present)&&all(obj.previous_detected_mask(indices)), ...
+                'SIMULATED_OBSTACLE_SENSOR:UnseenGeometry', ...
+                'Cannot expose prepared geometry for an unseen obstacle.');
+            shapes=obj.prepared_geometry(indices);
         end
 
         function set_native_event_pack(obj,enabled)
@@ -265,7 +327,8 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 'LOG_SENSOR',obj.LOG_SENSOR, ...
                 'native_event_pack_available',obj.native_event_pack_available, ...
                 'native_event_pack_enabled',obj.native_event_pack_enabled, ...
-                'native_event_pack_build_status',obj.native_event_pack_build_status);
+                'native_event_pack_build_status',obj.native_event_pack_build_status, ...
+                'native_event_pack_preload_status',obj.native_event_pack_preload_status);
             if obj.timing_count==0
                 s.time_mean_ms=NaN;
             else

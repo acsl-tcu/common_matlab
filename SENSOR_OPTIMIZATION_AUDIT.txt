@@ -1,5 +1,0 @@
-PASS_SENSOR_OPTIMIZATION_EQUIVALENCE
-source=FLIGHT_LOG | comparisons=3262 | errors=0
-baseline median=0.040800 ms | p95=0.062300 ms | max=12.129300 ms
-optimized median=0.017600 ms | p95=0.027600 ms | max=0.978100 ms
-median speedup=2.3182 | IMPROVED_IN_THIS_RUN
