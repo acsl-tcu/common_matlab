@@ -51,6 +51,14 @@ classdef REPLANNING_SYSTEM < handle
         isolated_sensor_event_prepare_steps=0
         isolated_direct_native_status='NOT_ATTEMPTED'
         isolated_direct_native_calls=0
+        isolated_direct_native_verified_appends=0
+        isolated_direct_native_outer_appends=0
+        isolated_near_geometry_cases=0
+        isolated_near_geometry_status='NOT_ATTEMPTED'
+        isolated_outer_authority_status='NOT_ATTEMPTED'
+        isolated_outer_authority_calls=0
+        preflight_timeonly_reference_status='NOT_ATTEMPTED'
+        preflight_timeonly_reference_calls=0
         first_flight_trace_enabled=false
         first_flight_traces=struct([])
         trigger_core=[]
@@ -165,7 +173,7 @@ classdef REPLANNING_SYSTEM < handle
                     'REPLANNING_STAGE_TIMING must be empty, 0, or 1.');
             end
             obj.stage_timing_enabled=strcmp(stage_env,'1');
-            % First 4 eligible Flight evaluations only. No file I/O, no
+            % First 8 eligible Flight evaluations only. No file I/O, no
             % synthetic sensor/flight/ODE calls. Optional; default OFF.
             obj.first_flight_trace_enabled=strcmp( ...
                 strtrim(getenv('TRIGGER_FIRST_FLIGHT_TRACE')),'1');
@@ -439,6 +447,12 @@ classdef REPLANNING_SYSTEM < handle
             obj.isolated_sensor_event_prepare_steps=0;
             obj.isolated_direct_native_status='NOT_ATTEMPTED';
             obj.isolated_direct_native_calls=0;
+            obj.isolated_direct_native_verified_appends=0;
+            obj.isolated_direct_native_outer_appends=0;
+            obj.isolated_near_geometry_cases=0;
+            obj.isolated_near_geometry_status='NOT_ATTEMPTED';
+            obj.isolated_outer_authority_status='NOT_ATTEMPTED';
+            obj.isolated_outer_authority_calls=0;
             obj.trigger_native_gate_checked=true;
             obj.trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
             if obj.ENABLE_TRIGGER
@@ -507,16 +521,22 @@ classdef REPLANNING_SYSTEM < handle
                         end
                         obj.preflight_model_binding_ms=1000*toc(model_clock);
                         if obj.preflight_model_binding_ready
-                            % Analyze ONLY the pre-existing reference
-                            % function HANDLE and its immutable captured
-                            % numeric constants. NO function evaluation,
-                            % future reference samples, EKF, obstacle
-                            % lookup, or controller execution occurs here.
-                            % Any inaccessible/impure function is simply
-                            % evaluated without caching in actual Flight.
+                            % Audit the original reference function HANDLE
+                            % and immutable constants before any evaluation.
+                            % For the strict, stateless time-only subset,
+                            % optionally exercise the scalar function CODE
+                            % with argument zero, discard ALL values and
+                            % never use Flight epoch or future measurements.
+                            % Non-eligible source: no preflight evaluation.
                             try
                                 ref_fn=agent.reference.timevarying.func;
-                                obj.trigger_reference_cache.audit_immutable_source(ref_fn);
+                                source_audit=obj.trigger_reference_cache.audit_immutable_source(ref_fn);
+                                % Compiles/visits the actual stateless time-only
+                                % source on a constant SCALAR argument, not any
+                                % predicted Flight instant. No result is saved.
+                                probe=TRIGGER_TIMEONLY_SOURCE_PREPARE(ref_fn,source_audit);
+                                obj.preflight_timeonly_reference_status=probe.status;
+                                obj.preflight_timeonly_reference_calls=probe.calls;
                             catch
                                 % Optional optimization: never weaken the
                                 % model proof gate or block a valid Flight.
@@ -565,6 +585,30 @@ classdef REPLANNING_SYSTEM < handle
                             if isfield(pure,'isolated_direct_native_calls')
                                 obj.isolated_direct_native_calls= ...
                                     pure.isolated_direct_native_calls;
+                            end
+                            if isfield(pure,'isolated_direct_native_verified_appends')
+                                obj.isolated_direct_native_verified_appends= ...
+                                    pure.isolated_direct_native_verified_appends;
+                            end
+                            if isfield(pure,'isolated_direct_native_outer_appends')
+                                obj.isolated_direct_native_outer_appends= ...
+                                    pure.isolated_direct_native_outer_appends;
+                            end
+                            if isfield(pure,'isolated_near_geometry_cases')
+                                obj.isolated_near_geometry_cases= ...
+                                    pure.isolated_near_geometry_cases;
+                            end
+                            if isfield(pure,'isolated_near_geometry_status')
+                                obj.isolated_near_geometry_status= ...
+                                    pure.isolated_near_geometry_status;
+                            end
+                            if isfield(pure,'isolated_outer_authority_status')
+                                obj.isolated_outer_authority_status= ...
+                                    pure.isolated_outer_authority_status;
+                            end
+                            if isfield(pure,'isolated_outer_authority_calls')
+                                obj.isolated_outer_authority_calls= ...
+                                    pure.isolated_outer_authority_calls;
                             end
                         end
                     else
@@ -737,10 +781,10 @@ classdef REPLANNING_SYSTEM < handle
                 return
             end
             % First-use tracing is armed ONLY after all real Flight phase
-            % guards. The first four genuine predictor ticks are captured
+            % guards. The first eight genuine predictor ticks are captured
             % into RAM, and saved OFFLINE after the Flight.
             trace_first=obj.first_flight_trace_enabled && ...
-                numel(obj.first_flight_traces)<4;
+                numel(obj.first_flight_traces)<8;
             if trace_first
                 trace_start=tic; trace_step=tic;
                 ft=struct('time_s',t,'known_frame_ms',NaN, ...
@@ -1034,7 +1078,7 @@ classdef REPLANNING_SYSTEM < handle
             status.preflight_warmup_ms=obj.preflight_warmup_ms;
             status.preflight_warmup_distance_checks=obj.preflight_warmup_distance_checks;
             status.preflight_warmup_mode='DISABLED_NO_WORLD_PROBES';
-            status.preflight_update_mode='SOURCE_PIN_PLUS_REAL_STATIC_MODEL__NO_EKF_SENSOR_REFERENCE';
+            status.preflight_update_mode='STATIC_MODEL_AND_OPTIONAL_DISCARDED_TIMEONLY_SCALAR_PROBE__NO_EKF_SENSOR';
             status.native_mex_preflight_build_status= ...
                 obj.native_mex_preflight_build_status;
             status.stage_timing_enabled=obj.stage_timing_enabled;
@@ -1045,6 +1089,10 @@ classdef REPLANNING_SYSTEM < handle
                 'memory_update_wall','prepared_geometry_handoff_wall', ...
                 'trigger_evaluate_wall','obstacle_log_wall', ...
                 'result_attachment_wall'};
+            status.preflight_timeonly_reference_status= ...
+                obj.preflight_timeonly_reference_status;
+            status.preflight_timeonly_reference_calls= ...
+                obj.preflight_timeonly_reference_calls;
             status.preflight_update_ready=obj.preflight_update_ready;
             status.preflight_update_ms=obj.preflight_update_ms;
             status.preflight_update_samples_ms=obj.preflight_update_samples_ms;
@@ -1088,6 +1136,27 @@ classdef REPLANNING_SYSTEM < handle
             status.isolated_native_prediction_calls=obj.isolated_native_prediction_calls;
             status.isolated_direct_native_status=obj.isolated_direct_native_status;
             status.isolated_direct_native_calls=obj.isolated_direct_native_calls;
+            status.isolated_direct_native_verified_appends= ...
+                obj.isolated_direct_native_verified_appends;
+            status.isolated_direct_native_outer_appends= ...
+                obj.isolated_direct_native_outer_appends;
+            status.isolated_near_geometry_cases= ...
+                obj.isolated_near_geometry_cases;
+            status.isolated_near_geometry_status= ...
+                obj.isolated_near_geometry_status;
+            status.isolated_outer_authority_status= ...
+                obj.isolated_outer_authority_status;
+            status.isolated_outer_authority_calls= ...
+                obj.isolated_outer_authority_calls;
+        end
+    end
+
+    methods (Static)
+        function xd=software_probe_flight_reference(nominal,tt,L)
+            % Synthetic-only helper: execute the EXACT same mathematical
+            % source wrapper as real Flight, without reading its reference.
+            % Public only so the isolated pre-arm fixture can call it.
+            xd=REPLANNING_SYSTEM.flight_reference_at(nominal,tt,L);
         end
     end
 

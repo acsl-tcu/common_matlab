@@ -174,23 +174,48 @@ try
             direct.first_acquisition_calls+direct.append_calls+ ...
             direct.reuse_calls;
         R.isolated_direct_native_reason=direct.reason;
+        R.isolated_direct_native_verified_appends= ...
+            direct.verified_append_transitions;
+        R.isolated_direct_native_outer_appends= ...
+            direct.outer_append_transitions;
     end
-    % Geometric near-contact fixture: NEVER impersonates actual sensor
-    % provenance and never publishes a planner request.  Try to exercise
-    % the same sampled geometry routines that are cold at first contact.
+    % Actual TRIGGER_FLIGHT_AUTHORITY.current() and f-phase reference
+    % wrapper, on a fully throwaway agent-shaped fixture only.
+    R.isolated_outer_authority_status='NOT_ATTEMPTED';
+    R.isolated_outer_authority_calls=0;
+    if isfield(cfg,'native_binding')
+        outer=TRIGGER_ISOLATED_OUTER_AUTHORITY_PREPARE(cfg);
+        R.isolated_outer_authority_status=outer.status;
+        R.isolated_outer_authority_calls=outer.calls;
+        R.isolated_outer_authority_reason=outer.reason;
+    end
+    % Software-only narrow geometry: the old centered sphere produced
+    % a zero direction and exited point_gate before support_radial_many.
+    % Displaced synthetic primitives exercise actual nonzero support
+    % directions and distance oracle without looking at world obstacles.
     R.isolated_near_geometry_status='NOT_RUN';
+    R.isolated_near_geometry_cases=0;
     try
-        near=OBSTACLE_INFORMATION.define(2,'sphere',e.p,1);
-        frame_near=frame;
-        frame_near.detected_obstacles=near;
-        frame_near.detected_ids=2;
-        for trial=1:8
-            frame_near.time_s=(trial-1)*cfg.sample_dt_s;
-            temp.evaluate(frame_near.time_s,e,frame_near,a);
+        kinds={'sphere','cylinder','box','ellipsoid'};
+        dims={0.5,[0.5 1],[1 1 1],[0.6 0.4 0.5]};
+        for kind_idx=1:numel(kinds)
+            fake=OBSTACLE_INFORMATION.define(70020+kind_idx, ...
+                kinds{kind_idx},e.p+[0.4;0.1;0.1],dims{kind_idx});
+            prepared=OBSTACLE_GEOMETRY_QUERY.prepare(fake);
+            for trial=1:8
+                [~,~,~,~,info]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
+                    repmat(e.p,1,2),repmat(e.pL,1,2),prepared, ...
+                    0,0,0,0,false);
+                assert(info.body_exact_queries+info.body_support_excluded>0, ...
+                    'TRIGGER_ISOLATED_CODE_PREPARE:NarrowGate', ...
+                    'The nonzero-vector support/distance gate was skipped.');
+                R.isolated_near_geometry_cases=R.isolated_near_geometry_cases+1;
+            end
         end
-        R.isolated_near_geometry_status='TRIED_ISOLATED_NO_PROVENANCE';
+        R.isolated_near_geometry_status='SYNTHETIC_NONZERO_SUPPORT_AND_DISTANCE_EXERCISED';
     catch near_error
         R.isolated_near_geometry_status=['NOT_COMPLETED__' near_error.identifier];
+        R.isolated_near_geometry_reason=near_error.message;
     end
     R.passed=true;
     R.status='ISOLATED_BRANCH_EXERCISE_PASS__NO_JIT_OR_SAFETY_GUARANTEE';

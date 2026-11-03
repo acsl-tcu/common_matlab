@@ -1,4 +1,5 @@
-status=NOT_COMPLETED_ISOLATED_SENSOR_EVENTS
-cycles=0
-steps=0
-reason=SIMULATED_OBSTACLE_SENSOR:ObservedIDs | Only unique real observed obstacle IDs are accepted.
+status=SYNTHETIC_SENSOR_MEMORY_TRANSITIONS_PASS__NO_JIT_OR_SAFETY_PROOF
+cycles=8
+steps=40
+phase=FINISHED
+reason=

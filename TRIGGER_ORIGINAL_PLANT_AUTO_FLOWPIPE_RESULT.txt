@@ -1,0 +1,8 @@
+status=PASS_SYNTHETIC_AUTO_PICARD_CHAIN__NOT_CLOSED_LOOP_SAFETY
+one_step=1
+two_step=1
+seam=1
+invalid_mass_rejected=1
+never_commit=1
+iterations=[1 1]
+reason=

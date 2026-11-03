@@ -7,7 +7,8 @@ function R=TRIGGER_ISOLATED_SENSOR_EVENT_PREPARE(cfg)
 % Repeated execution does NOT prove MATLAB JIT compilation or a time bound.
 R=struct('status','NOT_COMPLETED_ISOLATED_SENSOR_EVENTS', ...
     'pass',false,'cycles',0,'steps',0,'reason','', ...
-    'ever_read_live_obstacles',false,'safe_to_commit',false);
+    'ever_read_live_obstacles',false,'safe_to_commit',false, ...
+    'phase','NOT_STARTED');
 try
     assert(isstruct(cfg)&&isscalar(cfg) && ...
         isfield(cfg,'sample_dt_s') && isfinite(cfg.sample_dt_s) && ...
@@ -21,13 +22,15 @@ try
     o3=OBSTACLE_INFORMATION.define(70003,'box',[15;0;0],[2 2 2]);
     fiction=[o1 o2 o3];
     visit=[-20 0 4 7 30];
-    expected={[],70001,[70001 70002],70002,[]};
+    expected={zeros(1,0),70001,[70001 70002],70002,zeros(1,0)};
     for repetition=1:8
+        R.phase='CREATING_THROWAWAY_SENSOR';
         sensor=SIMULATED_OBSTACLE_SENSOR(fiction,4,false);
         mem=OBSERVED_OBSTACLE_MEMORY(sensor.empty_observed_obstacle_schema());
-        prepared=sensor.observed_prepared_only([]);
+        prepared=sensor.observed_prepared_only(zeros(1,0));
         p_ids=zeros(1,0);
         for j=1:numel(visit)
+            R.phase=sprintf('REPEAT_%d_STEP_%d',repetition,j);
             t=(double(repetition-1)*numel(visit)+double(j-1))* ...
                 double(cfg.sample_dt_s);
             observed=sensor.observe(t,[visit(j);0;0]);
@@ -54,6 +57,7 @@ try
         end
         R.cycles=repetition;
     end
+    R.phase='FINISHED';
     R.pass=true;
     R.status='SYNTHETIC_SENSOR_MEMORY_TRANSITIONS_PASS__NO_JIT_OR_SAFETY_PROOF';
 catch ME

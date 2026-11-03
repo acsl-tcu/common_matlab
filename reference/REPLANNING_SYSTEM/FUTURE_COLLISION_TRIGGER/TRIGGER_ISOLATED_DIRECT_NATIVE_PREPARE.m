@@ -8,6 +8,7 @@ function W=TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE(cfg)
 % performance preparation, NOT a JIT, tracking, collision or safety proof.
 W=struct('status','NOT_RUN_ISOLATED_DIRECT_NATIVE', 'pass',false, ...
     'first_acquisition_calls',0,'append_calls',0,'reuse_calls',0, ...
+    'verified_append_transitions',0,'outer_append_transitions',0, ...
     'reason','','safe_to_commit',false);
 try
     assert(isstruct(cfg)&&isscalar(cfg) && ...
@@ -47,9 +48,9 @@ try
     obs2=OBSTACLE_INFORMATION.define(70002,'sphere',[0;0;0],1);
     prepared1=OBSTACLE_GEOMETRY_QUERY.prepare(obs1);
     prepared2=OBSTACLE_GEOMETRY_QUERY.prepare(obs2);
-    mm=OBSERVED_OBSTACLE_MEMORY(obs1([]));
-    core=FUTURE_COLLISION_TRIGGER(struct('horizon_s',cfg.horizon_s));
-    core.prepare_static_timing(cfg.sample_dt_s,cfg.horizon_s);
+    % No real sensor/EKF/nominal source is read. The repeated experiment
+    % must cross the REAL incremental branch on every repetition (the old
+    % preparation crossed it once and merely reused it seven times).
     a=struct('runtime',cfg,'payload_mass_kg',1, ...
         'reference_at',@(tt)[0;0;-L;zeros(25,1)], ...
         'verified_native_binding',b, ...
@@ -61,10 +62,15 @@ try
         'numeric_tolerances',cfg.numeric_tolerances);
     f=struct('time_s',0,'uav_position_ekf_m',e.p, ...
         'detected_obstacles',obs1,'detected_ids',70001,'detected_count',1);
-    % 8 repetitions are a code-path exercise only, NOT a MATLAB JIT rule.
     for i=1:8
-        t=(i-1)*double(cfg.sample_dt_s);
+        core=FUTURE_COLLISION_TRIGGER(struct('horizon_s',cfg.horizon_s));
+        core.prepare_static_timing(cfg.sample_dt_s,cfg.horizon_s);
+        mm=OBSERVED_OBSTACLE_MEMORY(obs1([]));
+        t=0;
         f.time_s=t;
+        f.detected_obstacles=obs1;
+        f.detected_ids=70001;
+        f.detected_count=1;
         mm.update(f);
         known=mm.known_frame_for_trigger(f);
         known.prepared_sensor_shapes=prepared1;
@@ -74,17 +80,13 @@ try
             strcmp(r.predictor_dispatch,'DIRECT_NATIVE_VERIFIED_BINDING') && ...
             ~r.safe_to_commit, ...
             'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:InitialDispatch', ...
-            'Pinned synthetic direct-native dispatch did not complete.');
-        W.first_acquisition_calls=i;
-    end
-    for i=1:8
-        t=(8+i-1)*double(cfg.sample_dt_s);
+            'Synthetic single-ID native evaluation did not complete.');
+        W.first_acquisition_calls=W.first_acquisition_calls+1;
+        t=double(cfg.sample_dt_s);
         f.time_s=t;
-        if i==1
-            f.detected_obstacles=obs2;
-            f.detected_ids=70002;
-            f.detected_count=1;
-        end
+        f.detected_obstacles=obs2;
+        f.detected_ids=70002;
+        f.detected_count=1;
         mm.update(f);
         known=mm.known_frame_for_trigger(f);
         known.prepared_sensor_shapes=[prepared1 prepared2];
@@ -94,13 +96,31 @@ try
             strcmp(r.predictor_dispatch,'DIRECT_NATIVE_VERIFIED_BINDING') && ...
             ~r.safe_to_commit, ...
             'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:AppendDispatch', ...
-            'Pinned synthetic append/reuse dispatch did not complete.');
-        if i==1
-            W.append_calls=i;
-        else
-            W.reuse_calls=W.reuse_calls+1;
-        end
+            'Synthetic two-ID native evaluation did not complete.');
+        W.append_calls=W.append_calls+1;
+        counts=core.static_preparation_status();
+        W.verified_append_transitions=W.verified_append_transitions+ ...
+            counts.incremental_verified_appends;
+        W.outer_append_transitions=W.outer_append_transitions+ ...
+            counts.incremental_outer_appends;
+        t=2*double(cfg.sample_dt_s);
+        f.time_s=t;
+        mm.update(f);
+        known=mm.known_frame_for_trigger(f);
+        known.prepared_sensor_shapes=[prepared1 prepared2];
+        a.native_validated_now_time_s=t;
+        r=core.evaluate(t,e,known,a);
+        assert(r.prediction_complete && ...
+            strcmp(r.predictor_dispatch,'DIRECT_NATIVE_VERIFIED_BINDING') && ...
+            ~r.safe_to_commit, ...
+            'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:ReuseDispatch', ...
+            'Synthetic retained-ID native evaluation did not complete.');
+        W.reuse_calls=W.reuse_calls+1;
     end
+    assert(W.verified_append_transitions==8 && ...
+        W.outer_append_transitions==8, ...
+        'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:IncrementalPath', ...
+        'The real prepared-shape and outer-ball append branches must each be visited 8 times.');
     W.pass=true;
     W.status='SYNTHETIC_DIRECT_NATIVE_ACQUIRE_APPEND_REUSE_PASS__NO_JIT_GUARANTEE';
 catch ME

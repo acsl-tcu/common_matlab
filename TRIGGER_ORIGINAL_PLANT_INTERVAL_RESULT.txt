@@ -1,0 +1,7 @@
+status=PASS_INTERVAL_RHS_SAMPLED_ENCLOSURES__NO_CLOSED_LOOP_PROOF
+original_found=1
+boxes=20
+samples=240
+violations=0
+singular_rejected=1
+reason=

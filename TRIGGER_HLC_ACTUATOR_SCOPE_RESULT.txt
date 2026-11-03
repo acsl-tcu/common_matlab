@@ -1,0 +1,7 @@
+status=ORIGINAL_HLC_SATURATION_SOURCE_PINNED__APPLIED_INPUT_NOT_PROVED
+source_verified=1
+sha256=09b38e167a43979a41660fe32088f44255bb6d3e9591093701b4a41712bced5a
+actuator_lower=[0 -1 -1 -1]
+actuator_upper=[20 1 1 1]
+real_wiring_verified=0
+reason=The byte-identified source clamps finite tmp to [0,20] and [-1,1]^3. Proving the actual controller-to-plant connection, finite HLC output, saturation timing, hybrid modes and uncertainty remains mandatory.
