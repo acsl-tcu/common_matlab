@@ -74,6 +74,9 @@ classdef FUTURE_COLLISION_TRIGGER < handle
         static_outer_balls = zeros(5,0)
         static_outer_build_count = 0
         static_outer_reuse_count = 0
+        % Differential processing of REAL, append-only observed static IDs.
+        incremental_verified_appends = 0
+        incremental_outer_appends = 0
     end
 
     methods
@@ -129,7 +132,9 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'grid_points',numel(obj.static_grid_values), ...
                 'grid_build_count',obj.static_grid_build_count, ...
                 'outer_balls_build_count',obj.static_outer_build_count, ...
-                'outer_balls_reuse_count',obj.static_outer_reuse_count);
+                'outer_balls_reuse_count',obj.static_outer_reuse_count, ...
+                'incremental_verified_appends',obj.incremental_verified_appends, ...
+                'incremental_outer_appends',obj.incremental_outer_appends);
         end
 
         function R = evaluate(obj,time_s,ekf_now,sensor_frame,authority)
@@ -278,16 +283,50 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                         ~isempty(candidate) && ...
                         all(isfield(candidate,{'id','is_stationary'})) && ...
                         isequal(reshape(double([candidate.id]),1,[]),ids) && ...
-                        all([candidate.is_stationary]) && ...
-                        FUTURE_COLLISION_TRIGGER.verified_prepared_observations( ...
-                            known,candidate)
-                    obj.last_verified_prepared_ids=ids;
-                    obj.last_verified_memory_version= ...
-                        sensor_frame.memory_version;
-                    obj.last_verified_geometry_version= ...
-                        sensor_frame.geometry_version;
-                    obj.last_verified_prepared_shapes=candidate;
-                    first_verified=true;
+                        all([candidate.is_stationary])
+                    verified=false;
+                    old_n=numel(obj.last_verified_prepared_ids);
+                    % Real OBSERVED_OBSTACLE_MEMORY is append-only for IDs.
+                    % A prior static prefix is immutable until its geometry
+                    % generation changes. Never trust a new prefix from the
+                    % incoming packet: retain the PREVIOUSLY verified one.
+                    can_append=old_n>0 && old_n<numel(ids) && ...
+                        isa(obj.last_verified_memory_version,'uint64') && ...
+                        isa(obj.last_verified_geometry_version,'uint64') && ...
+                        isequal(sensor_frame.geometry_version, ...
+                            obj.last_verified_geometry_version) && ...
+                        sensor_frame.memory_version>obj.last_verified_memory_version && ...
+                        sensor_frame.memory_version-obj.last_verified_memory_version== ...
+                            uint64(numel(ids)-old_n) && ...
+                        isequal(ids(1:old_n),obj.last_verified_prepared_ids) && ...
+                        numel(obj.last_verified_prepared_shapes)==old_n && ...
+                        isequal(reshape(double([candidate(1:old_n).id]),1,[]), ...
+                            obj.last_verified_prepared_ids);
+                    if can_append
+                        % Verify only the genuinely newly observed suffix.
+                        % This is valid only for the immutable static sensor
+                        % geometry contract, not for arbitrary mutable data.
+                        fresh=candidate(old_n+1:end);
+                        verified=FUTURE_COLLISION_TRIGGER. ...
+                            verified_prepared_observations(known(old_n+1:end),fresh);
+                        if verified
+                            candidate=[obj.last_verified_prepared_shapes fresh];
+                            obj.incremental_verified_appends= ...
+                                obj.incremental_verified_appends+1;
+                        end
+                    else
+                        verified=FUTURE_COLLISION_TRIGGER. ...
+                            verified_prepared_observations(known,candidate);
+                    end
+                    if verified
+                        obj.last_verified_prepared_ids=ids;
+                        obj.last_verified_memory_version= ...
+                            sensor_frame.memory_version;
+                        obj.last_verified_geometry_version= ...
+                            sensor_frame.geometry_version;
+                        obj.last_verified_prepared_shapes=candidate;
+                        first_verified=true;
+                    end
                 end
             end
             R.geometry_first_use_verified_before_predictor=first_verified;
@@ -328,9 +367,29 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                         obj.static_outer_reuse_count= ...
                             obj.static_outer_reuse_count+1;
                     else
-                        native_balls=zeros(5,numel(ids));
+                        % Previously checked outer balls are immutable for
+                        % static observed shapes. When only real NEW IDs
+                        % were appended, validate/build ONLY that suffix.
+                        old_outer_n=numel(obj.static_outer_ids);
+                        append_outer=old_outer_n>0 && old_outer_n<numel(ids) && ...
+                            isa(obj.static_outer_memory_version,'uint64') && ...
+                            isa(obj.static_outer_geometry_version,'uint64') && ...
+                            isequal(obj.static_outer_geometry_version, ...
+                                sensor_frame.geometry_version) && ...
+                            sensor_frame.memory_version>obj.static_outer_memory_version && ...
+                            sensor_frame.memory_version-obj.static_outer_memory_version== ...
+                                uint64(numel(ids)-old_outer_n) && ...
+                            isequal(obj.static_outer_ids,ids(1:old_outer_n)) && ...
+                            isequal(size(obj.static_outer_balls),[5 old_outer_n]);
+                        if append_outer
+                            native_balls=[obj.static_outer_balls zeros(5,numel(ids)-old_outer_n)];
+                            first_outer_new=old_outer_n+1;
+                        else
+                            native_balls=zeros(5,numel(ids));
+                            first_outer_new=1;
+                        end
                         native_outer_ready=true;
-                        for native_j=1:numel(ids)
+                        for native_j=first_outer_new:numel(ids)
                             sh0=native_shapes(native_j);
                             c0=double(sh0.center0(:));
                             r0=double(sh0.bounding_radius_m);
@@ -344,6 +403,10 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                             native_balls(:,native_j)=[c0;r0;1];
                         end
                         if native_outer_ready
+                            if append_outer
+                                obj.incremental_outer_appends= ...
+                                    obj.incremental_outer_appends+1;
+                            end
                             obj.static_outer_ids=ids;
                             obj.static_outer_memory_version= ...
                                 sensor_frame.memory_version;
@@ -722,12 +785,27 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             % collision. Only explicitly observed nominal sample contacts may
             % raise a provisional numerical request. The final certified
             % trigger will use validated reachable-set contact instead.
-            new_ids=setdiff(sample_hits,obj.active_request_ids,'stable');
+            if isempty(sample_hits)
+                % No nominal contact this tick. The old expression also
+                % intersects active requests with the currently known IDs;
+                % since requests originated from retained known IDs and
+                % known IDs are append-only, this branch is equivalent.
+                new_ids=zeros(1,0);
+                R.duplicate_suppressed=false;
+                % Preserve any active IDs for duplicate suppression if a
+                % later sample still contacts them. No unproved release.
+            else
+                % Equivalent stable-set event transition, with no dynamic
+                % setdiff/union/intersect dispatch at first contact.  This
+                % helper has its own preflight isolated regression and NEVER
+                % changes the physical collision/safety decision.
+                [new_ids,R.duplicate_suppressed,obj.active_request_ids]= ...
+                    TRIGGER_STABLE_EVENT_IDS( ...
+                        sample_hits,obj.active_request_ids,ids);
+            end
             R.new_event_ids=new_ids;
             R.new_event=~isempty(new_ids);
             R.numeric_request=R.new_event;
-            R.duplicate_suppressed=any(ismember(sample_hits,obj.active_request_ids));
-            obj.active_request_ids=intersect(union(obj.active_request_ids,new_ids,'stable'),ids,'stable');
             % Never authorize trajectory commit from a trigger decision alone.
             R.safe_to_commit=false;
             R=obj.finish(R,started);

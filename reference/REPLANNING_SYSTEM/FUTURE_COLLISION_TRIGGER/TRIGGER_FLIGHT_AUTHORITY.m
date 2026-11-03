@@ -34,6 +34,15 @@ classdef TRIGGER_FLIGHT_AUTHORITY < handle
             f.sample_dt_s=TRIGGER_FLIGHT_AUTHORITY.positive( ...
                 TRIGGER_FLIGHT_AUTHORITY.member(time,'dt'),'time.dt');
             P=TRIGGER_FLIGHT_AUTHORITY.member(agent,'parameter');
+            % Direct mass source is used ONLY for the exact original class.
+            % Its getter is independently checked before Arming.
+            f.use_direct_live_loadmass=strcmp(class(P), ...
+                'DRONE_PARAM_SUSPENDED_LOAD');
+            if f.use_direct_live_loadmass
+                assert(isequal(double(P.loadmass),double(P.get("loadmass"))), ...
+                    'TRIGGER_FLIGHT_AUTHORITY:LoadmassGetter', ...
+                    'Direct live loadmass differs from the original getter.');
+            end
             order=string(TRIGGER_FLIGHT_AUTHORITY.member(P,'parameter_order'));
             assert(numel(order)>0 && all(strlength(order)>0) && ...
                 numel(unique(order))==numel(order), ...
@@ -71,8 +80,20 @@ classdef TRIGGER_FLIGHT_AUTHORITY < handle
                 'Exact loadmass and cableL positions are needed from the live order.');
             f.model_parameters=model_parameters;
             f.loadmass_index=idx_mass;
+            f.hlc_loadmass_index=[]; % populated from actual HLC mapping below
             f.plant_rhs=rhs;
             f.plant_solver=solver;
+            % These are SOFTWARE SOURCE identities, not EKF/sensor/Flight
+            % observations. Validate exactly once BEFORE Arming. The pinned
+            % function handles are immutable for this binding's lifetime.
+            f.plant_rhs_name=func2str(rhs);
+            f.plant_solver_name=func2str(solver);
+            f.native_source_order_checked= ...
+                strcmp(f.plant_rhs_name,'with_load_model_euler_for_HL') && ...
+                strcmp(f.plant_solver_name,'ode15s') && idx_mass==20;
+            assert(f.native_source_order_checked, ...
+                'TRIGGER_FLIGHT_AUTHORITY:NativeSource', ...
+                'The actual preflight plant source/solver/order does not match the pinned numeric core.');
             f.cable_length_m=TRIGGER_FLIGHT_AUTHORITY.positive( ...
                 model_parameters(idx_length),'plant.param.cableL');
             % Refuse stale geometry/plant mismatch instead of inventing a length.
@@ -100,6 +121,10 @@ classdef TRIGGER_FLIGHT_AUTHORITY < handle
             % Preserve that controller behavior; the physical model alone
             % substitutes latest EKF.mL each evaluation.
             f.hlc_parameter_names=["mass","jx","jy","jz","gravity","loadmass","cableL"];
+            f.hlc_loadmass_index=find(f.hlc_parameter_names=="loadmass");
+            assert(isscalar(f.hlc_loadmass_index), ...
+                'TRIGGER_FLIGHT_AUTHORITY:HLCParameterMap', ...
+                'Exact controller loadmass entry required.');
             v=TRIGGER_FLIGHT_AUTHORITY.pget(P,f.hlc_parameter_names);
             assert(isnumeric(v)&&isrow(v)&&numel(v)==numel(f.hlc_parameter_names) && ...
                 all(isfinite(v)) && all(v([1 2 3 4 5 7])>0) && ...
@@ -145,9 +170,11 @@ classdef TRIGGER_FLIGHT_AUTHORITY < handle
             assert(isequal(dt,obj.flight.sample_dt_s), ...
                 'TRIGGER_FLIGHT_AUTHORITY:DTChanged', ...
                 'Flight dt changed; rebind external model and HLC before use.');
-            est=TRIGGER_FLIGHT_AUTHORITY.member(agent,'estimator');
-            state=TRIGGER_FLIGHT_AUTHORITY.member( ...
-                TRIGGER_FLIGHT_AUTHORITY.member(est,'result'),'state');
+            % Static binding already checked the agent/controller schema.
+            % Direct access still raises on a changed/missing live member;
+            % downstream dimensions, finite values and current mass are
+            % checked every Flight tick exactly as before (fail closed).
+            state=agent.estimator.result.state;
             % Fixed state schema, exactly the order used by the original
             % 24-state HLC/plant. Never substitute a nominal or previous state.
             ekf=struct('p',double(state.p),'q',double(state.q), ...
@@ -173,12 +200,21 @@ classdef TRIGGER_FLIGHT_AUTHORITY < handle
             % reads agent.parameter.loadmass, not a frozen preflight mass.
             % Refresh only this entry from the original live source, without
             % ever writing back to the Flight controller or estimator.
-            current_hlc_mass=TRIGGER_FLIGHT_AUTHORITY.pget( ...
-                TRIGGER_FLIGHT_AUTHORITY.member(agent,'parameter'),"loadmass");
+            % This is the SAME live loadmass property read by
+            % DRONE_PARAM_SUSPENDED_LOAD.get, not a frozen preflight value.
+            % Use the public property directly for the real parameter class;
+            % preserve the original getter path for other provider classes.
+            if obj.flight.use_direct_live_loadmass && ...
+                    strcmp(class(agent.parameter),'DRONE_PARAM_SUSPENDED_LOAD')
+                current_hlc_mass=agent.parameter.loadmass;
+            else
+                current_hlc_mass=TRIGGER_FLIGHT_AUTHORITY.pget( ...
+                    agent.parameter,"loadmass");
+            end
             current_hlc_mass=TRIGGER_FLIGHT_AUTHORITY.positive( ...
                 current_hlc_mass,'current HLC parameter.loadmass');
             binding=obj.flight;  % Copy; do not mutate Flight's nominal snapshot.
-            mass_key=find(binding.hlc_parameter_names=="loadmass");
+            mass_key=binding.hlc_loadmass_index;
             assert(isscalar(mass_key),'TRIGGER_FLIGHT_AUTHORITY:HLCCurrentMass', ...
                 'Flight HLC mass map is not unique.');
             binding.hlc_parameter_values(mass_key)=current_hlc_mass;

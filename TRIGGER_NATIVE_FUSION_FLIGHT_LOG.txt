@@ -1,10 +1,10 @@
 direct_native=1521 legacy_callback=0 missing_dispatch=0
 status=READ_ONLY_FUSION_EXECUTION_TIMING__NOT_SAFETY_PROOF
 complete=1521 fused=1521 without_fusion=0
-all_predicting n=1521 median=2.135700 p95=2.524800 max=46.570700
-native_fused_predicting n=1521 median=2.135700 p95=2.524800 max=46.570700
+all_predicting n=1521 median=2.038600 p95=2.523100 max=30.771600
+native_fused_predicting n=1521 median=2.038600 p95=2.523100 max=30.771600
 unfused_predicting n=0 median=NaN p95=NaN max=NaN
-native_fused_predictor n=1521 median=1.300500 p95=1.465500 max=18.720600
-native_fused_geometry n=1521 median=0.073100 p95=0.291800 max=15.745200
-future_reference_window n=1521 median=0.209300 p95=0.262900 max=11.904400
-first t=5.000000 trigger=46.570700 predictor=18.720600 reference=11.904400 geometry=2.988800 fused=1
+native_fused_predictor n=1521 median=1.294300 p95=1.502900 max=15.897400
+native_fused_geometry n=1521 median=0.076500 p95=0.305100 max=12.176000
+future_reference_window n=1521 median=0.199700 p95=0.246700 max=8.425800
+first t=5.000000 trigger=30.566300 predictor=15.897400 reference=8.425800 geometry=0.653900 fused=1

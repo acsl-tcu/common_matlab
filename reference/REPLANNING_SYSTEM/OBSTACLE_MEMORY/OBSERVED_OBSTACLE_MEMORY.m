@@ -30,7 +30,7 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
             assert(isstruct(obstacle_template) && isempty(obstacle_template), ...
                 'OBSERVED_OBSTACLE_MEMORY:Template', ...
                 'Pass only an empty obstacle struct array as template.');
-            obj.observed_obstacles = obstacle_template;
+            obj.observed_obstacles = reshape(obstacle_template,1,[]);
             % No observed object is present. A schema with the sensor's
             % .position field can be supplied safely before Flight, without
             % reading any sensor event or real obstacle information.
@@ -82,7 +82,7 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
                 % Legacy callers may provide a definition-only empty schema.
                 % Perform this adaptation ONCE on the first real scan, never
                 % repeat it on every empty detection during takeoff.
-                obj.observed_obstacles=obstacles([]);
+                obj.observed_obstacles=reshape(obstacles([]),1,[]);
                 obj.observed_schema_ready=true;
             end
             newly=zeros(1,0);
@@ -94,22 +94,44 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
             if same_ids && numel(obj.detected_known_indices)==numel(ids)
                 indices=obj.detected_known_indices;
             else
+                % New real detections are appended ONCE per frame rather
+                % than growing multiple struct/numeric arrays per ID.
+                % The sensor has already proved the IDs are unique.
                 indices=zeros(1,numel(ids));
+                fresh_positions=zeros(1,numel(ids));
+                n_fresh=0;
+                n_old=numel(obj.known_ids);
                 for i=1:numel(ids)
                     ix=find(obj.known_ids==ids(i),1);
                     if isempty(ix)
-                        obj.known_ids(end+1)=ids(i);
-                        obj.first_seen_s(end+1)=double(t);
-                        obj.last_seen_s(end+1)=double(t);
-                        obj.observed_obstacles(end+1)=obstacles(i);
-                        newly(end+1)=ids(i); %#ok<AGROW>
-                        obj.version=obj.version+uint64(1);
-                        ix=numel(obj.known_ids);
+                        n_fresh=n_fresh+1;
+                        fresh_positions(n_fresh)=i;
+                        ix=n_old+n_fresh;
                     end
                     indices(i)=ix;
                 end
+                if n_fresh>0
+                    fresh_positions=fresh_positions(1:n_fresh);
+                    newly=ids(fresh_positions);
+                    % A genuine sensor may return Kx1 while the cache is 1xK.
+                    % First assemble the new row array; never mutate ID
+                    % history if field compatibility or concatenation fails.
+                    next_obstacles=OBSERVED_OBSTACLE_MEMORY.append_row_structs( ...
+                        obj.observed_obstacles,obstacles(fresh_positions));
+                    obj.observed_obstacles=next_obstacles;
+                    obj.known_ids=[obj.known_ids newly];
+                    obj.first_seen_s=[obj.first_seen_s repmat(double(t),1,n_fresh)];
+                    obj.last_seen_s=[obj.last_seen_s repmat(double(t),1,n_fresh)];
+                    % Preserve exactly one generation increment per new ID.
+                    obj.version=obj.version+uint64(n_fresh);
+                end
                 obj.detected_known_indices=indices;
-                obj.retained_ids_cache=setdiff(obj.known_ids,ids,'stable');
+                % The known IDs are always unique and incoming IDs a subset
+                % after append. The mask therefore has the SAME order and
+                % values as setdiff(known_ids,ids,'stable'), including [].
+                held_mask=true(1,numel(obj.known_ids));
+                held_mask(indices)=false;
+                obj.retained_ids_cache=obj.known_ids(held_mask);
             end
             % Refresh timestamps and moving descriptions only. Exact static
             % descriptions come from the sensor's immutable Flight definition
@@ -143,6 +165,31 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
                 'safety_release_prover_connected',false, ...
                 'elapsed_ms',elapsed_ms);
             obj.last_result=result;
+        end
+        function frame = known_frame_for_trigger(obj,current_sensor_frame)
+            % Thin read-only adapter for ONLY the trigger's actual inputs.
+            % Unlike known_frame(), it does not copy scan metadata or create
+            % aligned distance arrays that the collision predictor never reads.
+            % This is a representation change ONLY. All obstacles are from
+            % previous genuine memory.update() calls, never source-world truth.
+            assert(isstruct(current_sensor_frame) && ...
+                isscalar(current_sensor_frame) && ...
+                isfield(current_sensor_frame,'time_s') && ...
+                isequal(double(current_sensor_frame.time_s),obj.last_tick_s) && ...
+                isfield(current_sensor_frame,'uav_position_ekf_m') && ...
+                isequal(double(current_sensor_frame.uav_position_ekf_m(:)), ...
+                        obj.last_uav_position_m), ...
+                'OBSERVED_OBSTACLE_MEMORY:StaleTriggerFrame', ...
+                'A genuine same-tick sensor + memory.update is mandatory.');
+            frame=struct( ...
+                'time_s',current_sensor_frame.time_s, ...
+                'uav_position_ekf_m',current_sensor_frame.uav_position_ekf_m, ...
+                'detected_obstacles',obj.observed_obstacles, ...
+                'detected_ids',obj.known_ids, ...
+                'detected_count',numel(obj.known_ids), ...
+                'observation_provenance','ACTUAL_SENSOR_HISTORY_ONLY', ...
+                'memory_version',obj.version, ...
+                'geometry_version',obj.geometry_version);
         end
         function frame = known_frame(obj,current_sensor_frame)
             % Adapter for FUTURE_COLLISION_TRIGGER's existing frame schema.
@@ -193,6 +240,27 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
             error('OBSERVED_OBSTACLE_MEMORY:ReleaseNotCertified', ...
                 ['A proven safe release condition has not been connected. ', ...
                  'Range exit or 4-second clearance must never erase an observed obstacle.']);
+        end
+    end
+    methods (Static)
+        function out=append_row_structs(existing,additions)
+            % Shape-only normalization; preserve each field and object order.
+            % Called only on actual new detections, never during a scan.
+            assert(isstruct(additions), ...
+                'OBSERVED_OBSTACLE_MEMORY:AppendType', ...
+                'Sensor-sourced additions must be a struct array.');
+            if isempty(existing)
+                % Also accept the replanner's initial numeric [] sentinel.
+                assert(isstruct(existing)||isequal(existing,[]), ...
+                    'OBSERVED_OBSTACLE_MEMORY:AppendType', ...
+                    'Existing records must be a struct array or [].');
+                out=reshape(additions,1,[]);
+            else
+                assert(isstruct(existing), ...
+                    'OBSERVED_OBSTACLE_MEMORY:AppendType', ...
+                    'Existing records must be a struct array.');
+                out=[reshape(existing,1,[]) reshape(additions,1,[])];
+            end
         end
     end
 end

@@ -45,10 +45,14 @@ classdef REPLANNING_SYSTEM < handle
         preflight_model_binding_status='NOT_PREBOUND'
         isolated_first_use_prepare_ms=NaN
         isolated_first_use_prepare_status='NOT_RUN'
+        isolated_native_prediction_status='NOT_ATTEMPTED'
+        isolated_native_prediction_calls=0
+        isolated_direct_native_status='NOT_ATTEMPTED'
+        isolated_direct_native_calls=0
         first_flight_trace_enabled=false
         first_flight_traces=struct([])
         trigger_core=[]
-        trigger_reference_cache=[] % Only exact shared future-time samples; no preflight work
+        trigger_reference_cache=[] % Only exact source arguments; guarded Takeoff priming
         preflight_warmup_ms=NaN % Flight/Armingより前の準備時間（周期時間に算入しない）
         preflight_warmup_ready=false
         preflight_warmup_distance_checks=0
@@ -68,6 +72,7 @@ classdef REPLANNING_SYSTEM < handle
         LOG_OBSTACLE_MEMORY=true % memory state log only, observation still updates
         ENABLE_TRIGGER=true
         LOG_TRIGGER=true
+        ENABLE_TAKEOFF_REFERENCE_PRIMING=false % Rejected candidate epoch; keep Flight/Takeoff periods free of unverified priming.
         % Physical spherical body radii and cable material radius: MUST be
         % specified from the actual Flight setup. NaN means UNBOUND, NOT 0.
         % There is intentionally no guessed fallback for these dimensions.
@@ -102,6 +107,14 @@ classdef REPLANNING_SYSTEM < handle
         % 1x6 timing vector in the EXISTING Sim LOGGER reference.result.
         % Default OFF: no extra toc calls or per-tick arrays in production.
         stage_timing_enabled=false
+        % Optional phase-local source evaluation, never a sensor/dynamics
+        % warmup. A candidate epoch is only a prediction of a phase switch:
+        % first Flight will independently verify it before any reuse.
+        takeoff_prime_candidate_epoch=NaN
+        takeoff_prime_target=NaN
+        takeoff_prime_source=[]
+        takeoff_prime_disabled=false
+        takeoff_prime_error=''
     end
 
     methods
@@ -112,7 +125,7 @@ classdef REPLANNING_SYSTEM < handle
             end
             allowed={'ENABLE_ALL_LOG','LOG_OBSTACLES','ENABLE_SENSOR', ...
                 'LOG_SENSOR','LOG_REPLANNER','LOG_OBSTACLE_MEMORY', ...
-                'ENABLE_TRIGGER','LOG_TRIGGER','TRIGGER_UAV_RADIUS_M', ...
+                'ENABLE_TRIGGER','LOG_TRIGGER','ENABLE_TAKEOFF_REFERENCE_PRIMING','TRIGGER_UAV_RADIUS_M', ...
                 'TRIGGER_PAYLOAD_RADIUS_M','TRIGGER_CABLE_RADIUS_M', ...
                 'TRIGGER_HORIZON_S','TRIGGER_NUMERIC_ABS_TOL', ...
                 'TRIGGER_NUMERIC_REL_TOL','TRIGGER_FLIGHT_PHASE_END_S','SENSOR_RANGE_M'};
@@ -257,14 +270,19 @@ classdef REPLANNING_SYSTEM < handle
                 newly_learned=memory_result.newly_acquired_ids;
                 if ~isempty(newly_learned)
                     shapes_now=obj.sensor.observed_prepared_only(newly_learned);
-                    if isempty(obj.observed_prepared_shapes)
-                        obj.observed_prepared_shapes=shapes_now;
-                    else
-                        obj.observed_prepared_shapes= ...
-                            [obj.observed_prepared_shapes shapes_now];
-                    end
-                    obj.observed_prepared_ids= ...
-                        [obj.observed_prepared_ids newly_learned];
+                    % Actual sensor geometry can be Kx1 or 1xK.
+                    % Normalize ONCE on the acquisition event; keep ID order.
+                    new_prepared=OBSERVED_OBSTACLE_MEMORY.append_row_structs( ...
+                        obj.observed_prepared_shapes,shapes_now);
+                    new_prepared_ids=[reshape(obj.observed_prepared_ids,1,[]) ...
+                        reshape(double(newly_learned),1,[])];
+                    assert(numel(new_prepared)==numel(new_prepared_ids) && ...
+                        isequal(reshape(double([new_prepared.id]),1,[]), ...
+                        new_prepared_ids), ...
+                        'REPLANNING_SYSTEM:PreparedObservationMismatch', ...
+                        'Actual observed prepared geometry and memory IDs differ.');
+                    obj.observed_prepared_shapes=new_prepared;
+                    obj.observed_prepared_ids=new_prepared_ids;
                 end
                 obj.last_memory_result=memory_result;
                 if stage_on
@@ -277,6 +295,15 @@ classdef REPLANNING_SYSTEM < handle
                 obj.last_memory_result=struct();
             end
             if stage_on,stage_marks(3)=1000*toc(stage_clock);end
+
+            % Removed the rejected Takeoff-period priming hot path.
+            % TAKEOFF_REFERENCE.base_time is not the proven first-Flight
+            % epoch. Prior priming frequently discarded all columns and
+            % shifted its first-use overhead into t=0s. Keep any optional
+            % software preparation strictly in preflight_update(), on
+            % throwaway objects without live sensor/EKF/reference history.
+            % The real first Flight reference is still evaluated at its
+            % actual double-valued time argument, with no interpolation.
 
             % Trigger evaluation uses ONLY the sensor-derived memory frame.
             % No obstacle truth from obj.obstacles enters the trigger.
@@ -397,8 +424,17 @@ classdef REPLANNING_SYSTEM < handle
             obj.trigger_authority_binding=[];
             % Do not carry a prior Flight's reference eligibility or jets.
             obj.trigger_reference_cache.clear_source_audit();
+            obj.takeoff_prime_candidate_epoch=NaN;
+            obj.takeoff_prime_target=NaN;
+            obj.takeoff_prime_source=[];
+            obj.takeoff_prime_disabled=false;
+            obj.takeoff_prime_error='';
             obj.isolated_first_use_prepare_ms=NaN;
             obj.isolated_first_use_prepare_status='NOT_RUN';
+            obj.isolated_native_prediction_status='NOT_ATTEMPTED';
+            obj.isolated_native_prediction_calls=0;
+            obj.isolated_direct_native_status='NOT_ATTEMPTED';
+            obj.isolated_direct_native_calls=0;
             obj.trigger_native_gate_checked=true;
             obj.trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
             if obj.ENABLE_TRIGGER
@@ -493,9 +529,33 @@ classdef REPLANNING_SYSTEM < handle
                                 'r_payload_m',obj.TRIGGER_PAYLOAD_RADIUS_M,...
                                 'r_cable_m',obj.TRIGGER_CABLE_RADIUS_M,...
                                 'cable_length_m',obj.trigger_authority_binding.flight.cable_length_m);
+                            % STATIC physical/HLC source binding only.
+                            % No real EKF, obstacle, future reference or
+                            % Flight start epoch is supplied to the fixture.
+                            pure_cfg.native_binding= ...
+                                obj.trigger_authority_binding.flight;
+                            pure_cfg.numeric_tolerances= ...
+                                [obj.TRIGGER_NUMERIC_ABS_TOL; ...
+                                 obj.TRIGGER_NUMERIC_REL_TOL];
                             pure=TRIGGER_ISOLATED_CODE_PREPARE(pure_cfg);
                             obj.isolated_first_use_prepare_ms=pure.elapsed_ms;
                             obj.isolated_first_use_prepare_status=pure.status;
+                            if isfield(pure,'isolated_native_prediction_status')
+                                obj.isolated_native_prediction_status= ...
+                                    pure.isolated_native_prediction_status;
+                            end
+                            if isfield(pure,'isolated_native_prediction_calls')
+                                obj.isolated_native_prediction_calls= ...
+                                    pure.isolated_native_prediction_calls;
+                            end
+                            if isfield(pure,'isolated_direct_native_status')
+                                obj.isolated_direct_native_status= ...
+                                    pure.isolated_direct_native_status;
+                            end
+                            if isfield(pure,'isolated_direct_native_calls')
+                                obj.isolated_direct_native_calls= ...
+                                    pure.isolated_direct_native_calls;
+                            end
                         end
                     else
                         obj.trigger_native_gate_status=char(pin.status);
@@ -553,6 +613,24 @@ classdef REPLANNING_SYSTEM < handle
             known=obj.observed_memory.known_frame(obj.last_sensor_result);
             % Forward ONLY previously disclosed sensor-prepared geometry.
             % The trigger validates raw type/dimensions/pose/ID before use.
+            if isequal(reshape(double(known.detected_ids),1,[]), ...
+                    obj.observed_prepared_ids) && ...
+                    numel(obj.observed_prepared_shapes)==numel(known.detected_ids)
+                known.prepared_sensor_shapes=obj.observed_prepared_shapes;
+            end
+        end
+
+        function known=get_known_obstacle_frame_for_trigger(obj)
+            % Narrow trigger-specific sensor-memory adapter. The existing
+            % public get_known_obstacle_frame() remains bit-for-bit intact
+            % for outside callers, plots and independent diagnostics.
+            if ~obj.ENABLE_SENSOR || ~isstruct(obj.last_sensor_result) || ...
+                    ~isfield(obj.last_sensor_result,'time_s')
+                error('REPLANNING_SYSTEM:NoSensorFrame', ...
+                    'The real current Flight sensor has not updated.');
+            end
+            known=obj.observed_memory.known_frame_for_trigger( ...
+                obj.last_sensor_result);
             if isequal(reshape(double(known.detected_ids),1,[]), ...
                     obj.observed_prepared_ids) && ...
                     numel(obj.observed_prepared_shapes)==numel(known.detected_ids)
@@ -665,7 +743,7 @@ classdef REPLANNING_SYSTEM < handle
             % It is copied once for the LIVE current EKF prediction, never
             % forged or reused from a different sensor tick.
             try
-                sensed=obj.get_known_obstacle_frame();
+                sensed=obj.get_known_obstacle_frame_for_trigger();
                 if trace_first
                     ft.known_frame_ms=1000*toc(trace_step);
                     trace_step=tic;
@@ -839,6 +917,70 @@ classdef REPLANNING_SYSTEM < handle
             P.reference_window_wall_ms=ref_elapsed_ms;
         end
 
+        function prepare_takeoff_reference_step(obj,time,agent,time_s)
+            if ~obj.preflight_model_binding_ready || ...
+                    isempty(obj.trigger_authority_binding)
+                return
+            end
+            refsys=agent.reference;
+            if ~isprop(refsys,'takeoff') || ~isprop(refsys,'timevarying')
+                return
+            end
+            takeoff=refsys.takeoff;
+            nominal=refsys.timevarying;
+            if ~isa(takeoff,'TAKEOFF_REFERENCE') || ...
+                    ~isa(nominal,'TIME_VARYING_REFERENCE') || ...
+                    isempty(takeoff.base_time) || isempty(takeoff.te)
+                return
+            end
+            dt=double(time.dt);
+            target=double(takeoff.base_time)+double(takeoff.te);
+            if ~isscalar(target) || ~isfinite(target) || ...
+                    target<=time_s || ~isscalar(dt) || ~isfinite(dt) || dt<=0
+                return
+            end
+            src=nominal.func;
+            if isempty(obj.takeoff_prime_source) || ...
+                    ~isequal(obj.takeoff_prime_target,target) || ...
+                    ~isequal(obj.takeoff_prime_source,src)
+                % The phase transition time is NOT guessed from obstacles
+                % or a fixed 5s constant. Reproduce the current real TIME
+                % object's repeated-addition clock until the original
+                % takeoff reference completion time. This is a CANDIDATE
+                % only, later checked against actual nominal.t.
+                candidate=double(time_s);
+                max_steps=ceil((target-candidate)/dt)+2;
+                if max_steps>100000 || max_steps<1
+                    return
+                end
+                for k=1:max_steps
+                    if candidate>=target,break;end
+                    next=candidate+dt;
+                    assert(next>candidate, ...
+                        'REPLANNING_SYSTEM:PrimeClock', ...
+                        'Time cannot advance with the real dt.');
+                    candidate=next;
+                end
+                if candidate<target,return;end
+                obj.takeoff_prime_candidate_epoch=candidate;
+                obj.takeoff_prime_target=target;
+                obj.takeoff_prime_source=src;
+            end
+            % TIME_VARYING_REFERENCE may already have fixed its source
+            % epoch in the existing Sim initialization sweep over phases.
+            % If it has not, the real first Flight tick will set that
+            % epoch. Handle BOTH without guessing or mutating nominal.t.
+            if isempty(nominal.t)
+                source_epoch=obj.takeoff_prime_candidate_epoch;
+            else
+                source_epoch=double(nominal.t);
+            end
+            L=double(agent.parameter.get("cableL"));
+            obj.trigger_reference_cache.prime_takeoff_step( ...
+                nominal,obj.takeoff_prime_candidate_epoch,source_epoch,dt, ...
+                obj.TRIGGER_HORIZON_S,L);
+        end
+
         function status=get_status(obj)
             % 初期読込と元障害物ログの既存フィールドは変更しない。
             status=struct();
@@ -905,6 +1047,9 @@ classdef REPLANNING_SYSTEM < handle
             status.trigger_flight_binding_created=~isempty(obj.trigger_authority_binding);
             status.trigger_continuous_certified=false;
             status.trigger_reference_cache=obj.trigger_reference_cache.get_status();
+            status.takeoff_prime_candidate_epoch=obj.takeoff_prime_candidate_epoch;
+            status.takeoff_prime_disabled=obj.takeoff_prime_disabled;
+            status.takeoff_prime_error=obj.takeoff_prime_error;
             status.trigger_static_preparation=obj.trigger_core.static_preparation_status();
             status.first_flight_trace_enabled=obj.first_flight_trace_enabled;
             status.first_flight_traces=obj.first_flight_traces;
@@ -913,6 +1058,10 @@ classdef REPLANNING_SYSTEM < handle
             status.preflight_model_binding_status=obj.preflight_model_binding_status;
             status.isolated_first_use_prepare_ms=obj.isolated_first_use_prepare_ms;
             status.isolated_first_use_prepare_status=obj.isolated_first_use_prepare_status;
+            status.isolated_native_prediction_status=obj.isolated_native_prediction_status;
+            status.isolated_native_prediction_calls=obj.isolated_native_prediction_calls;
+            status.isolated_direct_native_status=obj.isolated_direct_native_status;
+            status.isolated_direct_native_calls=obj.isolated_direct_native_calls;
         end
     end
 

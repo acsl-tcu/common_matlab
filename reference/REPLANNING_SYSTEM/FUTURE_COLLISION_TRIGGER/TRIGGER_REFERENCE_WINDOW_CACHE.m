@@ -27,6 +27,23 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
         general_lookup_count=0
         direct_source_evaluations=0
         direct_source_rejected=0
+        % Takeoff-only evaluation of the ACTUAL audited immutable nominal
+        % time function. These are NOT sensor/prediction/Flight observations.
+        % Every column is accepted only if the REAL first Flight epoch,
+        % function handle, cable length and exact double arguments agree.
+        phase_prime_source=[]
+        phase_prime_epoch=NaN
+        phase_prime_first_flight_s=NaN
+        phase_prime_length=NaN
+        phase_prime_dt=NaN
+        phase_prime_horizon=NaN
+        phase_prime_arguments=zeros(1,0)
+        phase_prime_jets=zeros(28,0)
+        phase_prime_next=1
+        phase_prime_evaluations=0
+        phase_prime_accepted=0
+        phase_prime_discarded=0
+        phase_prime_status='NOT_STARTED'
     end
     methods
         function clear_source_audit(obj)
@@ -39,6 +56,91 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
             obj.times=zeros(1,0);
             obj.source_arguments=zeros(1,0);
             obj.jets=zeros(28,0);
+            obj.discard_phase_prime('RESET_FOR_NEW_FLIGHT');
+            obj.phase_prime_evaluations=0;
+            obj.phase_prime_accepted=0;
+            obj.phase_prime_discarded=0;
+        end
+        function discard_phase_prime(obj,status)
+            obj.phase_prime_source=[];
+            obj.phase_prime_epoch=NaN;
+            obj.phase_prime_first_flight_s=NaN;
+            obj.phase_prime_length=NaN;
+            obj.phase_prime_dt=NaN;
+            obj.phase_prime_horizon=NaN;
+            obj.phase_prime_arguments=zeros(1,0);
+            obj.phase_prime_jets=zeros(28,0);
+            obj.phase_prime_next=1;
+            obj.phase_prime_status=char(status);
+        end
+        function prime_takeoff_step(obj,nominal,candidate_first_flight_s,source_epoch,dt,horizon,L)
+            % Real Takeoff only. One actual, audited time-only reference
+            % evaluation per update; never a hidden 160-point workload.
+            % No model, EKF, sensor, obstacle, HLC or controller call.
+            if ~obj.audited_eligible || ...
+                    ~isa(nominal,'TIME_VARYING_REFERENCE') || ...
+                    ~isequal(nominal.func,obj.audited_source)
+                obj.phase_prime_status='DISABLED_SOURCE_NOT_AUDITED';
+                return
+            end
+            assert(isnumeric(candidate_first_flight_s) && ...
+                isscalar(candidate_first_flight_s) && ...
+                isfinite(candidate_first_flight_s) && ...
+                isnumeric(source_epoch) && isscalar(source_epoch) && ...
+                isfinite(source_epoch) && ...
+                isnumeric(dt) && isscalar(dt) && ...
+                isfinite(dt) && dt>0 && isnumeric(horizon) && ...
+                isscalar(horizon) && isfinite(horizon) && horizon>0 && ...
+                isnumeric(L) && isscalar(L) && isfinite(L) && L>0, ...
+                'TRIGGER_REFERENCE_WINDOW_CACHE:PrimeInputs', ...
+                'Actual nominal and positive static parameters are required.');
+            changed=isempty(obj.phase_prime_source) || ...
+                ~isequal(obj.phase_prime_source,nominal.func) || ...
+                ~isequal(obj.phase_prime_epoch,double(source_epoch)) || ...
+                ~isequal(obj.phase_prime_first_flight_s,double(candidate_first_flight_s)) || ...
+                ~isequal(obj.phase_prime_length,double(L)) || ...
+                ~isequal(obj.phase_prime_dt,double(dt)) || ...
+                ~isequal(obj.phase_prime_horizon,double(horizon));
+            if changed
+                % SAME arithmetic/order as FUTURE_COLLISION_TRIGGER.make_grid.
+                g=(0:floor(horizon/dt))*dt;
+                g=g(g<horizon);g=[g,horizon];
+                assert(numel(g)>=2 && all(diff(g)>0) && ...
+                    isequal(g(end),horizon), ...
+                    'TRIGGER_REFERENCE_WINDOW_CACHE:PrimeGrid', ...
+                    'Invalid actual dt/horizon.');
+                obj.phase_prime_source=nominal.func;
+                obj.phase_prime_epoch=double(source_epoch);
+                obj.phase_prime_first_flight_s=double(candidate_first_flight_s);
+                obj.phase_prime_length=double(L);
+                obj.phase_prime_dt=double(dt);
+                obj.phase_prime_horizon=double(horizon);
+                absolute_times=double(candidate_first_flight_s)+double(g(1:end-1));
+                obj.phase_prime_arguments=double(absolute_times)-double(source_epoch);
+                obj.phase_prime_jets=zeros(28,numel(obj.phase_prime_arguments));
+                obj.phase_prime_next=1;
+            end
+            k=obj.phase_prime_next;
+            if k>numel(obj.phase_prime_arguments)
+                obj.phase_prime_status='READY_WAITING_FOR_REAL_FLIGHT_VERIFICATION';
+                return
+            end
+            % Original function is known to be stateless. Evaluate EXACT
+            % hypothetical first-Flight double arguments and keep results
+            % private until separately verified at the actual Flight tick.
+            v=nominal.func(obj.phase_prime_arguments(k));
+            assert(isnumeric(v)&&isreal(v)&&iscolumn(v) && ...
+                numel(v)>=4&&numel(v)<=28&&all(isfinite(v)), ...
+                'TRIGGER_REFERENCE_WINDOW_CACHE:PrimeReference', ...
+                'Original time-only nominal function returned invalid jets.');
+            v=double(v);v(3)=v(3)-double(L);
+            assert(all(isfinite(v)), ...
+                'TRIGGER_REFERENCE_WINDOW_CACHE:PrimeReference', ...
+                'Original cable adjustment produced nonfinite jets.');
+            obj.phase_prime_jets(1:numel(v),k)=v;
+            obj.phase_prime_next=k+1;
+            obj.phase_prime_evaluations=obj.phase_prime_evaluations+1;
+            obj.phase_prime_status='TAKEOFF_ONE_COLUMN_PER_TICK';
         end
         function R=audit_immutable_source(obj,fn)
             % PRE-ARM SOFTWARE METADATA ONLY. No reference evaluation and
@@ -113,6 +215,51 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
             ref=zeros(28,n);
             hits=false(1,n);
             locations=zeros(1,n);
+            % An OBSERVED takeoff phase may already have evaluated a
+            % complete or partial first f-reference window. This is valid
+            % ONLY if the REAL Flight epoch, source handle, cable length,
+            % and EVERY reused double source argument are exactly equal.
+            % The first real reference is independently verified at t_now.
+            if ~unchanged && direct_exact && ...
+                    ~isempty(obj.phase_prime_source)
+                prime_match=isequal(obj.phase_prime_source,fn) && ...
+                    isequal(obj.phase_prime_first_flight_s,absolute_times(1)) && ...
+                    isequal(obj.phase_prime_epoch,epoch_now) && ...
+                    isequal(obj.phase_prime_length,double(L)) && ...
+                    numel(obj.phase_prime_arguments)==n;
+                if prime_match
+                    count=min(n,obj.phase_prime_next-1);
+                    equal=find(typecast(source_arguments(1:count),'uint64')== ...
+                        typecast(obj.phase_prime_arguments(1:count),'uint64'));
+                    if ~isempty(equal)
+                        hits(equal)=true;
+                        locations(equal)=equal;
+                        ref(:,equal)=obj.phase_prime_jets(:,equal);
+                        if hits(1) && ~isequal(ref(:,1),verified_first)
+                            hits(:)=false;
+                            locations(:)=0;
+                            ref(:)=0;
+                            obj.live_reference_mismatches= ...
+                                obj.live_reference_mismatches+1;
+                            obj.phase_prime_status='DISCARDED_LIVE_REFERENCE_MISMATCH';
+                        else
+                            obj.phase_prime_accepted=obj.phase_prime_accepted+nnz(hits);
+                            obj.phase_prime_status='ACCEPTED_EXACT_FIRST_FLIGHT_COLUMNS';
+                        end
+                    end
+                else
+                    obj.phase_prime_discarded=obj.phase_prime_discarded+1;
+                    obj.phase_prime_status='DISCARDED_REAL_EPOCH_OR_SOURCE_DIFFERED';
+                end
+                % Never attempt to reuse phase-prime state after the first
+                % real evaluation; the normal exact sliding cache owns it.
+                obj.phase_prime_source=[];
+                obj.phase_prime_arguments=zeros(1,0);
+                obj.phase_prime_jets=zeros(28,0);
+            elseif ~unchanged && ~isempty(obj.phase_prime_source)
+                obj.phase_prime_discarded=obj.phase_prime_discarded+1;
+                obj.discard_phase_prime('DISCARDED_NO_REAL_REFERENCE_CONTRACT');
+            end
             if unchanged && obj.source_is_stateless && ~isempty(obj.source_arguments)
                 % Exact numeric equality only; no time-rounding assumptions.
                 % Exact sliding-window reuse is the normal online case.
@@ -162,13 +309,13 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                 end
             end
             fresh_indices=find(~hits);
+            new_direct_calls=0;
             for k=fresh_indices
                 if k==1 && has_verified_now
                     ref(:,1)=verified_first;
                 elseif direct_exact
-                    % Exact operation order used by flight_reference_at:
-                    % double(abs_time)-double(epoch), then nominal.func,
-                    % then double(xd) and xd(3)-double(cable_length_m).
+                    % Preserve ORIGINAL actual double time arguments and
+                    % cable subtraction order; never round 1-ULP misses.
                     v=fn(source_arguments(k));
                     assert(isnumeric(v)&&isreal(v)&&iscolumn(v) && ...
                         numel(v)>=4&&numel(v)<=28&&all(isfinite(v)), ...
@@ -176,13 +323,20 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                         'The original nominal function returned an invalid jet.');
                     v=double(v);
                     v(3)=v(3)-double(L);
-                    ref(:,k)=TRIGGER_REFERENCE_WINDOW_CACHE.full_jet(v);
-                    obj.direct_source_evaluations=obj.direct_source_evaluations+1;
+                    assert(all(isfinite(v)), ...
+                        'TRIGGER_REFERENCE_WINDOW_CACHE:Reference', ...
+                        'The live original reference must supply finite jets.');
+                    % ref is already zero-initialized: padding identical to
+                    % full_jet(v), without a 28x1 allocation and dispatch.
+                    ref(1:numel(v),k)=v;
+                    new_direct_calls=new_direct_calls+1;
                 else
                     ref(:,k)=TRIGGER_REFERENCE_WINDOW_CACHE.full_jet( ...
                         reference_at(absolute_times(k)));
                 end
             end
+            obj.direct_source_evaluations= ...
+                obj.direct_source_evaluations+new_direct_calls;
             if has_verified_now
                 obj.validated_now_reuses=obj.validated_now_reuses+1;
             end
@@ -220,6 +374,11 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                 'general_lookup_count',obj.general_lookup_count, ...
                 'direct_source_evaluations',obj.direct_source_evaluations, ...
                 'direct_source_rejected',obj.direct_source_rejected, ...
+                'takeoff_prime_evaluations',obj.phase_prime_evaluations, ...
+                'takeoff_prime_accepted',obj.phase_prime_accepted, ...
+                'takeoff_prime_discarded',obj.phase_prime_discarded, ...
+                'takeoff_prime_status',obj.phase_prime_status, ...
+                'takeoff_prime_first_flight_s',obj.phase_prime_first_flight_s, ...
                 'cache_policy','EXACT_NOMINAL_FUNC_ARGUMENT_AFTER_FLIGHT_EPOCH__NO_APPROXIMATION');
         end
     end

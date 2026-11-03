@@ -1,0 +1,3 @@
+status=PASS_LEAN_MEMORY_FRAME_PARITY__NOT_FLIGHT_SAFETY
+cases=8
+reason=

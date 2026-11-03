@@ -1,0 +1,110 @@
+function W=TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE(cfg)
+% SOFTWARE-ONLY pre-Arming test of the REAL direct_native dispatch.
+% Requires ONLY static bound HLC/plant constants, dt and physical radii.
+% It creates independent synthetic obstacles, sensor-memory history, EKF
+% fixture and a synthetic zero reference. No real obstacle information,
+% estimator, phase-start timestamp, or future world truth is ever accessed.
+% All fixture objects are local and disposed on return. This is optional
+% performance preparation, NOT a JIT, tracking, collision or safety proof.
+W=struct('status','NOT_RUN_ISOLATED_DIRECT_NATIVE', 'pass',false, ...
+    'first_acquisition_calls',0,'append_calls',0,'reuse_calls',0, ...
+    'reason','','safe_to_commit',false);
+try
+    assert(isstruct(cfg)&&isscalar(cfg) && ...
+        isfield(cfg,'native_binding') && isfield(cfg,'numeric_tolerances') && ...
+        isfield(cfg,'sample_dt_s') && isfield(cfg,'horizon_s') && ...
+        isfield(cfg,'cable_length_m') && isfield(cfg,'r_uav_m') && ...
+        isfield(cfg,'r_payload_m') && isfield(cfg,'r_cable_m'));
+    pin=TRIGGER_NATIVE_SOURCE_PIN_CACHE('get');
+    assert(isfield(pin,'passed') && isequal(pin.passed,true), ...
+        'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:Pin', ...
+        'Real original HLC+plant numeric source pin must be ready.');
+    b=cfg.native_binding;
+    assert(isstruct(b)&&isfield(b,'native_source_order_checked') && ...
+        isequal(b.native_source_order_checked,true));
+    % Numeric mass is a THROWAWAY fixture value ONLY, never a Flight
+    % parameter, actual estimated payload mass or external fallback.
+    b.model_parameters(20)=1;
+    b.hlc_parameter_values(b.hlc_loadmass_index)=1;
+    % Local synthetic reference class with the SAME public schema as the
+    % real TIME_VARYING_REFERENCE but no access to real agent/Flight state.
+    empty_estimator=struct('result',struct('state',struct()));
+    mock_agent=struct('estimator',empty_estimator);
+    nominal=TIME_VARYING_REFERENCE(mock_agent, ...
+        {'TRIGGER_SOFTWARE_FIXTURE_REFERENCE_FACTORY',{}});
+    nominal.t=0;
+    cache=TRIGGER_REFERENCE_WINDOW_CACHE();
+    purity=cache.audit_immutable_source(nominal.func);
+    assert(purity.eligible, ...
+        'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:SourcePurity', ...
+        'The synthetic numeric reference did not meet exact-cache contract.');
+    L=double(cfg.cable_length_m);
+    e=struct('p',zeros(3,1),'q',zeros(3,1), ...
+        'v',zeros(3,1),'w',zeros(3,1), ...
+        'pL',[0;0;-L],'vL',zeros(3,1), ...
+        'pT',[0;0;1],'wL',zeros(3,1));
+    obs1=OBSTACLE_INFORMATION.define(70001,'sphere',[1000;1000;1000],1);
+    obs2=OBSTACLE_INFORMATION.define(70002,'sphere',[0;0;0],1);
+    prepared1=OBSTACLE_GEOMETRY_QUERY.prepare(obs1);
+    prepared2=OBSTACLE_GEOMETRY_QUERY.prepare(obs2);
+    mm=OBSERVED_OBSTACLE_MEMORY(obs1([]));
+    core=FUTURE_COLLISION_TRIGGER(struct('horizon_s',cfg.horizon_s));
+    core.prepare_static_timing(cfg.sample_dt_s,cfg.horizon_s);
+    a=struct('runtime',cfg,'payload_mass_kg',1, ...
+        'reference_at',@(tt)[0;0;-L;zeros(25,1)], ...
+        'verified_native_binding',b, ...
+        'native_reference_cache',cache,'native_reference_source',nominal, ...
+        'native_reference_contract', ...
+            'VERIFIED_F_PHASE_NOMINAL_Z_MINUS_CABLEL', ...
+        'native_validated_now_time_s',0, ...
+        'native_validated_now_jet',[0;0;-L;zeros(25,1)], ...
+        'numeric_tolerances',cfg.numeric_tolerances);
+    f=struct('time_s',0,'uav_position_ekf_m',e.p, ...
+        'detected_obstacles',obs1,'detected_ids',70001,'detected_count',1);
+    % 8 repetitions are a code-path exercise only, NOT a MATLAB JIT rule.
+    for i=1:8
+        t=(i-1)*double(cfg.sample_dt_s);
+        f.time_s=t;
+        mm.update(f);
+        known=mm.known_frame_for_trigger(f);
+        known.prepared_sensor_shapes=prepared1;
+        a.native_validated_now_time_s=t;
+        r=core.evaluate(t,e,known,a);
+        assert(r.prediction_complete && ...
+            strcmp(r.predictor_dispatch,'DIRECT_NATIVE_VERIFIED_BINDING') && ...
+            ~r.safe_to_commit, ...
+            'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:InitialDispatch', ...
+            'Pinned synthetic direct-native dispatch did not complete.');
+        W.first_acquisition_calls=i;
+    end
+    for i=1:8
+        t=(8+i-1)*double(cfg.sample_dt_s);
+        f.time_s=t;
+        if i==1
+            f.detected_obstacles=obs2;
+            f.detected_ids=70002;
+            f.detected_count=1;
+        end
+        mm.update(f);
+        known=mm.known_frame_for_trigger(f);
+        known.prepared_sensor_shapes=[prepared1 prepared2];
+        a.native_validated_now_time_s=t;
+        r=core.evaluate(t,e,known,a);
+        assert(r.prediction_complete && ...
+            strcmp(r.predictor_dispatch,'DIRECT_NATIVE_VERIFIED_BINDING') && ...
+            ~r.safe_to_commit, ...
+            'TRIGGER_ISOLATED_DIRECT_NATIVE_PREPARE:AppendDispatch', ...
+            'Pinned synthetic append/reuse dispatch did not complete.');
+        if i==1
+            W.append_calls=i;
+        else
+            W.reuse_calls=W.reuse_calls+1;
+        end
+    end
+    W.pass=true;
+    W.status='SYNTHETIC_DIRECT_NATIVE_ACQUIRE_APPEND_REUSE_PASS__NO_JIT_GUARANTEE';
+catch ME
+    W.status='ISOLATED_DIRECT_NATIVE_NOT_COMPLETED__NO_LIVE_DATA_TOUCHED';
+    W.reason=[ME.identifier ' | ' ME.message];
+end
+end
