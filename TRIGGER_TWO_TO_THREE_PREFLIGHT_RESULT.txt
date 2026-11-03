@@ -1,0 +1,6 @@
+status=PASS_DISCARDED_TWO_TO_THREE_BRANCH_COVERAGE__NOT_JIT_PROOF
+preflight_status=PASS_DISCARDED_TWO_TO_THREE_REAL_SENSOR_NATIVE__NO_JIT_GUARANTEE
+native_calls=24
+verified_appends=8
+outer_appends=8
+reason=

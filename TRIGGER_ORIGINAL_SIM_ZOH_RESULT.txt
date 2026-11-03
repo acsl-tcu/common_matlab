@@ -1,0 +1,8 @@
+status=PINNED_ORIGINAL_SIM_HELD_INPUT_SOURCE__NOT_CLOSED_LOOP_SAFETY
+model_sha256=77a32dad0bdf62a35a8448e8ed1c66d11a1184f33bd07a57794f1ff86f1515f3
+model_pinned=1
+hlc_pinned=1
+original_sim_zoh=1
+plant_mass_refresh_proven=0
+flight_safe=0
+reason=Source-level MODEL_CLASS.do uses the HLC saturated input unmodified and holds it over its model step. HLC finite-output, loop scheduling, true state/EKF error, actual mass parameter refresh, positive tension, mode validity, and rigorous rounding remain unproved.

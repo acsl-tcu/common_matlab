@@ -1,0 +1,17 @@
+status=PASS_LOGGED_EVENT_AND_PREDICTION_PARITY__NOT_SAFETY
+decision=REVIEW_ABA_REPEATS_REQUIRED
+reason=Q captures logged events/horizons, not bitwise predicted state trajectories or proof of Flight safety.
+equivalent=1
+exact_timeline=1
+same_event_ids=1
+same_status=1
+same_native_horizon=1
+median_baseline/candidate=1.392500 / 1.607650 ms
+p95_baseline/candidate=2.033100 / 2.042000 ms
+max_baseline/candidate=18.932600 / 24.765500 ms
+first_Flight_baseline/candidate=18.932600 / 24.765500 ms
+new_id_5_125_baseline/candidate=12.247000 / 12.968300 ms
+acquisition_max_baseline/candidate=12.247000 / 13.035200 ms
+steady_6_42_baseline/candidate=1.644000 / 1.761600 ms
+prediction_baseline/candidate=1521 / 1521
+full4s_baseline/candidate=1521 / 1521

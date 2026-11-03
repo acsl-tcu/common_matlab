@@ -57,8 +57,28 @@ classdef REPLANNING_SYSTEM < handle
         isolated_near_geometry_status='NOT_ATTEMPTED'
         isolated_outer_authority_status='NOT_ATTEMPTED'
         isolated_outer_authority_calls=0
+        isolated_mcos_current_prepare_status='NOT_ATTEMPTED'
+        isolated_mcos_current_prepare_calls=0
+        isolated_mcos_current_prepare_reason=''
+        isolated_f_runtime_prepare_status='NOT_ATTEMPTED'
+        isolated_f_runtime_prepare_calls=0
+        isolated_f_runtime_prepare_reason=''
+        % Non-Flight shadow performs genuine typed CURRENT-frame/authority
+        % reads using the existing live agent; no 4-s future prediction,
+        % event generation or publication. Runs by ACTUAL agent.cha only.
+        phase_shadow_frame_calls=0
+        phase_shadow_authority_calls=0
+        phase_shadow_skipped_mass=0
+        phase_shadow_total_ms=0
+        phase_shadow_max_ms=0
+        phase_shadow_last_phase=''
+        phase_shadow_last_status='NOT_RUN'
+        phase_shadow_last_reason=''
         preflight_timeonly_reference_status='NOT_ATTEMPTED'
         preflight_timeonly_reference_calls=0
+        preflight_timeonly_direct_windows=0
+        preflight_timeonly_direct_calls=0
+        preflight_timeonly_contract_rejections=0
         first_flight_trace_enabled=false
         first_flight_traces=struct([])
         trigger_core=[]
@@ -315,6 +335,15 @@ classdef REPLANNING_SYSTEM < handle
             % The real first Flight reference is still evaluated at its
             % actual double-valued time argument, with no interpolation.
 
+            % Same-typed, actual-current software shadow in Arming/Takeoff.
+            % Runs AFTER genuine same-tick sensor/observer updates, BEFORE
+            % ordinary phase-guarded trigger evaluation. Never publishes
+            % events, touches reference epochs, uses a predicted Flight
+            % phase time or changes controller/plant inputs.
+            if obj.ENABLE_TRIGGER && obj.ENABLE_SENSOR
+                obj.prepare_nonflight_shadow(time,agent);
+            end
+
             % Trigger evaluation uses ONLY the sensor-derived memory frame.
             % No obstacle truth from obj.obstacles enters the trigger.
             % No future sensing, no artificial warmup, no HLC/plant mutation.
@@ -419,6 +448,81 @@ classdef REPLANNING_SYSTEM < handle
             agent.reference.result=reference_result;
         end
 
+        function prepare_nonflight_shadow(obj,time,agent)
+            % Standby-phase exercise of the SAME MCOS property-access path
+            % as real Flight. The real sensor/memory already ran this tick.
+            % The current EKF is read only; the shadow result is discarded.
+            % This has no authority to predict a future phase, issue risk
+            % events, modify HLC or claim any degree of physical safety.
+            if ~(isprop(agent,'cha') && ...
+                    (isequal(char(agent.cha),'a') || ...
+                     isequal(char(agent.cha),'t')))
+                return
+            end
+            started=tic;
+            obj.phase_shadow_last_phase=char(agent.cha);
+            obj.phase_shadow_last_reason='';
+            try
+                known=obj.get_known_obstacle_frame_for_trigger();
+                actual_ids=reshape(double(obj.last_memory_result.known_obstacle_ids),1,[]);
+                assert(isequal(reshape(double(known.detected_ids),1,[]),actual_ids), ...
+                    'REPLANNING_SYSTEM:ShadowFrame', ...
+                    'Observed-only shadow frame does not match live memory.');
+                obj.phase_shadow_frame_calls=obj.phase_shadow_frame_calls+1;
+                % Stage validated REAL static observed geometry gradually.
+                % No source-world lookup, synthetic detection or future
+                % trajectory; never commit Flight events or control changes.
+                % All failures leave the original Flight validator intact.
+                obj.trigger_core.prepare_shadow_observed_static( ...
+                    known,REPLANNING_SYSTEM.require_sim_time(time), ...
+                    obj.last_sensor_result.uav_position_ekf_m);
+                % The original controller can legitimately have zero
+                % payload mass before loading. current() requires positive
+                % HLC mass and positive EKF mass; do not invent substitutes.
+                if ~obj.preflight_model_binding_ready || ...
+                        isempty(obj.trigger_authority_binding)
+                    obj.phase_shadow_last_status='SKIPPED_STATIC_BINDING_NOT_READY';
+                else
+                    state=agent.estimator.result.state;
+                    mL=double(state.mL);
+                    if strcmp(class(agent.parameter),'DRONE_PARAM_SUSPENDED_LOAD')
+                        hlc_mass=double(agent.parameter.loadmass);
+                    else
+                        hlc_mass=double(agent.parameter.get("loadmass"));
+                    end
+                    if ~(isscalar(mL)&&isfinite(mL)&&mL>0 && ...
+                            isscalar(hlc_mass)&&isfinite(hlc_mass)&&hlc_mass>0)
+                        obj.phase_shadow_skipped_mass=obj.phase_shadow_skipped_mass+1;
+                        obj.phase_shadow_last_status='SKIPPED_MASS_NOT_POSITIVE';
+                    else
+                        % current() validates only the HANDLE at this call
+                        % boundary. It never invokes the reference function.
+                        % This reference is deliberately not a phase-f
+                        % prediction; its output is discarded immediately.
+                        unused_reference=@(unused_time) zeros(28,1); %#ok<NASGU>
+                        [current_ekf,current_authority]= ...
+                            obj.trigger_authority_binding.current( ...
+                                time,agent,unused_reference);
+                        assert(isstruct(current_ekf) && ...
+                            isstruct(current_authority) && ...
+                            isfield(current_authority,'verified_native_binding'), ...
+                            'REPLANNING_SYSTEM:ShadowAuthority', ...
+                            'Current authority returned an invalid snapshot.');
+                        obj.phase_shadow_authority_calls= ...
+                            obj.phase_shadow_authority_calls+1;
+                        obj.phase_shadow_last_status= ...
+                            'REAL_MCOSTYPE_CURRENT_DISCARDED__NO_FUTURE_PHASE';
+                    end
+                end
+            catch ME
+                obj.phase_shadow_last_status='SHADOW_PREPARE_FAILED__NO_SAFETY_CHANGE';
+                obj.phase_shadow_last_reason=[ME.identifier ' | ' ME.message];
+            end
+            elapsed=1000*toc(started);
+            obj.phase_shadow_total_ms=obj.phase_shadow_total_ms+elapsed;
+            obj.phase_shadow_max_ms=max(obj.phase_shadow_max_ms,elapsed);
+        end
+
         function result=preflight_update(obj,time,agent)
             % Before arming: code/MEX checks plus STATIC binding to the
             % REAL already-initialized controller/plant/physical parameters.
@@ -433,6 +537,9 @@ classdef REPLANNING_SYSTEM < handle
             obj.preflight_model_binding_status='NOT_PREBOUND';
             obj.trigger_authority_binding=[];
             % Do not carry a prior Flight's reference eligibility or jets.
+            obj.preflight_timeonly_direct_windows=0;
+            obj.preflight_timeonly_direct_calls=0;
+            obj.preflight_timeonly_contract_rejections=0;
             obj.trigger_reference_cache.clear_source_audit();
             obj.takeoff_prime_candidate_epoch=NaN;
             obj.takeoff_prime_target=NaN;
@@ -453,6 +560,9 @@ classdef REPLANNING_SYSTEM < handle
             obj.isolated_near_geometry_status='NOT_ATTEMPTED';
             obj.isolated_outer_authority_status='NOT_ATTEMPTED';
             obj.isolated_outer_authority_calls=0;
+            obj.isolated_mcos_current_prepare_status='NOT_ATTEMPTED';
+            obj.isolated_mcos_current_prepare_calls=0;
+            obj.isolated_mcos_current_prepare_reason='';
             obj.trigger_native_gate_checked=true;
             obj.trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
             if obj.ENABLE_TRIGGER
@@ -528,18 +638,19 @@ classdef REPLANNING_SYSTEM < handle
                             % with argument zero, discard ALL values and
                             % never use Flight epoch or future measurements.
                             % Non-eligible source: no preflight evaluation.
+                            % Audit original immutable reference before any
+                            % synthetic exercise. Do not run source probe yet:
+                            % the next fixture calls the cache with a dummy
+                            % function handle; the ACTUAL time-only probe
+                            % should be the last cache call before arming.
+                            ref_fn=[];
+                            source_audit=struct('eligible',false);
                             try
                                 ref_fn=agent.reference.timevarying.func;
                                 source_audit=obj.trigger_reference_cache.audit_immutable_source(ref_fn);
-                                % Compiles/visits the actual stateless time-only
-                                % source on a constant SCALAR argument, not any
-                                % predicted Flight instant. No result is saved.
-                                probe=TRIGGER_TIMEONLY_SOURCE_PREPARE(ref_fn,source_audit);
-                                obj.preflight_timeonly_reference_status=probe.status;
-                                obj.preflight_timeonly_reference_calls=probe.calls;
                             catch
-                                % Optional optimization: never weaken the
-                                % model proof gate or block a valid Flight.
+                                % Optional source probe; fail closed by
+                                % skipping it, never changing Flight gates.
                             end
                             % Pre-Arming SOFTWARE-only JIT prepare on an
                             % isolated mathematical fixture. This never
@@ -562,6 +673,56 @@ classdef REPLANNING_SYSTEM < handle
                                 [obj.TRIGGER_NUMERIC_ABS_TOL; ...
                                  obj.TRIGGER_NUMERIC_REL_TOL];
                             pure=TRIGGER_ISOLATED_CODE_PREPARE(pure_cfg);
+                            % Same-MCOS-type software first-use, BEFORE arming.
+                            % Pass STATIC parameter order and the already-bound
+                            % model definition only; do not read live EKF,
+                            % sensor, obstacles, reference values or phase time.
+                            % The fixture is a disposable DRONE/TIME/STATE_CLASS;
+                            % only TRIGGER_FLIGHT_AUTHORITY.current is executed.
+                            % This is NOT a Flight trigger, safety certificate,
+                            % event update, or confirmed JIT compilation.
+                            try
+                                mcos_probe=TRIGGER_ISOLATED_MCOSTYPE_PREPARE( ...
+                                    agent.parameter.parameter_order, ...
+                                    obj.trigger_authority_binding.flight);
+                                obj.isolated_mcos_current_prepare_status= ...
+                                    mcos_probe.status;
+                                obj.isolated_mcos_current_prepare_calls= ...
+                                    mcos_probe.calls;
+                                obj.isolated_mcos_current_prepare_reason= ...
+                                    mcos_probe.reason;
+                            catch ME
+                                obj.isolated_mcos_current_prepare_status= ...
+                                    ['NOT_COMPLETED_MCOSTYPE__' ME.identifier];
+                                obj.isolated_mcos_current_prepare_calls=0;
+                                obj.isolated_mcos_current_prepare_reason= ...
+                                    [ME.identifier ' | ' ME.message];
+                            end
+                            % Exercise the EXACT Flight inner call tree
+                            % on disposable genuine MCOS objects. Only the
+                            % source-identified model is reused; all
+                            % synthetic clocks, sensing, EKF and cache are
+                            % discarded, with no Flight-phase assumption.
+                            try
+                                kernel_probe=TRIGGER_F_PHASE_KERNEL_PREPARE( ...
+                                    agent.parameter.parameter_order, ...
+                                    obj.trigger_authority_binding.flight, ...
+                                    obj.TRIGGER_HORIZON_S, ...
+                                    [obj.TRIGGER_NUMERIC_ABS_TOL; ...
+                                     obj.TRIGGER_NUMERIC_REL_TOL]);
+                                obj.isolated_f_runtime_prepare_status= ...
+                                    kernel_probe.status;
+                                obj.isolated_f_runtime_prepare_calls= ...
+                                    kernel_probe.calls;
+                                obj.isolated_f_runtime_prepare_reason= ...
+                                    kernel_probe.reason;
+                            catch ME
+                                obj.isolated_f_runtime_prepare_status= ...
+                                    ['NOT_COMPLETED__' ME.identifier];
+                                obj.isolated_f_runtime_prepare_calls=0;
+                                obj.isolated_f_runtime_prepare_reason= ...
+                                    [ME.identifier ' | ' ME.message];
+                            end
                             obj.isolated_first_use_prepare_ms=pure.elapsed_ms;
                             obj.isolated_first_use_prepare_status=pure.status;
                             if isfield(pure,'isolated_sensor_event_prepare_status')
@@ -609,6 +770,32 @@ classdef REPLANNING_SYSTEM < handle
                             if isfield(pure,'isolated_outer_authority_calls')
                                 obj.isolated_outer_authority_calls= ...
                                     pure.isolated_outer_authority_calls;
+                            end
+                            % LAST pre-arm cache-path exercise, AFTER all
+                            % fixture_jet calls. The cache and every value
+                            % are disposable, with synthetic local clock
+                            % and no Phase-f epoch, EKF or obstacle queries.
+                            % No Flight prediction or event is authorized.
+                            try
+                                cfg=struct( ...
+                                    'nominal',agent.reference.timevarying, ...
+                                    'sample_dt_s',pure_cfg.sample_dt_s, ...
+                                    'horizon_s',pure_cfg.horizon_s, ...
+                                    'cable_length_m',pure_cfg.cable_length_m);
+                                probe=TRIGGER_TIMEONLY_SOURCE_PREPARE( ...
+                                    ref_fn,source_audit,cfg);
+                                obj.preflight_timeonly_reference_status=probe.status;
+                                obj.preflight_timeonly_reference_calls=probe.calls;
+                                obj.preflight_timeonly_direct_windows= ...
+                                    probe.direct_exact_windows;
+                                obj.preflight_timeonly_direct_calls= ...
+                                    probe.direct_source_calls;
+                                obj.preflight_timeonly_contract_rejections= ...
+                                    probe.contract_rejections;
+                            catch ME
+                                obj.preflight_timeonly_reference_status= ...
+                                    ['SOURCE_PROBE_EXCEPTION__' ME.identifier];
+                                obj.preflight_timeonly_reference_calls=0;
                             end
                         end
                     else
@@ -844,88 +1031,21 @@ classdef REPLANNING_SYSTEM < handle
                 trace_step=tic;
             end
             try
-                nominal=agent.reference.timevarying;
-                if ~isa(nominal.func,'function_handle') || isempty(nominal.t)
-                    error('REPLANNING_SYSTEM:ReferenceNotBound', ...
-                        'Current nominal reference function and flight epoch are unavailable.');
-                end
-                % Only source-authorized f-phase adjustment: z<-z-cableL.
-                % The actual same-tick result must match this evaluator.
-                % For the exact original parameter class, get("cableL")
-                % resolves the same public live property. Never replace
-                % this actual, mutable authority with a frozen default.
-                if strcmp(class(agent.parameter),'DRONE_PARAM_SUSPENDED_LOAD')
-                    L=double(agent.parameter.cableL);
-                else
-                    L=double(agent.parameter.get("cableL"));
-                end
-                assert(isnumeric(L)&&isscalar(L)&&isreal(L)&& ...
-                    isfinite(L)&&L>0 && ...
-                    isequal(L,obj.trigger_authority_binding.flight.cable_length_m), ...
-                    'REPLANNING_SYSTEM:LiveCableLengthChanged', ...
-                    'Live cable length differs from preflight plant binding.');
-                future=@(tt)REPLANNING_SYSTEM.flight_reference_at(nominal,tt,L);
-                actual=agent.reference.result.state.xd;
-                predicted_now=future(t);
-                if ~isequal(size(actual),size(predicted_now)) || ...
-                        norm(double(actual(:))-predicted_now(:),inf)> ...
-                           128*eps(max(1,norm(double(actual(:)),inf)))
-                    error('REPLANNING_SYSTEM:ReferenceMismatch', ...
-                        'Future reference evaluator does not reproduce current actual HLC reference.');
-                end
+                % The SAME source-level Flight inner path is exercised on
+                % discarded REAL-MCOS synthetic fixtures BEFORE arming.
+                % This is not precomputation of a phase epoch, an obstacle
+                % mask, a predicted Flight state or a collision event.
+                [R,inner_trace]=TRIGGER_F_PHASE_RUNTIME_KERNEL( ...
+                    time,agent,sensed,obj.trigger_authority_binding, ...
+                    obj.trigger_reference_cache,obj.trigger_core, ...
+                    obj.TRIGGER_NUMERIC_ABS_TOL, ...
+                    obj.TRIGGER_NUMERIC_REL_TOL,trace_first);
                 if trace_first
-                    ft.reference_now_ms=1000*toc(trace_step);
-                    trace_step=tic;
-                end
-                if ~obj.preflight_model_binding_ready || ...
-                        isempty(obj.trigger_authority_binding)
-                    error('REPLANNING_SYSTEM:StaticBindingNotPrepared', ...
-                        'Static HLC/plant source not bound before arming: %s', ...
-                        obj.preflight_model_binding_status);
-                end
-                if trace_first
-                    % This measures validation/lookup ONLY, no construction.
-                    ft.authority_create_ms=1000*toc(trace_step);
-                    trace_step=tic;
-                end
-                [ekf,authority]=obj.trigger_authority_binding.current( ...
-                    time,agent,future);
-                if trace_first
-                    ft.authority_current_ms=1000*toc(trace_step);
-                    trace_step=tic;
-                end
-                % current() already used the real same-tick phase reference;
-                % no stale reference can survive from the static prebind.
-                % Prepare exact shared future reference samples only when
-                % the native predictor is actually invoked. The existing
-                % reference function remains the single source of truth.
-                % Fast native path: pass the already-verified NUMERIC
-                % Flight binding and the exact-time reference cache directly.
-                % This avoids two nested per-tick anonymous predictor
-                % wrappers and their extra request/result copies. The
-                % original predictor handle remains available for legacy
-                % synthetic/offline callers, but is NOT used by live Flight.
-                authority.native_reference_cache=obj.trigger_reference_cache;
-                authority.native_reference_source=nominal;
-                authority.native_validated_now_time_s=t;
-                authority.native_validated_now_jet=predicted_now;
-                % Exactly the only Flight reference semantics validated
-                % above. Never grant this contract to legacy callers.
-                authority.native_reference_contract= ...
-                    'VERIFIED_F_PHASE_NOMINAL_Z_MINUS_CABLEL';
-                authority.numeric_tolerances=[obj.TRIGGER_NUMERIC_ABS_TOL; ...
-                    obj.TRIGGER_NUMERIC_REL_TOL];
-                % Optional first-use stopwatch flows through the native
-                % predictor without altering physical inputs or decisions.
-                if trace_first
-                    authority.trace_first=true;
-                end
-                R=obj.trigger_core.evaluate(t,ekf,sensed,authority);
-                if trace_first
-                    ft.core_wall_ms=1000*toc(trace_step);
-                    if isfield(R,'first_use_trace')
-                        ft.core_trace=R.first_use_trace;
-                    end
+                    ft.reference_now_ms=inner_trace.reference_now_ms;
+                    ft.authority_create_ms=inner_trace.authority_create_ms;
+                    ft.authority_current_ms=inner_trace.authority_current_ms;
+                    ft.core_wall_ms=inner_trace.core_wall_ms;
+                    ft.core_trace=inner_trace.core_trace;
                 end
                 R.future_reference_phase_certified=false;
                 R.future_reference_policy='SAME_F_PHASE_NOMINAL__PHASE_CHANGE_UNVERIFIED';
@@ -1093,6 +1213,12 @@ classdef REPLANNING_SYSTEM < handle
                 obj.preflight_timeonly_reference_status;
             status.preflight_timeonly_reference_calls= ...
                 obj.preflight_timeonly_reference_calls;
+            status.preflight_timeonly_direct_windows= ...
+                obj.preflight_timeonly_direct_windows;
+            status.preflight_timeonly_direct_calls= ...
+                obj.preflight_timeonly_direct_calls;
+            status.preflight_timeonly_contract_rejections= ...
+                obj.preflight_timeonly_contract_rejections;
             status.preflight_update_ready=obj.preflight_update_ready;
             status.preflight_update_ms=obj.preflight_update_ms;
             status.preflight_update_samples_ms=obj.preflight_update_samples_ms;
@@ -1148,10 +1274,37 @@ classdef REPLANNING_SYSTEM < handle
                 obj.isolated_outer_authority_status;
             status.isolated_outer_authority_calls= ...
                 obj.isolated_outer_authority_calls;
+            status.isolated_mcos_current_prepare_status= ...
+                obj.isolated_mcos_current_prepare_status;
+            status.isolated_mcos_current_prepare_calls= ...
+                obj.isolated_mcos_current_prepare_calls;
+            status.isolated_mcos_current_prepare_reason= ...
+                obj.isolated_mcos_current_prepare_reason;
+            status.isolated_f_runtime_prepare_status= ...
+                obj.isolated_f_runtime_prepare_status;
+            status.isolated_f_runtime_prepare_calls= ...
+                obj.isolated_f_runtime_prepare_calls;
+            status.isolated_f_runtime_prepare_reason= ...
+                obj.isolated_f_runtime_prepare_reason;
+            status.phase_shadow_frame_calls=obj.phase_shadow_frame_calls;
+            status.phase_shadow_authority_calls=obj.phase_shadow_authority_calls;
+            status.phase_shadow_skipped_mass=obj.phase_shadow_skipped_mass;
+            status.phase_shadow_total_ms=obj.phase_shadow_total_ms;
+            status.phase_shadow_max_ms=obj.phase_shadow_max_ms;
+            status.phase_shadow_last_phase=obj.phase_shadow_last_phase;
+            status.phase_shadow_last_status=obj.phase_shadow_last_status;
+            status.phase_shadow_last_reason=obj.phase_shadow_last_reason;
+            status.phase_shadow_geometry= ...
+                obj.trigger_core.shadow_observation_preparation_status();
         end
     end
 
     methods (Static)
+        function xd=flight_reference_from_nominal(nominal,tt,L)
+            % Stable public source wrapper used by the exact same Flight
+            % inner kernel and its disposable pre-arm MCOS fixture.
+            xd=REPLANNING_SYSTEM.flight_reference_at(nominal,tt,L);
+        end
         function xd=software_probe_flight_reference(nominal,tt,L)
             % Synthetic-only helper: execute the EXACT same mathematical
             % source wrapper as real Flight, without reading its reference.

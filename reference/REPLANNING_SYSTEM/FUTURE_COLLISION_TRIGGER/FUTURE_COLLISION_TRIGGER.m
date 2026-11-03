@@ -78,6 +78,19 @@ classdef FUTURE_COLLISION_TRIGGER < handle
         % Differential processing of REAL, append-only observed static IDs.
         incremental_verified_appends = 0
         incremental_outer_appends = 0
+        % Only REAL already observed static geometry can populate these.
+        % One new solid is verified per non-Flight cycle; no future sensing.
+        shadow_pending_ids = zeros(1,0)
+        shadow_pending_memory_version = []
+        shadow_pending_geometry_version = []
+        shadow_pending_shapes = []
+        shadow_pending_count = 0
+        shadow_observation_calls = 0
+        shadow_verified_shapes = 0
+        shadow_completed_generations = 0
+        shadow_invalid_observations = 0
+        shadow_last_status = 'NOT_RUN'
+        shadow_last_reason = ''
     end
 
     methods
@@ -138,6 +151,150 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'outer_balls_reuse_count',obj.static_outer_reuse_count, ...
                 'incremental_verified_appends',obj.incremental_verified_appends, ...
                 'incremental_outer_appends',obj.incremental_outer_appends);
+        end
+
+        function S=shadow_observation_preparation_status(obj)
+            % Metadata only. No predictor, Flight event or source lookup.
+            S=struct('calls',obj.shadow_observation_calls, ...
+                'verified_shapes',obj.shadow_verified_shapes, ...
+                'completed_generations',obj.shadow_completed_generations, ...
+                'invalid_observations',obj.shadow_invalid_observations, ...
+                'pending_count',obj.shadow_pending_count, ...
+                'verified_ids',obj.last_verified_prepared_ids, ...
+                'outer_ids',obj.static_outer_ids, ...
+                'last_status',obj.shadow_last_status, ...
+                'last_reason',obj.shadow_last_reason);
+        end
+
+        function S=prepare_shadow_observed_static(obj,sensor_frame,time_s,p)
+            % Stage exactly ONE verified, genuinely observed static solid
+            % per actual non-Flight sensor cycle. The later Flight core
+            % uses the identical verified-cache generation check. Never
+            % trigger a prediction, event or HLC/plant input from here.
+            %
+            % On ANY mismatched token/geometry, abandon pending work. The
+            % full evaluate() path remains authoritative and revalidates
+            % whenever cache generations do not match the real frame.
+            obj.shadow_observation_calls=obj.shadow_observation_calls+1;
+            obj.shadow_last_reason='';
+            obj.shadow_last_status='UNKNOWN_NO_VALID_CURRENT_OBSERVATION';
+            try
+                assert(isstruct(sensor_frame)&&isscalar(sensor_frame) && ...
+                    isfield(sensor_frame,'observation_provenance') && ...
+                    strcmp(sensor_frame.observation_provenance, ...
+                           'ACTUAL_SENSOR_HISTORY_ONLY') && ...
+                    isfield(sensor_frame,'memory_version') && ...
+                    isfield(sensor_frame,'geometry_version') && ...
+                    isa(sensor_frame.memory_version,'uint64') && ...
+                    isa(sensor_frame.geometry_version,'uint64') && ...
+                    isfield(sensor_frame,'prepared_sensor_shapes'), ...
+                    'FUTURE_COLLISION_TRIGGER:ShadowProvenance', ...
+                    'Only real, versioned, sensor-memory geometry is eligible.');
+                observed=FUTURE_COLLISION_TRIGGER.check_observation( ...
+                    sensor_frame,time_s,double(p(:)));
+                ids=reshape(double([observed.id]),1,[]);
+                candidate=sensor_frame.prepared_sensor_shapes;
+                assert(isstruct(candidate)&&numel(candidate)==numel(ids), ...
+                    'FUTURE_COLLISION_TRIGGER:ShadowGeometry', ...
+                    'Prepared shape count must match real observed IDs.');
+                if isempty(ids)
+                    obj.shadow_last_status='SKIPPED_NO_OBSERVED_SOLIDS';
+                    S=obj.shadow_observation_preparation_status();
+                    return
+                end
+                assert(all(isfield(candidate,{'id','is_stationary', ...
+                       'center0','bounding_radius_m'})) && ...
+                    isequal(reshape(double([candidate.id]),1,[]),ids) && ...
+                    all([candidate.is_stationary]), ...
+                    'FUTURE_COLLISION_TRIGGER:ShadowStationary', ...
+                    'Only matching actually observed stationary geometry is staged.');
+                vm=sensor_frame.memory_version;
+                vg=sensor_frame.geometry_version;
+                if isequal(ids,obj.last_verified_prepared_ids) && ...
+                   isequal(vm,obj.last_verified_memory_version) && ...
+                   isequal(vg,obj.last_verified_geometry_version) && ...
+                   isequal(ids,obj.static_outer_ids) && ...
+                   isequal(vm,obj.static_outer_memory_version) && ...
+                   isequal(vg,obj.static_outer_geometry_version)
+                    obj.shadow_last_status='REUSED_VERIFIED_ACTUAL_GENERATION';
+                    S=obj.shadow_observation_preparation_status();
+                    return
+                end
+                if ~isequal(ids,obj.shadow_pending_ids) || ...
+                   ~isequal(vm,obj.shadow_pending_memory_version) || ...
+                   ~isequal(vg,obj.shadow_pending_geometry_version)
+                    obj.shadow_pending_ids=ids;
+                    obj.shadow_pending_memory_version=vm;
+                    obj.shadow_pending_geometry_version=vg;
+                    obj.shadow_pending_shapes=candidate([]);
+                    obj.shadow_pending_count=0;
+                end
+                % No fixed obstacle number or precomputed masks.
+                next=obj.shadow_pending_count+1;
+                if next<=numel(ids)
+                    good=FUTURE_COLLISION_TRIGGER. ...
+                         verified_prepared_observations( ...
+                             observed(next),candidate(next));
+                    assert(good, ...
+                        'FUTURE_COLLISION_TRIGGER:ShadowVerify', ...
+                        'An actual observed shape differs from sensor geometry.');
+                    sh=candidate(next);
+                    c=double(sh.center0(:));r=double(sh.bounding_radius_m);
+                    assert(numel(c)==3 && all(isfinite(c)) && ...
+                        isscalar(r)&&isfinite(r)&&r>=0, ...
+                        'FUTURE_COLLISION_TRIGGER:ShadowOuter', ...
+                        'Outer-ball geometry is invalid.');
+                    obj.shadow_pending_shapes=[obj.shadow_pending_shapes sh];
+                    obj.shadow_pending_count=next;
+                    obj.shadow_verified_shapes=obj.shadow_verified_shapes+1;
+                end
+                if obj.shadow_pending_count==numel(ids)
+                    shapes=obj.shadow_pending_shapes;
+                    % Audit entire observed generation before commit.
+                    assert(FUTURE_COLLISION_TRIGGER. ...
+                           verified_prepared_observations(observed,shapes), ...
+                        'FUTURE_COLLISION_TRIGGER:ShadowFullVerify', ...
+                        'The prepared cumulative geometry is inconsistent.');
+                    balls=zeros(5,numel(ids));
+                    for j=1:numel(ids)
+                        c=double(shapes(j).center0(:));
+                        r=double(shapes(j).bounding_radius_m);
+                        assert(numel(c)==3&&all(isfinite(c))&& ...
+                            isscalar(r)&&isfinite(r)&&r>=0 && ...
+                            isequal(shapes(j).is_stationary,true), ...
+                            'FUTURE_COLLISION_TRIGGER:ShadowOuter', ...
+                            'Invalid actual observed outer geometry.');
+                        balls(:,j)=[c;r;1];
+                    end
+                    % Atomic commit after ALL checks pass, never a partial
+                    % observed cache. The Flight checker compares IDs and
+                    % both generation tokens again on every evaluation.
+                    obj.last_verified_prepared_ids=ids;
+                    obj.last_verified_memory_version=vm;
+                    obj.last_verified_geometry_version=vg;
+                    obj.last_verified_prepared_shapes=shapes;
+                    obj.static_outer_ids=ids;
+                    obj.static_outer_memory_version=vm;
+                    obj.static_outer_geometry_version=vg;
+                    obj.static_outer_balls=balls;
+                    obj.static_outer_build_count=obj.static_outer_build_count+1;
+                    obj.shadow_completed_generations= ...
+                        obj.shadow_completed_generations+1;
+                    obj.shadow_last_status='STAGED_FULL_ACTUAL_OBSERVED_GENERATION';
+                else
+                    obj.shadow_last_status='STAGING_ONE_OBSERVED_SOLID_PER_TICK';
+                end
+            catch ME
+                obj.shadow_pending_ids=zeros(1,0);
+                obj.shadow_pending_memory_version=[];
+                obj.shadow_pending_geometry_version=[];
+                obj.shadow_pending_shapes=[];
+                obj.shadow_pending_count=0;
+                obj.shadow_invalid_observations=obj.shadow_invalid_observations+1;
+                obj.shadow_last_status='NOT_STAGED__ORIGINAL_FLIGHT_VALIDATION_REQUIRED';
+                obj.shadow_last_reason=[ME.identifier ' | ' ME.message];
+            end
+            S=obj.shadow_observation_preparation_status();
         end
 
         function R = evaluate(obj,time_s,ekf_now,sensor_frame,authority)

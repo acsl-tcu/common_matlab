@@ -1,0 +1,8 @@
+status=PASS_ABA_LOG_PARITY__TIMING_REVIEW_REQUIRED
+decision=NO_DEMONSTRATED_BENEFIT__RESTORE_BASELINE
+equivalent=1
+median_A1_B_A2=1.392500 1.607650 1.591700 ms
+max_A1_B_A2=18.932600 24.765500 25.257400 ms
+first_A1_B_A2=18.932600 24.765500 25.257400 ms
+id3_A1_B_A2=12.247000 12.968300 12.278400 ms
+reason=Only logged event/horizon equivalence and measured times; not a bitwise state/input parity test or safety certificate.

@@ -1,0 +1,14 @@
+status=PASS_LOG_TEMPLATE_ABA_EVENT_PARITY__NOT_STATE_SAFETY
+decision=NO_CONSISTENT_IMPROVEMENT__RESTORE_A
+events=1
+full4s=1
+all_median_ms_A1_B_A2=1.610800 1.630650 1.614950
+flight_median_ms_A1_B_A2=1.786600 1.792700 1.762900
+flight_p95_ms_A1_B_A2=2.143700 2.140400 2.119900
+flight_p99_ms_A1_B_A2=2.943000 2.820700 3.008400
+max_ms_A1_B_A2=24.158100 23.453200 23.804400
+first_predicted_ms_A1_B_A2=24.158100 23.453200 23.804400
+first_6_prediction_max_ms_A1_B_A2=24.158100 23.453200 23.804400
+new_id_max_ms_A1_B_A2=14.258700 14.162900 12.967800
+steady_median_ms_A1_B_A2=1.785000 1.794700 1.763300
+reason=A/B/A checks event and timing records ONLY. Run-to-run JIT/OS variation and source changes need independent control. No automatic adoption or flight-safety certificate.

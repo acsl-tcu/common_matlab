@@ -1,0 +1,3 @@
+status=NOT_COMPLETED_F_PHASE_KERNEL_PREPARE
+calls=1
+reason=SIMULATED_OBSTACLE_SENSOR:UnseenGeometry | Cannot expose prepared geometry for an unseen obstacle.

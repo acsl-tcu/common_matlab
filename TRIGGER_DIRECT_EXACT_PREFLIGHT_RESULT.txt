@@ -1,0 +1,8 @@
+status=PASS_PRODUCTION_SIGNATURE_DIRECT_EXACT_SYNTHETIC__NOT_JIT_PROOF
+calls=8
+direct_windows=16
+direct_source_calls=1611
+rejections=0
+reused_columns=941
+live_epoch_untouched=1
+reason=

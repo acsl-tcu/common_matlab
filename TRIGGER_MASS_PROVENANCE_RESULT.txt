@@ -1,0 +1,6 @@
+status=PASS_SYNTHETIC_MASS_ROLE_SEPARATION__NOT_TRUE_MASS_PROOF
+point_sources_distinguished=1
+wrong_estimator_allowed_but_not_certified=1
+plant_outside_rejected=1
+variable_dt_accepted=1
+reason=
