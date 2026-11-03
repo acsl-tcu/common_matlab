@@ -47,6 +47,8 @@ classdef REPLANNING_SYSTEM < handle
         isolated_first_use_prepare_status='NOT_RUN'
         isolated_native_prediction_status='NOT_ATTEMPTED'
         isolated_native_prediction_calls=0
+        isolated_sensor_event_prepare_status='NOT_ATTEMPTED'
+        isolated_sensor_event_prepare_steps=0
         isolated_direct_native_status='NOT_ATTEMPTED'
         isolated_direct_native_calls=0
         first_flight_trace_enabled=false
@@ -433,6 +435,8 @@ classdef REPLANNING_SYSTEM < handle
             obj.isolated_first_use_prepare_status='NOT_RUN';
             obj.isolated_native_prediction_status='NOT_ATTEMPTED';
             obj.isolated_native_prediction_calls=0;
+            obj.isolated_sensor_event_prepare_status='NOT_ATTEMPTED';
+            obj.isolated_sensor_event_prepare_steps=0;
             obj.isolated_direct_native_status='NOT_ATTEMPTED';
             obj.isolated_direct_native_calls=0;
             obj.trigger_native_gate_checked=true;
@@ -540,6 +544,12 @@ classdef REPLANNING_SYSTEM < handle
                             pure=TRIGGER_ISOLATED_CODE_PREPARE(pure_cfg);
                             obj.isolated_first_use_prepare_ms=pure.elapsed_ms;
                             obj.isolated_first_use_prepare_status=pure.status;
+                            if isfield(pure,'isolated_sensor_event_prepare_status')
+                                obj.isolated_sensor_event_prepare_status= ...
+                                    pure.isolated_sensor_event_prepare_status;
+                                obj.isolated_sensor_event_prepare_steps= ...
+                                    pure.isolated_sensor_event_prepare_steps;
+                            end
                             if isfield(pure,'isolated_native_prediction_status')
                                 obj.isolated_native_prediction_status= ...
                                     pure.isolated_native_prediction_status;
@@ -797,7 +807,19 @@ classdef REPLANNING_SYSTEM < handle
                 end
                 % Only source-authorized f-phase adjustment: z<-z-cableL.
                 % The actual same-tick result must match this evaluator.
-                L=double(agent.parameter.get("cableL"));
+                % For the exact original parameter class, get("cableL")
+                % resolves the same public live property. Never replace
+                % this actual, mutable authority with a frozen default.
+                if strcmp(class(agent.parameter),'DRONE_PARAM_SUSPENDED_LOAD')
+                    L=double(agent.parameter.cableL);
+                else
+                    L=double(agent.parameter.get("cableL"));
+                end
+                assert(isnumeric(L)&&isscalar(L)&&isreal(L)&& ...
+                    isfinite(L)&&L>0 && ...
+                    isequal(L,obj.trigger_authority_binding.flight.cable_length_m), ...
+                    'REPLANNING_SYSTEM:LiveCableLengthChanged', ...
+                    'Live cable length differs from preflight plant binding.');
                 future=@(tt)REPLANNING_SYSTEM.flight_reference_at(nominal,tt,L);
                 actual=agent.reference.result.state.xd;
                 predicted_now=future(t);
@@ -1058,6 +1080,10 @@ classdef REPLANNING_SYSTEM < handle
             status.preflight_model_binding_status=obj.preflight_model_binding_status;
             status.isolated_first_use_prepare_ms=obj.isolated_first_use_prepare_ms;
             status.isolated_first_use_prepare_status=obj.isolated_first_use_prepare_status;
+            status.isolated_sensor_event_prepare_status= ...
+                obj.isolated_sensor_event_prepare_status;
+            status.isolated_sensor_event_prepare_steps= ...
+                obj.isolated_sensor_event_prepare_steps;
             status.isolated_native_prediction_status=obj.isolated_native_prediction_status;
             status.isolated_native_prediction_calls=obj.isolated_native_prediction_calls;
             status.isolated_direct_native_status=obj.isolated_direct_native_status;

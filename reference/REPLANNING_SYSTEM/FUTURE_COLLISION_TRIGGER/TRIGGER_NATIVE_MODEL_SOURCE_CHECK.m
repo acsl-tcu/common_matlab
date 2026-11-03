@@ -42,11 +42,13 @@ if compiled,compiled_sha=local_sha256(mxfile);end
 source_pass=all(matched);
 % Full-file MEX SHA is NOT reproducible across equivalent rebuilds:
 % the MATLAB resource manifest and COFF timestamp change. The code/data
-% fingerprint below is restricted to THIS already-audited C++ revision.
+% fingerprint below is restricted to the PREVIOUS audited binary.
+% The optimized C++ requires a FRESH full offline numerical parity report
+% with the rebuilt binary SHA before it can be approved for Flight.
 % Any changed C++ source or executable/data section fails closed until
 % a fresh independent HLC+plant parity audit is completed.
 cpp_path=fullfile(home,'TRIGGER_SYMBOLIC_NATIVE_CORE.cpp');
-trusted_cpp_sha='aa54d7aeee9d617afd3bf1ede50ec19b9feb2c8ba5bf2ccfa9efdc7021d44308';
+trusted_cpp_sha='5433a4826ea2a05ef17bb7f222c7d27b88431d8662580c27f356305ffa2f7648';
 trusted_code_identity='f15ac1f3f4483fac6b004f13e515ca89353febb7feae13c9d8419b2b5cd07d6a';
 cpp_sha='';
 if isfile(cpp_path),cpp_sha=local_sha256(cpp_path);end

@@ -83,6 +83,15 @@ try
         'TRIGGER_ISOLATED_CODE_PREPARE:LeanMemory', ...
         'Isolated retained-obstacle adapter failed.');
     end % independent throwaway observation-memory histories
+    % Exercise the exact SENSOR + MEMORY + prepared-geometry APIs with
+    % independently created fictional solids, including detection loss.
+    % Preflight-only, no real obstacle definitions, no actual sensor data,
+    % no EKF/Flight timing, no fixed detection-mask combinations.
+    external_events=TRIGGER_ISOLATED_SENSOR_EVENT_PREPARE(cfg);
+    R.isolated_sensor_event_prepare_status=external_events.status;
+    R.isolated_sensor_event_prepare_cycles=external_events.cycles;
+    R.isolated_sensor_event_prepare_steps=external_events.steps;
+    R.isolated_sensor_event_prepare_reason=external_events.reason;
     R.isolated_lean_memory_path_exercised=true;
     R.isolated_event_path_exercised=true;
     % ACTUAL compiled predictor software path on wholly synthetic inputs.

@@ -1,0 +1,4 @@
+status=NOT_COMPLETED_ISOLATED_SENSOR_EVENTS
+cycles=0
+steps=0
+reason=SIMULATED_OBSTACLE_SENSOR:ObservedIDs | Only unique real observed obstacle IDs are accepted.
