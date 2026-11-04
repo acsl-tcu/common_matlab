@@ -1,0 +1,4 @@
+status=PASS_PICARD_24_TO_ALL_SHAPES_CONDITIONAL__NOT_FLIGHT_SAFETY
+intervals=2
+far_clear=1 near_unknown=1 full_sphere=1 noncommit=1
+reason=

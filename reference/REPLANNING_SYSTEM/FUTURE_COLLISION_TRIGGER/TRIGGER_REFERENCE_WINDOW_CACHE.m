@@ -152,6 +152,9 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
             obj.audit_status=R.status;
         end
         function [ref,report]=evaluate(obj,nominal,absolute_times,L,reference_at,validated_now,source_contract)
+            % Optional per-tick diagnostic. No cache/evaluation decisions change.
+            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            if diagnose,diagnostic_clock=tic;end
             assert(isobject(nominal)&&isscalar(nominal)&& ...
                 isprop(nominal,'func')&&isprop(nominal,'t')&& ...
                 isa(nominal.func,'function_handle'), ...
@@ -310,6 +313,8 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
             end
             fresh_indices=find(~hits);
             new_direct_calls=0;
+            % Source dispatch is isolated from lookup/shift/cache work.
+            if diagnose,source_loop_clock=tic;end
             for k=fresh_indices
                 if k==1 && has_verified_now
                     ref(:,1)=verified_first;
@@ -334,6 +339,11 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                     ref(:,k)=TRIGGER_REFERENCE_WINDOW_CACHE.full_jet( ...
                         reference_at(absolute_times(k)));
                 end
+            end
+            if diagnose
+                source_loop_ms=1000*toc(source_loop_clock);
+            else
+                source_loop_ms=NaN;
             end
             obj.direct_source_evaluations= ...
                 obj.direct_source_evaluations+new_direct_calls;
@@ -361,6 +371,23 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                 'fresh_generated',nnz(~hits)-double(has_verified_now && ~hits(1)), ...
                 'validated_now_used',has_verified_now, ...
                 'source_cached',obj.source_is_stateless);
+            % Reason codes describe actual cache decisions, not their cause.
+            % No claim that a long timer indicates a JIT/OS pause.
+            report.diagnostic_active=diagnose;
+            report.cache_reset=~unchanged;
+            report.source_argument_count=n;
+            report.exact_hits=nnz(hits);
+            report.source_function_calls=nnz(~hits)- ...
+                double(has_verified_now && ~hits(1))+ ...
+                double(~has_verified_now && hits(1));
+            report.source_loop_ms=source_loop_ms;
+            report.direct_exact=direct_exact;
+            report.full_reset_fresh=(~unchanged && nnz(~hits)==n);
+            if diagnose
+                report.cache_evaluate_wall_ms=1000*toc(diagnostic_clock);
+            else
+                report.cache_evaluate_wall_ms=NaN;
+            end
         end
         function R=get_status(obj)
             R=struct('calls',obj.calls,'exact_reuses',obj.exact_reuses, ...

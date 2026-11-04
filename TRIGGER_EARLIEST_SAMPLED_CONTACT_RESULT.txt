@@ -1,0 +1,4 @@
+status=PASS_NOMINAL_EARLIEST_SAMPLE_PARITY__NOT_SAFETY
+cases=80
+failures=0
+reason=

@@ -378,9 +378,19 @@ classdef REPLANNING_SYSTEM < handle
             % ordinary phase-guarded trigger evaluation. Never publishes
             % events, touches reference epochs, uses a predicted Flight
             % phase time or changes controller/plant inputs.
-            if obj.ENABLE_TRIGGER && obj.ENABLE_SENSOR
+            % The same guard was formerly checked only AFTER entering
+            % prepare_nonflight_shadow().  Avoid its needless MCOS dispatch
+            % on every Flight/landing update.  For Arming/Takeoff this calls
+            % exactly the original method with the original arguments.
+            % Missing cha still does nothing, as in the original callee.
+            if stage_on,shadow_stage_clock=tic;end
+            if obj.ENABLE_TRIGGER && obj.ENABLE_SENSOR && ...
+                    isprop(agent,'cha') && ...
+                    (isequal(char(agent.cha),'a') || ...
+                     isequal(char(agent.cha),'t'))
                 obj.prepare_nonflight_shadow(time,agent);
             end
+            if stage_on,shadow_stage_ms=1000*toc(shadow_stage_clock);end
 
             % Trigger evaluation uses ONLY the sensor-derived memory frame.
             % No obstacle truth from obj.obstacles enters the trigger.
@@ -478,10 +488,14 @@ classdef REPLANNING_SYSTEM < handle
                 % Published through the ORIGINAL LOGGER (not a shadow logger).
                 reference_result.replanning_stage_ms=diff([0,stage_marks]);
                 reference_result.replanning_detail_ms=detail_ms;
+                reference_result.replanning_shadow_ms=shadow_stage_ms;
             elseif isfield(reference_result,'replanning_detail_ms')
                 % A new Flight that has detail timing OFF must not inherit
                 % previous detail data from a recycled reference struct.
                 reference_result=rmfield(reference_result,'replanning_detail_ms');
+            end
+            if ~stage_on && isfield(reference_result,'replanning_shadow_ms')
+                reference_result=rmfield(reference_result,'replanning_shadow_ms');
             end
             agent.reference.result=reference_result;
         end
@@ -577,6 +591,7 @@ classdef REPLANNING_SYSTEM < handle
             % the original typed access path; subsequent cycles need not
             % repeatedly execute it. No fixed phase time or obstacle count.
             if obj.phase_shadow_authority_calls>=8 && ...
+                    ismethod(obj.trigger_core,'shadow_observation_preparation_status') && ...
                     isstruct(obj.last_memory_result) && ...
                     isfield(obj.last_memory_result,'known_obstacle_ids') && ...
                     ~isempty(obj.last_memory_result.known_obstacle_ids)
@@ -1608,8 +1623,21 @@ classdef REPLANNING_SYSTEM < handle
                 obj.phase_shadow_parked_memory_version;
             status.phase_shadow_parked_geometry_version= ...
                 obj.phase_shadow_parked_geometry_version;
-            status.phase_shadow_geometry= ...
-                obj.trigger_core.shadow_observation_preparation_status();
+            % Diagnostics may be invoked after an older class file was
+            % loaded from a different MATLAB path. Report the mismatch
+            % without aborting the entire Flight/plot/logger pipeline.
+            % This is a STATUS ONLY fallback and never grants a certificate.
+            if ~isempty(obj.trigger_core) && ...
+                    ismethod(obj.trigger_core,'shadow_observation_preparation_status')
+                status.phase_shadow_geometry= ...
+                    obj.trigger_core.shadow_observation_preparation_status();
+            else
+                status.phase_shadow_geometry=struct( ...
+                    'status','NOT_AVAILABLE_CLASS_API_MISMATCH', ...
+                    'verified_ids',zeros(1,0), ...
+                    'outer_ids',zeros(1,0), ...
+                    'pending_count',0);
+            end
         end
     end
 

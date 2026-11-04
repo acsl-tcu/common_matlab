@@ -1,0 +1,5 @@
+status=PASS_MULTI_SHAPE_WHOLE_INTERVAL_CONDITIONAL__NOT_FLIGHT_SAFETY
+types=sphere,ellipsoid,box,cylinder,capsule,cone,frustum,torus
+rotated_types=8
+far_clear=1 contact_unknown=1 provenance_rejected=1 no_observation_unknown=1
+reason=

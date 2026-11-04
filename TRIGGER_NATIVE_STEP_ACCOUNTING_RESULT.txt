@@ -1,0 +1,3 @@
+status=PASS_HOLD_BOUNDARY_DP54_SOURCE_INSPECTED__NO_WCET_PROOF
+hold_boundaries=1 adaptive_dp54=1 rejection_stats=1
+reason=

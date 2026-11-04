@@ -213,6 +213,13 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             end
             p=double(p_uav_ekf(:));
             if obj.LOG_SENSOR,clock=tic;end
+            % Diagnostic-only nested clocks; no change to scan semantics.
+            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            if diagnose
+                diagnostic_clock=tic;
+                diagnostic_exact_ms=0;
+                diagnostic_exact_calls=0;
+            end
 
             n=obj.obstacle_count;
             detected=false(1,n);
@@ -236,16 +243,23 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 end
                 % 外接球は早期「除外」だけ。これで検知確定とはしない。
                 lower_bound=norm(p-center)-shape.bounding_radius_m;
-                numerical_guard=64*eps(max([1, uav_norm, center_norm, obj.range_m]));
+                numerical_guard=64*eps(max(max(1,uav_norm),max(center_norm,obj.range_m)));
                 if lower_bound>obj.range_m+numerical_guard
                     continue
                 end
                 candidate_count=candidate_count+1;
                 % 同じ障害物中心を幾何クエリに渡す（再計算しない）。
+                if diagnose,diagnostic_exact_clock=tic;end
                 d=OBSTACLE_GEOMETRY_QUERY.distance(p,shape,time_s,center);
+                if diagnose
+                    diagnostic_exact_ms=diagnostic_exact_ms+1000*toc(diagnostic_exact_clock);
+                    diagnostic_exact_calls=diagnostic_exact_calls+1;
+                end
                 distances(k)=d;
                 detected(k)= d <= obj.range_m+numerical_guard;
             end
+
+            if diagnose,diagnostic_scan_ms=1000*toc(diagnostic_clock);end
 
             % 毎周期の検知判定は上で完了済み。この周期の検知集合のみ返す。
             % 集合不変の周期は新規/離脱IDが必ず空：MEX呼出しで毎周期
@@ -271,6 +285,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 if isempty(appeared), appeared=[]; end
                 if isempty(disappeared), disappeared=[]; end
             end
+            if diagnose,diagnostic_events_ms=1000*toc(diagnostic_clock)-diagnostic_scan_ms;end
             if ~any(detected)
                 visible=obj.empty_visible_obstacles;
             elseif obj.all_stationary
@@ -282,6 +297,10 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                     visible(k).position=o.initial_position + ...
                         (double(time_s)-o.reference_time_s)*o.velocity;
                 end
+            end
+            if diagnose
+                diagnostic_visible_ms=1000*toc(diagnostic_clock)- ...
+                    diagnostic_scan_ms-diagnostic_events_ms;
             end
             % 検証済み高速化: スカラーstructのフィールド構造を初期化時に確定。
             % 元データ・検知マスク・ログの意味を変えず、構築手順だけ変更する。
@@ -311,6 +330,22 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
                 obj.total_scan_time_ms=obj.total_scan_time_ms+measured_ms;
                 obj.max_scan_time_ms=max(obj.max_scan_time_ms,measured_ms);
                 obj.last_scan_time_ms=measured_ms;
+            end
+            if diagnose
+                diag_wall=1000*toc(diagnostic_clock);
+                % The second column is nested in the first: do not SUM
+                % scan_ms and exact_ms. Others are disjoint wall sections.
+                result.diagnostic_sensor_stage_ms=[diagnostic_scan_ms, ...
+                    diagnostic_exact_ms,diagnostic_events_ms, ...
+                    diagnostic_visible_ms, ...
+                    diag_wall-diagnostic_scan_ms-diagnostic_events_ms- ...
+                             diagnostic_visible_ms];
+                result.diagnostic_sensor_candidate_count=candidate_count;
+                result.diagnostic_sensor_exact_calls=diagnostic_exact_calls;
+                result.diagnostic_sensor_screened_count=n;
+                result.diagnostic_sensor_mask_changed=mask_changed;
+                result.diagnostic_sensor_native_events= ...
+                    mask_changed && obj.native_event_pack_enabled;
             end
             obj.last_result=result;
         end

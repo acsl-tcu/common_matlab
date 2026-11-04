@@ -1,0 +1,5 @@
+status=PASS_EXACT_SAMPLED_PARITY__TIMING_NEEDS_REPEATED_ABA
+cases=72
+legacy_ms=0.076545000 paired_ms=0.077690000
+all_identical=1 paired_faster=0
+reason=

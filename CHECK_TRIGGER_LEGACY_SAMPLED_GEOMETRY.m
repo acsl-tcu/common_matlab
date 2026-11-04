@@ -1,0 +1,214 @@
+classdef CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY
+    % Shape-agnostic contact screening for the OBSERVED obstacle snapshot.
+    %
+    % UAV/payload: spheres centered at the predicted EKF-model positions.
+    % Cable: finite straight segment between those positions; rc is solely
+    % the physical cable cross-section, never an invented swing margin.
+    %
+    % Two optional *exclusion* stages precede the sensor's exact solid
+    % distance oracle:
+    % (1) a guaranteed enclosing sphere, and
+    % (2) a support-plane half-space of the true occupied obstacle's convex
+    %     hull. Neither enclosure is used to DECLARE a contact.
+    % If a new sensor geometry does not have specialized support code,
+    % its enclosing sphere is still a valid, shape-agnostic support bound.
+    % The shared sensor geometry distance oracle is always the narrow phase.
+    % An unresolved near/tangent cable query is UNKNOWN, not free space.
+    %
+    % All geometry here is at sampled times. This class NEVER makes any
+    % continuous-time or tracking-error safety claim.
+    methods (Static)
+        function [u_hit,l_hit,c_hit,c_unknown,info] = evaluate(u,l,shape,ru,rl,rc,t,first_hit_only)
+            if nargin<8,first_hit_only=false;end
+            assert(isnumeric(u)&&isreal(u)&&size(u,1)==3 && ...
+                isequal(size(u),size(l)) && all(isfinite(u(:))) && ...
+                all(isfinite(l(:))) && isstruct(shape) && isscalar(shape) && ...
+                isfield(shape,'bounding_radius_m') && ...
+                isfield(shape,'is_stationary') && shape.is_stationary && ...
+                isscalar(ru)&&isnumeric(ru)&&isfinite(ru)&&ru>=0 && ...
+                isscalar(rl)&&isnumeric(rl)&&isfinite(rl)&&rl>=0 && ...
+                isscalar(rc)&&isnumeric(rc)&&isfinite(rc)&&rc>=0 && ...
+                isscalar(t)&&isnumeric(t)&&isfinite(t) && ...
+                isscalar(first_hit_only) && (islogical(first_hit_only) || ...
+                (isnumeric(first_hit_only) && any(first_hit_only==[0 1]))), ...
+                'CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY:Contract', ...
+                'Finite 3xN samples, prepared stationary obstacle and nonnegative physical radii required.');
+            u=double(u);l=double(l);
+            n=size(u,2);
+            u_hit=false(1,n);l_hit=false(1,n);
+            c_hit=false(1,n);c_unknown=false(1,n);
+            info=struct('body_exact_queries',0,'cable_exact_queries',0, ...
+                'body_support_excluded',0,'cable_support_excluded',0, ...
+                'broadphase_excluded',0,'first_hit_only',logical(first_hit_only), ...
+                'sampled_only',true);
+            c=double(shape.center0(:));
+            radius=double(shape.bounding_radius_m);
+            assert(isfinite(radius)&&radius>=0&&numel(c)==3&&all(isfinite(c)), ...
+                'CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY:ShapeBound', ...
+                'A valid enclosing sphere must be supplied by the sensor geometry oracle.');
+            % Rounding slack is for engineering fail-closed screening; this
+            % double-precision implementation is NOT a formally outward-
+            % rounded interval arithmetic certificate.
+            slack=128*eps(max([1;radius;abs(c)]));
+            % ONE global broad-phase for arbitrarily many path samples.
+            % The axis-aligned box contains all sampled ball centers and
+            % all straight cables between them, but does NOT enclose the
+            % unknown true motion between timestamps.
+            lower=min([u,l],[],2); upper=max([u,l],[],2);
+            out=max(max(lower-c,c-upper),0);
+            if dot(out,out)>(radius+max([ru,rl,rc])+slack)^2
+                info.broadphase_excluded=3*n;
+                return
+            end
+            du=u-c;dl=l-c;
+            cu=sum(du.^2,1)<=(radius+ru+slack)^2;
+            cl=sum(dl.^2,1)<=(radius+rl+slack)^2;
+            segment=l-u;
+            seg2=sum(segment.^2,1);
+            a=zeros(1,n);
+            active=seg2>0;
+            a(active)=max(0,min(1,sum((-du(:,active)).*segment(:,active),1)./seg2(active)));
+            nearest=du+segment.*a;
+            cc=sum(nearest.^2,1)<=(radius+rc+slack)^2;
+            info.broadphase_excluded=3*n-nnz(cu)-nnz(cl)-nnz(cc);
+
+            [cu,pruned_u]=CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY.point_gate( ...
+                du,cu,shape,ru,slack);
+            [cl,pruned_l]=CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY.point_gate( ...
+                dl,cl,shape,rl,slack);
+            [cc,pruned_c]=CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY.cable_gate( ...
+                du,dl,nearest,cc,shape,rc,slack);
+            info.body_support_excluded=pruned_u+pruned_l;
+            info.cable_support_excluded=pruned_c;
+
+            d_u=nan(1,n);d_l=nan(1,n);
+            first=n+1;
+            % Query each component chronologically (ascending samples).
+            % If first_hit_only is true, later samples of the SAME obstacle
+            % do not affect earliest sampled contact. All samples before it
+            % are still checked for all three components.
+            ui=find(cu);
+            for z=1:numel(ui)
+                k=ui(z);
+                if first_hit_only&&k>=first,break;end
+                info.body_exact_queries=info.body_exact_queries+1;
+                d_u(k)=OBSTACLE_GEOMETRY_QUERY.distance(u(:,k),shape,t,c);
+                if d_u(k)<=ru
+                    u_hit(k)=true;
+                    first=min(first,k);
+                    if ~first_hit_only,continue;end
+                    break
+                end
+            end
+            li=find(cl);
+            for z=1:numel(li)
+                k=li(z);
+                if first_hit_only&&k>=first,break;end
+                info.body_exact_queries=info.body_exact_queries+1;
+                d_l(k)=OBSTACLE_GEOMETRY_QUERY.distance(l(:,k),shape,t,c);
+                if d_l(k)<=rl
+                    l_hit(k)=true;
+                    first=min(first,k);
+                    if first_hit_only,break;end
+                end
+            end
+            ci=find(cc);
+            for z=1:numel(ci)
+                k=ci(z);
+                if first_hit_only&&k>=first,break;end
+                info.cable_exact_queries=info.cable_exact_queries+1;
+                [hit,unknown]=CHECK_TRIGGER_LEGACY_SAMPLED_GEOMETRY.segment_query( ...
+                    u(:,k),l(:,k),shape,t,c,rc,d_u(k),d_l(k));
+                c_hit(k)=hit;c_unknown(k)=unknown;
+                if hit
+                    first=min(first,k);
+                    if first_hit_only,break;end
+                end
+            end
+        end
+    end
+    methods (Static,Access=private)
+        function [candidates,excluded]=point_gate(d,candidates,shape,r,slack)
+            idx=find(candidates);
+            excluded=0;
+            if isempty(idx),return;end
+            x=d(:,idx);
+            magnitude=sqrt(sum(x.^2,1));
+            good=magnitude>0;
+            if ~any(good),return;end
+            n=x(:,good)./magnitude(good);
+            h=TRIGGER_GEOMETRY_CERTIFICATE.support_radial_many(shape,n);
+            % Separating plane: n.p > h_O(n)+r is a sufficient guarantee
+            % of no nominal contact. A false result means NOT PROVED.
+            safe=magnitude(good)>h+r+slack;
+            removed=idx(good);
+            removed=removed(safe);
+            candidates(removed)=false;
+            excluded=numel(removed);
+        end
+        function [candidates,excluded]=cable_gate(du,dl,nearest,candidates,shape,r,slack)
+            idx=find(candidates);
+            excluded=0;
+            if isempty(idx),return;end
+            x=nearest(:,idx);
+            magnitude=sqrt(sum(x.^2,1));
+            good=magnitude>0;
+            if ~any(good),return;end
+            n=x(:,good)./magnitude(good);
+            selected=idx(good);
+            h=TRIGGER_GEOMETRY_CERTIFICATE.support_radial_many(shape,n);
+            a=sum(n.*du(:,selected),1);
+            b=sum(n.*dl(:,selected),1);
+            safe=min(a,b)>h+r+slack;
+            candidates(selected(safe))=false;
+            excluded=nnz(safe);
+        end
+        function [hit,unknown]=segment_query(a,b,shape,t,center,r,d0,d1)
+            % For any occupied closed set O, d(p,O) is 1-Lipschitz.
+            % Along a subsegment of length L with midpoint m:
+            % min_{segment} d(p,O) >= d(m,O)-L/2.
+            % Positive lower bound > r proves clearance for the ENTIRE
+            % spatial cable segment, with no cable-sphere approximation.
+            hit=false;unknown=false;
+            delta=b-a;length_total=norm(delta);
+            if ~isfinite(d0)
+                d0=OBSTACLE_GEOMETRY_QUERY.distance(a,shape,t,center);
+            end
+            if d0<=r,hit=true;return;end
+            if length_total==0,return;end
+            if ~isfinite(d1)
+                d1=OBSTACLE_GEOMETRY_QUERY.distance(b,shape,t,center);
+            end
+            if d1<=r,hit=true;return;end
+            dm=OBSTACLE_GEOMETRY_QUERY.distance((a+b)*0.5,shape,t,center);
+            if dm<=r,hit=true;return;end
+            % Max subdivision depth is limited by double representation,
+            % not a computational budget. No forced clear/false on timeout.
+            lo=zeros(1,64);hi=zeros(1,64);
+            dlo=zeros(1,64);dhi=zeros(1,64);dmid=zeros(1,64);
+            lo(1)=0;hi(1)=1;dlo(1)=d0;dhi(1)=d1;dmid(1)=dm;
+            top=1;
+            while top>0
+                x0=lo(top);x1=hi(top);
+                f0=dlo(top);f1=dhi(top);fm=dmid(top);
+                top=top-1;
+                L=(x1-x0)*length_total;
+                lower=max(fm-L/2,(f0+f1-L)/2);
+                if lower>r,continue;end
+                xm=(x0+x1)*0.5;
+                if xm==x0||xm==x1
+                    unknown=true;return
+                end
+                xl=(x0+xm)*0.5;xr=(xm+x1)*0.5;
+                fl=OBSTACLE_GEOMETRY_QUERY.distance(a+xl*delta,shape,t,center);
+                if fl<=r,hit=true;return;end
+                fr=OBSTACLE_GEOMETRY_QUERY.distance(a+xr*delta,shape,t,center);
+                if fr<=r,hit=true;return;end
+                top=top+1;
+                lo(top)=xm;hi(top)=x1;dlo(top)=fm;dhi(top)=f1;dmid(top)=fr;
+                top=top+1;
+                lo(top)=x0;hi(top)=xm;dlo(top)=f0;dhi(top)=fm;dmid(top)=fl;
+            end
+        end
+    end
+end

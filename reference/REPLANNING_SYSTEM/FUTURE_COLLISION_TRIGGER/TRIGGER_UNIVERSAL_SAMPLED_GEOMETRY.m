@@ -41,6 +41,8 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
                 'body_support_excluded',0,'cable_support_excluded',0, ...
                 'broadphase_excluded',0,'first_hit_only',logical(first_hit_only), ...
                 'sampled_only',true);
+            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            if diagnose,diagnostic_geom_clock=tic;end
             c=double(shape.center0(:));
             radius=double(shape.bounding_radius_m);
             assert(isfinite(radius)&&radius>=0&&numel(c)==3&&all(isfinite(c)), ...
@@ -58,6 +60,9 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
             out=max(max(lower-c,c-upper),0);
             if dot(out,out)>(radius+max([ru,rl,rc])+slack)^2
                 info.broadphase_excluded=3*n;
+                if diagnose
+                    info.diagnostic_stage_ms=[1000*toc(diagnostic_geom_clock),0,0];
+                end
                 return
             end
             du=u-c;dl=l-c;
@@ -72,15 +77,28 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
             cc=sum(nearest.^2,1)<=(radius+rc+slack)^2;
             info.broadphase_excluded=3*n-nnz(cu)-nnz(cl)-nnz(cc);
 
-            [cu,pruned_u]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.point_gate( ...
-                du,cu,shape,ru,slack);
-            [cl,pruned_l]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.point_gate( ...
-                dl,cl,shape,rl,slack);
-            [cc,pruned_c]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.cable_gate( ...
-                du,dl,nearest,cc,shape,rc,slack);
-            info.body_support_excluded=pruned_u+pruned_l;
+            % Evaluate both body-center candidates against the SAME
+            % obstacle support oracle in one batch. This preserves each
+            % original direction, radius, and strict exclusion inequality.
+            % Only calculation grouping changes, not contact semantics.
+            body_flags=[cu,cl];
+            body_rel=[du,dl];
+            body_radii=[repmat(ru,1,n),repmat(rl,1,n)];
+            if diagnose,diagnostic_broad_ms=1000*toc(diagnostic_geom_clock);end
+            % ONE common support dispatch for both body-center normals
+            % and the full finite cable's nearest-direction normals.
+            % Uses the SAME original radial support and strict inequality.
+            % The sensor's true-shape distance oracle remains untouched.
+            [body_flags,cc,pruned_body,pruned_c]= ...
+                TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.support_gates_fused( ...
+                body_rel,body_flags,body_radii,du,dl,nearest,cc, ...
+                shape,rc,slack);
+            cu=body_flags(1:n);
+            cl=body_flags(n+1:end);
+            info.body_support_excluded=pruned_body;
             info.cable_support_excluded=pruned_c;
 
+            if diagnose,diagnostic_support_end_ms=1000*toc(diagnostic_geom_clock);end
             d_u=nan(1,n);d_l=nan(1,n);
             first=n+1;
             % Query each component chronologically (ascending samples).
@@ -125,9 +143,63 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
                     if first_hit_only,break;end
                 end
             end
+            if diagnose
+                diagnostic_exact_end_ms=1000*toc(diagnostic_geom_clock);
+                info.diagnostic_stage_ms=[diagnostic_broad_ms, ...
+                    diagnostic_support_end_ms-diagnostic_broad_ms, ...
+                    diagnostic_exact_end_ms-diagnostic_support_end_ms];
+            end
         end
     end
     methods (Static,Access=private)
+        function [body,cable,excluded_body,excluded_cable]= ...
+                support_gates_fused(body_rel,body,body_radii, ...
+                du,dl,nearest,cable,shape,rc,slack)
+            % Fuses the two source-support calls, not the geometry logic.
+            % Body and cable use EXACTLY their previous directions and
+            % strict inequalities. No heuristic inflation or changed radii.
+            ib=find(body);
+            ic=find(cable);
+            excluded_body=0;excluded_cable=0;
+            nb=zeros(3,0);nc=zeros(3,0);
+            if ~isempty(ib)
+                xb=body_rel(:,ib);
+                rb=sqrt(sum(xb.^2,1));
+                nonzero_b=rb>0;
+                ib=ib(nonzero_b);
+                if ~isempty(ib)
+                    nb=xb(:,nonzero_b)./rb(nonzero_b);
+                    rb=rb(nonzero_b);
+                end
+            end
+            if ~isempty(ic)
+                xc=nearest(:,ic);
+                rcandidate=sqrt(sum(xc.^2,1));
+                nonzero_c=rcandidate>0;
+                ic=ic(nonzero_c);
+                if ~isempty(ic)
+                    nc=xc(:,nonzero_c)./rcandidate(nonzero_c);
+                end
+            end
+            count_b=numel(ib);
+            count_c=numel(ic);
+            if count_b+count_c==0,return;end
+            h=TRIGGER_GEOMETRY_CERTIFICATE.support_radial_many( ...
+                shape,[nb nc]);
+            if count_b>0
+                sep=rb>h(1:count_b)+body_radii(ib)+slack;
+                body(ib(sep))=false;
+                excluded_body=nnz(sep);
+            end
+            if count_c>0
+                hc=h(count_b+1:end);
+                a=sum(nc.*du(:,ic),1);
+                b=sum(nc.*dl(:,ic),1);
+                sep=min(a,b)>hc+rc+slack;
+                cable(ic(sep))=false;
+                excluded_cable=nnz(sep);
+            end
+        end
         function [candidates,excluded]=point_gate(d,candidates,shape,r,slack)
             idx=find(candidates);
             excluded=0;
@@ -140,7 +212,10 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
             h=TRIGGER_GEOMETRY_CERTIFICATE.support_radial_many(shape,n);
             % Separating plane: n.p > h_O(n)+r is a sufficient guarantee
             % of no nominal contact. A false result means NOT PROVED.
-            safe=magnitude(good)>h+r+slack;
+            % Here r is the per-candidate material radius, so this is
+            % elementwise the SAME inequality as the legacy UAV/payload
+            % calls using scalar ru and rl respectively.
+            safe=magnitude(good)>h+r(idx(good))+slack;
             removed=idx(good);
             removed=removed(safe);
             candidates(removed)=false;
