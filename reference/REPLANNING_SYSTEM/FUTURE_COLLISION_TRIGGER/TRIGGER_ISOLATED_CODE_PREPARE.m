@@ -273,6 +273,57 @@ try
             ['NOT_COMPLETED_THREE_WAY_GEOMETRY__' geom_ME.identifier];
         R.isolated_geometry_three_way_reason=geom_ME.message;
     end
+    % Additional FIRST-HIT cylinder paths in the SAME original narrow
+    % geometry routine. These paths previously occurred first during Flight:
+    % support-only exclusion, exact-distance noncontact, and delayed hit.
+    % No real obstacle geometry, state, phase or timing is used here.
+    R.isolated_cylinder_first_use_cases=0;
+    R.isolated_cylinder_first_use_status='NOT_COMPLETED';
+    R.isolated_cylinder_first_use_reason='';
+    try
+        cyl=OBSTACLE_GEOMETRY_QUERY.prepare( ...
+            OBSTACLE_INFORMATION.define(70901,'cylinder',[0;0;0],[0.5 1]));
+        tall=OBSTACLE_GEOMETRY_QUERY.prepare( ...
+            OBSTACLE_INFORMATION.define(70902,'cylinder',[0;0;0],[0.5 6]));
+        q_clear=[0.4;0;0.7];q_hit=[0.4;0;0];
+        for ct=1:8
+            % Bounding sphere admits the tall cylinder, while a radial
+            % support plane rigorously excludes the sampled UAV sphere.
+            q=[0;1;0];l=q+[0;0;2];
+            [~,~,~,~,u]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
+                repmat(q,1,2),repmat(l,1,2),tall,0.1,0,0,0,true);
+            assert(u.body_support_excluded>0 && u.first_hit_only, ...
+                'TRIGGER_ISOLATED_CODE_PREPARE:CylinderSupport');
+            R.isolated_cylinder_first_use_cases= ...
+                R.isolated_cylinder_first_use_cases+1;
+            % Axial/radial corner: support radial bound is inconclusive,
+            % but the original exact cylinder distance proves noncontact.
+            q=q_clear;l=q+[0;0;2];
+            [hu,hl,hc,~,u]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
+                repmat(q,1,2),repmat(l,1,2),cyl,0.15,0,0,0,true);
+            assert(u.body_exact_queries>0 && ...
+                ~any(hu|hl|hc) && u.first_hit_only, ...
+                'TRIGGER_ISOLATED_CODE_PREPARE:CylinderExactNoncontact');
+            R.isolated_cylinder_first_use_cases= ...
+                R.isolated_cylinder_first_use_cases+1;
+            % Several exact noncontact samples precede the first contact.
+            q=repmat(q_clear,1,5);q(:,end)=q_hit;
+            l=q+repmat([0;0;2],1,size(q,2));
+            [hu,hl,hc,~,u]=TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
+                q,l,cyl,0.15,0,0,0,true);
+            first=find(hu|hl|hc,1,'first');
+            assert(isequal(first,5) && u.first_hit_only && ...
+                u.body_exact_queries>0, ...
+                'TRIGGER_ISOLATED_CODE_PREPARE:CylinderDelayedContact');
+            R.isolated_cylinder_first_use_cases= ...
+                R.isolated_cylinder_first_use_cases+1;
+        end
+        R.isolated_cylinder_first_use_status= ...
+            'PASS_SYNTHETIC_CYLINDER_3_BRANCHES_8_EACH__NOT_FLIGHT_SAFETY';
+    catch cylinder_ME
+        R.isolated_cylinder_first_use_reason= ...
+            [cylinder_ME.identifier ' | ' cylinder_ME.message];
+    end
     if ~strcmp(R.isolated_geometry_three_way_status, ...
                'DISCARDED_SUPPORT_NONCONTACT_CONTACT_ALL_EXECUTED')
         R.isolated_near_geometry_status=R.isolated_geometry_three_way_status;

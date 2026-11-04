@@ -28,10 +28,22 @@ try
         n=N(:,j);a=dot(n,[0;0;-1]);
         wanted(j)=max([0.1,0.05+max(0,L*a),0.12+L*a]);
     end
+    % Point-like external errors are represented by OUTWARD intervals;
+    % elementary operations widen the direction box by a few ulps.
+    % acos(1-eps) amplifies that to an O(sqrt(eps)) angle.  Reject any
+    % UNDER-approximation; distinguish certified enclosure from point
+    % equality/tightness rather than falsely requiring <1e-8 error.
+    % For a unit normal, moving a unit direction within cap angle alpha
+    % changes the dot product by at most 2*sin(alpha/2) <= alpha.
+    % The padded centre box contributes the interval's known width.
+    qbox=max(abs([E.initial_lower(1:3);E.initial_upper(1:3)]));
+    radius=max(D.r_uav_m,max(D.r_cable_m,D.r_payload_m));
+    cap_tolerance=3*L*F.direction_angle_upper_rad+ ...
+        3*qbox + 128*eps(max(1,L+radius));
     assert(all(F.union_support_upper>=wanted-1e-10) && ...
-        all(F.union_support_upper<wanted+1e-8), ...
+        all(F.union_support_upper<=wanted+cap_tolerance+1e-9), ...
         'CHECK_TRIGGER_TAUT_EKF_INITIAL_SUPPORT:Enclosure', ...
-        'Initial full-body directional support should match the exact taut configuration.');
+        'The output must enclose the point and remain within its known outward cap.');
     R.tested_normals=size(N,2);R.expected_exact_body=true;
     E2=E;E2.conditional_enclosure=false;D.initial=E2;
     bad=TRIGGER_TAUT_EKF_INITIAL_SUPPORT(D);

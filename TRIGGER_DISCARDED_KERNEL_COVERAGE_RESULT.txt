@@ -1,0 +1,4 @@
+status=PASS_SAME_FLIGHT_KERNEL_CONTACT_AND_CLEAR__NOT_JIT_OR_SAFETY
+calls=8
+contact_and_clear=1
+reason=

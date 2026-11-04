@@ -1,0 +1,3 @@
+status=PASS_PINNED_EKF_NONLINEAR_UPDATE_SOURCE__NOT_ERROR_PROOF
+source_sha256=54387629518f1ec2080eb03ff1c00a45140e0182ef83f4e236ef256016e23960
+reason=Original EKF.do uses model.do, gain G, innovation y-yh, then model.projection. Actual bounded process/measurement noise, projection image and nonlinear gain bounds remain unproved.

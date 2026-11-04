@@ -1,0 +1,5 @@
+status=PASS_CONDITIONAL_EKF_TO_FULL_TAUT_BODY__NO_SAFETY_PROOF
+normals=6
+exact_body=1
+missing_input_rejected=1
+reason=

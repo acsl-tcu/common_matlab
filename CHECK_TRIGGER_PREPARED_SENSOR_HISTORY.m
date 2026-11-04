@@ -17,9 +17,11 @@ try
     for k=1:numel(positions)
         p=[positions(k);0;0];
         f=sensor.observe(0.025*(k-1),p);
-        memory.update(f);
+        mr=memory.update(f);
         frame=memory.known_frame_for_trigger(f);
-        fresh=reshape(double(f.newly_detected_ids),1,[]);
+        % Re-detection is NOT a new acquisition. The already observed
+        % geometry must be retained, not appended twice.
+        fresh=reshape(double(mr.newly_acquired_ids),1,[]);
         if ~isempty(fresh)
             new_shapes=sensor.observed_prepared_only(fresh);
             assert(isequal(reshape(double([new_shapes.id]),1,[]),fresh), ...
@@ -28,6 +30,8 @@ try
             ledger_ids=[ledger_ids fresh]; %#ok<AGROW>
         end
         ids=reshape(double(frame.detected_ids),1,[]);
+        assert(isequal(ids,reshape(double(mr.known_obstacle_ids),1,[])), ...
+            'CHECK_TRIGGER_PREPARED_SENSOR_HISTORY:MemoryFrameMismatch');
         assert(isequal(ledger_ids,ids) && ...
             isequal(reshape(double([ledger.id]),1,[]),ids), ...
             'CHECK_TRIGGER_PREPARED_SENSOR_HISTORY:LedgerMismatch', ...
@@ -51,6 +55,10 @@ try
         end
         R.steps=k;
     end
+    % Verify that the earlier-sensed shape returning to range at tick four
+    % was NOT published as a new memory acquisition.
+    assert(isempty(R.fresh_ids{4}) && isempty(R.fresh_ids{6}), ...
+        'CHECK_TRIGGER_PREPARED_SENSOR_HISTORY:RedetectionDuplicate');
     assert(R.steps==8 && R.unseen_api_rejected && numel(ledger_ids)==3);
     R.status='PASS_SENSOR_ACQUIRED_HISTORY_ONLY__NO_JIT_OR_SAFETY_PROOF';
 catch ME

@@ -55,6 +55,9 @@ classdef REPLANNING_SYSTEM < handle
         isolated_direct_native_outer_appends=0
         isolated_near_geometry_cases=0
         isolated_near_geometry_status='NOT_ATTEMPTED'
+        isolated_cylinder_first_use_cases=0
+        isolated_cylinder_first_use_status='NOT_ATTEMPTED'
+        isolated_cylinder_first_use_reason=''
         isolated_outer_authority_status='NOT_ATTEMPTED'
         isolated_outer_authority_calls=0
         isolated_mcos_current_prepare_status='NOT_ATTEMPTED'
@@ -63,6 +66,12 @@ classdef REPLANNING_SYSTEM < handle
         isolated_f_runtime_prepare_status='NOT_ATTEMPTED'
         isolated_f_runtime_prepare_calls=0
         isolated_f_runtime_prepare_reason=''
+        % Discarded class-identical full update path: synthetic world only.
+        isolated_full_update_prepare_status='NOT_ATTEMPTED'
+        isolated_full_update_prepare_calls=0
+        isolated_full_update_prepare_nonflight_calls=0
+        isolated_full_update_prepare_incremental_appends=0
+        isolated_full_update_prepare_reason=''
         % Non-Flight shadow performs genuine typed CURRENT-frame/authority
         % reads using the existing live agent; no 4-s future prediction,
         % event generation or publication. Runs by ACTUAL agent.cha only.
@@ -74,6 +83,15 @@ classdef REPLANNING_SYSTEM < handle
         phase_shadow_last_phase=''
         phase_shadow_last_status='NOT_RUN'
         phase_shadow_last_reason=''
+        % Once an unchanged observed generation has been fully staged and
+        % the actual MCOS authority path has run sufficiently often, skip
+        % redundant pure-shadow work until a NEW memory/geometry generation.
+        % Only preparation is parked: sensor/memory and Flight prediction
+        % ALWAYS continue. No evidence or event is carried from a fixture.
+        phase_shadow_parked_calls=0
+        phase_shadow_parked_memory_version=uint64(0)
+        phase_shadow_parked_geometry_version=uint64(0)
+        phase_shadow_parked_ready=false
         preflight_timeonly_reference_status='NOT_ATTEMPTED'
         preflight_timeonly_reference_calls=0
         preflight_timeonly_direct_windows=0
@@ -127,6 +145,7 @@ classdef REPLANNING_SYSTEM < handle
         % Reuses the sensor's prepared representation; never accesses
         % precomputed geometry of obstacles not yet detected.
         observed_prepared_shapes=[]
+        is_discarded_synthetic_fixture=false
         observed_prepared_ids=zeros(1,0)
         static_frame
         all_static=false
@@ -148,7 +167,7 @@ classdef REPLANNING_SYSTEM < handle
     end
 
     methods
-        function obj=REPLANNING_SYSTEM(options)
+        function obj=REPLANNING_SYSTEM(options,synthetic_fixture_obstacles,internal_discarded_provenance)
             if nargin<1,options=struct();end
             if ~isstruct(options)||~isscalar(options)
                 error('REPLANNING_SYSTEM:Options','設定はスカラー構造体で指定してください。');
@@ -199,7 +218,26 @@ classdef REPLANNING_SYSTEM < handle
                 strtrim(getenv('TRIGGER_FIRST_FLIGHT_TRACE')),'1');
 
             stopwatch=tic;
-            obj.obstacles=OBSTACLE_INFORMATION.definitions();
+            % Ordinary production construction never changes: the real
+            % definition is read exactly once. Only the explicit internal
+            % pre-arm fixture path injects wholly invented obstacles.
+            if nargin==1 || nargin==0
+                obj.obstacles=OBSTACLE_INFORMATION.definitions();
+            else
+                % The extra arguments are an INTERNAL capability token for
+                % the discarded performance fixture, not a user setting.
+                % A normal runner must always call the one-argument path.
+                assert(nargin==3 && ischar(internal_discarded_provenance) && ...
+                    strcmp(internal_discarded_provenance, ...
+                        'DISCARDED_PREARM_FULL_UPDATE_ONLY') && ...
+                    isstruct(synthetic_fixture_obstacles) && ...
+                    isrow(synthetic_fixture_obstacles) && ...
+                    ~isempty(synthetic_fixture_obstacles), ...
+                    'REPLANNING_SYSTEM:DiscardedFixture', ...
+                    'Synthetic obstacles require an explicit internal discarded-fixture token.');
+                obj.obstacles=synthetic_fixture_obstacles;
+                obj.is_discarded_synthetic_fixture=true;
+            end
             OBSTACLE_INFORMATION.validate_list(obj.obstacles);
             obj.load_count=1;
             obj.load_time_ms=1000*toc(stopwatch);
@@ -459,6 +497,22 @@ classdef REPLANNING_SYSTEM < handle
                      isequal(char(agent.cha),'t')))
                 return
             end
+            % When the observed-set generation is unchanged, the completed
+            % cached geometry remains valid. Running the same verification
+            % and MCOS property accesses on every Takeoff frame provides no
+            % additional Flight correctness. A newly observed ID increments
+            % the memory version and automatically re-enables staging.
+            if obj.phase_shadow_parked_ready && ...
+                    isstruct(obj.last_memory_result) && ...
+                    isfield(obj.last_memory_result,'memory_version') && ...
+                    isfield(obj.last_memory_result,'geometry_version') && ...
+                    isequal(obj.phase_shadow_parked_memory_version, ...
+                            obj.last_memory_result.memory_version) && ...
+                    isequal(obj.phase_shadow_parked_geometry_version, ...
+                            obj.last_memory_result.geometry_version)
+                obj.phase_shadow_parked_calls=obj.phase_shadow_parked_calls+1;
+                return
+            end
             started=tic;
             obj.phase_shadow_last_phase=char(agent.cha);
             obj.phase_shadow_last_reason='';
@@ -518,9 +572,200 @@ classdef REPLANNING_SYSTEM < handle
                 obj.phase_shadow_last_status='SHADOW_PREPARE_FAILED__NO_SAFETY_CHANGE';
                 obj.phase_shadow_last_reason=[ME.identifier ' | ' ME.message];
             end
+            % Read only the existing, completely verified generation
+            % status. The first eight successful current() calls exercise
+            % the original typed access path; subsequent cycles need not
+            % repeatedly execute it. No fixed phase time or obstacle count.
+            if obj.phase_shadow_authority_calls>=8 && ...
+                    isstruct(obj.last_memory_result) && ...
+                    isfield(obj.last_memory_result,'known_obstacle_ids') && ...
+                    ~isempty(obj.last_memory_result.known_obstacle_ids)
+                staged=obj.trigger_core.shadow_observation_preparation_status();
+                current_ids=reshape(double( ...
+                    obj.last_memory_result.known_obstacle_ids),1,[]);
+                if isequal(staged.verified_ids,current_ids) && ...
+                        isequal(staged.outer_ids,current_ids) && ...
+                        staged.pending_count==numel(current_ids) && ...
+                        ~strcmp(obj.phase_shadow_last_status, ...
+                            'SHADOW_PREPARE_FAILED__NO_SAFETY_CHANGE')
+                    obj.phase_shadow_parked_memory_version= ...
+                        obj.last_memory_result.memory_version;
+                    obj.phase_shadow_parked_geometry_version= ...
+                        obj.last_memory_result.geometry_version;
+                    obj.phase_shadow_parked_ready=true;
+                end
+            end
             elapsed=1000*toc(started);
             obj.phase_shadow_total_ms=obj.phase_shadow_total_ms+elapsed;
             obj.phase_shadow_max_ms=max(obj.phase_shadow_max_ms,elapsed);
+        end
+
+        function P=prepare_discarded_full_update(obj,static_order,source)
+            % Strict pre-arm performance exercise of the REAL update method.
+            % The temporary REPLANNING_SYSTEM has only wholly fictitious
+            % obstacles. Its synthetic sensor, memory, cache, TIME, DRONE,
+            % reference and output are destroyed on return. This cannot
+            % precompute real obstacle masks, real Flight epochs or EKF.
+            % Any failure is observational only: the original Flight
+            % validator remains unchanged and grants no safety certificate.
+            P=struct('status','NOT_COMPLETED_DISCARDED_FULL_UPDATE', ...
+                'reason','','calls',0,'nonflight_calls',0, ...
+                'flight_calls',0,'source_world_lookup',false, ...
+                'live_agent_touched',false,'safe_to_commit',false, ...
+                'initial_two_acquired',false, ...
+                'nonempty_struct_incremental_appends',0, ...
+                'observed_sensor_history_only',false);
+            try
+                assert(~obj.is_discarded_synthetic_fixture, ...
+                    'REPLANNING_SYSTEM:RecursiveDiscardedUpdate', ...
+                    'A synthetic replanner cannot prepare another replanner.');
+                [probe,F]=TRIGGER_ISOLATED_MCOSTYPE_PREPARE( ...
+                    static_order,source);
+                assert(probe.calls==8 && probe.same_mcos_classes && ...
+                    isstruct(F) && isfield(F,'agent') && ...
+                    isfield(F,'time') && isfield(F,'authority'), ...
+                    'REPLANNING_SYSTEM:DiscardedMCOS', ...
+                    'Actual synthetic MCOS fixtures must be constructible.');
+                dt=double(F.sample_dt_s);L=double(F.cable_length_m);
+                agent=F.agent;clock=F.time;
+                % These 3 solids have no relationship to any actual world.
+                a=OBSTACLE_INFORMATION.define(91001, ...
+                    'sphere',[0;0;0],0.2);
+                b=OBSTACLE_INFORMATION.define(91002, ...
+                    'cylinder',[1;0;0],[0.15 0.4]);
+                % Geometry of the THIRD synthetic obstacle must start
+                % OUTSIDE the synthetic sensor range at p=[0;0;0] and
+                % p=[1;0;0], then be acquired genuinely at p=[10;0;0].
+                % The former [3;0;0] was already observed on k=1 and
+                % NEVER exercised nonempty-struct + new-ID append.
+                % This fictional layout is NOT a Flight detection mask.
+                c=OBSTACLE_INFORMATION.define(91003, ...
+                    'box',[7.2;0;0],[0.2 0.2 0.2]);
+                fake_obstacles=[a b c];
+                options=struct('SENSOR_RANGE_M',5, ...
+                    'ENABLE_ALL_LOG',true,'LOG_OBSTACLES',true, ...
+                    'LOG_SENSOR',true,'LOG_REPLANNER',true, ...
+                    'LOG_OBSTACLE_MEMORY',true,'LOG_TRIGGER',true, ...
+                    'ENABLE_SENSOR',true,'ENABLE_TRIGGER',true, ...
+                    'TRIGGER_UAV_RADIUS_M',obj.TRIGGER_UAV_RADIUS_M, ...
+                    'TRIGGER_PAYLOAD_RADIUS_M',obj.TRIGGER_PAYLOAD_RADIUS_M, ...
+                    'TRIGGER_CABLE_RADIUS_M',obj.TRIGGER_CABLE_RADIUS_M, ...
+                    'TRIGGER_HORIZON_S',obj.TRIGGER_HORIZON_S, ...
+                    'TRIGGER_NUMERIC_ABS_TOL',obj.TRIGGER_NUMERIC_ABS_TOL, ...
+                    'TRIGGER_NUMERIC_REL_TOL',obj.TRIGGER_NUMERIC_REL_TOL, ...
+                    'TRIGGER_FLIGHT_PHASE_END_S',100);
+                discarded=REPLANNING_SYSTEM(options,fake_obstacles, ...
+                    'DISCARDED_PREARM_FULL_UPDATE_ONLY');
+                assert(discarded.is_discarded_synthetic_fixture && ...
+                    numel(discarded.obstacles)==3, ...
+                    'REPLANNING_SYSTEM:DiscardedNotSynthetic');
+                discarded.trigger_authority_binding=F.authority;
+                discarded.preflight_model_binding_ready=true;
+                discarded.trigger_native_gate_checked=true;
+                discarded.trigger_native_gate_status= ...
+                    'OFFLINE_PARITY_PASSED_PENDING_NATIVE_HASH_PIN';
+                discarded.trigger_core.prepare_static_timing( ...
+                    dt,obj.TRIGGER_HORIZON_S);
+                nominal=TIME_VARYING_REFERENCE( ...
+                    struct('estimator',struct('result', ...
+                    struct('state',struct()))), ...
+                    {'TRIGGER_SOFTWARE_FIXTURE_REFERENCE_FACTORY',{}});
+                nominal.t=0;
+                agent.reference.set_function_class('timevarying',nominal);
+                audited=discarded.trigger_reference_cache. ...
+                    audit_immutable_source(nominal.func);
+                assert(audited.eligible, ...
+                    'REPLANNING_SYSTEM:DiscardedReferenceAudit');
+                % Eight Arming and eight Takeoff cycles execute the ACTUAL
+                % update, non-Flight early exit, memory and shadow branches.
+                % Eight additional fake Flight cycles exercise the original
+                % outer evaluate_trigger and full logging path. Not one
+                % result is used by the real planner/controller.
+                for k=1:24
+                    clock.t=(k-1)*dt;
+                    if k<=8
+                        agent.cha='a';
+                    elseif k<=16
+                        agent.cha='t';
+                    else
+                        agent.cha='f';
+                    end
+                    st=agent.estimator.result.state;
+                    % Synthetic pose progression exercises acquisition,
+                    % re-detection and retention without precomputed masks.
+                    if mod(k,6)==0
+                        p=[10;0;0];
+                    elseif mod(k,6)==1
+                        p=[0;0;0];
+                    else
+                        p=[1;0;0];
+                    end
+                    st.p=p;st.pL=p+[0;0;-L];
+                    st.pT=[0;0;-1];st.mL=1;
+                    agent.reference.result=nominal.result;
+                    agent.reference.result.state.xd= ...
+                        REPLANNING_SYSTEM.flight_reference_from_nominal( ...
+                            nominal,clock.t,L);
+                    previous_count=numel(discarded.observed_prepared_ids);
+                    discarded.update(clock,agent);
+                    freshly=reshape(double( ...
+                        discarded.last_memory_result.newly_acquired_ids),1,[]);
+                    learned=reshape(double( ...
+                        discarded.observed_prepared_ids),1,[]);
+                    if k==1
+                        assert(isequal(freshly,[91001 91002]) && ...
+                            isequal(learned,[91001 91002]) && ...
+                            numel(discarded.observed_prepared_shapes)==2, ...
+                            'REPLANNING_SYSTEM:DiscardedTwoInitial', ...
+                            'The first discarded scan must acquire two real synthetic detections.');
+                        P.initial_two_acquired=true;
+                    elseif k==6
+                        assert(previous_count==2 && ...
+                            isequal(freshly,91003) && ...
+                            isequal(learned,[91001 91002 91003]) && ...
+                            numel(discarded.observed_prepared_shapes)==3, ...
+                            'REPLANNING_SYSTEM:DiscardedOneIncremental', ...
+                            'A new synthetic observation must exercise the nonempty append path.');
+                        P.nonempty_struct_incremental_appends= ...
+                            P.nonempty_struct_incremental_appends+1;
+                    else
+                        assert(isempty(freshly), ...
+                            'REPLANNING_SYSTEM:DiscardedUnexpectedNewID', ...
+                            'Discarded fixture must not acquire an unexpected ID.');
+                    end
+                    rr=discarded.last_trigger_result;
+                    assert(isstruct(rr)&&isscalar(rr) && ...
+                        (~isfield(rr,'safe_to_commit') || ...
+                        isequal(rr.safe_to_commit,false)), ...
+                        'REPLANNING_SYSTEM:DiscardedMustNeverCommit');
+                    if k>16
+                        assert(isfield(rr,'prediction_complete') && ...
+                            isequal(rr.prediction_complete,true) && ...
+                            isfield(rr,'predictor_dispatch') && ...
+                            strcmp(rr.predictor_dispatch, ...
+                                'DIRECT_NATIVE_VERIFIED_BINDING'), ...
+                            'REPLANNING_SYSTEM:DiscardedFPath', ...
+                            'The actual full update did not reach the native Flight predictor.');
+                    end
+                    P.calls=k;
+                    P.nonflight_calls=min(k,16);
+                    P.flight_calls=max(0,k-16);
+                end
+                assert(P.calls==24 && P.nonflight_calls==16 && ...
+                    P.flight_calls==8 && ...
+                    discarded.frame_count==24 && ...
+                    discarded.trigger_count==24 && ...
+                    P.initial_two_acquired && ...
+                    P.nonempty_struct_incremental_appends==1 && ...
+                    isequal(reshape(double(discarded.observed_prepared_ids),1,[]), ...
+                        [91001 91002 91003]), ...
+                    'REPLANNING_SYSTEM:DiscardedCoverage');
+                P.observed_sensor_history_only=true;
+                P.status= ...
+                    'PASS_DISCARDED_FULL_UPDATE_16_NONFLIGHT_8_FLIGHT__NOT_JIT_OR_SAFETY';
+            catch ME
+                P.reason=[ME.identifier ' | ' ME.message];
+            end
         end
 
         function result=preflight_update(obj,time,agent)
@@ -533,6 +778,12 @@ classdef REPLANNING_SYSTEM < handle
             started=tic;
             obj.preflight_update_ready=false;
             obj.preflight_model_binding_ready=false;
+            % A new software preflight must never inherit a parked
+            % observed-generation token from a previous attempt.
+            obj.phase_shadow_parked_ready=false;
+            obj.phase_shadow_parked_calls=0;
+            obj.phase_shadow_parked_memory_version=uint64(0);
+            obj.phase_shadow_parked_geometry_version=uint64(0);
             obj.preflight_model_binding_ms=NaN;
             obj.preflight_model_binding_status='NOT_PREBOUND';
             obj.trigger_authority_binding=[];
@@ -558,11 +809,19 @@ classdef REPLANNING_SYSTEM < handle
             obj.isolated_direct_native_outer_appends=0;
             obj.isolated_near_geometry_cases=0;
             obj.isolated_near_geometry_status='NOT_ATTEMPTED';
+            obj.isolated_cylinder_first_use_cases=0;
+            obj.isolated_cylinder_first_use_status='NOT_ATTEMPTED';
+            obj.isolated_cylinder_first_use_reason='';
             obj.isolated_outer_authority_status='NOT_ATTEMPTED';
             obj.isolated_outer_authority_calls=0;
             obj.isolated_mcos_current_prepare_status='NOT_ATTEMPTED';
             obj.isolated_mcos_current_prepare_calls=0;
             obj.isolated_mcos_current_prepare_reason='';
+            obj.isolated_full_update_prepare_status='NOT_ATTEMPTED';
+            obj.isolated_full_update_prepare_calls=0;
+            obj.isolated_full_update_prepare_nonflight_calls=0;
+            obj.isolated_full_update_prepare_incremental_appends=0;
+            obj.isolated_full_update_prepare_reason='';
             obj.trigger_native_gate_checked=true;
             obj.trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED';
             if obj.ENABLE_TRIGGER
@@ -723,6 +982,31 @@ classdef REPLANNING_SYSTEM < handle
                                 obj.isolated_f_runtime_prepare_reason= ...
                                     [ME.identifier ' | ' ME.message];
                             end
+                            % The previous fixtures exercised inner kernel
+                            % methods but NOT REPLANNING_SYSTEM.update(),
+                            % causing an entire outer-class cold path at the
+                            % first and fifth real tick. Exercise the SAME
+                            % full method on an INDEPENDENT disposable
+                            % synthetic replanner/DRONE/TIME only, before
+                            % Arming. It must never query real obstacles,
+                            % EKF values, controller input or Flight epoch.
+                            try
+                                ur=obj.prepare_discarded_full_update( ...
+                                    agent.parameter.parameter_order, ...
+                                    obj.trigger_authority_binding.flight);
+                                obj.isolated_full_update_prepare_status=ur.status;
+                                obj.isolated_full_update_prepare_calls=ur.calls;
+                                obj.isolated_full_update_prepare_nonflight_calls= ...
+                                    ur.nonflight_calls;
+                                obj.isolated_full_update_prepare_incremental_appends= ...
+                                    ur.nonempty_struct_incremental_appends;
+                                obj.isolated_full_update_prepare_reason=ur.reason;
+                            catch ME
+                                obj.isolated_full_update_prepare_status= ...
+                                    'NOT_COMPLETED_DISCARDED_FULL_UPDATE';
+                                obj.isolated_full_update_prepare_reason= ...
+                                    [ME.identifier ' | ' ME.message];
+                            end
                             obj.isolated_first_use_prepare_ms=pure.elapsed_ms;
                             obj.isolated_first_use_prepare_status=pure.status;
                             if isfield(pure,'isolated_sensor_event_prepare_status')
@@ -762,6 +1046,14 @@ classdef REPLANNING_SYSTEM < handle
                             if isfield(pure,'isolated_near_geometry_status')
                                 obj.isolated_near_geometry_status= ...
                                     pure.isolated_near_geometry_status;
+                            end
+                            if isfield(pure,'isolated_cylinder_first_use_status')
+                                obj.isolated_cylinder_first_use_status= ...
+                                    pure.isolated_cylinder_first_use_status;
+                                obj.isolated_cylinder_first_use_cases= ...
+                                    pure.isolated_cylinder_first_use_cases;
+                                obj.isolated_cylinder_first_use_reason= ...
+                                    pure.isolated_cylinder_first_use_reason;
                             end
                             if isfield(pure,'isolated_outer_authority_status')
                                 obj.isolated_outer_authority_status= ...
@@ -1252,6 +1544,16 @@ classdef REPLANNING_SYSTEM < handle
             status.preflight_model_binding_ready=obj.preflight_model_binding_ready;
             status.preflight_model_binding_ms=obj.preflight_model_binding_ms;
             status.preflight_model_binding_status=obj.preflight_model_binding_status;
+            status.isolated_full_update_prepare_status= ...
+                obj.isolated_full_update_prepare_status;
+            status.isolated_full_update_prepare_calls= ...
+                obj.isolated_full_update_prepare_calls;
+            status.isolated_full_update_prepare_nonflight_calls= ...
+                obj.isolated_full_update_prepare_nonflight_calls;
+            status.isolated_full_update_prepare_incremental_appends= ...
+                obj.isolated_full_update_prepare_incremental_appends;
+            status.isolated_full_update_prepare_reason= ...
+                obj.isolated_full_update_prepare_reason;
             status.isolated_first_use_prepare_ms=obj.isolated_first_use_prepare_ms;
             status.isolated_first_use_prepare_status=obj.isolated_first_use_prepare_status;
             status.isolated_sensor_event_prepare_status= ...
@@ -1270,6 +1572,12 @@ classdef REPLANNING_SYSTEM < handle
                 obj.isolated_near_geometry_cases;
             status.isolated_near_geometry_status= ...
                 obj.isolated_near_geometry_status;
+            status.isolated_cylinder_first_use_cases= ...
+                obj.isolated_cylinder_first_use_cases;
+            status.isolated_cylinder_first_use_status= ...
+                obj.isolated_cylinder_first_use_status;
+            status.isolated_cylinder_first_use_reason= ...
+                obj.isolated_cylinder_first_use_reason;
             status.isolated_outer_authority_status= ...
                 obj.isolated_outer_authority_status;
             status.isolated_outer_authority_calls= ...
@@ -1294,6 +1602,12 @@ classdef REPLANNING_SYSTEM < handle
             status.phase_shadow_last_phase=obj.phase_shadow_last_phase;
             status.phase_shadow_last_status=obj.phase_shadow_last_status;
             status.phase_shadow_last_reason=obj.phase_shadow_last_reason;
+            status.phase_shadow_parked_ready=obj.phase_shadow_parked_ready;
+            status.phase_shadow_parked_calls=obj.phase_shadow_parked_calls;
+            status.phase_shadow_parked_memory_version= ...
+                obj.phase_shadow_parked_memory_version;
+            status.phase_shadow_parked_geometry_version= ...
+                obj.phase_shadow_parked_geometry_version;
             status.phase_shadow_geometry= ...
                 obj.trigger_core.shadow_observation_preparation_status();
         end
