@@ -1,0 +1,7 @@
+status=PASS_TEMPORAL_SHAPE_NEUTRAL_THEOREM__CONDITIONAL_ONLY
+cases=407
+failures=0
+true_clear_cases=384
+multiple_ids=2
+safe_to_commit=0
+reason=

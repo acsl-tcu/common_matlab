@@ -1,0 +1,9 @@
+status=PASS_TRUE_SHAPE_FULL_TIME_BRIDGE__CONDITIONAL_NOT_FLIGHT_PROOF
+cases=19
+failures=0
+shape_families=10
+multiple_risk_ids=2
+nonconvex_hole_clear=1
+unknown_shape_fails_closed=1
+safe_to_commit=0
+reason=

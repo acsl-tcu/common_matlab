@@ -11,15 +11,20 @@ function R=TRIGGER_EKF_INTERVAL_RISK_DECISION(C)
 % Then true clearance >= max(0,d_nom_lower - rho).  If
 %   dtrue_lower(k)+dtrue_lower(k+1) > V_k*(t_{k+1}-t_k)
 % the ENTIRE interval is collision free. On the first unproved interval,
-% output exactly one obstacle ID and a possible-contact time interval.
+% output ALL simultaneous observed obstacle IDs and a possible-contact
+% time interval.
 % This is NOT an exact collision time. No unobserved obstacle is consulted.
 %
 % All input bounds MUST be externally justified. Merely setting numbers
 % in C does not certify the original EKF/plant/HLC or true geometry.
 R=struct('status','UNKNOWN_REQUIRED_CERTIFICATE_MISSING', ...
     'conditional_replan_required',true, 'obstacle_id',NaN, ...
+    'earliest_possible_ids',zeros(1,0),'first_interval_index',NaN, ...
     'first_possible_ttc_left_s',NaN, ...
     'first_possible_ttc_right_s',NaN, ...
+    'first_possible_narrow_left_s',NaN, ...
+    'first_possible_narrow_right_s',NaN, ...
+    'narrow_window_conditional_only',false, ...
     'certified_clear_intervals',0,'evaluated_pairs',0, ...
     'safe_to_commit',false,'reason','');
 try
@@ -50,26 +55,67 @@ try
         R.reason='No known obstacle was tested; no world-level safety claim.';
         return
     end
-    % Earliest-interval-first and stop at first unresolved obstacle.
-    % Never process a collision search by obstacle order alone.
+    % Earliest-interval-first: do NOT stop at the first obstacle inside
+    % this interval. All obstacles at the SAME earliest ambiguous interval
+    % are required for a simultaneous, variable-cardinality replan event.
+    % This never examines a shape outside the sensor-observed/retained IDs.
     for k=1:n-1
         h=TRIGGER_FLOAT_OUTWARD_ONE_ULP(t(k+1)-t(k),+1);
         move=TRIGGER_FLOAT_OUTWARD_ONE_ULP(v(k)*h,+1);
-        for j=1:m
-            lo0=max(0,TRIGGER_FLOAT_OUTWARD_ONE_ULP(d(j,k)-e(k),-1));
-            lo1=max(0,TRIGGER_FLOAT_OUTWARD_ONE_ULP(d(j,k+1)-e(k+1),-1));
-            clear_lower=TRIGGER_FLOAT_OUTWARD_ONE_ULP(lo0+lo1,-1);
-            R.evaluated_pairs=R.evaluated_pairs+1;
-            if ~(clear_lower>move)
-                R.status='CONDITIONAL_POSSIBLE_CONTACT_INTERVAL__REPLAN';
-                R.conditional_replan_required=true;
-                R.obstacle_id=ids(j);
-                R.first_possible_ttc_left_s=t(k);
-                R.first_possible_ttc_right_s=t(k+1);
-                R.certified_clear_intervals=k-1;
-                R.reason='No-contact not established here; not an exact collision proof.';
-                return
+        % Vectorize ONLY the obstacle axis, not time. This gives exactly
+        % the same binary64 elementary operations and one-ULP outward
+        % expansion as the scalar oracle, without m repeated MATLAB
+        % function dispatches for every interval. All observed IDs remain
+        % considered; no mask precomputation or unsafe early clearance.
+        lo0=max(0,TRIGGER_FLOAT_OUTWARD_ONE_ULP(d(:,k)-e(k),-1));
+        lo1=max(0,TRIGGER_FLOAT_OUTWARD_ONE_ULP(d(:,k+1)-e(k+1),-1));
+        clear_lower=TRIGGER_FLOAT_OUTWARD_ONE_ULP(lo0+lo1,-1);
+        unproved=reshape(~(clear_lower>move),1,[]);
+        R.evaluated_pairs=R.evaluated_pairs+m;
+        if any(unproved)
+            involved=ids(unproved);
+            R.status='CONDITIONAL_POSSIBLE_CONTACT_INTERVAL__REPLAN';
+            R.conditional_replan_required=true;
+            R.obstacle_id=involved(1); % backward-compatible primary ID
+            R.earliest_possible_ids=involved;
+            R.first_interval_index=k;
+            R.first_possible_ttc_left_s=t(k);
+            R.first_possible_ttc_right_s=t(k+1);
+            % For a true whole-body clearance d(t) with Lipschitz constant
+            % v over [tk,tk+1], d(t)>=d(tk)-v*(t-tk) and
+            % d(t)>=d(tk+1)-v*(tk+1-t). A possible ZERO clearance cannot
+            % occur before tk+lo0/v nor after tk+1-lo1/v. Retain the
+            % ORIGINAL full interval in the legacy fields; provide the
+            % tighter CONDITIONAL bracket separately and use outward
+            % binary64 expansion so a zero/underflow cannot shrink it.
+            if v(k)>0
+                a=lo0(unproved);b=lo1(unproved);
+                ta=TRIGGER_FLOAT_OUTWARD_ONE_ULP(a./v(k),-1);
+                tb=TRIGGER_FLOAT_OUTWARD_ONE_ULP(b./v(k),-1);
+                left=TRIGGER_FLOAT_OUTWARD_ONE_ULP(t(k)+ta,-1);
+                right=TRIGGER_FLOAT_OUTWARD_ONE_ULP(t(k+1)-tb,+1);
+                L=max(t(k),min(left));
+                U=min(t(k+1),max(right));
+                if isfinite(L)&&isfinite(U)&&L<=U
+                    R.first_possible_narrow_left_s=L;
+                    R.first_possible_narrow_right_s=U;
+                else
+                    % Even if rounded bounds become inconsistent, this
+                    % sufficient gate cannot make an interval SAFE.
+                    R.first_possible_narrow_left_s=t(k);
+                    R.first_possible_narrow_right_s=t(k+1);
+                end
+            else
+                % Zero guaranteed speed + zero lower clearance is UNKNOWN
+                % throughout. Never divide by zero or invent first contact.
+                R.first_possible_narrow_left_s=t(k);
+                R.first_possible_narrow_right_s=t(k+1);
             end
+            R.narrow_window_conditional_only=true;
+            R.certified_clear_intervals=k-1;
+            R.reason=['The earliest unproved continuous interval contains ' ...
+                'all of these observed IDs; no actual collision is claimed.'];
+            return
         end
         R.certified_clear_intervals=k;
     end

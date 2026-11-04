@@ -1,0 +1,6 @@
+status=PASS_SOURCE_AND_FUTURE_MASS_ALGEBRA__PHYSICAL_BOUND_STILL_REQUIRED
+cases=1204
+failures=0
+mass_witnesses=20915
+source_hlc_pinned=1
+reason=

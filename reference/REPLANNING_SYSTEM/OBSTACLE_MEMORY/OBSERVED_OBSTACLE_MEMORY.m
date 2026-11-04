@@ -6,6 +6,7 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
     properties (SetAccess=private)
         observed_obstacles
         observed_schema_ready = false
+        diagnostic_timing_enabled = false % Snapshot once per memory instance
         known_ids = zeros(1,0)
         currently_detected_ids = zeros(1,0)
         first_seen_s = zeros(1,0)
@@ -31,6 +32,7 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
                 'OBSERVED_OBSTACLE_MEMORY:Template', ...
                 'Pass only an empty obstacle struct array as template.');
             obj.observed_obstacles = reshape(obstacle_template,1,[]);
+            obj.diagnostic_timing_enabled=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
             % No observed object is present. A schema with the sensor's
             % .position field can be supplied safely before Flight, without
             % reading any sensor event or real obstacle information.
@@ -38,7 +40,7 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
         end
         function result = update(obj,frame)
             clock = tic;
-            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            diagnose=obj.diagnostic_timing_enabled;
             must = {'time_s','uav_position_ekf_m','detected_ids', ...
                     'detected_count','detected_obstacles'};
             assert(isstruct(frame)&&isscalar(frame)&&all(isfield(frame,must)), ...
@@ -144,9 +146,15 @@ classdef OBSERVED_OBSTACLE_MEMORY < handle
             % Refresh timestamps and moving descriptions only. Exact static
             % descriptions come from the sensor's immutable Flight definition
             % and MUST NOT be allocated or copied at every control tick.
+            % All records in a MATLAB struct array share field names.
+            % This pure schema check is independent of i; do it ONCE per
+            % real sensor frame rather than once per detected obstacle.
+            % Do not cache IDs, skip timestamp refresh, or change motion
+            % handling: history and moving descriptions remain identical.
+            has_motion_field=isfield(obstacles,'motion');
             for i=1:numel(indices)
                 ix=indices(i);
-                stationary=isfield(obstacles,'motion') && ...
+                stationary=has_motion_field && ...
                     strcmp(obstacles(i).motion,'static');
                 if ~stationary && ~isequaln(obj.observed_obstacles(ix),obstacles(i))
                     obj.observed_obstacles(ix)=obstacles(i);

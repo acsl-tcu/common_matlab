@@ -1,0 +1,4 @@
+status=BUILT__REQUIRES_FRESH_HLC_PLANT_PARITY_BEFORE_FLIGHT
+reason=Build succeeded. Run CHECK_TRIGGER_NATIVE_TERMINAL_PARITY against a completed existing real Flight logger and agent before enabling this kernel in the Flight path.
+source=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_SYMBOLIC_NATIVE_CORE.cpp
+mex=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_SYMBOLIC_NATIVE_CORE.mexw64

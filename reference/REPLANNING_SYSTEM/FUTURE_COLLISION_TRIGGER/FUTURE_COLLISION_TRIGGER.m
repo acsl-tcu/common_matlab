@@ -39,6 +39,8 @@ classdef FUTURE_COLLISION_TRIGGER < handle
 
     properties (SetAccess=private)
         horizon_s
+        diagnostic_timing_enabled=false % No getenv in Flight evaluation
+        sampled_geometry_options=struct() % Immutable per-Flight options, no getenv per obstacle
         sample_dt_s = NaN
         r_uav_m = NaN
         r_payload_m = NaN
@@ -86,6 +88,11 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             % Only the trigger's horizon has a module-level default.
             % No physical fallback is stored here. evaluate() requires
             % the external Flight binding with every invocation.
+            obj.diagnostic_timing_enabled=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            obj.sampled_geometry_options=struct( ...
+                'diagnostic_timing_enabled',logical(obj.diagnostic_timing_enabled), ...
+                'sampled_block_experiment_enabled', ...
+                strcmp(getenv('TRIGGER_SAMPLED_BLOCK_EXPERIMENT'),'1'));
             if isfield(config,'horizon_s')
                 obj.horizon_s=FUTURE_COLLISION_TRIGGER.positive(config.horizon_s,'horizon_s');
             else
@@ -309,6 +316,12 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'geometry_exact_body_queries',0, ...
                 'geometry_exact_cable_queries',0, ...
                 'geometry_support_exclusions',0, ...
+                'geometry_sampled_axis_plane_exclusions',0, ...
+                'geometry_sampled_block_support_exclusions',0, ...
+                'geometry_sampled_block_support_probes',0, ...
+                'timing_pre_predictor_ms',NaN, ...
+                'timing_between_predictor_geometry_ms',NaN, ...
+                'timing_post_geometry_ms',NaN, ...
                 'geometry_native_broadphase_used',false, ...
                 'geometry_first_use_verified_before_predictor',false, ...
                 'geometry_sampled_broadphase_exclusions',0, ...
@@ -529,9 +542,15 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'FUTURE_COLLISION_TRIGGER:Accuracy', ...
                 'Numerical tolerances must come from live run configuration.');
             request.numeric_tolerances=authority.numeric_tolerances;
+            timing_on=obj.diagnostic_timing_enabled;
             if trace_first
                 request.first_use_trace=true;
+            end
+            if trace_first || timing_on
                 first_pre_predictor_ms=1000*toc(started);
+                if timing_on
+                    R.timing_pre_predictor_ms=first_pre_predictor_ms;
+                end
             end
             try
                 predictor_wall_clock=tic;
@@ -651,6 +670,10 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             % Reuse it if and ONLY if the ENTIRE source snapshot is exactly
             % equal to the one previously validated. Any changed ID/shape/
             % orientation/motion causes full validation and preparation.
+            if timing_on
+                R.timing_between_predictor_geometry_ms= ...
+                    1000*toc(started)-R.timing_pre_predictor_ms-predictor_wall_ms;
+            end
             geometry_wall_clock=tic;
             % Prefer the sensor's ALREADY prepared true-solid geometry,
             % disclosed only after the ID was actually detected. This
@@ -818,7 +841,8 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                     [u_hit,l_hit,c_hit,c_unknown,qinfo]= ...
                         TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
                         P.uav_m,P.payload_m,sh,obj.r_uav_m, ...
-                        obj.r_payload_m,obj.r_cable_m,time_s,true);
+                        obj.r_payload_m,obj.r_cable_m,time_s,true, ...
+                        obj.sampled_geometry_options);
                 catch ME
                     % No numeric/shape error can imply clearance.
                     geometry_errors(end+1)=double(sh.id); %#ok<AGROW>
@@ -841,6 +865,21 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 R.geometry_support_exclusions= ...
                     R.geometry_support_exclusions+qinfo.body_support_excluded+ ...
                     qinfo.cable_support_excluded;
+                if isfield(qinfo,'sampled_block_support_excluded')
+                    R.geometry_sampled_block_support_exclusions= ...
+                        R.geometry_sampled_block_support_exclusions+ ...
+                        qinfo.sampled_block_support_excluded;
+                end
+                if isfield(qinfo,'sampled_block_support_probes')
+                    R.geometry_sampled_block_support_probes= ...
+                        R.geometry_sampled_block_support_probes+ ...
+                        qinfo.sampled_block_support_probes;
+                end
+                if isfield(qinfo,'sampled_axis_plane_excluded') && ...
+                        qinfo.sampled_axis_plane_excluded
+                    R.geometry_sampled_axis_plane_exclusions= ...
+                        R.geometry_sampled_axis_plane_exclusions+3*numel(grid);
+                end
 
                 sampled=u_hit | l_hit | c_hit;
                 index=find(sampled,1,'first');
@@ -876,6 +915,7 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             R.geometry_query_error_ids=geometry_errors;
             R.geometry_query_error_messages=geometry_error_messages;
             R.geometry_wall_ms=1000*toc(geometry_wall_clock);
+            if timing_on,post_geometry_clock=tic;end
             if trace_first
                 R.first_use_trace.geometry_wall_ms=R.geometry_wall_ms;
             end
@@ -931,6 +971,9 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             R.numeric_request=R.new_event;
             % Never authorize trajectory commit from a trigger decision alone.
             R.safe_to_commit=false;
+            if timing_on
+                R.timing_post_geometry_ms=1000*toc(post_geometry_clock);
+            end
             R=obj.finish(R,started);
         end
     end

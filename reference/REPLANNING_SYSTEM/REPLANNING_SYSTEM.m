@@ -156,6 +156,7 @@ classdef REPLANNING_SYSTEM < handle
         % 1x6 timing vector in the EXISTING Sim LOGGER reference.result.
         % Default OFF: no extra toc calls or per-tick arrays in production.
         stage_timing_enabled=false
+        thread_cpu_diag_enabled=false % Temporary Win32 CPU/wall audit, OFF by default
         % Optional phase-local source evaluation, never a sensor/dynamics
         % warmup. A candidate epoch is only a prediction of a phase switch:
         % first Flight will independently verify it before any reuse.
@@ -212,6 +213,16 @@ classdef REPLANNING_SYSTEM < handle
                     'REPLANNING_STAGE_TIMING must be empty, 0, or 1.');
             end
             obj.stage_timing_enabled=strcmp(stage_env,'1');
+            obj.thread_cpu_diag_enabled=obj.stage_timing_enabled && ...
+                strcmp(strtrim(getenv('REPLANNING_THREAD_CPU_DIAG')),'1');
+            if obj.thread_cpu_diag_enabled
+                assert(exist('TRIGGER_THREAD_CPU_WALL_NATIVE','file')==3, ...
+                    'REPLANNING_SYSTEM:ThreadClockMissing', ...
+                    ['Diagnostics enabled, but TRIGGER_THREAD_CPU_WALL_NATIVE is missing. ' ...
+                     'Run CHECK_TRIGGER_THREAD_CPU_CLOCK_BUILD BEFORE the Flight.']);
+                % Pure native code loading: no obstacle/world/state/reference lookups.
+                cpu_probe_first=TRIGGER_THREAD_CPU_WALL_NATIVE(); %#ok<NASGU>
+            end
             % First 8 eligible Flight evaluations only. No file I/O, no
             % synthetic sensor/flight/ODE calls. Optional; default OFF.
             obj.first_flight_trace_enabled=strcmp( ...
@@ -296,6 +307,10 @@ classdef REPLANNING_SYSTEM < handle
             measure_replanner=obj.ENABLE_ALL_LOG && obj.LOG_REPLANNER;
             if measure_replanner, update_clock=tic; end
             stage_on=obj.stage_timing_enabled && measure_replanner;
+            if obj.thread_cpu_diag_enabled
+                cpu_marks=zeros(5,4);
+                cpu_marks(1,:)=TRIGGER_THREAD_CPU_WALL_NATIVE();
+            end
             if stage_on
                 stage_clock=tic;
                 stage_marks=zeros(1,6);
@@ -363,6 +378,9 @@ classdef REPLANNING_SYSTEM < handle
                 obj.last_memory_result=struct();
             end
             if stage_on,stage_marks(3)=1000*toc(stage_clock);end
+            if obj.thread_cpu_diag_enabled
+                cpu_marks(2,:)=TRIGGER_THREAD_CPU_WALL_NATIVE();
+            end
 
             % Removed the rejected Takeoff-period priming hot path.
             % TAKEOFF_REFERENCE.base_time is not the proven first-Flight
@@ -391,6 +409,9 @@ classdef REPLANNING_SYSTEM < handle
                 obj.prepare_nonflight_shadow(time,agent);
             end
             if stage_on,shadow_stage_ms=1000*toc(shadow_stage_clock);end
+            if obj.thread_cpu_diag_enabled
+                cpu_marks(3,:)=TRIGGER_THREAD_CPU_WALL_NATIVE();
+            end
 
             % Trigger evaluation uses ONLY the sensor-derived memory frame.
             % No obstacle truth from obj.obstacles enters the trigger.
@@ -415,6 +436,9 @@ classdef REPLANNING_SYSTEM < handle
             obj.trigger_count=obj.trigger_count+1;
             obj.trigger_time_total_ms=obj.trigger_time_total_ms+trigger_result.elapsed_ms;
             obj.trigger_time_max_ms=max(obj.trigger_time_max_ms,trigger_result.elapsed_ms);
+            if obj.thread_cpu_diag_enabled
+                cpu_marks(4,:)=TRIGGER_THREAD_CPU_WALL_NATIVE();
+            end
 
             % ログONなら既存値を上書き。OFFに切り替えた場合だけ消す。
             % 毎tickのrmfield→再追加は不要なので実行しない。
@@ -497,6 +521,29 @@ classdef REPLANNING_SYSTEM < handle
             if ~stage_on && isfield(reference_result,'replanning_shadow_ms')
                 reference_result=rmfield(reference_result,'replanning_shadow_ms');
             end
+            if obj.thread_cpu_diag_enabled
+                cpu_marks(5,:)=TRIGGER_THREAD_CPU_WALL_NATIVE();
+                % 4 nonoverlapping intervals: sensor+memory/prepared,
+                % nonflight shadow, trigger, and logging/result assembly.
+                % Column 1 = real elapsed wall; column 2 = current MATLAB
+                % thread CPU. Keep raw values for rigorous after-Flight audit.
+                stamps=diff(cpu_marks(:,1:2),1,1);
+                reference_result.replanning_thread_cpu_wall_ms=stamps;
+                % High-resolution workload proxy; NOT CPU milliseconds.
+                % Windows GetThreadTimes has coarse 15.625ms granularity.
+                reference_result.replanning_thread_cycles= ...
+                    diff(cpu_marks(:,4),1,1);
+                reference_result.replanning_thread_same_id= ...
+                    all(cpu_marks(:,3)==cpu_marks(1,3));
+            elseif isfield(reference_result,'replanning_thread_cpu_wall_ms')
+                reference_result=rmfield(reference_result,'replanning_thread_cpu_wall_ms');
+                if isfield(reference_result,'replanning_thread_same_id')
+                    reference_result=rmfield(reference_result,'replanning_thread_same_id');
+                end
+                if isfield(reference_result,'replanning_thread_cycles')
+                    reference_result=rmfield(reference_result,'replanning_thread_cycles');
+                end
+            end
             agent.reference.result=reference_result;
         end
 
@@ -528,6 +575,14 @@ classdef REPLANNING_SYSTEM < handle
                 return
             end
             started=tic;
+            % The Flight kernel always validates live-current state again.
+            % A non-Flight current() call here is discarded, and the same
+            % typed access path was already prepared on synthetic fixtures
+            % before arming. Skip this duplicate read by default after a
+            % successful preflight binding. The diagnostic override restores
+            % the old read for isolated same-method A/B auditing.
+            skip_discarded_current=obj.preflight_model_binding_ready && ...
+                ~strcmp(getenv('REPLANNING_SHADOW_CURRENT_DIAG'),'1');
             obj.phase_shadow_last_phase=char(agent.cha);
             obj.phase_shadow_last_reason='';
             try
@@ -550,6 +605,9 @@ classdef REPLANNING_SYSTEM < handle
                 if ~obj.preflight_model_binding_ready || ...
                         isempty(obj.trigger_authority_binding)
                     obj.phase_shadow_last_status='SKIPPED_STATIC_BINDING_NOT_READY';
+                elseif skip_discarded_current
+                    obj.phase_shadow_last_status= ...
+                        'NONFLIGHT_DISCARDED_CURRENT_ELIDED__FLIGHT_STILL_VALIDATES';
                 else
                     state=agent.estimator.result.state;
                     mL=double(state.mL);
@@ -590,7 +648,8 @@ classdef REPLANNING_SYSTEM < handle
             % status. The first eight successful current() calls exercise
             % the original typed access path; subsequent cycles need not
             % repeatedly execute it. No fixed phase time or obstacle count.
-            if obj.phase_shadow_authority_calls>=8 && ...
+            if (obj.phase_shadow_authority_calls>=8 || ...
+                    skip_discarded_current) && ...
                     ismethod(obj.trigger_core,'shadow_observation_preparation_status') && ...
                     isstruct(obj.last_memory_result) && ...
                     isfield(obj.last_memory_result,'known_obstacle_ids') && ...
@@ -1346,7 +1405,8 @@ classdef REPLANNING_SYSTEM < handle
                     time,agent,sensed,obj.trigger_authority_binding, ...
                     obj.trigger_reference_cache,obj.trigger_core, ...
                     obj.TRIGGER_NUMERIC_ABS_TOL, ...
-                    obj.TRIGGER_NUMERIC_REL_TOL,trace_first);
+                    obj.TRIGGER_NUMERIC_REL_TOL,trace_first, ...
+                    obj.stage_timing_enabled);
                 if trace_first
                     ft.reference_now_ms=inner_trace.reference_now_ms;
                     ft.authority_create_ms=inner_trace.authority_create_ms;

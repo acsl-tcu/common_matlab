@@ -1,0 +1,35 @@
+status=PASS_THREE_RUN_DECOMPOSITION__NOT_CAUSAL_OR_WCET_PROOF
+reason=The counts and wall-clock components are factual. No scheduler, GC, JIT or mathematical WCET attribution is made.
+run=1 frames=2602 predicted=1521 median=1.804500 p95=2.370200 p99=3.218000 all_max=8.125900 all_max_k=1 prediction_max=6.821000 prediction_max_k=207 t=5.125000 prediction_max_rhs=1438 over_4ms_predicted=11 geometry_peak=2.780400
+  top[1] k=1 update=8.125900
+  top[2] k=207 update=6.821000
+  top[3] k=731 update=5.802500
+  top[4] k=507 update=5.301500
+  top[5] k=576 update=5.170700
+  top[6] k=1028 update=5.125600
+  top[7] k=224 update=5.064200
+  top[8] k=1030 update=4.761700
+  top[9] k=1536 update=4.740800
+  top[10] k=564 update=4.639800
+run=2 frames=2602 predicted=1521 median=1.449600 p95=2.235800 p99=2.572600 all_max=4.245100 all_max_k=207 prediction_max=4.245100 prediction_max_k=207 t=5.125000 prediction_max_rhs=1438 over_4ms_predicted=2 geometry_peak=1.198400
+  top[1] k=207 update=4.245100
+  top[2] k=874 update=4.045500
+  top[3] k=1650 update=3.912100
+  top[4] k=762 update=3.778900
+  top[5] k=1 update=3.728200
+  top[6] k=453 update=3.548100
+  top[7] k=875 update=3.538200
+  top[8] k=576 update=3.496700
+  top[9] k=564 update=3.439400
+  top[10] k=877 update=3.312200
+run=3 frames=2602 predicted=1521 median=1.432900 p95=2.296600 p99=2.738900 all_max=4.185600 all_max_k=207 prediction_max=4.185600 prediction_max_k=207 t=5.125000 prediction_max_rhs=1438 over_4ms_predicted=3 geometry_peak=0.725700
+  top[1] k=207 update=4.185600
+  top[2] k=710 update=4.083600
+  top[3] k=1017 update=4.047900
+  top[4] k=1060 update=3.964600
+  top[5] k=762 update=3.758500
+  top[6] k=1 update=3.663200
+  top[7] k=1058 update=3.657300
+  top[8] k=1059 update=3.537800
+  top[9] k=576 update=3.507200
+  top[10] k=713 update=3.448600

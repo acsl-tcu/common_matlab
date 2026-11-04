@@ -1,0 +1,15 @@
+status=PASS_NATIVE_SUPPORT_UPPER_13_SHAPES__NOT_FLIGHT_OR_WCET
+failures=0
+cases=780
+shapes=13
+normals=125580
+upper_gap=2.13163e-14
+matlab_median_ms=0.0037
+native_median_ms=0.1127
+zero_normal_witnesses=1
+failure_stage=COMPLETE
+failure_shape=
+failure_trial=NaN
+failure_normal_index=NaN
+mex_path=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_SUPPORT_UPPER_NATIVE.mexw64
+reason=

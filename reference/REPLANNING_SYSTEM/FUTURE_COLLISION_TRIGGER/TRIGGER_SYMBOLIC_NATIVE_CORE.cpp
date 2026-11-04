@@ -10864,10 +10864,17 @@ static bool integrate_one(RKContext &ctx,const double* xold,double duration,
         if(!std::isfinite(e))return false;
         if(e<=1.0){
             elapsed+=h;std::memcpy(state,next,sizeof(state));
-            // k7 is f(x_{n+1},u_held). Never reuse it once HLC u changes.
-            std::memcpy(reusable_first,last,sizeof(last));
-            has_reusable_first=true;
-            h*=std::min(5.0,std::max(0.2,0.9*std::pow(std::max(e,1.e-18),-0.2)));
+            // Terminal accepted step in this exact held-input interval:
+            // the while-condition exits immediately.  Neither the next
+            // stepsize nor the FSAL cache can be consumed.  Avoid the
+            // otherwise unconditional pow() and the unused memcpy.
+            // Rejected and NONterminal accepted steps are untouched.
+            if(elapsed<duration){
+                // k7 is f(x_{n+1},u_held) only while u stays held.
+                std::memcpy(reusable_first,last,sizeof(last));
+                has_reusable_first=true;
+                h*=std::min(5.0,std::max(0.2,0.9*std::pow(std::max(e,1.e-18),-0.2)));
+            }
         } else {
             rejections++;
             // Same state and same held HLC input on rejection.

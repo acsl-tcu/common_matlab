@@ -47,6 +47,26 @@ classdef TRIGGER_GEOMETRY_CERTIFICATE
                 'TRIGGER_GEOMETRY_CERTIFICATE:Normals','Finite 3xN normals required.');
             k=size(n,2);
             if k==0,r=zeros(1,0);return;end
+            % Optional native interval-upper support.  It NEVER declares
+            % contact and NEVER rounds an exclusion radius down.  A failure
+            % reverts to the identical original MATLAB implementation.
+            % The switch is frozen for the MATLAB class session; Flight
+            % must not change modes within its three repetitions.
+            persistent native_policy
+            if isempty(native_policy)
+                native_policy=strcmp(getenv('TRIGGER_NATIVE_SUPPORT_BATCH'),'1') && ...
+                    exist('TRIGGER_SUPPORT_UPPER_NATIVE','file')==3;
+            end
+            if native_policy
+                try
+                    r=TRIGGER_SUPPORT_UPPER_NATIVE(shape,double(n));
+                    assert(isequal(size(r),[1 k]) && all(isfinite(r)));
+                    return
+                catch
+                    % Never use incomplete native results. Original exact
+                    % shape-support dispatch below is the safe fallback.
+                end
+            end
             q=double(shape.rotation)'*double(n);
             d=shape.dimensions;
             switch char(shape.type)

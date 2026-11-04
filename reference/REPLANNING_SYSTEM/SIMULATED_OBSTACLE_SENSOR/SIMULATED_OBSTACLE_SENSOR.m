@@ -43,6 +43,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
 
     properties (Access=private)
         native_event_pack_enabled = false  % 可否確認後のみ変更可能。ログの中身は不変。
+        diagnostic_timing_enabled = false % Fixed once at sensor construction; logging-only
         obstacles
         prepared_geometry
         previous_detected_mask = []  % 固定ID順で新規/離脱判定（setdiffを使わない）
@@ -58,6 +59,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             if nargin<3, log_enabled=false; end
             obj.validate_flag(log_enabled,'LOG_SENSOR');
             obj.LOG_SENSOR=logical(log_enabled);
+            obj.diagnostic_timing_enabled=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
             obj.set_range(range_m);
             startup=tic;
             obj.prepared_geometry=OBSTACLE_GEOMETRY_QUERY.prepare(obstacles);
@@ -214,7 +216,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             p=double(p_uav_ekf(:));
             if obj.LOG_SENSOR,clock=tic;end
             % Diagnostic-only nested clocks; no change to scan semantics.
-            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            diagnose=obj.diagnostic_timing_enabled;
             if diagnose
                 diagnostic_clock=tic;
                 diagnostic_exact_ms=0;

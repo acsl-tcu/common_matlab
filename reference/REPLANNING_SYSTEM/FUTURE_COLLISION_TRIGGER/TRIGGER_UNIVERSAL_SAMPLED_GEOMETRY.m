@@ -18,7 +18,7 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
     % All geometry here is at sampled times. This class NEVER makes any
     % continuous-time or tracking-error safety claim.
     methods (Static)
-        function [u_hit,l_hit,c_hit,c_unknown,info] = evaluate(u,l,shape,ru,rl,rc,t,first_hit_only)
+        function [u_hit,l_hit,c_hit,c_unknown,info] = evaluate(u,l,shape,ru,rl,rc,t,first_hit_only,runtime_options)
             if nargin<8,first_hit_only=false;end
             assert(isnumeric(u)&&isreal(u)&&size(u,1)==3 && ...
                 isequal(size(u),size(l)) && all(isfinite(u(:))) && ...
@@ -39,9 +39,32 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
             c_hit=false(1,n);c_unknown=false(1,n);
             info=struct('body_exact_queries',0,'cable_exact_queries',0, ...
                 'body_support_excluded',0,'cable_support_excluded',0, ...
-                'broadphase_excluded',0,'first_hit_only',logical(first_hit_only), ...
+                'broadphase_excluded',0,'sampled_axis_plane_excluded',false, ...
+                'sampled_block_support_excluded',0, ...
+                'sampled_block_support_probes',0, ...
+                'sampled_block_ball_excluded',0, ...
+                'first_hit_only',logical(first_hit_only), ...
                 'sampled_only',true);
-            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            % Real Flight supplies the two IMMUTABLE per-Flight diagnostic
+            % switches from its already constructed trigger instance.  The
+            % old 8-argument interface remains unchanged for standalone
+            % tests and synthetic callers that deliberately switch getenv.
+            if nargin>=9
+                assert(isstruct(runtime_options)&&isscalar(runtime_options) && ...
+                    isfield(runtime_options,'diagnostic_timing_enabled') && ...
+                    isfield(runtime_options,'sampled_block_experiment_enabled') && ...
+                    islogical(runtime_options.diagnostic_timing_enabled) && ...
+                    isscalar(runtime_options.diagnostic_timing_enabled) && ...
+                    islogical(runtime_options.sampled_block_experiment_enabled) && ...
+                    isscalar(runtime_options.sampled_block_experiment_enabled), ...
+                    'TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY:RuntimeOptions', ...
+                    'Flight options must be scalar logical snapshot fields.');
+                diagnose=runtime_options.diagnostic_timing_enabled;
+                block_experiment=runtime_options.sampled_block_experiment_enabled;
+            else
+                diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+                block_experiment=strcmp(getenv('TRIGGER_SAMPLED_BLOCK_EXPERIMENT'),'1');
+            end
             if diagnose,diagnostic_geom_clock=tic;end
             c=double(shape.center0(:));
             radius=double(shape.bounding_radius_m);
@@ -65,6 +88,34 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
                 end
                 return
             end
+            % An elongated or arbitrarily rotated solid can have a large
+            % bounding ball even when a SINGLE coordinate supporting plane
+            % separates its true shape from every sampled UAV/cable/load
+            % point. This static-shape, real-observation-only exclusion
+            % avoids many repeated support/distance queries WITHOUT ever
+            % creating a sampled contact or continuous-time SAFE outcome.
+            % Optional sample-only support-plane prefilter. When the
+            % prepared obstacle's reference center lies inside the
+            % sampled endpoint AABB, probing six support normals often
+            % costs more than it saves (notably for trajectories through
+            % a nonconvex hole). Skip this OPTIONAL EXCLUSION attempt;
+            % the original broadphase/fused support/exact oracle still
+            % checks ALL candidates. This condition is purely geometric,
+            % shape-type independent, and never declares clearance.
+            % For shapes with an offset reference center this may miss a
+            % useful optimization, but cannot create a false exclusion.
+            if any(c<lower | c>upper)
+                [axis_excluded,~]=TRIGGER_SAMPLED_AXIS_SUPPORT_GATE( ...
+                    shape,lower,upper,ru,rl,rc);
+                if axis_excluded
+                    info.broadphase_excluded=3*n;
+                    info.sampled_axis_plane_excluded=true;
+                    if diagnose
+                        info.diagnostic_stage_ms=[1000*toc(diagnostic_geom_clock),0,0];
+                    end
+                    return
+                end
+            end
             du=u-c;dl=l-c;
             cu=sum(du.^2,1)<=(radius+ru+slack)^2;
             cl=sum(dl.^2,1)<=(radius+rl+slack)^2;
@@ -76,6 +127,24 @@ classdef TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY
             nearest=du+segment.*a;
             cc=sum(nearest.^2,1)<=(radius+rc+slack)^2;
             info.broadphase_excluded=3*n-nnz(cu)-nnz(cl)-nnz(cc);
+            % Shape-independent, per-time-block separating witnesses.
+            % Never promotes nominal sampled exclusion to continuous SAFE.
+            % The paired MATLAB A/B audit of the former unconditionally
+            % enabled 16-point block witness measured a REGRESSION
+            % (baseline 0.66755 ms, block 0.80240 ms for its test path).
+            % Do not impose that extra allocation/support stage on every
+            % realtime tick. Preserve exact-time/full-geometry semantics.
+            % Explicit offline experiments can still exercise the old
+            % block witness; default Flight uses the established fused
+            % original-shape support filter and original distance oracle.
+            if block_experiment
+                [cu,cl,cc,block]=TRIGGER_SAMPLED_BLOCK_SUPPORT_GATE( ...
+                    u,l,shape,ru,rl,rc,cu,cl,cc);
+                info.sampled_block_support_excluded= ...
+                    block.body_excluded+block.cable_excluded;
+                info.sampled_block_ball_excluded=block.blocks_ball_excluded;
+                info.sampled_block_support_probes=block.support_probes;
+            end
 
             % Evaluate both body-center candidates against the SAME
             % obstacle support oracle in one batch. This preserves each

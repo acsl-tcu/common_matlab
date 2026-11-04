@@ -90,6 +90,17 @@ classdef TRIGGER_CONTINUOUS_INTERVAL_GATE
                             u,l,rC+slack,sh,c);
                     end
                     separated(j,k)=pu&&pl&&pc;
+                    if ~separated(j,k)
+                        % Support planes can be conservative for NONCONVEX
+                        % shapes (e.g. the hole of a torus). The real-shape
+                        % distance oracle supplies a 1-Lipschitz witness for
+                        % the entire spatial cable and the whole TIME
+                        % interval, IF the caller's excursions are proved.
+                        % On budget exhaustion/error this is UNKNOWN.
+                        D=TRIGGER_TAUT_DISTANCE_INTERVAL_GATE( ...
+                            u,l,sh,ru,rl,rc,eU(k),eL(k),grid(k));
+                        separated(j,k)=D.conditionally_separated;
+                    end
                 end
             end
             unresolved=~separated;

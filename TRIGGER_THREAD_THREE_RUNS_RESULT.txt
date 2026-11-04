@@ -1,0 +1,18 @@
+status=PASS_THREE_RUN_THREAD_CPU_WALL_RECORDED__NO_WCET
+reason=Wall minus current thread CPU is a latency diagnostic, not a cause or safety proof.
+stage_labels=sensor_memory_prepared,nonflight_shadow,yellow_trigger,blue_results_log
+run=1 frames=2602 max_update_ms=8.923600 max_yellow_ms=4.182800 max_sensor_inner_ms=0.654200 max_sensor_memory_wall_ms=5.854000
+peak_stage_wall_ms=[5.8539999 2.2209001 4.1949999 0.77970004]
+peak_stage_cpu_ms=[15.625 15.625 15.625 15.625]
+peak_stage_wall_minus_cpu_ms=[2.9428999 2.2209001 4.0827999 0.77970004]
+peak_stage_k=[1 1 563 1]
+run=2 frames=2602 max_update_ms=4.400900 max_yellow_ms=2.960100 max_sensor_inner_ms=0.514500 max_sensor_memory_wall_ms=2.928100
+peak_stage_wall_ms=[2.9281001 0.94770002 2.9717002 0.20700002]
+peak_stage_cpu_ms=[15.625 15.625 15.625 15.625]
+peak_stage_wall_minus_cpu_ms=[2.0992 0.3829999 2.9717002 0.20700002]
+peak_stage_k=[1 8 617 804]
+run=3 frames=2602 max_update_ms=4.152900 max_yellow_ms=3.302400 max_sensor_inner_ms=0.463000 max_sensor_memory_wall_ms=2.396900
+peak_stage_wall_ms=[2.3968999 0.37450004 3.3141 0.17560005]
+peak_stage_cpu_ms=[15.625 15.625 15.625 15.625]
+peak_stage_wall_minus_cpu_ms=[2.3968999 0.37450004 3.3141 0.17560005]
+peak_stage_k=[1 8 1005 216]

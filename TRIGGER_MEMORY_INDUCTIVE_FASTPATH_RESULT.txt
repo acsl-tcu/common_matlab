@@ -1,0 +1,9 @@
+status=PASS_MEMORY_EVENT_ORACLE_PARITY__NOT_WCET
+cases=1503
+failures=0
+new_observations=9
+retained_checks=1500
+invalid_inputs_rejected=2
+empty_new_event_cases=1498
+known_singleton_cases=154
+reason=

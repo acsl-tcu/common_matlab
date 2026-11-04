@@ -1,0 +1,7 @@
+status=PASS_FRESH_NATIVE_PARITY__NOT_CONTINUOUS_SAFETY_OR_WCET
+reason=
+numeric=1
+source_hash=1
+fresh_pin=1
+source_pin_status=EXACT_SOURCE_PIN_AND_NATIVE_AUDIT_PASS__NOMINAL_ONLY
+full_horizon_records=2

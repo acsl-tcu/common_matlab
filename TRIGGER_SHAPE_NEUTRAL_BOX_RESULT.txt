@@ -1,0 +1,7 @@
+status=PASS_SHAPE_NEUTRAL_INTERVAL_BOX__CONDITIONAL
+cases=1003
+failures=0
+positives=500
+negative_controls=501
+safe_to_commit=0
+reason=

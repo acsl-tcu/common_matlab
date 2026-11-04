@@ -8,6 +8,7 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
     % Never touches real HLC, EKF, sensor, or the Flight reference result.
     properties (Access=private)
         source=[]
+        diagnostic_timing_enabled=false % Immutable per Flight, not per tick
         epoch=NaN
         cable_length=NaN
         times=zeros(1,0)
@@ -46,6 +47,9 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
         phase_prime_status='NOT_STARTED'
     end
     methods
+        function obj=TRIGGER_REFERENCE_WINDOW_CACHE()
+            obj.diagnostic_timing_enabled=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+        end
         function clear_source_audit(obj)
             % Begin each Flight with no inherited source authority.
             obj.audited_source=[];
@@ -153,7 +157,7 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
         end
         function [ref,report]=evaluate(obj,nominal,absolute_times,L,reference_at,validated_now,source_contract)
             % Optional per-tick diagnostic. No cache/evaluation decisions change.
-            diagnose=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+            diagnose=obj.diagnostic_timing_enabled;
             if diagnose,diagnostic_clock=tic;end
             assert(isobject(nominal)&&isscalar(nominal)&& ...
                 isprop(nominal,'func')&&isprop(nominal,'t')&& ...
@@ -289,7 +293,21 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
                 if ~shifted
                     % This is necessary for non-unit shifts, arbitrary
                     % externally supplied horizons and unusual time grids.
-                    [hits,locations]=ismember(source_arguments,obj.source_arguments);
+                    % Monotone exact-time lookup: deterministic two-pointer
+                    % linear scan, with the ORIGINAL ismember fallback if
+                    % double subtraction loses the ordered finite contract.
+                    % Equalities are exact; no rounding, missing time or
+                    % nominal-trajectory approximation is introduced.
+                    if all(isfinite(source_arguments)) && ...
+                            all(isfinite(obj.source_arguments)) && ...
+                            all(diff(source_arguments)>=0) && ...
+                            all(diff(obj.source_arguments)>=0)
+                        [hits,locations]=TRIGGER_EXACT_SORTED_TIME_LOOKUP( ...
+                            source_arguments,obj.source_arguments);
+                    else
+                        [hits,locations]=ismember( ...
+                            source_arguments,obj.source_arguments);
+                    end
                     obj.general_lookup_count=obj.general_lookup_count+1;
                 end
                 if any(hits)

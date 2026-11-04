@@ -48,7 +48,7 @@ source_pass=all(matched);
 % Any changed C++ source or executable/data section fails closed until
 % a fresh independent HLC+plant parity audit is completed.
 cpp_path=fullfile(home,'TRIGGER_SYMBOLIC_NATIVE_CORE.cpp');
-trusted_cpp_sha='5433a4826ea2a05ef17bb7f222c7d27b88431d8662580c27f356305ffa2f7648';
+trusted_cpp_sha='399df4cd9f4d552c3bcc7c0f7e6d8bd34e10a04a0cae89191f4a398b32d4940f';
 trusted_code_identity='f15ac1f3f4483fac6b004f13e515ca89353febb7feae13c9d8419b2b5cd07d6a';
 cpp_sha='';
 if isfile(cpp_path),cpp_sha=local_sha256(cpp_path);end
@@ -66,7 +66,9 @@ code_matches=verification_config_valid && compiled && identity.valid && ...
     strcmpi(identity.fingerprint,trusted_code_identity);
 rebuild_equivalent=source_pass && compiled && cpp_matches && code_matches;
 audit_found=false;audit_pass=false;audit_status='NOT_RUN';
-auditfile=fullfile(home,'TRIGGER_NATIVE_PARITY_RESULT.mat');
+% Audit artifacts live in common_matlab/, not in permanent source.
+auditfile=fullfile(fileparts(fileparts(fileparts(home))), ...
+    'TRIGGER_NATIVE_PARITY_RESULT.mat');
 if isfile(auditfile)
  try
   saved=load(auditfile,'A');a=saved.A;

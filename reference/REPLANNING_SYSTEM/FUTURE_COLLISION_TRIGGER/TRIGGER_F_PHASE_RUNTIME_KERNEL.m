@@ -1,4 +1,4 @@
-function [R,T]=TRIGGER_F_PHASE_RUNTIME_KERNEL(time,agent,sensed,binding,cache,core,abs_tol,rel_tol,trace_on)
+function [R,T]=TRIGGER_F_PHASE_RUNTIME_KERNEL(time,agent,sensed,binding,cache,core,abs_tol,rel_tol,trace_on,phase_timing)
 % Source-identical Flight f-phase INNER evaluation. The original f-only
 % guards, actual observed sensor provenance and physical binding live in
 % REPLANNING_SYSTEM.evaluate_trigger. A discarded real-MCOS fixture calls
@@ -7,6 +7,19 @@ function [R,T]=TRIGGER_F_PHASE_RUNTIME_KERNEL(time,agent,sensed,binding,cache,co
 % collision events. All source-time and physics guards remain mandatory.
 % Never interpret a nominal sampled prediction as continuous safety.
 if nargin<9,trace_on=false;end
+% Only the existing stage-timing diagnostic mode adds per-flight-step
+% phase clocks; the production control path is otherwise unchanged.
+if nargin<10
+    % Synthetic/offline callers preserve the historical stage setting.
+    phase_timing=strcmp(getenv('REPLANNING_STAGE_TIMING'),'1');
+else
+    % Real Flight snapshots the timing flag in REPLANNING_SYSTEM construction.
+    phase_timing=logical(phase_timing);
+    assert(isscalar(phase_timing), ...
+        'TRIGGER_F_PHASE_RUNTIME_KERNEL:TimingFlag', ...
+        'The optional Flight timing flag must be scalar.');
+end
+if phase_timing,phase_clock=tic;end
 if trace_on
     T=struct('reference_now_ms',NaN,'authority_create_ms',NaN, ...
         'authority_current_ms',NaN,'core_wall_ms',NaN, ...
@@ -44,6 +57,7 @@ if ~isequal(size(actual),size(predicted_now)) || ...
     error('REPLANNING_SYSTEM:ReferenceMismatch', ...
         'Future reference evaluator does not reproduce current actual HLC reference.');
 end
+if phase_timing,reference_now_wall_ms=1000*toc(phase_clock);end
 if trace_on
     T.reference_now_ms=1000*toc(step);
     step=tic;
@@ -51,6 +65,9 @@ if trace_on
     step=tic;
 end
 [ekf,authority]=binding.current(time,agent,future);
+if phase_timing
+    authority_wall_ms=1000*toc(phase_clock)-reference_now_wall_ms;
+end
 if trace_on,T.authority_current_ms=1000*toc(step);step=tic;end
 % The real preflight-pinned model, real same-tick current EKF and exact
 % currently observed sensor frame are the ONLY runtime sources.
@@ -62,7 +79,16 @@ authority.native_reference_contract= ...
     'VERIFIED_F_PHASE_NOMINAL_Z_MINUS_CABLEL';
 authority.numeric_tolerances=[abs_tol;rel_tol];
 if trace_on,authority.trace_first=true;end
+if phase_timing
+    core_clock=tic;
+end
 R=core.evaluate(t,ekf,sensed,authority);
+if phase_timing
+    R.timing_runtime_reference_now_ms=reference_now_wall_ms;
+    R.timing_runtime_authority_ms=authority_wall_ms;
+    R.timing_runtime_core_ms=1000*toc(core_clock);
+    R.timing_runtime_total_ms=1000*toc(phase_clock);
+end
 if trace_on
     T.core_wall_ms=1000*toc(step);
     if isfield(R,'first_use_trace'),T.core_trace=R.first_use_trace;end
