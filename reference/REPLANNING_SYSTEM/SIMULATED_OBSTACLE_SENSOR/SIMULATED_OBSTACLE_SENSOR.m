@@ -2,7 +2,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
     % SIMULATED_OBSTACLE_SENSOR  機体中心の球形領域に入った障害物を発見する。
     %
     % 【このクラスの責務】
-    %   - 現在の EKF 機体位置と、設定された検知半径 [m] を受け取る。
+    %   - 同時刻のSim機体真値位置と、設定された検知半径 [m] を受け取る。
     %   - 障害物の「元の占有形状」と検知球の交差を調べる。
     %   - 検知した ID、数、追加/離脱 ID と、元障害物情報を返す。
     %   - LOG_SENSOR=true 時は毎回の処理時間を結果に記録する。
@@ -19,7 +19,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
     %
     % 例:
     %   sensor = SIMULATED_OBSTACLE_SENSOR(obstacles,20,true);
-    %   frame = sensor.observe(time_s,ekf_uav_position);
+    %   frame = sensor.observe(time_s,sim_true_uav_position,ekf_uav_position);
     %   % frame は Sim LOGGER へ渡せる通常の MATLAB 構造体。
 
     properties (SetAccess=private)
@@ -127,6 +127,8 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             obj.result_template=struct( ...
                 'time_s',NaN, ...
                 'uav_position_ekf_m',zeros(3,1), ...
+                'uav_position_true_m',zeros(3,1), ...
+                'sensor_center_source','SIM_TRUE_TIME_ALIGNED', ...
                 'sensor_range_m',obj.range_m, ...
                 'detected_count',0, ...
                 'detected_ids',[], ...
@@ -201,19 +203,30 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             obj.native_event_pack_enabled=logical(enabled);
         end
 
-        function result=observe(obj,time_s,p_uav_ekf)
-            % Flight各時刻に呼ぶ。EKF位置を入力せずには実行できない。
+        function result=observe(obj,time_s,p_uav_true,p_uav_ekf)
+            % Flight: collision geometry is centered at p_uav_true ONLY.
+            % Optional argument 4 is the distinct EKF position used by the
+            % nominal trigger. Legacy 3-arg direct geometry callers retain
+            % a valid EKF metadata field for backward compatibility.
             % 出力は「今回検知した障害物のみ」を後段に渡す。
             % 毎周期の全障害物を後段へ渡す処理は行わない。
             if ~(isnumeric(time_s)&&isscalar(time_s)&&isreal(time_s)&&isfinite(time_s))
                 error('SIMULATED_OBSTACLE_SENSOR:Time','観測時刻が不正です。');
             end
-            if ~(isnumeric(p_uav_ekf)&&isreal(p_uav_ekf)&&numel(p_uav_ekf)==3 ...
-                    && all(isfinite(p_uav_ekf(:))))
-                error('SIMULATED_OBSTACLE_SENSOR:EKF', ...
-                    '現在時刻の EKF 機体位置 [x;y;z] を明示的に渡してください。');
+            if ~(isnumeric(p_uav_true)&&isreal(p_uav_true)&& ...
+                    numel(p_uav_true)==3&&all(isfinite(p_uav_true(:))))
+                error('SIMULATED_OBSTACLE_SENSOR:TruePosition', ...
+                    'センサ中心は有限の3次元Sim機体真値でなければなりません。');
             end
-            p=double(p_uav_ekf(:));
+            if nargin<4
+                p_uav_ekf=p_uav_true; % Legacy standalone geometry API only.
+            end
+            if ~(isnumeric(p_uav_ekf)&&isreal(p_uav_ekf)&& ...
+                    numel(p_uav_ekf)==3&&all(isfinite(p_uav_ekf(:))))
+                error('SIMULATED_OBSTACLE_SENSOR:EKFMetadata', ...
+                    'EKFメタデータは有限の3次元位置でなければなりません。');
+            end
+            p=double(p_uav_true(:));
             if obj.LOG_SENSOR,clock=tic;end
             % Diagnostic-only nested clocks; no change to scan semantics.
             diagnose=obj.diagnostic_timing_enabled;
@@ -308,7 +321,8 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             % 元データ・検知マスク・ログの意味を変えず、構築手順だけ変更する。
             result=obj.result_template;
             result.time_s=double(time_s);
-            result.uav_position_ekf_m=p;
+            result.uav_position_ekf_m=double(p_uav_ekf(:));
+            result.uav_position_true_m=p;
             result.sensor_range_m=obj.range_m;
             result.detected_count=numel(ids);
             result.detected_ids=ids;

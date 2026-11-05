@@ -32,9 +32,16 @@ try
         'TRIGGER_ORIGINAL_PLANT_PICARD_STEP:Fields', ...
         'Complete conditional input boxes required.');
     h=double(D.h_s);
-    assert(isnumeric(h)&&isscalar(h)&&isreal(h)&&isfinite(h)&&h>0,...
+    if isfield(D,'h_lower_s')
+        hl=double(D.h_lower_s);
+    else
+        hl=h;
+    end
+    assert(isnumeric(h)&&isscalar(h)&&isreal(h)&&isfinite(h)&&h>0 && ...
+        isnumeric(hl)&&isscalar(hl)&&isreal(hl)&& ...
+        isfinite(hl)&&hl>=0&&hl<=h,...
         'TRIGGER_ORIGINAL_PLANT_PICARD_STEP:Step', ...
-        'Positive held-input duration required.');
+        'Physical terminal time must be enclosed by [h_lower_s,h_s].');
     X=struct('lower',D.x0_lower,'upper',D.x0_upper);
     Z=struct('lower',D.tube_lower,'upper',D.tube_upper);
     U=struct('lower',D.u_lower,'upper',D.u_upper);
@@ -53,7 +60,9 @@ try
         ix=TRIGGER_OUTWARD_INTERVAL(xlo,xhi);
         derivative=TRIGGER_OUTWARD_INTERVAL(rhs.rhs_lower(j),rhs.rhs_upper(j));
         flow=ix+TRIGGER_OUTWARD_INTERVAL(0,h).*derivative;
-        endpoint=ix+TRIGGER_OUTWARD_INTERVAL(h,h).*derivative;
+        % Do NOT treat the rounded-up h as the exact terminal time.
+        % The true binary64 timestamp difference is in [hl,h].
+        endpoint=ix+TRIGGER_OUTWARD_INTERVAL(hl,h).*derivative;
         R.margin_lower(j)=flow.lo-Z.lower(j);
         R.margin_upper(j)=Z.upper(j)-flow.hi;
         R.endpoint_lower(j)=endpoint.lo;

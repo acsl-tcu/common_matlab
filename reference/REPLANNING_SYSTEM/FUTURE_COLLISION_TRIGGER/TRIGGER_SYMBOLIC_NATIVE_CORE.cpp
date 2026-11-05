@@ -11010,18 +11010,36 @@ void mexFunction(int nlhs,mxArray* plhs[],int nrhs,const mxArray*prhs[]){
     double x[24],xn[24];std::memcpy(x,x0,sizeof(x));
     std::memcpy(uav,x,3*sizeof(double));std::memcpy(load,x+12,3*sizeof(double));
     int nevals=0,nrejects=0;
+    // Native per-hold timing is DIAGNOSTIC ONLY. The normal Flight
+    // performs zero clock queries inside the controller/integrator loop.
+    // In a 4 s / 25 ms / 160-hold forecast this removes 640 host clock
+    // queries. No state, controller, RHS or adaptive-step expression changes.
+    // The two timing outputs are NaN when unmeasured (NEVER fake zeros).
+#ifdef TRIGGER_NATIVE_FINE_TIMING
     double controller_ms=0.0,integrator_ms=0.0;
+#else
+    double controller_ms=std::numeric_limits<double>::quiet_NaN();
+    double integrator_ms=std::numeric_limits<double>::quiet_NaN();
+#endif
     for(mwSize i=0;i<n-1;++i){
         double u[4];
+#ifdef TRIGGER_NATIVE_FINE_TIMING
         auto controller_begin=std::chrono::steady_clock::now();
+#endif
         if(!original_hlc_numeric(x,references+28*i,hp,F1,F2,F3,F4,*dt,u))fail("HLC singular/nonfinite: nominal future unknown");
+#ifdef TRIGGER_NATIVE_FINE_TIMING
         controller_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-controller_begin).count();
+#endif
         for(int j=0;j<4;++j) ctrl[4*i+j]=u[j];
         RKContext ctx{u,pp,0};
+#ifdef TRIGGER_NATIVE_FINE_TIMING
         auto integrator_begin=std::chrono::steady_clock::now();
+#endif
         if(!integrate_one(ctx,x,times[i+1]-times[i],tol[0],tol[1],xn,nrejects))
             fail("Plant numerical integration failed: future unknown");
+#ifdef TRIGGER_NATIVE_FINE_TIMING
         integrator_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-integrator_begin).count();
+#endif
         nevals+=ctx.evals;
         std::memcpy(x,xn,sizeof(x));
         for(int j=0;j<3;++j){uav[3*(i+1)+j]=x[j];load[3*(i+1)+j]=x[12+j];}

@@ -4,7 +4,7 @@ classdef REPLANNING_SYSTEM < handle
     % 役割:
     %   (1) 既存の OBSTACLE_INFORMATION.definitions() を Flight 毎に1回読む。
     %   (2) 模擬センサへ検知半径・ログフラグ・障害物の原定義を渡す。
-    %   (3) 各時刻の現在EKF機体位置から検知結果を作り、Sim LOGGER へ渡す。
+    %   (3) Sim真値の同時刻機体位置からセンサ検知し、EKFは4秒予測の起点に限定。
     %
     % 現段階のトリガは将来予測の参考情報のみ。軌道変更や連続安全認証は行わない。
     % OBSTACLE_INFORMATION と OBSTACLE_SHAPES は変更せず、読み取るだけ。
@@ -15,7 +15,7 @@ classdef REPLANNING_SYSTEM < handle
     %   replanner.update(time, agent);          % Sim LOGGER.logging の直前
     %   logger.logging(time, cha, agent, []);   % 既存Simの標準記録
     %
-    % updateがEKFの位置取得・模擬センサ・reference.resultへの格納を統括する。
+    % updateはSim真値のセンサ中心とEKF起点のトリガを厳密に分離する。
     % runは個別のセンサや障害物ログを操作しない。Sim LOGGERは変更しない。
     % HLCや通常参照の出力は変更しない。
 
@@ -109,6 +109,8 @@ classdef REPLANNING_SYSTEM < handle
         preflight_update_ready=false
         preflight_update_ms=NaN
         preflight_update_samples_ms=[]
+        conservative_handoff_state=struct('plan_revision',uint64(0), ...
+            'announced_ids',zeros(1,0))
     end
 
     properties
@@ -140,6 +142,7 @@ classdef REPLANNING_SYSTEM < handle
 
     properties (Access=private)
         sensor
+        sensor_true_temporal_state=struct() % Prior post-plant snapshot; never a trigger true-state shortcut
         observed_memory
         % Only shapes disclosed by the sensor AFTER actual observation.
         % Reuses the sensor's prepared representation; never accesses
@@ -336,12 +339,31 @@ classdef REPLANNING_SYSTEM < handle
                 detail_ms=nan(1,6);
             end
             if obj.ENABLE_SENSOR
-                p_now=REPLANNING_SYSTEM.require_ekf_uav_position(agent);
+                % Sim runner: EKF/actuator -> plant.do -> this update().
+                % The current plant position is already at t+dt. Capture it
+                % ONLY in the SENSOR adapter and use the previous post-step
+                % snapshot as the truth at time.t. Never pass plant truth to
+                % FUTURE_COLLISION_TRIGGER or the true-set proof stream.
+                p_ekf=REPLANNING_SYSTEM.require_ekf_uav_position(agent);
+                if obj.is_discarded_synthetic_fixture
+                    % Only the explicitly marked, DESTROYED preflight
+                    % software fixture has no real Sim plant. Preserve its
+                    % historical synthetic ID-event exercise verbatim.
+                    % This path cannot be constructed for a live Flight.
+                    p_true=p_ekf;
+                    truth_state=obj.sensor_true_temporal_state;
+                else
+                    p_postplant=SIM_SENSOR_READ_TRUE_POSITION(agent);
+                    [p_true,truth_state]=SIM_SENSOR_TICK_ALIGNED_ORIGIN( ...
+                        obj.sensor_true_temporal_state,time_s,char(agent.cha), ...
+                        p_postplant,double(agent.plant.dt));
+                end
                 if stage_on
                     stage_marks(2)=1000*toc(stage_clock);
                     sensor_memory_clock=tic;
                 end
-                sensor_result=obj.observe_sensor(time_s,p_now);
+                sensor_result=obj.observe_sensor(time_s,p_true,p_ekf);
+                obj.sensor_true_temporal_state=truth_state;
                 if stage_on,detail_ms(1)=1000*toc(sensor_memory_clock);end
                 obj.last_sensor_result=sensor_result;
                 memory_result=obj.observed_memory.update(sensor_result);
@@ -432,6 +454,43 @@ classdef REPLANNING_SYSTEM < handle
             end
             trigger_result.elapsed_ms=1000*toc(trigger_clock);
             if stage_on,detail_ms(4)=trigger_result.elapsed_ms;end
+
+            % Collision prediction ONLY. A newly observed obstacle is not
+            % proof of collision, and a sampled nominal contact is not a
+            % verified closed-loop, continuous-time physical contact.
+            % In particular, an UNKNOWN 4-s reachable set must NEVER be
+            % misrepresented as a generator request. Retain all the
+            % observed-only possible-risk IDs and the numeric sample data
+            % for diagnostics, but leave trajectory generation/selection
+            % and any fail-safe policy entirely to their separate modules.
+            % No candidate_request_* fields: this interface cannot be
+            % mistaken for a trajectory generator/backup controller.
+            trigger_result.execution_safety_proven=false;
+            trigger_result.safe_to_commit=false;
+            if ~isfield(trigger_result,'collision_decision')
+                trigger_result.collision_decision='UNAVAILABLE';
+            end
+
+            % Concise collision-only interface for the future generator.
+            % Do not equate a missing/invalid prediction with clearance.
+            if ~isfield(trigger_result,'collision_predicted')
+                trigger_result.collision_predicted=false;
+            end
+            if ~isfield(trigger_result,'collision_obstacle_id')
+                trigger_result.collision_obstacle_id=NaN;
+            end
+            if ~isfield(trigger_result,'collision_ttc_s')
+                trigger_result.collision_ttc_s=NaN;
+            end
+            if ~isfield(trigger_result,'collision_time_s')
+                trigger_result.collision_time_s=NaN;
+            end
+            if ~isfield(trigger_result,'collision_obstacle_ids')
+                trigger_result.collision_obstacle_ids=zeros(1,0);
+            end
+            if ~isfield(trigger_result,'collision_decision')
+                trigger_result.collision_decision='UNAVAILABLE';
+            end
             obj.last_trigger_result=trigger_result;
             obj.trigger_count=obj.trigger_count+1;
             obj.trigger_time_total_ms=obj.trigger_time_total_ms+trigger_result.elapsed_ms;
@@ -1192,22 +1251,23 @@ classdef REPLANNING_SYSTEM < handle
                 'static_model_binding_status',obj.preflight_model_binding_status);
         end
 
-        function frame=observe_sensor(obj,time_s,current_ekf_uav_position)
-            % EKF機体位置を必須入力とする。未指定なら黙って公称値を使わない。
+        function frame=observe_sensor(obj,time_s,true_uav_position,ekf_uav_position)
+            % The simulated sensor uses the time-aligned true UAV position.
+            % The distinct EKF position is retained as exact trigger metadata.
             if ~obj.ENABLE_SENSOR
                 error('REPLANNING_SYSTEM:SensorDisabled', ...
                     'ENABLE_SENSOR=false です。検知処理は無効です。');
             end
-            if nargin<3
-                error('REPLANNING_SYSTEM:MissingEKF', ...
-                    '現在時刻のEKF機体位置を第3引数へ渡してください。');
+            if nargin<4
+                error('REPLANNING_SYSTEM:MissingSensorInputs', ...
+                    '同時刻のSim真値位置とEKF位置を両方渡してください。');
             end
             % 設定が変わった周期だけ検証・設定する。
             desired_log=obj.ENABLE_ALL_LOG && obj.LOG_SENSOR;
             if obj.sensor.LOG_SENSOR ~= desired_log
                 obj.sensor.set_log(desired_log);
             end
-            frame=obj.sensor.observe(time_s,current_ekf_uav_position);
+            frame=obj.sensor.observe(time_s,true_uav_position,ekf_uav_position);
         end
 
         function known=get_known_obstacle_frame(obj)
@@ -1255,6 +1315,31 @@ classdef REPLANNING_SYSTEM < handle
             obj.TRIGGER_PAYLOAD_RADIUS_M=double(r_payload_m);
             obj.TRIGGER_CABLE_RADIUS_M=double(r_cable_m);
             obj.trigger_authority_binding=[];
+        end
+
+        function set_trigger_plan_revision(obj,revision)
+            % Call ONLY after a different C7/C6 plan is genuinely committed.
+            % This enables repeated risk assessment of the SAME obstacle
+            % during avoidance/return without duplicate events per plan.
+            assert(isnumeric(revision)&&isreal(revision)&&isscalar(revision) && ...
+                isfinite(revision)&&revision>=0&&revision==fix(revision) && ...
+                revision<=flintmax, ...
+                'REPLANNING_SYSTEM:PlanRevision', ...
+                'Committed plan revision must be an exactly represented nonnegative integer.');
+            v=uint64(revision);
+            assert(v>=obj.conservative_handoff_state.plan_revision, ...
+                'REPLANNING_SYSTEM:PlanRevision', ...
+                'A committed plan revision must never decrease.');
+            if v>obj.conservative_handoff_state.plan_revision
+                % Core event de-duplication must follow the SAME genuinely
+                % committed plan generation. Previously only the external
+                % handoff latch was reset, so the core would indefinitely
+                % suppress repeat prediction events for an already seen ID.
+                obj.trigger_reference_cache.reset_for_committed_plan();
+                obj.trigger_core.set_committed_plan_revision(v);
+                obj.conservative_handoff_state.plan_revision=v;
+                obj.conservative_handoff_state.announced_ids=zeros(1,0);
+            end
         end
 
         function set_trigger_horizon(obj,horizon_s)
@@ -1605,6 +1690,7 @@ classdef REPLANNING_SYSTEM < handle
             status.trigger_time_total_ms=obj.trigger_time_total_ms;
             status.trigger_time_max_ms=obj.trigger_time_max_ms;
             status.last_trigger_result=obj.last_trigger_result;
+            status.conservative_handoff_state=obj.conservative_handoff_state;
             status.trigger_native_gate_checked=obj.trigger_native_gate_checked;
             status.trigger_native_gate_status=obj.trigger_native_gate_status;
             status.trigger_flight_binding_created=~isempty(obj.trigger_authority_binding);

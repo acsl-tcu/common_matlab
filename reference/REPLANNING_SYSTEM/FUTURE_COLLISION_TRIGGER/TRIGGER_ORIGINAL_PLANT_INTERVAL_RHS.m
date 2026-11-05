@@ -1,7 +1,13 @@
 function R=TRIGGER_ORIGINAL_PLANT_INTERVAL_RHS(X,U,P)
 % Audit candidate: original 24-state physical plant RHS (not HLC).
 % Exact source SHA256 (R193 used-Flight): 183837c484f6ec8953998aacb20b93120ce0d6fde647c0e54bcc27f5ae02164a
-% Equation body is verbatim from with_load_model_euler_for_HL.m.
+% The physical RHS is EXACTLY the original real-valued algebra.  Three
+% Euler-inertia differences are factored to avoid repeated independent
+% occurrences of the SAME angular velocity in interval arithmetic, and
+% three rotation-matrix coefficients are intersected with the exact
+% [-1,1] bound following from a unit quaternion.  These are only
+% mathematical interval-extension improvements; the actual plant and
+% its controller are NOT modified.  Source hash must be freshly pinned.
 % Uses finite outward double interval operations; trigonometry is
 % rigorous bounded Taylor for |x|<=1 and [-1,1] elsewhere.
 % NOT a closed-loop certificate: HLC, EKF, control holds, trajectory
@@ -135,11 +141,20 @@ t66 = t54.*t55.*2.0;
 t61 = -t59;
 t65 = -t64;
 t67 = t62+t66;
+% For the original unit quaternion q=[t52,t53,t54,t55],
+% t67=2(q0*q1+q2*q3).  By 2|ab|<=a^2+b^2 and sum(q.^2)=1,
+% its EXACT real value belongs to [-1,1] for all real Euler angles.
+% Intersection of independently valid enclosures preserves inclusion.
+t67 = TRIGGER_OUTWARD_INTERVAL(max(-1,t67.lo),min(1,t67.hi));
 t68 = t63+t65;
+% t68=2(q0*q3-q1*q2) is another unit-rotation coefficient.
+t68 = TRIGGER_OUTWARD_INTERVAL(max(-1,t68.lo),min(1,t68.hi));
 t69 = pT1.*t67.*u1;
 t70 = pT2.*t67.*u1;
 t71 = pT3.*t67.*u1;
 t77 = t56+t58+t60+t61;
+% t77=q0^2+q2^2-q1^2-q3^2, so -1<=t77<=1 exactly.
+t77 = TRIGGER_OUTWARD_INTERVAL(max(-1,t77.lo),min(1,t77.hi));
 t72 = pT1.*t68.*u1;
 t73 = pT2.*t68.*u1;
 t74 = pT3.*t68.*u1;
@@ -151,7 +166,13 @@ t82 = t74+t79;
 t85 = -pT1.*t32.*(t50-t69+t73-t80);
 t86 = -pT2.*t32.*(t50-t69+t73-t80);
 t87 = -pT3.*t32.*(t50-t69+t73-t80);
-mt1 = [dp1;dp2;dp3;t19.*(o1.*t2+o3.*t3.*t4+o2.*t4.*t5);o2.*t3-o3.*t5;t19.*(o3.*t3+o2.*t5);t85-cableL.*(ol2.*t33+ol3.*t34-pT2.*t13.*t18.*t81-pT3.*t13.*t18.*(t71-t78));t86-cableL.*(-ol1.*t33+ol3.*t35+pT1.*t13.*t18.*t81+pT3.*t13.*t18.*t82);t14+t87+cableL.*(ol1.*t34+ol2.*t35+pT2.*t13.*t18.*t82-pT1.*t13.*t18.*(t71-t78));t15.*u2+t15.*(jy.*o2.*o3-jz.*o2.*o3);t16.*u3-t16.*(jx.*o1.*o3-jz.*o1.*o3);t17.*u4+t17.*(jx.*o1.*o2-jy.*o1.*o2);dpl1;dpl2;dpl3;t85;t86;t14+t87;t35;-t9+t10;t33;-t13.*t18.*t82];
+% EXACT real identities, without changing Euler rigid-body dynamics:
+%   (u2+(jy-jz)*o2*o3)/jx,
+%   (u3-(jx-jz)*o1*o3)/jy,
+%   (u4+(jx-jy)*o1*o2)/jz.
+% The original generated RHS duplicated each o_i*o_j term on both sides
+% of an interval subtraction, producing wide ARTIFICIAL derivative boxes.
+mt1 = [dp1;dp2;dp3;t19.*(o1.*t2+o3.*t3.*t4+o2.*t4.*t5);o2.*t3-o3.*t5;t19.*(o3.*t3+o2.*t5);t85-cableL.*(ol2.*t33+ol3.*t34-pT2.*t13.*t18.*t81-pT3.*t13.*t18.*(t71-t78));t86-cableL.*(-ol1.*t33+ol3.*t35+pT1.*t13.*t18.*t81+pT3.*t13.*t18.*t82);t14+t87+cableL.*(ol1.*t34+ol2.*t35+pT2.*t13.*t18.*t82-pT1.*t13.*t18.*(t71-t78));t15.*(u2+(jy-jz).*o2.*o3);t16.*(u3-(jx-jz).*o1.*o3);t17.*(u4+(jx-jy).*o1.*o2);dpl1;dpl2;dpl3;t85;t86;t14+t87;t35;-t9+t10;t33;-t13.*t18.*t82];
 mt2 = [-t13.*t18.*(t71-t78);t13.*t18.*t81];
 dx = [mt1;mt2];
 end

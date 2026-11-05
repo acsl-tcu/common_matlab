@@ -1,17 +1,19 @@
 function R=TRIGGER_ORIGINAL_PLANT_AUTO_CHAIN(C)
 % Conditional continuous-time flowpipe for the ORIGINAL 24-state plant.
 % Construct a Picard tube and recursively propagate its ENDPOINT for each
-% user-supplied control hold, without resetting to nominal samples.
+% arbitrary COMPUTATIONAL time slab, without resetting to nominal samples.
 %
-% Input is only explicit uncertainty boxes. No obstacle definition,
+% Input is only explicit uncertainty boxes. A universal applied-input box
+% bounds arbitrary time-varying inputs, even with switching within a slab.
+% No obstacle definition,
 % sensor, actual EKF, future reference, Flight epoch, and no hidden world
 % information are fetched. It is NOT invoked from the Flight loop.
 %
 % Required: time_grid_s 1x(N+1), initial_lower/upper 24x1,
 %           held_input_lower/upper 4xN, param_lower/upper 21xN.
 % Parameter intervals must contain every allowed time-varying mass in
-% their WHOLE control interval. Held input must contain the actual
-% controller output throughout that interval; no unproved snapshot usage.
+% their WHOLE control interval. The interval input box must contain the actual
+% applied controller output EVERYWHERE in that slab, not only samples.
 %
 % Optional: observed_prepared_shapes (only already-sensed geometry), body.
 % All resulting geometry statuses remain conditional and never commit.
@@ -33,6 +35,8 @@ R=struct('status','UNKNOWN_ORIGINAL_PLANT_CHAIN', ...
     'tension_status',{{}}, ...
     'manifold_compatible_intervals',false(1,0), ...
     'manifold_exactly_verified',false, ...
+    'taut_source_invariants',struct(), ...
+    'original_ode_taut_manifold_invariance_verified',false, ...
     'safe_to_commit',false,'reason','');
 try
     mandatory={'time_grid_s','initial_lower','initial_upper', ...
@@ -65,6 +69,18 @@ try
     assert(all(ul(:)<=uu(:))&&all(pl(:)<=pu(:)), ...
         'TRIGGER_ORIGINAL_PLANT_AUTO_CHAIN:Order', ...
         'All input/parameter boxes must be ordered.');
+    % Discharge the STRUCTURAL invariance obligation on the exact original
+    % symbolic ODE. This does NOT turn interval-box compatibility into
+    % proof of the true INITIAL holonomic constraints or physical mode.
+    R.taut_source_invariants=TRIGGER_TAUT_SOURCE_INVARIANTS();
+    % The conservation proof uses dL/dt=0. Merely giving one positive
+    % cable-length INTERVAL does not prove its time evolution. This
+    % computational witness accepts only the same singleton L throughout
+    % all slabs, and is STILL conditional on its physical provenance.
+    pinned_constant_L=all(pl(21,:)==pu(21,:)) && ...
+        all(pl(21,:)==pl(21,1));
+    R.original_ode_taut_manifold_invariance_verified= ...
+        R.taut_source_invariants.source_bound_invariance && pinned_constant_L;
     R.interval_pass=false(1,n);
     R.iteration_counts=zeros(1,n);
     R.tube_lower=nan(24,n);R.tube_upper=nan(24,n);
@@ -74,10 +90,19 @@ try
     R.endpoint_lower=nan(24,n+1);R.endpoint_upper=nan(24,n+1);
     R.endpoint_lower(:,1)=xlo;R.endpoint_upper(:,1)=xhi;
     for k=1:n
+        % The timestamps are binary64 values, but their exact real
+        % difference need not be representable. Time uncertainty matters
+        % even when all plant state arithmetic is directed outward.
+        clock=TRIGGER_EXACT_BINARY64_TIME_SPAN(t(k),t(k+1));
+        if ~clock.valid
+            R.status='UNKNOWN_BINARY64_TIME_SPAN';
+            R.reason=sprintf('Interval %d: %s',k,clock.reason);
+            return
+        end
         D=struct('x0_lower',xlo,'x0_upper',xhi, ...
             'u_lower',ul(:,k),'u_upper',uu(:,k), ...
             'param_lower',pl(:,k),'param_upper',pu(:,k), ...
-            'h_s',t(k+1)-t(k));
+            'h_s',clock.upper_s,'h_lower_s',clock.lower_s);
         step=TRIGGER_ORIGINAL_PLANT_AUTO_PICARD(D);
         R.iteration_counts(k)=step.iterations;
         if ~step.conditional_strict_inclusion

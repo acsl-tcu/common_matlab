@@ -1,0 +1,5 @@
+PASS_EARLY_CONTACT_PREFIX_AND_FULL_FALLBACK__SYNTHETIC_ONLY
+cases=6 failures=0
+first_ttc_s=1 prefix_horizon_s=1.2 prefix_samples=7
+fallback_full_horizon_s=4 new_obstacle_id=802
+continuous_safety=0 real_flight=0 WCET=0

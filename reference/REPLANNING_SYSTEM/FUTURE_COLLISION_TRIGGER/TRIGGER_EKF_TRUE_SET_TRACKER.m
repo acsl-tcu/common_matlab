@@ -74,7 +74,7 @@ classdef TRIGGER_EKF_TRUE_SET_TRACKER < handle
             S=obj.snapshot();
         end
         function R=advance_original_held_plant(obj,t0,t1,ekf_post, ...
-                u_lower,u_upper,param_lower,param_upper,source)
+                u_lower,u_upper,param_lower,param_upper,source,varargin)
             % PROPAGATE the already tracked 24-state TRUE SET through the
             % original interval RHS/Picard over one actual HLC ZOH interval.
             % The end box is constructed HERE, not supplied by the caller.
@@ -102,36 +102,39 @@ classdef TRIGGER_EKF_TRUE_SET_TRACKER < handle
                 assert(ischar(source) || isstring(source), ...
                     'TRIGGER_EKF_TRUE_SET_TRACKER:HeldSource', ...
                     'A traceable physical input/parameter source is required.');
-                step=TRIGGER_ORIGINAL_PLANT_AUTO_PICARD(struct( ...
-                    'x0_lower',obj.true_lower, 'x0_upper',obj.true_upper, ...
+                % The real held actuator input covers [t0,t1]. If a
+                % single original-ODE Picard slab is too wide, refine
+                % that SAME physical hold into smaller proof slabs.
+                % Never reinitialize from the EKF or numerical plant.
+                request=struct( ...
+                    't_left_s',double(t0),'t_right_s',double(t1), ...
+                    'x0_lower',obj.true_lower,'x0_upper',obj.true_upper, ...
                     'u_lower',u_lower,'u_upper',u_upper, ...
-                    'param_lower',param_lower,'param_upper',param_upper, ...
-                    'h_s',double(t1)-double(t0)));
+                    'param_lower',param_lower,'param_upper',param_upper);
+                if ~isempty(varargin)
+                    assert(numel(varargin)==1, ...
+                        'TRIGGER_EKF_TRUE_SET_TRACKER:PhysicalHoldSource', ...
+                        'At most one source-verified plant hold duration is allowed.');
+                    request.verified_hold_duration_s=varargin{1};
+                end
+                step=TRIGGER_ORIGINAL_HELD_SUBSTEP_CHAIN(request);
                 R.plant_interval=step;
                 if ~step.conditional_strict_inclusion
-                    R.status='UNKNOWN_HELD_PLANT_NO_PICARD_TUBE';
-                    R.reason=step.reason;
+                    R.status='UNKNOWN_HELD_PLANT_NO_COMPLETE_SUBSLAB_TUBE';
+                    R.reason=[step.status ' | ' step.reason];
                     obj.invalidate(R.status);
                     return
                 end
-                % The original 24-state model assumes a TAUT cable.
-                % Reject a reachable tube whose taut manifold is
-                % incompatible or whose lower tension is not positive.
-                % Compatibility is necessary, not a proof of invariance;
-                % the output must remain CONDITIONAL even if these pass.
-                X=struct('lower',step.tube_lower,'upper',step.tube_upper);
-                U=struct('lower',double(u_lower(:)), ...
-                    'upper',double(u_upper(:)));
-                P=struct('lower',double(param_lower(:)), ...
-                    'upper',double(param_upper(:)));
-                R.taut_manifold=TRIGGER_TAUT_CABLE_MANIFOLD_OBLIGATIONS(X,P);
-                R.tension=TRIGGER_ORIGINAL_TENSION_INTERVAL(X,U,P);
+                % Every proof slab has an independently checked Picard
+                % enclosure, necessary taut-constraint compatibility and
+                % strictly positive original-model tension lower bound.
+                R.taut_manifold=step.taut_manifold;
+                R.tension=step.tension;
                 if ~(R.taut_manifold.compatible && ...
                         isfinite(R.tension.tension_lower_N) && ...
                         R.tension.tension_lower_N>0)
                     R.status='UNKNOWN_HELD_PLANT_TAUT_OR_TENSION';
-                    R.reason=['Picard was conditional but full-time taut-compatible ' ...
-                        'positive tension was NOT shown.'];
+                    R.reason='The subdivided time slabs did not certify positive tension.';
                     obj.invalidate(R.status);
                     return
                 end

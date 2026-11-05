@@ -1,0 +1,3 @@
+PASS_SIM_T0_INITIAL_24_STATE_AND_TAUT_MANIFOLD__NO_FLIGHT_CLEARANCE
+cases=5 failures=0
+The unchanged runner/model/EKF construction pins the same initial 24 state for plant and EKF at Sim t=0, and the joint taut constraint holds at that instant. The separate 25th EKF mL differs from physical mL. No present-time error bound after t=0 is inferred without plant set propagation; hardware initial errors remain unproved.

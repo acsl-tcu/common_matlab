@@ -1,41 +1,16 @@
 classdef FUTURE_COLLISION_TRIGGER < handle
-    % FUTURE_COLLISION_TRIGGER  Observed-only, current-EKF prediction gate.
-    %
-    % IMPORTANT:
-    % - This module DOES NOT implement or replace the existing HLC/plant.
-    % - It does not extrapolate p+v*t, invent model coefficients, or use
-    %   nominal reference positions as predicted actual positions.
-    % - Runtime dt/geometry/cable values MUST arrive from a validated
-    %   Flight binding on EVERY evaluate() call. Only EKF mass changes each
-    %   tick; constructor caches only optional horizon=4 s.
-    % - A side-effect-free predictor using the LIVE HLC + suspended-load
-    %   dynamics must be supplied explicitly as authority.predictor.
-    % - Without it, the result is UNKNOWN_MODEL_NOT_BOUND, never SAFE.
-    % - A nominal sampled prediction does NOT certify continuous safety.
-    % - Only sensor_frame.detected_obstacles may reach this class.
-    % - No source-world lookup, future sensing or subset-combination caches.
-    %
-    % Predictor contract, one call per evaluation:
-    %   pred = authority.predictor(request)
-    %   request fields: time_s, horizon_s, sample_dt_s, sample_times_s,
-    %     ekf_now (all 8 physical 3-vectors), payload_mass_kg,
-    %     cable_length_m, reference_at (function handle).
-    %   pred fields: sample_times_s (same values), uav_m (3xK),
-    %     payload_m (3xK), model_description (nonempty char/string).
-    %   Optional proof fields: interval_uav_excursion_m (1x[K-1]),
-    %     interval_payload_excursion_m (1x[K-1]),
-    %     interval_bounds_verified (true), tracking_error_included (true),
-    %     estimator_error_included (true), taut_cable_verified (true).
-    %   The excursion bounds must apply to every time in each interval,
-    %   measured from that interval's LEFT sample, and include ALL indicated
-    %   errors. Merely setting a boolean is not a proof: evidence for the
-    %   external predictor and bounds must be independently audited.
-    %
-    % Geometry: support-plane bounds for full straight cable, UAV sphere and
-    % payload sphere, for each time interval. Supports convex hull of each
-    % actual obstacle shape; this can yield UNKNOWN, never unsafe SAFE.
-    % Sampling alone can indicate a predicted collision but cannot prove
-    % safety between samples.
+    % FUTURE_COLLISION_TRIGGER  Four-second collision-only trigger.
+    % Current EKF -> existing verified HLC/plant numerical predictor ->
+    % observed/retained obstacles -> earliest sampled UAV/cable/payload
+    % contact, ID and time. No trajectory synthesis or safety commitment.
+    % The interval guard conservatively checks the WHOLE piecewise-linear
+    % nominal interpolant between numeric samples. A no-risk result may
+    % certify THAT interpolant clear of the observed obstacles only; it is
+    % NOT a certificate for the true continuous 24-state ODE solution.
+    % Neither outcome is an uncertainty-aware physical safety guarantee.
+    % An actual generator commit must call set_committed_plan_revision()
+    % (through REPLANNING_SYSTEM.set_trigger_plan_revision) to rearm IDs;
+    % the parent also flushes any cached reference values at that time.
 
     properties (SetAccess=private)
         horizon_s
@@ -51,6 +26,16 @@ classdef FUTURE_COLLISION_TRIGGER < handle
         total_elapsed_ms = 0
         maximum_elapsed_ms = 0
         active_request_ids = zeros(1,0)
+        % An event remains suppressed only for the CURRENT committed plan.
+        % A genuinely committed new C7/C6 reference opens a new generation.
+        committed_plan_revision = uint64(0)
+        % Performance hint ONLY: exact previous sampled contact absolute time.
+        % Valid solely for unchanged committed plan + observed ID generation.
+        % Miss on a shortened prefix ALWAYS retries the complete 4 s horizon.
+        last_contact_absolute_time_s=NaN
+        last_contact_plan_revision=uint64(0)
+        last_contact_observed_ids=zeros(1,0)
+        full_retry_in_progress=false
         % Exact per-observation snapshot cache (not detection-mask presets).
         % Any source geometry or ID change triggers full revalidation.
         last_prepared_observations = []
@@ -103,6 +88,25 @@ classdef FUTURE_COLLISION_TRIGGER < handle
         function set_horizon(obj,horizon_s)
             % Explicit external update; never silently clamp or shorten H.
             obj.horizon_s=FUTURE_COLLISION_TRIGGER.positive(horizon_s,'horizon_s');
+        end
+
+        function set_committed_plan_revision(obj,revision)
+            % This is NOT a replan action. The trajectory generator, and
+            % ONLY the generator, calls the parent after a new plan was
+            % successfully committed. Identical revisions leave the event
+            % latch unchanged; an increasing revision rearms the same ID.
+            % Rejected candidate trajectories must not change this value.
+            assert(isa(revision,'uint64') && isscalar(revision) && ...
+                revision>=obj.committed_plan_revision, ...
+                'FUTURE_COLLISION_TRIGGER:PlanRevision', ...
+                'Plan revision must be monotone uint64 from committed plans.');
+            if revision>obj.committed_plan_revision
+                obj.active_request_ids=zeros(1,0);
+                obj.committed_plan_revision=revision;
+                obj.last_contact_absolute_time_s=NaN;
+                obj.last_contact_observed_ids=zeros(1,0);
+                obj.last_contact_plan_revision=revision;
+            end
         end
 
         function prepare_static_timing(obj,dt,horizon)
@@ -270,7 +274,33 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'The unchanged nominal reference must be evaluable at future times.');
             known=FUTURE_COLLISION_TRIGGER.check_observation(sensor_frame,time_s,ekf.p);
             ids=reshape([known.id],1,[]);
-            grid=obj.make_grid();
+            full_grid=obj.make_grid();
+            grid=full_grid;
+            % An earlier, already-announced contact often persists for many
+            % successive current-EKF evaluations of the SAME committed plan.
+            % First solve a short prefix through that expected contact.
+            % This is ONLY a cost hint; every miss is followed by a fresh,
+            % unshortened full-horizon predictor from the CURRENT EKF state.
+            % A NEW obstacle, plan revision or reference generation cannot
+            % inherit an old partial prediction. Never use this for clearing.
+            prefix_probe=false;
+            fresh_unannounced=~all(ismember(ids,obj.active_request_ids));
+            if ~obj.full_retry_in_progress && ~fresh_unannounced && ...
+                    isequal(ids,obj.last_contact_observed_ids) && ...
+                    obj.last_contact_plan_revision==obj.committed_plan_revision && ...
+                    isfinite(obj.last_contact_absolute_time_s) && ...
+                    double(time_s)<=obj.last_contact_absolute_time_s+ ...
+                        2*obj.sample_dt_s
+                desired=obj.last_contact_absolute_time_s-double(time_s) + ...
+                    2*obj.sample_dt_s;
+                prefix_last=find(full_grid>=desired,1,'first');
+                if isempty(prefix_last),prefix_last=numel(full_grid);end
+                prefix_last=max(2,prefix_last);
+                if prefix_last<numel(full_grid)
+                    grid=full_grid(1:prefix_last);
+                    prefix_probe=true;
+                end
+            end
             R=struct('time_s',double(time_s),'horizon_s',obj.horizon_s, ...
                 'sample_dt_s',obj.sample_dt_s,'sample_count',numel(grid), ...
                 'considered_obstacle_ids',ids,'considered_count',numel(ids), ...
@@ -283,6 +313,11 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'flight_binding_used',isfield(authority,'authority_binding_policy'), ...
                 'model_and_estimator_bounds_audited',false, ...
                 'prediction_complete',false, ...
+                'collision_prediction_resolved',false, ...
+                'prediction_early_stopped',false, ...
+                'full_horizon_evaluated',false, ...
+                'prefix_probe_attempted',prefix_probe, ...
+                'prefix_probe_retried_full',false, ...
                 'completed_prediction_horizon_s',0, ...
                 'completed_prediction_samples',0, ...
                 'predictor_hlc_time_ms',NaN, ...
@@ -328,6 +363,25 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 'geometry_sampled_broadphase_ids',zeros(1,0), ...
                 'geometry_query_error_ids',zeros(1,0), ...
                 'geometry_query_error_messages',{{}}, ...
+                'collision_predicted',false, ...
+                'collision_risk_predicted',false, ...
+                'collision_confirmed_at_sample',false, ...
+                'nominal_interpolant_observed_clear',false, ...
+                'first_nominal_risk_ttc_s',NaN, ...
+                'first_nominal_risk_ids',zeros(1,0), ...
+                'collision_possible_intersample',false, ...
+                'nominal_interpolated_sweep_checked',false, ...
+                'nominal_interpolated_possible_ids',zeros(1,0), ...
+                'nominal_interpolated_sweep_ms',NaN, ...
+                'collision_obstacle_id',NaN, ...
+                'collision_obstacle_ids',zeros(1,0), ...
+                'collision_ttc_s',NaN, ...
+                'collision_time_s',NaN, ...
+                'collision_component','NONE', ...
+                'collision_time_bracket_s',[NaN NaN], ...
+                'collision_decision','UNAVAILABLE', ...
+                'collision_prediction_basis','SAMPLED_HLC_PLANT_NUMERIC', ...
+                'plan_revision',obj.committed_plan_revision, ...
                 'new_event',false,'new_event_ids',zeros(1,0), ...
                 'duplicate_suppressed',false, ...
                 'numeric_request',false,'safe_to_commit',false, ...
@@ -338,6 +392,8 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 R.status='NO_CURRENTLY_DETECTED_OBSTACLES';
                 R.reason='No observed obstacles to evaluate; unseen world remains unknown.';
                 obj.active_request_ids=zeros(1,0);
+                obj.last_contact_absolute_time_s=NaN;
+                obj.last_contact_observed_ids=zeros(1,0);
                 R=obj.finish(R,started);
                 return
             end
@@ -660,90 +716,57 @@ classdef FUTURE_COLLISION_TRIGGER < handle
             end
             R.completed_prediction_samples=numel(P.sample_times_s);
             R.completed_prediction_horizon_s=P.sample_times_s(end);
-            R.prediction_complete=true;
+            % A truncated prediction MUST NOT impersonate a completed 4-s
+            % rollout in Flight logs or preflight parity audits.
+            R.prediction_complete=~prefix_probe;
+            R.full_horizon_evaluated=~prefix_probe;
             R.prediction_available=true;
-            % A validated predictor is a separate development/verification
-            % obligation. The checks below are geometric consequences only.
-            valid_bounds=FUTURE_COLLISION_TRIGGER.has_valid_bounds(P,numel(grid));
-            R.conditional_external_bounds=valid_bounds;
-            % Preparation uses ONLY genuinely observed/retained geometry.
-            % Reuse it if and ONLY if the ENTIRE source snapshot is exactly
-            % equal to the one previously validated. Any changed ID/shape/
-            % orientation/motion causes full validation and preparation.
-            if timing_on
-                R.timing_between_predictor_geometry_ms= ...
-                    1000*toc(started)-R.timing_pre_predictor_ms-predictor_wall_ms;
-            end
-            geometry_wall_clock=tic;
-            % Prefer the sensor's ALREADY prepared true-solid geometry,
-            % disclosed only after the ID was actually detected. This
-            % avoids first-Flight geometry construction and per-tick deep
-            % comparison of an entire retained-obstacle struct array.
-            % Independently check the snapshot's raw shape and pose.
-            sensor_prepared=false;
-            fast_verified_reuse=false;
-            proposed=[];
-            if isfield(sensor_frame,'prepared_sensor_shapes')
-                proposed=sensor_frame.prepared_sensor_shapes;
-                has_token=isfield(sensor_frame,'observation_provenance') && ...
-                    strcmp(sensor_frame.observation_provenance, ...
-                        'ACTUAL_SENSOR_HISTORY_ONLY') && ...
-                    isfield(sensor_frame,'memory_version') && ...
-                    isfield(sensor_frame,'geometry_version') && ...
-                    isa(sensor_frame.memory_version,'uint64') && ...
-                    isa(sensor_frame.geometry_version,'uint64');
-                if has_token && ...
-                        isequal(sensor_frame.memory_version, ...
-                            obj.last_verified_memory_version) && ...
-                        isequal(sensor_frame.geometry_version, ...
-                            obj.last_verified_geometry_version) && ...
-                        isequal(ids,obj.last_verified_prepared_ids) && ...
-                        isstruct(proposed) && numel(proposed)==numel(ids) && ...
-                        all(isfield(proposed,{'id','is_stationary'})) && ...
-                        isequal(reshape(double([proposed.id]),1,[]),ids) && ...
-                        all([proposed.is_stationary]) && ...
-                        ~isempty(obj.last_verified_prepared_shapes)
-                    % The source sensor has immutable static geometry for
-                    % this Flight; any new ID or moving geometry invalidates
-                    % the version. Always use the already verified object,
-                    % not a potentially different incoming structure.
-                    proposed=obj.last_verified_prepared_shapes;
-                    sensor_prepared=true;
-                    fast_verified_reuse=true;
-                else
-                    sensor_prepared=FUTURE_COLLISION_TRIGGER. ...
-                        verified_prepared_observations(known,proposed);
-                    if sensor_prepared && has_token && ...
-                            all([proposed.is_stationary])
-                        obj.last_verified_prepared_ids=ids;
-                        obj.last_verified_memory_version= ...
-                            sensor_frame.memory_version;
-                        obj.last_verified_geometry_version= ...
-                            sensor_frame.geometry_version;
-                        obj.last_verified_prepared_shapes=proposed;
-                    else
-                        obj.last_verified_memory_version=[];
-                        obj.last_verified_geometry_version=[];
-                        obj.last_verified_prepared_shapes=[];
-                        obj.last_verified_prepared_ids=zeros(1,0);
-                    end
+            % FINAL TRIGGER RESPONSIBILITY: collision forecast only.
+            % The existing verified native HLC/plant predicts from CURRENT
+            % EKF, with full 4 s unless an already-announced contact is
+            % independently reconfirmed on a short prefix. A separate already regression-tested
+            % oracle finds the earliest sampled contact among ALL known
+            % shapes, including the FULL straight cable, UAV and payload.
+            % No trajectory generation, candidate requests, fail-safe,
+            % true-state flowpipe proof or per-obstacle future sensing.
+            % Physical continuous-time clearance is NOT asserted by samples.
+            geometry_clock=tic;
+            prepared=false;
+            same_generation=has_provenance && ...
+                isequal(sensor_frame.memory_version, ...
+                        obj.last_verified_memory_version) && ...
+                isequal(sensor_frame.geometry_version, ...
+                        obj.last_verified_geometry_version) && ...
+                isequal(ids,obj.last_verified_prepared_ids) && ...
+                numel(obj.last_verified_prepared_shapes)==numel(ids) && ...
+                ~isempty(obj.last_verified_prepared_shapes);
+            if same_generation
+                shapes=obj.last_verified_prepared_shapes;
+                prepared=true;
+            elseif isfield(sensor_frame,'prepared_sensor_shapes') && ...
+                    FUTURE_COLLISION_TRIGGER.verified_prepared_observations( ...
+                    known,sensor_frame.prepared_sensor_shapes)
+                shapes=sensor_frame.prepared_sensor_shapes;
+                prepared=true;
+                if has_provenance && all([shapes.is_stationary])
+                    obj.last_verified_prepared_shapes=shapes;
+                    obj.last_verified_prepared_ids=ids;
+                    obj.last_verified_memory_version= ...
+                        sensor_frame.memory_version;
+                    obj.last_verified_geometry_version= ...
+                        sensor_frame.geometry_version;
                 end
-            end
-            same_observations=false;
-            if sensor_prepared
-                shapes=proposed;
-                same_observations=true;
             else
-                same_observations=~isempty(obj.last_prepared_shapes) && ...
-                    isequaln(known,obj.last_prepared_observations);
-                if same_observations
+                if ~isempty(obj.last_prepared_shapes) && ...
+                        isequaln(obj.last_prepared_observations,known)
                     shapes=obj.last_prepared_shapes;
                 else
                     try
                         shapes=OBSTACLE_GEOMETRY_QUERY.prepare(known);
                     catch ME
-                        R.geometry_wall_ms=1000*toc(geometry_wall_clock);
+                        R.geometry_wall_ms=1000*toc(geometry_clock);
                         R.status='UNKNOWN_GEOMETRY_PREPARATION';
+                        R.collision_decision='UNAVAILABLE';
                         R.reason=sprintf('%s: %s',ME.identifier,ME.message);
                         R.possible_risk_ids=ids;
                         R=obj.finish(R,started);
@@ -753,232 +776,185 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                     obj.last_prepared_shapes=shapes;
                 end
             end
-            R.geometry_prepare_reused=same_observations;
-            R.geometry_prepared_from_observed_sensor=sensor_prepared;
-            R.geometry_fast_verified_reuse=fast_verified_reuse;
-            % Shape-independent whole-time-interval theorem. The current
-            % native predictor does NOT provide the required rigorously
-            % verified excursion bounds, so this path is presently OFF.
-            % No guessed tube, no arbitrary speed bound, no sampled-only SAFE.
-            interval_cleared=false(1,numel(shapes));
-            if valid_bounds
-                try
-                    I=TRIGGER_CONTINUOUS_INTERVAL_GATE.evaluate( ...
-                        P.uav_m,P.payload_m,grid,shapes,obj.r_uav_m, ...
-                        obj.r_payload_m,obj.r_cable_m, ...
-                        P.interval_uav_excursion_m, ...
-                        P.interval_payload_excursion_m);
-                    interval_cleared=all(I.separated_intervals,2).';
-                    R.interval_gate_status=I.status;
-                    R.interval_gate_unresolved_ids=I.possibly_at_risk_ids;
-                    R.interval_gate_first_possible_ttc_s=I.earliest_unresolved_left_s;
-                catch ME
-                    R.geometry_wall_ms=1000*toc(geometry_wall_clock);
-                    R.status='UNKNOWN_INTERVAL_ENCLOSURE_QUERY';
-                    R.reason=sprintf('%s: %s',ME.identifier,ME.message);
-                    R.possible_risk_ids=ids;
-                    R=obj.finish(R,started);
-                    return
-                end
+            R.geometry_prepared_from_observed_sensor=prepared;
+            % Existing verified 13-input Native MEX already screens every
+            % sampled UAV/payload/cable against the ACTUAL observed shape's
+            % enclosing ball during the same native prediction dispatch.
+            % A true flag means definite exclusion at ALL sampled instants,
+            % not a collision and NOT a continuous safety certificate.
+            % Skip the costly exact oracle only for these excluded IDs.
+            query_shapes=shapes;
+            native_excluded_count=0;
+            if isfield(P,'native_sampled_outer_excluded') && ...
+                    isfield(P,'native_sampled_outer_ids') && ...
+                    isequal(reshape(double(P.native_sampled_outer_ids),1,[]),ids) && ...
+                    numel(P.native_sampled_outer_excluded)==numel(ids) && ...
+                    islogical(P.native_sampled_outer_excluded)
+                excluded=reshape(P.native_sampled_outer_excluded,1,[]);
+                native_excluded_count=nnz(excluded);
+                query_shapes=shapes(~excluded);
+                R.geometry_native_broadphase_used=true;
+                R.geometry_sampled_broadphase_ids=ids(excluded);
+                R.geometry_sampled_broadphase_exclusions= ...
+                    3*numel(grid)*native_excluded_count;
             end
-            % Shared broad phase for all observed solids and all sampled
-            % positions. Outer balls may eliminate an exact SHAPE query,
-            % but never establish contact or inter-sample safety.
             try
-                if isfield(P,'native_sampled_outer_only') && ...
-                        isequal(P.native_sampled_outer_only,true) && ...
-                        isfield(P,'native_sampled_outer_ids') && ...
-                        isequal(reshape(double(P.native_sampled_outer_ids),1,[]),ids) && ...
-                        isfield(P,'native_sampled_outer_excluded') && ...
-                        islogical(P.native_sampled_outer_excluded) && ...
-                        numel(P.native_sampled_outer_excluded)==numel(shapes)
-                    flag=reshape(P.native_sampled_outer_excluded,1,[]);
-                    coarse=struct('sampled_excluded',flag, ...
-                        'sampled_excluded_ids',ids(flag));
-                    R.geometry_native_broadphase_used=true;
-                else
-                    coarse=TRIGGER_OBSERVED_BROADPHASE.evaluate( ...
-                        P.uav_m,P.payload_m,shapes,obj.r_uav_m, ...
-                        obj.r_payload_m,obj.r_cable_m);
-                end
-            catch
-                % A failed optional speed gate must never suppress the
-                % original narrow phase or interrupt the Flight loop.
-                coarse=struct('sampled_excluded',false(1,numel(shapes)), ...
-                    'sampled_excluded_ids',zeros(1,0));
-            end
-            R.geometry_sampled_broadphase_ids=coarse.sampled_excluded_ids;
-            R.geometry_sampled_broadphase_exclusions= ...
-                nnz(coarse.sampled_excluded)*numel(grid)*3;
-            pending=zeros(1,0);sample_hits=zeros(1,0);
-            material_proximity_ids=zeros(1,0);
-            geometry_errors=zeros(1,0);
-            geometry_error_messages=cell(1,0);
-            earliest=inf;earliest_part='NONE';
-            for j=1:numel(known)
-                sh=shapes(j);
-                % No implicit prediction of moving obstacles.
-                if ~sh.is_stationary
-                    pending(end+1)=double(sh.id); %#ok<AGROW>
-                    continue
-                end
-                if coarse.sampled_excluded(j)
-                    % All three true bodies are disjoint from the outer
-                    % enclosing ball at EVERY SAMPLE. There is NO claim
-                    % about the unsampled continuous motion. Preserve
-                    % fail-closed behavior unless verified interval bounds
-                    % have independently cleared the full time span.
-                    if ~valid_bounds || ~interval_cleared(j)
-                        pending(end+1)=double(sh.id); %#ok<AGROW>
-                    end
-                    continue
-                end
-                % One shape-INDEPENDENT sampled geometry entry point for
-                % spheres and the ENTIRE finite straight cable. Every
-                % obstacle shape is prepared by the same sensor geometry
-                % oracle. In particular, cylinders are NOT singled out.
-                try
-                    [u_hit,l_hit,c_hit,c_unknown,qinfo]= ...
-                        TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.evaluate( ...
-                        P.uav_m,P.payload_m,sh,obj.r_uav_m, ...
-                        obj.r_payload_m,obj.r_cable_m,time_s,true, ...
-                        obj.sampled_geometry_options);
-                catch ME
-                    % No numeric/shape error can imply clearance.
-                    geometry_errors(end+1)=double(sh.id); %#ok<AGROW>
-                    geometry_error_messages{end+1}=sprintf('%s: %s', ...
-                        ME.identifier,ME.message); %#ok<AGROW>
-                    pending(end+1)=double(sh.id); %#ok<AGROW>
-                    continue
-                end
-                if isfield(qinfo,'diagnostic_stage_ms') && ...
-                        isnumeric(qinfo.diagnostic_stage_ms) && ...
-                        numel(qinfo.diagnostic_stage_ms)==3
-                    R.geometry_diagnostic_stage_ms= ...
-                        R.geometry_diagnostic_stage_ms+ ...
-                        reshape(qinfo.diagnostic_stage_ms,1,3);
-                end
-                R.geometry_exact_body_queries= ...
-                    R.geometry_exact_body_queries+qinfo.body_exact_queries;
-                R.geometry_exact_cable_queries= ...
-                    R.geometry_exact_cable_queries+qinfo.cable_exact_queries;
-                R.geometry_support_exclusions= ...
-                    R.geometry_support_exclusions+qinfo.body_support_excluded+ ...
-                    qinfo.cable_support_excluded;
-                if isfield(qinfo,'sampled_block_support_excluded')
-                    R.geometry_sampled_block_support_exclusions= ...
-                        R.geometry_sampled_block_support_exclusions+ ...
-                        qinfo.sampled_block_support_excluded;
-                end
-                if isfield(qinfo,'sampled_block_support_probes')
-                    R.geometry_sampled_block_support_probes= ...
-                        R.geometry_sampled_block_support_probes+ ...
-                        qinfo.sampled_block_support_probes;
-                end
-                if isfield(qinfo,'sampled_axis_plane_excluded') && ...
-                        qinfo.sampled_axis_plane_excluded
-                    R.geometry_sampled_axis_plane_exclusions= ...
-                        R.geometry_sampled_axis_plane_exclusions+3*numel(grid);
-                end
-
-                sampled=u_hit | l_hit | c_hit;
-                index=find(sampled,1,'first');
-                hit=~isempty(index);
-                if hit
-                    sample_hits(end+1)=double(sh.id); %#ok<AGROW>
-                    if grid(index)<earliest
-                        earliest=grid(index);
-                        if u_hit(index)
-                            earliest_part='UAV';
-                        elseif l_hit(index)
-                            earliest_part='PAYLOAD';
-                        else
-                            earliest_part='CABLE_CENTERLINE';
-                        end
-                    end
-                end
-                % An unresolved exact spatial segment query remains UNKNOWN.
-                uncertain=~valid_bounds || any(c_unknown) || hit;
-                if obj.r_cable_m>0 && any(c_unknown)
-                    material_proximity_ids(end+1)=double(sh.id); %#ok<AGROW>
-                end
-                if valid_bounds && ~hit
-                    % Conditional theorem for the COMPLETE temporal
-                    % interval, not just the sampled times. If any such
-                    % interval cannot be separated, risk remains UNKNOWN.
-                    uncertain=uncertain || ~interval_cleared(j);
-                end
-                if uncertain
-                    pending(end+1)=double(sh.id); %#ok<AGROW>
-                end
-            end
-            R.geometry_query_error_ids=geometry_errors;
-            R.geometry_query_error_messages=geometry_error_messages;
-            R.geometry_wall_ms=1000*toc(geometry_wall_clock);
-            if timing_on,post_geometry_clock=tic;end
-            if trace_first
-                R.first_use_trace.geometry_wall_ms=R.geometry_wall_ms;
-            end
-            R.sampled_collision_ids=sample_hits;
-            R.sampled_cable_material_proximity_ids=material_proximity_ids;
-            R.sampled_collision=~isempty(sample_hits);
-            R.possible_risk_ids=pending;
-            if isfinite(earliest)
-                R.first_sampled_collision_ttc_s=earliest;
-                R.first_sampled_collision_component=earliest_part;
-            end
-            if R.sampled_collision
-                R.status='PREDICTED_SAMPLED_GEOMETRIC_CONTACT';
-                R.reason='Predicted nominal sample intersects a known obstacle; actual closed-loop contact is not proven.';
-            elseif ~isempty(geometry_errors)
+                first=TRIGGER_EARLIEST_SAMPLED_CONTACT( ...
+                    P.uav_m,P.payload_m,grid,query_shapes, ...
+                    obj.r_uav_m,obj.r_payload_m,obj.r_cable_m, ...
+                    time_s,obj.sampled_geometry_options,obj.active_request_ids);
+            catch ME
+                R.geometry_wall_ms=1000*toc(geometry_clock);
                 R.status='UNKNOWN_GEOMETRY_QUERY_ERROR';
-                R.reason='One or more original sensed solids could not be evaluated; never assume clearance.';
-            elseif ~isempty(pending)
-                R.status='UNKNOWN_CONTINUOUS_INTERVAL_OR_MODEL';
-                R.reason='Continuous separation of the closed-loop swept UAV/cable/payload cannot be established.';
-            else
-                R.status='CONDITIONAL_INTERVAL_GEOMETRY_PASS__MODEL_NOT_AUDITED';
-                R.reason='Geometric separation is conditional on supplied interval bounds; no audited closed-loop safety proof.';
-                R.conditional_interval_geometry_pass=true;
-                % Never claim verified real closed-loop continuous safety here.
-                R.continuous_observed_set_safe=false;
+                R.collision_decision='UNAVAILABLE';
+                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
+                R.possible_risk_ids=ids;
+                R=obj.finish(R,started);
+                return
             end
-            % An uncertified interval is treated as possible risk (fail-closed).
-            % UNKNOWN from absent interval bounds is NOT itself a predicted
-            % collision. Only explicitly observed nominal sample contacts may
-            % raise a provisional numerical request. The final certified
-            % trigger will use validated reachable-set contact instead.
-            if isempty(sample_hits)
-                % No nominal contact this tick. The old expression also
-                % intersects active requests with the currently known IDs;
-                % since requests originated from retained known IDs and
-                % known IDs are append-only, this branch is equivalent.
-                new_ids=zeros(1,0);
-                R.duplicate_suppressed=false;
-                % Preserve any active IDs for duplicate suppression if a
-                % later sample still contacts them. No unproved release.
-            else
-                % Equivalent stable-set event transition, with no dynamic
-                % setdiff/union/intersect dispatch at first contact.  This
-                % helper has its own preflight isolated regression and NEVER
-                % changes the physical collision/safety decision.
-                [new_ids,R.duplicate_suppressed,obj.active_request_ids]= ...
+            % A sampled-only check misses a solid that lies entirely
+            % between two sample instants. Independently inspect every
+            % time interval of the PIECEWISE-LINEAR nominal interpolant.
+            % This cannot supply a rigorous error envelope for the true
+            % continuous HLC/plant trajectory; publish POSSIBLE only.
+            sweep_clock=tic;
+            try
+                % Every observed ID MUST be swept, even when a later
+                % sampled contact was found for the same obstacle.
+                sweep=TRIGGER_NOMINAL_SWEPT_INTERVALS( ...
+                    P.uav_m,P.payload_m,grid,shapes, ...
+                    obj.r_uav_m,obj.r_payload_m,obj.r_cable_m, ...
+                    obj.active_request_ids,zeros(1,0));
+                merged=TRIGGER_MERGE_EARLIEST_NOMINAL_RISK( ...
+                    first,sweep,grid);
+            catch ME
+                R.status='UNKNOWN_INTERSAMPLE_GEOMETRY';
+                R.collision_decision='UNAVAILABLE';
+                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
+                R.possible_risk_ids=ids;
+                R.geometry_wall_ms=1000*toc(geometry_clock);
+                R=obj.finish(R,started);
+                return
+            end
+            R.nominal_interpolated_sweep_ms=1000*toc(sweep_clock);
+            R.nominal_interpolated_sweep_checked=true;
+            R.nominal_interpolated_possible_ids=sweep.possible_obstacle_ids;
+            R.geometry_wall_ms=1000*toc(geometry_clock);
+            R.geometry_exact_body_queries=first.body_exact_queries;
+            R.geometry_exact_cable_queries=first.cable_exact_queries;
+            R.geometry_support_exclusions=first.support_exclusions;
+            R.geometry_sampled_broadphase_exclusions= ...
+                R.geometry_sampled_broadphase_exclusions+first.broadphase_exclusions;
+            R.sampled_collision=first.replan_requested;
+            R.sampled_collision_ids=first.first_obstacle_ids;
+            % One time-order decision for BOTH sampled contact and EVERY
+            % swept interval. The selected TTC is a LOWER bound on possible
+            % collision onset, so it must never be reported as an exact
+            % physical impact time. Only the observed solid set is used.
+            R.possible_risk_ids=unique([first.uncertain_obstacle_ids ...
+                sweep.possible_obstacle_ids],'stable');
+            R.first_sampled_collision_ttc_s=first.first_ttc_s;
+            if ~isempty(first.first_components)
+                R.first_sampled_collision_component=first.first_components{1};
+            end
+            R.nominal_interpolant_observed_clear= ...
+                R.prediction_complete && ~merged.has_risk && ...
+                isempty(first.uncertain_obstacle_ids);
+            if merged.has_risk
+                chosen=merged.selected;
+                R.status='PREDICTED_NOMINAL_COLLISION_RISK';
+                R.collision_decision=chosen.kind;
+                R.collision_risk_predicted=true;
+                % Conservative trigger semantics: POSSIBLE collision also
+                % counts as predicted risk. Confirmation at an actual
+                % numeric sample is separately available below.
+                R.collision_predicted=true;
+                R.collision_confirmed_at_sample=chosen.sampled_confirmed;
+                R.collision_possible_intersample=chosen.intersample_possible;
+                R.collision_obstacle_ids=chosen.ids;
+                R.collision_obstacle_id=chosen.ids(1);
+                R.collision_ttc_s=chosen.ttc_s;
+                R.collision_time_s=double(time_s)+chosen.ttc_s;
+                R.collision_time_bracket_s=chosen.bracket_s;
+                R.collision_component=chosen.component;
+                R.first_nominal_risk_ttc_s=merged.first.ttc_s;
+                R.first_nominal_risk_ids=merged.first.ids;
+                [new_ids,dup,obj.active_request_ids]= ...
                     TRIGGER_STABLE_EVENT_IDS( ...
-                        sample_hits,obj.active_request_ids,ids);
+                        merged.first_new.ids,obj.active_request_ids,ids);
+                R.new_event_ids=new_ids;
+                R.new_event=~isempty(new_ids);
+                R.duplicate_suppressed=dup || ...
+                    (~R.new_event && merged.has_risk);
+                R.numeric_request=R.new_event;
+                R.reason=['Conservative continuous piecewise-linear nominal ' ...
+                    'sweep: sampled contact or possible intersample contact. ' ...
+                    'No bound on true ODE integration/tracking error.'];
+            elseif ~isempty(first.uncertain_obstacle_ids)
+                R.status='UNKNOWN_SAMPLED_GEOMETRY';
+                R.collision_decision='UNAVAILABLE';
+                R.reason='Unresolved observed geometry: no clear verdict.';
+            else
+                R.status='NO_NOMINAL_INTERPOLANT_OVERLAP';
+                R.collision_decision='NO_CONTACT_IN_NOMINAL_LINEAR_SWEEP';
+                R.reason=['Entire numerical linear interpolant excludes ' ...
+                    'observed shapes; real ODE clearance not certified.'];
             end
-            R.new_event_ids=new_ids;
-            R.new_event=~isempty(new_ids);
-            R.numeric_request=R.new_event;
-            % Never authorize trajectory commit from a trigger decision alone.
+            % A partial prefix is never allowed to declare a four-second
+            % clearance. If no risk was found, retry all four seconds.
+            if prefix_probe && ~R.collision_risk_predicted
+                R=obj.evaluate_full_after_prefix( ...
+                    time_s,ekf_now,sensor_frame,authority,started);
+                return
+            end
+            R.collision_prediction_resolved=R.collision_risk_predicted || ...
+                (R.prediction_complete && ...
+                 isempty(first.uncertain_obstacle_ids));
+            R.prediction_early_stopped=prefix_probe && ...
+                R.collision_risk_predicted;
+            if R.collision_risk_predicted
+                % Valid only for the current committed plan, detected-ID
+                % generation and true current-EKF re-evaluation next tick.
+                obj.last_contact_absolute_time_s= ...
+                    double(time_s)+merged.first.ttc_s;
+                obj.last_contact_observed_ids=ids;
+                obj.last_contact_plan_revision=obj.committed_plan_revision;
+            else
+                obj.last_contact_absolute_time_s=NaN;
+                obj.last_contact_observed_ids=zeros(1,0);
+            end
             R.safe_to_commit=false;
-            if timing_on
-                R.timing_post_geometry_ms=1000*toc(post_geometry_clock);
-            end
+            R.continuous_observed_set_safe=false;
+            R.interval_gate_status= ...
+                'PROVED_LINEAR_INTERPOLANT_ONLY__TRUE_ODE_BOUNDS_NOT_SUPPLIED';
             R=obj.finish(R,started);
         end
     end
 
     methods (Access=private)
+        function R=evaluate_full_after_prefix(obj,time_s,ekf,sensed,authority,started)
+            % Re-run from current EKF, NOT from the last state of the short
+            % prediction. No native checkpoint / RK integration is altered.
+            % If both attempts fail, the ordinary UNKNOWN error handling
+            % applies. This scalar guard prevents recursive prefix attempts.
+            obj.full_retry_in_progress=true;
+            try
+                R=obj.evaluate(time_s,ekf,sensed,authority);
+                obj.full_retry_in_progress=false;
+            catch ME
+                obj.full_retry_in_progress=false;
+                rethrow(ME)
+            end
+            R.prefix_probe_attempted=true;
+            R.prefix_probe_retried_full=true;
+            % Report the entire current-tick workload, not merely the
+            % second predictor's time. Double evaluation is never hidden.
+            R.elapsed_ms=1000*toc(started);
+            obj.total_elapsed_ms=obj.total_elapsed_ms- ...
+                obj.last_result.elapsed_ms+R.elapsed_ms;
+            obj.maximum_elapsed_ms=max(obj.maximum_elapsed_ms,R.elapsed_ms);
+            obj.last_result=R;
+        end
         function t=make_grid(obj)
             % Never change dt/horizon or round the flight sample clock.
             % Preflight has prepared the same formula if static parameters

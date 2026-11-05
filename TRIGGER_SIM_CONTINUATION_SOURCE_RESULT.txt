@@ -1,0 +1,3 @@
+PASS_SOURCE_ANCHORED_T0_NOW_4S_WIRING__ACTUAL_FLIGHT_NOT_TESTED
+cases=8 failures=0
+Zero-time Sim seed and taut source pins hold; original input/hold source checked; no plant state peek; both real-tick Picard and future 4s interfaces are called by opt-in live replanner. Need real Flight test and independent numerical solver error containment.

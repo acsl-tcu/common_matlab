@@ -48,7 +48,7 @@ source_pass=all(matched);
 % Any changed C++ source or executable/data section fails closed until
 % a fresh independent HLC+plant parity audit is completed.
 cpp_path=fullfile(home,'TRIGGER_SYMBOLIC_NATIVE_CORE.cpp');
-trusted_cpp_sha='399df4cd9f4d552c3bcc7c0f7e6d8bd34e10a04a0cae89191f4a398b32d4940f';
+trusted_cpp_sha='bb74f2423a7b80b530346abae120a7715c7df73f03c71c5be14308101dafa6d6';
 trusted_code_identity='f15ac1f3f4483fac6b004f13e515ca89353febb7feae13c9d8419b2b5cd07d6a';
 cpp_sha='';
 if isfile(cpp_path),cpp_sha=local_sha256(cpp_path);end

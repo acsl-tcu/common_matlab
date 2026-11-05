@@ -24,7 +24,7 @@ ENABLE_ALL_LOG = true;
 LOG_OBSTACLES = true;
 ENABLE_SENSOR = true;        % falseならセンサ計算自体を行わない
 LOG_SENSOR = true;           % falseでもENABLE_SENSOR=trueなら検知は実行する
-LOG_REPLANNER = true;        % REPLANNING_SYSTEM.update単独の処理時間を保存
+LOG_REPLANNER = true;        % uujREPLANNING_SYSTEM.update単独の処理時間を保存
 SENSOR_RANGE_M = 20;         % 模擬センサ半,/径[m]。Flightごとに自由に変更可能
 
 % Future collision trigger: external Flight configuration (no fake model values).

@@ -1,0 +1,8 @@
+PASS_REAL_FLIGHT_NOMINAL_SAMPLED_AND_SWEPT_TRIGGER
+frames=2602 logged=2602 native_predictions=1521 full=1521 early=0 fallback_full=0
+contact_frames=453 possible_intersample_frames=51 new_event_frames=1 events=1 memory_cross_checks=2602 failures=0
+trigger_ms median=1.771200 P95=2.361500 max=15.015400 over_4ms=12
+replanning_ms median=2.102200 P95=2.762300 max=19.729500 over_4ms=19
+observed_run_below_4ms=0 WCET_proven=0 continuous_safety_proven=0
+=== NEW EVENT REPORT (frame t id ttc plan_revision) ===
+537 13.375 3 3.975 0

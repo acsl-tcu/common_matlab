@@ -65,6 +65,21 @@ classdef TRIGGER_REFERENCE_WINDOW_CACHE < handle
             obj.phase_prime_accepted=0;
             obj.phase_prime_discarded=0;
         end
+        function reset_for_committed_plan(obj)
+            % The reference generator has actually COMMITTED a new C7/C6
+            % plan.  Drop all time/value reuse, even if its function handle
+            % and nominal epoch happen to be unchanged (a mutable source).
+            % Keep the preflight source purity audit; a changed function
+            % handle is independently rejected from that audited fast path.
+            obj.source=[];
+            obj.epoch=NaN;
+            obj.cable_length=NaN;
+            obj.source_is_stateless=false;
+            obj.times=zeros(1,0);
+            obj.source_arguments=zeros(1,0);
+            obj.jets=zeros(28,0);
+            obj.discard_phase_prime('COMMITTED_PLAN_CHANGED');
+        end
         function discard_phase_prime(obj,status)
             obj.phase_prime_source=[];
             obj.phase_prime_epoch=NaN;

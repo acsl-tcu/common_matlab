@@ -1,0 +1,3 @@
+PASS_UNIVERSAL_HLC_BOX_CANNOT_PROVE_STRICT_TENSION
+cases=6 failures=0
+Counterexample u1=0, omegaL=0 gives N=0 exactly. A future 4-second taut certificate requires stronger closed-loop bounds or a model including slack. Retuning Picard cannot fix this.

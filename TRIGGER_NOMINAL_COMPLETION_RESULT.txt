@@ -1,0 +1,3 @@
+PASS_NOMINAL_CONTINUOUS_INTERPOLANT_TRIGGER
+cases=6 failures=0
+nominal_interpolant=1 true_ODE=0 real_tracking=0 WCET=0

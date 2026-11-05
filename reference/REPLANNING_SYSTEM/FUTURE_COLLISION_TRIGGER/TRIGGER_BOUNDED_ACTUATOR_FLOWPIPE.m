@@ -4,10 +4,12 @@ function R=TRIGGER_BOUNDED_ACTUATOR_FLOWPIPE(C)
 %
 % Exact conditional theorem (NOT yet discharged on the real closed loop):
 % If every HLC raw result is finite, the byte-pinned saturated output is
-% exactly the input applied to the plant with zero-order hold, the original
-% 24-state RHS applies with taut cable, and supplied X0 / P boxes contain
-% the actual initial state and all parameter variations, THEN the plant
-% obeys U=[0,20]x[-1,1]^3 over every sample interval.
+% exactly the input applied to the plant, the original 24-state RHS applies
+% with taut cable, and supplied X0 / P boxes contain the actual initial
+% state and all parameter variations, THEN the plant obeys the universal
+% U=[0,20]x[-1,1]^3 AT EVERY INSTANT. The Picard partition need not
+% align with real HLC switching/hold instants: arbitrary switching within
+% the universal box is mathematically included by the interval RHS.
 % TRIGGER_ORIGINAL_PLANT_AUTO_CHAIN can consequently enclose the entire
 % state evolution without evaluating the nonlinear HLC on future samples.
 % The box is broad and may fail Picard inclusion; failure is UNKNOWN.
@@ -36,7 +38,7 @@ try
     times=double(C.time_grid_s(:).');
     assert(numel(times)>=2 && all(isfinite(times)) && all(diff(times)>0), ...
         'TRIGGER_BOUNDED_ACTUATOR_FLOWPIPE:Times', ...
-        'Actual sampled control times must be strictly increasing.');
+        'Computational partition times must be strictly increasing.');
     n=numel(times)-1;
     assert(isequal(size(C.initial_lower),[24 1]) && ...
         isequal(size(C.initial_upper),[24 1]) && ...

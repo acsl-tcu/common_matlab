@@ -1,5 +1,5 @@
 function R=BUILD_TRIGGER_NATIVE_TERMINAL_KERNEL()
-% OFFLINE ONLY. Compile the modified ORIGINAL HLC/plant kernel.  The
+% OFFLINE ONLY. Compile the modified ORIGINAL HLC/plant kernel (clockless default).  The
 % rebuilt binary is NOT trusted until the full numeric parity audit passes.
 % Source / binary / parity artifacts are checked separately. No auto-install.
 R=struct('status','FAIL_NATIVE_TERMINAL_KERNEL_BUILD', ...

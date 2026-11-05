@@ -1,0 +1,3 @@
+PASS_TAUT_JOINT_ROTATION_CONE__CONDITIONAL_SOURCE
+cases=428 failures=0 witnesses=2000 tightened=24
+All-time dot drift follows exact unit SO(3) axis derivatives; no physical tension or full 4s proof is implied.
