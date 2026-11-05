@@ -1,3 +1,0 @@
-status=PASS_ONLY_ACTUALLY_DETECTED_PREPARED_SHAPES
-real_flight_tested=0
-continuous_time_certified=0

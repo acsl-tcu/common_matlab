@@ -1,9 +1,0 @@
-status=PASS_SHAPE_INDEPENDENT_SAMPLED_BLOCK_AND_NONCONVEX_TUBE__CONDITIONAL
-cases=175
-failures=0
-block_cases=80
-block_exclusions=310
-distance_cases=74
-median_baseline_ms=0.6584000
-median_new_ms=0.8130000
-reason=

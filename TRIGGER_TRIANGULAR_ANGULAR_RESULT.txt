@@ -1,3 +1,0 @@
-PASS_SOURCE_PINNED_3D_ANGULAR_TRIANGULAR_PROOF__FLIGHT_NOT_VALIDATED
-cases=28 failures=0 analytic=14 coupled=8 handoffs=3 successes=3 source_pin=1
-Strict 3D all-time angular Picard, exact signed endpoint witnesses, coupled nonlinear dynamics and 21D theorem handoff checked. A 4-second Flight safety grant was NOT made.

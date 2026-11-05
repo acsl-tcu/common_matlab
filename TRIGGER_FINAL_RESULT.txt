@@ -1,3 +1,0 @@
-PASS_TRIGGER_COLLISION_ONLY_AND_EARLY_STOP__SYNTHETIC_ONLY
-existing=12 new=6 failures=0
-real_flight=0 WCET=0 continuous_time_physical_proof=0

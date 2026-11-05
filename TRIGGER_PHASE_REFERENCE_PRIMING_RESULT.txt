@@ -1,7 +1,0 @@
-status=PASS_SYNTHETIC_BITWISE_PHASE_REFERENCE_ONLY
-first_epoch=5.0000000000000036
-checked_columns=160
-prime_evaluations=160
-prime_accepted=160
-wrong_epoch_discarded=1
-preinitialized_epoch_accepted=160

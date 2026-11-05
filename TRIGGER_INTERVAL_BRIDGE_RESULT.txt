@@ -1,9 +1,0 @@
-status=PASS_CONDITIONAL_INTERVAL_BRIDGE__EXTERNAL_PROOF_UNFINISHED
-cases=940
-failures=0
-risk_cases=360
-speed_cases=300
-lookup_cases=280
-legacy_lookup_median_ms=0.0036
-linear_lookup_median_ms=0.0022
-reason=

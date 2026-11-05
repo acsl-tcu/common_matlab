@@ -1,6 +1,0 @@
-status=PASS_BATCH_ALL_TIME_SHAPE_NEUTRAL__EXTERNAL_PHYSICS_MISSING
-cases=122
-failures=0
-multiple_ids=2
-missing_outer_refused=1
-reason=

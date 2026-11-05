@@ -1,6 +1,0 @@
-status=PASS_ORIGINAL_TAUT_SIGN_AND_SOURCE_RATE__NOT_SAFETY
-on_manifold=1
-old_fixture_detected_wrong=1
-samples=100
-source_rate_residual=3.5527136788005009e-15
-reason=

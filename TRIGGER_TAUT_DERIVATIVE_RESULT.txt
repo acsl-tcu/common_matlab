@@ -1,6 +1,0 @@
-status=PASS_SAMPLED_ORIGINAL_TAUT_DERIVATIVES__NOT_FLIGHT_SAFETY
-samples=200
-max_c0dot=8.88178e-16
-max_c1dot=3.55271e-15
-max_unit_dot=4.44089e-16
-reason=

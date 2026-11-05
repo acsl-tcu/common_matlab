@@ -1,5 +1,0 @@
-status=PASS_CONDITIONAL_TAUT_RECONSTRUCTION_FIXTURES__NOT_FLIGHT_SAFETY
-identity_samples=500
-support_samples=35000
-violations=0
-reason=

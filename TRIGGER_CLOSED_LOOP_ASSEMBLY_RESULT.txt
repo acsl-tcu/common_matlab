@@ -1,7 +1,0 @@
-status=PASS_SYNTHETIC_END_TO_END_CONDITIONAL_CHAIN__NOT_FLIGHT_PROOF
-completed_stage=GEOMETRY
-conditional_geometry=1
-invalid_mass_rejected=1
-missing_bounds_rejected=1
-no_flight_safety_grant=1
-reason=

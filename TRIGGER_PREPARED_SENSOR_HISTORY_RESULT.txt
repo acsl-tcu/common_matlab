@@ -1,4 +1,0 @@
-status=PASS_SENSOR_ACQUIRED_HISTORY_ONLY__NO_JIT_OR_SAFETY_PROOF
-steps=8
-unseen_api_rejected=1
-reason=

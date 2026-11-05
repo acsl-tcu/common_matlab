@@ -1,5 +1,0 @@
-status=PASS_SYNTHETIC_BROADPHASE_AND_CONDITIONAL_REACH__NO_FLIGHT
-shapes=12
-samples=161
-contact_oracle_checks=483
-continuous_safe=0

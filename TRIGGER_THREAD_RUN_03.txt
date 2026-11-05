@@ -1,6 +1,0 @@
-status=CAPTURED_REAL_THREAD_CPU_WALL__NOT_WCET_OR_CAUSAL_PROOF
-run=3
-frames=2602
-valid=2602
-thread_switches=0
-reason=

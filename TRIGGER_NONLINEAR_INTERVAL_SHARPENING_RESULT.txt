@@ -1,3 +1,0 @@
-PASS_ANALYTIC_POWER_AND_TAYLOR_RHS_SHARPENING__NO_FLIGHT_CERT
-cases=2910 failures=0 even=1120 odd=1120 trig=386 restored=1 rhs=1
-Exact nonnegative even-power range and analytic Taylor remainder remove unnecessary interval blowup. The actual 5s Flight recovery and physical solver/mode containment are NOT proven.

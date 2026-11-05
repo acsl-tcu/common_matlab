@@ -1,4 +1,0 @@
-status=PASS_SYNTHETIC_ID_DELTA__FLIGHT_COUNTERS_READ_ONLY
-scenarios=10 max_known=20 duplicates=0
-flight=1 complete=1521 incremental_verified=1 incremental_outer=1
-continuous_safe=0

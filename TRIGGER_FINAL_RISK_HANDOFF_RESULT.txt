@@ -1,3 +1,0 @@
-PASS_OBSERVED_ONLY_CONSERVATIVE_HANDOFF__PHYSICAL_SAFE_NOT_PROVEN
-cases=1610 failures=0
-New ID and plan-revision candidate requests deduplicated; nominal sample-contact escalation preserved without replan loops; UNKNOWN never upgraded to SAFE or authorized to commit.

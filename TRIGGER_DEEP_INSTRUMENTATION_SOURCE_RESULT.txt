@@ -1,6 +1,0 @@
-status=PASS_DEEP_LOGGING_SOURCES__NOT_RUNTIME_OR_SAFETY
-1: C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_REFERENCE_WINDOW_CACHE.m
-2: C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\OBSTACLE_MEMORY\OBSERVED_OBSTACLE_MEMORY.m
-3: C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\TRIGGER_UNIVERSAL_SAMPLED_GEOMETRY.m
-4: C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\FUTURE_COLLISION_TRIGGER.m
-5: C:\Users\student\Documents\GitHub\common_matlab\CHECK_TRIGGER_CAPTURE_RUN.m

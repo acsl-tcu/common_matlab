@@ -1,7 +1,0 @@
-status=PASS_CLOCK_REUSE_POSSIBLE__ORIGINAL_TIME_ARGUMENTS_DIFFER__NO_ADOPTION
-legacy_shift_hits=95
-recursive_shift_hits=159
-different_reference_arguments=158
-max_time_delta_s=5.6843418860808015e-14
-bitwise_original_reference_preserved=0
-reason=

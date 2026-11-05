@@ -1,6 +1,0 @@
-status=FLIGHT_MASS_POSITIVE__NOT_A_PREDICTION_CERTIFICATE
-flight_count=1681
-flight_invalid_count=0
-landing_zero_count=476
-first_zero_landing_time_s=53.124999999998053
-missing_count=0

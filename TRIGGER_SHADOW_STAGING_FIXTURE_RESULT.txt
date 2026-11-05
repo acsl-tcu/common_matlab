@@ -1,6 +1,0 @@
-status=PASS_SYNTHETIC_STAGED_GENERATIONS__NO_FLIGHT_SAFETY
-steps=8
-first_generation=1
-new_generation=1
-no_flight_evaluation=1
-reason=

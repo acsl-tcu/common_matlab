@@ -44,12 +44,20 @@ source_pass=all(matched);
 % the MATLAB resource manifest and COFF timestamp change. The code/data
 % fingerprint below is restricted to the PREVIOUS audited binary.
 % The optimized C++ requires a FRESH full offline numerical parity report
-% with the rebuilt binary SHA before it can be approved for Flight.
+% before its hash can be added to the immutable trusted allow-list.
 % Any changed C++ source or executable/data section fails closed until
 % a fresh independent HLC+plant parity audit is completed.
 cpp_path=fullfile(home,'TRIGGER_SYMBOLIC_NATIVE_CORE.cpp');
 trusted_cpp_sha='bb74f2423a7b80b530346abae120a7715c7df73f03c71c5be14308101dafa6d6';
 trusted_code_identity='f15ac1f3f4483fac6b004f13e515ca89353febb7feae13c9d8419b2b5cd07d6a';
+% SHA-256 of the exact MEX already independently checked against the
+% original HLC + plant (12 one-step records and two complete 4-s rollouts).
+% This immutable allow-list replaces the *runtime* dependency on the
+% external common-root offline audit artifact.
+% If either this binary or the model/C++ changes, fail closed until an
+% independent parity audit is repeated and this pin is explicitly updated.
+trusted_audited_mex_sha= ...
+    '0130a3e0f78cc28ca39a293745d81221e3051c0510e409018d2697183ed14cd9';
 cpp_sha='';
 if isfile(cpp_path),cpp_sha=local_sha256(cpp_path);end
 identity=struct('valid',false,'status','NOT_CHECKED','fingerprint','');
@@ -59,27 +67,26 @@ end
 % Never silently accept a truncated/mistyped expected digest again.
 verification_config_valid=length(trusted_cpp_sha)==64 && ...
     length(trusted_code_identity)==64 && ...
+    length(trusted_audited_mex_sha)==64 && ...
     all(isstrprop(trusted_cpp_sha,'xdigit')) && ...
-    all(isstrprop(trusted_code_identity,'xdigit'));
+    all(isstrprop(trusted_code_identity,'xdigit')) && ...
+    all(isstrprop(trusted_audited_mex_sha,'xdigit'));
 cpp_matches=verification_config_valid && strcmpi(cpp_sha,trusted_cpp_sha);
 code_matches=verification_config_valid && compiled && identity.valid && ...
     strcmpi(identity.fingerprint,trusted_code_identity);
 rebuild_equivalent=source_pass && compiled && cpp_matches && code_matches;
-audit_found=false;audit_pass=false;audit_status='NOT_RUN';
-% Audit artifacts live in common_matlab/, not in permanent source.
-auditfile=fullfile(fileparts(fileparts(fileparts(home))), ...
-    'TRIGGER_NATIVE_PARITY_RESULT.mat');
-if isfile(auditfile)
- try
-  saved=load(auditfile,'A');a=saved.A;
-  audit_found=true;
-  audit_status=char(a.status);
-  audit_pass=isfield(a,'parity_pass') && isequal(a.parity_pass,true) && ...
-      isfield(a,'native_mex_sha256') && strcmpi(a.native_mex_sha256,compiled_sha) && ...
-      isfield(a,'source_sha256') && isequal(a.source_sha256,actual);
- catch ME
-  audit_status=['AUDIT_UNREADABLE: ' ME.identifier];
- end
+% The stored offline parity evidence binds the exact SHA-256 above to the
+% original model source hashes above. There is no file-loading dependency on
+% any external file during Flight or preflight. Reject changed executables.
+embedded_audit_found=verification_config_valid;
+exact_audited_binary=verification_config_valid && source_pass && ...
+    cpp_matches && compiled && ...
+    strcmpi(compiled_sha,trusted_audited_mex_sha);
+audit_pass=exact_audited_binary;
+if audit_pass
+    audit_status='EMBEDDED_AUDITED_MEX_SHA256_MATCH';
+else
+    audit_status='EMBEDDED_AUDITED_MEX_SHA256_NOT_MATCHED';
 end
 R=struct('status','FAIL_CLOSED','source_match',source_pass,...
     'source_files',{base},'source_paths',{paths},...
@@ -93,12 +100,17 @@ R=struct('status','FAIL_CLOSED','source_match',source_pass,...
     'verification_config_valid',logical(verification_config_valid),...
     'reproducible_pe_identity',logical(rebuild_equivalent),...
     'native_identity_status',identity.status,...
-    'audit_found',audit_found,'audit_status',audit_status,'audit_pass',audit_pass,...
+    'audit_found',false,'audit_status',audit_status,'audit_pass',audit_pass,...
+    'embedded_audit_found',embedded_audit_found,...
+    'external_audit_required',false,...
+    'trusted_audited_mex_sha256',trusted_audited_mex_sha,...
     'require_audit',logical(require_audit),'passed',false);
 % A byte-identical previously audited binary and a code-identical rebuild
 % are both accepted. Neither is allowed with a mismatched local C++ source.
+% The historical require_audit argument remains for API compatibility,
+% but never bypasses the executable pin.
 R.passed=source_pass && compiled && cpp_matches && ...
-    (~require_audit || audit_pass || rebuild_equivalent);
+    (audit_pass || rebuild_equivalent);
 if R.passed && audit_pass
     R.status='EXACT_SOURCE_PIN_AND_NATIVE_AUDIT_PASS__NOMINAL_ONLY';
 elseif R.passed && rebuild_equivalent
@@ -111,7 +123,7 @@ elseif ~cpp_matches
     R.status='UNKNOWN_CPP_SOURCE_NOT_VERIFIED';
 elseif ~compiled
     R.status='UNKNOWN_NATIVE_NOT_COMPILED';
-elseif require_audit
+else
     R.status='UNKNOWN_MEX_EXECUTABLE_NOT_VERIFIED__RUN_PARITY';
 end
 end

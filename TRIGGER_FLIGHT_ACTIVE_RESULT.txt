@@ -1,9 +1,0 @@
-status=PASS_FOUR_SECOND_PREDICTION_RUNNING__NOT_SAFETY_CERTIFICATE
-reason=
-frames=2602
-predicted=1521
-completed=1521
-binding_unknown=0
-incomplete=0
-max_rhs=1534
-first_prediction_index=202

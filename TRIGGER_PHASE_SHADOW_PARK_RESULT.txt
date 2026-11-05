@@ -1,6 +1,0 @@
-status=PASS_SHADOW_REUSED_AFTER_PROVENANCE_STAGING__NOT_TIMING_OR_SAFETY
-parked_calls=193
-frame_calls=8
-authority_calls=8
-verified_generations=1
-reason=

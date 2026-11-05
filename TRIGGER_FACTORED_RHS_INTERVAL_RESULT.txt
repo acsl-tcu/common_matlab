@@ -1,3 +1,0 @@
-PASS_FACTOR_ROTATION_INTERVAL_SOURCE_PARITY__FLIGHT_OPEN
-cases=64 failures=0 point=48 boxes=12 source_pin=1 old_pitch_width=562.50000000000114 new_pitch_width=5.9801705772624482e-320 ratio=1.0869444208507424e-322 chart_rejected=1 inertia_rejected=1
-Original source pins and rigid-body algebra match; real-point witnesses and broad boxes included. Picard Flight recovery, positive tension and complete physics remain unverified.

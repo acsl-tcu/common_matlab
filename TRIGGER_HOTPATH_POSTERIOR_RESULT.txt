@@ -1,7 +1,0 @@
-status=PASS_HOTPATH_PARITY_AND_CONDITIONAL_POSTERIOR__NO_FLIGHT_CERT
-cases=251
-failures=0
-parity_cases=240
-picard_conditional_success=1
-invalid_physics_refused=1
-reason=

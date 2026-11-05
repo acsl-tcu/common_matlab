@@ -1,6 +1,0 @@
-status=PASS_CONDITIONAL_ACTUATOR_TO_PLANT_FLOWPIPE__NOT_SAFETY
-hlc_pin=1
-input_box=1
-never_commit=1
-invalid_mass_rejected=1
-reason=

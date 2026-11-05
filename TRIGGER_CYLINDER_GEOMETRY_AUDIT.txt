@@ -1,7 +1,0 @@
-status=PASS_SYNTHETIC_FINITE_CYLINDER_GEOMETRY__NOT_FLIGHT_PROOF
-cases=10
-failed_cases=zeros(1,0)
-rotated_pass=1
-combined_pass=1
-point_oracle_pass=1
-error=

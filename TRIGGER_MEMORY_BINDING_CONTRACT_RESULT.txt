@@ -1,5 +1,0 @@
-status=PASS_TRIGGER_MEMORY_ADAPTER__FLIGHT_NOT_YET_VERIFIED
-reason=
-cases=4
-trigger_method_available=1
-replanner_calls_trigger_method=1

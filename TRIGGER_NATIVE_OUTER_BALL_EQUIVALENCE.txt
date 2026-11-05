@@ -1,2 +1,0 @@
-status=PASS_SAMPLED_OUTER_BALL_ORACLE__NOT_FLIGHT_OR_SAFETY
-cases=180 objects=1070 mismatches=0

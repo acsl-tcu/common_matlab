@@ -1,7 +1,0 @@
-status=PASS_ENDPOINT_LIPSCHITZ_SHAPE_NEUTRAL__CONDITIONAL_ONLY
-cases=503
-failures=0
-endpoint_witnesses=455
-sampled_oracle_checks=54934
-distance_query_savings=454
-reason=

@@ -1,5 +1,0 @@
-status=PASS_CONDITIONAL_NONLINEAR_EKF_INNOVATION__NOT_EKF_PROOF
-tested=256
-violations=0
-projection_missing_rejected=1
-reason=

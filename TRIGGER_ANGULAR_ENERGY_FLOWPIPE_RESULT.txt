@@ -1,3 +1,0 @@
-PASS_SOURCE_PINNED_EULER_ENERGY_AND_21D_HANDOFF__NOT_FLIGHT_SAFE
-cases=62 failures=0 analytic=24 stress=32 handoff=1 signed_time=1
-Original Euler inertia-energy cancellation provides an independent all-time 3D enclosure; remaining 21-state Picard, taut tension and true numerical model retain separate obligations.

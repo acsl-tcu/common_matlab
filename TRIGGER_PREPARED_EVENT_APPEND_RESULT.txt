@@ -1,7 +1,0 @@
-status=PASS_OBSERVED_PREPARED_INDUCTIVE_PARITY__NOT_WCET
-cases=506
-failures=0
-negative_cases=5
-legacy_event_median_ms=0.013700000
-incremental_event_median_ms=0.036200000
-reason=

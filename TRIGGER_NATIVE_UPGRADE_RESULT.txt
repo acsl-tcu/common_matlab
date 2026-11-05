@@ -1,5 +1,0 @@
-status=PASS_FRESH_ORIGINAL_MODEL_PARITY_AND_NATIVE_PIN__NOT_FLIGHT_SAFETY
-build=1
-parity=1
-pin=1
-reason=

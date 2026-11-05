@@ -1,3 +1,0 @@
-PASS_TIME_ENDPOINT_AND_REFINED_HOLD_FAILCLOSED__NOT_PHYSICAL_PROOF
-cases=31 failures=0 endpoints=24 refined_attempted=1 refined_pass=1
-24 original endpoint interval components, signed RHS, invalid physical input refusal, adaptive full-hold proof path and unchanged initial failure evidence checked.

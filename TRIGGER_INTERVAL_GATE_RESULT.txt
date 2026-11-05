@@ -1,3 +1,0 @@
-status=PASS_CONDITIONAL_SPATIOTEMPORAL_THEOREM_TEST
-real_flight_tested=0
-continuous_safe=0

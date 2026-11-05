@@ -1,4 +1,0 @@
-status=PASS_EKF_INTERVAL_TO_EARLIEST_RISK__EXTERNAL_BOUNDS_UNPROVEN
-cases=4
-failures=0
-reason=

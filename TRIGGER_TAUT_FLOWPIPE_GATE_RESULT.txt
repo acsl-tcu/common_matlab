@@ -1,8 +1,0 @@
-status=PASS_CONDITIONAL_TAUT_FLOWPIPE_GEOMETRY_CHAIN__NOT_FLIGHT_SAFETY
-intervals=2
-observed=1
-outside=1
-inside_rejected=1
-missing_rejected=1
-never_commit=1
-reason=

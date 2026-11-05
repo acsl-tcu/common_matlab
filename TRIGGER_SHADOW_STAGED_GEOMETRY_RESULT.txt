@@ -1,9 +1,0 @@
-status=PASS_REAL_OBSERVED_GEOMETRY_STAGED__TIMING_UNPROVED
-shadow_calls=201
-verified_shapes=2
-completed_generations=1
-invalid_observations=0
-verified_ids=[1 2 3]
-outer_ids=[1 2 3]
-last_status=REUSED_VERIFIED_ACTUAL_GENERATION
-reason=

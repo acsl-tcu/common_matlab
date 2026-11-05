@@ -1,7 +1,0 @@
-status=PASS_DIRECTED_TEMPORAL_BINARY64__INPUT_PROOF_MISSING
-cases=2402
-failures=0
-positive=2368
-near_boundary=0
-overflow_refusals=1
-reason=

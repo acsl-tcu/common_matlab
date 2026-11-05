@@ -1,7 +1,0 @@
-status=PASS_CLASS_TREE_AND_SHADOW_API__NOT_FLIGHT_SAFETY
-reason=
-replanner=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\REPLANNING_SYSTEM.m
-trigger=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\FUTURE_COLLISION_TRIGGER\FUTURE_COLLISION_TRIGGER.m
-same_source_tree=1
-shadow_prepare=1
-shadow_status=1

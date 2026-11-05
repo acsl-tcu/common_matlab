@@ -1,3 +1,0 @@
-PASS_TRIGGER_COLLISION_ONLY_SOFTWARE__NOT_CONTINUOUS_PROOF
-cases=12 failures=0 first_obstacle_id=792 ttc=1
-continuous_physical_certificate=0 real_flight=0 WCET=0

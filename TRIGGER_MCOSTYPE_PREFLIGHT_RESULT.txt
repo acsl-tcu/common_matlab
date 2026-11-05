@@ -1,4 +1,0 @@
-status=MCOSTYPE_PREPARE_INCOMPLETE__KEEP_FLIGHT_BASELINE
-preflight_status=NOT_COMPLETED_SYNTHETIC_REAL_MCOSTYPE
-mcos_calls=0
-reason=Read preflight_status; do not infer warm JIT or Flight safety.

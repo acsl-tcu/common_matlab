@@ -1,6 +1,0 @@
-status=PASS_PER_HOLD_MASS_PARAM20_MAPPING__NOT_PHYSICAL_PROOF
-mass_index20_correct=1
-other_parameters_unchanged=1
-variable_hold_duration_accepted=1
-no_safety_grant=1
-reason=

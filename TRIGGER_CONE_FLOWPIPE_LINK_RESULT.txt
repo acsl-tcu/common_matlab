@@ -1,6 +1,0 @@
-status=PASS_SYNTHETIC_CONE_FLOWPIPE_LINK__NOT_FLIGHT_SAFETY
-far_separated=1
-near_rejected=1
-invalid_length_rejected=1
-intervals=2
-reason=

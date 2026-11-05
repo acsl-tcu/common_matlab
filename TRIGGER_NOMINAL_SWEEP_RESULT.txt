@@ -1,3 +1,0 @@
-PASS_NOMINAL_LINEAR_SWEEP_REGRESSION__NOT_PHYSICAL_CERTIFICATE
-cases=8 failures=0
-physical_continuous_time_proven=0 real_flight_tested=0 WCET_proven=0

@@ -1,6 +1,0 @@
-status=PASS_CONDITIONAL_FINITE_RANGE_DELAY_FIXTURES__NOT_FLIGHT_SAFETY
-positive=1
-short_rejected=1
-occlusion_rejected=1
-missing_rejected=1
-reason=

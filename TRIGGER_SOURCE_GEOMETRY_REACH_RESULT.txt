@@ -1,7 +1,0 @@
-status=PASS_SOURCE_DERIVED_12_SHAPES_4S__INITIAL_PHYSICS_NOT_PROVEN
-failures=0
-cases=15
-shape_families=12
-forged_flags_ignored=1
-four_second_geometry=1
-reason=

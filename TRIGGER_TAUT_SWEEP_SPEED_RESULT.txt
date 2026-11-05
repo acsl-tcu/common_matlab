@@ -1,4 +1,0 @@
-status=PASS_CONDITIONAL_TAUT_SWEEP_SPEED_FIXTURES__NOT_FLIGHT_SAFETY
-pass_cases=1
-reject_cases=2
-reason=

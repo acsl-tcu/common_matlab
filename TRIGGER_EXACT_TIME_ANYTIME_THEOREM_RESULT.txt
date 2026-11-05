@@ -1,8 +1,0 @@
-status=PASS_BINARY64_4S_AND_ANYTIME_INCLUSION__PHYSICAL_INITIAL_SET_UNPROVEN
-cases=1032
-failures=0
-rounded_short_rejected=1
-rounded_long_accepted=1
-endpoint_interval_checked=1
-anytime_source_pinned=1
-reason=

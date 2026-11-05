@@ -1,3 +1,0 @@
-PASS_EXACT_TAUT_ODE_INVARIANTS_SOURCE_BOUND__INITIAL_TRUTH_OPEN
-cases=131 failures=0 numeric=128
-Original pinned 24-state RHS has exact invariant taut manifold for constant L, independently checked with original interval RHS in 128 dyadic synthetic states. Real initial constraint, true EKF set, applied inputs, tension and physical model still open.

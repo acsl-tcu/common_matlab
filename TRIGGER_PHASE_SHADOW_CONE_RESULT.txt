@@ -1,7 +1,0 @@
-status=PASS_OBSERVED_PHASE_SHADOW_AND_CONE__NO_JIT_OR_SAFETY_PROOF
-shadow_frame_calls=201
-shadow_authority_calls=201
-shadow_max_ms=9.563500
-cone_cases=1000
-violations=0
-reason=

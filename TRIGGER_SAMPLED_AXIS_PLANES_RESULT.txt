@@ -1,7 +1,0 @@
-status=PASS_AXIS_PLANE_SAMPLE_PARITY__NOT_CONTINUOUS_PROOF
-cases=162
-failures=0
-axis_exclusions=1
-paired_median_ms=2.73240000 0.03875000
-paired_max_ms=4.32930000 0.50340000
-reason=

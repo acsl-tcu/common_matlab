@@ -1,7 +1,0 @@
-status=READ_ONLY_NEW_BROADPHASE_FLIGHT_TIMING__NO_SAFETY_CLAIM
-records=2602
-predictions=1521
-excluded_sampled_body_checks=1929102
-trigger_median_predicting_ms=2.481600
-trigger_p95_predicting_ms=2.898500
-trigger_max_predicting_ms=63.872400
