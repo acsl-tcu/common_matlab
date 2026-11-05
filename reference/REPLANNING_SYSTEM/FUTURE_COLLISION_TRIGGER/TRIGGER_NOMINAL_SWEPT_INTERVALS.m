@@ -48,6 +48,10 @@ span2=sum(span.^2,1);
 move_half=0.5*max(sqrt(sum((U1-U0).^2,1)), ...
                   sqrt(sum((L1-L0).^2,1)));
 physical_max=max([ru rl rc]);
+% Motion-only magnitude is identical for all observed obstacles. Cache
+% this scalar once, not inside the vectorized test for every obstacle ID.
+% The guard expression remains numerically identical (same max inputs).
+frame_scale=max([1;abs(midU(:));abs(midL(:));physical_max]);
 first=N+1; first_ids=zeros(1,0); first_parts=cell(1,0);
 first_new=N+1; new_ids=zeros(1,0); new_parts=cell(1,0);
 possible_ids=zeros(1,0); intervals_considered=0;
@@ -77,7 +81,7 @@ for j=1:numel(shapes)
     end
     q=midU(:,1:stop)+span(:,1:stop).*alpha;
     offset=q-c;
-    scale=max([1;abs(c);abs(midU(:));abs(midL(:));b;physical_max]);
+    scale=max([frame_scale;abs(c);b]);
     guard=1024*eps(scale);
     limit=b+physical_max+move_half(1:stop)+guard;
     candidates=find(sum(offset.^2,1)<=limit.^2);
@@ -102,6 +106,12 @@ for j=1:numel(shapes)
             candidates=ind(sum(radial.^2,1)<=radial_limit.^2);
         end
     end
+    % Validate the ACTUAL OBSERVED shape once only if its sweep passed
+    % the necessary broad-phase tests. All supported types use this same
+    % immutable descriptor; malformed/unsupported descriptions fall back
+    % to the original conservative enclosing-ball support, never CLEAR.
+    if isempty(candidates),continue;end
+    support=validated_obstacle_support(sh);
     for k=candidates
         intervals_considered=intervals_considered+1;
         a=U0(:,k);aa=U1(:,k);d=L0(:,k);dd=L1(:,k);
@@ -110,11 +120,11 @@ for j=1:numel(shapes)
         hit='';
         % Separate each component using its OWN radius. Separation is a
         % sufficient proof of no intersection for the entire interval.
-        if ~separated_hull(c,sh,[a aa],ru,slack,b)
+        if ~separated_hull(c,sh,[a aa],ru,slack,b,support)
             hit='UAV';
-        elseif ~separated_hull(c,sh,[d dd],rl,slack,b)
+        elseif ~separated_hull(c,sh,[d dd],rl,slack,b,support)
             hit='PAYLOAD';
-        elseif ~separated_hull(c,sh,[a aa d dd],rc,slack,b)
+        elseif ~separated_hull(c,sh,[a aa d dd],rc,slack,b,support)
             hit='CABLE';
         end
         if isempty(hit),continue;end
@@ -155,11 +165,44 @@ if first_new<=N
 end
 end
 
-function separated=separated_hull(c,sh,V,r,tol,b)
+function separated=separated_hull(c,sh,V,r,tol,b,support)
 % A successful inequality n'*(V-c) > support_obstacle(n)+r+tol
 % is a separating plane for the FULL convex swept hull. A failure to find
 % a plane is conservatively an INTERSECTION POSSIBILITY.
 W=V-c;
+% Tested for ALL source shapes, not just cylinders: if the complete
+% convex hull is strictly outside any enclosing local-axis slab, a plane
+% separates the entire swept body/cable from the original shape. This is
+% a SUFFICIENT clearance certificate, not an obstacle or trajectory AABB.
+% It cannot lose a true contact, even for rotated ellipsoids/boxes, cones,
+% polygon prisms, polyhedra, torus convex hulls or arbitrary SO(3).
+if ~isempty(support)
+    local=support.R.'*W;
+    if any(min(local,[],2)>support.upper+r+tol | ...
+           max(local,[],2)<support.lower-r-tol)
+        separated=true;return
+    end
+    % For elongated round / prismatic shapes, the source's exact radial
+    % extent can exclude many extra candidates without any GJK iterations.
+    % A witness normal is used only if its projection is strictly beyond
+    % an enclosing disk of the entire source geometry.
+    if support.radial<b
+        if size(V,2)==2
+            xy=closest_segment([0;0],local(1:2,1),local(1:2,2));
+        else
+            xy=closest_segment([0;0], ...
+                0.5*(local(1:2,1)+local(1:2,2)), ...
+                0.5*(local(1:2,3)+local(1:2,4)));
+        end
+        rho=norm(xy);
+        if rho>tol
+            nxy=xy/rho;
+            if min(nxy.'*local(1:2,:))>support.radial+r+tol
+                separated=true;return
+            end
+        end
+    end
+end
 % Use a point IN the hull close to the obstacle centre as first normal.
 if size(V,2)==2
     q=closest_segment(c,V(:,1),V(:,2));
@@ -169,6 +212,19 @@ else
 end
 n=q-c; nn=norm(n);
 separated=false;
+% Fast certified clearance for either BODY segment (UAV or payload).
+% q=closest_segment(c,V(:,1),V(:,2)) is the EXACT closest point on
+% conv(V). An observed solid is inside B(c,b), so if
+%     dist(c,conv(V)) > b + physical_radius + numerical_slack,
+% the WHOLE swept body segment is disjoint. The original code would also
+% establish separation using n=(q-c)/||q-c||, since this nearest-point
+% normal has min(n.'*(V-c)) >= ||q-c|| and obstacle_support(n)<=b.
+% This skips an unnecessary shape-support call and any Gilbert iterations.
+% DO NOT extend this shortcut to 4-point cable hulls: their q below is
+% only an interior witness, NOT the nearest point of that hull.
+if size(V,2)==2 && nn>b+r+tol
+    separated=true;return
+end
 % q is itself a point of the swept hull. For a spherical obstacle this
 % proves a possible overlap immediately, without iterative support work.
 if isfield(sh,'type') && strcmp(sh.type,'sphere') && nn<=b+r+tol
@@ -176,7 +232,7 @@ if isfield(sh,'type') && strcmp(sh.type,'sphere') && nn<=b+r+tol
 end
 if nn>tol
     n=n/nn;
-    [h,~]=obstacle_support(sh,n,b);
+    [h,~]=obstacle_support(sh,n,b,support);
     if min(n.'*W)>h+r+tol
         separated=true;return
     end
@@ -190,13 +246,13 @@ if nn<=tol
     % hence the convex hulls truly intersect.
     return
 end
-[~,s]=obstacle_support(sh,n,b);
+[~,s]=obstacle_support(sh,n,b,support);
 p=q-c-s-r*n;  % one actual point of the convex Minkowski difference
 for it=1:24
     pn=norm(p);
     if ~(isfinite(pn)&&pn>tol),return;end
     normal=p/pn;
-    [~,s]=obstacle_support(sh,normal,b);
+    [~,s]=obstacle_support(sh,normal,b,support);
     [~,ix]=min(normal.'*V);
     w=V(:,ix)-c-s-r*normal;
     if normal.'*w>tol
@@ -220,11 +276,65 @@ else
 end
 end
 
-function [h,s]=obstacle_support(sh,n,b)
+function [h,s]=obstacle_support(sh,n,b,support)
 % Exact support POINT of the source shape's CONVEX HULL, relative to its
 % centre, plus a safe enclosing-ball fallback. Non-convex holes are
 % intentionally not used as a clearance certificate.
 s=b*n;h=b;
+% The supported source type, rotation, dimensions and local geometry have
+% been checked ONCE per observed obstacle candidate, not on every Gilbert
+% iteration. The original slow conservative path remains for any malformed
+% or unknown geometry; no unobserved geometry is ever accessed.
+if ~isempty(support)
+    R=support.R;d=support.d;
+    local=R.'*n;
+    radial=[1;0;0];
+    if support.uses_radial
+        rho=hypot(local(1),local(2));
+        if rho>0,radial=[local(1);local(2);0]/rho;end
+    end
+    switch support.kind
+        case 'sphere'
+            p=d(1)*local;
+        case 'ellipsoid'
+            width=norm(d(1:3).*local);
+            if width>0,p=d(1:3).^2.*local/width;
+            else,p=zeros(3,1);end
+        case 'box'
+            v=sign(local);v(v==0)=1;
+            p=0.5*d(1:3).*v;
+        case 'cylinder'
+            v=sign(local(3));if v==0,v=1;end
+            p=d(1)*radial+[0;0;0.5*d(2)*v];
+        case 'capsule'
+            v=sign(local(3));if v==0,v=1;end
+            p=d(1)*local+[0;0;0.5*d(2)*v];
+        case {'cone','frustum'}
+            if strcmp(support.kind,'cone')
+                rb=d(1);rt=0;hgt=d(2);
+            else
+                rb=d(1);rt=d(2);hgt=d(3);
+            end
+            bot=rb*radial-[0;0;hgt/2];
+            top=rt*radial+[0;0;hgt/2];
+            if local.'*bot>=local.'*top,p=bot;else,p=top;end
+        case 'torus'
+            p=d(1)*radial+d(2)*local;
+        case {'pyramid','polyhedron'}
+            [~,ix]=max(support.vertices*local);
+            p=support.vertices(ix,:).';
+        case {'regular_prism','polygon_prism'}
+            [~,ix]=max(support.outline*local(1:2));
+            v=sign(local(3));if v==0,v=1;end
+            p=[support.outline(ix,:).';support.height*v/2];
+    end
+    s=R*p;h=n.'*s;
+    if ~isfinite(h) || h < -1024*eps(max(1,abs(h)))
+        s=b*n;h=b;return
+    end
+    h=max(0,h);
+    return
+end
 try
     if ~isfield(sh,'rotation')||~isfield(sh,'dimensions')|| ...
             ~isfield(sh,'type'),return;end
@@ -303,6 +413,113 @@ try
     h=max(0,h);
 catch
     s=b*n;h=b;
+end
+end
+
+function D=validated_obstacle_support(sh)
+% A zero-allocation-from-world, per-candidate description from the REAL
+% sensor/observed-memory shape. Bounds are exact local-axis outer extents
+% (nonconvex source shapes use their convex hull), not inflated margins.
+% If preparation is not obviously valid, use the existing ball fallback.
+D=[];
+try
+    if ~all(isfield(sh,{'type','rotation','dimensions'})),return;end
+    kind=char(sh.type);
+    R=double(sh.rotation);
+    if ~isnumeric(sh.rotation)||~isreal(sh.rotation)|| ...
+            ~isequal(size(R),[3 3])||any(~isfinite(R(:)))|| ...
+            norm(R.'*R-eye(3),'fro')>1e-10,return;end
+    d=sh.dimensions;
+    if isnumeric(d)
+        if ~isreal(d),return;end
+        d=double(d(:));
+        if any(~isfinite(d))||any(d<0),return;end
+    end
+    verts=zeros(0,3);outline=zeros(0,2);height=0;
+    switch kind
+        case 'sphere'
+            if ~isnumeric(d)||numel(d)<1,return;end
+            ext=repmat(d(1),3,1);low=-ext;high=ext;
+            radial=d(1);
+        case 'ellipsoid'
+            if ~isnumeric(d)||numel(d)<3,return;end
+            ext=d(1:3);low=-ext;high=ext;
+            radial=max(d(1:2)); % exact projected radial extent
+        case 'box'
+            if ~isnumeric(d)||numel(d)<3,return;end
+            ext=d(1:3)/2;low=-ext;high=ext;
+            radial=hypot(ext(1),ext(2));
+        case 'cylinder'
+            if ~isnumeric(d)||numel(d)<2,return;end
+            ext=[d(1);d(1);d(2)/2];low=-ext;high=ext;
+            radial=d(1);
+        case 'capsule'
+            if ~isnumeric(d)||numel(d)<2,return;end
+            ext=[d(1);d(1);d(1)+d(2)/2];low=-ext;high=ext;
+            radial=d(1);
+        case 'cone'
+            if ~isnumeric(d)||numel(d)<2,return;end
+            ext=[d(1);d(1);d(2)/2];low=-ext;high=ext;
+            radial=d(1);
+        case 'frustum'
+            if ~isnumeric(d)||numel(d)<3,return;end
+            ext=[max(d(1:2));max(d(1:2));d(3)/2];
+            low=-ext;high=ext;radial=ext(1);
+        case 'torus'
+            if ~isnumeric(d)||numel(d)<2,return;end
+            ext=[sum(d(1:2));sum(d(1:2));d(2)];
+            low=-ext;high=ext;radial=ext(1);
+        case {'pyramid','polyhedron'}
+            if ~isfield(sh,'vertices'),return;end
+            verts=double(sh.vertices);
+            if ~isnumeric(sh.vertices)||~isreal(sh.vertices)|| ...
+                    size(verts,2)~=3||isempty(verts)|| ...
+                    any(~isfinite(verts(:))),return;end
+            low=min(verts,[],1).';high=max(verts,[],1).';
+            radial=max(hypot(verts(:,1),verts(:,2)));
+        case {'regular_prism','polygon_prism'}
+            if ~isfield(sh,'outline'),return;end
+            outline=double(sh.outline);
+            if ~isnumeric(sh.outline)||~isreal(sh.outline)|| ...
+                    size(outline,2)~=2||isempty(outline)|| ...
+                    any(~isfinite(outline(:))),return;end
+            if strcmp(kind,'regular_prism')
+                if ~isnumeric(d)||numel(d)<3,return;end
+                height=d(3);
+            else
+                if ~isstruct(d)||~isfield(d,'height'),return;end
+                height=double(d.height);
+            end
+            if ~isscalar(height)||~isreal(height)|| ...
+                    ~isfinite(height)||height<0,return;end
+            low=[min(outline,[],1).';-height/2];
+            high=[max(outline,[],1).';height/2];
+            radial=max(hypot(outline(:,1),outline(:,2)));
+        otherwise
+            return
+    end
+    if ~all(isfinite([low;high;radial]))||any(low>high)||radial<0
+        return
+    end
+    % A numerically supplied SO(3) is never exactly orthogonal. For the
+    % world-space plane with normal R(:,i), the obstacle's projection is
+    % row i of (R'*R) times its LOCAL coordinates. Enclose that projection
+    % rather than silently treating R'*R as exact identity near contact.
+    G=R.'*R;
+    Gpositive=max(G,0);Gnegative=min(G,0);
+    bound_lower=Gpositive*low+Gnegative*high;
+    bound_upper=Gpositive*high+Gnegative*low;
+    % Bound any small non-orthogonality also in the 2-D radial separator.
+    E=G(1:2,:)-[1 0 0;0 1 0];
+    radial=radial+norm(E,'fro')*norm(max(abs(low),abs(high))) + ...
+        256*eps(max(1,radial));
+    uses_radial=any(strcmp(kind,{'cylinder','cone','frustum', ...
+        'torus','regular_prism','polygon_prism'}));
+    D=struct('kind',kind,'R',R,'d',d,'uses_radial',uses_radial, ...
+        'lower',bound_lower,'upper',bound_upper, ...
+        'radial',radial,'vertices',verts,'outline',outline,'height',height);
+catch
+    D=[];
 end
 end
 

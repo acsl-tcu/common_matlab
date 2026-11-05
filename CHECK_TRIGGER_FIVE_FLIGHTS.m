@@ -1,6 +1,6 @@
 function S = CHECK_TRIGGER_FIVE_FLIGHTS()
 % CHECK_TRIGGER_FIVE_FLIGHTS  Run 5 UNMODIFIED production simulation flights
-% and audit live collision-trigger latency, event semantics and spikes.
+% and audit live nominal-sweep trigger latency, events and spikes.
 %
 % Usage in common_matlab/ after manually extracting the ZIP:
 %   clear classes; rehash
@@ -94,6 +94,16 @@ if ~strcmpi(script_dir,root)
 end
 % Keep the original runner's code unchanged, audit outside Flight loop.
 fprintf('[FIVE-FLIGHT] auditing root: %s\n',root);
+% One short regression BEFORE the five expensive Flights. It checks that
+% omitting the sampled oracle preserves earliest ID/time and event rearm.
+assert(isfile(fullfile(root,'CHECK_TRIGGER_SWEEP_ONLY_OPTIMIZATION.m')), ...
+    'CHECK_TRIGGER_FIVE_FLIGHTS:PrecheckMissing', ...
+    'Extract CHECK_TRIGGER_SWEEP_ONLY_OPTIMIZATION.m at common_matlab/.');
+Q=CHECK_TRIGGER_SWEEP_ONLY_OPTIMIZATION();
+assert(strcmp(Q.status,'PASS_SWEEP_ONLY_NOMINAL_TRIGGER_REGRESSION'), ...
+    'CHECK_TRIGGER_FIVE_FLIGHTS:PrecheckFailed', ...
+    'Focused swept-only regression failed; Flight benchmark not started.');
+fprintf('[FIVE-FLIGHT] %s\n',Q.status);
 
 N = 5;
 per_run = cell(N,1);
@@ -161,7 +171,7 @@ for k = 1:N
 end
 
 all_pass = all(cellfun(@(r)isstruct(r) && isfield(r,'status') && ...
-    strcmp(r.status,'PASS_REAL_FLIGHT_NOMINAL_SAMPLED_AND_SWEPT_TRIGGER'),per_run));
+    strcmp(r.status,'PASS_REAL_FLIGHT_DIRECTIONAL_SWEEP_WITH_PHASE_GAP'),per_run));
 max_trigger = nan(N,1); p95_trigger = nan(N,1);
 max_replanner = nan(N,1); over4_trigger = nan(N,1);
 over4_replanner = nan(N,1); early_stops = nan(N,1);
@@ -178,7 +188,7 @@ for k = 1:N
 end
 under4_observed = all_pass && all(max_trigger<=4) && all(max_replanner<=4);
 if all_pass
-    st = 'PASS_FIVE_REAL_FLIGHT_NOMINAL_TRIGGER_AUDITS';
+    st = 'PASS_FIVE_F_PHASE_SWEEP_TRIGGER_AUDITS_WITH_PHASE_GAP';
 else
     st = 'FAIL_OR_INCOMPLETE_FIVE_REAL_FLIGHT_AUDITS';
 end
@@ -201,6 +211,9 @@ write_report(result_txt,S);
 % Single shareable archive in common_matlab/ containing audit scripts,
 % results for every completed run and exactly the installed source files.
 files = {'CHECK_TRIGGER_FIVE_FLIGHTS.m','CHECK_TRIGGER_FLIGHT_FINAL.m', ...
+         'CHECK_TRIGGER_SWEEP_ONLY_OPTIMIZATION.m', ...
+         'TRIGGER_SWEEP_ONLY_OPTIMIZATION_RESULT.mat', ...
+         'TRIGGER_SWEEP_ONLY_OPTIMIZATION_RESULT.txt', ...
          'TRIGGER_FIVE_FLIGHTS_RESULT.mat','TRIGGER_FIVE_FLIGHTS_RESULT.txt'};
 for k = 1:N
     for ext = {'.mat','.txt'}
@@ -253,26 +266,27 @@ assert(fid>0,'CHECK_TRIGGER_FIVE_FLIGHTS:Output', ...
     'Cannot save summary in common_matlab/.');
 g = onCleanup(@()fclose(fid)); %#ok<NASGU>
 fprintf(fid,'%s\n',S.status);
-fprintf(fid,'audit_scope=5 real Flight runs; nominal sampled + piecewise-linear sweep\n');
+fprintf(fid,'audit_scope=5 real Flight runs; directional piecewise-linear nominal sweep (sample oracle omitted)\n');
 fprintf(fid,'physical_continuous_time_proof=0 WCET_proof=0\n');
+fprintf(fid,'NOTE: f-to-landing horizon crossing remains UNKNOWN, not cleared.\n');
 fprintf(fid,'observed_all_runs_below_4ms=%d\n',S.observed_all_runs_below_4ms);
 fprintf(fid,['run,status,frames,predictions,events,early_stops,' ...
     'trigger_median_ms,trigger_p95_ms,trigger_max_ms,trigger_over_4ms,' ...
     'replanner_median_ms,replanner_p95_ms,replanner_max_ms,' ...
-    'replanner_over_4ms,issues\n']);
+    'replanner_over_4ms,unmodelled_phase_frames,issues\n']);
 for k = 1:S.audited_runs
     a = S.runs{k};
     if ~isfield(a,'trigger_max_ms')
-        fprintf(fid,'%d,%s,,,,,,,,,,,,,%s\n',k,a.status,S.run_errors{k});
+        fprintf(fid,'%d,%s,,,,,,,,,,,,,,%s\n',k,a.status,S.run_errors{k});
         continue
     end
     fprintf(fid,['%d,%s,%d,%d,%d,%d,%.6f,%.6f,%.6f,%d,' ...
-       '%.6f,%.6f,%.6f,%d,%d\n'],k,a.status,a.flight_frames, ...
+       '%.6f,%.6f,%.6f,%d,%d,%d\n'],k,a.status,a.flight_frames, ...
        a.native_predictions,size(a.new_event_table,1), ...
        a.confirmed_early_stops,a.trigger_median_ms,a.trigger_p95_ms, ...
        a.trigger_max_ms,a.trigger_above_4ms_count, ...
        a.replanning_median_ms,a.replanning_p95_ms,a.replanning_max_ms, ...
-       a.replanning_above_4ms_count,a.failures);
+       a.replanning_above_4ms_count,a.unmodelled_future_phase_frames,a.failures);
 end
 for k = 1:S.audited_runs
     p = S.spikes{k};

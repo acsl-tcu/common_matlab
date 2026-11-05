@@ -50,6 +50,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
         all_stationary = false
         all_obstacle_ids = []        % 元定義IDを初期化時に一度だけ確定
         static_log_obstacles = []    % 元形状のログを初期化時に確定（静止時のみ）
+        cached_visible_static = []   % Only most recent REAL static detection mask, never future mask sets
         result_template = struct() % 出力フィールド構造のみ初期化時に確定（検知結果は含めない）
         empty_visible_obstacles = [] % 同一structスキーマの空集合。検知前のデータは含めない
     end
@@ -119,6 +120,7 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             % 空になった時にstruct配列へ論理インデックスする処理を省く。
             if obj.all_stationary
                 obj.empty_visible_obstacles=obj.static_log_obstacles(false(1,obj.obstacle_count));
+                obj.cached_visible_static=obj.empty_visible_obstacles;
             else
                 obj.empty_visible_obstacles=obj.obstacles(false(1,obj.obstacle_count));
             end
@@ -303,8 +305,21 @@ classdef SIMULATED_OBSTACLE_SENSOR < handle
             if diagnose,diagnostic_events_ms=1000*toc(diagnostic_clock)-diagnostic_scan_ms;end
             if ~any(detected)
                 visible=obj.empty_visible_obstacles;
+                if obj.all_stationary && mask_changed
+                    obj.cached_visible_static=visible;
+                end
             elseif obj.all_stationary
-                visible=obj.static_log_obstacles(detected);
+                % Static source descriptions are immutable within this
+                % sensor instance. Cache ONLY the last ACTUAL mask's
+                % selected shape struct; never a mask-combination table.
+                % Geometry/range intersection is still recomputed EVERY
+                % tick for the current Sim true position and range.
+                if mask_changed
+                    visible=obj.static_log_obstacles(detected);
+                    obj.cached_visible_static=visible;
+                else
+                    visible=obj.cached_visible_static;
+                end
             else
                 visible=obj.obstacles(detected);
                 for k=1:numel(visible)
