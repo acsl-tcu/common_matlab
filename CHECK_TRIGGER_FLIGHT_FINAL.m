@@ -1,4 +1,4 @@
-function R = CHECK_TRIGGER_FLIGHT_FINAL(log_source)
+function R = CHECK_TRIGGER_FLIGHT_FINAL(log_source,suppress_single_audit_zip)
 % CHECK_TRIGGER_FLIGHT_FINAL  Post-Flight, READ-ONLY audit of the live trigger.
 % Run after run_flight_headless in the SAME MATLAB session. No HLC, plant,
 % sensor, generator, trajectory, runner or Flight-loop modification.
@@ -11,7 +11,11 @@ function R = CHECK_TRIGGER_FLIGHT_FINAL(log_source)
 %   R = CHECK_TRIGGER_FLIGHT_FINAL(logger);  % explicit logger
 %
 % Results and the SINGLE shareable audit ZIP are placed in common_matlab/.
-root = fileparts(mfilename('fullpath'));
+root = locate_common_matlab_root(fileparts(mfilename('fullpath')));
+if nargin<2,suppress_single_audit_zip=false;end
+assert(isscalar(suppress_single_audit_zip) && ...
+    (islogical(suppress_single_audit_zip) || isnumeric(suppress_single_audit_zip)), ...
+    'CHECK_TRIGGER_FLIGHT_FINAL:ArchiveFlag','Invalid audit archive flag.');
 if nargin < 1
     assert(evalin('base','exist(''logger'',''var'')') == 1, ...
         'CHECK_TRIGGER_FLIGHT_FINAL:MissingLogger', ...
@@ -48,6 +52,16 @@ assert(N > 0,'CHECK_TRIGGER_FLIGHT_FINAL:Empty','LOGGER contains no frames.');
 % Every observation below is read-only; no call to update(), evaluate(),
 % the true-obstacle source, the native predictor or the real sensor.
 T = nan(N,1); wall_ms = nan(N,1); full_ms = nan(N,1);
+% Record already-logged runtime component timings; NEVER run a predictor or
+% geometric oracle in the auditor. NaN marks an unavailable component.
+phase_names = {'predictor_wall_ms', 'predictor_reference_window_ms', ...
+    'predictor_hlc_time_ms', 'predictor_plant_time_ms', ...
+    'nominal_interpolated_sweep_ms', 'geometry_wall_ms', ...
+    'timing_pre_predictor_ms', 'timing_post_geometry_ms', ...
+    'reference_cache_wall_ms'};
+phase_ms = nan(N,numel(phase_names));
+prediction_horizon_s = nan(N,1); sampling_step_s = nan(N,1);
+n_observed = nan(N,1);
 available = false(N,1); complete = false(N,1); early = false(N,1); fallback = false(N,1);
 contact = false(N,1); possible = false(N,1);
 newly_issued = false(N,1); native = false(N,1);
@@ -72,6 +86,12 @@ for k = 1:N
     T(k) = numeric_scalar(t);
     status{k} = char(string(getfield_or(tr,'status','UNKNOWN')));
     wall_ms(k) = numeric_scalar(getfield_or(tr,'elapsed_ms',NaN));
+    prediction_horizon_s(k) = numeric_scalar(getfield_or(tr,'horizon_s',NaN));
+    sampling_step_s(k) = numeric_scalar(getfield_or(tr,'sample_dt_s',NaN));
+    n_observed(k) = numeric_scalar(getfield_or(tr,'considered_count',NaN));
+    for ci = 1:numel(phase_names)
+        phase_ms(k,ci) = numeric_scalar(getfield_or(tr,phase_names{ci},NaN));
+    end
     full_ms(k) = numeric_scalar(getfield_or(frame,'replanning_time_ms',NaN));
     available(k) = is_true(getfield_or(tr,'prediction_available',false));
     complete(k) = is_true(getfield_or(tr,'prediction_complete',false));
@@ -85,6 +105,11 @@ for k = 1:N
     known = reshape(double(getfield_or(tr,'considered_obstacle_ids',zeros(1,0))),1,[]);
     eids = reshape(double(getfield_or(tr,'new_event_ids',zeros(1,0))),1,[]);
     ids_known{k} = known; ids_event{k} = eids;
+    % A failed prediction over a nonempty observed set must not quietly
+    % count as successful collision clearance or functional Flight PASS.
+    if ~isempty(known) && startsWith(status{k},'UNKNOWN_')
+        add_issue(k,'nonempty observed set with unresolved collision prediction');
+    end
     if ~isempty(known) && (numel(unique(known)) ~= numel(known) || any(~isfinite(known)))
         add_issue(k,'non-unique/nonfinite known IDs');
     end
@@ -95,6 +120,16 @@ for k = 1:N
         add_issue(k,'prediction is not DIRECT_NATIVE_VERIFIED_BINDING');
     end
     if available(k)
+        if ~(isfinite(prediction_horizon_s(k)) && prediction_horizon_s(k)>0 && ...
+                isfinite(sampling_step_s(k)) && sampling_step_s(k)>0)
+            add_issue(k,'invalid live prediction horizon/sample interval');
+        end
+        if ~is_true(getfield_or(tr,'runtime_authority_refreshed',false))
+            add_issue(k,'live external runtime parameter snapshot was not refreshed');
+        end
+        if ~is_true(getfield_or(tr,'nominal_interpolated_sweep_checked',false))
+            add_issue(k,'directional continuous nominal sweep not executed');
+        end
         ht = numeric_scalar(getfield_or(tr,'completed_prediction_horizon_s',NaN));
         H = numeric_scalar(getfield_or(tr,'horizon_s',NaN));
         if complete(k) && ~(isfinite(ht) && isfinite(H) && ...
@@ -124,6 +159,12 @@ for k = 1:N
                 tc>=0 && tc<=H+1e-8 && isfinite(at) && ...
                 abs(at-(T(k)+tc))<=1e-8*max(1,abs(at)))
             add_issue(k,'risk ID/TTC/absolute time invalid');
+        end
+        bracket = double(getfield_or(tr,'collision_time_bracket_s',[NaN NaN]));
+        if ~(isnumeric(bracket) && numel(bracket)==2 && ...
+                all(isfinite(bracket)) && bracket(1)==tc && ...
+                bracket(2)>=bracket(1) && bracket(2)<=H+1e-8)
+            add_issue(k,'predicted earliest possible collision time bracket invalid');
         end
         chosen = reshape(double(getfield_or(tr,'collision_obstacle_ids',zeros(1,0))),1,[]);
         if isempty(chosen) || ~ismember(id,chosen) || any(~ismember(chosen,known))
@@ -213,6 +254,10 @@ R = struct('status',base_status, 'failures',numel(issue), ...
     'replanning_p95_ms',percentile_or_nan(w,95), ...
     'replanning_max_ms',max_or_nan(w), ...
     'trigger_above_4ms_count',nnz(v>4), ...
+    'sampled_horizon_min_s',min_or_nan(prediction_horizon_s(available)), ...
+    'sampled_horizon_max_s',max_or_nan(prediction_horizon_s(available)), ...
+    'sample_dt_min_s',min_or_nan(sampling_step_s(available)), ...
+    'sample_dt_max_s',max_or_nan(sampling_step_s(available)), ...
     'replanning_above_4ms_count',nnz(w>4), ...
     'observed_run_below_4ms',~isempty(v) && all(v<=4), ...
     'wcet_proven',false, ...
@@ -220,7 +265,9 @@ R = struct('status',base_status, 'failures',numel(issue), ...
     'meaning','Live numeric sampled and interpolated nominal swept trigger; not a true continuous-time plant certificate');
 save(fullfile(root,'TRIGGER_FLIGHT_FINAL_RESULT.mat'),'R','T','wall_ms', ...
     'full_ms','available','complete','early','contact','newly_issued', ...
-    'native','fallback','possible','ids_known','ids_event','status','-v7');
+    'native','fallback','possible','ids_known','ids_event','status', ...
+    'phase_names','phase_ms','prediction_horizon_s','sampling_step_s', ...
+    'n_observed','-v7');
 txt = fullfile(root,'TRIGGER_FLIGHT_FINAL_RESULT.txt');
 fid = fopen(txt,'w');
 assert(fid>0,'CHECK_TRIGGER_FLIGHT_FINAL:Output','Cannot write audit text file.');
@@ -237,6 +284,8 @@ fprintf(fid,'trigger_ms median=%.6f P95=%.6f max=%.6f over_4ms=%d\n', ...
 fprintf(fid,'replanning_ms median=%.6f P95=%.6f max=%.6f over_4ms=%d\n', ...
     R.replanning_median_ms,R.replanning_p95_ms,R.replanning_max_ms, ...
     R.replanning_above_4ms_count);
+fprintf(fid,'runtime_horizon_s min=%.9g max=%.9g | sample_dt_s min=%.9g max=%.9g\n', ...
+    R.sampled_horizon_min_s,R.sampled_horizon_max_s,R.sample_dt_min_s,R.sample_dt_max_s);
 fprintf(fid,'observed_run_below_4ms=%d WCET_proven=0 continuous_safety_proven=0\n', ...
     R.observed_run_below_4ms);
 for j = 1:numel(issue)
@@ -266,14 +315,19 @@ source = {'reference/REPLANNING_SYSTEM/REPLANNING_SYSTEM.m', ...
 for j = 1:numel(source)
     if isfile(fullfile(root,source{j})),share{end+1}=source{j};end %#ok<AGROW>
 end
-archive=fullfile(root,'TRIGGER_FINAL_AUDIT_FOR_CHATGPT.zip');
-if isfile(archive),delete(archive);end
-zip(archive,share,root);
-R.share_zip=archive;
+R.share_zip='';
+if ~suppress_single_audit_zip
+    archive=fullfile(root,'TRIGGER_FINAL_AUDIT_FOR_CHATGPT.zip');
+    if isfile(archive),delete(archive);end
+    zip(archive,share,root);
+    R.share_zip=archive;
+end
 fprintf('[FINAL-TRIGGER] %s | native=%d early=%d events=%d failures=%d\n', ...
     R.status,R.native_predictions,R.confirmed_early_stops, ...
     size(event_rows,1),R.failures);
-fprintf('[FINAL-TRIGGER] single audit ZIP: %s\n',archive);
+if ~isempty(R.share_zip)
+    fprintf('[FINAL-TRIGGER] single audit ZIP: %s\n',R.share_zip);
+end
 
     function add_issue(idx,msg)
         if numel(issue)<max_issue_lines
@@ -297,6 +351,10 @@ end
 function t=is_true(x)
 t=(islogical(x)||isnumeric(x)) && isscalar(x) && isfinite(double(x)) && isequal(x,true);
 end
+function out=min_or_nan(x)
+x=x(isfinite(x));
+if isempty(x),out=NaN;else,out=min(x);end
+end
 function out=max_or_nan(x)
 if isempty(x),out=NaN;else,out=max(x);end
 end
@@ -308,4 +366,25 @@ if isempty(x),out=NaN;return;end
 x=sort(x(:));
 k=max(1,ceil(double(p)/100*numel(x)));
 out=x(k);
+end
+
+function root = locate_common_matlab_root(start_dir)
+% Output reports must go to common_matlab/ even when this file was
+% accidentally extracted under reference/REPLANNING_SYSTEM/.
+root = start_dir;
+for depth = 0:8
+    base = fullfile(root,'reference','REPLANNING_SYSTEM');
+    if isfile(fullfile(base,'REPLANNING_SYSTEM.m')) && ...
+            isfile(fullfile(base,'FUTURE_COLLISION_TRIGGER', ...
+                                    'FUTURE_COLLISION_TRIGGER.m'))
+        return
+    end
+    parent = fileparts(root);
+    if strcmp(parent,root)
+        break
+    end
+    root = parent;
+end
+error('CHECK_TRIGGER_FLIGHT_FINAL:RootNotFound', ...
+    'Cannot locate common_matlab root above: %s',start_dir);
 end

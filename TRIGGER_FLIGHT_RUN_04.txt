@@ -1,0 +1,89 @@
+FAIL_REAL_FLIGHT_TRIGGER_AUDIT
+frames=2602 logged=2602 native_predictions=1521 full=1521 early=0 fallback_full=0
+contact_frames=453 possible_intersample_frames=453 new_event_frames=1 events=1 memory_cross_checks=2602 failures=80
+trigger_ms median=1.599950 P95=2.580700 max=6.013400 over_4ms=11
+replanning_ms median=1.852650 P95=2.922400 max=7.548800 over_4ms=17
+runtime_horizon_s min=4 max=4 | sample_dt_s min=0.025 max=0.025
+observed_run_below_4ms=0 WCET_proven=0 continuous_safety_proven=0
+ISSUE 1: frame 1 t=0: nonempty observed set with unresolved collision prediction
+ISSUE 2: frame 2 t=0: nonempty observed set with unresolved collision prediction
+ISSUE 3: frame 3 t=0.025: nonempty observed set with unresolved collision prediction
+ISSUE 4: frame 4 t=0.05: nonempty observed set with unresolved collision prediction
+ISSUE 5: frame 5 t=0.075: nonempty observed set with unresolved collision prediction
+ISSUE 6: frame 6 t=0.1: nonempty observed set with unresolved collision prediction
+ISSUE 7: frame 7 t=0.125: nonempty observed set with unresolved collision prediction
+ISSUE 8: frame 8 t=0.15: nonempty observed set with unresolved collision prediction
+ISSUE 9: frame 9 t=0.175: nonempty observed set with unresolved collision prediction
+ISSUE 10: frame 10 t=0.2: nonempty observed set with unresolved collision prediction
+ISSUE 11: frame 11 t=0.225: nonempty observed set with unresolved collision prediction
+ISSUE 12: frame 12 t=0.25: nonempty observed set with unresolved collision prediction
+ISSUE 13: frame 13 t=0.275: nonempty observed set with unresolved collision prediction
+ISSUE 14: frame 14 t=0.3: nonempty observed set with unresolved collision prediction
+ISSUE 15: frame 15 t=0.325: nonempty observed set with unresolved collision prediction
+ISSUE 16: frame 16 t=0.35: nonempty observed set with unresolved collision prediction
+ISSUE 17: frame 17 t=0.375: nonempty observed set with unresolved collision prediction
+ISSUE 18: frame 18 t=0.4: nonempty observed set with unresolved collision prediction
+ISSUE 19: frame 19 t=0.425: nonempty observed set with unresolved collision prediction
+ISSUE 20: frame 20 t=0.45: nonempty observed set with unresolved collision prediction
+ISSUE 21: frame 21 t=0.475: nonempty observed set with unresolved collision prediction
+ISSUE 22: frame 22 t=0.5: nonempty observed set with unresolved collision prediction
+ISSUE 23: frame 23 t=0.525: nonempty observed set with unresolved collision prediction
+ISSUE 24: frame 24 t=0.55: nonempty observed set with unresolved collision prediction
+ISSUE 25: frame 25 t=0.575: nonempty observed set with unresolved collision prediction
+ISSUE 26: frame 26 t=0.6: nonempty observed set with unresolved collision prediction
+ISSUE 27: frame 27 t=0.625: nonempty observed set with unresolved collision prediction
+ISSUE 28: frame 28 t=0.65: nonempty observed set with unresolved collision prediction
+ISSUE 29: frame 29 t=0.675: nonempty observed set with unresolved collision prediction
+ISSUE 30: frame 30 t=0.7: nonempty observed set with unresolved collision prediction
+ISSUE 31: frame 31 t=0.725: nonempty observed set with unresolved collision prediction
+ISSUE 32: frame 32 t=0.75: nonempty observed set with unresolved collision prediction
+ISSUE 33: frame 33 t=0.775: nonempty observed set with unresolved collision prediction
+ISSUE 34: frame 34 t=0.8: nonempty observed set with unresolved collision prediction
+ISSUE 35: frame 35 t=0.825: nonempty observed set with unresolved collision prediction
+ISSUE 36: frame 36 t=0.85: nonempty observed set with unresolved collision prediction
+ISSUE 37: frame 37 t=0.875: nonempty observed set with unresolved collision prediction
+ISSUE 38: frame 38 t=0.9: nonempty observed set with unresolved collision prediction
+ISSUE 39: frame 39 t=0.925: nonempty observed set with unresolved collision prediction
+ISSUE 40: frame 40 t=0.95: nonempty observed set with unresolved collision prediction
+ISSUE 41: frame 41 t=0.975: nonempty observed set with unresolved collision prediction
+ISSUE 42: frame 42 t=1: nonempty observed set with unresolved collision prediction
+ISSUE 43: frame 43 t=1.025: nonempty observed set with unresolved collision prediction
+ISSUE 44: frame 44 t=1.05: nonempty observed set with unresolved collision prediction
+ISSUE 45: frame 45 t=1.075: nonempty observed set with unresolved collision prediction
+ISSUE 46: frame 46 t=1.1: nonempty observed set with unresolved collision prediction
+ISSUE 47: frame 47 t=1.125: nonempty observed set with unresolved collision prediction
+ISSUE 48: frame 48 t=1.15: nonempty observed set with unresolved collision prediction
+ISSUE 49: frame 49 t=1.175: nonempty observed set with unresolved collision prediction
+ISSUE 50: frame 50 t=1.2: nonempty observed set with unresolved collision prediction
+ISSUE 51: frame 51 t=1.225: nonempty observed set with unresolved collision prediction
+ISSUE 52: frame 52 t=1.25: nonempty observed set with unresolved collision prediction
+ISSUE 53: frame 53 t=1.275: nonempty observed set with unresolved collision prediction
+ISSUE 54: frame 54 t=1.3: nonempty observed set with unresolved collision prediction
+ISSUE 55: frame 55 t=1.325: nonempty observed set with unresolved collision prediction
+ISSUE 56: frame 56 t=1.35: nonempty observed set with unresolved collision prediction
+ISSUE 57: frame 57 t=1.375: nonempty observed set with unresolved collision prediction
+ISSUE 58: frame 58 t=1.4: nonempty observed set with unresolved collision prediction
+ISSUE 59: frame 59 t=1.425: nonempty observed set with unresolved collision prediction
+ISSUE 60: frame 60 t=1.45: nonempty observed set with unresolved collision prediction
+ISSUE 61: frame 61 t=1.475: nonempty observed set with unresolved collision prediction
+ISSUE 62: frame 62 t=1.5: nonempty observed set with unresolved collision prediction
+ISSUE 63: frame 63 t=1.525: nonempty observed set with unresolved collision prediction
+ISSUE 64: frame 64 t=1.55: nonempty observed set with unresolved collision prediction
+ISSUE 65: frame 65 t=1.575: nonempty observed set with unresolved collision prediction
+ISSUE 66: frame 66 t=1.6: nonempty observed set with unresolved collision prediction
+ISSUE 67: frame 67 t=1.625: nonempty observed set with unresolved collision prediction
+ISSUE 68: frame 68 t=1.65: nonempty observed set with unresolved collision prediction
+ISSUE 69: frame 69 t=1.675: nonempty observed set with unresolved collision prediction
+ISSUE 70: frame 70 t=1.7: nonempty observed set with unresolved collision prediction
+ISSUE 71: frame 71 t=1.725: nonempty observed set with unresolved collision prediction
+ISSUE 72: frame 72 t=1.75: nonempty observed set with unresolved collision prediction
+ISSUE 73: frame 73 t=1.775: nonempty observed set with unresolved collision prediction
+ISSUE 74: frame 74 t=1.8: nonempty observed set with unresolved collision prediction
+ISSUE 75: frame 75 t=1.825: nonempty observed set with unresolved collision prediction
+ISSUE 76: frame 76 t=1.85: nonempty observed set with unresolved collision prediction
+ISSUE 77: frame 77 t=1.875: nonempty observed set with unresolved collision prediction
+ISSUE 78: frame 78 t=1.9: nonempty observed set with unresolved collision prediction
+ISSUE 79: frame 79 t=1.925: nonempty observed set with unresolved collision prediction
+ISSUE 80: frame 80 t=1.95: nonempty observed set with unresolved collision prediction
+=== NEW EVENT REPORT (frame t id ttc plan_revision) ===
+563 14.025 3 3.975 0

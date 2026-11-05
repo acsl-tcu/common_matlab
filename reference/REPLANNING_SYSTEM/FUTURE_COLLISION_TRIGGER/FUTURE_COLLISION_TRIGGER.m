@@ -798,35 +798,17 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 R.geometry_sampled_broadphase_exclusions= ...
                     3*numel(grid)*native_excluded_count;
             end
-            try
-                first=TRIGGER_EARLIEST_SAMPLED_CONTACT( ...
-                    P.uav_m,P.payload_m,grid,query_shapes, ...
-                    obj.r_uav_m,obj.r_payload_m,obj.r_cable_m, ...
-                    time_s,obj.sampled_geometry_options,obj.active_request_ids);
-            catch ME
-                R.geometry_wall_ms=1000*toc(geometry_clock);
-                R.status='UNKNOWN_GEOMETRY_QUERY_ERROR';
-                R.collision_decision='UNAVAILABLE';
-                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
-                R.possible_risk_ids=ids;
-                R=obj.finish(R,started);
-                return
-            end
-            % A sampled-only check misses a solid that lies entirely
-            % between two sample instants. Independently inspect every
-            % time interval of the PIECEWISE-LINEAR nominal interpolant.
-            % This cannot supply a rigorous error envelope for the true
-            % continuous HLC/plant trajectory; publish POSSIBLE only.
+            % Directional continuous sweep FIRST. It rejects every
+            % interval for which a strict separating plane is available;
+            % only geometrically possible observed IDs need the expensive
+            % exact SAMPLE oracle. There is no second full-geometry pass
+            % over obstacles already excluded by this sweep.
             sweep_clock=tic;
             try
-                % Every observed ID MUST be swept, even when a later
-                % sampled contact was found for the same obstacle.
                 sweep=TRIGGER_NOMINAL_SWEPT_INTERVALS( ...
                     P.uav_m,P.payload_m,grid,shapes, ...
                     obj.r_uav_m,obj.r_payload_m,obj.r_cable_m, ...
                     obj.active_request_ids,zeros(1,0));
-                merged=TRIGGER_MERGE_EARLIEST_NOMINAL_RISK( ...
-                    first,sweep,grid);
             catch ME
                 R.status='UNKNOWN_INTERSAMPLE_GEOMETRY';
                 R.collision_decision='UNAVAILABLE';
@@ -837,6 +819,28 @@ classdef FUTURE_COLLISION_TRIGGER < handle
                 return
             end
             R.nominal_interpolated_sweep_ms=1000*toc(sweep_clock);
+            % All sampled centres and the straight sampled cable belong
+            % to the corresponding convex sweep hull. Thus, an obstacle
+            % excluded over ALL intervals cannot collide at a sample.
+            sample_ids=reshape(double([query_shapes.id]),1,[]);
+            sample_shapes=query_shapes(ismember( ...
+                sample_ids,sweep.possible_obstacle_ids));
+            try
+                first=TRIGGER_EARLIEST_SAMPLED_CONTACT( ...
+                    P.uav_m,P.payload_m,grid,sample_shapes, ...
+                    obj.r_uav_m,obj.r_payload_m,obj.r_cable_m, ...
+                    time_s,obj.sampled_geometry_options,obj.active_request_ids);
+                merged=TRIGGER_MERGE_EARLIEST_NOMINAL_RISK( ...
+                    first,sweep,grid);
+            catch ME
+                R.status='UNKNOWN_GEOMETRY_QUERY_ERROR';
+                R.collision_decision='UNAVAILABLE';
+                R.reason=sprintf('%s: %s',ME.identifier,ME.message);
+                R.possible_risk_ids=ids;
+                R.geometry_wall_ms=1000*toc(geometry_clock);
+                R=obj.finish(R,started);
+                return
+            end
             R.nominal_interpolated_sweep_checked=true;
             R.nominal_interpolated_possible_ids=sweep.possible_obstacle_ids;
             R.geometry_wall_ms=1000*toc(geometry_clock);
