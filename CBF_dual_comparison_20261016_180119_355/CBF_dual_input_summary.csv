@@ -1,0 +1,3 @@
+input_mode,folder,stopped,last_integrated_sample_s,first_cbf_active_s,max_base_safe_delta_inf,reason
+virtual,C:\Users\YataNaoki\Documents\GitHub\common_matlab\CBF_dual_comparison_20261016_180119_355\virtual,1,11.0250000000001,10.1750000000001,13.0447648639926,CBF:ActiveQPFailed: CBF virtual/S3 QP failure: quadprog failed or sampled inequalities violated
+physical,C:\Users\YataNaoki\Documents\GitHub\common_matlab\CBF_dual_comparison_20261016_180119_355\physical,1,13.2000000000001,10.1750000000001,12.7024173785801,CBF:ActiveQPFailed: CBF physical/S3 QP failure: quadprog failed or sampled inequalities violated

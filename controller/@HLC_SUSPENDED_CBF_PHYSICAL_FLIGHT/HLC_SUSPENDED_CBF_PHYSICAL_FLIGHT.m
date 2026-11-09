@@ -1,0 +1,199 @@
+classdef HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT < handle
+% Original HLC algebra is preserved; flight-only experimental CBF wrapper.
+% Preflight is performed off-line during arming. Flight must be initialized
+% before the first f-phase controller call. Never claims 25ms hard realtime.
+properties
+    self
+    result
+    param
+    % ===== CBF configuration =====
+    cbfEnabled = false
+    cbfMode = 'physical'
+    cbfMethod = 'S3'
+    cbfAux = []
+    cbfAuxMode = ''
+    cbfTime = 0
+    cbfShapes = struct()
+    cbfKappa = 2*ones(6,1)
+    cbfOpts = struct()
+    cbfSupervisor = struct()   % persistent monitor/engagement state
+    cbfCaptureNominal = true
+    cbfWarmupContext = []
+    cbfPreflightCompleted = false
+    cbfPreflightReport = struct()
+end
+
+methods
+
+    function obj = HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT(self, param)
+        obj.self = self;
+        obj.param = param;
+
+    end
+
+    function result = do(obj, varargin)
+        if obj.cbfEnabled
+            % Never reuse previous-step commands/CBF fields after a failure.
+            % These changes affect diagnostics only, before new computation.
+            obj.result.flightHlcAudit=struct();
+            obj.result.tmp=nan(4,1);
+            obj.result.cbf=[];
+        end
+        Param = obj.param; % param (optional) : 構造体：ゲインF1-F4
+        model = obj.self.estimator.result; % 推定した状態
+        ref = obj.self.reference.result; % 目標値
+
+        % 目標値を取得
+        if isprop(ref.state, 'xd')
+            xd = ref.state.xd; % 20次元の目標値に対応する用
+        else
+            xd = ref.state.get();
+        end
+
+        pL = model.state.pL;
+        if isprop(model.state, "pT")
+            pT = model.state.pT;
+        else
+            delta = pL - model.state.p;
+            if norm(delta) > 1e-9
+                pT = delta / norm(delta);
+            else
+                pT = [0; 0; -1];
+            end
+        end
+        P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
+
+        x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
+        % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
+        % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
+        % yawサブシステムの入力を設計するときにyaw角を打ち消して定義域修正した誤差を反映
+        yaw = wrapToPi(model.state.q(3)); % 機体yaw角[-pi,pi]にする特にyaw
+        yawd = xd(4); % 目標yaw角
+        yawUnit = [cos(yaw); sin(yaw); 0]; % yawの方向ベクトル
+        yawdUnit = [cos(yawd); sin(yawd); 0]; % yawdの方向ベクトル
+        deltaYaw = sign(cross(yawdUnit, yawUnit)) * acos(yawdUnit' * yawUnit); % 目標角度からみた機体角度との誤差
+        xd(4) = -deltaYaw(3) + yaw; % yaw打ち消しと誤差をyawの目標角に入れる．
+        %目標値の格納
+        xd = [xd; zeros(28 - size(xd, 1), 1)];
+        tic
+        % 階層型線形化による入力計算
+        % 仮想入力のゲイン
+        F1 = Param.F1; % z方向サブシステムのゲイン
+        F2 = Param.F2; % x方向サブシステムのゲイン
+        F3 = Param.F3; % y方向サブシステムのゲイン
+        F4 = Param.F4; % yaw方向サブシステムのゲイン
+
+        vf = obj.Vfd_SuspendedLoadxyDst(Param.dt, x, xd', F1); % 実験で刻み時間が変わったときに対応
+        vs = obj.Vs_SuspendedLoadxyDst(x, xd', vf, P, F2, F3, F4); % 第二層x,y,yawサブシステムの仮想入力の計算
+        uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); % 第一層の仮想入力の実入力(推力)への変換
+        % h234  = obj.H234_SuspendedLoadxyDst(x,xd',vf,P);  % ただの単位行列なのでなくてもいい
+        %tic
+        beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); % 第二層のbetaの逆行列
+        vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
+        % [FLIGHT-ONLY READ-ONLY HLC AUDIT, 2026-10-16]
+        % The original hierarchical inverse remains EXACTLY unchanged.
+        % Measure beta2 conditioning and inversion numerator BEFORE solving,
+        % including cases where the CBF subsequently stops the controller.
+        % Outside 'f', do not compute/store this extra diagnostic.
+        if obj.cbfEnabled
+            if ~isequal(size(beta2),[3,3]) || any(~isfinite(beta2(:))) || ...
+                    any(~isfinite(vs_alpha2(:)))
+                error('CBF:HLCNonfiniteLinearization', ...
+                    'Flight HLC beta2 or inversion right-hand side is nonfinite.');
+            end
+            betaSing = svd(beta2);
+            hAudit=struct('beta2Rcond',rcond(beta2), ...
+                'beta2SigmaMin',min(betaSing),'beta2SigmaMax',max(betaSing),...
+                'beta2RHSNorm',norm(vs_alpha2(:)), ...
+                'beta2RHSInf',norm(vs_alpha2(:),inf), ...
+                'loadCableDirectionZ',double(x(16)), ...
+                'zRef0',double(xd(3)), 'zRef1',double(xd(7)), ...
+                'zRef2',double(xd(11)), 'zRef3',double(xd(15)), ...
+                'zRef4',double(xd(19)), 'zRef5',double(xd(23)), ...
+                'zRef6',double(xd(27)));
+            obj.result.flightHlcAudit=hAudit;
+        end
+        us = beta2 \ vs_alpha2; % ORIGINAL HLC inverse, not regularized
+        if obj.cbfEnabled
+            obj.result.flightHlcAudit.rawThrust=double(uf(1));
+            obj.result.flightHlcAudit.rawMomentInf=norm(us(:),inf);
+            obj.result.flightHlcAudit.rawMoment2=norm(us(:),2);
+        end
+        %obj.result.aa=toc;
+        tmp = [uf(1); us]; % 実入力へ変換
+        obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
+        % Capture only a small arming-step context, not a trajectory.
+        % CBF preflight uses a DRY RUN without advancing any live state.
+        if obj.cbfCaptureNominal
+            obj.cbfWarmupContext = struct('x',x(:),'xd',xd(:), ...
+                'vf',vf(:),'F1',F1(:),'P',P(:),'uRaw',tmp(:), ...
+                'dt',double(Param.dt));
+        end
+
+        % ===== ACTUATOR-AWARE SUPERVISOR =====
+        % Only the safety layer is changed. The nominal HLC above is intact.
+        if obj.cbfEnabled && ~obj.cbfPreflightCompleted
+            error('CBF:PreflightMissing', ...
+                'Flight-only CBF enabled without successful preflight warmup.');
+        end
+        if obj.cbfEnabled
+            % A/B research comparison: only the requested architecture is used.
+            % Virtual->physical fallback is forbidden by run configuration.
+            if ~any(strcmpi(obj.cbfMode,{'physical','virtual'}))
+                error('CBF:UnknownInputMode','CBF input mode must be physical or virtual.');
+            end
+            % No stale previous-step CBF diagnostics on a failed call.
+            obj.result.cbf=[];
+            obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(obj.cbfTime);
+            cbf = Generate_CBF_ActuatorAware_6Methods( ...
+                'supervise',obj.cbfMode,obj,x,xd',vf,F1,P,...
+                tmp,obs,obj.cbfMethod,obj.cbfShapes,obj.cbfKappa,...
+                obj.cbfOpts,obj.cbfSupervisor,Param.dt);
+            obj.result.cbf = cbf;
+            if ~cbf.success
+                % Keep the run's controlled-stop/logging path for a CBF failure.
+                % This does not modify the nominal HLC or CBF-QP constraints.
+                error('CBF:SupervisorFailed', ...
+                    'Actuator-aware CBF failed: %s',cbf.reason);
+            end
+            obj.cbfSupervisor = cbf.supervisor;
+            tmp = cbf.uSafe(:);
+        else
+            % This path reproduces the ORIGINAL saturated HLC exactly.
+            obj.result.cbf = [];
+        end
+
+        obj.result.controllertime=toc;
+        % 安全のため入力値に制限を付ける．推定した牽引物質量や紐の長さ，外乱などを表示．
+        %disp("time: "+ num2str(t,2)+" z position of drone:
+        %"+num2str(model.state.p(3),3)+" estimated load mass:
+        %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
+        if obj.cbfEnabled
+            % QP input limits already applied; do NOT clip after solving.
+            obj.result.input = tmp;
+        else
+            obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))];
+        end
+        % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
+        obj.result.xd = xd;
+        obj.result.x = x;
+        result = obj.result;
+
+    end
+
+    function report = prepareFlightCBF(obj)
+        % Must be called during arming, NEVER on first flight step.
+        report=CBF_PREFLIGHT_WARMUP(obj);
+        obj.cbfPreflightReport=report;
+        obj.cbfPreflightCompleted=report.passed;
+        % No warmup-only state is needed by the live supervisor.
+        obj.cbfWarmupContext=[];
+        obj.cbfCaptureNominal=false;
+    end
+
+    function show(obj)
+        obj.result
+    end
+end
+
+end

@@ -27,6 +27,11 @@ function out = Generate_CBF_DualInput_6Methods(action,varargin)
 %  result=Generate_CBF_DualInput_6Methods('filter',mode,obj,x,xd,...
 %                 vfNom,F1,P,aux,obsList,method,shapes,kappa,opts);
 %  report=Generate_CBF_DualInput_6Methods('selftest',cfg);
+%  diagnostics=Generate_CBF_DualInput_6Methods('diagnose',mode,obj,x,xd,...
+%         vfNom,F1,P,aux,obsList,method,shapes,kappa,opts);
+%  On failed initial chain, CBF_initial_chain_failure.mat is saved to pwd.
+%  On virtual thrust-bound failure, CBF_thrust_limit_failure.mat is saved.
+%  These diagnostic snapshots DO NOT modify the safety filter.
 %
 % OUTPUT: generated_cbf_dual_input/virtual/S1/CBF_V_S1_single.m etc
 %         generated_cbf_dual_input/physical/S1/CBF_P_S1_single.m etc
@@ -64,6 +69,15 @@ switch lower(char(action))
         cfg.smokeTest=true;cfg.writeFunctions=false;
         out=localGenerate(cfg);
     case 'filter'
+        out=localFilter(varargin{:});
+    case 'diagnose'
+        % Non-controlling evaluation; returns all geometric HOCBF chains.
+        % NEVER send outputs of this action to the plant as safe inputs.
+        if numel(varargin) < 13 || isempty(varargin{13})
+            varargin{13}=struct();
+        end
+        o=varargin{13};o.diagnosticOnly=true;o.requireInitialChain=false;
+        varargin{13}=o;
         out=localFilter(varargin{:});
     otherwise
         error('Unknown action: %s',char(action));
@@ -513,9 +527,13 @@ if strcmp(mode,'virtual'),assert(numel(aux)==4);else,assert(numel(aux)==2);end
 if ~isfield(opts,'requireInitialChain'),opts.requireInitialChain=true;end
 if ~isfield(opts,'uLimits'),opts.uLimits=[0;20;1;1;1];end
 if ~isfield(opts,'qpFeasTol'),opts.qpFeasTol=1e-7;end
+if ~isfield(opts,'diagnosticOnly'),opts.diagnosticOnly=false;end
+if ~isfield(opts,'saveInitialFailure'),opts.saveInitialFailure=true;end
+if ~isfield(opts,'diagnosticFile'),opts.diagnosticFile='CBF_initial_chain_failure.mat';end
 clock=tic; A=zeros(0,4);b=zeros(0,1);
 rows=struct('obstacleID',{},'component',{},'h',{},'psi',{},...
- 'relativeDegree',{},'evaluationSeconds',{},'geomGap',{});
+ 'relativeDegree',{},'evaluationSeconds',{},'geomGap',{},...
+ 'psiChain',{},'firstViolatedIndex',{},'initialChainSatisfied',{});
 refZ=xd([3,7,11,15,19,23,27]);
 parts=localMethodSpecs(method);
 for io=1:numel(obsList)
@@ -536,19 +554,79 @@ for io=1:numel(obsList)
             error('CBF %s/%s/%s invalid derivative coefficient: %s',mode,method,name,res.info.reason);
         end
         if opts.requireInitialChain && ~res.info.initialChainSatisfied
-            error('CBF %s/%s/%s initial HOCBF chain violated. No certificate.',mode,method,name);
+            if isfield(obsList(io),'id'),obsID=obsList(io).id;else,obsID=io;end
+            localReportInitialFailure(mode,method,name,obsID,io,...
+                x,xd,vfNom,refZ,F1,P,aux,obsList,shapes,geom,kappa,res,opts);
+            firstBad=find(res.info.psiChain < -1e-8,1,'first');
+            error('CBF:InvalidInitialChain', ...
+                ['CBF %s/%s/%s obs=%g: initial HOCBF psi_%d=%.8g < 0 ' ...
+                 '(h=%.8g). See CBF initial-chain diagnostics above.'], ...
+                mode,method,name,double(obsID),firstBad-1,...
+                res.info.psiChain(firstBad),res.h);
         end
         sc=max([1,abs(res.braw),norm(res.Araw,inf)]);
         A(end+1,:)=res.Araw/sc; %#ok<AGROW>
         b(end+1,1)=res.braw/sc; %#ok<AGROW>
         if isfield(obsList(io),'id'),id=obsList(io).id;else,id=io;end
+        firstBad=find(res.info.psiChain < -1e-8,1,'first');
+        if isempty(firstBad),firstBad=0;else,firstBad=firstBad-1;end
         rows(end+1)=struct('obstacleID',id,'component',name,...
            'h',res.h,'psi',res.psi,'relativeDegree',res.info.relativeDegreeAssumed,...
-           'evaluationSeconds',res.info.evaluationSeconds,'geomGap',res.info.geometricGap); %#ok<AGROW>
+           'evaluationSeconds',res.info.evaluationSeconds,'geomGap',res.info.geometricGap,...
+           'psiChain',res.info.psiChain,'firstViolatedIndex',firstBad,...
+           'initialChainSatisfied',res.info.initialChainSatisfied); %#ok<AGROW>
     end
+end
+if opts.diagnosticOnly
+    % Diagnostic only: no QP, no auxiliary-state integration, no output command.
+    out=struct('success',false,'diagnosticOnly',true,'mode',mode,...
+        'method',method,'rows',rows,'allInitialChainsSatisfied',...
+        all([rows.initialChainSatisfied]),'totalSeconds',toc(clock));
+    fprintf('[CBF-DIAG] %s/%s: %d rows, all chains satisfied=%d, %.3f s\n',...
+        mode,method,numel(rows),out.allInitialChainsSatisfied,out.totalSeconds);
+    for ir=1:numel(rows)
+        fprintf('  obs=%g %-7s h=% .7g firstBadPsi=%d psi=%s\n',...
+            double(rows(ir).obstacleID),rows(ir).component,...
+            rows(ir).h,rows(ir).firstViolatedIndex,...
+            mat2str(rows(ir).psiChain.',5));
+    end
+    return
 end
 if strcmp(mode,'virtual')
     map=localVirtualMap(obj,x,xd,vfNom,F1,P,aux,A,b,opts);
+    % Diagnostic before optimization: compare the nominal HLC input with
+    % the virtual-map thrust, and test whether nominal virtual inputs
+    % already satisfy the CBF rows. This does NOT change any constraints.
+    if ~map.ok || (isfield(opts,'debugCBFTrace') && opts.debugCBFTrace)
+        nCBF=size(A,1);
+        hMin=NaN;
+        if ~isempty(rows),hMin=min([rows.h]);end
+        if nCBF>0
+            % map.Aineq starts with the CBF rows, followed by 6 torque rows.
+            nominalMargin=map.bineq(1:nCBF)-map.Aineq(1:nCBF,:)*map.wNom;
+            minNominalMargin=min(nominalMargin);
+            nominalViolations=nnz(nominalMargin < -opts.qpFeasTol);
+        else
+            minNominalMargin=NaN;
+            nominalViolations=0;
+        end
+        fprintf(2,['[CBF-PRE-QP] virtual/%s | min(h)=%.9g m | ' ...
+            'nominal CBF margin(min)=%.9g | violated CBF rows=%d/%d\n'],...
+            method,hMin,minNominalMargin,nominalViolations,nCBF);
+        fprintf(2,['[CBF-PRE-QP] raw HLC thrust=%.9g N | ' ...
+            'current virtual-map thrust=%.9g N | delta0=%.9g | ' ...
+            'thrust-limits=[%.9g, %.9g] N\n'],...
+            map.nominalU(1),map.thrust,aux(1),opts.uLimits(1),opts.uLimits(2));
+        nominalM=map.torqueT*map.wNom+map.torqueOffset;
+        maxNominalMoment=max(abs(nominalM));
+        momentWithinLimits=all(abs(nominalM)<=opts.uLimits(3:5)+opts.qpFeasTol);
+        fprintf(2,['[CBF-PRE-QP] nominal torque max(abs)=%.9g Nm | ' ...
+            'torque inside limits=%d | QP NOT YET EXECUTED\n'],...
+            maxNominalMoment,momentWithinLimits);
+    end
+    if ~map.ok
+        localReportThrustLimit(obj,x,xd,vfNom,F1,P,aux,map,opts,mode,method);
+    end
 else
     map=localPhysicalMap(obj,x,xd,vfNom,P,aux,A,b,opts);
 end
@@ -572,6 +650,98 @@ if sol.success
 else
     warning('CBF QP unsuccessful: %s. Do not treat nominal input as safe fallback.',sol.reason);
 end
+end
+
+function localReportThrustLimit(obj,x,xd,vfNom,F1,P,aux,map,opts,mode,method)
+% Diagnostic only. Do NOT clamp the command or alter the QP/auxiliary state.
+lim=opts.uLimits(:);
+ref=reshape(xd,1,[]);
+vfZero=reshape(vfNom,1,[]);vfZero(1)=0;
+vfOne=vfZero;vfOne(1)=1;
+ufZero=obj.Uf_SuspendedLoadxyDst(x,ref,vfZero,reshape(P,1,[]));
+ufOne=obj.Uf_SuspendedLoadxyDst(x,ref,vfOne,reshape(P,1,[]));
+fZero=ufZero(1);
+fSlope=ufOne(1)-fZero;
+v1Current=vfNom(1)+aux(1);
+v1Feasible=[nan;nan];
+deltaFeasible=[nan;nan];
+if isfinite(fSlope) && abs(fSlope)>1e-12
+    v1Feasible=sort(([lim(1);lim(2)]-fZero)/fSlope);
+    deltaFeasible=v1Feasible-vfNom(1);
+end
+fprintf(2,'\n[CBF-THRUST FAILURE] virtual/%s | thrust bound failed; QP NOT attempted\n',method);
+fprintf(2,'  proposed thrust f = %.12g N, permitted [%.12g, %.12g] N, nominal HLC f = %.12g N\n',...
+    map.thrust,lim(1),lim(2),map.nominalU(1));
+fprintf(2,'  v1_nom=%.12g, delta0=%.12g, effective v1=%.12g\n',...
+    vfNom(1),aux(1),v1Current);
+fprintf(2,'  affine thrust relation: f = %.12g + (%.12g)*v1\n',fZero,fSlope);
+fprintf(2,'  v1 interval for thrust limits = [%.12g, %.12g]\n',v1Feasible(1),v1Feasible(2));
+fprintf(2,'  delta0 interval (if modified) = [%.12g, %.12g]; DIAGNOSTIC ONLY\n',deltaFeasible(1),deltaFeasible(2));
+fprintf(2,'  pLz=%.9g, vLz=%.9g, ref z=%.9g, ref ddz=%.9g, F1=%s\n',...
+    x(10),x(13),ref(3),ref(11),mat2str(F1(:).',6));
+fprintf(2,'  mass=%.9g, loadmass=%.9g, cableL=%.9g, pT=%s, q=%s\n',...
+    P(1),P(6),P(7),mat2str(x(14:16).',6),mat2str(x(1:4).',6));
+fprintf(2,'  The decision nu changes delta0 only through its integrator chain.\n');
+fprintf(2,'  NO automatic saturation, no unsafe fallback, and no claim of QP infeasibility.\n');
+if ~isfield(opts,'saveThrustFailure') || opts.saveThrustFailure
+    if isfield(opts,'thrustFailureFile') && ~isempty(opts.thrustFailureFile)
+        file=opts.thrustFailureFile;
+    else
+        file='CBF_thrust_limit_failure.mat';
+    end
+    CBF_THRUST=struct('mode',mode,'method',method,'x',x,'xd',xd,...
+        'vfNom',vfNom,'F1',F1,'P',P,'aux',aux,'uLimits',lim,...
+        'proposedThrust',map.thrust,'nominalThrust',map.nominalU(1),...
+        'fAtV1Zero',fZero,'fPerUnitV1',fSlope,...
+        'v1Current',v1Current,'v1Feasible',v1Feasible,...
+        'delta0Feasible',deltaFeasible);
+    try
+        save(file,'CBF_THRUST');
+        fprintf(2,'  Snapshot: %s\n\n',file);
+    catch ME
+        fprintf(2,'  Snapshot save failed: %s\n\n',ME.message);
+    end
+end
+end
+
+function localReportInitialFailure(mode,method,name,obsID,obsIndex,...
+    x,xd,vfNom,refZ,F1,P,aux,obsList,shapes,geom,kappa,res,opts)
+% A failed HOCBF chain must not be silently ignored. Save a reproducible
+% single-state snapshot and report which *specific* chain condition failed.
+chain=res.info.psiChain(:);
+firstBad=find(chain < -1e-8,1,'first');
+fprintf(2,'\n[CBF-INIT FAILURE] mode=%s method=%s component=%s obstacle id=%g (#%d)\n',...
+    mode,method,name,double(obsID),obsIndex);
+fprintf(2,'  h=psi_0=% .10g | geometricGap=% .10g | first failure psi_%d=% .10g\n',...
+    res.h,res.info.geometricGap,firstBad-1,chain(firstBad));
+for j=1:numel(chain)
+    fprintf(2,'  psi_%d = % .11e  %s\n',j-1,chain(j),...
+        localChainStatus(chain(j)));
+end
+fprintf(2,'  pL=%s  vL=%s  pT=%s  kappa=%s\n',...
+    mat2str(x(8:10).',6),mat2str(x(11:13).',6),...
+    mat2str(x(14:16).',6),mat2str(kappa(:).',6));
+fprintf(2,'  This is a high-order *initial-set* violation, not a quadprog failure.\n');
+if opts.saveInitialFailure
+    CBF_INIT=struct('mode',mode,'method',method,'component',name,...
+        'obstacleID',obsID,'obstacleIndex',obsIndex,...
+        'x',x,'xd',xd,'vfNom',vfNom,'refZ',refZ,...
+        'F1',F1,'P',P,'aux',aux,'obsList',obsList,...
+        'obs',obsList(obsIndex),'shapes',shapes,'geom',geom,...
+        'kappa',kappa,'h',res.h,...
+        'psiChain',chain,'firstViolatedIndex',firstBad-1,...
+        'evaluation',res,'reason','CBF initial HOCBF chain violated');
+    try
+        save(opts.diagnosticFile,'CBF_INIT');
+        fprintf(2,'  Diagnostic snapshot saved to %s\n',opts.diagnosticFile);
+    catch ME
+        fprintf(2,'  WARNING: diagnostic snapshot not saved: %s\n',ME.message);
+    end
+end
+end
+
+function status=localChainStatus(value)
+if value >= -1e-8, status='OK';else,status='VIOLATED';end
 end
 
 function value=localRequiredField(s,name)
@@ -634,7 +804,7 @@ Mnom=Bnom\obj.V2_alpha2_SuspendedLoadxyDst(x,xd,vfNom,vsNom(:),P);
 map.nominalU=[ufNom(1);Mnom(:)];
 map.torqueT=T;map.torqueOffset=c;
 map.ok=isfinite(map.thrust) && map.thrust>=lim(1) && map.thrust<=lim(2);
-map.reason='current thrust out of bounds; nu cannot change f instantly';
+map.reason=sprintf('current commanded thrust %.9g N outside [%.9g,%.9g] N; nu cannot change f instantly',map.thrust,lim(1),lim(2));
 if ~all(isfinite([map.Aineq(:);map.bineq(:);map.wNom(:);map.nominalU(:)])),error('Nonfinite virtual QP map');end
 end
 
