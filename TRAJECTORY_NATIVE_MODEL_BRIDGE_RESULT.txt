@@ -1,0 +1,3 @@
+PASS_C7_NATIVE_MODEL_PREVIEW_WIRING__NO_PHYSICAL_COMMIT
+Synthetic preview=PASS input violation=REJECT native failure=UNKNOWN
+Real native HLC/plant run=NOT_TESTED; HLC commit=FORBIDDEN

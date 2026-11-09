@@ -1,0 +1,11 @@
+status=PASS_IDEAL_MODEL_MASS_AND_TUBE_SCOPE__NOT_REAL_HLC_PROOF
+error=
+model_mass_tension=CONDITIONAL_IDEAL_MODEL_POSITIVE_TAUT_TENSION
+model_tension_lower_N=4.49
+zero_mass_rejected=1
+degenerate_w_rejected=1
+tube_off_nominal_pass=1
+tube_on_rejected=1
+tube_on_clearance_m=0.38
+corridor_median_ms=1.0584
+safe_to_commit=0 actual_HLC_tracking_proven=0

@@ -1,0 +1,12 @@
+status=PASS_DURATION_DERIVATIVE_AND_BATCH_POINT_PARITY__NO_FLIGHT_CERTIFICATE stage=NUMERIC_BATCH_BERNSTEIN_POINT_TORQUE_AB error= 
+duration_dcontrols_max_abs=6.78636282532e-10
+duration_djets_relative_max=7.62371246037e-08
+duration_fixed_physical_time_djets_relative_max=8.16629761716e-07
+duration_endpoint_jet_invariance_max=4.03690481651e-14
+fixed_free_dT_zero=1 naive_time_rescale_changes_join=1
+batch_valid/outside_mask_parity=1/1
+batch_torque_relative_error=1.09504419421e-16 omega_relative_error=3.53883589099e-16
+scalar/batch_median_ms=5.974700000 2.790400000
+scalar/batch_p95_ms=10.808000000 8.112100000
+scalar/batch_max_ms=10.808000000 8.112100000
+safe_to_commit=0 actual_hlc_tracking_proven=0

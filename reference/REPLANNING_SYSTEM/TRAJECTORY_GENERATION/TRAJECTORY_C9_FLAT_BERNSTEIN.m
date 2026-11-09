@@ -1,0 +1,107 @@
+classdef TRAJECTORY_C9_FLAT_BERNSTEIN
+    % TRAJECTORY_C9_FLAT_BERNSTEIN  Load-position flat output with C9 joins.
+    % A taut suspended-load model recovers UAV position from LOAD ACCELERATION
+    % through a normalized cable direction. The UAV position's 7-jet therefore
+    % needs the load position's 9-jet. C9 LOAD joins imply C7 UAV joins,
+    % PROVIDED the cable direction denominator never vanishes.
+    % Degree 23: 10 left + 4 free + 10 right control points (12 free scalar
+    % coordinates, not the 48 of independent UAV+load degree-23 paths).
+    % Does not on its own prove collisions, tracking or controller feasibility.
+    methods (Static)
+        function p=build(t0_s,T_s,left_jet,right_jet,free)
+            assert(isnumeric(t0_s)&&isreal(t0_s)&&isscalar(t0_s)&&isfinite(t0_s)&& ...
+                isnumeric(T_s)&&isreal(T_s)&&isscalar(T_s)&&isfinite(T_s)&&T_s>0, ...
+                'TRAJECTORY_C9_FLAT:Time','Finite origin and positive duration required.');
+            assert(isnumeric(left_jet)&&isreal(left_jet)&&isequal(size(left_jet),[3 10])&& ...
+                all(isfinite(left_jet(:)))&&isnumeric(right_jet)&& ...
+                isreal(right_jet)&&isequal(size(right_jet),[3 10])&& ...
+                all(isfinite(right_jet(:)))&&isnumeric(free)&&isreal(free)&& ...
+                isequal(size(free),[3 4])&&all(isfinite(free(:))), ...
+                'TRAJECTORY_C9_FLAT:Controls','Need 3x10 endpoint jets and 3x4 free controls.');
+            n=23;
+            reverse=double(right_jet);
+            reverse(:,2:2:10)=-reverse(:,2:2:10);
+            P=[TRAJECTORY_C9_FLAT_BERNSTEIN.edge(left_jet,T_s,n), ...
+                double(free),fliplr(TRAJECTORY_C9_FLAT_BERNSTEIN.edge(reverse,T_s,n))];
+            D=cell(1,10);D{1}=P;
+            for k=1:9
+                D{k+1}=(n-k+1)/T_s*diff(D{k},1,2);
+            end
+            p=struct('t0_s',double(t0_s),'duration_s',double(T_s), ...
+                'degree',23,'control_points_m',P,'derivative_controls',{D}, ...
+                'start_jets',double(left_jet),'end_jets',double(right_jet), ...
+                'safe_to_commit',false);
+        end
+        function D=actual_derivative_controls(p)
+            % Rebuild the FULL 0..9 payload jets from the AUTHORITATIVE
+            % degree-23 polynomial, never from cached or claimed jets.
+            % A curve endpoint's stored start_jets/end_jets are boundary
+            % intentions, not proof of the polynomial's actual derivatives.
+            assert(isstruct(p)&&isscalar(p)&& ...
+                isfield(p,'control_points_m')&&isfield(p,'duration_s')&& ...
+                isfield(p,'t0_s')&&isfield(p,'degree')&& ...
+                isequal(p.degree,23)&& ...
+                isnumeric(p.control_points_m)&&isreal(p.control_points_m)&& ...
+                isequal(size(p.control_points_m),[3 24])&& ...
+                all(isfinite(p.control_points_m(:)))&& ...
+                isnumeric(p.duration_s)&&isreal(p.duration_s)&& ...
+                isscalar(p.duration_s)&&isfinite(p.duration_s)&& ...
+                p.duration_s>0&&isnumeric(p.t0_s)&& ...
+                isreal(p.t0_s)&&isscalar(p.t0_s)&&isfinite(p.t0_s)&& ...
+                isfinite(p.t0_s+p.duration_s), ...
+                'TRAJECTORY_C9_FLAT:ActualPolynomial', ...
+                'Require a finite degree-23 polynomial with positive time.');
+            D=cell(1,10);D{1}=double(p.control_points_m);
+            for k=1:9
+                D{k+1}=(24-k)/p.duration_s*diff(D{k},1,2);
+                assert(all(isfinite(D{k+1}(:))), ...
+                    'TRAJECTORY_C9_FLAT:ActualDerivatives', ...
+                    'The actual polynomial derivatives are not finite.');
+            end
+        end
+        function J=evaluate(p,t_s)
+            % IMPORTANT: never return start_jets/end_jets as if they were
+            % the actual C9 polynomial. Evaluate the actual control points
+            % at endpoints AND interiors. Disagreement must be diagnosed
+            % by a boundary-jet audit rather than silently concealed.
+            assert(isnumeric(t_s)&&isreal(t_s)&&isscalar(t_s)&& ...
+                isfinite(t_s), ...
+                'TRAJECTORY_C9_FLAT:Time','Finite scalar time required.');
+            D=TRAJECTORY_C9_FLAT_BERNSTEIN.actual_derivative_controls(p);
+            x=(double(t_s)-p.t0_s)/p.duration_s;
+            assert(isfinite(x)&&x>=0&&x<=1, ...
+                'TRAJECTORY_C9_FLAT:Domain', ...
+                'Extrapolation needs another certified piece.');
+            J=zeros(3,10);
+            if x==0
+                for k=1:10,J(:,k)=D{k}(:,1);end
+                return
+            elseif x==1
+                for k=1:10,J(:,k)=D{k}(:,end);end
+                return
+            end
+            for k=1:10
+                C=D{k};
+                for j=size(C,2)-1:-1:1
+                    C(:,1:j)=(1-x)*C(:,1:j)+x*C(:,2:j+1);
+                end
+                J(:,k)=C(:,1);
+            end
+        end
+    end
+    methods (Static,Access=private)
+        function P=edge(J,T,n)
+            P=zeros(3,10);
+            for k=0:9
+                fac=1;
+                for i=0:k-1,fac=fac*(n-i);end
+                delta=double(J(:,k+1))*T^k/fac;
+                rest=zeros(3,1);
+                for i=0:k-1
+                    rest=rest+(-1)^(k-i)*nchoosek(k,i)*P(:,i+1);
+                end
+                P(:,k+1)=delta-rest;
+            end
+        end
+    end
+end

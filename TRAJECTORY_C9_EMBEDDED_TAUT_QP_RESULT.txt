@@ -1,0 +1,8 @@
+status=PASS_EMBEDDED_TAUT_QP_ALGEBRA_AND_FULL_NOMINAL_AB_TEST__HLC_PENDING
+stage=COMPLETE
+exception= | 
+affine=1 | rotation=1 | skip=1 | hull=1 | max_residual=9.41469125e-14
+actual_HLC_limits_read=1 | closed_loop_proven=0 | safe_to_commit=0
+case=safe_affine | on=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | off=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | rows=0 | on_median=1.203000 | off_median=1.406000 | on_P95=50.053500 | off_P95=33.126200 | on_proofs=1 | off_proofs=1 | on_QP=0.000000 | off_QP=0.000000
+case=collision_sphere | on=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | off=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | rows=12 | on_median=12.828100 | off_median=12.376100 | on_P95=33.431100 | off_P95=40.381700 | on_proofs=5 | off_proofs=5 | on_QP=0.072300 | off_QP=0.083800
+case=collision_sphere_ellipsoid | on=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | off=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | rows=24 | on_median=23.353800 | off_median=22.204900 | on_P95=24.296200 | off_P95=36.555400 | on_proofs=5 | off_proofs=5 | on_QP=0.408900 | off_QP=0.398900

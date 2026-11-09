@@ -1,0 +1,11 @@
+status=PASS_C9_CORRIDOR_HALFSPACE_REUSE__HLC_UNCERTIFIED
+stage=COMPLETE
+error= | 
+certified_on_off=1,1 | support_calls=4,12
+reused=8 | separator_searches=4,12
+plane_ms_on_off=6.688700,32.121900
+joint_ms_on_off=3.594400,27.872200
+full_corridor_median_ms_on_off=0.688200,0.694000
+full_corridor_p95_ms_on_off=3.179000,24.845200
+full_corridor_max_ms_on_off=3.179000,24.845200
+all_plane_inequalities=1 | tube_fixture=1

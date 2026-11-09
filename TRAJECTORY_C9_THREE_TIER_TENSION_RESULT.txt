@@ -1,0 +1,7 @@
+status=PASS_THREE_TIER_TAUT_TENSION_AND_NOMINAL_CORRIDOR__NOT_FLIGHT_CERT
+error=
+nominal=1.96133 model_tube=1.84133 physical_tube=1.603197
+nominal_corridor=1 model_corridor=1 w_lower=9.806649999999999
+zero_mass_rejected=1 degenerate_rejected=1 physical_missing_rejected=1
+support_bound_nonworsening=1 support_bound_sample_valid=1
+safe_to_commit=0

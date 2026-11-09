@@ -1,0 +1,10 @@
+status=PASS_C9_INPUT_AWARE_SEARCH_INVARIANTS__HLC_UNCERTIFIED error= 
+fixture=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | sample_violation=1 | max_excess_Nm=0.665234333
+peak_abs_Mz_at_s=10.187500000 | heading_speed_mps=0.074332696 | Fz_N=8.852099273 | inertial_Mz_Nm=1.665234333 | gyro_Mz_Nm=-0.000000000 | minimum_heading_speed_mps=0.074332696
+parity_point_err_Nm=2.77556e-17 | gradient_relative_err=2.03567e-08
+old_median_ms=36.611600 p95_ms=73.197900 max_ms=73.197900
+new_median_ms=108.692200 p95_ms=187.005900 max_ms=187.005900
+new=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | available=1 | failure=
+new_preoracle_skips=2 cuts=2 jac_evals=24 torque_time_ms=49.7843
+new_proofs=3 proof_ms=8.6761 planes_ms=5.7815 qp_ms=2.1296
+new_nominal_proof=UNKNOWN_TORQUE_LEAF_UNRESOLVED | safe_to_commit=0

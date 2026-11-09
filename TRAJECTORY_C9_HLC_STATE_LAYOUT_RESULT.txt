@@ -1,0 +1,10 @@
+status=CHECKED_CORRECT_19_HLC_STATE_AND_SAMPLED_FLIGHT__NO_TUBE_PROOF
+fixture_pass=1
+flight_data_supplied=1
+flight_records=1681
+flight_valid_samples=1681
+max_payload_position_error_m=1.65442466449
+max_payload_velocity_error_mps=1.50368514276
+max_HLC_EKF_position_gap_m=0
+tracking_continuous_time_certified=0
+safe_to_commit=0

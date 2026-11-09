@@ -1,0 +1,2 @@
+PASS_FULL_BODY_POLYHEDRAL_CORRIDOR_12_SHAPES__NO_DYNAMICS_COMMIT
+cases=12 shape_count=12 subdivided_leaves=2 rows=1152

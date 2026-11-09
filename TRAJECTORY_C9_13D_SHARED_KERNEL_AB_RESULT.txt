@@ -1,0 +1,10 @@
+status=PASS_13D_SHARED_CACHE_AND_BATCH_PARITY__NOT_ALL_TIME_NOT_HLC stage=REPEATED_AB_TIMING error= 
+mode_names=BASELINE,SHARED_ONLY,BATCH_ONLY,SHARED_AND_BATCH
+model_median_ms=5.4609 model_median_ms=4.6717 model_median_ms=3.8548 model_median_ms=3.2338 
+model_p95_ms=31.6264 model_p95_ms=14.0184 model_p95_ms=7.013 model_p95_ms=4.7263 
+model_max_ms=31.6264 model_max_ms=14.0184 model_max_ms=7.013 model_max_ms=4.7263 
+gradient_median_ms=3.7847 gradient_median_ms=3.437 gradient_median_ms=2.1953 gradient_median_ms=2.063 
+H_diff=0 A_rel=9.19403442268e-16 b_rel=2.46716227694e-17
+torque_rel=4.90330432507e-17 jac_rel=9.19403442268e-16
+stale_rejected=1 single_phase_accepted=1
+safe_to_commit=0 actual_HLC_tracking_proven=0

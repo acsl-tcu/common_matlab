@@ -1,0 +1,12 @@
+status=PASS_C9_FACTORED_GYRO_AB__HLC_UNCERTIFIED
+stage=COMPLETE
+error= | 
+random_euler_inclusion_trials=3000 | PASS=1
+search=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | search_ms=200.427100 | independent_calls=5
+scene=SMOOTH_NOMINAL | mode=BASELINE | status=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | nodes=3 | detailed=1 | quick_accepted=2 | exclusion_witness=0 | median_ms=1.726700 | p95_ms=3.289100 | max_ms=3.289100
+scene=SMOOTH_NOMINAL | mode=FACTORED | status=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | nodes=3 | detailed=1 | quick_accepted=2 | exclusion_witness=0 | median_ms=1.759400 | p95_ms=18.930400 | max_ms=18.930400
+scene=SMOOTH_NOMINAL | mode=FACTORED_AND_LIMIT_WITNESS | status=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | nodes=3 | detailed=1 | quick_accepted=2 | exclusion_witness=0 | median_ms=1.949500 | p95_ms=2.439000 | max_ms=2.439000
+scene=SPHERE_ELLIPSOID_CERTIFIED_GUIDE | mode=BASELINE | status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=20 | detailed=19 | quick_accepted=1 | exclusion_witness=0 | median_ms=63.133300 | p95_ms=64.810900 | max_ms=64.810900
+scene=SPHERE_ELLIPSOID_CERTIFIED_GUIDE | mode=FACTORED | status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=20 | detailed=18 | quick_accepted=2 | exclusion_witness=0 | median_ms=59.035300 | p95_ms=61.287100 | max_ms=61.287100
+scene=SPHERE_ELLIPSOID_CERTIFIED_GUIDE | mode=FACTORED_AND_LIMIT_WITNESS | status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=20 | detailed=18 | quick_accepted=2 | exclusion_witness=0 | median_ms=59.323600 | p95_ms=61.378000 | max_ms=61.378000
+scope=CONDITIONAL_NOMINAL_TORQUE__NOT_HLC_TRACKING_OR_NUMERIC_ROUNDING | safe_to_commit=0

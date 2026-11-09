@@ -1,0 +1,49 @@
+status=PASS_INTEGRATED_NOMINAL_PIPELINE_AUDIT__HLC_UNCERTIFIED
+stage=COMPLETE
+error_identifier=
+error_message=
+scope=C9_SEARCH_AND_NOMINAL_PROOFS__NO_CLOSED_LOOP_HLC
+fixture=SYNTHETIC_TEST_GEOMETRY_NOT_LIVE_FLIGHT_EKF
+source=HLC_LIMITS_AND_DRONE_PARAMETER_FROM_ACTIVE_SOURCE
+case_count=3
+evaluated_case_count=3
+nominal_complete_count=2
+case=uncollided_nominal | status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | search=CERTIFIED_EXISTING_C9_GUIDE__HLC_TORQUE_PENDING | heading=CERTIFIED_IDEAL_TAUT_C7_YAW_C6_ALL_TIME_AND_REQUESTED_JOIN__HLC_PENDING | torque=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | total=56.885300 ms | search=29.111700 ms | joint_proof=18.322000 ms | planes=0.000000 ms | qp=0.000000 ms | heading=8.367100 ms | torque=11.932000 ms | proof_calls=1
+case_1_proof_1=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC | interval=[NaN NaN] | unresolved_ids=zeros(1,0)
+case_1_qp=NOT_CALLED | initial_shapes_shared=1 | fixed_probe_basis_cache_hits=0
+case=collision_start_single_sphere | status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | search=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | heading=CERTIFIED_IDEAL_TAUT_C7_YAW_C6_ALL_TIME_AND_REQUESTED_JOIN__HLC_PENDING | torque=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | total=135.786500 ms | search=112.368100 ms | joint_proof=65.392300 ms | planes=27.839000 ms | qp=5.328900 ms | heading=3.050000 ms | torque=19.773100 ms | proof_calls=5
+case_2_proof_1=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[12.21875 12.375] | unresolved_ids=21
+case_2_proof_2=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[12.84375 13] | unresolved_ids=21
+case_2_proof_3=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC | interval=[NaN NaN] | unresolved_ids=zeros(1,0)
+case_2_proof_4=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC | interval=[NaN NaN] | unresolved_ids=zeros(1,0)
+case_2_proof_5=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC | interval=[NaN NaN] | unresolved_ids=zeros(1,0)
+case_2_qp=SOLVED_QP_KKT__TRAJECTORY_PROOF_REQUIRED | initial_shapes_shared=1 | fixed_probe_basis_cache_hits=1
+case=collision_start_sphere_and_rotated_ellipsoid | status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | search=UNKNOWN_C9_CANDIDATE_NOT_FULLY_CERTIFIED | heading=NOT_CALLED | torque=NOT_CALLED | total=90.365700 ms | search=90.004400 ms | joint_proof=34.153500 ms | planes=22.397000 ms | qp=20.394000 ms | heading=0.000000 ms | torque=0.000000 ms | proof_calls=5
+case_3_proof_1=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[12.21875 12.375] | unresolved_ids=21
+case_3_proof_2=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[13.15625 13.3125] | unresolved_ids=21
+case_3_proof_3=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[13.15625 13.3125] | unresolved_ids=21
+case_3_proof_4=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[13.3125 13.46875] | unresolved_ids=21
+case_3_proof_5=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED | interval=[13.3125 13.46875] | unresolved_ids=21
+case_3_qp=SOLVED_QP_KKT__TRAJECTORY_PROOF_REQUIRED | initial_shapes_shared=1 | fixed_probe_basis_cache_hits=4
+yaw_identity_inside_domain=1
+outside_domain_rejected=1
+clock_origin_invariance=1
+case_error_1= | reason=
+case_error_2= | reason=
+case_error_3= | reason=UNKNOWN_C9_CANDIDATE_NOT_FULLY_CERTIFIED
+repeated_case_1_median_ms=0.996250 | p95_ms=21.078700 | max_ms=21.353900
+repeated_case_2_median_ms=11.346450 | p95_ms=15.532100 | max_ms=37.689200
+repeated_case_3_median_ms=20.012100 | p95_ms=22.380100 | max_ms=42.286800
+endpoint_real_jet_parity=1
+shape_share_canonical_parity=1
+snapshot_cache_reuse=1 | proof_parity=1 | pose_invalidated=1 | rotation_invalidated=1 | dimensions_invalidated=1 | count_invalidated=1 | order_invalidated=1
+geometry_snapshot_case_1_cache_hits=0 | preparation_ms=8.949400
+geometry_snapshot_case_2_cache_hits=4 | preparation_ms=3.752900
+geometry_snapshot_case_3_cache_hits=4 | preparation_ms=5.431200
+repeat_trials_per_case=20
+repeated_all_median_ms=11.942500
+repeated_all_p95_ms=21.353900
+repeated_all_max_ms=42.286800
+median_ms=90.365700
+p95_ms=135.786500
+max_ms=135.786500

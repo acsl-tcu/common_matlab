@@ -1,0 +1,12 @@
+status=PASS_C9_POINT_DIAGNOSTIC_SCOPE__HLC_UNCERTIFIED | stage=COMPLETE
+error= | 
+guide=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | search_ms=209.809800 | geometry_proofs=5
+guide_stage_ms: oracle=105.660000 | planes=42.849900 | qp=22.258300 | point_prefilter=7.473900
+baseline=UNKNOWN_TORQUE_LEAF_UNRESOLVED | ms=113.683100 | nodes=16 | detailed=15
+baseline_unresolved=[10.03125 10.0703125] depth=8 | Mz=[-0.223764923523 1.06465227159]
+depth10=UNKNOWN_TORQUE_LEAF_UNRESOLVED | ms=51.360200 | interval=[10.109375 10.119140625] | Mz=[0.342443685247 1.012628451]
+point_count=290 | valid=290 | outside_unrounded=19 | point_elapsed_ms=560.871500
+first_outside_s=10.1492767334 | max_nominal_margin_violation_Nm=3.23525436754
+point_mz_range=[-4.23525436754 3.6994301822] | peak_mz_time=10.25
+interpretation=POINT_OUTSIDE_UNROUNDED__REVISE_C9_INPUT_FEASIBILITY__NOT_FORMAL_WITNESS
+scope=POINT_DIAGNOSTICS_ONLY__NOT_ALL_TIME_OR_HLC_OR_ROUNDING_CERT | safe_to_commit=0

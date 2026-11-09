@@ -1,0 +1,6 @@
+status=PASS_PROOF_FEEDBACK_INVARIANTS__HLC_UNCERTIFIED error= 
+baseline=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING elapsed_ms=340.899500
+feedback=UNKNOWN_GEOMETRY_VALID_TORQUE_NOT_PROVEN elapsed_ms=165.965300
+helper=UNKNOWN_TORQUE_LEAF_BUT_NO_POINT_INPUT_VIOLATION nominal_proven=0 proof=UNKNOWN_TORQUE_LEAF_UNRESOLVED proof_ms=88.030400 point_ms=0.783000
+helper_leaf=9.796875000,9.835937500 witness_times_s= 
+feedback_calls=1 extra_times=0 cuts=2 proof_calls=3 conditional_proven=0 candidate=0 safe_to_commit=0

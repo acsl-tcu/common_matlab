@@ -1,0 +1,8 @@
+PASS_C9_SHARED_PROOF_CORRIDOR_AND_RAY__HLC_PENDING
+near12 median/max total ms = 3.24825 / 5.63700
+near24 median/max total ms = 4.70705 / 10.50660
+near12 median corridor ms = 1.77595
+old corridor ms = 78.57530 (CERTIFIED_C9_ADAPTIVE_CONE_CORRIDOR_TEMPLATE__NOT_HLC)
+ground z=0 above/contact/cable/tube/C7/pipeline = 1/1/1/1/1/1
+ray fraction 12/24 = 0.23242187 / 0.23242187
+HLC torque/tracking = NOT_CERTIFIED; arbitrary collision-start guide=NOT_IMPLEMENTED

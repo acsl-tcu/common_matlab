@@ -1,0 +1,6 @@
+status=PASS_POLICY_SAFE_BUT_FIRST_HIT_NOT_EXERCISED__HLC_UNCERTIFIED
+stage=COMPLETE
+error= | 
+scene=sphere | first_hit=0 | fast=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | old=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | proof_calls=5 vs 5 | extra_shrink=2 vs 2 | median_ms=11.18920 vs 11.54520 | p95_ms=56.10040 vs 51.65360 | proof_ms=7.01990 vs 6.63870 | payload_detour_bound_m=1.43632 vs 1.43632
+scene=sphere_rotated_ellipsoid | first_hit=0 | fast=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | old=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | proof_calls=5 vs 5 | extra_shrink=0 vs 0 | median_ms=20.50910 vs 19.65620 | p95_ms=21.67310 vs 24.34770 | proof_ms=17.35310 vs 16.68880 | payload_detour_bound_m=NaN vs NaN
+scene=box_cylinder | first_hit=0 | fast=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | old=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | proof_calls=5 vs 5 | extra_shrink=0 vs 0 | median_ms=24.96570 vs 25.76060 | p95_ms=25.91300 vs 28.36390 | proof_ms=22.13990 vs 22.88650 | payload_detour_bound_m=NaN vs NaN

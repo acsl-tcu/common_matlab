@@ -1,0 +1,12 @@
+status=PASS_REAL_HLC_FOUR_ACTUATOR_LIMITS_AND_CURRENT_EKF_MASS__NO_HLC_COMMIT
+source=C:\Users\student\Documents\GitHub\common_matlab\controller\@HLC_SUSPENDED_LOAD\HLC_SUSPENDED_LOAD.m
+hlc_input_lower=[0 -1 -1 -1]
+hlc_input_upper=[20 1 1 1]
+mass_first=0.14
+mass_second=0.19
+mass_updated=1
+mismatch_rejected=1
+inertia_invalidation=1
+gains_rejection=1
+SOURCE_LIMITS_ARE_LIVE__TEST_STATES_ARE_FIXTURES=1
+REAL_HLC_TRACKING_CERTIFIED=0

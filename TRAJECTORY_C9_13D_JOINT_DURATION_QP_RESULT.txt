@@ -1,0 +1,9 @@
+status=PASS_LOCAL_13D_TIME_AND_TORQUE_QP__NOT_ALL_TIME_NOT_HLC stage=SINGLE_13D_SEARCH_BRANCH_SMOKE error= 
+torque_point_value_Nm_error=1.69786060211e-16
+jacobian_free_rel=8.16551687377e-14 duration_rel=1.1958441082e-09
+H_min_eigen=0.000345441843819 condition=1158.7334212
+shape=24 ground=12 torque=24
+QP_duration_step=0.25 primal=0
+smoke_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING smoke_ms=64.926500000 smoke_commit=0
+model_ms=60.515500000 gradient_ms=75.542800000
+safe_to_commit=0 actual_HLC_tracking_proven=0

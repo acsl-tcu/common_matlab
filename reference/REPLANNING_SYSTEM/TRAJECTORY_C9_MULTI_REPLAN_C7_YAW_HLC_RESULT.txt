@@ -1,0 +1,42 @@
+status=PASS_MULTI_CASE_SAFETY_AUDIT_AND_REPLAN_JOIN__HLC_UNCERTIFIED
+case=1 label=sphere_ellipsoid_roll_pitch_yaw obstacles=2 status=UNKNOWN_C9_CANDIDATE_NOT_FULLY_CERTIFIED certified=0 heading=0 mass=0.2000 tube=0 total_ms=75.78460 proof_ms=39.10740 plane_ms=10.99770 qp_ms=10.14380
+    proof_nodes=9 support_calls=1190 unresolved_ids=21 interval_s=[5.15625 5.3125]
+case=2 label=two_ellipsoids_different_SO3 obstacles=2 status=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING certified=1 heading=1 mass=0.2200 tube=1 total_ms=52.46290 proof_ms=38.20320 plane_ms=2.25010 qp_ms=3.23700
+    proof_nodes=15 support_calls=1449 unresolved_ids=zeros(1,0) interval_s=[NaN NaN]
+case=3 label=three_shapes_reordered obstacles=3 status=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING certified=1 heading=1 mass=0.2400 tube=0 total_ms=20.34610 proof_ms=14.17500 plane_ms=0.94400 qp_ms=0.38100
+    proof_nodes=3 support_calls=57 unresolved_ids=zeros(1,0) interval_s=[NaN NaN]
+case=4 label=four_shapes_symmetric_opposition obstacles=4 status=UNKNOWN_C9_CANDIDATE_NOT_FULLY_CERTIFIED certified=0 heading=0 mass=0.2600 tube=1 total_ms=37.40690 proof_ms=23.15830 plane_ms=2.42980 qp_ms=3.87010
+    proof_nodes=11 support_calls=836 unresolved_ids=34 interval_s=[2.34375 2.5]
+case=5 label=six_mixed_positions obstacles=6 status=UNKNOWN_NO_VIOLATED_SEARCH_PLANE_BUT_PROOF_FAILED certified=0 heading=0 mass=0.2800 tube=0 total_ms=29.83870 proof_ms=17.19760 plane_ms=4.22090 qp_ms=2.83640
+    proof_nodes=16 support_calls=220 unresolved_ids=34 interval_s=[3.4375 3.59375]
+case=6 label=eight_mixed_positions obstacles=8 status=UNKNOWN_JOINT_QP_NOT_SOLVED certified=0 heading=0 mass=0.3000 tube=1 total_ms=10.21020 proof_ms=6.40040 plane_ms=1.00790 qp_ms=1.20270
+    proof_nodes=10 support_calls=1188 unresolved_ids=34 interval_s=[2.1875 2.34375]
+case=7 label=rotated_translated_pair obstacles=2 status=CERTIFIED_EXISTING_C9_GUIDE__HLC_TORQUE_PENDING certified=1 heading=1 mass=0.3200 tube=0 total_ms=1.86880 proof_ms=1.10750 plane_ms=0.00000 qp_ms=0.00000
+    proof_nodes=3 support_calls=185 unresolved_ids=zeros(1,0) interval_s=[NaN NaN]
+case=8 label=reverse_of_eight obstacles=8 status=UNKNOWN_JOINT_QP_NOT_SOLVED certified=0 heading=0 mass=0.3400 tube=1 total_ms=6.58110 proof_ms=4.26960 plane_ms=0.92850 qp_ms=0.62530
+    proof_nodes=10 support_calls=1081 unresolved_ids=34 interval_s=[2.1875 2.34375]
+status=PASS_MULTI_CASE_SAFETY_AUDIT_AND_REPLAN_JOIN__HLC_UNCERTIFIED
+case_count=8
+number_full_time_certified=3
+number_unknown=5
+baseline_single_certified=1
+baseline_C7_yaw_C6_regular=1
+zero_planar_speed_rejected=1
+offclock_replan_attempted=1
+offclock_replan_has_no_catchup=1
+offclock_replan_initial_join_C7_C6=1
+offclock_replan_candidate_certified=1
+offclock_replan_candidate_C7_C6=1
+offclock_replan_status=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING
+replan_new_obstacle_retained_with_old=1
+replan_modified_initial_jet_rejected=1
+replan_search_elapsed_ms=17.8617
+fixture_tick_log_correct_pass=1
+fixture_tick_log_corruption_rejected=1
+fixture_tick_log_cannot_certify_HLC=1
+real_HLC_tracking_certified=0
+real_torque_certified=0
+overall_median_ms=25.0924
+overall_p95_ms=75.7846
+overall_max_ms=75.7846
+results_file=TRAJECTORY_C9_MULTI_REPLAN_C7_YAW_HLC_RESULT

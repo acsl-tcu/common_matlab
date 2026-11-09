@@ -1,0 +1,8 @@
+status=PASS_FIXED_ENDPOINT_TORQUE_NECESSITY_AND_FAST_POINT_AB__HLC_UNCERTIFIED stage=EARLY_EXIT_BEFORE_GEOMETRY_OR_QP error= 
+endpoint_outside=1 endpoint_fixed_free_invariant=1
+zero_mass_taut_status=UNKNOWN_FIXED_ENDPOINT_TENSION_LIMIT
+gate=UNKNOWN_FIXED_ENDPOINT_NOMINAL_TORQUE_LIMIT full_geometry_proofs=0 QP_ms=0
+valid_mask_equal=1 torque_error_Nm=0 omega_error=0
+point_eval_33_samples_old/new_median_ms=6.633800000 6.952400000
+point_eval_33_samples_old/new_p95_ms=9.853300000 15.722400000
+safe_to_commit=0 actual_hlc_tracking_proven=0

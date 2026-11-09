@@ -1,0 +1,22 @@
+status=OBSERVED_NOMINAL_FLIGHT_ACTUATOR_SATURATION__NO_COMMIT
+source=CURRENT_BASE_WORKSPACE_LOGGER
+fixture_pass=1
+runner_changed=0
+saved_flight_mat_input=0
+flight_records=1681
+preclamp_saturation_count=4
+valid_EKF_count=1681
+preceding_postplant_count=1681
+max_payload_position_error_m=88.3910466293
+max_payload_velocity_error_mps=2.71430002212
+time_of_max_payload_error_s=47
+abs_signed_position_error_xyz_m=[2.95638496827 62.9999634103 61.9998526976]
+max_HLC_EKF_position_disagreement_m=88.4232208735
+max_EKF_preceding_postplant_disagreement_m=0.0185640708358
+max_position_velocity_trapezoid_residual_m=0.496761086647
+reference_start_end_displacement_m=63
+plant_time_alignment=PREVIOUS_LOG_ENTRY_POST_PLANT__ASSUMED_PRE_CURRENT_TICK
+NOTE: prior logged post-plant is an alignment hypothesis; not full-time truth.
+generated_C9_reference_sent=0
+continuous_time_tube_proven=0
+safe_to_commit=0

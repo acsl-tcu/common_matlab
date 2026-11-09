@@ -1,0 +1,17 @@
+status=PASS_C9_STRUCTURAL_TORQUE_AB__HLC_UNCERTIFIED
+stage=COMPLETE
+error= | 
+attitude_second_derivative_tests=2000 | max_error=4.26325641456e-14
+guide=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING | search_ms=191.655100 | proof_calls=5
+scene=SMOOTH_NOMINAL | mode=CANCELLED_NORMALIZATION_BASELINE | status=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | nodes=3 | detailed=1 | median_ms=1.378100 | p95_ms=8.397600 | max_ms=8.397600
+scene=SMOOTH_NOMINAL | mode=STRUCTURAL_OMEGA_ALPHA_INTERSECTION | status=CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING | nodes=3 | detailed=1 | median_ms=1.415200 | p95_ms=22.603700 | max_ms=22.603700
+scene=SPHERE_ELLIPSOID_CERTIFIED_GUIDE | mode=CANCELLED_NORMALIZATION_BASELINE | status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=16 | detailed=15 | median_ms=27.158300 | p95_ms=28.325100 | max_ms=28.325100
+scene=SPHERE_ELLIPSOID_CERTIFIED_GUIDE | mode=STRUCTURAL_OMEGA_ALPHA_INTERSECTION | status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=15 | detailed=14 | median_ms=31.671000 | p95_ms=33.805700 | max_ms=33.805700
+structural_attempts=[0 10] | tightened=[0 10] | rescued=[0 3]
+structural_unusable=[0 0] | exceptions=[0 0]
+unresolved_depth_baseline=8 | unresolved_depth_new=8 | reason=NOMINAL_TORQUE_INTERVAL_NOT_WITHIN_LIMITS
+depth10_status=UNKNOWN_TORQUE_LEAF_UNRESOLVED | nodes=19 | detailed=18 | ms=43.961800
+depth10_interval=[10.138671875 10.1484375] | Mz=[0.77202423907 1.12412408476] Nm
+proof_regressions=0 | proof_improvements=0
+new_midpoint_s=10.12890625 | valid=1 | inside_unrounded=1
+scope=REAL_ARITHMETIC_NOMINAL_ONLY__HLC_AND_ROUNDING_UNCERTIFIED | safe_to_commit=0

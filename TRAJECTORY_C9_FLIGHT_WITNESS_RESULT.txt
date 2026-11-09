@@ -1,0 +1,22 @@
+status=REJECT_ACTUAL_RECORDED_HLC_SATURATION__NO_COMMIT
+fixture_audit_pass=1
+tracking_fixture_audit_pass=1
+hlc_source=C:\Users\student\Documents\GitHub\common_matlab\controller\@HLC_SUSPENDED_LOAD\HLC_SUSPENDED_LOAD.m
+archived_limits_agree_with_source=1
+archived_source_path_agrees_with_current=1
+estimated_payload_mass_range_kg=[0.01 0.0124360679629]
+actuator_status=REJECT_RECORDED_HLC_INPUT_LIMIT_EXCEEDED
+flight_samples=1681
+violating_input_samples=4
+violating_samples_by_channel_F_Mx_My_Mz=[0 0 0 4]
+max_limit_excess_by_channel_F_Mx_My_Mz=[0 0 0 1.04397712143]
+raw_input_min_F_Mx_My_Mz=[8.47550410478 -0.340929814597 -0.0929473485193 -0.282965189122]
+raw_input_max_F_Mx_My_Mz=[9.09642119016 0.098284880576 0.0930199734006 2.04397712143]
+number_sampled_saturation_episodes=1
+episode_1: logger=202..205, t=5..5.075, count=4, channels=[false false false true]
+raw_flight_logger_supplied=0
+continuous_HLC_tracking_proven=0
+continuous_3_torque_proven=0
+safe_to_commit=0
+error_id=
+error_message=

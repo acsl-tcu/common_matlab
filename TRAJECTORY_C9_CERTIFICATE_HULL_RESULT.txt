@@ -1,0 +1,19 @@
+status=PASS_PROOF_ORDER_BENCHMARK_AND_DEFAULT_UNUSED_CUTS_OFF__HLC_UNCERTIFIED
+stage=DONE
+error= | 
+interval_tests=250 max_error=2.33146835171e-15
+affine_cuts=1 max_error=0
+scene=sphere | ON=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING OFF=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | cuts=2 | proof_calls_on=5 off=5 | median_ms_on=20.82515 off=11.70610 | proof_ms_on=15.61070 off=7.19480 | qp_ms_on=0.17130 off=0.08570
+scene=sphere_rotated_ellipsoid | ON=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME OFF=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | cuts=4 | proof_calls_on=5 off=5 | median_ms_on=20.22855 off=19.17525 | proof_ms_on=16.25860 off=16.57085 | qp_ms_on=0.56215 off=0.21110
+scene=box_cylinder | ON=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME OFF=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | cuts=4 | proof_calls_on=5 off=5 | median_ms_on=21.14710 off=26.28260 | proof_ms_on=17.07735 off=23.57940 | qp_ms_on=0.47350 off=0.21790
+adaptive_scene=sphere | status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | median_ms=21.94480 p95_ms=30.26400 | proof_ms=15.66500 | qp_ms=0.17085 | calls=5 invoked=1 | skipped_existing=1 | skipped_no_ID=0 | skipped_nonpayload=0
+adaptive_scene=sphere_rotated_ellipsoid | status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | median_ms=20.49000 p95_ms=20.82850 | proof_ms=16.58225 | qp_ms=0.53470 | calls=5 invoked=2 | skipped_existing=2 | skipped_no_ID=0 | skipped_nonpayload=0
+adaptive_scene=box_cylinder | status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | median_ms=20.47685 p95_ms=23.45450 | proof_ms=17.00600 | qp_ms=0.51635 | calls=5 invoked=3 | skipped_existing=1 | skipped_no_ID=0 | skipped_nonpayload=0
+default_policy_equals_explicit_OFF=1 | taut_embedding_default_off=1
+body_diagnostic_valid=1
+no_unsafe_commit=1
+actual_HLC_tracking_proved=0
+hlc_source_status=4_OF_4_SOURCES_AVAILABLE
+lazy_scene=sphere | status_on=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | status_off=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | same_nominal_certification=1 | initial_deferred=1 | fallback=0 | calls_on=4 calls_off=5 | median_ms_on=15.11780 off=10.53240 | p95_ms_on=19.31820 off=12.40380 | proof_ms_on=3.50500 off=6.38370
+lazy_scene=sphere_rotated_ellipsoid | status_on=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | status_off=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | same_nominal_certification=1 | initial_deferred=1 | fallback=1 | calls_on=5 calls_off=5 | median_ms_on=20.75010 off=19.32910 | p95_ms_on=35.60250 off=23.06540 | proof_ms_on=16.69900 off=16.48190
+lazy_scene=box_cylinder | status_on=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | status_off=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | same_nominal_certification=1 | initial_deferred=1 | fallback=1 | calls_on=5 calls_off=5 | median_ms_on=25.13110 off=25.07210 | p95_ms_on=27.11710 off=25.53260 | proof_ms_on=22.09030 off=22.30900

@@ -1,0 +1,173 @@
+function R=CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY(run_real_solver)
+% CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY
+% Common MATLAB root. No production Flight or HLC commit is performed.
+% Checks all 12 canonical shapes, SO(3), reusable derivatives, and strictly
+% sufficient full-time reachability exclusion. Optionally reruns the REAL
+% fmincon benchmark; its failure is reported rather than hidden.
+if nargin<1,run_real_solver=true;end
+assert(isequal(run_real_solver,true)||isequal(run_real_solver,false)|| ...
+    isequal(run_real_solver,0)||isequal(run_real_solver,1), ...
+    'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Args','Expected Boolean argument.');
+root=fileparts(mfilename('fullpath'));
+base=fullfile(root,'reference','REPLANNING_SYSTEM');
+addpath(fullfile(base,'TRAJECTORY_GENERATION'), ...
+    fullfile(base,'OBSTACLE_INFORMATION'));
+obs=all_shapes();
+S=TRAJECTORY_OBSTACLE_SUPPORT.prepare(obs);
+assert(numel(S)==12 && numel(unique([S.id]))==12, ...
+    'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:ShapeCount','12 canonical shape types required.');
+% Support of transformed convex hull: n^T p = h(n). For vertex-backed
+% shapes, independently check their original 3-D local vertex definition.
+err=0;point_checks=0;
+for j=1:numel(S)
+    for k=1:15
+        w=[sin(0.4*k+j);cos(0.7*k-j);sin(0.5*j+0.13*k)];
+        [h,p]=TRAJECTORY_OBSTACLE_SUPPORT.value_and_point(S(j),w);
+        val=TRAJECTORY_OBSTACLE_SUPPORT.value(S(j),w);
+        err=max(err,max(abs([h-val,h-w.'*p])));
+        point_checks=point_checks+1;
+        if ~isempty(S(j).local_vertices)
+            V=S(j).local_vertices;
+            href=max((S(j).R*V.'+S(j).center).'*w);
+            assert(abs(h-href)<1e-9, ...
+                'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Vertex', ...
+                'Precomputed vertex support differs from independent hull.');
+        end
+    end
+end
+assert(err<1e-9, ...
+    'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Support', ...
+    'Shape support identity failed.');
+
+% Cache parity for BOTH constraints and analytic Jacobians; no stochastic
+% untrusted assumptions about the interpolation map.
+M=eye(24);leaf_maps={M};T=2;
+B=TRAJECTORY_C7_NLP_STATIC_PREPARE(leaf_maps,T);
+U=reshape(sin((1:72)*0.113),3,24);
+L=U;L(3,:)=L(3,:)-2;
+z=[reshape(U(:,9:16),24,1);reshape(L(:,9:16),24,1); ...
+    repmat([0.37;0.72;0.48],6,1)];
+lim=struct('uav',struct('derivative_norm_max',ones(1,6)*1e15), ...
+    'payload',struct('derivative_norm_max',ones(1,6)*1e15));
+[c0,e0,J0,H0]=TRAJECTORY_C7_NLP_ANALYTIC( ...
+    z,U,L,leaf_maps,S(1:2),[0.1 0.1 0.05],T,lim);
+[c1,e1,J1,H1]=TRAJECTORY_C7_NLP_ANALYTIC( ...
+    z,U,L,leaf_maps,S(1:2),[0.1 0.1 0.05],T,lim,B);
+diffmax=max(abs([c0-c1;e0-e1;J0(:)-J1(:);H0(:)-H1(:)]));
+assert(diffmax<1e-9, ...
+    'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Cache', ...
+    'Prepared Bernstein maps changed solver constraint values or Jacobians.');
+
+% All obstacle definitions are synthetic fixtures, NOT pre-known flight
+% obstacles or production physical parameters.
+near=OBSTACLE_INFORMATION.define(90,'sphere',[0;0.2;-1],0.2);
+Q=TRAJECTORY_OBSTACLE_SUPPORT.prepare([obs,near]);
+jets=struct('uav',zeros(3,8),'payload',zeros(3,8));
+jets.payload(3,1)=-2;
+lim.uav.derivative_norm_max(1)=0.25;
+lim.payload.derivative_norm_max(1)=0.25;
+[active,ids,clearance]=TRAJECTORY_C7_CERTIFIED_OBSTACLE_EXCLUSION( ...
+    Q,jets,lim,2,[0.1 0.1 0.02]);
+assert(numel(ids)==12 && all(ismember(1:12,ids)) && ...
+    numel(active)==1 && active.id==90 && all(clearance>0), ...
+    'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Reachability', ...
+    'A close shape was removed or distant shapes were kept.');
+% Evaluate a parametrized family inside the certified speed balls. The
+% source of the guarantee is the analytic supporting-plane inequality;
+% these probes additionally catch sign errors in the implementation.
+for j=1:12
+    C=Q(j).center;D=jets.payload(:,1)-jets.uav(:,1);
+    aa=max(0,min(1,((C-jets.uav(:,1)).'*D)/(D.'*D)));
+    n=(jets.uav(:,1)+aa*D-C);
+    n=n/norm(n);
+    for k=0:20
+        a=k/20;
+        pu=jets.uav(:,1)+a*[0.24;0;0];
+        pl=jets.payload(:,1)+a*[0.18;0;0];
+        for s=[0,0.25,0.5,0.75,1]
+            cable=(1-s)*pu+s*pl;
+            gap=n.'*cable-TRAJECTORY_OBSTACLE_SUPPORT.value(Q(j),n)-0.1;
+            assert(gap>0, ...
+                'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Sweep', ...
+                'A provably unreachable shape intersects test cable envelope.');
+        end
+    end
+end
+R=struct('status','PASS_UNIFIED_12_SHAPES_CACHED_NLP_AND_SOUND_PRUNING', ...
+    'shape_count',numel(S),'support_checks',point_checks, ...
+    'support_error',err,'cached_jacobian_error',diffmax, ...
+    'proven_unreachable_ids',ids, 'active_near_ids',[active.id], ...
+    'real_solver_status','NOT_TESTED', ...
+    'real_solver_ms',NaN,'collision_search_ms',NaN, ...
+    'collision_search_status','NOT_TESTED','safe_to_commit',false);
+if run_real_solver
+    assert(exist('CHECK_TRAJECTORY_ANALYTIC_SOLVER','file')==2, ...
+        'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:MissingBenchmark', ...
+        'The existing analytic-solver benchmark must be in common_matlab.');
+    old=CHECK_TRAJECTORY_ANALYTIC_SOLVER(true);
+    R.real_solver_status=old.real_solver_status;
+    R.real_solver_ms=old.real_solver_ms;
+    R.collision_search_ms=old.collision_search_ms;
+    R.collision_search_status=old.collision_search_status;
+    R.safe_case_certified=old.real_safe_case_certified;
+    R.colliding_case_certified=old.real_collision_case_certified;
+    if ~old.real_collision_case_certified
+        R.status='PASS_UNIFIED_PREPARATION__COLLISION_SOLVER_STILL_FAILED';
+    end
+    assert(old.gradient_rel_error<2e-3, ...
+        'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Gradient', ...
+        'The existing analytic gradient benchmark regressed.');
+end
+m=fullfile(root,'TRAJECTORY_NLP_UNIFIED_RESULT.mat');
+t=fullfile(root,'TRAJECTORY_NLP_UNIFIED_RESULT.txt');
+save(m,'R');
+fid=fopen(t,'w');
+assert(fid>0,'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Write','Cannot write audit.');
+g=onCleanup(@()fclose(fid)); %#ok<NASGU>
+fprintf(fid,'%s\nshapes=%d support_checks=%d max_support_error=%.12g\n', ...
+    R.status,R.shape_count,R.support_checks,R.support_error);
+fprintf(fid,'cached_constraints_and_jacobian_max_delta=%.12g\n',R.cached_jacobian_error);
+fprintf(fid,'provably_excluded_ids=%s active_ids=%s\n', ...
+    mat2str(R.proven_unreachable_ids),mat2str(R.active_near_ids));
+fprintf(fid,'real_fmincon=%s elapsed_ms=%.9g\ncolliding_case=%s elapsed_ms=%.9g\n', ...
+    R.real_solver_status,R.real_solver_ms, ...
+    R.collision_search_status,R.collision_search_ms);
+fprintf(fid,'physical_dynamics_certificate=NO HLC_commit=FORBIDDEN\n');
+clear g
+out=fullfile(root,'TRAJECTORY_NLP_UNIFIED_RESULTS_FOR_CHATGPT.zip');
+files={'TRAJECTORY_NLP_UNIFIED_RESULT.mat', ...
+    'TRAJECTORY_NLP_UNIFIED_RESULT.txt'};
+if run_real_solver
+    files=[files, {'TRAJECTORY_ANALYTIC_SOLVER_RESULT.mat', ...
+        'TRAJECTORY_ANALYTIC_SOLVER_RESULT.txt'}];
+end
+zip(out,files,root);
+assert(isfile(out),'CHECK_TRAJECTORY_NLP_UNIFIED_GEOMETRY:Zip', ...
+    'Result archive missing.');
+% Keep only the requested single output ZIP, not loose diagnostics.
+delete(m);delete(t);
+if run_real_solver
+    delete(fullfile(root,'TRAJECTORY_ANALYTIC_SOLVER_RESULT.mat'));
+    delete(fullfile(root,'TRAJECTORY_ANALYTIC_SOLVER_RESULT.txt'));
+end
+end
+
+function obs=all_shapes()
+v=[0 0 0;1 0 0;0 1 0;0 0 1];f=[1 3 2;1 2 4;1 4 3;2 3 4];
+a={ ...
+OBSTACLE_INFORMATION.define(1,'sphere',[0 6 0],0.3), ...
+OBSTACLE_INFORMATION.define(2,'ellipsoid',[0 6 0],[0.5 1 2],'euler_deg',[20 40 50]), ...
+OBSTACLE_INFORMATION.define(3,'box',[0 6 0],[1 0.6 2],'euler_deg',[5 25 40]), ...
+OBSTACLE_INFORMATION.define(4,'cylinder',[0 6 0],[0.5 2],'euler_deg',[20 20 15]), ...
+OBSTACLE_INFORMATION.define(5,'capsule',[0 6 0],[0.3 1]), ...
+OBSTACLE_INFORMATION.define(6,'cone',[0 6 0],[0.5 2],'euler_deg',[10 20 30]), ...
+OBSTACLE_INFORMATION.define(7,'frustum',[0 6 0],[0.8 0.3 1]), ...
+OBSTACLE_INFORMATION.define(8,'pyramid',[0 6 0],[1 2]), ...
+OBSTACLE_INFORMATION.define(9,'regular_prism',[0 6 0],[6 0.7 1]), ...
+OBSTACLE_INFORMATION.define(10,'torus',[0 6 0],[1 0.2]), ...
+OBSTACLE_INFORMATION.define(11,'polygon_prism',[0 6 0], ...
+        struct('outline',[-1 -1;1 -1;1 1;-1 1],'height',2)), ...
+OBSTACLE_INFORMATION.define(12,'polyhedron',[0 6 0], ...
+        struct('vertices',v,'faces',f)) ...
+};obs=[a{:}];
+end

@@ -1,0 +1,15 @@
+status=PASS_QP_ALGEBRA_AND_PAIRED_WHOLE_PIPELINE__HLC_PENDING
+stage=DONE
+error= | 
+algebra_test_count=1500
+max_scaled_error=2.46415600313e-16
+scene=sphere_collision | fast=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | baseline=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | status_parity=1 | proof_parity=1 | planes_parity=1
+median_whole_ms_fast=11.004100 | baseline=11.124950 | ratio=1.011 | median_plane_ms_fast=0.717550 | baseline=0.744200
+p95_whole_ms_fast=41.828290 | baseline=38.284355 | max_whole_ms_fast=56.039200 | baseline=49.805200
+fast_breakdown_median_ms_proof=7.044150 | planes=0.717550 | QP=0.095400 | heading=0.472900 | torque=1.613750
+baseline_breakdown_median_ms_proof=6.861550 | planes=0.744200 | QP=0.091350 | heading=0.478950 | torque=1.676750
+scene=sphere_rotated_ellipsoid | fast=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | baseline=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | status_parity=1 | proof_parity=1 | planes_parity=1
+median_whole_ms_fast=18.620550 | baseline=20.177050 | ratio=1.084 | median_plane_ms_fast=1.729300 | baseline=2.008500
+p95_whole_ms_fast=21.623565 | baseline=21.832460 | max_whole_ms_fast=23.106200 | baseline=22.200800
+fast_breakdown_median_ms_proof=15.539200 | planes=1.729300 | QP=0.237200 | heading=0.000000 | torque=0.000000
+baseline_breakdown_median_ms_proof=16.443150 | planes=2.008500 | QP=0.470300 | heading=0.000000 | torque=0.000000

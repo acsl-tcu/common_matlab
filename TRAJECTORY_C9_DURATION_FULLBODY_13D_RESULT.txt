@@ -1,0 +1,3 @@
+status=PASS_13D_FULLBODY_TANGENT__NUMERICAL_PARITY_ONLY stage=BATCH_DEFAULT_SEARCH_ONLY error= 
+phase_jac_rel=1.06298740751e-08 physical_time_jac_rel=8.55877082128e-09 cable=4.4408920985e-16 ortho=4.16333634234e-17 plane=1.11022302463e-16 SO3=3.34893834e-13
+batch_default_multi=1 explicit_override=1 safe_to_commit=0 hlc=0

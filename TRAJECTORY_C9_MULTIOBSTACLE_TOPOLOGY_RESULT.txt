@@ -1,0 +1,16 @@
+status=PASS_MULTIOBSTACLE_GROUP_A_B_AUDIT__HLC_UNCERTIFIED
+stage=COMPLETE
+error= | 
+gravity_collinear_direction=1
+gravity_collinear_SO3=1
+gravity_without_authority_unknown=1
+chain_adjacency_pair_tests=22
+scene=sphere | on=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | off=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING | group=0 | group_ids=zeros(1,0) | early_rejections=0 | calls=5 vs 5 | median_ms=12.183600 vs 12.327500 | p95_ms=55.621600 vs 51.135300
+stage_median_ms_names=joint_proof,search_planes,joint_QP,heading_join,nominal_torque,remaining_overhead
+stage_median_ms_on=[7.1728 0.7872 0.1031 0.4322 1.6154 1.5981] | off=[6.8109 0.7245 0.0881 0.4951 1.8611 1.4828]
+scene=sphere_rotated_ellipsoid | on=UNKNOWN_NOMINAL_3_AXIS_TORQUE_NOT_CERTIFIED | off=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | group=1 | group_ids=[21 33] | early_rejections=0 | calls=5 vs 5 | median_ms=83.476000 vs 21.231400 | p95_ms=95.658600 vs 23.258200
+stage_median_ms_names=joint_proof,search_planes,joint_QP,heading_join,nominal_torque,remaining_overhead
+stage_median_ms_on=[14.171 2.0159 0.4394 0.5589 62.1844 1.7735] | off=[17.1385 1.6526 0.2713 0 0 1.4717]
+scene=box_cylinder | on=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | off=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME | group=0 | group_ids=zeros(1,0) | early_rejections=0 | calls=5 vs 5 | median_ms=27.448900 vs 25.560100 | p95_ms=28.712800 vs 27.371200
+stage_median_ms_names=joint_proof,search_planes,joint_QP,heading_join,nominal_torque,remaining_overhead
+stage_median_ms_on=[22.7713 1.6326 0.2487 0 0 1.4982] | off=[22.578 1.4321 0.271 0 0 1.3167]

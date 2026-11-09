@@ -1,0 +1,16 @@
+status=PASS_EKF_C9_ENTRY_NECESSARY_AND_REAL_4_HLC_CLAMPS__NOT_COMMIT
+stage=COMPLETE
+error_identifier=
+error_message=
+HLC_SOFTWARE_LO=[0 -1 -1 -1]
+HLC_SOFTWARE_HI=[20 1 1 1]
+HW_MOTOR_ALLOCATION_CERTIFIED=0
+valid_entry_necessary_pass=1
+stale_mass_rejected=1
+stale_position_rejected=1
+stale_velocity_rejected=1
+bad_cable_direction_rejected=1
+bad_uav_position_rejected=1
+missing_tolerance_rejected=1
+integrated_stale_live_start_rejected_before_search=1
+elapsed_ms=101.862300

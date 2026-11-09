@@ -1,0 +1,9 @@
+status=PASS_FORWARD_JACOBIAN_PARITY_AND_AUDIT__HLC_UNCERTIFIED error= 
+parity value=2.22045e-16 gradient=3.90897e-16 cut_A=8.32667e-17 cut_b=2.22045e-16
+cut_count=1 peak_excess_Nm=0.665234
+local_cuts_median_ms old=11.3197 new=9.0118 p95_old=13.7476 p95_new=22.611
+search_median_ms old=81.3333 new=62.5768 p95_old=122.267 p95_new=91.0127 max_old=122.267 max_new=91.0127
+old_search=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING new_search=CERTIFIED_C9_SIMULTANEOUS_OBSTACLE_GUIDE__HLC_TORQUE_PENDING
+old_torque_ms=43.3099 new_torque_ms=36.3801 old_deriv_points=24 new_deriv_points=2
+old_proofs=3 new_proofs=3 old_qp_ms=0.7359 new_qp_ms=0.9812 skips=2/2
+old_nominal_torque=UNKNOWN_TORQUE_LEAF_UNRESOLVED new_nominal_torque=UNKNOWN_TORQUE_LEAF_UNRESOLVED safe_to_commit=0
