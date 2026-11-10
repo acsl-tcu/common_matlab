@@ -27,7 +27,7 @@ for i = 1:numel(k_list)
     %     k_list(i), gopt, gamma, TD, Twth, rho, sigma, rad2deg(res(i).S2max));
     
     %連続時間の指標(閉ループ 9次元)
-       e3 = [0 0 1 0 0 0];
+    e3 = [0 0 1 0 0 0];
     e1 = [1 0 0 0 0 0];                                                          % p（ξ' = p）
     [A1, B, E] = ctow_chain(0.75);
     Aa1 = [A1 zeros(6,2) zeros(6,1); G.Bw*e3/P.g G.Aw zeros(2,1); e1 zeros(1,2) 0];   %質量比 r の変更
