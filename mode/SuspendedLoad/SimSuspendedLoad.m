@@ -85,7 +85,7 @@ app.logger.plot({{1, "p", "r"},{1, "estimator.result.state.pL", "e"}},"ax",app.U
 % app.logger.plot({1, "p", "er"},"phase","tf",  "Fontsize",FS, "Linewidth",LW); % 位置: p_x,p_y,p_z
 % app.logger.plot({1, "q", "e"}, "phase","tfl",   "Fontsize",FS, "Linewidth",LW); % 角度: θ_roll, θ_pitch, θ_yaw
 % app.logger.plot({1, "estimator.result.state.pT", "e"},"phase","tf", "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "estimator.result.theta", "e"},"phase","f", "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "controller.result.theatx", "e"},"phase","f", "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}}, "Fontsize",FS, "Linewidth",LW);% 速度: v_x, v_y, v_z
 % app.logger.plot({1, "estimator.result.state.wL", "e"}, "phase","tf",  "Fontsize",FS, "Linewidth",LW); % 角速度: ω_roll, ω_ptich, ω_yaw
 % app.logger.plot({1, "input",""}, "phase","tf", "Fontsize",FS, "Linewidth",LW); % 制御入力: Thrust, roll, pitch, yaw
