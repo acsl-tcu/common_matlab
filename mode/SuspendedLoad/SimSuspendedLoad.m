@@ -2,7 +2,7 @@ close all
 N = 1; % the number of agents
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 50; % termina time
+te = 60; % termina time
 time = TIME(ts,dt,te,N);
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
@@ -52,15 +52,16 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
-% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[10;10;3.0], "t_go",10.0, "t_hold",5.0, "t_back",10.0},6})); %P2P
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
+agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[20;0;3.0], "t_go",10.0, "t_hold",5.0, "t_back",10.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Hinf_Suspended_Load(dt,agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Hinf_Suspended_Load(dt,agent)));
+% agent.controller.set_function_class("hlc_hinf_suspended", HLC_HINF_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -73,18 +74,25 @@ agent.cha_allocation.l.reference =["landing","sload"];
 
 function post(app)
 close all
+FS = 18; %FontSize
+LW = 2;%LineWidth
 % シミュレーション終了後の結果表示とアニメーション作成。
 % app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-app.logger.plot({{1, "p", "r"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","f");
-% app.logger.plot({1, "p1-p2", "er"},"phase","f", "fig_num",300);
+app.logger.plot({{1, "p", "r"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","f", "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p1-p2", "er"},"phase","f", "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "state.mL", "e"},"phase","f");
-%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
-% app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({1, "estimator.result.state.pT", "e"},"phase","f","fig_num",2);
-% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
-% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-app.logger.plot({1, "input",""}, "phase","tf", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "p", "er"},"phase","tf",  "Fontsize",FS, "Linewidth",LW); % 位置: p_x,p_y,p_z
+% app.logger.plot({1, "q", "e"}, "phase","tfl",   "Fontsize",FS, "Linewidth",LW); % 角度: θ_roll, θ_pitch, θ_yaw
+% app.logger.plot({1, "estimator.result.state.pT", "e"},"phase","tf", "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "estimator.result.theta", "e"},"phase","f", "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}}, "Fontsize",FS, "Linewidth",LW);% 速度: v_x, v_y, v_z
+% app.logger.plot({1, "estimator.result.state.wL", "e"}, "phase","tf",  "Fontsize",FS, "Linewidth",LW); % 角速度: ω_roll, ω_ptich, ω_yaw
+% app.logger.plot({1, "input",""}, "phase","tf", "Fontsize",FS, "Linewidth",LW); % 制御入力: Thrust, roll, pitch, yaw
+% app.logger.plot({1, "controller.result.beta2.norm2", "e"}, "phase","f", "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({{1, "p1", "e"},{1,"estimator.result.state.pL1",""}}, "Fontsize",FS, "Linewidth",LW);% 速度: v_x, v_y, v_z
+
+
 % app.logger.plot({{1, "controller.result.before_notch2",""},{1, "controller.result.after_notch2",""}}, "phase","f", "fig_num",300); 
 % app.logger.plot({1, "controller.result.after_notch2",""}, "phase","f", "fig_num",300); 
 % app.logger.plot({1, "controller.result.before_notch2:3",""}, "phase","f", "fig_num",500); 

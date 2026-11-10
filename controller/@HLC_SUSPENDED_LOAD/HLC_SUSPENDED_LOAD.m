@@ -37,7 +37,7 @@ classdef HLC_SUSPENDED_LOAD < handle
                 end
             end
             P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
-            P(7)=1.2 ;
+            % P(7)=2.0 ;
             x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
             % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
             % yaw角の定義域の問題を回避,h4 = yaw - yawd(誤差)だがyawd = -(誤差)+yawの値を入れる．x,y,yawの仮想入力はVs_SuspendedLoadはクオータニオンで計算するため
@@ -51,7 +51,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             %目標値の格納
             xd = [xd; zeros(28 - size(xd, 1), 1)]; % 足りない分は0で埋める．
             obj.result.xdresult=xd;
-            
+
             % 階層型線形化による入力計算
             % 仮想入力のゲイン
             F1 = Param.F1; % z方向サブシステムのゲイン
@@ -70,9 +70,16 @@ classdef HLC_SUSPENDED_LOAD < handle
             % h234  = obj.H234_SuspendedLoadxyDst(x,xd',vf,P);  % ただの単位行列なのでなくてもいい
             %tic
             beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); % 第二層のbetaの逆行列
+            obj.result.beta2.norm2   = norm(beta2);        % スペクトルノルム（最大特異値）
+            obj.result.beta2.normF   = norm(beta2, 'fro'); % フロベニウスノルム
+            obj.result.beta2.cond    = cond(beta2);        % 条件数
+            obj.result.beta2.rcond   = rcond(beta2);       % 逆条件数の推定（0に近いと特異）
+            obj.result.beta2.sigmin  = min(svd(beta2));    % 最小特異値
+            
+
             vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
             us = beta2 \ vs_alpha2; % 第二層の実入力（roll,pitch,yawのトルク）への変換：bate^(-1)*(vs - alpha) %h234*invbeta2*a2;
-            %obj.result.aa=toc;    
+            %obj.result.aa=toc;
             %
             tmp = [uf(1); us]; % 実入力へ変換
             obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
