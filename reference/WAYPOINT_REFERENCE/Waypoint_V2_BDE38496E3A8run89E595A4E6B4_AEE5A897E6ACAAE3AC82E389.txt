@@ -1,0 +1,354 @@
+﻿Waypoint軌道生成 V2 日本語取扱説明書・手動変更ガイド
+============================================================
+対象：WAYPOINT_REFERENCE_V2_SEPARATE_ROUTES.zip（前回のV2一式）
+      run_flight_SimSuspendedLoad_trj.m（今回指定されたGUIなしrun）
+作成日：2026-11-10
+
+【0. 最初に読むこと】
+この版の目的は、既存HLCのFlightフェーズの目標参照を
+「TIME_VARYING_REFERENCE + gen_ref_saddle」から
+「WAYPOINT_REFERENCE + gen_wp_*.m」に差し替え、
+障害物なしで、Waypointを中間停止せずに通過できるか試験することです。
+
+・Flight（cha='f'）だけを変更します。
+・Arming/Takeoff/Landing、プラント、推定器、HLC、SUSPENDED_LOAD_REF_ADJUSTは維持します。
+・この版には障害物検出／4秒先読み／局所再計画／CBF／状態適応進行はありません。
+・「Time-Varyingのクラスを使わない」ことと「時間に依存しない進行」
+  は異なります。現行V2は Flight開始後の経過時間 tau で進行する
+  基礎試験版です。状態適応進行は今後の開発段階です。
+・MATLABによるHLC閉ループ実行は、この提供環境では未検証です。
+
+【1. ファイル配置：フォルダを丸ごとコピー】
+プロジェクトルート/
+  run_flight_SimSuspendedLoad_trj.m
+  reference/
+    WAYPOINT_REFERENCE/
+      WAYPOINT_REFERENCE.m               参照クラス（HLCとの窓口）
+      gen_ref_waypoint_smooth.m          有限点列のC6接続
+      gen_ref_waypoint_periodic.m        周期的な点列のFourier補間
+      wp_progress_law.m                  進行度の時間変化と0～6階微分
+      wp_smoothstep13.m                  13次C6平滑化関数
+      wp_pack_reference.m                28成分に高次微分をまとめる
+      routes/
+        gen_wp_straight.m                直線（点を直接定義）
+        gen_wp_gentle_turn.m             緩いカーブ（点を直接定義）
+        gen_wp_custom_points.m           自由な点列を編集
+        gen_wp_circle.m                  円（数式・無限周回）
+        gen_wp_saddle.m                  8の字型（数式・無限周回）
+        gen_wp_custom_formula.m          任意の周期式（無限周回）
+        gen_wp_formula_open.m            任意の有限式をサンプル
+      tests/
+        test_waypoint_reference_generation.m
+        demo_plot_waypoint_routes.m
+
+配置時の注意：
+・WAYPOINT_REFERENCE.m だけを別の場所へ移すのではなく、
+  参照生成ヘルパーとroutes/testsも含めてコピーしてください。
+・既存のreference/TIME_VARYING_REFERENCE関係のファイルは削除不要です。
+  ただし今回のrunのFlight設定からは呼び出さないようにします。
+・runの冒頭には genpath('.') による addpath が既にあります。
+  配置後、MATLABのCurrent Folderをプロジェクトルートにしてください。
+・重複したWAYPOINT_REFERENCE.mがパス上にあると別版を呼びかねません。
+  以下で確認：which WAYPOINT_REFERENCE -all
+                  which gen_wp_straight -all
+
+【2. runの手動変更（必須：2か所）】
+※ 今回渡されたrunの、そのほかの部分は変更しなくて構いません。
+
+[変更1] 次の古い参照登録を削除します。
+
+  agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, ...
+      {"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6}));
+
+変更前の「%% SimSuspendedLoad.m: references and nominal HLC (unchanged)」
+から、landing参照登録までを次のブロックに置き換えます。
+既存の「L = agent.parameter.cableL;」もまとめて置換するため、
+重複して残さないでください。
+
+---ここからコピー---
+%% Flight: Waypoint reference (Takeoff/Landing/HLC unchanged)
+L = agent.parameter.cableL;
+
+% ========= Flight経路設定（ここを編集） =========
+flightRouteGenerator = "gen_wp_straight";
+flightNominalSpeed = 0.20;  % 公称進行速度 [m/s]
+flightRampTime     = 6.0;   % 滑らかな加減速時間 [s]
+flightRouteParams = { ...
+    "speed", flightNominalSpeed, ...
+    "rampTime", flightRampTime ...
+};
+
+agent.reference.set_function_class("waypoint", WAYPOINT_REFERENCE(agent, ...
+    {char(flightRouteGenerator),flightRouteParams,6}));
+
+agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3));
+---ここまでコピー---
+
+[変更2] Flightの割当を1行変更します。
+変更前：agent.cha_allocation.f.reference = ["timevarying","sload"];
+変更後：agent.cha_allocation.f.reference = ["waypoint","sload"];
+
+変更しない行：
+  agent.cha_allocation.a.reference = ["takeoff","sload"];
+  agent.cha_allocation.t.reference = ["takeoff","sload"];
+  agent.cha_allocation.l.reference = ["landing","sload"];
+
+[置換確認]
+runを検索し、次が0件になるようにしてください。
+  TIME_VARYING_REFERENCE
+  "timevarying"
+  "gen_ref_saddle"
+  agent.cha_allocation.f.reference = ["timevarying","sload"];
+
+`gen_ref_saddle` 自体をプロジェクトから削除する必要はありません。
+変更対象は今回使用するrunのFlight参照だけです。
+
+【3. runで普段変更する3つの設定】
+  flightRouteGenerator = "gen_wp_straight";
+  flightNominalSpeed = 0.20;
+  flightRampTime = 6.0;
+
+(1) flightRouteGenerator：使用するroutesフォルダ内の関数名
+    "gen_wp_straight"       直線・有限軌道
+    "gen_wp_gentle_turn"    緩い旋回・有限軌道
+    "gen_wp_custom_points"  自由な点列・有限軌道
+    "gen_wp_circle"         円・無限周回
+    "gen_wp_saddle"         8の字型・無限周回（旧サドルと同一ではない）
+    "gen_wp_custom_formula" 任意の周期曲線・無限周回
+    "gen_wp_formula_open"   数式から点を生成する有限軌道
+
+(2) flightNominalSpeed：経路パラメータを進める公称値です。
+    円／曲線での厳密な三次元実速度が常に同じ値になる保証はありません。
+    速度を上げると速度・加速度・高次微分が増大しやすくなります。
+
+(3) flightRampTime：開始時と終了時の滑らかな加減速時間です。
+    有限軌道では開始と終端で使用し、周期軌道では開始時のみ使用します。
+    中間Waypointではこの時間で停止しません。
+
+runの値は、routes/gen_wp_*.mで定義された同名の既定値に優先します。
+一方、Waypoint座標・数式そのものは軌道ごとのファイルを編集します。
+
+【4. 直接Waypointを置く方法：もっとも簡単】
+ファイル：reference/WAYPOINT_REFERENCE/routes/gen_wp_custom_points.m
+
+pointsXYZ = [
+    0.0, 0.0, 3.0;  % 1行目：Flightの開始位置（x=0, y=0, z=3）
+    0.0, 1.0, 3.0;  % 2行目：途中の経由点W1
+    0.6, 2.0, 3.0;  % 3行目：途中の経由点W2
+    1.2, 3.0, 3.0;  % 4行目：途中の経由点W3
+    1.2, 4.0, 3.0]; % 5行目：最終目標点
+
+・1行=1個のWaypoint、列は左からx[m]、y[m]、z[m]。
+・例えば(0.6,2.0,3.0)は「x=0.6m、y=2m、z=3m」を意味します。
+・行数は追加・削除可能。少なくとも異なる2点が必要です。
+・途中の点は停止点ではなく、通過したい場所を指定するものです。
+・有限経路は最後の点で停止します。今の実装では中間点を通過します。
+・連続する2点を完全に同じ座標にしないでください（エラー）。
+・180度に近いUターンには非対応で、エラーになります。
+・最初の点は、原則として既存Takeoff終了時のFlight開始位置に揃えます。
+
+曲がり角の調節：gen_wp_custom_points.m の次の引数
+  opts.blendRadius = 0.40;
+または、runでこの軌道を選択したうえで
+  flightRouteParams = {"speed",0.20,"rampTime",6.0,"blendRadius",0.50};
+と指定できます。
+blendRadius[m]は角を丸める範囲の目安で、各隣接線分長の40%以下へ
+内部で制限されます。値が大きければ必ずよいとは限りません。
+
+※点列補間は中間点を正確に通過する設計です。
+※点列を通るだけで障害物回避／動力学的実現可能性は保証しません。
+
+【5. 円：数式で指定、無限に周回】
+ファイル：routes/gen_wp_circle.m
+
+  phase = direction * (2*pi*(0:N-1)/N);
+  x = startX + radius*(cos(phase)-1);
+  y = startY + radius*sin(phase);
+  z = startZ;
+
+現在のファイルでは、主な変更項目は以下です。
+  opts.radius        = 1.0;     % 円半径[m]
+  opts.startXYZ      = [0;0;3]; % 円の開始点（3x1縦ベクトル）
+  opts.samplesPerLap = 48;      % 1周を何点でサンプルするか（16以上）
+  opts.direction     = 1;       % 回る向き（+1または-1）
+  opts.speed         = 0.25;    % 公称進行速度
+  opts.rampTime      = 6.0;
+
+runだけで半径を変える例：
+  flightRouteGenerator = "gen_wp_circle";
+  flightRouteParams = {"speed",0.25,"rampTime",6.0,"radius",1.2};
+
+この式では、中心は (startX-radius, startY, startZ) です。
+開始点は(startX,startY,startZ)になり、開始時の位置整合が取りやすい形です。
+最初の点を末尾に重複して入れません。
+periodic Fourier補間が周回の継ぎ目を滑らかにつなぎます。
+Flightが終わるまで停止せず周回します（runでは通常47秒でLandingへ移行）。
+
+【6. 8の字型（仮サドル）：無限に周回】
+ファイル：routes/gen_wp_saddle.m
+
+  x = amplitudeX * sin(phase);
+  y = amplitudeY * sin(2*phase);
+  z = height + verticalAmplitude*(cos(2*phase)-1);
+
+主な変更項目：
+  opts.amplitudeX        = 1.0; % x方向の振幅
+  opts.amplitudeY        = 0.65;% y方向の振幅
+  opts.height            = 3.0; % 基本高さ
+  opts.verticalAmplitude = 0.0; % z方向の波の振幅
+  opts.samplesPerLap     = 64;  % 1周のサンプル点数
+
+例（runから形状の引数を変える）：
+  flightRouteGenerator = "gen_wp_saddle";
+  flightRouteParams = {"speed",0.20,"rampTime",6.0, ...
+                       "amplitudeX",1.2,"amplitudeY",0.6};
+
+注意：これはV2で作成した8の字型の「仮サドル」です。
+既存の gen_ref_saddle の厳密な数式を再現したものではありません。
+同じ形状で比較したい場合は、元の式をここへ移す必要があります。
+
+【7. 自分で数式を編集する：周期と有限の2種類】
+(A) 周期的な軌道：routes/gen_wp_custom_formula.m
+
+  phase = 2*pi*(0:N-1)/N;
+  x = scale*(cos(phase)-1);
+  y = 0.8*scale*sin(phase);
+  z = height + 0.1*sin(2*phase);
+  pointsXYZ = [x(:),y(:),z(:)];
+
+phase は角度（0以上、2π未満）。式のx,y,zを編集できます。
+2πで位置や高次微分がつながる「周期式」にしてください。
+N点を等間隔の位相でサンプルし、Fourier補間で周期経路にします。
+高次微分はFourier曲線の解析微分により計算します。
+サンプル点数が少ないと形が崩れ、高周波成分が大きいと高次微分が
+過大になることがあります。必ず高次微分の数値を検査してください。
+
+(B) 有限軌道：routes/gen_wp_formula_open.m
+
+  u = linspace(0,1,opts.samples);
+  x = lateralAmplitude*sin(pi*u);
+  y = length*u;
+  z = height + zeros(size(u));
+  pointsXYZ = [x(:),y(:),z(:)];
+
+u は時刻ではなく 0～1 の経路上の補助変数です。
+式の点をサンプルして有限のWaypoint列にし、開いた経路用の
+C6平滑化へ渡します。サンプル点間では元の数式そのものを
+厳密に追っているわけではなく、生成された補間曲線を追います。
+
+【8. 軌道をもう1種類追加する場合】
+(1) routes/gen_wp_custom_points.m（点列用）または
+    routes/gen_wp_custom_formula.m（周期式用）をコピーし、
+    例：routes/gen_wp_my_route.m に名前を変更する。
+(2) 先頭の関数名も「function ref = gen_wp_my_route(opts)」に変更する。
+(3) pointsXYZ もしくは x,y,z の数式、argumentsのパラメータを設定する。
+(4) 有限点列なら gen_ref_waypoint_smooth、周期なら
+    gen_ref_waypoint_periodic を呼ぶ形式を保つ。
+(5) runの flightRouteGenerator = "gen_wp_my_route"; に変更する。
+(6) MATLAB上で which gen_wp_my_route を実行し、パスが通るか確認する。
+
+注意：runで渡すパラメータ名は、選択したgen_wp_*.mのargumentsで
+受け付けているものだけにしてください。
+例：円のradiusをstraightに渡すと不明なオプションとしてエラーになります。
+
+【9. HLCへの出力形式／高さ・Yaw】
+WAYPOINT_REFERENCEはxd（28x1）を返します。
+並びは各階につき4成分で、[x;y;z;yaw]を0階から6階まで連結：
+  xd(1:4)   = [x;y;z;yaw]
+  xd(5:8)   = [dx;dy;dz;dyaw]
+  xd(9:12)  = [ddx;ddy;ddz;ddyaw]
+  ...
+  xd(25:28) = [d6x;d6y;d6z;d6yaw]
+
+V2のYawは一定値です（opts.yaw）。進行方向へ自動回転する仕様ではありません。
+
+飛行時に既存のSUSPENDED_LOAD_REF_ADJUSTが、参照zの0階成分から
+cableLを減算します。このrunでは cableL=2.0m。
+  Waypoint z=3m → HLC側の吊り荷目標のzは約1m
+という変換を想定しています（元の参照調整を維持）。
+したがって、Waypointのzを吊り荷高度のつもりで設定しないでください。
+
+【10. フェーズ・実行時間・停止位置】
+現在のrunは制御周期 dt=0.025s、全体の終了時刻 te=50s。
+  Arming      ：t=0 の1サンプル
+  Takeoff     ：0 < t < 5.0s
+  Flight      ：5.0s <= t < 47.0s
+  Landing     ：47.0s <= t <= 50.0s
+としています。
+
+・有限経路は、通過する中間Waypointでは停止せず、最後だけ停止します。
+・目標経路が短い場合、Flightが終わる前に最終点で保持し続けます。
+・周期経路は理論上無限周回ですが、runでは47秒でLandingへ移ります。
+・離陸終了／Flight開始、Flight終了／着陸開始の境界で
+  0～6階微分が完全一致する保証はV2にありません。
+  円の途中で47秒に着陸へ切り替わると参照ジャンプが生じる可能性があります。
+  この点はHLC追従確認時に必ず注視してください。
+
+【11. テスト・表示の順番】
+(1) V2フォルダを配置する。
+(2) MATLABを起動し、Current Folderをプロジェクトルートにする。
+(3) 必要なら addpath(genpath(pwd)); と実行する。
+(4) 次を実行する：
+      test_waypoint_reference_generation
+      demo_plot_waypoint_routes
+(5) testがPASSしたら、run内のflightRouteGeneratorを選択し、
+      run_flight_SimSuspendedLoad_trj
+    を実行する。
+(6) 最初は gen_wp_straight、次に gen_wp_gentle_turn、
+    次に gen_wp_circle、gen_wp_saddle の順で試す。
+
+確認項目：
+・MATLABエラーがないか、xdが28x1で有限値になっているか。
+・Flight開始時の位置と高次微分が急に飛ばないか。
+・途中Waypointで不自然に停止していないか。
+・吊り荷の位置追従、速度、荷振れ、HLC入力・入力飽和。
+・周期軌道では周回の継ぎ目で位置／微分が飛ばないか。
+・着陸に切り替わる直前直後に目標が飛ばないか。
+
+demo_plot_waypoint_routes は形状を可視化するための描画であり、
+吊り荷HLCの閉ループ追従性能を検証するものではありません。
+
+【12. よくあるエラー】
+「WAYPOINT_REFERENCEが見つからない」
+  → reference/WAYPOINT_REFERENCEフォルダとaddpathを確認。
+「gen_wp_circleが見つからない」
+  → routesフォルダが追加されているかを確認。
+「InvalidGenerator / Expected 28x1」
+  → 自作gen_wp_*.mの戻り値ref.evaluate(t)とorder=6を確認。
+「Consecutive waypoints must be distinct」
+  → pointsXYZで連続する行が重複しているため修正。
+「Near 180-degree U-turn」
+  → 経路を緩やかにし、折返しを別の軌道として設計。
+「Turn requires blendRadius > 0」
+  → 曲がり角があるのにblendRadius=0になっている。
+「周期軌道の形が変」
+  → サンプル点の重複、周期式の不連続、Nが少なすぎる問題を確認。
+「変えたはずの軌道にならない」
+  → runのgenerator名、which -allによる同名ファイル競合を確認。
+
+【13. 今後の4秒先読み・障害物・CBFとの関係】
+本V2には未実装。今後予定する構造は、
+  ①通常飛行：現在のC6経路を生成・評価
+  ②4秒先に名目衝突を予測：そのときだけ局所再計画
+  ③大きな障害物：複数Waypointをまとめてスキップ／再合流
+  ④再計画切替：旧参照の0～6階微分を新参照へ接続
+  ⑤HLC/CBF介入で遅れたら：状態適応進行を追加
+というものです。
+将来の安全モデルはCBFと共通化し、
+  ・機体球＋吊り荷球＋ケーブル球列
+  ・機体球＋吊り荷球＋ケーブル線分／カプセル
+を候補として、CBF実装ができた段階で最終決定します。
+地面z=0の制約も今のV2ではありません。
+
+【14. 変更したrunの確認方法】
+この説明書と一緒に、
+  run_flight_SimSuspendedLoad_trj_WAYPOINT.m ：差替済みの全体例
+  Waypoint_run_手動変更差分.diff        ：元のrunとの差分
+を添付しています。
+自分でrunを変更したい場合は、上記2か所だけ手動で置換すれば十分です。
+変更例のrunについては、古いFlight用のTIME_VARYING_REFERENCE、
+"timevarying"、"gen_ref_saddle"が残っていないことを文字列検査済みです。
+
+以上
