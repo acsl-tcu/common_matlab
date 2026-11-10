@@ -103,7 +103,7 @@ classdef DRAW_SUSPENDED_LOAD
                 pL0 = pL(1,:);
             end
             obj.line = plot3(obj.ax, [p0(1) pL0(1)], [p0(2) pL0(2)], [p0(3) pL0(3)], "k");
-            view(ax, 3)
+            view(ax, 0,0)
             grid(ax, 'on')
             daspect(ax, [1 1 1]);
         end
@@ -303,7 +303,7 @@ classdef DRAW_SUSPENDED_LOAD
             % ---- loop ----
             first_gif_written = false;
 
-            for i = 1:param.skip:(length(t)-1)
+            for i = 1:param.skip:1200%(length(t)-1)
                 if ~isvalid(obj.frame)
                     obj = obj.gen_frame("target", param.target, "ax", obj.ax);
                 end
@@ -328,6 +328,9 @@ classdef DRAW_SUSPENDED_LOAD
                     obj.ax.YLim = obj.ylim;
                     obj.ax.ZLim = obj.zlim;
                 end
+                    obj.ax.XLim = [0 20];
+                    obj.ax.YLim = [0 1];
+                    obj.ax.ZLim = [0.5 3.5];
 
                 % ---- capture by getframe (lightweight) ----
                 if do_mp4 || do_gif
