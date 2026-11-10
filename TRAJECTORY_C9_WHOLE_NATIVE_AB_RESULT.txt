@@ -1,0 +1,10 @@
+status=PASS_WHOLE_NATIVE_NOMINAL_PARITY__FLIGHT_AND_HLC_PENDING
+error=
+stage=NOMINAL_SCENE_4
+preflight=PASS_WHOLE_NATIVE_COMPILED_PINNED__FULL_SCENE_AB_REQUIRED
+leaf_ms=[16.4462 16.6193 11.6769 10.7075 12.6952;14.1901 13.6127 12.7782 13.1087 12.2662]
+whole_ms=[8.2277 6.8802 6.8582 5.782 8.7028;7.9342 6.4749 7.0194 6.1043 5.9554]
+leaf_P95=[16.5847;14.0746] whole_P95=[8.60778;7.75124]
+leaf_MAX=[16.6193;14.1901] whole_MAX=[8.7028;7.9342]
+whole_nodes=[53 53 53 53 53;71 71 71 71 71] certified=[true true true true true;true true true true true] fallback=[0 0 0 0 0;0 0 0 0 0] reasons=[0 0 0 0 0;0 0 0 0 0]
+regressions=0 parity=1 difference=0.056078314391289727 singular=1 budget=1

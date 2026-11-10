@@ -1,0 +1,4 @@
+status=PASS_NORMSQ_CERTIFICATE_PARITY__REALTIME_AND_HLC_PENDING; stage=FULL_TORQUE_SCENE_04; error=
+source=C:\Users\student\Documents\GitHub\common_matlab\reference\REPLANNING_SYSTEM\TRAJECTORY_GENERATION\TRAJECTORY_C9_NOMINAL_TORQUE_INTERVAL.m; feature=1; scenes=2; regressions=0; nodes_equal=1
+scene=cylinder_capsule_cone; old_ms=[106.9971 108.0194 102.2054 93.0012 92.5478]; new_ms=[92.0685 91.6111 90.9102 92.3201 89.1683]; old_max=108.0194000; new_max=92.3201000; old_p95=107.8149400; new_p95=92.2697800
+scene=torus_polygon_polyhedron; old_ms=[127.1431 127.7011 129.6695 130.7351 128.1612]; new_ms=[117.8663 119.9893 118.006 118.9703 118.019]; old_max=130.7351000; new_max=119.9893000; old_p95=130.5219800; new_p95=119.7855000

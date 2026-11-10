@@ -230,7 +230,8 @@ elseif strcmp(inputMode,'DIRECT_INTERVAL')
         S.input_limits_lower,S.input_limits_upper, ...
         proof.full_time_beta2_interval_3x3x2, ...
         proof.full_time_rhs_interval_3x2, ...
-        proof.full_time_thrust_interval_1x2);
+        proof.full_time_thrust_interval_1x2, ...
+        c9_direct_method(proof));
 else
     I=TRAJECTORY_C9_HLC_FOUR_INPUT_PERTURBATION( ...
         S.input_limits_lower,S.input_limits_upper, ...
@@ -422,4 +423,12 @@ end
 % plant trajectory unless equality to the model is separately established.
 % Never turn a conditional numerical calculation into real-Flight COMMIT.
 R.elapsed_ms=1000*toc(clock);
+end
+
+function mode=c9_direct_method(proof)
+% Optional exact interval-algebra A/B. Original Cramer mode is the default.
+mode='CRAMER';
+if isfield(proof,'direct_interval_solver_mode')
+    mode=proof.direct_interval_solver_mode;
+end
 end

@@ -1,0 +1,23 @@
+status=COMPLETED_MATRIX__NOMINAL_PASS_AND_UNKNOWN_REPORTED_SEPARATELY
+stage=COMPLETED_CASES_AND_GRAM_AB
+error=
+payload_fixture_policy=REQUEST_LOCAL_ONLY__NO_PARAMETER_MUTATION
+cases=15/15 conditional_nominal=3 unknown=12 exceptions=0
+elapsed_median_ms=34.7925000000 p95_ms=222.3551100000 max_ms=469.4899000000
+gram_off_ms=0.3451000000 gram_on_ms=0.0055000000 qp_off_ms=2.1690000000 qp_on_ms=1.8707000000 gram_relative=0
+case=01 path=straight scene=sphere_ellipsoid_box mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=469.48990 proof_ms=118.41230 planes_ms=193.32840 qp_ms=20.65610 heading_ms=0.00000 torque_ms=0.00000
+case=02 path=straight scene=cylinder_capsule_cone mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=73.06810 proof_ms=33.61780 planes_ms=17.89980 qp_ms=7.03190 heading_ms=0.00000 torque_ms=0.00000
+case=03 path=straight scene=frustum_pyramid_prism mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=74.54430 proof_ms=22.17960 planes_ms=31.72100 qp_ms=5.71160 heading_ms=0.00000 torque_ms=0.00000
+case=04 path=straight scene=torus_polygon_polyhedron mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=53.22260 proof_ms=28.58660 planes_ms=9.92260 qp_ms=1.84750 heading_ms=0.00000 torque_ms=0.00000
+case=05 path=straight scene=clear_control mass=0.12 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=116.44020 proof_ms=3.22530 planes_ms=0.00000 qp_ms=0.00000 heading_ms=53.73730 torque_ms=3.79640
+case=06 path=arc scene=sphere_ellipsoid_box mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=33.91880 proof_ms=15.86300 planes_ms=10.40100 qp_ms=1.97670 heading_ms=0.00000 torque_ms=0.00000
+case=07 path=arc scene=cylinder_capsule_cone mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=31.68460 proof_ms=19.28200 planes_ms=9.54310 qp_ms=0.23900 heading_ms=0.00000 torque_ms=0.00000
+case=08 path=arc scene=frustum_pyramid_prism mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=32.28540 proof_ms=18.82900 planes_ms=10.28290 qp_ms=0.44060 heading_ms=0.00000 torque_ms=0.00000
+case=09 path=arc scene=torus_polygon_polyhedron mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=32.22850 proof_ms=19.05060 planes_ms=9.47650 qp_ms=0.27410 heading_ms=0.00000 torque_ms=0.00000
+case=10 path=arc scene=clear_control mass=0.14 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=48.76370 proof_ms=0.73870 planes_ms=0.00000 qp_ms=0.00000 heading_ms=4.85860 torque_ms=10.70510
+case=11 path=saddle scene=sphere_ellipsoid_box mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=33.37810 proof_ms=15.46310 planes_ms=9.50820 qp_ms=5.19500 heading_ms=0.00000 torque_ms=0.00000
+case=12 path=saddle scene=cylinder_capsule_cone mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=31.61320 proof_ms=19.45240 planes_ms=8.68240 qp_ms=0.24910 heading_ms=0.00000 torque_ms=0.00000
+case=13 path=saddle scene=frustum_pyramid_prism mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=34.08560 proof_ms=19.93070 planes_ms=9.18140 qp_ms=2.14890 heading_ms=0.00000 torque_ms=0.00000
+case=14 path=saddle scene=torus_polygon_polyhedron mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=34.79250 proof_ms=22.43310 planes_ms=9.20450 qp_ms=0.38110 heading_ms=0.00000 torque_ms=0.00000
+case=15 path=saddle scene=clear_control mass=0.18 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=40.25670 proof_ms=0.70010 planes_ms=0.00000 qp_ms=0.00000 heading_ms=11.93750 torque_ms=7.67820
+safe_to_commit=0

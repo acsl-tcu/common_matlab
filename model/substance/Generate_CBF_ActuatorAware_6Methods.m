@@ -29,7 +29,10 @@ function out = Generate_CBF_ActuatorAware_6Methods(action,varargin)
 %            the original HLC thrust response even when the QP is inactive.
 %            Thrust bounds are enforced using second-order HOCBF rows.
 %
-% Geometry: S1,S2,S3 support plane; K1,K2,K3 KKT solid-ellipsoid distance.
+% Geometry: S1,S2,S3,S4 support plane; K1,K2,K3 KKT solid-ellipsoid distance.
+% S4: UAV/load spheres + cable capsule, smooth conservative support bound.
+% S1-S4 support-geometry evaluators are standalone; generate ONCE before flight.
+% K1-K3 retain legacy wrappers (not part of the four-shape comparison).
 % All obstacles must be STATIONARY (arbitrary fixed orientation allowed).
 % Uses no Symbolic Math Toolbox; derivatives via truncated Taylor jets.
 % K methods require fmincon, filter requires quadprog (Optimization Toolbox).
@@ -56,7 +59,9 @@ function out = Generate_CBF_ActuatorAware_6Methods(action,varargin)
 %
 % OUTPUT: generated_cbf_dual_input/virtual/S1/CBF_V_S1_single.m etc
 %         generated_cbf_dual_input/physical/S1/CBF_P_S1_single.m etc
-% Generated wrappers call THIS master file; keep it on MATLAB path.
+% S1-S4 generated functions contain a self-contained derivative kernel.
+% K1-K3 wrappers call THIS master file and require it on the MATLAB path.
+% The master still contains the LEGACY online QP; ZOH backend does not call it.
 %
 % HLC INTEGRATION: after tmp=[uf(1);us] is computed, before saturation:
 %   res=Generate_CBF_ActuatorAware_6Methods('filter',mode,obj,x,xd',vf,...
@@ -99,7 +104,9 @@ switch lower(char(action))
         out=localWarmupPhysicalQP(varargin{:});
     case 'sourceversion'
         % Read-only fingerprint for troubleshooting stale MATLAB path/cache.
-        out=struct('tag','CBF_GEN_20261015_NAV2','path',mfilename('fullpath'));
+        out=struct('tag','CBF_GEN_20261109_S4_STANDALONE', ...
+            'kernelProfile','S1_S2_S3_S4_ALL_STANDALONE_20261110', ...
+            'path',mfilename('fullpath'));
     case 'diagnose'
         % Non-controlling evaluation; returns all geometric HOCBF chains.
         % NEVER send outputs of this action to the plant as safe inputs.
@@ -116,9 +123,10 @@ end
 
 function cfg=localDefaults(cfg)
 if ~isfield(cfg,'modes') || isempty(cfg.modes),cfg.modes={'virtual','physical'};end
-if ~isfield(cfg,'methods') || isempty(cfg.methods),cfg.methods={'S1','S2','S3','K1','K2','K3'};end
+if ~isfield(cfg,'methods') || isempty(cfg.methods),cfg.methods={'S1','S2','S3','S4'};end
 if ~isfield(cfg,'smokeTest'),cfg.smokeTest=true;end
 if ~isfield(cfg,'writeFunctions'),cfg.writeFunctions=true;end
+if ~isfield(cfg,'writeReport'),cfg.writeReport=false;end
 if ~isfield(cfg,'maxSeconds'),cfg.maxSeconds=360;end
 if ~isfield(cfg,'outputDir'),cfg.outputDir='generated_cbf_dual_input';end
 if ischar(cfg.modes),cfg.modes={cfg.modes};end
@@ -132,6 +140,7 @@ switch upper(char(method))
     case {'S1','K1'},pieces={'single'};
     case {'S2','K2'},pieces={'sphere'};
     case {'S3','K3'},pieces={'uav','cable','load'};
+    case 'S4',pieces={'uav','capsule','load'};
     otherwise,error('Unknown geometry method: %s',char(method));
 end
 end
@@ -150,7 +159,7 @@ if cfg.writeFunctions && ~exist(root,'dir'),mkdir(root);end
 T=tic; modeCol=strings(0,1);methodCol=strings(0,1);componentCol=strings(0,1);
 statusCol=strings(0,1);rdCol=zeros(0,1);secondsCol=zeros(0,1);
 lowCol=nan(0,1);affineCol=nan(0,1);inputCoeffCol=nan(0,1);
-fprintf('[CBF-DUAL] TWO modes: virtual and physical; SIX geometry methods.\n');
+fprintf('[CBF-DUAL] TWO modes: virtual and physical; S1-S4 and K1-K3 geometry methods.\n');
 fprintf('[CBF-DUAL] Source is ONE file: %s\n',mfilename('fullpath'));
 fprintf('[CBF-DUAL] Output: %s\n',root);
 for mm=1:numel(cfg.modes)
@@ -172,6 +181,25 @@ for mm=1:numel(cfg.modes)
      if ~s.info.valid,error('Smoke test failed: %s',s.info.reason);end
      maxLow=s.info.maxLowerInputDependence;
      maxAffine=s.info.maxAffineResidual;normA=norm(s.Araw);
+     if strcmp(method,'S4') && strcmp(name,'capsule')
+         % Exact capsule vs smooth conservative support, at a sample state.
+         axis=x(14:16);L=P(7);center=x(8:10)-0.5*L*axis;
+         sep=obs.p_center(:)-center;n=sep/norm(sep);
+         Sobs=obs.R_obs*diag(obs.ellipsoid_radii(:).^2)*obs.R_obs.';
+         hExact=norm(sep)-geom(1)-0.5*L*abs(n.'*axis) ...
+             -sqrt(n.'*Sobs*n)-obs.d_margin;
+         gap=hExact-s.h;
+         assert(gap>=-1e-8 && gap<=0.5*L*geom(2)+1e-8, ...
+             'CBF:S4SupportBound','Smooth capsule support is not conservative.');
+         % A rotated 3D obstacle must give a valid high-order derivative.
+         theta=pi/7; Rz=[cos(theta),-sin(theta),0; ...
+             sin(theta),cos(theta),0;0,0,1];
+         Ry=[cos(theta),0,sin(theta);0,1,0;-sin(theta),0,cos(theta)];
+         rotated=obs;rotated.R_obs=Rz*Ry;
+         rotTest=Generate_CBF_ActuatorAware_6Methods('evaluate', ...
+             mode,method,name,x,aux,refZ,F1,P,rotated,geom,kappa);
+         assert(rotTest.info.valid,'CBF:S4RotatedObstacle','Rotated ellipsoid sample invalid.');
+     end
      if strcmp(name,'sphere')
       for la=[0,1]
        geomE=geom;geomE(1)=la;
@@ -182,7 +210,46 @@ for mm=1:numel(cfg.modes)
       end
      end
     end
-    if cfg.writeFunctions,localWriteWrapper(root,mode,method,name);end
+    if cfg.writeFunctions
+        localWriteWrapper(root,mode,method,name);
+        if method(1)=='S' && cfg.smokeTest
+            % A standalone generated kernel must not dispatch its high-order
+            % derivative evaluation through the runtime/master generator.
+            if strcmp(mode,'virtual'),ab='V';else,ab='P';end
+            kernelPath=fullfile(root,mode,method, ...
+                sprintf('CBF_%s_%s_%s.m',ab,method,name));
+            generatedSource=fileread(kernelPath);
+            assert(isempty(regexp(generatedSource, ...
+                'Generate_CBF_ActuatorAware_6Methods\s*\(', 'once')), ...
+                'CBF:GeneratorStillWrapper', ...
+                'Generated %s function still calls the master at runtime.',method);
+            if strcmp(mode,'virtual'),ab='V';else,ab='P';end
+            fName=sprintf('CBF_%s_%s_%s',ab,method,name);
+            addpath(fullfile(root,mode,method),'-begin');
+            [h2,p2,A2,b2,i2]=feval(fName,x,aux,refZ,F1,P,obs,geom,kappa);
+            if ~(i2.valid && abs(h2-s.h)<1e-8 && abs(p2-s.psi)<1e-6*max(1,abs(s.psi)) && ...
+                    norm(A2-s.Araw,inf)<1e-7*max(1,norm(s.Araw,inf)) && ...
+                    abs(b2-s.braw)<1e-7*max(1,abs(s.braw)))
+                error('CBF:GeneratedKernelMismatch','%s/%s/%s standalone kernel and master evaluate disagree.',mode,method,name);
+            end
+            % A second independent geometry catches frozen-orientation or
+            % stale-function bugs that a single source-state comparison misses.
+            theta=pi/7;
+            Rz=[cos(theta),-sin(theta),0;sin(theta),cos(theta),0;0,0,1];
+            Ry=[cos(theta),0,sin(theta);0,1,0;-sin(theta),0,cos(theta)];
+            ob2=obs;ob2.R_obs=Rz*Ry;
+            expected=Generate_CBF_ActuatorAware_6Methods('evaluate', ...
+                mode,method,name,x,aux,refZ,F1,P,ob2,geom,kappa);
+            [ht,pt,At,bt,it]=feval(fName,x,aux,refZ,F1,P,ob2,geom,kappa);
+            assert(it.valid && expected.info.valid && ...
+                abs(ht-expected.h)<1e-8*max(1,abs(expected.h)) && ...
+                abs(pt-expected.psi)<1e-6*max(1,abs(expected.psi)) && ...
+                norm(At-expected.Araw,inf)<1e-7*max(1,norm(expected.Araw,inf)) && ...
+                abs(bt-expected.braw)<1e-7*max(1,abs(expected.braw)), ...
+                'CBF:RotatedGeneratedKernelMismatch', ...
+                '%s/%s/%s rotated obstacle comparison failed.',mode,method,name);
+        end
+    end
     reason='generated+sample_audited';
     if ~cfg.smokeTest,reason='generated_UNTESTED';end
    catch ME
@@ -197,7 +264,7 @@ for mm=1:numel(cfg.modes)
 end
 report=table(modeCol,methodCol,componentCol,statusCol,rdCol,secondsCol,lowCol,affineCol,inputCoeffCol,...
   'VariableNames',{'mode','method','component','status','assumedRD','seconds','lowerResidual','affineResidual','inputCoefficientNorm'});
-if cfg.writeFunctions,writetable(report,fullfile(root,'CBF_DUAL_generation_report.csv'));end
+if cfg.writeFunctions && cfg.writeReport,writetable(report,fullfile(root,'CBF_DUAL_generation_report.csv'));end
 disp(report);
 fprintf('[CBF-DUAL] Total elapsed %.3fs; numerical audits do not prove general safety.\n',toc(T));
 end
@@ -210,9 +277,28 @@ file=fullfile(folder,[fun '.m']);
 fid=fopen(file,'wt');if fid<0,error('Cannot write %s',file);end
 closer=onCleanup(@()fclose(fid));
 fprintf(fid,'function [h,psi,Araw,braw,info]=%s(x,aux,refZ,F1,P,obs,geom,kappa)\n',fun);
-fprintf(fid,'%% Autogenerated wrapper; keep Generate_CBF_ActuatorAware_6Methods.m on path.\n');
-fprintf(fid,'s=Generate_CBF_ActuatorAware_6Methods(''evaluate'',''%s'',''%s'',''%s'',x,aux,refZ,F1,P,obs,geom,kappa);\n',mode,method,name);
-fprintf(fid,'h=s.h; psi=s.psi; Araw=s.Araw; braw=s.braw; info=s.info;\nend\n');
+if method(1)=='S'
+    % All four support-geometry models S1-S4 use the same verified Taylor
+    % evaluation kernel and are generated as standalone functions.
+    % K1-K3 keep their existing separate legacy wrappers.
+    src=fileread([mfilename('fullpath') '.m']);
+    a=regexp(src,'(?m)^function pieces=localMethodSpecs\(method\)','start');
+    b=regexp(src,'(?m)^function report=localGenerate\(cfg\)','start');
+    c=regexp(src,'(?m)^function r=localExpectedRD\(mode,name,geom\)','start');
+    d=regexp(src,'(?m)^%% ========== Runtime assembly and QP','start');
+    assert(numel(a)==1 && numel(b)==1 && numel(c)==1 && numel(d)==1 && ...
+        a<b && c<d,'CBF:GenerateExtract','Cannot extract independent Taylor kernel.');
+    fprintf(fid,'%% AUTOGENERATED STANDALONE SUPPORT-GEOMETRY TAYLOR KERNEL. Do not edit manually.\n');
+    fprintf(fid,'[h,psi,Araw,braw,info]=localEvaluate(''%s'',''%s'',''%s'',x,aux,refZ,F1,P,obs,geom,kappa);\n',mode,method,name);
+    fprintf(fid,'end\n\n');
+    fprintf(fid,'%s\n',src(a:b-1));
+    fprintf(fid,'%s\n',src(c:d-1));
+else
+    % Retain existing generated file contracts for all pre-existing methods.
+    fprintf(fid,'%% Legacy generated wrapper; implementation in the master.\n');
+    fprintf(fid,'s=Generate_CBF_ActuatorAware_6Methods(''evaluate'',''%s'',''%s'',''%s'',x,aux,refZ,F1,P,obs,geom,kappa);\n',mode,method,name);
+    fprintf(fid,'h=s.h; psi=s.psi; Araw=s.Araw; braw=s.braw; info=s.info;\nend\n');
+end
 end
 
 function r=localExpectedRD(mode,name,geom)
@@ -291,7 +377,9 @@ Xj(8:10,r+1)=Xj(11:13,r)/r;
 ptDot=localJCross(Xj(17:19,:),Xj(14:16,:));
 Xj(14:16,r+1)=ptDot(:,r)/r;
 [cA,SA,PA]=localGeometryJets(name,Xj,geom,P(7));
-if method(1)=='S',hj=localSupportJet(cA,SA,ctx);
+if strcmp(method,'S4') && strcmp(name,'capsule')
+    hj=localCapsuleSupportJet(cA,Xj(14:16,:),geom,P(7),ctx);
+elseif method(1)=='S',hj=localSupportJet(cA,SA,ctx);
 else,hj=localKKTJet(cA,PA,ctx);end
 hd=zeros(1,N);
 for k=0:r,hd(k+1)=hj(k+1)*factorial(k);end
@@ -314,6 +402,12 @@ switch name
     case 'uav'
         assert(numel(geom)==3 && all(geom>0));
         lambda=1;S(:,:,1)=diag(geom.^2);Pmat(:,:,1)=diag(1./geom.^2);
+    case 'capsule'
+        % Capsule geometry uses its EXACT centerline, not an ellipsoid.
+        % This positive-definite placeholder is NOT used for S4 support.
+        assert(numel(geom)==2 && all(geom>0) && geom(2)<=1);
+        lambda=.5;radius=geom(1);
+        S(:,:,1)=radius^2*eye(3);Pmat(:,:,1)=eye(3)/radius^2;
     case 'cable'
         assert(numel(geom)==2 && all(geom>0));
         lambda=.5;a=geom(1);b=geom(2);
@@ -357,6 +451,28 @@ SO=zeros(3,3,N);SO(:,:,1)=ctx.SO;
 obsNorm=localJSqrt(localJetQuadratic(n,SO));
 hj=localJDot(n,d)-sysNorm-obsNorm;
 hj(1)=hj(1)-ctx.margin;
+end
+
+function hj=localCapsuleSupportJet(cA,pt,geom,L,ctx)
+% A capsule is the Minkowski sum of the segment [-L/2,L/2]*pt and
+% a ball of radius rC. Its exact support is rC+L/2*abs(n'*pt).
+% Replace abs by sqrt((n'*pt)^2+eps^2), which is C-infinity and is
+% ALWAYS >= abs. The excess separation loss is bounded by L*eps/2.
+% This is a sufficient separating-plane certificate, not exact distance.
+assert(numel(geom)==2 && geom(1)>0 && geom(2)>0 && geom(2)<=1, ...
+    'S4 capsule parameters must be [radius_m; positive_dimensionless_epsilon<=1].');
+N=size(cA,2);d=-cA;d(:,1)=d(:,1)+ctx.cObs;
+q=localJDot(d,d);
+if q(1)<1e-10,error('S4 support direction undefined near coincident centers.');end
+n=localJRowMul(d,localJInv(localJSqrt(q)));
+proj=localJDot(n,pt);
+regularized=localJMul(proj,proj);
+regularized(1)=regularized(1)+geom(2)^2;
+halfLengthSupport=(L/2)*localJSqrt(regularized);
+SO=zeros(3,3,N);SO(:,:,1)=ctx.SO;
+obsNorm=localJSqrt(localJetQuadratic(n,SO));
+hj=localJDot(n,d)-halfLengthSupport-obsNorm;
+hj(1)=hj(1)-geom(1)-ctx.margin;
 end
 
 function hj=localKKTJet(cA,PA,ctx)
@@ -578,7 +694,7 @@ for io=1:numel(obsList)
     end
     for ip=1:numel(kinds)
         name=kinds{ip};geom=gs{ip};
-        res=Generate_CBF_ActuatorAware_6Methods('evaluate',mode,method,name,...
+        res=localOnlineGeometryEvaluate(mode,method,name,...
             x,aux,refZ,F1,P,obsList(io),geom,kappa);
         if ~res.info.valid
             error('CBF %s/%s/%s invalid derivative coefficient: %s',mode,method,name,res.info.reason);
@@ -679,6 +795,25 @@ if sol.success
     out.w=w;out.success=true;
 else
     warning('CBF QP unsuccessful: %s. Do not treat nominal input as safe fallback.',sol.reason);
+end
+end
+
+function res=localOnlineGeometryEvaluate(mode,method,name,x,aux,refZ,F1,P,obs,geom,kappa)
+% All FOUR S geometries use pre-generated standalone Taylor kernels.
+% K1-K3 keep their original master-based evaluation path.
+if method(1)=='S'
+    if strcmp(mode,'virtual'),label='V';else,label='P';end
+    fn=sprintf('CBF_%s_%s_%s',label,method,name);
+    if exist(fn,'file')~=2
+        error('CBF:KernelNotGenerated', ...
+            ['Missing %s. Run the S1-S4 generator once in model/substance ' ...
+             'and add its generated_cbf_dual_input subtree to the MATLAB path.'],fn);
+    end
+    [h,psi,Ar,br,info]=feval(fn,x,aux,refZ,F1,P,obs,geom,kappa);
+    res=struct('h',h,'psi',psi,'Araw',Ar,'braw',br,'info',info);
+else
+    res=Generate_CBF_ActuatorAware_6Methods('evaluate',mode,method,name,...
+        x,aux,refZ,F1,P,obs,geom,kappa);
 end
 end
 
@@ -917,8 +1052,7 @@ if ~map.ok,sol.reason=map.reason;return;end
 if isempty(map.torqueT),sc=opts.physicalScales(:);else,sc=opts.virtualScales(:);end
 if numel(sc)~=4 || any(sc<=0),error('QP scales must be positive 4-vector');end
 [H,q]=localQPTrackingObjective(map,opts,sc);
-opt=optimoptions('quadprog','Display','off');
-[w,fv,ef]=quadprog(H,q,map.Aineq,map.bineq,[],[],[],[],[],opt);
+[w,fv,ef]=CBF_ONLINE_QP(H,q,map.Aineq,map.bineq,opts.qpFeasTol);
 sol.exitflag=ef;sol.fval=fv;
 if ef>0 && all(isfinite(w)) && all(map.Aineq*w<=map.bineq+opts.qpFeasTol)
     sol.success=true;sol.reason='sample QP feasible; NOT a global safety proof';sol.w=w;
@@ -945,6 +1079,7 @@ switch name
     case 'single',geom=[1.1;.28];
     case 'sphere',geom=[.5;.25];
     case 'cable',geom=[.65;.12];
+    case 'capsule',geom=[.020;.010]; % [cable_radius_m; smoothing_epsilon]
     case 'uav',geom=[.28;.22;.20];
     case 'load',geom=[.28;.22;.20];
 end
@@ -1510,7 +1645,7 @@ for io=1:numel(obsList)
     end
     for j=1:numel(names)
         try
-            ev=Generate_CBF_ActuatorAware_6Methods('evaluate','physical',method,names{j},...
+            ev=localOnlineGeometryEvaluate('physical',method,names{j},...
                      x,aux,refZ,F1,P,obsList(io),geoms{j},kappa);
             if ~ev.info.valid,error('CBF:MonitorDerivativeInvalid', ...
                     'invalid physical monitor CBF: %s',ev.info.reason);end
@@ -1699,8 +1834,7 @@ qaug=[q4;zeros(k,1)];
 Aaug=[A zeros(size(A,1),k);G -eye(k)];
 baug=[b;b(idx)-target];
 lb=[-inf(4,1);zeros(k,1)];
-opt=optimoptions('quadprog','Display','off');
-[z,fv,ef]=quadprog(Haug,qaug,Aaug,baug,[],[],lb,[],[],opt);
+[z,fv,ef]=CBF_ONLINE_QP(Haug,qaug,Aaug,baug,opts.qpFeasTol,lb);
 sol=struct('success',false,'reason','anticipatory QP unsuccessful',...
     'w',nan(4,1),'exitflag',ef,'fval',fv);
 if ef>0 && ~isempty(z) && all(isfinite(z)) && ...

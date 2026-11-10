@@ -158,7 +158,39 @@ scale=max([1;abs(double(piece.control_points_m(:))); ...
     abs(centers(:));abs(outer(:));L;rr(:)]);
 outer_roundoff_guard=16*eps(scale);
 fguard=double(force_options.force_guard_N);
-R=struct('status','UNKNOWN_NOT_CERTIFIED','certified',false, ...
+% Optional strictly tighter support of the entire taut cable: the
+% interpolation parameter lambda multiplies BOTH the cable displacement
+% and its direction-cone uncertainty. This is a sufficient ALL-TIME bound.
+% The old looser bound remains the default for actual-scene A/B parity.
+use_lambda_cable_envelope=false;
+if isfield(geometry_options,'use_lambda_exact_cable_cone_envelope')
+    v=geometry_options.use_lambda_exact_cable_cone_envelope;
+    assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+        isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+        'TRAJECTORY_C9_JOINT:CableEnvelopeFlag','Expected boolean 0/1');
+    use_lambda_cable_envelope=logical(v);
+end
+% When a parent time cell has ALREADY certified one obstacle to be
+% separated for every time, descendants need not repeat that particular
+% obstacle. This is a proof-tree memo, NOT a sampled-point shortcut.
+% No obstacle IDs/poses are fixed and each newly proposed C9 restarts it.
+use_ancestral_shape_certificates=false;
+if isfield(geometry_options,'use_ancestral_obstacle_certificate_reuse')
+    v=geometry_options.use_ancestral_obstacle_certificate_reuse;
+    assert((isnumeric(v)||islogical(v))&&isscalar(v)&& ...
+        isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+        'TRAJECTORY_C9_JOINT:AncestralSwitch', ...
+        'Ancestral shape-certificate reuse flag must be 0/1.');
+    use_ancestral_shape_certificates=logical(v);
+end
+R=struct('ancestral_shape_certificates_enabled',use_ancestral_shape_certificates, ...
+    'ancestral_shape_skipped_node_checks',0, ...
+    'ancestral_shape_certified_parent_clears',0, ...
+    'ancestral_shape_inherited_outer_clears',0, ...
+    'cable_lambda_envelope_enabled',use_lambda_cable_envelope, ...
+    'cable_lambda_envelope_axis_evaluations',0, ...
+    'cable_lambda_envelope_strictly_improved',0, ...
+    'status','UNKNOWN_NOT_CERTIFIED','certified',false, ...
     'certified_continuous_geometry',false, ...
     'certified_continuous_tension',false, ...
     'certified_continuous_thrust',false,'safe_to_commit',false, ...
@@ -187,7 +219,7 @@ P=double(piece.control_points_m);T=double(piece.duration_s);
 W=repmat(g,1,22)-(23*22/T^2)*diff(P,2,2);
 W1=-(23*22*21/T^3)*diff(P,3,2);
 W2=-(23*22*21*20/T^4)*diff(P,4,2);
-[passed,R]=test_leaf(P,W,W1,W2,double(piece.t0_s),T,0,R);
+[passed,R]=test_leaf(P,W,W1,W2,double(piece.t0_s),T,0,R,1:numel(shapes));
 R.certified=passed;
 R.certified_continuous_geometry=passed;
 R.certified_continuous_tension=passed;
@@ -200,13 +232,24 @@ if passed
 end
 R.elapsed_ms=toc(start)*1000;
 
-    function [ok,S]=test_leaf(Q,V,V1,V2,t,dt,depth,S)
+    function [ok,S]=test_leaf(Q,V,V1,V2,t,dt,depth,S,pending_shapes)
         ok=false;
         if S.checked_node_count>=maxnodes
             S.status='UNKNOWN_JOINT_PROOF_NODE_BUDGET';
             S.unresolved_time_interval_s=[t,t+dt];return
         end
         S.checked_node_count=S.checked_node_count+1;
+        % A certified obstacle on an ancestor is certified throughout
+        % this descendant by interval containment.  It cannot return
+        % to the local geometry test even when q varies on this leaf.
+        if use_ancestral_shape_certificates
+            S.ancestral_shape_skipped_node_checks= ...
+                S.ancestral_shape_skipped_node_checks+ ...
+                numel(shapes)-numel(pending_shapes);
+        else
+            pending_shapes=1:numel(shapes);
+        end
+        child_pending=pending_shapes;
         c=mean(V,2);nc=norm(c);
         rho=max(sqrt(sum((V-c).^2,1)));
         low=nc-rho;
@@ -247,16 +290,27 @@ R.elapsed_ms=toc(start)*1000;
                 % can ONLY discard objects proven beyond the leaf's
                 % full-body outer bound. NaN/Inf arithmetic fails CLOSED
                 % and leaves an obstacle in the exact geometry stage.
-                delta=centers-m;
+                delta=centers(:,pending_shapes)-m;
                 distance=sqrt(sum(delta.*delta,1));
                 definitely_far=isfinite(distance) & ...
-                    (distance>broad+outer+outer_roundoff_guard);
+                    (distance>broad+outer(pending_shapes)+outer_roundoff_guard);
                 S.outer_rejections=S.outer_rejections+nnz(definitely_far);
-                near_ids=find(~definitely_far);
+                near_ids=pending_shapes(~definitely_far);
                 S.near_obstacle_leaf_checks= ...
                     S.near_obstacle_leaf_checks+numel(near_ids);
+                if use_ancestral_shape_certificates
+                    % The broadphase envelope is valid on THIS WHOLE
+                    % parent cell: all descendants inherit the exclusion.
+                    child_pending=near_ids;
+                    S.ancestral_shape_inherited_outer_clears= ...
+                        S.ancestral_shape_inherited_outer_clears+ ...
+                        nnz(definitely_far);
+                end
                 for j=near_ids
-                    if ~geomok,break;end
+                    % Short-circuit at the FIRST unresolved shape, exactly
+                    % like the baseline.  Inheritance must NOT introduce
+                    % extra support calls at a difficult ancestor node.
+                    if ~groundok,break;end
                     O=shapes(j);
                     % Rotation-equivariant NORMALS from actual load/UAV/
                     % cable centre geometry. No fixed world-axis direction.
@@ -274,7 +328,26 @@ R.elapsed_ms=toc(start)*1000;
                         if mn-sh>h+rr(1)+pad+tol
                             separated_parts(1)=true;
                         end
-                        if min(mn,mn-sh)>h+rr(2)+pad+tol
+                        % For all u in this leaf and all lambda in [0,1]:
+                        % n·(pL-lambda*L*q(u)) >=
+                        %    min_i n·Q_i - max(0,L*n·direction+L*chord).
+                        % The original min(mn,mn-sh)-pad subtracts the
+                        % FULL cable-direction error even at lambda=0.
+                        % Both inequalities are sufficient, but the new
+                        % one is never weaker in exact real arithmetic.
+                        if use_lambda_cable_envelope
+                            old_lhs=min(mn,mn-sh)-pad;
+                            cable_lhs=mn-max(0,sh+pad);
+                            S.cable_lambda_envelope_axis_evaluations= ...
+                                S.cable_lambda_envelope_axis_evaluations+1;
+                            if cable_lhs>old_lhs
+                                S.cable_lambda_envelope_strictly_improved= ...
+                                    S.cable_lambda_envelope_strictly_improved+1;
+                            end
+                            if cable_lhs>h+rr(2)+tol
+                                separated_parts(2)=true;
+                            end
+                        elseif min(mn,mn-sh)>h+rr(2)+pad+tol
                             separated_parts(2)=true;
                         end
                         if mn>h+rr(3)+tol
@@ -299,13 +372,14 @@ R.elapsed_ms=toc(start)*1000;
                     if ~all(separated_parts)
                         geomok=false;
                         S.unresolved_obstacle_ids=double(O.id);
-                        % The current full-time proof failed for these
-                        % actual body occupancies: 1=UAV, 2=entire cable,
-                        % 3=payload. This is a SEARCH DIAGNOSTIC, NOT a
-                        % collision verdict. Avoid pushing payload hull
-                        % cuts when only UAV/cable separation is unknown.
                         S.unresolved_body_indices=find(~separated_parts);
                         break
+                    elseif use_ancestral_shape_certificates
+                        % This exact full-time convex-hull separation is
+                        % now a certificate for EVERY descendant cell.
+                        child_pending(child_pending==j)=[];
+                        S.ancestral_shape_certified_parent_clears= ...
+                            S.ancestral_shape_certified_parent_clears+1;
                     end
                 end
             end
@@ -344,9 +418,9 @@ R.elapsed_ms=toc(start)*1000;
         [V0,Vr]=split_mid(V);
         [A0,Ar]=split_mid(V1);
         [B0,Br]=split_mid(V2);
-        [yes,S]=test_leaf(Q0,V0,A0,B0,t,dt/2,depth+1,S);
+        [yes,S]=test_leaf(Q0,V0,A0,B0,t,dt/2,depth+1,S,child_pending);
         if ~yes,return;end
-        [ok,S]=test_leaf(Q1,Vr,Ar,Br,t+dt/2,dt/2,depth+1,S);
+        [ok,S]=test_leaf(Q1,Vr,Ar,Br,t+dt/2,dt/2,depth+1,S,child_pending);
     end
 end
 

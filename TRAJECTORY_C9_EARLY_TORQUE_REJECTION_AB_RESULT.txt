@@ -1,0 +1,10 @@
+status=PASS_NO_CERTIFIED_CANDIDATE_REGRESSION__REALTIME_PENDING
+stage=SCENE_04
+error=
+completed=2/2; repeats=5
+scene=cylinder_capsule_cone baseline_ms=[691.5684 277.9221 291.5277 265.2547 269.6449] screen_ms=[339.1417 338.226 270.954 264.8229 271.8468]
+screen_calls=[1 1 1 1 1] witness=[0 0 0 0 0] avoided_oracles=[0 0 0 0 0] screen_ms=[0 0 0 0 0]
+status_parity=[true true true true true] candidate_parity=[true true true true true] proof_parity=[true true true true true]
+scene=torus_polygon_polyhedron baseline_ms=[371.143 370.1081 366.0742 358.014 360.0008] screen_ms=[391.2384 360.2525 365.468 376.8867 359.7334]
+screen_calls=[1 1 1 1 1] witness=[0 0 0 0 0] avoided_oracles=[0 0 0 0 0] screen_ms=[0 0 0 0 0]
+status_parity=[true true true true true] candidate_parity=[true true true true true] proof_parity=[true true true true true]

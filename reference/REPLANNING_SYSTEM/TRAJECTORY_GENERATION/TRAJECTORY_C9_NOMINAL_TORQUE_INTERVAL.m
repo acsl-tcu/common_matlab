@@ -37,12 +37,34 @@ R=struct('status','UNKNOWN_NOMINAL_TORQUE_NOT_PROVEN', ...
     'checked_nodes',0,'accepted_leaves',0, ...
     'fast_norm_checked_nodes',0,'fast_norm_accepted_leaves',0, ...
     'fast_norm_exception_count',0,'fast_norm_enabled',true, ...
+    'bernstein_force_hull_enabled',false, ...
+    'bernstein_force_support_lower_enabled',false, ...
+    'bernstein_force_hull_tightened_nodes',0, ...
+    'bernstein_force_support_tightened_nodes',0, ...
     'precomputed_binomial_enabled',true, ...
     'factored_diagonal_gyro_enabled',true, ...
     'infeasible_leaf_early_exit_enabled',true, ...
     'nominal_torque_limit_witness_nodes',0, ...
     'interval_product_kernel','VECTORIZED_DOT_CROSS', ...
     'symmetric_unit_jet_enabled',true, ...
+    'vectorized_normsq_enabled',true, ...
+    'native_torque_leaf_requested',false, ...
+    'native_torque_leaf_enabled',false, ...
+    'native_torque_leaf_status','NOT_REQUESTED', ...
+    'native_torque_leaf_calls',0, ...
+    'native_torque_leaf_valid',0, ...
+    'native_torque_leaf_matlab_fallbacks',0, ...
+    'native_whole_torque_requested',false, ...
+    'native_whole_torque_ready',false, ...
+    'native_whole_torque_attempted',false, ...
+    'native_whole_torque_certified',false, ...
+    'native_whole_torque_status','NOT_REQUESTED', ...
+    'native_whole_torque_reason_code',NaN, ...
+    'native_whole_torque_checked_nodes',0, ...
+    'native_whole_torque_accepted_leaves',0, ...
+    'native_whole_torque_elapsed_ms',0, ...
+    'native_whole_torque_fallbacks',0, ...
+    'native_whole_torque_outward_arithmetic',false, ...
     'cancellation_attitude_jet_enabled',false, ...
     'structural_torque_intersection_enabled',false, ...
     'structural_torque_attempted_nodes',0, ...
@@ -114,6 +136,27 @@ try
         enable_fast_norm=logical(user_switch);
     end
     R.fast_norm_enabled=enable_fast_norm;
+    % Optional analytically proven convex-hull enclosure for the SAME
+    % Bernstein polynomial w(t)=g-pL''(t).  Unlike independent component
+    % extrema, all 3D control vectors participate at the same time.
+    % OFF by default until multi-obstacle 5-run MAX/P95 performance A/B.
+    hull_upper=false;hull_support=false;
+    if isfield(options,'use_bernstein_force_vector_hull')
+        v=options.use_bernstein_force_vector_hull;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_TORQUE:ForceHullFlag','Force hull switch must be 0/1');
+        hull_upper=logical(v);
+    end
+    if isfield(options,'use_bernstein_force_support_lower')
+        v=options.use_bernstein_force_support_lower;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_TORQUE:ForceSupportFlag','Force support switch must be 0/1');
+        hull_support=logical(v);
+    end
+    R.bernstein_force_hull_enabled=hull_upper;
+    R.bernstein_force_support_lower_enabled=hull_support;
     % Binomial orders are intrinsic to the fourth-order taut-load jet,
     % not tuneable robot or obstacle parameters. This saves repeated calls
     % to MATLAB nchoosek inside each interval subdivision.  The OFF
@@ -173,16 +216,81 @@ try
         sym_unit=logical(v);
     end
     R.symmetric_unit_jet_enabled=sym_unit;
+    % A/B parity and 5-run P95/MAX improvement established on two REAL
+    % certified multi-obstacle C9 fixtures (2026-11-10). ON by default.
+    % Explicit use_vectorized_normsq_kernel=0 restores the old evaluation.
+    % This is only REAL-ARITHMETIC enclosure, not directed rounding.
+    fast_normsq=true;
+    if isfield(options,'use_vectorized_normsq_kernel')
+        v=options.use_vectorized_normsq_kernel;
+        assert((isnumeric(v)||islogical(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_TORQUE:NormsqSwitch','Norm-square kernel switch must be 0/1.');
+        fast_normsq=logical(v);
+    end
+    R.vectorized_normsq_enabled=fast_normsq;
+
+    % Optional compiled WHOLE torque-leaf interval Jet. One MEX call
+    % replaces nested MATLAB structs for q through 4, F through 2,
+    % heading-attitude through 2, omega and alpha, and Euler torque.
+    % Not used automatically: parity, MAX/P95 and source pin must pass
+    % before Flight adoption. The conventional MATLAB proof is fallback.
+    native_requested=false;
+    if isfield(options,'use_native_torque_leaf_kernel')
+        v=options.use_native_torque_leaf_kernel;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_TORQUE:NativeSwitch','Native torque leaf switch must be 0/1.');
+        native_requested=logical(v);
+    end
+    R.native_torque_leaf_requested=native_requested;
+    native_ready=false;
+    if native_requested
+        % Compile BEFORE flight, and do not pick up a shadow/stale MEX.
+        % This is done ONCE per complete torque proof, never per node.
+        cpp=fullfile(fileparts(mfilename('fullpath')), ...
+            'TRAJECTORY_C9_TORQUE_LEAF_NATIVE.cpp');
+        native=fullfile(fileparts(mfilename('fullpath')), ...
+            ['TRAJECTORY_C9_TORQUE_LEAF_NATIVE.' mexext]);
+        if exist(cpp,'file')~=2
+            R.native_torque_leaf_status='FALLBACK_SOURCE_CPP_MISSING';
+        elseif exist(native,'file')~=3 || ...
+                ~strcmpi(which('TRAJECTORY_C9_TORQUE_LEAF_NATIVE'),native)
+            R.native_torque_leaf_status='FALLBACK_COMPILED_MEX_NOT_PINNED';
+        else
+            info_cpp=dir(cpp);info_mex=dir(native);
+            if isempty(info_cpp)||isempty(info_mex)|| ...
+                    info_mex.datenum < info_cpp.datenum
+                R.native_torque_leaf_status='FALLBACK_MEX_STALE';
+            else
+                try
+                    native_ver=TRAJECTORY_C9_TORQUE_LEAF_NATIVE();
+                    native_ready=strcmp(native_ver, ...
+                        'C9_FUSED_TORQUE_LEAF_20261110_V1');
+                catch
+                    native_ready=false;
+                end
+                if native_ready
+                    R.native_torque_leaf_status='NATIVE_READY__NOT_DIRECTED_ROUNDING';
+                else
+                    R.native_torque_leaf_status='FALLBACK_NATIVE_SIGNATURE_MISMATCH';
+                end
+            end
+        end
+    end
+    R.native_torque_leaf_enabled=native_ready;
     % Exact attitude identity for F_z>0 and ||v_xy||>0:
     %   unit(cross(z x unit(v_xy), unit(F)))
     %        == unit(cross(z x v_xy, F)).
     % Both scalar denominators are strictly positive and cancel through
     % final normalization. The cancelled jet removes TWO nested interval
     % normalizations from the b1 path, preserving all time derivatives.
-    % Keep this optional and OFF until MATLAB A/B confirms throughput and
-    % proof-success behaviour on real fixtures.  This is NOT a sampling
-    % check; each branch is a continuous-time interval inclusion.
-    cancel_attitude=false;
+    % Default ON after a previous MATLAB A/B audit measured a reduction
+    % from 36.384 to 26.492 ms for the same C9 candidate.  Full-time
+    % certificate and old 3-normalization expression remain accessible
+    % through use_cancellation_attitude_jet=0 for per-scene validation.
+    % This is an exact positive-normalization identity, not sampling.
+    cancel_attitude=true;
     if isfield(options,'use_cancellation_attitude_jet')
         v=options.use_cancellation_attitude_jet;
         assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
@@ -208,6 +316,54 @@ try
         structural_torque=logical(v);
     end
     R.structural_torque_intersection_enabled=structural_torque;
+    % Optional whole proof tree: D1..D6 from the exact binary64 C9 control
+    % points, outward-enclosed de Casteljau, 4th-order unit jets, attitude,
+    % Euler torque and dyadic bisection in ONE native call.  This is more
+    % conservative than the old MATLAB REAL-ARITHMETIC extension; a failed
+    % native sufficient proof NEVER authorizes COMMIT or a false PASS.
+    whole_requested=false;
+    if isfield(options,'use_native_whole_torque_kernel')
+        v=options.use_native_whole_torque_kernel;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&&isreal(v)&& ...
+            isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_TORQUE:WholeSwitch','Whole-tree native switch must be 0/1');
+        whole_requested=logical(v);
+    end
+    R.native_whole_torque_requested=whole_requested;
+    if whole_requested && ~structural_torque
+        folder=fileparts(mfilename('fullpath'));
+        cpp=fullfile(folder,'TRAJECTORY_C9_TORQUE_WHOLE_NATIVE.cpp');
+        bin=fullfile(folder,['TRAJECTORY_C9_TORQUE_WHOLE_NATIVE.' mexext]);
+        if exist(cpp,'file')~=2
+            R.native_whole_torque_status='FALLBACK_SOURCE_MISSING';
+        elseif exist(bin,'file')~=3 || ...
+                ~strcmpi(which('TRAJECTORY_C9_TORQUE_WHOLE_NATIVE'),bin)
+            R.native_whole_torque_status='FALLBACK_UNPINNED_BINARY';
+        else
+            c=dir(cpp);b=dir(bin);
+            if isempty(c)||isempty(b)||b.datenum<c.datenum
+                R.native_whole_torque_status='FALLBACK_STALE_BINARY';
+            else
+                try
+                    v=TRAJECTORY_C9_TORQUE_WHOLE_NATIVE();
+                    R.native_whole_torque_ready=strcmp(v, ...
+                        'C9_DIRECTED_WHOLE_TREE_20261110_V1');
+                    if R.native_whole_torque_ready
+                        R.native_whole_torque_status='WHOLE_NATIVE_READY';
+                    else
+                        R.native_whole_torque_status='FALLBACK_SIGNATURE_MISMATCH';
+                    end
+                catch
+                    R.native_whole_torque_status='FALLBACK_SIGNATURE_EXCEPTION';
+                end
+            end
+        end
+    elseif whole_requested
+        R.native_whole_torque_status='FALLBACK_STRUCTURAL_OPTION_UNSUPPORTED';
+    end
+
+
+
     % Diagnostics never run on the normal online proof path by default.
     midpoint_diag=false;
     if isfield(options,'enable_unknown_midpoint_diagnostic')
@@ -329,6 +485,57 @@ try
             % Noncertified stationary inputs continue to the legacy
             % interval proof; that may return UNKNOWN, never a fake PASS.
         end
+    end
+    native_phys=[mu;ml(:);L;g(:);J(:);minFz;minV];
+    native_flags=double([cancel_attitude;factor_gyro;sym_unit]);
+    % Whole-tree opt-in: the existing source checks above bind the EXACT
+    % C9 control points to all supplied 0..9 derivative polygons. The MEX
+    % receives the immutable 3x24 controls and the live mass/limits.
+    if R.native_whole_torque_ready
+        R.native_whole_torque_attempted=true;
+        tw=tic;
+        try
+            [box,pass,nnode,nleaf,rcode]= ...
+                TRAJECTORY_C9_TORQUE_WHOLE_NATIVE( ...
+                double(piece.control_points_m),double(piece.duration_s), ...
+                double(native_phys),double(native_flags), ...
+                double(limits),double(guard),double([dep;budget]));
+            R.native_whole_torque_checked_nodes=double(nnode);
+            R.native_whole_torque_accepted_leaves=double(nleaf);
+            R.native_whole_torque_reason_code=double(rcode);
+            R.native_whole_torque_outward_arithmetic=true;
+            if isequal(pass,true) && isequal(size(box),[3 2]) && ...
+                    all(isfinite(box(:))) && all(box(:,1)<=box(:,2)) && ...
+                    all(box(:,1)>=limits(:,1)+guard) && ...
+                    all(box(:,2)<=limits(:,2)-guard) && ...
+                    nnode>=1 && nleaf>=1 && rcode==0
+                R.native_whole_torque_certified=true;
+                R.native_whole_torque_status='PROVEN_WHOLE_NATIVE_NOMINAL_TORQUE';
+                R.checked_nodes=double(nnode);
+                R.accepted_leaves=double(nleaf);
+                R.torque_bounds_Nm=double(box);
+                R.minimum_torque_headroom_Nm=min([ ...
+                    box(:,1)-limits(:,1)-guard; ...
+                    limits(:,2)-guard-box(:,2)]);
+                R.conditional_nominal_all_time_torque_proven=true;
+                R.status= ...
+                    'CONDITIONAL_NOMINAL_RIGID_BODY_TORQUE_ALL_TIME__HLC_TRACKING_PENDING';
+                R.native_whole_torque_elapsed_ms=1000*toc(tw);
+                % Optional diagnostic probes do not participate in PASS.
+                if ~isempty(point_probe_times)
+                    R=run_point_diagnostics(R,hull,point_probe_times);
+                end
+                R.elapsed_ms=1000*toc(clock);
+                return
+            end
+            R.native_whole_torque_status= ...
+                sprintf('FALLBACK_NATIVE_NOT_CERTIFIED_REASON_%d',round(rcode));
+        catch ME
+            R.native_whole_torque_status=[ ...
+                'FALLBACK_MEX_EXCEPTION_' ME.identifier];
+        end
+        R.native_whole_torque_elapsed_ms=1000*toc(tw);
+        R.native_whole_torque_fallbacks=1;
     end
     [ok,reason]=node(hull,0,1,0);
     if ok
@@ -560,8 +767,39 @@ R.elapsed_ms=1000*toc(clock);
         aa=max(abs(wbox.lo),abs(wbox.hi));
         bb=max([wbox.lo,-wbox.hi,zeros(3,1)],[],2);
         wmin=norm(bb,2);
-        if ~(isfinite(wmin)&&wmin>0), return; end
         W=zeros(1,5); W(1)=norm(aa,2);
+        if hull_upper || hull_support
+            % If w(u)=sum_i B_i(u)*W_i with B_i>=0 and sum B_i=1,
+            % then ||w(u)|| <= max_i ||W_i|| (convexity of the norm).
+            % Also n'*w(u)>=min_i n'*W_i for ANY unit n. Choose n
+            % deterministically from the current 3D Bernstein geometry,
+            % not a fixed avoidance direction or empirical threshold.
+            % Taking min of upper bounds / max of lower bounds can only
+            % improve this SUFFICIENT proof in exact real arithmetic.
+            controls=bsxfun(@minus,g,P{3});
+            if hull_upper
+                poly_upper=max(sqrt(sum(controls.^2,1)));
+                if isfinite(poly_upper) && poly_upper<W(1)
+                    W(1)=poly_upper;
+                    R.bernstein_force_hull_tightened_nodes= ...
+                        R.bernstein_force_hull_tightened_nodes+1;
+                end
+            end
+            if hull_support
+                n=sum(controls,2);
+                nlen=norm(n,2);
+                if isfinite(nlen) && nlen>0
+                    n=n/nlen;
+                    poly_lower=min(n.'*controls);
+                    if isfinite(poly_lower) && poly_lower>wmin
+                        wmin=poly_lower;
+                        R.bernstein_force_support_tightened_nodes= ...
+                            R.bernstein_force_support_tightened_nodes+1;
+                    end
+                end
+            end
+        end
+        if ~(isfinite(wmin)&&wmin>0), return; end
         for kk=1:4
             % Bernstein convex-hull upper bounds of ||w^(kk)||_2.
             % w^(kk) = -pL^(kk+2) for kk >= 1.
@@ -642,12 +880,37 @@ R.elapsed_ms=1000*toc(clock);
 
     function [M,valid]=torque_box(P)
         valid=false;
+        if native_ready && ~structural_torque
+            % The native routine only uses actual leaf Bernstein hulls.
+            % No physical parameters, obstacles, or mass are baked in.
+            R.native_torque_leaf_calls=R.native_torque_leaf_calls+1;
+            try
+                lo=zeros(3,6);hi=zeros(3,6);
+                for kk=1:6
+                    lo(:,kk)=min(P{kk+1},[],2);
+                    hi(:,kk)=max(P{kk+1},[],2);
+                end
+                [bounds,passed]=TRAJECTORY_C9_TORQUE_LEAF_NATIVE( ...
+                    lo,hi,native_phys,native_flags);
+                if passed && isequal(size(bounds),[3 2]) && ...
+                        all(isfinite(bounds(:)))&&all(bounds(:,1)<=bounds(:,2))
+                    M=I(bounds(:,1),bounds(:,2));valid=true;
+                    R.native_torque_leaf_valid=R.native_torque_leaf_valid+1;
+                    return
+                end
+            catch
+                % Failure of an optional accelerator can only revert to
+                % the original complete MATLAB sufficient certificate.
+            end
+            R.native_torque_leaf_matlab_fallbacks= ...
+                R.native_torque_leaf_matlab_fallbacks+1;
+        end
         w=cell(1,5);
         w{1}=sub(I(g),Iof(P{3}));
         for n=1:4
             w{n+1}=neg(Iof(P{n+3}));
         end
-        q=unit_jet(w,4,B,fast_binomial,sym_unit);
+        q=unit_jet(w,4,B,fast_binomial,sym_unit,fast_normsq);
         f=cell(1,3);v=cell(1,3);
         % [m_min,m_max] describes ONE uncertain SCALAR mass.  I(ml)
         % incorrectly creates a 1x2 point-vector and makes the
@@ -665,7 +928,7 @@ R.elapsed_ms=1000*toc(clock);
         for n=1:3
             h{n}=I([v{n}.lo(1:2);0],[v{n}.hi(1:2);0]);
         end
-        if planar_lower(h{1})<=minV
+        if planar_lower(h{1},fast_normsq)<=minV
             M=I(zeros(3,1));return
         end
         hraw=h; % Preserve non-normalized horizontal jets for structural proof.
@@ -680,19 +943,19 @@ R.elapsed_ms=1000*toc(clock);
                                [-h{n}.lo(2);h{n}.hi(1);0]);
             end
             raw=jet_cross(lateral,f,2,B,fast_binomial);
-            b1=unit_jet(raw,2,B,fast_binomial,sym_unit);
-            b3=unit_jet(f,2,B,fast_binomial,sym_unit);
+            b1=unit_jet(raw,2,B,fast_binomial,sym_unit,fast_normsq);
+            b3=unit_jet(f,2,B,fast_binomial,sym_unit,fast_normsq);
         else
             % Original three-normalization formulation retained for A/B.
-            h=unit_jet(h,2,B,fast_binomial,sym_unit);
+            h=unit_jet(h,2,B,fast_binomial,sym_unit,fast_normsq);
             lateral=cell(1,3);
             for n=1:3
                 lateral{n}=I([-h{n}.hi(2);h{n}.lo(1);0], ...
                                [-h{n}.lo(2);h{n}.hi(1);0]);
             end
-            b3=unit_jet(f,2,B,fast_binomial,sym_unit);
+            b3=unit_jet(f,2,B,fast_binomial,sym_unit,fast_normsq);
             raw=jet_cross(lateral,b3,2,B,fast_binomial);
-            b1=unit_jet(raw,2,B,fast_binomial,sym_unit);
+            b1=unit_jet(raw,2,B,fast_binomial,sym_unit,fast_normsq);
         end
         b2=jet_cross(b3,b1,2,B,fast_binomial);
         % All-time heading-exact Euler yaw requires positive F_z.
@@ -782,7 +1045,7 @@ R.elapsed_ms=1000*toc(clock);
         a=jet_cross(lateral,f,2,B,fast_binomial);
         F0=f{1};F1=f{2};F2=f{3};
         A0=a{1};A1=a{2};A2=a{3};
-        FF=normsqI(F0);AA=normsqI(A0);
+        FF=normsqI(F0,fast_normsq);AA=normsqI(A0,fast_normsq);
         if ~(all(FF.lo>0)&&all(AA.lo>0)),return;end
         n=sqrtI(FF);m=sqrtI(AA);
         kF=div(dotI(F0,F1),FF);
@@ -884,20 +1147,34 @@ a=X.lo;b=X.hi;
 Z=I(min(a.^2,b.^2),max(a.^2,b.^2));
 Z.lo(a<=0&b>=0)=0;
 end
-function Z=normsqI(X)
-Z=I(0);
-for i=1:numel(X.lo)
-    Z=add(Z,squareI(I(X.lo(i),X.hi(i))));
+function Z=normsqI(X,fast)
+if nargin<2,fast=false;end
+if fast
+    % For each interval [a_i,b_i], min(x_i^2)=0 when it straddles zero;
+    % otherwise min(a_i^2,b_i^2). The upper endpoint is max of squares.
+    % Components are independent in the interval extension, so the exact
+    % real-arithmetic norm-square hull is the sum of component hulls.
+    a=X.lo(:);b=X.hi(:);
+    lower=min(a.^2,b.^2);
+    lower(a<=0 & b>=0)=0;
+    upper=max(a.^2,b.^2);
+    Z=I(sum(lower),sum(upper));
+else
+    % Original scalar version kept for MATLAB A/B and rollback.
+    Z=I(0);
+    for i=1:numel(X.lo)
+        Z=add(Z,squareI(I(X.lo(i),X.hi(i))));
+    end
 end
 end
 function Z=sqrtI(A)
 assert(all(A.lo(:)>0),'C9_TORQUE:ZeroNorm','No lower norm bound');
 Z=I(sqrt(A.lo),sqrt(A.hi));
 end
-function U=unit_jet(X,nmax,B,fast_binomial,fast_symmetric)
+function U=unit_jet(X,nmax,B,fast_binomial,fast_symmetric,fast_normsq)
 assert(numel(X)>nmax,'C9_TORQUE:JetOrder','Missing derivative jet');
 s=cell(1,nmax+1);U=cell(1,nmax+1);
-s{1}=sqrtI(normsqI(X{1}));
+s{1}=sqrtI(normsqI(X{1},fast_normsq));
 U{1}=div(X{1},s{1});
 for n=1:nmax
     rhs=I(0);
@@ -909,7 +1186,7 @@ for n=1:nmax
         for k=0:floor(n/2)
             if fast_binomial,c=B(n+1,k+1);else,c=nchoosek(n,k);end
             if 2*k==n
-                product=normsqI(X{k+1});
+                product=normsqI(X{k+1},fast_normsq);
                 rhs=add(rhs,mul(I(c),product));
             else
                 product=dotI(X{k+1},X{n-k+1});
@@ -960,8 +1237,8 @@ end
 function V=join_components(A,B,C)
 V=I([A.lo;B.lo;C.lo],[A.hi;B.hi;C.hi]);
 end
-function n=planar_lower(V)
-q=normsqI(I([V.lo(1:2);0],[V.hi(1:2);0]));
+function n=planar_lower(V,fast_normsq)
+q=normsqI(I([V.lo(1:2);0],[V.hi(1:2);0]),fast_normsq);
 n=sqrt(q.lo);
 end
 function [L,R]=bisect(P)

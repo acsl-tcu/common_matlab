@@ -1,0 +1,3 @@
+mode,status,stop_time_s,completed_samples,message
+virtual,STOPPED,5,200,: CBF virtual/S3/load initial HOCBF chain violated. No certificate.
+physical,STOPPED,5,200,: CBF physical/S3/uav initial HOCBF chain violated. No certificate.

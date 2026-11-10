@@ -1,0 +1,55 @@
+status=COMPLETED_MATRIX__NOMINAL_PASS_AND_UNKNOWN_REPORTED_SEPARATELY
+stage=COMPLETED_CASES_AND_GRAM_AB
+error=
+payload_fixture_policy=REQUEST_LOCAL_ONLY__NO_PARAMETER_MUTATION
+cases=15/15 conditional_nominal=3 unknown=12 exceptions=0
+elapsed_median_ms=35.4639000000 p95_ms=243.2648000000 max_ms=269.6877000000
+gram_off_ms=0.4073000000 gram_on_ms=0.0061000000 qp_off_ms=2.6416000000 qp_on_ms=2.0920000000 gram_relative=0
+case=01 path=straight scene=sphere_ellipsoid_box mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=269.68770 proof_ms=76.93830 planes_ms=115.95190 qp_ms=9.93610 heading_ms=0.00000 torque_ms=0.00000
+case=02 path=straight scene=cylinder_capsule_cone mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_TORQUE_LEAF_WITHOUT_POINT_WITNESS Tnew=NaN total_ms=231.94070 proof_ms=23.92430 planes_ms=20.58820 qp_ms=4.23350 heading_ms=0.00000 torque_ms=0.00000
+case=03 path=straight scene=frustum_pyramid_prism mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=91.72160 proof_ms=24.14890 planes_ms=38.80310 qp_ms=6.52000 heading_ms=0.00000 torque_ms=0.00000
+case=04 path=straight scene=torus_polygon_polyhedron mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=42.05740 proof_ms=12.96470 planes_ms=17.08930 qp_ms=0.67810 heading_ms=0.00000 torque_ms=0.00000
+case=05 path=straight scene=clear_control mass=0.12 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=63.02610 proof_ms=1.99540 planes_ms=0.00000 qp_ms=0.00000 heading_ms=22.96490 torque_ms=1.35010
+case=06 path=arc scene=sphere_ellipsoid_box mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=25.29420 proof_ms=6.85850 planes_ms=9.65440 qp_ms=1.78110 heading_ms=0.00000 torque_ms=0.00000
+case=07 path=arc scene=cylinder_capsule_cone mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=23.82490 proof_ms=8.37550 planes_ms=9.69920 qp_ms=2.47430 heading_ms=0.00000 torque_ms=0.00000
+case=08 path=arc scene=frustum_pyramid_prism mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_QP_MODEL_UNAVAILABLE Tnew=NaN total_ms=22.47730 proof_ms=6.96330 planes_ms=9.09140 qp_ms=2.86700 heading_ms=0.00000 torque_ms=0.00000
+case=09 path=arc scene=torus_polygon_polyhedron mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION Tnew=NaN total_ms=38.01730 proof_ms=10.56300 planes_ms=12.24400 qp_ms=4.10900 heading_ms=0.00000 torque_ms=0.00000
+case=10 path=arc scene=clear_control mass=0.14 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=28.03620 proof_ms=1.01220 planes_ms=0.00000 qp_ms=0.00000 heading_ms=6.95230 torque_ms=11.97300
+case=11 path=saddle scene=sphere_ellipsoid_box mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=35.46390 proof_ms=19.18330 planes_ms=11.57950 qp_ms=0.40100 heading_ms=0.00000 torque_ms=0.00000
+case=12 path=saddle scene=cylinder_capsule_cone mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_TORQUE_LEAF_WITHOUT_POINT_WITNESS Tnew=NaN total_ms=120.35600 proof_ms=11.25000 planes_ms=4.31930 qp_ms=0.16950 heading_ms=0.00000 torque_ms=0.00000
+case=13 path=saddle scene=frustum_pyramid_prism mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=29.60350 proof_ms=16.75880 planes_ms=9.84050 qp_ms=0.26020 heading_ms=0.00000 torque_ms=0.00000
+case=14 path=saddle scene=torus_polygon_polyhedron mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=28.17880 proof_ms=16.38030 planes_ms=9.39920 qp_ms=0.23550 heading_ms=0.00000 torque_ms=0.00000
+case=15 path=saddle scene=clear_control mass=0.18 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=19.75400 proof_ms=0.97330 planes_ms=0.00000 qp_ms=0.00000 heading_ms=9.38210 torque_ms=3.03970
+witness_replacements_total=18 support_calls_total=108
+nonlinear_merit_search_ms_total=26.256000000 backtracks=0 accepted_steps=21 monotonicity=1
+witness_case=01 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=213 bodies=3 leaf=[6.91497961219536 6.99595126808968] duration=[8 5.18892578260205 5.1821859772362] steps=[87.820743418799 0.682709559867162]
+merit_case=01 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=11.321600 merit_before_after_m=[0.278421964095182 1.1518563880486e-15;0.0558755937573617 1.40165656858926e-14] unrestricted_step_m=87.8207
+witness_case=02 replaced=2 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=[8 4.99079125676928 5.03082752474014] steps=[105.585048239417 1.72654332503199]
+merit_case=02 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=4.524900 merit_before_after_m=[0.298913795706501 1.15463194561016e-14;0.0443557460273802 0] unrestricted_step_m=105.585
+witness_case=03 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=233 bodies=3 leaf=[7.49821745382134 7.58353983074382] duration=[8 5.25351478564379 5.4606321230382] steps=[171.367961932537 14.3305201841794]
+merit_case=03 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=5.160900 merit_before_after_m=[0.331296410118271 0;0.123847700676475 0] unrestricted_step_m=171.368
+witness_case=04 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[5.21053107892811 5.28618927136111] duration=[8 4.81047980911067 4.84212431571243] steps=[160.675763180501 1.84022139320755]
+merit_case=04 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.672700 merit_before_after_m=[0.422950384987792 5.6621374255883e-15;0 0] unrestricted_step_m=160.676
+witness_case=05 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=05 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+witness_case=06 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[5.34276630252136 5.41343821318038] duration=[8 4.37632162915305 4.52300228217722] steps=[120.258427723844 4.90317820908877]
+merit_case=06 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.672700 merit_before_after_m=[0.253033814605449 0.0182436280585627;0 0] unrestricted_step_m=120.258
+witness_case=07 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[4.99366801284586 5.05991254703559] duration=[8 3.99845427946055 4.23965018814235] steps=[134.14548188372 12.7054186832804]
+merit_case=07 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.640200 merit_before_after_m=[0.303948997875103 0.0221462240730257;0 0] unrestricted_step_m=134.145
+witness_case=08 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[4.03353374193489 4.05030061290233] duration=[8 1.07307974191633] steps=250.143180626569
+merit_case=08 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=1 backtracks=0 line_ms=0.227200 merit_before_after_m=[0.356741304681059 0.0638338664966096] unrestricted_step_m=250.143
+witness_case=09 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[5.58025150645823 5.67901722561187] duration=[8 6.32100602583291] steps=362.515108578709
+merit_case=09 last_status=UNKNOWN_NO_REPRESENTABLE_NONLINEAR_MERIT_PROGRESS alphas=[1 NaN] backtracks=0 line_ms=0.788300 merit_before_after_m=[0.429118966292603 0.00325078804584056;0 NaN] unrestricted_step_m=362.515
+witness_case=10 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=10 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+witness_case=11 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=413 bodies=3 leaf=[7.17817593322691 7.26645859803877] duration=[8 5.58790014668221 5.65009054795895] steps=[84.1393557667658 1.98053031454712]
+merit_case=11 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.924700 merit_before_after_m=[0.236872752198052 0.00593466301437329;0.0438416714762844 9.71551921580271e-06] unrestricted_step_m=84.1394
+witness_case=12 replaced=1 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=[8 5.40100513123836] steps=123.552883716916
+merit_case=12 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=1 backtracks=0 line_ms=0.329300 merit_before_after_m=[0.297898156195552 0.0086468644828035] unrestricted_step_m=123.553
+witness_case=13 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=433 bodies=3 leaf=[7.8783642981524 7.97532340560621] duration=[8 5.95069397814429 6.20538287704384] steps=[163.643643284891 15.055860102546]
+merit_case=13 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.502100 merit_before_after_m=[0.228011830520144 0.00624175723094567;0.115804418530806 0] unrestricted_step_m=163.644
+witness_case=14 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=442 bodies=3 leaf=[6.47868054865637 6.56415229171349] duration=[8 5.67772444045571 5.47019155565545] steps=[132.706584835914 10.3788748753967]
+merit_case=14 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=0.491400 merit_before_after_m=[0.421338786788636 0.00619412105113959;0.111406838059512 3.05853971445114e-05] unrestricted_step_m=132.707
+witness_case=15 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=15 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+safe_to_commit=0

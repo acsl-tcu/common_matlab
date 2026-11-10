@@ -1,5 +1,5 @@
 function report = CBF_PREFLIGHT_WARMUP(hlc)
-% CBF_PREFLIGHT_WARMUP  Flight-only physical/S3 CBF dry-run before takeoff.
+% CBF_PREFLIGHT_WARMUP  Flight-only virtual/physical S3/S4 CBF dry-run before takeoff.
 %
 % This function must be called AFTER an arming controller call has captured
 % a nominal context, but BEFORE entering flight. It does NOT call the plant,
@@ -15,9 +15,18 @@ assert(isa(hlc,'HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT'), ...
 assert(~hlc.cbfEnabled,'Preflight must not be run while CBF is enabled.');
 assert(~isempty(hlc.cbfWarmupContext), ...
     'No HLC nominal context: run the arming controller once first.');
-assert(any(strcmpi(hlc.cbfMode,{'physical','virtual'})) && strcmpi(hlc.cbfMethod,'S3'), ...
-    'This preflight supports physical/S3 and virtual/S3 only.');
-requestedMode=lower(char(hlc.cbfMode));
+mode=lower(char(hlc.cbfMode));
+method=upper(char(hlc.cbfMethod));
+assert(any(strcmp(mode,{'virtual','physical'})) && any(strcmp(method,{'S1','S2','S3','S4'})), ...
+    'Preflight expects virtual/physical S1/S2/S3/S4.');
+if strcmp(method,'S4')
+    for component={'uav','capsule','load'}
+        if strcmp(mode,'virtual'),prefix='V';else,prefix='P';end
+        fn=sprintf('CBF_%s_S4_%s',prefix,component{1});
+        assert(exist(fn,'file')==2,'CBF:KernelNotGenerated', ...
+            'Missing generated S4 kernel %s. Generate S4 once before RUN.',fn);
+    end
+end
 ctx=hlc.cbfWarmupContext;
 assert(numel(ctx.x)==19 && numel(ctx.xd)==28 && numel(ctx.vf)==6 ...
     && numel(ctx.P)==9 && numel(ctx.uRaw)==4, 'Captured HLC data is malformed.');
@@ -26,35 +35,46 @@ assert(all(isfinite([ctx.x(:);ctx.xd(:);ctx.vf(:);ctx.P(:);ctx.uRaw(:)])), ...
 T=tic;
 % A known source tag makes an older MATLAB path/cache immediately visible.
 % In a stale run this line will not print at all.
-fprintf('[CBF-PREFLIGHT] SOURCE PREFLIGHT_20261015_NAV2 file=%s\n', ...
+fprintf('[CBF-PREFLIGHT] SOURCE PREFLIGHT_20261109_S4 file=%s\n', ...
     which('CBF_PREFLIGHT_WARMUP'));
 try
     src=Generate_CBF_ActuatorAware_6Methods('sourceversion');
 catch ME
     error('CBF:StaleGenerator', ...
-        ['The CBF generator does not implement sourceversion. ' ...
-         'Overwrite the SAME Generate_CBF_ActuatorAware_6Methods.m and rerun ' ...
-         'clear classes; clear functions; rehash. Actual error: %s'],ME.message);
+        ['The existing generator lacks sourceversion; check the active MATLAB path. ' ...
+         'Do NOT replace the generator without comparing its contents. Error: %s'],ME.message);
 end
-if ~strcmp(src.tag,'CBF_GEN_20261015_NAV2')
-    error('CBF:StaleGenerator','Expected CBF_GEN_20261015_NAV2; loaded %s from %s', ...
+if ~strcmp(src.tag,'CBF_GEN_20261109_S4_STANDALONE')
+    error('CBF:StaleGenerator','The runtime is using a different generator. Expected CBF_GEN_20261109_S4_STANDALONE; loaded %s from %s. Check which -all and restore the original source if overwritten.', ...
         src.tag,src.path);
 end
 fprintf('[CBF-PREFLIGHT] SOURCE %s file=%s\n',src.tag,src.path);
-fprintf('[CBF-PREFLIGHT] before takeoff: numerical S3 kernel / monitor / filter / QP warmup.\n');
+fprintf('[CBF-PREFLIGHT] before takeoff: %s/%s kernel / monitor / filter / QP warmup.\n',mode,method);
 
-% Call ALL three S3 shapes for the selected input architecture on synthetic fixtures. This
+% Smoke-test the selected geometry on internal synthetic fixtures. This
 % avoids the first invocation of the Taylor-jet evaluator during flight.
-cfg=struct('modes',{{requestedMode}},'methods',{{'S3'}}, ...
+if any(strcmp(method,{'S1','S2'}))
+    expectedFixtures=1;
+else
+    expectedFixtures=3;
+end
+if strcmp(method,'S2')
+    expectedRowsPerObstacle=size(hlc.cbfShapes.spheres,1);
+elseif strcmp(method,'S1')
+    expectedRowsPerObstacle=1;
+else
+    expectedRowsPerObstacle=3;
+end
+cfg=struct('modes',{{mode}},'methods',{{method}}, ...
     'writeFunctions',false,'smokeTest',true,'maxSeconds',180);
 try
     smoke=Generate_CBF_ActuatorAware_6Methods('selftest',cfg);
     flags=string(smoke.status);
-    if any(contains(flags,'FAILED')) || height(smoke)~=3
-        error('CBF:PreflightSelftest', 'S3 evaluator smoke test did not pass all three components.');
+    if any(contains(flags,'FAILED')) || height(smoke)~=expectedFixtures
+        error('CBF:PreflightSelftest', 'Selected geometry smoke test failed.');
     end
 catch ME
-    error('CBF:PreflightSelftest','Preflight S3 component check failed: %s',ME.message);
+    error('CBF:PreflightSelftest','Preflight selected component check failed: %s',ME.message);
 end
 
 % Exercise the EXACT local function paths, not just independent quadprog:
@@ -81,16 +101,16 @@ opts.requireInitialChain=false;
 % No CSV or first-loss snapshots from dry-run monitor.
 try
     monitorDry=Generate_CBF_ActuatorAware_6Methods('supervise', ...
-        'physical',hlc,ctx.x,ctx.xd,ctx.vf,ctx.F1,ctx.P,ctx.uRaw, ...
-        obs,'S3',hlc.cbfShapes,hlc.cbfKappa,opts,struct(),ctx.dt);
-    if ~monitorDry.success || numel(monitorDry.monitor.rows)~=3*numel(obs)
+        mode,hlc,ctx.x,ctx.xd,ctx.vf,ctx.F1,ctx.P,ctx.uRaw, ...
+        obs,method,hlc.cbfShapes,hlc.cbfKappa,opts,struct(),ctx.dt);
+    if ~monitorDry.success || numel(monitorDry.monitor.rows)~=expectedRowsPerObstacle*numel(obs)
         error('CBF:PreflightMonitor', 'Dry-run monitor returned unexpected result.');
     end
 catch ME
-    error('CBF:PreflightMonitor','Physical/S3 monitor cannot initialize: %s',ME.message);
+    error('CBF:PreflightMonitor','selected monitor cannot initialize: %s',ME.message);
 end
 
-% Exercise the actual physical constrained map and localQP once on the
+% Exercise the actual selected constrained map and localQP once on the
 % arming state, even though it is deliberately NOT the flight state.
 % Its feasibility at t=0 does NOT predict viability in flight.
 opts2=hlc.cbfOpts;
@@ -99,13 +119,13 @@ opts2.saveInitialFailure=false;
 opts2.nominalActuatorU=localClip(ctx.uRaw,opts2.uLimits);
 opts2.diagnosticOnly=false;
 opts2.preemptivePush=0;
-if strcmp(requestedMode,'virtual')
+if strcmp(mode,'virtual')
     aux=zeros(4,1);
 else
     aux=[opts2.nominalActuatorU(1);0];
 end
 % Isolate a kernel/row assembly error from a map/QP assembly error.
-% Diagnostic-only executes all nine physical/S3 derivatives without QP.
+% Diagnostic-only executes all nine selected derivatives without QP.
 try
     optsAudit=opts2;
     optsAudit.diagnosticOnly=true;
@@ -113,14 +133,14 @@ try
         mat2str(size(ctx.x)),mat2str(size(ctx.xd)),mat2str(size(ctx.vf)), ...
         mat2str(size(ctx.F1)),mat2str(size(ctx.P)),mat2str(size(aux)));
     diagDry=Generate_CBF_ActuatorAware_6Methods('filter', ...
-        requestedMode,hlc,ctx.x,ctx.xd,reshape(ctx.vf,1,[]),ctx.F1,ctx.P,aux,obs, ...
-        'S3',hlc.cbfShapes,hlc.cbfKappa,optsAudit);
-    assert(numel(diagDry.rows)==3*numel(obs), ...
-        'CBF:PreflightRowCount','Expected 3 rows per obstacle in the dry-run.');
-    fprintf('[CBF-PREFLIGHT] phase=filter_qp mode=%s (dry map + QP)\n',requestedMode);
+        mode,hlc,ctx.x,ctx.xd,reshape(ctx.vf,1,[]),ctx.F1,ctx.P,aux,obs, ...
+        method,hlc.cbfShapes,hlc.cbfKappa,optsAudit);
+    assert(numel(diagDry.rows)==expectedRowsPerObstacle*numel(obs), ...
+        'CBF:PreflightRowCount','Unexpected CBF row count in dry-run.');
+    fprintf('[CBF-PREFLIGHT] phase=filter_qp (derivatives assembled; applying %s map)\n',mode);
     filterDry=Generate_CBF_ActuatorAware_6Methods('filter', ...
-        requestedMode,hlc,ctx.x,ctx.xd,reshape(ctx.vf,1,[]),ctx.F1,ctx.P,aux,obs, ...
-        'S3',hlc.cbfShapes,hlc.cbfKappa,opts2);
+        mode,hlc,ctx.x,ctx.xd,reshape(ctx.vf,1,[]),ctx.F1,ctx.P,aux,obs, ...
+        method,hlc.cbfShapes,hlc.cbfKappa,opts2);
 catch ME
     fprintf(2,'[CBF-PREFLIGHT] ORIGINAL FAILURE (%s): %s\n',ME.identifier,ME.message);
     for jj=1:numel(ME.stack)
@@ -141,16 +161,15 @@ if ~filterDry.success
 end
 
 report=struct('passed',true,'seconds',toc(T), ...
-    'monitorRows',numel(monitorDry.monitor.rows), ...
+    'mode',mode,'monitorRows',numel(monitorDry.monitor.rows), ...
     'monitorHmin',monitorDry.monitor.minH, ...
     'filterDryRunFeasible',logical(filterDry.success), ...
     'sampledQPWarmSeconds',qpWarm.seconds, ...
     'filterDryRunSeconds',filterDry.totalSeconds, ...
-    'mode',requestedMode, ...
     'note','Preflight exercise only. Not a 25-ms real-time or safety certificate.');
-fprintf(['[CBF-PREFLIGHT] COMPLETE before takeoff: %.3f s, ' ...
+fprintf(['[CBF-PREFLIGHT] COMPLETE mode=%s before takeoff: %.3f s, ' ...
     '%d monitor rows, dryQPfeasible=%d. No CBF command applied.\n'],...
-    report.seconds,report.monitorRows,report.filterDryRunFeasible);
+    mode,report.seconds,report.monitorRows,report.filterDryRunFeasible);
 end
 
 function y=localClip(u,lim)

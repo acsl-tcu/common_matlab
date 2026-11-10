@@ -1,0 +1,37 @@
+status=PASS_WHOLE_NATIVE_PROVEN_FIXTURES_AUDITED__15_UNKNOWN_POSSIBLE__HLC_WCET_PENDING
+mode=inherited
+stage=HLC_PARTIAL_BINDING_REJECTED
+error=
+whole_preflight=PASS_WHOLE_NATIVE_COMPILED_PINNED__FULL_SCENE_AB_REQUIRED leaf_preflight=PASS_NATIVE_COMPILED_PINNED__MATLAB_AB_STILL_REQUIRED
+negative_controls=PASS_NEGATIVES_FIVE_OUTPUT_MEX_SIGNATURE
+full_baseline_ms=[57.6217 51.6426 66.2908 41.3977 39.3549;49.1471 51.5249 51.1118 50.2928 54.6503]
+full_native_ms=[38.6568 39.9882 46.1257 38.6913 35.418;46.7516 43.36 44.1792 45.8396 45.0066]
+full_p95_old=[64.557;54.0252] full_p95_native=[44.8982;46.5692]
+full_max_old=[66.2908;54.6503] full_max_native=[46.1257;46.7516]
+jitter_range_old=[26.9359;5.5032] jitter_range_native=[10.7077;3.3916]
+whole_used_inside_search=[true true true true true;true true true true true]
+native_search_torque_ms=[5.7177 5.9564 7.3187 5.6249 5.5452;6.9893 6.981 7.4357 7.0034 7.5158]
+native_post_torque_ms=[0 0 0 0 0;0 0 0 0 0]
+native_geometry_ms=[15.7086 15.8509 17.1562 15.3145 14.1894;22.4323 18.8746 18.8749 19.6359 19.6058]
+native_plane_ms=[8.918 9.4612 10.3565 8.8233 8.0652;9.1123 8.7024 9.1152 10.0939 8.9869]
+native_qp_ms=[0.2851 0.2718 0.5376 0.3054 0.2298;0.2751 0.4667 0.4667 0.321 0.3357]
+native_integration_overhead_ms=[0.3011 0.3481 0.5841 0.4577 0.2932;0.2933 0.2805 0.2946 0.3161 0.3124]
+full_parity=1 candidate_parity=1 regressions=0
+matrix_15_done=15 nominal_success=6 unknown=9 native_uses=6
+matrix_median=33.2255000 p95=45.8310900 max=52.4617000
+case=01 path=straight scene=1 full=37.23850 search=37.08730 geometry=18.64820 plane=9.70840 qp=0.29880 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=02 path=straight scene=2 full=42.98940 search=42.00650 geometry=17.45600 plane=9.95270 qp=0.35710 search_torque=6.05980 heading=0.63100 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+case=03 path=straight scene=3 full=41.52180 search=41.37890 geometry=21.03070 plane=9.98680 qp=0.37570 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=04 path=straight scene=4 full=52.46170 search=51.37250 geometry=24.08360 plane=9.78820 qp=0.53360 search_torque=7.95050 heading=0.72980 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+case=05 path=straight scene=5 full=4.13160 search=3.42640 geometry=1.00700 plane=0.00000 qp=0.00000 search_torque=1.64770 heading=0.42970 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+case=06 path=arc scene=1 full=23.46950 search=23.33750 geometry=7.96310 plane=8.79330 qp=0.14590 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION
+case=07 path=arc scene=2 full=24.08400 search=23.94590 geometry=7.76800 plane=8.05120 qp=0.24040 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=08 path=arc scene=3 full=27.33800 search=27.19590 geometry=9.31200 plane=8.89450 qp=0.23880 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION
+case=09 path=arc scene=4 full=24.31160 search=24.15680 geometry=8.79660 plane=8.86440 qp=0.16950 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION
+case=10 path=arc scene=5 full=4.25310 search=3.45180 geometry=0.79040 plane=0.00000 qp=0.00000 search_torque=1.90490 heading=0.50960 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+case=11 path=saddle scene=1 full=33.22550 search=33.11090 geometry=15.67500 plane=9.44160 qp=0.26320 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=12 path=saddle scene=2 full=37.58630 search=37.45300 geometry=18.94180 plane=9.03450 qp=0.35770 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=13 path=saddle scene=3 full=37.38090 search=37.25870 geometry=20.51300 plane=8.89340 qp=0.43570 search_torque=0.00000 heading=0.00000 post_torque=0.00000 hlc=0.00000 nominal=0 native=0 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME failure=UNKNOWN_13D_ITERATION_LIMIT
+case=14 path=saddle scene=4 full=40.59540 search=39.69610 geometry=14.60590 plane=8.68880 qp=0.20750 search_torque=8.89500 heading=0.59410 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+case=15 path=saddle scene=5 full=3.99030 search=3.24790 geometry=0.80320 plane=0.00000 qp=0.00000 search_torque=1.68080 heading=0.45920 post_torque=0.00000 hlc=0.00000 nominal=1 native=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING failure=
+hlc_unbound_rejected=1 hlc_partial_rejected=1 status=UNKNOWN_LIVE_HLC_BINDING_INCOMPLETE

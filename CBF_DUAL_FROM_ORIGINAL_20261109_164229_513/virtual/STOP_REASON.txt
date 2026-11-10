@@ -1,0 +1,8 @@
+ID: 
+Message: CBF virtual/S3/load initial HOCBF chain violated. No certificate.
+  localFilter line 539
+  Generate_CBF_DualInput_6Methods line 67
+  HLC_SUSPENDED_CBF.do line 347
+  do_prop_local line 506
+  localRunOriginalOne line 283
+  run_flight_CBF_dual_compare line 56

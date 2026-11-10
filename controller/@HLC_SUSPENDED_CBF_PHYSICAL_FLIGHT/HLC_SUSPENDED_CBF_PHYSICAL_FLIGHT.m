@@ -9,6 +9,7 @@ properties
     % ===== CBF configuration =====
     cbfEnabled = false
     cbfMode = 'physical'
+    cbfBackend = 'legacy' % 'legacy' (old HOCBF) or 'zoh' (physical ZOH predictor)
     cbfMethod = 'S3'
     cbfAux = []
     cbfAuxMode = ''
@@ -62,6 +63,21 @@ methods
             end
         end
         P = [obj.self.parameter.get(["mass", "jx", "jy", "jz", "gravity", "loadmass", "cableL"]), 0, 0];
+        % The state manager has updated the shared mass parameter before
+        % this controller call. Check that the sample-k EKF mass, rather
+        % than a stale number from a previous prediction, is used here.
+        % The 3.5-s preview holds THIS sample's estimate constant and
+        % reinitializes its model with a fresh estimate next sample.
+        if obj.cbfEnabled && isprop(model.state,'mL')
+            currentHat=double(model.state.mL);
+            if ~isscalar(currentHat) || ~isfinite(currentHat) || ...
+                    currentHat<=0 || ...
+                    abs(double(P(6))-currentHat)>64*eps(max(1,abs(currentHat)))
+                error('CBF:MassEstimateNotCurrent', ...
+                    'Sample-k mass mismatch: parameter=%.12g, EKF=%.12g.', ...
+                    double(P(6)),currentHat);
+            end
+        end
 
         x = [model.state.getq('compact'); model.state.w; pL; model.state.vL; pT; model.state.wL]; % [q, w ,pL, vL, pT, wL]に並べ替え
         % [model.state.p, x(8:10), xd(1:3), x(8:10) - xd(1:3)]
@@ -122,6 +138,55 @@ methods
         %obj.result.aa=toc;
         tmp = [uf(1); us]; % 実入力へ変換
         obj.result.tmp = tmp; % 入力に制限を付けてない値を格納
+        % READ-ONLY hierarchy/saturation audit. The original HLC, CBF,
+        % estimator and actuator command are NOT altered. In particular,
+        % clipping f cannot be interpreted as a change to v1 alone while
+        % leaving its derivative jet and the second-layer map untouched.
+        if obj.cbfEnabled
+            try
+                limH=[0;20;1;1;1];
+                if isfield(obj.cbfOpts,'uLimits') && ...
+                        numel(obj.cbfOpts.uLimits)==5
+                    limH=double(obj.cbfOpts.uLimits(:));
+                end
+                lowH=[limH(1);-limH(3:5)];
+                highH=[limH(2);limH(3:5)];
+                clippedH=min(max(tmp(:),lowH),highH);
+                vfZeroH=vf(:);vfZeroH(1)=0;
+                vfOneH=vfZeroH;vfOneH(1)=1;
+                fZeroH=obj.Uf_SuspendedLoadxyDst(x,xd',vfZeroH,P);
+                fOneH=obj.Uf_SuspendedLoadxyDst(x,xd',vfOneH,P);
+                slopeH=fOneH(1)-fZeroH(1);
+                v1ClipH=NaN;dv1H=NaN;
+                if isfinite(slopeH) && abs(slopeH)>1e-12
+                    v1ClipH=(clippedH(1)-fZeroH(1))/slopeH;
+                    dv1H=v1ClipH-vf(1);
+                end
+                clipFDeltaH=clippedH(1)-tmp(1);
+                clipMDeltaH=norm(clippedH(2:4)-tmp(2:4),inf);
+                reconstructionH=norm(beta2*us(:)-vs_alpha2(:),inf)/ ...
+                    max(1,norm(vs_alpha2(:),inf));
+                torqueProxyH=NaN;
+                if abs(clipFDeltaH)<=1e-9
+                    % When f is unchanged, the same first-layer derivative
+                    % jet is valid for this instantaneous torque-only audit.
+                    torqueProxyH=norm(beta2*(clippedH(2:4)-tmp(2:4)),inf)/ ...
+                        max(1,norm(vs_alpha2(:),inf));
+                end
+                obj.result.flightHlcAudit.nominalV1=double(vf(1));
+                obj.result.flightHlcAudit.clipEquivalentV1=double(v1ClipH);
+                obj.result.flightHlcAudit.clipEquivalentDeltaV1=double(dv1H);
+                obj.result.flightHlcAudit.thrustClippingDelta_N=double(clipFDeltaH);
+                obj.result.flightHlcAudit.torqueClippingDeltaInf_Nm=double(clipMDeltaH);
+                obj.result.flightHlcAudit.rawSecondLayerResidualRel=double(reconstructionH);
+                obj.result.flightHlcAudit.clippedTorqueVirtualProxyRel=double(torqueProxyH);
+                obj.result.flightHlcAudit.nominalHierarchyUnchangedAfterClip= ...
+                    double(norm(clippedH(:)-tmp(:),inf)<=1e-9);
+            catch
+                % Audit errors must NEVER change the flight/controller.
+                % Missing diagnostics are represented as NaNs by the RUN.
+            end
+        end
         % Capture only a small arming-step context, not a trajectory.
         % CBF preflight uses a DRY RUN without advancing any live state.
         if obj.cbfCaptureNominal
@@ -145,10 +210,32 @@ methods
             % No stale previous-step CBF diagnostics on a failed call.
             obj.result.cbf=[];
             obs = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(obj.cbfTime);
-            cbf = Generate_CBF_ActuatorAware_6Methods( ...
-                'supervise',obj.cbfMode,obj,x,xd',vf,F1,P,...
-                tmp,obs,obj.cbfMethod,obj.cbfShapes,obj.cbfKappa,...
-                obj.cbfOpts,obj.cbfSupervisor,Param.dt);
+            % The cable direction/angular velocity live on T(S^2).
+            % The EKF is Euclidean and may exhibit small constraint drift.
+            % Retract the CBF-ONLY estimated representation, not the
+            % nominal HLC state, EKF or physical plant. Refuse large drift.
+            [xCBF,geometryAudit] = obj.localCBFStateRetraction(x);
+            obj.result.cbfGeometryAudit = geometryAudit;
+            if strcmpi(obj.cbfBackend,'zoh')
+                % Common actual-input ZOH plant, DIFFERENT physical/virtual
+                % objective coordinates. No high-order thrust extension here.
+                % Carry the previous INPUT plan only as a warm start;
+                % the filter independently rechecks current-state safety.
+                zohOpts=obj.cbfOpts;
+                zohOpts.zohWarmStart=obj.cbfSupervisor;
+                zohOpts.zohTime_s=obj.cbfTime;
+                cbf = CBF_ZOH_FILTER('filter',obj.cbfMode,obj, ...
+                    xCBF,xd,vf,P,tmp,obs,obj.cbfMethod,obj.cbfShapes, ...
+                    zohOpts,Param.dt);
+            elseif strcmpi(obj.cbfBackend,'legacy')
+                cbf = Generate_CBF_ActuatorAware_6Methods( ...
+                    'supervise',obj.cbfMode,obj,xCBF,xd',vf,F1,P,...
+                    tmp,obs,obj.cbfMethod,obj.cbfShapes,obj.cbfKappa,...
+                    obj.cbfOpts,obj.cbfSupervisor,Param.dt);
+            else
+                error('CBF:UnknownBackend','Unknown CBF backend: %s',char(obj.cbfBackend));
+            end
+            cbf.cbfGeometryAudit = geometryAudit;
             obj.result.cbf = cbf;
             if ~cbf.success
                 % Keep the run's controlled-stop/logging path for a CBF failure.
@@ -183,12 +270,64 @@ methods
 
     function report = prepareFlightCBF(obj)
         % Must be called during arming, NEVER on first flight step.
-        report=CBF_PREFLIGHT_WARMUP(obj);
+        if strcmpi(obj.cbfBackend,'zoh')
+            % A ZOH rollout uses NO high-order generated derivatives. Do
+            % not run the unrelated legacy QP as a mandatory preflight.
+            s=CBF_ZOH_FILTER('selftest');
+            report=struct('passed',logical(s.passed), ...
+                'mode',obj.cbfMode,'monitorRows',0, ...
+                'note','ZOH analytical sanity check; not a flight safety proof.');
+        else
+            report=CBF_PREFLIGHT_WARMUP(obj);
+        end
         obj.cbfPreflightReport=report;
         obj.cbfPreflightCompleted=report.passed;
         % No warmup-only state is needed by the live supervisor.
         obj.cbfWarmupContext=[];
         obj.cbfCaptureNominal=false;
+    end
+
+    function [xSafe,audit] = localCBFStateRetraction(~,x)
+        % A limited model-manifold correction, NOT a safety relaxation.
+        % This does not alter physical state, estimator state or HLC input.
+        % These numerical thresholds are for SIMULATION model consistency;
+        % they are not bounds on physical estimation error.
+        xSafe=x(:);
+        if numel(xSafe)~=19 || any(~isfinite(xSafe))
+            error('CBF:EstimatorManifoldInvalid', ...
+                'CBF state must be a finite 19-vector.');
+        end
+        q=xSafe(1:4); p=xSafe(14:16); w=xSafe(17:19);
+        nq=norm(q); np=norm(p);
+        if nq<1e-8 || np<1e-8
+            error('CBF:EstimatorManifoldInvalid', ...
+                'Estimated quaternion or cable direction has zero norm.');
+        end
+        qError=abs(nq-1); pError=abs(np-1);
+        pUnit=p/np;
+        tangentError=abs(dot(pUnit,w));
+        audit=struct('qNormError',qError, ...
+            'cableNormError',pError,'tangentError',tangentError, ...
+            'maxCorrection',NaN,'retracted',false, ...
+            'tangentVelocityProjected',true);
+        % Unit direction and quaternion still need to be reasonably close
+        % to the manifold. The angular velocity's radial component,
+        % however, is IDENTICALLY ZERO in the rigid-cable state space.
+        % For fixed pUnit the least-squares consistent angular velocity is
+        % w_T=(I-pUnit*pUnit')*w. Its radial correction is measured/audited,
+        % not arbitrarily rejected at 0.003 rad/s. This is a state-model
+        % projection, NOT a bound on EKF error or a safety certificate.
+        if qError>1e-3 || pError>1e-3
+            error('CBF:EstimatorManifoldInvalid', ...
+                ['Estimator unit states far from model manifold: ' ...
+                 '|q|-1=%.8g, |pT|-1=%.8g, radial wL=%.8g.'], ...
+                qError,pError,tangentError);
+        end
+        xSafe(1:4)=q/nq;
+        xSafe(14:16)=pUnit;
+        xSafe(17:19)=w-pUnit*dot(pUnit,w);
+        audit.maxCorrection=norm(xSafe-x(:),inf);
+        audit.retracted=audit.maxCorrection>1e-12;
     end
 
     function show(obj)

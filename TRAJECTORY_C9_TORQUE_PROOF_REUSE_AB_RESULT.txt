@@ -1,0 +1,10 @@
+status=PASS_PROOF_REUSE_IDENTITY__REALTIME_AND_HLC_PENDING
+stage=SCENE_04
+error=
+completed=2/2 repeats=3
+scene=cylinder_capsule_cone baseline_ms=[874.6006 511.0093 517.7932] reuse_ms=[324.6307 335.9456 266.9855]
+scene=cylinder_capsule_cone double_torque_ms=[236.1382 232.4133 228.9898] saved_second_call=[0 0 0]
+scene=cylinder_capsule_cone status_same=[true true true] candidate_same=[true true true] proof_same=[true true true] reused=[true true true]
+scene=torus_polygon_polyhedron baseline_ms=[681.5761 684.5172 685.3479] reuse_ms=[376.7309 365.0754 362.3321]
+scene=torus_polygon_polyhedron double_torque_ms=[322.4089 325.489 322.5781] saved_second_call=[0 0 0]
+scene=torus_polygon_polyhedron status_same=[true true true] candidate_same=[true true true] proof_same=[true true true] reused=[true true true]

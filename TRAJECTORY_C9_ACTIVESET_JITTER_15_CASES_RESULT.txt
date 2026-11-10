@@ -1,0 +1,111 @@
+status=COMPLETED_MATRIX__NOMINAL_PASS_AND_UNKNOWN_REPORTED_SEPARATELY
+stage=COMPLETED_FOCUSED_BASELINE_AND_REPEATED_JITTER
+error=
+payload_fixture_policy=REQUEST_LOCAL_ONLY__NO_PARAMETER_MUTATION
+cases=15/15 conditional_nominal=6 unknown=9 exceptions=0
+focused_15case_median_ms=34.3286000000 p95_ms=747.5455200000 max_ms=854.7599000000
+baseline_15case_median_ms=36.6303000000 p95_ms=123.4987300000 max_ms=273.6691000000
+focused_skipped_qp_shape_planes_upper=1287
+gram_off_ms=0.3063000000 gram_on_ms=0.0051000000 qp_off_ms=2.4640000000 qp_on_ms=1.8583000000 gram_relative=0
+case=01 path=straight scene=sphere_ellipsoid_box mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=87.74040 proof_ms=30.56850 planes_ms=20.01590 qp_ms=3.61970 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=01 baseline_ms=273.6691000 focused_ms=87.7404000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[211 213] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=13.665000 max_single_qpbuild=11.046300 max_single_line=5.114500
+stage_ab_case=01 baseline_proof=67.295900 baseline_planes=109.581400 baseline_qp=6.893600 focused_proof=30.568500 focused_planes=20.015900 focused_qp=3.619700
+case=02 path=straight scene=cylinder_capsule_cone mass=0.12 obs=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=6.1557629 total_ms=677.40970 proof_ms=20.70580 planes_ms=41.83530 qp_ms=7.83170 heading_ms=23.86150 torque_ms=235.18070
+active_ab_case=02 baseline_ms=46.9922000 focused_ms=677.4097000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[221 223] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=9.615300 max_single_qpbuild=28.744700 max_single_line=5.514900
+stage_ab_case=02 baseline_proof=7.257400 baseline_planes=15.765600 baseline_qp=1.179400 focused_proof=20.705800 focused_planes=41.835300 focused_qp=7.831700
+case=03 path=straight scene=frustum_pyramid_prism mass=0.12 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=47.57540 proof_ms=16.58080 planes_ms=15.46170 qp_ms=0.79680 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=03 baseline_ms=59.1400000 focused_ms=47.5754000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[231 233] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=6.231100 max_single_qpbuild=10.163300 max_single_line=3.085300
+stage_ab_case=03 baseline_proof=13.684100 baseline_planes=10.529400 baseline_qp=1.958300 focused_proof=16.580800 focused_planes=15.461700 focused_qp=0.796800
+case=04 path=straight scene=torus_polygon_polyhedron mass=0.12 obs=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=6.6837902 total_ms=701.59650 proof_ms=22.77570 planes_ms=8.92650 qp_ms=0.54320 heading_ms=7.08460 torque_ms=323.85250
+active_ab_case=04 baseline_ms=25.7037000 focused_ms=701.5965000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[241 243] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=10.069400 max_single_qpbuild=5.132900 max_single_line=3.126500
+stage_ab_case=04 baseline_proof=7.078800 baseline_planes=4.270600 baseline_qp=0.489400 focused_proof=22.775700 focused_planes=8.926500 focused_qp=0.543200
+case=05 path=straight scene=clear_control mass=0.12 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=3.85530 proof_ms=0.27180 planes_ms=0.00000 qp_ms=0.00000 heading_ms=1.29980 torque_ms=0.21800
+active_ab_case=05 baseline_ms=18.7127000 focused_ms=3.8553000 baseline_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[] active_shape_counts=[] skipped_plane_upper=0 max_single_oracle=0.291600 max_single_qpbuild=0.000000 max_single_line=0.000000
+stage_ab_case=05 baseline_proof=1.294700 baseline_planes=0.000000 baseline_qp=0.000000 focused_proof=0.271800 focused_planes=0.000000 focused_qp=0.000000
+case=06 path=arc scene=sphere_ellipsoid_box mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION Tnew=NaN total_ms=30.20030 proof_ms=7.41900 planes_ms=15.11160 qp_ms=0.50350 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=06 baseline_ms=33.2525000 focused_ms=30.2003000 baseline_status=UNKNOWN_13D_ITERATION_LIMIT focused_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION active_ids=311 active_shape_counts=[1 1] skipped_plane_upper=138 max_single_oracle=6.237100 max_single_qpbuild=11.244400 max_single_line=2.394400
+stage_ab_case=06 baseline_proof=13.912400 baseline_planes=9.580100 baseline_qp=0.800900 focused_proof=7.419000 focused_planes=15.111600 focused_qp=0.503500
+case=07 path=arc scene=cylinder_capsule_cone mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=26.90580 proof_ms=7.10660 planes_ms=10.88620 qp_ms=0.24880 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=07 baseline_ms=37.0369000 focused_ms=26.9058000 baseline_status=UNKNOWN_13D_ITERATION_LIMIT focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=321 active_shape_counts=[1 1] skipped_plane_upper=120 max_single_oracle=7.132100 max_single_qpbuild=7.001500 max_single_line=2.265900
+stage_ab_case=07 baseline_proof=15.395600 baseline_planes=9.341700 baseline_qp=4.122700 focused_proof=7.106600 focused_planes=10.886200 focused_qp=0.248800
+case=08 path=arc scene=frustum_pyramid_prism mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION Tnew=NaN total_ms=23.17020 proof_ms=7.29310 planes_ms=8.65700 qp_ms=0.19700 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=08 baseline_ms=28.6973000 focused_ms=23.1702000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION active_ids=331 active_shape_counts=[1 1] skipped_plane_upper=138 max_single_oracle=6.814100 max_single_qpbuild=4.932100 max_single_line=2.691700
+stage_ab_case=08 baseline_proof=6.140500 baseline_planes=4.592300 baseline_qp=3.366000 focused_proof=7.293100 focused_planes=8.657000 focused_qp=0.197000
+case=09 path=arc scene=torus_polygon_polyhedron mass=0.14 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=39.22730 proof_ms=19.50800 planes_ms=8.93640 qp_ms=0.40480 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=09 baseline_ms=40.5268000 focused_ms=39.2273000 baseline_status=UNKNOWN_13D_ITERATION_LIMIT focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[341 343] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=6.828200 max_single_qpbuild=5.076500 max_single_line=2.976200
+stage_ab_case=09 baseline_proof=20.114400 baseline_planes=9.652000 baseline_qp=2.525300 focused_proof=19.508000 focused_planes=8.936400 focused_qp=0.404800
+case=10 path=arc scene=clear_control mass=0.14 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=23.25720 proof_ms=1.29100 planes_ms=0.00000 qp_ms=0.00000 heading_ms=9.91090 torque_ms=1.86000
+active_ab_case=10 baseline_ms=5.2642000 focused_ms=23.2572000 baseline_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[] active_shape_counts=[] skipped_plane_upper=0 max_single_oracle=1.316700 max_single_qpbuild=0.000000 max_single_line=0.000000
+stage_ab_case=10 baseline_proof=0.259600 baseline_planes=0.000000 baseline_qp=0.000000 focused_proof=1.291000 focused_planes=0.000000 focused_qp=0.000000
+case=11 path=saddle scene=sphere_ellipsoid_box mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=30.57820 proof_ms=14.29420 planes_ms=8.96580 qp_ms=0.20970 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=11 baseline_ms=36.6303000 focused_ms=30.5782000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[411 413] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=7.292300 max_single_qpbuild=4.849000 max_single_line=2.513000
+stage_ab_case=11 baseline_proof=7.508100 baseline_planes=9.267700 baseline_qp=0.471800 focused_proof=14.294200 focused_planes=8.965800 focused_qp=0.209700
+case=12 path=saddle scene=cylinder_capsule_cone mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=37.83440 proof_ms=20.03660 planes_ms=8.77330 qp_ms=0.78930 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=12 baseline_ms=39.3148000 focused_ms=37.8344000 baseline_status=UNKNOWN_13D_NONLINEAR_MODEL_GLOBALIZATION focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[421 423] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=7.210000 max_single_qpbuild=5.072300 max_single_line=3.622200
+stage_ab_case=12 baseline_proof=11.692800 baseline_planes=9.295300 baseline_qp=0.543300 focused_proof=20.036600 focused_planes=8.773300 focused_qp=0.789300
+case=13 path=saddle scene=frustum_pyramid_prism mass=0.18 obs=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME search=UNKNOWN_13D_ITERATION_LIMIT Tnew=NaN total_ms=34.32860 proof_ms=18.30920 planes_ms=8.50550 qp_ms=0.38120 heading_ms=0.00000 torque_ms=0.00000
+active_ab_case=13 baseline_ms=32.7498000 focused_ms=34.3286000 baseline_status=UNKNOWN_13D_ITERATION_LIMIT focused_status=UNKNOWN_13D_ITERATION_LIMIT active_ids=[431 433] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=6.435500 max_single_qpbuild=4.847500 max_single_line=2.662100
+stage_ab_case=13 baseline_proof=16.213900 baseline_planes=8.975000 baseline_qp=0.294500 focused_proof=18.309200 focused_planes=8.505500 focused_qp=0.381200
+case=14 path=saddle scene=torus_polygon_polyhedron mass=0.18 obs=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=6.4356444 total_ms=854.75990 proof_ms=14.62880 planes_ms=8.63350 qp_ms=0.30710 heading_ms=0.58990 torque_ms=412.19880
+active_ab_case=14 baseline_ms=39.3449000 focused_ms=854.7599000 baseline_status=UNKNOWN_13D_ITERATION_LIMIT focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[441 443] active_shape_counts=[1 2] skipped_plane_upper=99 max_single_oracle=7.174100 max_single_qpbuild=4.933500 max_single_line=2.906000
+stage_ab_case=14 baseline_proof=19.465000 baseline_planes=9.557800 baseline_qp=0.543800 focused_proof=14.628800 focused_planes=8.633500 focused_qp=0.307100
+case=15 path=saddle scene=clear_control mass=0.18 obs=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING search=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING Tnew=8 total_ms=5.27010 proof_ms=0.20820 planes_ms=0.00000 qp_ms=0.00000 heading_ms=0.35820 torque_ms=1.98730
+active_ab_case=15 baseline_ms=6.7597000 focused_ms=5.2701000 baseline_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING focused_status=CONDITIONAL_13D_NOMINAL_GEOMETRY_TORQUE__HLC_PENDING active_ids=[] active_shape_counts=[] skipped_plane_upper=0 max_single_oracle=0.220900 max_single_qpbuild=0.000000 max_single_line=0.000000
+stage_ab_case=15 baseline_proof=0.816800 baseline_planes=0.000000 baseline_qp=0.000000 focused_proof=0.208200 focused_planes=0.000000 focused_qp=0.000000
+witness_replacements_total=21 support_calls_total=126
+nonlinear_merit_search_ms_total=65.842500000 backtracks=6 accepted_steps=22 monotonicity=1
+point_torque_prefilter: calls=22 proof_skips=2 time_ms=25.029800000
+interval_hull: upper_gap_min_m=0 false_zero_detected=1 accepted=22 rejects=5 evaluations=51 monotonicity=1
+witness_case=01 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=213 bodies=3 leaf=[8.85596194872569 8.96152633891538] duration=[8 8.00000000000005 6.7561209721401] steps=[60.6436750491215 34.0283091134046]
+merit_case=01 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=8.925200 merit_before_after_m=[0.223995294912646 4.44089209850063e-16;0.662722850912418 0.00706260932536407] unrestricted_step_m=60.6437
+hull_case=01 interval_scores_m=[0.642532444196996 0.302062501926537;0.663555261133919 0.340448786808016] rejected=0 evaluated=4
+witness_case=02 replaced=2 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=[8 8.00000000000006 6.15576287043866] steps=[72.2731504952437 60.3132729213771]
+merit_case=02 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=8.544600 merit_before_after_m=[0.266950273813966 6.66133814775094e-16;0.274668575287749 0.0131755405672418] unrestricted_step_m=72.2732
+hull_case=02 interval_scores_m=[0.702377265651738 0.296616312726388;0.469961695483099 0.344103296623846] rejected=0 evaluated=4
+witness_case=03 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=233 bodies=3 leaf=[9.12790009775555 9.24185343326122] duration=[8 8.00000000000002 7.29301347236344] steps=[130.166647200175 37.2373235279968]
+merit_case=03 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=5.129600 merit_before_after_m=[0.331296410118271 0;0.405201465484877 8.62920845889903e-14] unrestricted_step_m=130.167
+hull_case=03 interval_scores_m=[0.780108515971321 0.0985284396104165;0.417980204602551 0.366864084357161] rejected=0 evaluated=4
+witness_case=04 replaced=2 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=[8 7.99999999999932 6.68379019824475] steps=[143.513212746793 58.6938090460155]
+merit_case=04 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=5.057100 merit_before_after_m=[0.365265705234268 0;0.236235959208226 0.00502991110198206] unrestricted_step_m=143.513
+hull_case=04 interval_scores_m=[0.760590978581702 0.0423560140898347;0.45067518183954 0.386965765581008] rejected=0 evaluated=4
+witness_case=05 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=05 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+hull_case=05 interval_scores_m=zeros(0,2) rejected=0 evaluated=0
+witness_case=06 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[4.99157341804246 5.05354675667012] duration=[8 3.96629367216985] steps=98.5058164170668
+merit_case=06 last_status=UNKNOWN_NO_REPRESENTABLE_NONLINEAR_MERIT_PROGRESS alphas=[1 NaN] backtracks=0 line_ms=4.296200 merit_before_after_m=[0.253033814605449 0;0 NaN] unrestricted_step_m=98.5058
+hull_case=06 interval_scores_m=[0.615342199463293 0;0 NaN] rejected=0 evaluated=3
+witness_case=07 replaced=1 final_oracle=SKIPPED_FULL_TIME_GEOMETRY_FOR_POINT_TORQUE_NECESSITY ids=[] bodies=[] leaf=[NaN NaN] duration=[8 3.52855252693489 3.75006687816377] steps=[109.195749046324 7.74739979151098]
+merit_case=07 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=4.341900 merit_before_after_m=[0.280493253341571 0;0 0] unrestricted_step_m=109.196
+hull_case=07 interval_scores_m=[0.653032401232353 0;0 0] rejected=0 evaluated=4
+witness_case=08 replaced=1 final_oracle=UNKNOWN_JOINT_THRUST_NOT_PROVEN ids=[] bodies=zeros(1,0) leaf=[5 5.0625] duration=[8 4] steps=105.594214809147
+merit_case=08 last_status=UNKNOWN_NO_REPRESENTABLE_NONLINEAR_MERIT_PROGRESS alphas=[0.5 NaN] backtracks=1 line_ms=4.912700 merit_before_after_m=[0.356741304681059 0.136974293954305;0 NaN] unrestricted_step_m=211.188
+hull_case=08 interval_scores_m=[0.73015987901914 0.14515988902861;0 NaN] rejected=0 evaluated=3
+witness_case=09 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=343 bodies=3 leaf=[8.90086584896707 9.01755313108533] duration=[8 7.16050301291645 7.46798605556887] steps=[181.257554289354 14.1834324970487]
+merit_case=09 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[0.5 1] backtracks=1 line_ms=5.191800 merit_before_after_m=[0.373367220017617 0.187496815673483;0.20499816729255 0.000263696784005951] unrestricted_step_m=362.515
+hull_case=09 interval_scores_m=[0.760018596238429 0.559923862747969;0.459319078940766 0.401749768290091] rejected=1 evaluated=5
+witness_case=10 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=10 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+hull_case=10 interval_scores_m=zeros(0,2) rejected=0 evaluated=0
+witness_case=11 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=413 bodies=3 leaf=[9.0323519683644 9.14175092419841] duration=[8 8.03116171586792 7.00153317337656] steps=[60.0325158930598 31.1727929134388]
+merit_case=11 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=4.438300 merit_before_after_m=[0.221695187604006 8.61191103318504e-07;0.697239001422048 0.00607660247465125] unrestricted_step_m=60.0325
+hull_case=11 interval_scores_m=[0.637340271467033 0.308104068162034;0.698014444736884 0.333669152174305] rejected=0 evaluated=4
+witness_case=12 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=423 bodies=[2 3] leaf=[9.07953746627721 9.20047883452191] duration=[8 7.97136285047841 7.74024756766051] steps=[94.4550836095019 6.61514529872405]
+merit_case=12 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 0.0625] backtracks=4 line_ms=5.564800 merit_before_after_m=[0.240500372479651 9.34403075580903e-07;0.344542590407256 0.323148579414786] unrestricted_step_m=105.842
+hull_case=12 interval_scores_m=[0.766705845424638 0.2608512419604;0.459573938540556 0.458981746696594] rejected=4 evaluated=8
+witness_case=13 replaced=2 final_oracle=UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED ids=433 bodies=1 leaf=[8.60308617562706 8.71013469133932] duration=[8 8.19651824432959 6.85110500558447] steps=[134.987561780789 55.0832272718683]
+merit_case=13 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=4.607200 merit_before_after_m=[0.22549254716099 5.4035322363255e-05;0.80761037446071 0.00864460621334162] unrestricted_step_m=134.988
+hull_case=13 interval_scores_m=[0.802737602376336 0.15259088809836;0.80923412995741 0.374997201907177] rejected=0 evaluated=4
+witness_case=14 replaced=2 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=[8 6.54222704659841 6.43564444384519] steps=[108.676054310454 11.5552779629143]
+merit_case=14 last_status=SAMPLED_NONLINEAR_MERIT_DESCENT__FULL_TIME_PROOF_STILL_REQUIRED alphas=[1 1] backtracks=0 line_ms=4.833100 merit_before_after_m=[0.401055995374683 0;0.219198987923331 0] unrestricted_step_m=108.676
+hull_case=14 interval_scores_m=[0.721782187941107 0.0838762410603513;0.379303985178109 0.294356085038089] rejected=0 evaluated=4
+witness_case=15 replaced=0 final_oracle=CERTIFIED_C9_JOINT_IDEAL_TAUT_ALL_TIME__NO_TORQUE_HLC ids=zeros(1,0) bodies=zeros(1,0) leaf=[NaN NaN] duration=8 steps=[]
+merit_case=15 last_status= alphas=[] backtracks=0 line_ms=0.000000 merit_before_after_m=zeros(0,2) unrestricted_step_m=0
+hull_case=15 interval_scores_m=zeros(0,2) rejected=0 evaluated=0
+coherent_plane_groups=390 fallback=0 support_evals=390
+coherent_segment_min_slack_m=0.368 cache_maxdiff_m=2.2204460492503e-15 cache_uncached_ms=21.739900 cache_cached_ms=8.496500
+repeat_case=01 path=straight scene=sphere_ellipsoid_box baseline_samples_ms=[32.3395 37.5516 33.7473 31.4384 30.5704] focused_samples_ms=[29.5541 32.7799 30.9379 30.9091 31.0396]
+repeat_case_jitter=01 baseline_median=32.33950 baseline_p95=36.79074 baseline_max=37.55160 baseline_range=6.98120 focused_median=30.93790 focused_p95=32.43184 focused_max=32.77990 focused_range=3.22580
+repeat_case=05 path=straight scene=clear_control baseline_samples_ms=[2.5039 1.3696 1.3326 1.3398 1.3456] focused_samples_ms=[1.553 1.3474 1.3217 1.385 1.3489]
+repeat_case_jitter=05 baseline_median=1.34560 baseline_p95=2.27704 baseline_max=2.50390 baseline_range=1.17130 focused_median=1.34890 focused_p95=1.51940 focused_max=1.55300 focused_range=0.23130
+soft_deadline_status=UNKNOWN_13D_EXECUTION_BUDGET_EXHAUSTED safe_to_commit=0
+safe_to_commit=0

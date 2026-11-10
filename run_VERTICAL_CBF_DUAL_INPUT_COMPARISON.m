@@ -1,13 +1,39 @@
-function REPORT = run_VERTICAL_CBF_DUAL_INPUT_COMPARISON()
-% One-command, TWO-INDEPENDENT-RUNS comparison of virtual vs physical/S3.
-% User-facing outputs: direct CSV/MAT files, no generated ZIP. (2026-10-16)
-% Runs sequentially (NOT shared agents, NOT two simultaneous commands on a
-% single plant). Same plant initial state, mass EKF, 28-jet reference, dt,
-% obstacles, geometry and fail-closed QP. A fresh DRONE/EKF/HLC/CBF is made
-% for each mode. No automatic virtual->physical fallback; this is a pure A/B.
-% Heavy MATLAB computation may exceed dt=25ms; no realtime claim.
-% Only FLIGHT (5<=t<47s) has CBF. Takeoff and landing use original HLC.
-% MATLAB R2021b+; NOT validated here (MATLAB unavailable).
+function REPORT = run_VERTICAL_CBF_DUAL_INPUT_COMPARISON(cfg)
+% Equal-condition comparison: FOUR system geometries x TWO input spaces.
+% Default: 8 independent runs (S1..S4 x virtual/physical), straight line.
+% Optional: cfg.referenceModes=[1 2 3] for 24 runs including C6 references.
+% NO generator execution, NO reference/HLC/EKF/plant modification.
+% Figure 1: 2-by-2 3D system geometry comparisons; display only, no images.
+% One fixed results ZIP in common_matlab; temporary experiment files removed.
+% No numerical outcome by itself proves sampled-data CBF safety.
+if nargin<1 || isempty(cfg),cfg=struct();end
+assert(isstruct(cfg) && isscalar(cfg),'CBF:InvalidStudyConfiguration', ...
+    'Optional input must be a scalar struct.');
+if ~isfield(cfg,'geometryMethods') || isempty(cfg.geometryMethods)
+    cfg.geometryMethods={'S1','S2','S3','S4'};
+end
+if ischar(cfg.geometryMethods) || isstring(cfg.geometryMethods)
+    cfg.geometryMethods=cellstr(cfg.geometryMethods);
+end
+methods=cellfun(@(v)upper(char(v)),cfg.geometryMethods(:).','UniformOutput',false);
+assert(numel(unique(methods))==numel(methods) && ...
+    all(ismember(methods,{'S1','S2','S3','S4'})), ...
+    'CBF:InvalidGeometries','Expected unique methods in S1,S2,S3,S4.');
+% Offline experimental backend. 'zoh': input-hold consistent prediction;
+% 'legacy': original continuous-time high-order CBF implementation.
+if ~isfield(cfg,'safetyBackend') || isempty(cfg.safetyBackend)
+    cfg.safetyBackend='zoh';
+end
+backend=lower(char(cfg.safetyBackend));
+assert(any(strcmp(backend,{'zoh','legacy','baseline'})), ...
+    'CBF:UnknownBackend','cfg.safetyBackend must be zoh, legacy or baseline.');
+if ~isfield(cfg,'referenceModes') || isempty(cfg.referenceModes)
+    cfg.referenceModes=1;
+end
+refs=cfg.referenceModes(:).';
+assert(isnumeric(refs) && all(ismember(refs,[1 2 3])) && ...
+    numel(unique(refs))==numel(refs), ...
+    'CBF:InvalidReferences','referenceModes must contain unique values from [1 2 3].');
 originalDirectory=pwd;
 scriptDirectory=fileparts(mfilename('fullpath'));
 cleaner=onCleanup(@()cd(originalDirectory)); %#ok<NASGU>
@@ -18,92 +44,243 @@ for k=1:numel(required)
     assert(exist(required{k},'file')==2,'CBF:MissingDependency', ...
         'Missing MATLAB dependency: %s',required{k});
 end
-stamp=datestr(now,'yyyymmdd_HHMMSS_FFF');
-root=fullfile(scriptDirectory,['CBF_dual_comparison_' stamp]);
-mkdir(root);
-requested={'virtual','physical'};
-res=cell(numel(requested),1);
-for i=1:numel(requested)
-    inputMode=requested{i};
-    wd=fullfile(root,inputMode);mkdir(wd);
-    fprintf('\n[CBF-COMPARE] START %d/%d: %s. Output=%s\n',i,numel(requested),inputMode,wd);
-    % Reinitialize the stochastic stream so both independent arms start
-    % from a reproducible noise sequence. After the controllers diverge,
-    % calls to random APIs may still occur in different orders.
-    rng(20261016,'twister');
-    try
-        res{i}=localRunOneFlight(inputMode,wd);
-    catch ME
-        err=struct('mode',inputMode,'identifier',ME.identifier, ...
-            'message',ME.message,'stack',ME.stack);
-        save(fullfile(wd,'CBF_compare_unexpected_failure.mat'),'err');
-        fid=fopen(fullfile(wd,'CBF_compare_unexpected_failure.txt'),'w');
-        if fid>=0
-            fprintf(fid,'%s: %s\n',ME.identifier,ME.message);
-            for k=1:numel(ME.stack)
-                fprintf(fid,'  %s line %d\n',ME.stack(k).name,ME.stack(k).line);
-            end
-            fclose(fid);
+if strcmp(backend,'zoh')
+    assert(exist('CBF_ZOH_FILTER','file')==2, ...
+        'CBF:ZOHFilterMissing','Expected controller/CBF_ZOH_FILTER.m.');
+    sanity=CBF_ZOH_FILTER('selftest');
+    assert(sanity.passed,'CBF:ZOHCalibrationFailed');
+    fprintf('[CBF-ZOH] Analytical hover/geometry preflight PASSED; not a flight proof.\n');
+end
+% S4 is evaluated online using six PRE-GENERATED standalone kernels.
+% Never regenerate during flight or preflight; users have already generated.
+if any(strcmp(methods,'S4')) && strcmp(backend,'legacy')
+    genSource=which('Generate_CBF_ActuatorAware_6Methods');
+    generatedRoot=fullfile(fileparts(genSource),'generated_cbf_dual_input');
+    assert(isfolder(generatedRoot),'CBF:S4NotGenerated', ...
+        'S4 kernel folder absent. Run the generator ONCE from model/substance.');
+    addpath(genpath(generatedRoot));
+    for mm={'V','P'}
+        for part={'uav','capsule','load'}
+            kernel=sprintf('CBF_%s_S4_%s',mm{1},part{1});
+            kernelPath=which(kernel);
+            assert(~isempty(kernelPath) && isfile(kernelPath),'CBF:KernelNotGenerated', ...
+                'Missing %s. Generate S4 once, then re-run the study.',kernel);
+            % A stale kernel with the same name elsewhere is not acceptable.
+            assert(startsWith(lower(strrep(kernelPath,'/','\')), ...
+                lower(strrep(generatedRoot,'/','\'))),'CBF:StaleKernelPath', ...
+                'S4 kernel %s resolves outside expected generated folder: %s', ...
+                kernel,kernelPath);
         end
-        fprintf(2,'[CBF-COMPARE] %s unexpected failure: %s | %s\n',inputMode,ME.identifier,ME.message);
-        res{i}=struct('mode',inputMode,'folder',wd,'stopped',true, ...
-            'reason',[ME.identifier ': ' ME.message], 'lastPathSample_s',NaN, ...
-            'firstCBFEngage_s',NaN,'maxDeltaU_inf',NaN);
     end
-    cd(scriptDirectory); % reset working folder before another *independent* run
+end
+requested={'virtual','physical'}; % default: never silently omit either input mode
+if strcmp(backend,'baseline')
+    % DIAGNOSTIC ONLY: isolate unchanged HLC + original actuator saturation.
+    % One run is sufficient, since Virtual/Physical CBF is deliberately OFF.
+    requested={'physical'};
+    fprintf('[CBF-BASELINE] Unmodified HLC + actuator saturation; no safety guarantee.\n');
+end
+root=tempname(tempdir);mkdir(root);
+tmpCleaner=onCleanup(@()localRemoveTemporaryRun(root,scriptDirectory)); %#ok<NASGU>
+nCase=numel(refs)*numel(methods)*numel(requested);
+res=cell(nCase,1);caseNo=0;
+fprintf('[CBF-STUDY] %d independent trials: %d geometries x %d controller modes x %d references.\n', ...
+    nCase,numel(methods),numel(requested),numel(refs));
+fprintf('[CBF-STUDY] Generator is NOT run. MATLAB plots DISPLAY ONLY.\n');
+for ir=1:numel(refs)
+    refMode=refs(ir);
+    for ig=1:numel(methods)
+        method=methods{ig};scenario=sprintf('ref%d_%s',refMode,method);
+        for im=1:numel(requested)
+            inputMode=requested{im};caseNo=caseNo+1;
+            wd=fullfile(root,scenario,inputMode);
+            mkdir(wd);
+            fprintf('\n[CBF-STUDY] %d/%d: %s / %s / reference=%d\n', ...
+                caseNo,nCase,method,inputMode,refMode);
+            % Identical noise seed for each independent comparison trial.
+            rng(20261016,'twister');
+            try
+                one=localRunOneFlight(inputMode,wd,method,refMode,backend);
+            catch ME
+                err=struct('mode',inputMode,'geometryMethod',method, ...
+                    'referenceMode',refMode,'identifier',ME.identifier, ...
+                    'message',ME.message,'stack',ME.stack);
+                save(fullfile(wd,'CBF_compare_unexpected_failure.mat'),'err');
+                fprintf(2,'[CBF-STUDY] %s/%s unexpected failure: %s: %s\n', ...
+                    method,inputMode,ME.identifier,ME.message);
+                one=struct('mode',inputMode,'folder',wd,'stopped',true, ...
+                    'reason',[ME.identifier ': ' ME.message], ...
+                    'lastPathSample_s',NaN,'firstCBFEngage_s',NaN,'maxDeltaU_inf',NaN);
+            end
+            one.geometryMethod=method;
+            one.referenceMode=refMode;
+            res{caseNo}=one;
+            cd(scriptDirectory);
+        end
+    end
 end
 R=vertcat(res{:});
-summary=table(string({R.mode}).',string({R.folder}).',[R.stopped].', ...
-    [R.lastPathSample_s].',[R.firstCBFEngage_s].',[R.maxDeltaU_inf].', ...
-    string({R.reason}).','VariableNames',{'input_mode','folder','stopped', ...
-    'last_integrated_sample_s','first_cbf_active_s','max_base_safe_delta_inf','reason'});
+for i=1:numel(R)
+    R(i).folder=sprintf('ZIP/ref%d_%s/%s/', ...
+        R(i).referenceMode,R(i).geometryMethod,R(i).mode);
+end
+summary=table(string({R.geometryMethod}).', [R.referenceMode].', ...
+    string({R.mode}).',string({R.folder}).',[R.stopped].', ...
+    [R.lastPathSample_s].',[R.firstCBFEngage_s].', ...
+    [R.maxDeltaU_inf].',string({R.reason}).', ...
+    'VariableNames',{'geometry_method','reference_mode','input_mode', ...
+    'folder','stopped','last_integrated_sample_s', ...
+    'first_cbf_active_s','max_base_safe_delta_inf','reason'});
+if strcmp(backend,'baseline')
+    % Do not mislabel a CBF-OFF baseline as a Physical-CBF result.
+    summary.input_mode(:)="hlc_only";
+end
 writetable(summary,fullfile(root,'CBF_dual_input_summary.csv'));
-localOverlayTwoModePaths(root);
-REPORT=struct('outputFolder',root,'summary',summary,'runs',R, ...
-    'note','Virtual and physical are independently simulated, not coupled. Stopping does not prove collision.');
+% The two plots remain in MATLAB windows. No PNG/FIG images are saved.
+for ir=1:numel(refs)
+    fig3d=1;figZ=10;
+    if ir>1,fig3d=20+refs(ir);figZ=30+refs(ir);end
+    try
+        localPlotFourGeometries3D(root,methods,refs(ir),fig3d);
+    catch ME
+        warning('CBF:Study3DPlot','Figure 3D unavailable for reference %d: %s',refs(ir),ME.message);
+    end
+    try
+        localPlotFourGeometriesZ(root,methods,refs(ir),figZ);
+    catch ME
+        warning('CBF:StudyZPlot','Altitude plots unavailable for reference %d: %s',refs(ir),ME.message);
+    end
+end
+archivePath=fullfile(scriptDirectory,'CBF_DUAL_RESULTS_UPLOAD.zip');
+REPORT=struct('outputFolder','ZIP/ref<N>_<method>/<mode>/', ...
+    'zip',archivePath,'geometryMethods',{methods}, ...
+    'referenceModes',refs,'safetyBackend',backend,'summary',summary,'runs',R, ...
+    'note','Baseline disables CBF; zoh/legacy compare two input modes. Neither is a safety proof.');
 save(fullfile(root,'CBF_dual_input_report.mat'),'REPORT','-v7');
-% The user wants individually shareable CSV/MAT files, NOT a ZIP.
-% Keep full per-mode logs in their original independent subdirectories;
-% additionally make a few prefixed copies in this ONE root folder.
-% The copies are read-only and do not affect the simulation.
-needed={'CBF_input_comparison_full_flight.csv', ...
-    'CBF_physical_QP_failure.mat', ...
-    'CBF_thrust_limit_failure.mat', ...
-    'CBF_monitor_invalid.mat', ...
-    'CBF_active_chain_loss.mat', ...
-    'CBF_compare_unexpected_failure.mat'};
-for im=1:numel(requested)
-    mode=requested{im};
-    for ik=1:numel(needed)
-        inPath=fullfile(root,mode,needed{ik});
-        if exist(inPath,'file')~=2,continue;end
-        [~,nm,ex]=fileparts(needed{ik});
-        if strcmp(needed{ik},'CBF_input_comparison_full_flight.csv')
-            outName=['CBF_compare_' mode '_input.csv'];
-        elseif strcmp(needed{ik},'CBF_physical_QP_failure.mat')
-            % The generator uses this historic filename for BOTH modes.
-            outName=['CBF_compare_' mode '_QP_failure.mat'];
-        else
-            outName=['CBF_compare_' mode '_' nm ex];
-        end
-        [ok,msg]=copyfile(inPath,fullfile(root,outName));
-        if ~ok
-            warning('CBF:ComparisonFlatCopy',...
-                'Could not copy %s: %s',inPath,msg);
+% Backward compatibility ONLY for the old S4 failure auditor: 2 MAT copies.
+% Full originals always remain under ref1_S4/{virtual,physical}/.
+if any(refs==1) && any(strcmp(methods,'S4'))
+    for im=1:numel(requested)
+        mode=requested{im};srcMat=fullfile(root,'ref1_S4',mode,'CBF_physical_QP_failure.mat');
+        if isfile(srcMat)
+            copyfile(srcMat,fullfile(root,['CBF_compare_' mode '_QP_failure.mat']));
         end
     end
 end
-fprintf('[CBF-COMPARE] SEND INDIVIDUAL FILES (no ZIP):\n');
-fprintf('  %s\n',fullfile(root,'CBF_dual_input_summary.csv'));
-fprintf('  %s\n',fullfile(root,'CBF_compare_virtual_input.csv'));
-fprintf('  %s\n',fullfile(root,'CBF_compare_physical_input.csv'));
-fprintf('  %s\n',fullfile(root,'CBF_compare_virtual_QP_failure.mat'));
-fprintf('  %s\n',fullfile(root,'CBF_compare_physical_QP_failure.mat'));
-fprintf('  (Failure MATs only if QP snapshots were produced; otherwise share the other mode-specific *.mat).\n');
-fprintf('\n[CBF-COMPARE] COMPLETE: %s\n',root);
+% Read-only diagnosis based on the saved traces. No extra project sources.
+try
+    localWriteStudyDiagnostics(root,R);
+catch ME
+    warning('CBF:StudyDiagnostics','Study diagnostics incomplete: %s',ME.message);
+end
+try
+    localCopyProjectSourceSnapshot(scriptDirectory,root);
+catch ME
+    warning('CBF:SourceCapture','Source collection incomplete: %s',ME.message);
+end
+cd(scriptDirectory);
+stageZip=[tempname(tempdir) '.zip'];
+zip(stageZip,'*',root);
+[ok,msg]=movefile(stageZip,archivePath,'f');
+assert(ok,'CBF:ResultZipMove','Cannot finalize result ZIP: %s',msg);
+assert(isfile(archivePath),'CBF:ResultZip','Result ZIP missing.');
+fprintf('[CBF-STUDY] FINISHED. Figure 1: four 3D trajectories; Figure 10: altitude.\n');
+fprintf('[CBF-STUDY] ONE RESULT FILE (overwrites prior): %s\n',archivePath);
+disp(summary);
 end
 
-function runResult=localRunOneFlight(inputMode,workFolder)
+function localRemoveTemporaryRun(root,scriptDirectory)
+try
+    cd(scriptDirectory);
+    if exist(root,'dir')==7,rmdir(root,'s');end
+catch ME
+    warning('CBF:TemporaryCleanup','Could not remove %s: %s',root,ME.message);
+end
+end
+
+function localCopyProjectSourceSnapshot(scriptDirectory,root)
+% Capture only the experiment's static/runtime-discovered project sources.
+% DO NOT recursively copy the entire common_matlab tree (previously >1000
+% files including unrelated trajectory programs). Preserve real subfolders.
+sourceRoot=fullfile(root,'PROJECT_SOURCES');
+mkdir(sourceRoot);
+entry=fullfile(scriptDirectory,'run_VERTICAL_CBF_DUAL_INPUT_COMPARISON.m');
+files={entry};unresolved={};
+% Explicit dynamic dependencies known to the flight/HLC/CBF integration.
+critical={'HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT', ...
+    'Generate_CBF_ActuatorAware_6Methods','CBF_PREFLIGHT_WARMUP', ...
+    'ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE', 'Model_Suspended_Load', ...
+    'Estimator_EKF_SuspendedLoad','Controller_HL_Suspended_Load'};
+for ii=1:numel(critical)
+    pp=which(critical{ii});
+    if ~isempty(pp)
+        files{end+1,1}=pp; %#ok<AGROW>
+    else
+        unresolved{end+1,1}=['NOT FOUND: ' critical{ii}]; %#ok<AGROW>
+    end
+end
+try
+    [deps,~]=matlab.codetools.requiredFilesAndProducts(entry);
+    files=[files(:);deps(:)];
+catch ME
+    unresolved{end+1,1}=['Static dependency scan: ' ME.message]; %#ok<AGROW>
+end
+try
+    live=inmem('-completenames');
+    files=[files(:);live(:)];
+catch ME
+    unresolved{end+1,1}=['Runtime loaded-function scan: ' ME.message]; %#ok<AGROW>
+end
+% Include class method files adjacent to every discovered @class member,
+% because obj.method dispatch can be missed by static analysis.
+paths=unique(cellfun(@char,files(:),'UniformOutput',false),'stable');
+for ii=1:numel(paths)
+    pp=paths{ii};
+    parent=fileparts(pp);
+    [~,folderName]=fileparts(parent);
+    if startsWith(folderName,'@') && isfolder(parent)
+        siblings=dir(fullfile(parent,'*.m'));
+        for jj=1:numel(siblings)
+            paths{end+1,1}=fullfile(siblings(jj).folder,siblings(jj).name); %#ok<AGROW>
+        end
+    end
+end
+paths=unique(paths,'stable');
+rootPrefix=[lower(strrep(scriptDirectory,'/','\')) filesep];
+count=0;
+for ii=1:numel(paths)
+    pp=char(paths{ii});
+    normalized=lower(strrep(pp,'/','\'));
+    if ~startsWith(normalized,rootPrefix)
+        continue; % MATLAB/toolbox/external code is not recopied.
+    end
+    if ~isfile(pp),continue;end
+    relative=pp(numel(scriptDirectory)+2:end);
+    normRel=strrep(relative,'\','/');
+    if startsWith(normRel,'.git/') || contains(normRel,'/.git/') || ...
+       contains(normRel,'/generated_cbf_dual_input/') || ...
+       startsWith(normRel,'model/substance/generated_cbf_dual_input/')
+        continue;
+    end
+    destination=fullfile(sourceRoot,relative);
+    targetDir=fileparts(destination);
+    if ~exist(targetDir,'dir'),mkdir(targetDir);end
+    [ok,msg]=copyfile(pp,destination);
+    if ok,count=count+1;else,unresolved{end+1,1}=[pp ': ' msg];end %#ok<AGROW>
+end
+fid=fopen(fullfile(root,'SOURCE_PROVENANCE.txt'),'w');
+if fid>=0
+    fprintf(fid,'Source collection: static and in-memory dependencies only.\n');
+    fprintf(fid,'Project source files copied: %d\n',count);
+    fprintf(fid,'No recursive whole-project copy; source files keep original relative paths.\n');
+    fprintf(fid,'Dynamic function names not loaded or statically resolved may be omitted.\n');
+    fprintf(fid,'Generator is not executed by this RUN; recorded dependency source is authoritative.\n');
+    for ii=1:numel(unresolved),fprintf(fid,'%s\n',unresolved{ii});end
+    fclose(fid);
+end
+end
+
+function runResult=localRunOneFlight(inputMode,workFolder,geometryMethod,referenceMode,safetyBackend)
 % The following is the current physical flight script with the requested
 % input-mode switch and read-only logging. Do not reset or reuse another
 % mode's plant, EKF, CBF states, warmup context or integration memory.
@@ -152,7 +329,7 @@ L = agent.parameter.cableL;
 %   1 = original symbolic / constant-speed vertical line
 %   2 = independent 13th-degree C6 polynomial through vertical waypoints
 %   3 = independent degree-7 C6 B-spline with vertical control points
-referenceMode = 1; % CBF causal baseline: unmodified, constant-speed original line
+% referenceMode supplied by the comparison runner; never changed within a trial.
 % FLIGHT-ONLY experiment selector. Takeoff/landing, EKF implementation, and original HLC
 % inverse remain unchanged. 1=old yaw-locked S3, 2=yaw-free S3,
 % 3=yaw-free S3 + FLIGHT-ONLY Euler measurement chart alignment.
@@ -263,7 +440,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"z
 %% *** CBF CHANGE A: create/register HLC_SUSPENDED_CBF ***
 hlc = HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT(agent,Controller_HL_Suspended_Load(dt,agent));
 hlc.cbfMode = inputMode; % assigned once from A/B runner; do not switch
-hlc.cbfMethod = 'S3';   % 'S1','S2','S3','K1','K2','K3'
+hlc.cbfBackend = safetyBackend; % legacy / zoh, same backend for all eight trials
+hlc.cbfMethod = geometryMethod; % fixed for both trials: S1/S2/S3/S4
 hlc.cbfEnabled = false; % NEVER enable outside flight phase
 
 % Geometry values below are PLACEHOLDERS, not verified physical sizes.
@@ -289,6 +467,10 @@ shapes.uav = rU*ones(3,1);
 aC = L/2 + 0.10;
 bC = rC/sqrt(1-(L/(2*aC))^2);
 shapes.cable = [aC;bC];
+% S4: exact capsule of cable radius rC, enclosing the segment between ends.
+% Conservative smoothing error max: L/2 * epsilon = 0.005 m.
+capsuleSupportTolerance_m=0.005;
+shapes.capsule=[rC; 2*capsuleSupportTolerance_m/L];
 shapes.load = rL*ones(3,1);
 
 hlc.cbfShapes = shapes;
@@ -363,7 +545,7 @@ fprintf('[CBF-DIAG] READ-ONLY stage trace enabled t=[%.2f, %.2f] s; MAT+CSV save
 
 %% 2. WARMUP
 fprintf('[CBF-COMPARE] requested mode=%s / method=%s / flight-phase supervision\n',hlc.cbfMode,hlc.cbfMethod);
-fprintf('[VERTICAL/CBF] %s/S3 | reference=%s | identical EKF + mass estimation\n',inputMode,referenceLabel);
+fprintf('[VERTICAL/CBF] %s/%s | reference=%s | identical EKF + mass estimation\n',inputMode,geometryMethod,referenceLabel);
 fprintf('[CBF-TRIAL] SOFT ANTICIPATION: onMargin=%.3f, offMargin=%.3f; NOT safety-certified\n', ...
     hlc.cbfOpts.onMargin,hlc.cbfOpts.offMargin);
 if hlc.cbfOpts.lockNominalYaw
@@ -408,8 +590,8 @@ fprintf('[CBF-SOURCE] hlc=%s\n',which('HLC_SUSPENDED_CBF_PHYSICAL_FLIGHT'));
 fprintf('[CBF-OBS] source=%s\n',which('ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE'));
 obsProbeTime = 5.0; % at the beginning of the only CBF-supervised phase
 obsProbe = ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(obsProbeTime);
-fprintf('[CBF-OBS] at t=%.3f s, obstacles=%d (S3: UAV, cable, load per obstacle)\n', ...
-    obsProbeTime,numel(obsProbe));
+fprintf('[CBF-OBS] at t=%.3f s, obstacles=%d (geometry=%s)\n', ...
+    obsProbeTime,numel(obsProbe),geometryMethod);
 for obsIdx = 1:numel(obsProbe)
     oneObs = obsProbe(obsIdx);
     obsId = obsIdx;
@@ -423,18 +605,29 @@ for obsIdx = 1:numel(obsProbe)
         double(obsId),char(oneObs.type),oneObs.p_center(:), ...
         oneObs.ellipsoid_radii(:),obsMargin,obsVelocity);
 end
-preflight=hlc.prepareFlightCBF();
-assert(preflight.passed && hlc.cbfPreflightCompleted, ...
-    'CBF:PreflightMissing','Preflight incomplete. Flight CBF not enabled.');
-fprintf('[CBF-PREFLIGHT] completed at t=%.3f before takeoff. monitor=%d rows\n', ...
-    time.t, preflight.monitorRows);
+if strcmp(safetyBackend,'baseline')
+    % Never exercise the CBF codepath in a nominal-only diagnostic.
+    fprintf('[CBF-BASELINE] No CBF preflight; original HLC remains active with its original saturation.\n');
+else
+    preflight=hlc.prepareFlightCBF();
+    assert(preflight.passed && hlc.cbfPreflightCompleted, ...
+        'CBF:PreflightMissing','Preflight incomplete. Flight CBF not enabled.');
+    fprintf('[CBF-PREFLIGHT] completed at t=%.3f before takeoff. monitor=%d rows\n', ...
+        time.t, preflight.monitorRows);
+end
 
 %% 4. SIMULATION LOOP
 disp("Starting Simulation...");
 fprintf('[CBF-NAV] generic CBF margin-trend lead=%.1f s, softPush=[%.3g,%.3g], smoothWeight=%.3g\n', ...
     hlc.cbfOpts.navigationLeadSeconds,hlc.cbfOpts.preemptivePush, ...
     hlc.cbfOpts.navigationMaxPush,hlc.cbfOpts.smoothInputWeight);
-fprintf('[CBF-SAFE] Strict psi-chain check ON, original hard CBF and actuator inequalities retained.\n');
+if strcmp(safetyBackend,'zoh')
+    fprintf('[CBF-ZOH] Actual input held over dt. Predictive filter; no recursive safety proof.\n');
+elseif strcmp(safetyBackend,'legacy')
+    fprintf('[CBF-SAFE] Strict psi-chain check ON, original hard CBF and actuator inequalities retained.\n');
+else
+    fprintf('[CBF-BASELINE] No CBF intervention at any time; HLC reference and saturation unchanged.\n');
+end
 trialStopped=false;trialStopReason='';
 cha = 't';
 verticalTrace = zeros(0,12);  % includes yaw CBF correction = 0
@@ -443,7 +636,7 @@ refJetTrace = zeros(0,29); % [time, 0..6 time derivatives of x,y,z,yaw]
 runtimeTrace = zeros(0,6); % t, phase_f, controller_s, total_step_s, cbf_s, cbf_active
 flightEulerTrace = zeros(0,13); % flight sensor chart audit: time/prior/raw/adjusted/max gaps/changed
 
-flightHlcTrace=zeros(0,20); % read-only per-call flight HLC inversion audit
+flightHlcTrace=zeros(0,28); % read-only per-call flight HLC inversion audit
 inputCompareTrace=zeros(0,33); % 33 columns: inputs, virtual/physical mode, safety, timing
 constraintsTrace=zeros(0,14); % monitor/active, 3 shapes x obstacles, psi 0..5
 firstFlightCostLogged=false;
@@ -461,8 +654,10 @@ while time.t <= time.te
             cha = 'f';
             % Key evaluator and sampled/soft QP paths were exercised beforehand.
             % Real supervisor states have not been touched by dry-run.
-            assert(hlc.cbfPreflightCompleted,'CBF:PreflightMissing', ...
-                'Flight entered without completed preflight.');
+            if ~strcmp(safetyBackend,'baseline')
+                assert(hlc.cbfPreflightCompleted,'CBF:PreflightMissing', ...
+                    'Flight entered without completed preflight.');
+            end
             hlc.cbfSupervisor = struct();
             hlc.cbfAux = [];
             hlc.cbfAuxMode = '';
@@ -525,7 +720,7 @@ while time.t <= time.te
     do_prop_local(time, cha, cha, logger, env, agent, "reference", 1, true);
 
     %% *** CBF CHANGE B: set phase and CURRENT time before controller ***
-    hlc.cbfEnabled = (cha == 'f'); % FLIGHT ONLY; takeoff/landing nominal HLC
+    hlc.cbfEnabled = (cha == 'f') && ~strcmp(safetyBackend,'baseline'); % nominal diagnostic keeps it OFF
     hlc.cbfTime = time.t;
 
     try
@@ -713,7 +908,12 @@ if ~isempty(flightHlcTrace)
         'load_pT3','z_ref_d0','z_ref_d1','z_ref_d2','z_ref_d3', ...
         'z_ref_d4','z_ref_d5','z_ref_d6','raw_thrust_N', ...
         'raw_moment_inf_Nm','raw_moment_norm2_Nm', ...
-        'raw_minus_nominal_input_inf','nominal_minus_safe_input_inf'};
+        'raw_minus_nominal_input_inf','nominal_minus_safe_input_inf', ...
+        'nominal_v1','clip_equivalent_v1','clip_equivalent_delta_v1', ...
+        'thrust_clip_delta_N','torque_clip_delta_inf_Nm', ...
+        'raw_second_layer_reconstruction_residual_rel', ...
+        'clipped_torque_virtual_proxy_rel', ...
+        'nominal_hierarchy_unchanged_after_clip'};
     auditName=sprintf('CBF_flight_HLC_inverse_%s_%s.csv',referenceLabel,trialKey);
     writetable(array2table(flightHlcTrace,'VariableNames',auditColumns),auditName);
     spike=find(flightHlcTrace(:,17)>1,1,'first');
@@ -772,7 +972,7 @@ end
 % Saved at end, including partial trajectory if physical CBF stops.
 if ~isempty(verticalTrace)
     colNames = {'time_s','zLoad_m','zDesired_m','zError_m','mLhat_kg', ...
-        'thrust_N','Mx_Nm','My_Nm','Mz_Nm','S3_min_h','CBF_deltaU', ...
+        'thrust_N','Mx_Nm','My_Nm','Mz_Nm','CBF_min_h_m','CBF_deltaU', ...
         'CBF_deltaMz_Nm'};
     writetable(array2table(verticalTrace,'VariableNames',colNames),'VERTICAL_CBF_timeseries.csv');
     fprintf('[VERTICAL] telemetry saved: VERTICAL_CBF_timeseries.csv (%d rows)\n',size(verticalTrace,1));
@@ -1079,7 +1279,7 @@ if strcmp(label,'CBF') && ~isempty(verticalTrace)
     ax1=subplot(3,1,1);hold(ax1,'on');grid(ax1,'on');
     plot(ax1,verticalTrace(:,1),verticalTrace(:,10),'LineWidth',1.2);
     plot(ax1,[T(1),T(end)],[0,0],'k--');
-    ylabel(ax1,'S3 hMin');title(ax1,'CBF幾何学的分離余裕（距離[m]ではない）');
+    ylabel(ax1,'CBF hMin');title(ax1,'CBF幾何学的分離余裕（距離[m]ではない）');
     ax2=subplot(3,1,2);hold(ax2,'on');grid(ax2,'on');
     plot(ax2,verticalTrace(:,1),verticalTrace(:,11),'LineWidth',1.2);
     ylabel(ax2,'||uCBF-uHLC||');title(ax2,'CBF補正量');
@@ -1560,8 +1760,8 @@ end
 
 %% 2026-10-16: READ-ONLY FLIGHT-ONLY HLC/QP INPUT AUDIT
 function row=localFlightHlcAuditRow(t,hlc,failed)
-% 20-column scalar row; NaN means unavailable, NOT zero or pass.
-row=nan(1,20);row(1:2)=[double(t),double(failed)];
+% 28-column scalar row; NaN means unavailable, NOT zero or pass.
+row=nan(1,28);row(1:2)=[double(t),double(failed)];
 try
     if ~isstruct(hlc.result) || ~isfield(hlc.result,'flightHlcAudit')
         return;
@@ -1575,6 +1775,16 @@ try
         if isfield(a,names{j}) && isnumeric(a.(names{j})) && ...
                 isscalar(a.(names{j}))
             row(j+2)=double(a.(names{j}));
+        end
+    end
+    extraNames={'nominalV1','clipEquivalentV1','clipEquivalentDeltaV1', ...
+        'thrustClippingDelta_N','torqueClippingDeltaInf_Nm', ...
+        'rawSecondLayerResidualRel','clippedTorqueVirtualProxyRel', ...
+        'nominalHierarchyUnchangedAfterClip'};
+    for j=1:numel(extraNames)
+        if isfield(a,extraNames{j}) && isnumeric(a.(extraNames{j})) && ...
+                isscalar(a.(extraNames{j}))
+            row(j+20)=double(a.(extraNames{j}));
         end
     end
     if ~failed && isfield(hlc.result,'tmp') && isnumeric(hlc.result.tmp) && ...
@@ -1726,7 +1936,7 @@ try
             v(3)=double(one.obstacleID);
             component=lower(char(one.component));
             if strcmp(component,'uav'),v(4)=1;end
-            if strcmp(component,'cable'),v(4)=2;end
+            if strcmp(component,'cable') || strcmp(component,'capsule'),v(4)=2;end
             if strcmp(component,'load'),v(4)=3;end
             v(5)=double(one.h);
             if isfield(one,'normalizedMargin'),v(6)=double(one.normalizedMargin);end
@@ -1745,32 +1955,152 @@ catch
 end
 end
 
-function localOverlayTwoModePaths(root)
-% Compare only the common recorded time range. No extrapolation beyond stop.
-paths=cell(1,2);inputModes={'virtual','physical'};
-for i=1:2
-    fn=fullfile(root,inputModes{i},'VERTICAL_CBF_path_original_line.csv');
-    if exist(fn,'file')~=2,continue;end
-    try
-        D=readmatrix(fn);
-        if size(D,2)==17,paths{i}=D;end
-    catch
+function localPlotFourGeometriesZ(root,methods,refMode,figureNumber)
+% Four spatial models x two control spaces: altitude, DISPLAY ONLY.
+f=figure(figureNumber);clf(f);
+set(f,'Name',sprintf('CBF study | reference %d | four geometries: altitude',refMode));
+colors=[0.10 0.43 0.82;0.87 0.27 0.14];
+for ig=1:numel(methods)
+    method=methods{ig};figure(f);ax=subplot(2,2,ig);
+    hold(ax,'on');grid(ax,'on');hasAny=false;
+    for im=1:2
+        if im==1,mode='virtual';else,mode='physical';end
+        file=fullfile(root,sprintf('ref%d_%s',refMode,method),mode,'VERTICAL_CBF_path.csv');
+        if ~isfile(file),continue;end
+        d=readmatrix(file);
+        if size(d,2)~=17 || size(d,1)<2,continue;end
+        ids=d(:,2)==2 & all(isfinite(d(:,[1 8 17])),2);
+        if ~any(ids),continue;end
+        plot(ax,d(ids,1),d(ids,8),'Color',colors(im,:), ...
+            'LineWidth',1.3,'DisplayName',[mode ' load']);
+        if ~hasAny
+            plot(ax,d(ids,1),d(ids,17),'k:','LineWidth',1.2,'DisplayName','reference');
+        end
+        hasAny=true;
+    end
+    title(ax,sprintf('%s | reference %d (stopped trials end early)',method,refMode));
+    xlabel(ax,'t [s]');ylabel(ax,'load z [m]');
+    if hasAny,legend(ax,'Location','best');end
+end
+end
+
+function localPlotFourGeometries3D(root,methods,refMode,figureNumber)
+% Each subplot is a DIFFERENT system-body geometry. Obstacles are identical.
+% Plot only recorded plant truth and reference up to the stop time.
+% No file output. Oriented ellipsoids use R_obs (not axis-aligned radii).
+f=figure(figureNumber);clf(f);
+set(f,'Name',sprintf('CBF study | reference %d | 3D four geometries',refMode));
+obs=ENVIRONMENT_OBSTACLE_ELLIPSE_MOVE(5.0);
+colors=[0.10 0.43 0.82;0.88 0.27 0.15];
+for ig=1:numel(methods)
+    method=methods{ig};figure(f);ax=subplot(2,2,ig);hold(ax,'on');grid(ax,'on');
+    localDrawObstacleEllipsoids(ax,obs);
+    refDone=false;hasAny=false;
+    for im=1:2
+        if im==1,mode='virtual';else,mode='physical';end
+        file=fullfile(root,sprintf('ref%d_%s',refMode,method),mode,'VERTICAL_CBF_path.csv');
+        if ~isfile(file),continue;end
+        d=readmatrix(file);
+        if size(d,2)~=17 || size(d,1)<3,continue;end
+        valid=d(:,2)==2 & all(isfinite(d(:,3:8)),2);
+        d=d(valid,:);if isempty(d),continue;end
+        plot3(ax,d(:,3),d(:,4),d(:,5),'-','Color',colors(im,:), ...
+            'LineWidth',1.5,'DisplayName',[mode ' UAV']);
+        plot3(ax,d(:,6),d(:,7),d(:,8),'--','Color',colors(im,:), ...
+            'LineWidth',1.5,'DisplayName',[mode ' load']);
+        marks=unique(round(linspace(1,size(d,1),min(4,size(d,1)))));
+        for k=marks
+            plot3(ax,[d(k,3),d(k,6)],[d(k,4),d(k,7)], ...
+                [d(k,5),d(k,8)],'-','Color',0.55*colors(im,:)+0.45, ...
+                'LineWidth',0.6,'HandleVisibility','off');
+        end
+        if ~refDone
+            idx=all(isfinite(d(:,15:17)),2);
+            plot3(ax,d(idx,15),d(idx,16),d(idx,17),'k:', ...
+                'LineWidth',1.2,'DisplayName','load reference');
+            refDone=true;
+        end
+        plot3(ax,d(end,3),d(end,4),d(end,5),'o', ...
+            'Color',colors(im,:),'HandleVisibility','off');
+        plot3(ax,d(end,6),d(end,7),d(end,8),'s', ...
+            'Color',colors(im,:),'HandleVisibility','off');
+        hasAny=true;
+    end
+    title(ax,sprintf('%s | Virtual / Physical | reference %d',method,refMode));
+    xlabel(ax,'x [m]');ylabel(ax,'y [m]');zlabel(ax,'z [m]');
+    axis(ax,'vis3d');view(ax,34,21);
+    if hasAny,legend(ax,'Location','best');end
+end
+end
+
+function localWriteStudyDiagnostics(root,R)
+% A compact per-trial source-derived audit for safety margin, actual inputs,
+% controller elapsed time, and HLC conditioning. These are OBSERVATIONS,
+% not feasibility, forward invariance, or avoidance certificates.
+n=numel(R);
+minH=nan(n,1);maxF=nan(n,1);minF=nan(n,1);maxMoment=nan(n,1);
+medianCBFms=nan(n,1);minRcond=nan(n,1);activeSteps=zeros(n,1);
+qpTime=nan(n,1);qpRows=nan(n,1);qpLPslack=nan(n,1);
+qpLPFlag=nan(n,1);qpSnapshotFound=false(n,1);
+for k=1:n
+    scenario=sprintf('ref%d_%s',R(k).referenceMode,R(k).geometryMethod);
+    wd=fullfile(root,scenario,R(k).mode);
+    inputFile=fullfile(wd,'CBF_input_comparison_full_flight.csv');
+    if isfile(inputFile)
+        T=readtable(inputFile);
+        if all(ismember({'cbf_active','failed','u_safe_f_N','u_safe_Mx_Nm', ...
+                'u_safe_My_Nm','u_safe_Mz_Nm','hmin_m','beta2_rcond','cbf_cpu_s'}, ...
+                T.Properties.VariableNames))
+            ix=T.cbf_active>0.5 & T.failed<0.5 & ...
+                isfinite(T.u_safe_f_N) & isfinite(T.hmin_m);
+            activeSteps(k)=nnz(ix);
+            if any(ix)
+                minH(k)=min(T.hmin_m(ix));
+                minF(k)=min(T.u_safe_f_N(ix));maxF(k)=max(T.u_safe_f_N(ix));
+                maxMoment(k)=max(max(abs([T.u_safe_Mx_Nm(ix), ...
+                    T.u_safe_My_Nm(ix),T.u_safe_Mz_Nm(ix)])));
+                medianCBFms(k)=1000*median(T.cbf_cpu_s(ix));
+                cond=T.beta2_rcond(ix);cond=cond(isfinite(cond));
+                if ~isempty(cond),minRcond(k)=min(cond);end
+            end
+        end
+    end
+    snapFile=fullfile(wd,'CBF_physical_QP_failure.mat');
+    if isfile(snapFile)
+        snap=load(snapFile);
+        if isfield(snap,'D') && isfield(snap.D,'Aineq') && ...
+                isfield(snap.D,'bineq')
+            D=snap.D;A=double(D.Aineq);b=double(D.bineq(:));
+            qpSnapshotFound(k)=true;qpRows(k)=size(A,1);
+            if isfield(D,'time'),qpTime(k)=double(D.time);end
+            if size(A,2)==4 && numel(b)==size(A,1) && ...
+                    all(isfinite(A(:))) && all(isfinite(b))
+                % Minimize s >= 0, subject to A*w <= b+s.
+                % A zero result means the SAVED LINEAR inequalities are feasible.
+                % It does not imply safety, future feasibility, or bounded input.
+                try
+                    lpOpt=optimoptions('linprog','Display','none');
+                    [~,slack,ef]=linprog([zeros(4,1);1], ...
+                        [A,-ones(size(A,1),1)],b,[],[], ...
+                        [-inf(4,1);0],[],lpOpt);
+                    qpLPFlag(k)=ef;
+                    if ef>0 && isfinite(slack),qpLPslack(k)=max(0,slack);end
+                catch ME
+                    warning('CBF:LPStudyAudit','Case %d LP audit unavailable: %s',k,ME.message);
+                end
+            end
+        end
     end
 end
-if all(cellfun(@isempty,paths)),return;end
-try
-    h=figure('Name','CBF input A/B : reference and load');clf(h);
-    hold on;grid on;
-    for i=1:2
-        D=paths{i};if isempty(D),continue;end
-        f=D(:,2)==2;
-        plot(D(f,1),D(f,8),'LineWidth',1.5,'DisplayName',[inputModes{i} ' actual load z']);
-        plot(D(f,1),D(f,17),'--','LineWidth',1,'DisplayName',[inputModes{i} ' load reference z']);
-    end
-    xlabel('Time [s]');ylabel('Load z [m]');legend('Location','best');
-    title('Two independent controller trials (until each stop)');
-    saveas(h,fullfile(root,'CBF_dual_input_z_comparison.png'));
-catch ME
-    fprintf(2,'[CBF-COMPARE] comparison plot unavailable: %s\n',ME.message);
-end
+T=table(string({R.geometryMethod}).',[R.referenceMode].',string({R.mode}).', ...
+    [R.stopped].',activeSteps,minH,minF,maxF,maxMoment,medianCBFms,minRcond, ...
+    qpSnapshotFound,qpTime,qpRows,qpLPFlag,qpLPslack, ...
+    'VariableNames',{'geometry_method','reference_mode','input_mode','stopped', ...
+    'active_samples','min_recorded_monitor_h_m','min_applied_thrust_N', ...
+    'max_applied_thrust_N','max_abs_applied_torque_Nm', ...
+    'median_active_cbf_ms','min_hlc_beta2_rcond', ...
+    'qp_failure_snapshot_found','qp_failure_time_s', ...
+    'qp_inequality_rows','independent_lp_exitflag', ...
+    'minimum_common_hard_constraint_slack'});
+writetable(T,fullfile(root,'CBF_EIGHT_CASE_DIAGNOSTICS.csv'));
 end

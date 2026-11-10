@@ -1,0 +1,6 @@
+status=PASS_PREFLIGHT_AND_DEFAULTS__REALTIME_AND_HLC_PENDING
+error=
+preflight_ms=25.17640000
+gram_cache_hit=1
+gram_formula_delta=0
+split_delta=1.1102230246251565e-16

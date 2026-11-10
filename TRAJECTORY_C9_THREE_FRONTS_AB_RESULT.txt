@@ -1,0 +1,8 @@
+status=PASS_COMPONENT_PARITY__HLC_AND_REALTIME_STILL_PENDING; stage=TORQUE_ONLY_CONSTRAINT_GENERATION; error=
+HLC_CRAMER=UNKNOWN_HLC_BETA2_INTERVAL_MAY_BE_SINGULAR; HLC_NEUMANN=CONDITIONAL_HLC_DIRECT_INTERVAL_PRECLAMP_FOUR_INPUT__NOT_EXECUTION_PROVEN; HLC_COMBINED=CONDITIONAL_HLC_DIRECT_INTERVAL_PRECLAMP_FOUR_INPUT__NOT_EXECUTION_PROVEN; eta=0.783286494929; singular_rejected=1; singular_warning_free=1; exact_midpoint_regular=1
+scene=cylinder_capsule_cone; torque_old_ms=[245.6324 241.9812 238.3571 231.5039 231.0017]; torque_new_ms=[99.5881 107.8608 98.2977 100.2698 97.0206]; old_proven=[true true true true true]; new_proven=[true true true true true]
+qp_case=1; baseline=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME (109.24430000ms); changed=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME (40.45890000ms); torque_only_uses=0
+qp_case=1; torque_only_repair_point_witnesses=0; torque_only_qp_attempts=0
+scene=torus_polygon_polyhedron; torque_old_ms=[340.3415 329.7424 322.4914 325.5997 322.5295]; torque_new_ms=[133.5527 127.9574 125.1142 130.3338 127.9236]; old_proven=[true true true true true]; new_proven=[true true true true true]
+qp_case=2; baseline=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING (169.15580000ms); changed=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING (132.27840000ms); torque_only_uses=0
+qp_case=2; torque_only_repair_point_witnesses=0; torque_only_qp_attempts=0
