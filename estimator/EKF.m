@@ -50,7 +50,8 @@ classdef EKF < handle
             obj.B = param.B;
             obj.result.P = param.P;
             obj.result.G = zeros(obj.n,size(obj.R,2));
-            obj.result.theat = 0; 
+            obj.result.theta = 0; 
+            obj.result.thetab = 0;
             if ~isfield(obj.self.estimator,"result")
                 obj.self.estimator.result = obj.result;
             end
@@ -130,7 +131,8 @@ classdef EKF < handle
                 tmpvalue = obj.model.projection(tmpvalue);
                 obj.result.state.set_state(tmpvalue);
                 obj.model.state.set_state(tmpvalue);
-                obj.result.theat=atan2(obj.result.state.pT(1), -obj.result.state.pT(3));
+                obj.result.theta=atan2(obj.result.state.pT(1), -obj.result.state.pT(3));
+                obj.result.thetab=atan2(obj.result.state.pT(2), -obj.result.state.pT(3));
                 obj.result.G = G;
                 obj.result.P = P;
             end
