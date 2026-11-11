@@ -19,8 +19,10 @@ properties
  showOriginal=true
  showApprox=true
  showGround=true
- originalAlpha=0.88
- approxAlpha=0.16
+ originalAlpha=0.68
+ approxAlpha=0.12
+ originalColor=[0.46 0.51 0.57]
+ approxColor=[0.12 0.62 0.88]
  meshResolution=28
  motionRange=[0 12]
  baseObjects
@@ -40,6 +42,8 @@ methods
   if isfield(opts,'showApprox'),obj.showApprox=logical(opts.showApprox);end
   if isfield(opts,'showGround'),obj.showGround=logical(opts.showGround);end
   if isfield(opts,'originalAlpha'),obj.originalAlpha=opts.originalAlpha;end
+  if isfield(opts,'originalColor'),obj.originalColor=opts.originalColor;end
+  if isfield(opts,'approxColor'),obj.approxColor=opts.approxColor;end
   if isfield(opts,'approxAlpha'),obj.approxAlpha=opts.approxAlpha;end
   if isfield(opts,'meshResolution'),obj.meshResolution=opts.meshResolution;end
   if isfield(opts,'motionRange'),obj.motionRange=opts.motionRange;end
@@ -63,13 +67,13 @@ methods
    if obj.showOriginal
     g=hgtransform('Parent',ax);
     obj.originalGroups(i)=g;
-    obs_draw_original_shape(g,obs,world.options,[.20 .25 .30], ...
+    obs_draw_original_shape(g,obs,world.options,obj.originalColor, ...
         obj.originalAlpha,obj.meshResolution);
    end
    if obj.showApprox
     g=hgtransform('Parent',ax);
     obj.approxGroups(i)=g;
-    obs_draw_approx_parts(g,allParts(belonging),[.05 .62 .89], ...
+    obs_draw_approx_parts(g,allParts(belonging),obj.approxColor, ...
         obj.approxAlpha,obj.meshResolution);
    end
    if obj.showLabels

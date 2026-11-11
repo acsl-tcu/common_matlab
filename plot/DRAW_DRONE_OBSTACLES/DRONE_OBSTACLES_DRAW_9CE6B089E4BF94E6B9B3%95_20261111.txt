@@ -1,0 +1,535 @@
+﻿DRONE_OBSTACLES 描画・プロット・動画　最新版 完全使用ガイド
+更新日：2026-11-11
+対応：DRAW専用パッチ＋カメラ・色調整パッチ適用後
+============================================================
+
+【このマニュアルの対象】
+このTXTは、commonmatlab/plot/DRAW_DRONE_OBSTACLES/ に置いた障害物描画機能の
+最新版を説明します。障害物の「定義・近似アルゴリズム」自体の説明書ではありません。
+
+重要な方針
+・DRAW_SUSPENDED_LOAD.m は一切変更しない。
+・障害物用DRAWを独立して使用する。
+・元形状は比較的濃いグレー、近似形状は薄い半透明の青で重ねる。
+・3D、XY（上面）、XZ（正面）、YZ（側面）の4方向を表示できる。
+・動画の標準カメラは「実際の機体・吊り荷の飛行範囲」を優先する。
+・画像も動画も、初期設定ではファイル保存しないことを推奨する。
+・現時点の障害物は定義・描画用。CBFや軌道回避を有効化するものではない。
+
+
+============================================================
+1. ファイル配置と役割
+============================================================
+
+commonmatlab/
+├─ run_flight_SimSuspendedLoad_trj.m
+├─ plot/
+│  ├─ DRAW_SUSPENDED_LOAD.m             ← 元のまま、変更しない
+│  └─ DRAW_DRONE_OBSTACLES/
+│     ├─ DRAW_DRONE_OBSTACLES.m         ← 元形状・近似・地面の描画クラス
+│     ├─ obs_draw_original_shape.m     ← 元形状のメッシュ描画
+│     ├─ obs_draw_approx_parts.m        ← 近似形状のメッシュ描画
+│     ├─ plot_obstacles_4views.m        ← 障害物のみの3D＋3方向図
+│     ├─ plot_flight_obstacles_4views.m ← 飛行ログ＋障害物の3D＋3方向図
+│     ├─ animate_obstacles_only.m      ← 障害物のみの動画
+│     └─ animate_suspended_with_obstacles.m
+│                                     ← 機体＋吊り荷＋障害物の動画
+└─ environment/
+   └─ DRONE_OBSTACLES/
+      ├─ DRONE_OBSTACLES.m
+      ├─ scenes/static/                 ← 静的障害物の配置・姿勢
+      ├─ scenes/dynamic/                ← 動的障害物の配置・独立軌道
+      ├─ primitives/                    ← 元形状
+      ├─ approximations/                ← 近似処理
+      ├─ geometry/                      ← 幾何演算
+      ├─ dynamic/                       ← 各障害物の位置・姿勢を時刻で評価
+      └─ ground/                        ← 現在は z=0 の地面
+
+MATLABのカレントフォルダを commonmatlab にし、サブフォルダもpathに通す。
+既存runの genpath(.) / addpath 処理をそのまま使ってよい。
+同名の古いDRAWファイルをplot直下に残した場合、参照先が重複しないか確認：
+    which DRAW_DRONE_OBSTACLES -all
+    which animate_suspended_with_obstacles -all
+
+
+============================================================
+2. 最初に障害物を1回生成する
+============================================================
+
+runの env = []; の直後など、シミュレーション開始前に置く。
+
+    sceneName = 'scene_cylinders_high_side';
+    % sceneName = 'scene_gate_square';
+    % sceneName = 'scene_showcase_13';
+    % sceneName = 'scene_dynamic_independent';
+
+    % 近似方式：毎回どちらか片方だけを有効にする
+    approxMethod = 'multiple_ellipsoids';  % 複数楕円体（直接フィット）
+    % approxMethod = 'multiple_spheres';  % 複数球
+
+    chosenGround = 'ground_z0';
+
+    obstacleOptions = struct();
+    obstacleOptions.maxPartsPerObstacle = 6;
+    obstacleOptions.maxTotalParts = 36;
+    obstacleOptions.targetPartSize = 3.0;
+    obstacleOptions.superExponent = 8;
+    obstacleOptions.hollowSides = 16;
+    obstacleOptions.polySides = 8;
+
+    worldObstacles = DRONE_OBSTACLES( ...
+        sceneName, approxMethod, chosenGround, obstacleOptions);
+
+※これは障害物データの生成であり、毎フレーム繰り返す必要はない。
+※シーン内の円柱の位置・姿勢を変えたいときは scenes/static/ の
+  scene_cylinders_high_side.m を編集する。DRAWファイルは編集しない。
+※動的シーンも同じゲート DRONE_OBSTACLES から読み込める。
+
+
+============================================================
+3. 最もよく使う：runの表示／保存スイッチ
+============================================================
+
+推奨：表示はON、保存はOFF。
+
+    obstacleDrawSceneViews = true;   % 障害物だけの4方向表示
+    obstacleDrawFlightViews = true;  % 飛行ログ＋障害物の4方向表示
+    obstacleDrawFlightMovie = true;  % 飛行動画＋障害物の再生
+
+    obstacleSaveImages = false;      % PNG保存（初期はOFF）
+    obstacleSaveMovie  = false;      % MP4保存（初期はOFF）
+
+    obstacleFigureTime = 10.0;       % 静止画上の障害物姿勢の時刻[s]
+    obstacleMovieSkip = 4;           % 動画のログ間引き数
+    obstacleMovieFPS = 10;           % 保存する場合の動画フレームレート
+    obstacleMoviePause = 0;          % 再生時の追加停止時間[s]
+    obstacleOutputDir = 'Data';      % 保存ONの場合のみ使う
+
+注意：obstacleSaveImages / obstacleSaveMovie は「run側で定義するスイッチ」。
+      描画関数自身が自動的に認識するパラメータではない。
+      下の4章のように、保存しないときは filename や mp4 に '' を渡す。
+
+表示自体を止めて計算時間を節約する場合：
+    obstacleDrawSceneViews = false;
+    obstacleDrawFlightViews = false;
+    obstacleDrawFlightMovie = false;
+
+動画の処理は飛行シミュレーション終了後に行うので、制御周期のHLC計算には入らない。
+ただし画面描画・動画生成には別途時間がかかる。
+
+
+============================================================
+4. runの最後に置く推奨コード（保存なしでも動く完全形）
+============================================================
+
+既存の4つの logger.plot はそのまま残す。
+旧方式の mov = DRAW_SUSPENDED_LOAD(...); mov.animation(...); は実行しない。
+その代わり、シミュレーション終了後、ローカル関数定義より前に次を追加する。
+
+    %% 障害物の静止画・動画
+    if obstacleSaveImages || obstacleSaveMovie
+        if ~exist(obstacleOutputDir,'dir')
+            mkdir(obstacleOutputDir);
+        end
+    end
+
+    % ① 障害物だけ：3D、XY、XZ、YZ
+    if obstacleDrawSceneViews
+        imageName = '';
+        if obstacleSaveImages
+            imageName = fullfile(obstacleOutputDir, ...
+                'ObstacleScene_4Views.png');
+        end
+        plot_obstacles_4views(worldObstacles, ...
+            'time',obstacleFigureTime, ...
+            'filename',imageName);
+    end
+
+    if logger.k > 1
+        % ② 飛行軌跡＋障害物：3D、XY、XZ、YZ
+        if obstacleDrawFlightViews
+            imageName = '';
+            if obstacleSaveImages
+                imageName = fullfile(obstacleOutputDir, ...
+                    'Flight_4Views.png');
+            end
+            plot_flight_obstacles_4views(logger,worldObstacles, ...
+                'target',1, ...
+                'time',obstacleFigureTime, ...
+                'filename',imageName);
+        end
+
+        % ③ 機体・吊り荷・障害物の動画（DRAW_SUSPENDED_LOADは無改造）
+        if obstacleDrawFlightMovie
+            movieName = '';
+            if obstacleSaveMovie
+                movieName = fullfile(obstacleOutputDir, ...
+                    'FlightWithObstacles.mp4');
+            end
+            animate_suspended_with_obstacles( ...
+                logger,agent(1),worldObstacles, ...
+                'target',1, ...
+                'fps',obstacleMovieFPS, ...
+                'skip',obstacleMovieSkip, ...
+                'pause',obstacleMoviePause, ...
+                'mp4',movieName, ...
+                'cameraMode','wholeFlight', ...
+                'trailSeconds',Inf, ...
+                'originalAlpha',0.68, ...
+                'approxAlpha',0.12);
+        end
+    end
+
+保存を有効にしたときだけ Data/ にPNG・MP4が生成される。
+表示だけの場合は filename=''、mp4='' でよい。
+※以前配布したRUN_OBSTACLE_3D_2D_MOVIE_PATCHの一例ではfilename/mp4に
+  毎回保存先を直接渡していた。保存しない運用では上記の条件分岐にすること。
+
+
+============================================================
+5. 4方向静止画の詳細
+============================================================
+
+A. 障害物だけ
+
+    plot_obstacles_4views(worldObstacles, ...
+        'time',10, ...
+        'filename','');
+
+作成されるFigureは、左上3D、右上XY、左下XZ、右下YZ。
+元形状・近似形状・地面を表示する。
+動的障害物があれば指定時刻の姿勢に更新する。
+静止画用のカメラは「障害物シーン全体」が入るよう自動調整される。
+
+保存したいとき：
+
+    plot_obstacles_4views(worldObstacles, ...
+        'time',10, ...
+        'filename','Data/ObstacleScene_4Views.png');
+
+B. 飛行ログと障害物
+
+    plot_flight_obstacles_4views(logger,worldObstacles, ...
+        'target',1, ...
+        'time',10, ...
+        'filename','');
+
+・機体の実軌跡：赤系の線
+・吊り荷の実軌跡：緑系の線（ログから位置を取得できる場合）
+・指定時刻の機体／吊り荷位置：丸いマーカー
+・障害物：指定時刻の姿勢、元形状と近似形状
+・3D、XY、XZ、YZの4方向に同じ内容を投影する。
+
+重要：飛行軌跡は「全時刻のログ」を描き、マーカーだけが指定時刻に移る。
+      動的障害物は指定時刻の形状を表示する。
+      現在の静止画関数は飛行範囲「と」障害物の範囲の両方を収める。
+      遠くに障害物を置くとドローンの軌跡が小さく見えることがある。
+      動画のwholeFlightモードとはカメラの方針が異なる。
+
+C. 2Dの見方
+
+    XY（上面）     ：x-y平面、上から見る
+    XZ（正面）   ：x-z平面
+    YZ（側面）   ：y-z平面
+
+各軸は[m]。3D元形状の投影であり、障害物を別の2Dモデルへ置き換えていない。
+グラフを回転・ズームしたい場合はMATLAB Figure上の操作を使う。
+
+D. 画像保存形式
+
+filename=''なら表示のみ。PNGなどの拡張子を付けた場合は保存する。
+保存先フォルダがなければ関数が作成する。
+
+
+============================================================
+6. 動画：機体・吊り荷・障害物（主にこちらを使う）
+============================================================
+
+標準呼び出し（保存なし）：
+
+    animate_suspended_with_obstacles( ...
+        logger,agent(1),worldObstacles, ...
+        'target',1, ...
+        'fps',10, ...
+        'skip',4, ...
+        'pause',0, ...
+        'mp4','', ...
+        'cameraMode','wholeFlight', ...
+        'trailSeconds',Inf, ...
+        'originalAlpha',0.68, ...
+        'approxAlpha',0.12);
+
+この関数は既存のDRAW_SUSPENDED_LOADを内部で使用し、
+同じ3D座標軸にDRAW_DRONE_OBSTACLESを重ねる。
+元のDRAW_SUSPENDED_LOAD.mは変更しない。
+
+動画に表示されるもの：
+・機体と吊り荷、ケーブル（既存DRAWの表示機能）
+・機体の実際の通過軌跡：青系
+・吊り荷の実際の通過軌跡：緑系
+・名目参照軌跡：ログにあれば橙系で表示
+・障害物の元形状：中明度グレー
+・障害物の近似形状：透明度の高い青
+・地面 z=0
+・動的障害物：動画の時刻に合わせて移動・回転
+
+注意：本関数は現在target=1専用。
+      動画上で参照線を描けるかはloggerに参照軌跡が記録されているかによる。
+      既存runの飛行計算結果を使って再生する方式。
+
+MP4を保存したい場合だけ：
+
+    'mp4','Data/FlightWithObstacles.mp4', ...
+
+とする。'mp4',trueでも保存される（デフォルト名を使う）。
+'fps'は保存動画のフレームレートを主に決める。
+'skip'はシミュレーションログの何サンプルごとに描くかを決める。
+たとえばdt=0.025、skip=4なら、0.1秒間隔で描く。
+fps=10なら、保存動画は概ね実時間と同じ時間スケールになる。
+'pause'=0は再生の追加待機なしであり、表示速度が厳密に実時間になる保証ではない。
+
+
+============================================================
+7. 動画カメラ：wholeFlight / follow / scene
+============================================================
+
+[推奨] wholeFlight
+
+    'cameraMode','wholeFlight', ...
+    'trailSeconds',Inf, ...
+
+・飛行ログ全体（機体＋吊り荷）の位置範囲から表示枠を決めて固定。
+・元のDRAWに近い表示方針。途中でカメラが遠くへ飛ばされない。
+・遠方の障害物は見切れてもよい（機体と実軌跡を優先）。
+・過去から現在までの実軌跡を描く。
+
+[追従表示] follow
+
+    'cameraMode','follow', ...
+    'cameraHalfSpan',[4 4 3.5], ...
+    'cameraSmoothing',0.60, ...
+    'trailSeconds',12, ...
+
+・機体と吊り荷の中点付近へカメラが追従する。
+・cameraHalfSpanは表示枠のx/y/z方向の半幅[m]。
+  小さくすると近く見える。大きくすると広く見える。
+・cameraSmoothingは[0,1)で、0が即時追従、0.60がやや滑らか。
+・trailSeconds=12は直近12秒程度の実軌跡を表示する。
+・過去の軌跡は消えたり、現在の表示枠の外へ出たりする。
+
+[障害物全体を優先] scene
+
+    'cameraMode','scene', ...
+
+・元の障害物シーンの範囲を含めて固定画面にする。
+・遠くの円柱などをすべて見たいときに使う。
+・障害物が飛行区域から遠いと、機体や軌跡が小さく見える。
+
+[手動の固定軸]
+
+    'lims',[-2 8; -2 8; -1 7], ...
+
+・行は[xmin xmax; ymin ymax; zmin zmax]、単位[m]。
+・limsを渡すとcameraModeより優先される。
+・followを指定しても、limsがある場合は画面が固定される。
+
+[動く障害物の表示範囲]
+
+    'motionRange',[0 20], ...
+
+・sceneモードで動的障害物の移動範囲を予測描画するための参考時間範囲。
+・離散時刻をサンプルして描画範囲を見積もるだけであり、
+  連続時間全域の衝突安全性を保証するものではない。
+
+
+============================================================
+8. 色・透明度・表示対象の切り替え
+============================================================
+
+最新版のDRAW_DRONE_OBSTACLESの標準値：
+
+    originalColor = [0.46 0.51 0.57];  % 中明度グレー
+    approxColor   = [0.12 0.62 0.88];  % 水色～青
+    originalAlpha = 0.68;              % 元形状
+    approxAlpha   = 0.12;              % 近似形状
+
+alphaは0で完全透明、1で不透明。
+元形状が濃く感じる場合：
+
+    'originalAlpha',0.55, ...
+    'approxAlpha',0.10, ...
+
+動画では次のように切り替えられる：
+
+    'showOriginal',true, ...    % 元形状
+    'showApprox',true, ...      % 近似形状
+    'showGround',true, ...      % 地面
+    'showLabels',false, ...     % 障害物名ラベル
+    'showDroneTrail',true, ...  % 実機体の軌跡
+    'showLoadTrail',true, ...   % 実吊り荷の軌跡
+    'showReference',true, ...   % 参照軌跡（ログにある場合）
+    'originalColor',[0.52 0.57 0.63], ...
+    'approxColor',[0.12 0.62 0.88], ...
+
+静止画でもDRAWクラス側の既定色・透明度が使われる。
+ただし、plot_obstacles_4viewsは現状time/filenameが主な引数であり、
+上記の色設定をすべて引数で転送する作りにはなっていない。
+plot_flight_obstacles_4viewsが受け付ける追加表示指定は
+'showOriginal','showApprox','showGround'（およびtarget,time,filename）。
+静止画全体の標準色を変えたい場合はDRAW_DRONE_OBSTACLES.mの
+プロパティ初期値を変更する方法が確実。
+
+
+============================================================
+9. DRAW_DRONE_OBSTACLESクラスの単独使用
+============================================================
+
+単一Axesに障害物だけを表示する場合：
+
+    figure;
+    ax = axes;
+    drawer = DRAW_DRONE_OBSTACLES(worldObstacles, ...
+        'ax',ax, ...
+        'showOriginal',true, ...
+        'showApprox',true, ...
+        'showGround',true, ...
+        'originalAlpha',0.60, ...
+        'approxAlpha',0.12);
+
+    drawer.update(0);       % t=0 の障害物姿勢
+    drawer.update(5);       % t=5 に更新（動的障害物だけ動く）
+
+・静的障害物は動かない。
+・動的障害物の元形状と近似形状は、同じ剛体変換で同期して動く。
+・生成した近似メッシュ自体を毎フレーム再計算しない。
+
+軸表示を障害物に合わせて自動拡張したくない場合：
+
+    'fitToObstacles',false, ...
+
+このとき必要に応じてAxesのXLim/YLim/ZLimを自分で指定する。
+障害物の幾何情報の生成・包含判定そのものには影響しない。
+
+
+============================================================
+10. 障害物だけの動画（動的シーンの確認向け）
+============================================================
+
+保存なし：
+
+    animate_obstacles_only(worldObstacles,0:0.1:12,'');
+
+MP4保存あり：
+
+    animate_obstacles_only(worldObstacles,0:0.1:12, ...
+        'Data/ObstaclesOnly.mp4');
+
+第2引数timeValuesは表示する時刻の配列。
+動的障害物ごとに定義された軌道に従い、元形状・近似が同じ姿勢で動く。
+元のDRAW_SUSPENDED_LOADは利用しない。
+
+
+============================================================
+11. 表示と近似計算の違い
+============================================================
+
+・元形状を濃く、近似を薄く描くのは「表示上の設定」。
+・近似アルゴリズムと近似要素数はDRONE_OBSTACLESで生成するとき決まる。
+・色、Alpha、cameraModeを変えても、幾何・CBF安全関数は変わらない。
+・近似が本当に元形状を包含しているかは、描画の見た目ではなく
+  別途行った包含検証が必要。
+・4方向図や動画に障害物が描かれていても、現段階では
+  HLCの障害物回避が実行されていることを意味しない。
+
+現在までに報告された検証：
+・132種類の元形状・近似ケース：PASS
+・24組み合わせの近似要素数予算テスト：PASS
+・静的／動的DRAWテスト：PASS
+・直接楕円体フィット10組み合わせ：PASS
+
+これらはそのテストが調べた項目の合格を意味する。
+飛行中のCBF処理時間や連続形状の数学的安全保証は、まだ別の検証事項。
+
+
+============================================================
+12. よくある症状と対処
+============================================================
+
+Q. 動画でドローンと軌跡が小さくなった／見えなくなった。
+A. cameraMode='wholeFlight' を使う。遠方障害物を見せたいときだけ
+   scene にする。limsを指定している場合は外す。
+
+Q. 動画で機体の近くを常に映したい。
+A. cameraMode='follow', cameraHalfSpan=[4 4 3.5] を使う。
+   近すぎればcameraHalfSpanを大きくする。
+
+Q. 動画の過去の軌跡を全部残したい。
+A. trailSeconds=Inf。直近12秒だけにするなら12を指定する。
+
+Q. 元形状が濃くて近似が見えない。
+A. originalAlphaを0.55程度、approxAlphaを0.10～0.18程度で試す。
+   色はoriginalColor/approxColorでも調整可能。
+
+Q. 障害物が動画に映らない。
+A. wholeFlightは飛行区域を優先する仕様。障害物が遠いなら
+   sceneモード、lims変更、または障害物の位置を確認する。
+
+Q. 動画には障害物が映るのに静止画で機体が小さく見える。
+A. 4方向静止画は飛行範囲と障害物全域を両方収めるため。
+   現在の4方向plotに動画用cameraMode引数はない。
+
+Q. PNG/MP4が勝手に保存される。
+A. filenameまたはmp4に保存パスが直接入っていないか確認。
+   filename=''、mp4=''にする。runでは保存スイッチで分岐させる。
+
+Q. 同じ動画が2回動く。
+A. 旧 mov.animation(...) と新 animate_suspended_with_obstacles(...)
+   の両方を呼んでいないか確認する。
+
+Q. Undefined function 'animate_suspended_with_obstacles' と出る。
+A. plot/DRAW_DRONE_OBSTACLES がMATLAB pathに追加されているか確認。
+    which animate_suspended_with_obstacles -all
+
+Q. 動的障害物が更新されない。
+A. scene_dynamic_independentなどの動的シーンか、
+   各障害物にmotionが設定されているかを確認。
+   静的シーンは時刻を変えても動かないのが正常。
+
+Q. MP4にしたら再生速度が合わない。
+A. シミュレーション時間／保存動画の長さは概ね fps * skip * dt。
+   dt=.025, skip=4, fps=10ならほぼ実時間。表示のみの場合は
+   描画の処理時間にも依存し、一定速にはならない。
+
+
+============================================================
+13. 最初のおすすめ設定（まとめ）
+============================================================
+
+シーン／近似：
+    sceneName = 'scene_cylinders_high_side';
+    approxMethod = 'multiple_ellipsoids';
+    % approxMethod = 'multiple_spheres';
+    chosenGround = 'ground_z0';
+
+図の表示と保存：
+    obstacleDrawSceneViews = true;
+    obstacleDrawFlightViews = true;
+    obstacleDrawFlightMovie = true;
+    obstacleSaveImages = false;
+    obstacleSaveMovie = false;
+
+動画の表示：
+    'cameraMode','wholeFlight', ...
+    'trailSeconds',Inf, ...
+    'originalAlpha',0.68, ...
+    'approxAlpha',0.12, ...
+    'mp4',''
+
+これで、保存せずに、障害物だけの4方向図、飛行軌跡入りの4方向図、
+機体・吊り荷・障害物の動画を確認できる。
+
+※run本体やDRAW_SUSPENDED_LOAD.mを新たに改造する必要はない。
+※このガイドは現時点で検査した各MATLABソースに基づく。
+  MATLAB上で未確認の関数仕様については記載していない。
+
+以上。
