@@ -1,0 +1,12 @@
+status=PASS_BATCH_QP_AB__HLC_AND_WCET_PENDING
+error=
+support_tests=2640 max_rel=4.53848277779e-16
+QP_checked=1 qp_max_rel=3.21581320094e-16
+completed=[5 5;5 5;5 5] successes=[2 2] regressions=0
+batch_qp_calls=30 rows=4170
+scene=clear_affine mode=loop_geometry median=18.1060000 p95=62.2759000 max=62.2759000 jitter=54.5508000
+scene=clear_affine mode=batched_geometry median=1.3821000 p95=2.1033000 max=2.1033000 jitter=0.8289000
+scene=sphere_13D mode=loop_geometry median=32.1589000 p95=76.3055000 max=76.3055000 jitter=47.9769000
+scene=sphere_13D mode=batched_geometry median=27.4277000 p95=45.6069000 max=45.6069000 jitter=19.5190000
+scene=sphere_ellipsoid_13D mode=loop_geometry median=51.7433000 p95=58.0379000 max=58.0379000 jitter=8.8292000
+scene=sphere_ellipsoid_13D mode=batched_geometry median=51.5293000 p95=54.1724000 max=54.1724000 jitter=6.0208000

@@ -25,7 +25,7 @@ S=struct('status','UNKNOWN_POINT_TORQUE_NOT_EVALUATED', ...
 try
  assert(isstruct(piece)&&isscalar(piece)&& ...
    all(isfield(piece,{'control_points_m','duration_s','t0_s'}))&& ...
-   isequal(size(piece.control_points_m),[3 24])&& ...
+   any(size(piece.control_points_m,2)==[24 28])&& ...
    isnumeric(piece.control_points_m)&& ...
    all(isfinite(piece.control_points_m(:)))&& ...
    isreal(piece.duration_s)&&isfinite(piece.duration_s)&& ...
@@ -58,6 +58,7 @@ try
    all(ts>=piece.t0_s)&&all(ts<=piece.t0_s+piece.duration_s), ...
    'C9_POINT_TORQUE:Domain','Invalid authority, limits, or probe times');
  P=double(piece.control_points_m);
+ n=size(P,2)-1;
  % PERFORMANCE-ONLY OPTION.  The degree-23 derivative control polygons
  % depend on (piece,T), NOT on a probe time.  Computing them once for all
  % probes preserves the original Bernstein/de Casteljau evaluation and its
@@ -88,20 +89,20 @@ try
  if precompute_derivatives || batch_bernstein
      polys{1}=P;
      for kk=1:6
-         polys{kk+1}=(24-kk)/piece.duration_s*diff(polys{kk},1,2);
+         polys{kk+1}=(n-kk+1)/piece.duration_s*diff(polys{kk},1,2);
      end
  end
  bulk=cell(1,7);
  if batch_bernstein
      x=(ts(:)-piece.t0_s)/piece.duration_s;
      % Exact integer Pascal coefficients (all <= 23 choose 11 < 2^53).
-     pascal=cell(1,24);pascal{1}=1;
-     for degree=1:23
+     pascal=cell(1,n+1);pascal{1}=1;
+     for degree=1:n
          prev=pascal{degree};
          pascal{degree+1}=[1,prev(1:end-1)+prev(2:end),1];
      end
      for kk=0:6
-         degree=23-kk;
+         degree=n-kk;
          jj=0:degree;
          weights=(x.^jj).*((1-x).^(degree-jj));
          weights=weights.*pascal{degree+1};
@@ -130,7 +131,7 @@ try
          end
          d{k+1}=Q(:,1);
          if ~precompute_derivatives && k<6
-             poly=(23-k)/piece.duration_s*diff(poly,1,2);
+             poly=(n-k)/piece.duration_s*diff(poly,1,2);
          end
        end
    end

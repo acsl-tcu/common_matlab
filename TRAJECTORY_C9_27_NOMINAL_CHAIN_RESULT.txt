@@ -1,0 +1,12 @@
+status=PASS_DEGREE27_NOMINAL_GEOMETRY_C7_YAW_TORQUE__HLC_B_PENDING
+error_message=
+degree27_exact_line_error=0
+degree27_end_jet_error=0
+tampered_cache_rejected=1
+geometry=1 heading=1 torque=1 chain=1
+nominal_chain_timing_ms=[90.5469 21.7004 26.8445 9.7742 47.0655]
+median=26.8445 p95=90.5469 max=90.5469
+torque_native_status=PROVEN_WHOLE_NATIVE_NOMINAL_TORQUE
+preflight_status=PASS_DEGREE27_DIRECTED_NOMINAL_TORQUE_MEX_PINNED
+intlab_status=UNKNOWN_INTLAB_NOT_INSTALLED exact=0 singular_reject=0
+certificate_status=CONDITIONAL_C9_27_NOMINAL_GEOMETRY_TENSION_THRUST_C7_YAW_TORQUE__HLC_PENDING

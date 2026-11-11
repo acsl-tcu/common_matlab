@@ -361,6 +361,38 @@ if R.fixed_endpoint_torque_gate_enabled
             'INCONCLUSIVE_ENDPOINT_HEADING_OR_FORCE__NO_REJECTION';
     end
 end
+% Opt-in one-segment DEGREE-27 C9 search with 25 physical variables.
+% Exclusive with 12D/13D, never a second search stage. No artificial
+% 7-ms cutoff; all candidates retain independent full-time certification.
+% Default OFF until 15-case MATLAB A/B, closed-loop tube and real HLC proof.
+mode_25d=false;
+if isfield(opt,'enable_degree27_25d_joint_search')
+    flag=opt.enable_degree27_25d_joint_search;
+    assert((islogical(flag)||isnumeric(flag))&&isscalar(flag)&& ...
+        isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+        'TRAJECTORY_C9_GUIDE:25DSwitch','27C9/25D switch must be 0/1.');
+    mode_25d=logical(flag);
+end
+if mode_25d
+    if isfield(opt,'enable_13d_variable_time_joint_search') && ...
+            isequal(opt.enable_13d_variable_time_joint_search,1)
+        R.status='UNKNOWN_C9_25D_AND_13D_MODES_CONFLICT';
+        R.elapsed_ms=1000*toc(start);return
+    end
+    if torque_search || torque_proof_feedback
+        R.status='UNKNOWN_C9_25D_OLD_12D_TORQUE_ROWS_INCOMPATIBLE';
+        R.elapsed_ms=1000*toc(start);return
+    end
+    try
+        R=TRAJECTORY_C9_25D_TIME_JOINT_SEARCH(req,R);
+    catch ME
+        R.status='UNKNOWN_C9_25D_SEARCH_EXCEPTION';
+        R.failure_reason=[ME.identifier ' | ' ME.message];
+        R.safe_to_commit=false;R.candidate_available=false;
+    end
+    R.elapsed_ms=1000*toc(start);
+    return
+end
 % Opt-in SINGLE degree-23 C9, 13-variable (free(:), physical T) mode.
 % This is an exclusive optimization mode, never an extra planning stage
 % after the 12D search. Geometry certification remains independent.

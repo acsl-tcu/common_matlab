@@ -69,7 +69,17 @@ for i=1:N
     end
     q=w/sw;
     % General 13-variable derivative of payload position/acceleration.
-    b23=local_basis(23,x);b21=local_basis(21,x);
+    if isfield(D,'enable_13d_shared_basis')&& ...
+            isequal(D.enable_13d_shared_basis,true)&& ...
+            isfield(D,'bernstein_basis_by_degree')&& ...
+            numel(D.bernstein_basis_by_degree)>=3&& ...
+            isequal(size(D.bernstein_basis_by_degree{1}),[24 N])&& ...
+            isequal(size(D.bernstein_basis_by_degree{3}),[22 N])
+        b23=D.bernstein_basis_by_degree{1}(:,i).';
+        b21=D.bernstein_basis_by_degree{3}(:,i).';
+    else
+        b23=local_basis(23,x);b21=local_basis(21,x);
+    end
     pFree=zeros(3,12);aFree=zeros(3,12);
     for k=1:4
         j=(k-1)*3+(1:3);

@@ -1,0 +1,4 @@
+status=PASS_POSITIVE_SUPPORT_FIRST__HLC_AND_FULL_FLIGHT_PENDING
+error=
+tests=300
+native_avoided=300

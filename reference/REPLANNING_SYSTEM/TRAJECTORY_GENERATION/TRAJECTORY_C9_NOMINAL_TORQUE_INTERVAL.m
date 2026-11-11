@@ -330,14 +330,22 @@ try
         whole_requested=logical(v);
     end
     R.native_whole_torque_requested=whole_requested;
+    torque_kernel='TRAJECTORY_C9_TORQUE_WHOLE_NATIVE';
+    torque_expected_signature='C9_DIRECTED_WHOLE_TREE_20261110_V1';
+    if isfield(piece,'control_points_m') && ...
+            size(piece.control_points_m,1)==3 && ...
+            size(piece.control_points_m,2)==28
+        torque_kernel='TRAJECTORY_C9_TORQUE_WHOLE_27_NATIVE';
+        torque_expected_signature='C9_DIRECTED_WHOLE_TREE_27_20261110_V1';
+    end
     if whole_requested && ~structural_torque
         folder=fileparts(mfilename('fullpath'));
-        cpp=fullfile(folder,'TRAJECTORY_C9_TORQUE_WHOLE_NATIVE.cpp');
-        bin=fullfile(folder,['TRAJECTORY_C9_TORQUE_WHOLE_NATIVE.' mexext]);
+        cpp=fullfile(folder,[torque_kernel '.cpp']);
+        bin=fullfile(folder,[torque_kernel '.' mexext]);
         if exist(cpp,'file')~=2
             R.native_whole_torque_status='FALLBACK_SOURCE_MISSING';
         elseif exist(bin,'file')~=3 || ...
-                ~strcmpi(which('TRAJECTORY_C9_TORQUE_WHOLE_NATIVE'),bin)
+                ~strcmpi(which(torque_kernel),bin)
             R.native_whole_torque_status='FALLBACK_UNPINNED_BINARY';
         else
             c=dir(cpp);b=dir(bin);
@@ -345,9 +353,8 @@ try
                 R.native_whole_torque_status='FALLBACK_STALE_BINARY';
             else
                 try
-                    v=TRAJECTORY_C9_TORQUE_WHOLE_NATIVE();
-                    R.native_whole_torque_ready=strcmp(v, ...
-                        'C9_DIRECTED_WHOLE_TREE_20261110_V1');
+                    v=feval(torque_kernel);
+                    R.native_whole_torque_ready=strcmp(v,torque_expected_signature);
                     if R.native_whole_torque_ready
                         R.native_whole_torque_status='WHOLE_NATIVE_READY';
                     else
@@ -427,9 +434,10 @@ try
     assert(isfield(piece,'control_points_m')&& ...
         isnumeric(piece.control_points_m)&& ...
         isreal(piece.control_points_m)&& ...
-        isequal(size(piece.control_points_m),[3 24])&& ...
+        any(size(piece.control_points_m,2)==[24 28])&& ...
         all(isfinite(piece.control_points_m(:))), ...
-        'C9_TORQUE:PolynomialBinding','Require real degree-23 control points');
+        'C9_TORQUE:PolynomialBinding','Require finite degree-23/27 control points');
+    n=size(piece.control_points_m,2)-1;
     D=piece.derivative_controls;
     assert(iscell(D)&&numel(D)==10, ...
         'C9_TORQUE:Jets','Need every C9 derivative polygon');
@@ -437,7 +445,7 @@ try
     hull=cell(1,7);
     for k=1:10
         assert(isnumeric(D{k})&&isreal(D{k})&& ...
-            isequal(size(D{k}),[3 25-k])&& ...
+            isequal(size(D{k}),[3 n+2-k])&& ...
             all(isfinite(D{k}(:)))&& ...
             isequal(double(D{k}),expected), ...
             'C9_TORQUE:JetsBinding', ...
@@ -446,7 +454,7 @@ try
             hull{k}=expected;
         end
         if k<10
-            expected=(24-k)/piece.duration_s*diff(expected,1,2);
+            expected=(n-k+1)/piece.duration_s*diff(expected,1,2);
         end
     end
     % Exact closed-form stationary case (NOT a sampled yaw fallback).
@@ -491,12 +499,14 @@ try
     % Whole-tree opt-in: the existing source checks above bind the EXACT
     % C9 control points to all supplied 0..9 derivative polygons. The MEX
     % receives the immutable 3x24 controls and the live mass/limits.
+    % Distinct pinned 23- and 27-degree kernels accept only their own
+    % control polygon size. All physical inputs are live per proof call.
     if R.native_whole_torque_ready
         R.native_whole_torque_attempted=true;
         tw=tic;
         try
             [box,pass,nnode,nleaf,rcode]= ...
-                TRAJECTORY_C9_TORQUE_WHOLE_NATIVE( ...
+                feval(torque_kernel, ...
                 double(piece.control_points_m),double(piece.duration_s), ...
                 double(native_phys),double(native_flags), ...
                 double(limits),double(guard),double([dep;budget]));

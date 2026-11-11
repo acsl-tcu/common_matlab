@@ -1,0 +1,26 @@
+status=PASS_FUSED_WITNESS_25D_AB__HLC_B_AND_5MS_UNPROVEN
+error=
+tested_12_shapes=12 positive_parity=1 near_negative=1 witness_parity=1
+completed=[15 15 15] regressions=0
+scene=sphere_25d mode=canonical success=[true true true true true] median=72.2238 p95=226.3605 max=263.0154
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] native_witness_qps=[0 0 0 0 0]
+scene=sphere_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=63.8258 p95=103.4701 max=104.5751
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[2 2 2 2 2] native_witness_qps=[0 0 0 0 0]
+scene=sphere_25d mode=fused_native_proof_tree_witness success=[true true true true true] median=9.665 p95=53.45794 max=62.8463
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] native_witness_qps=[2 2 2 2 2]
+scene=sphere_ellipsoid_25d mode=canonical success=[true true true true true] median=71.1899 p95=96.56658 max=102.4044
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] native_witness_qps=[0 0 0 0 0]
+scene=sphere_ellipsoid_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=60.7087 p95=66.56478 max=67.5944
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[2 2 2 2 2] native_witness_qps=[0 0 0 0 0]
+scene=sphere_ellipsoid_25d mode=fused_native_proof_tree_witness success=[true true true true true] median=7.9662 p95=8.92576 max=9.1653
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] native_witness_qps=[2 2 2 2 2]
+scene=clear_25d mode=canonical success=[true true true true true] median=1.9136 p95=9.6045 max=11.057
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] native_witness_qps=[0 0 0 0 0]
+scene=clear_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=2.036 p95=4.57246 max=5.1703
+  native_calls=[1 1 1 1 1] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] native_witness_qps=[0 0 0 0 0]
+scene=clear_25d mode=fused_native_proof_tree_witness success=[true true true true true] median=1.9755 p95=2.5545 max=2.6697
+  native_calls=[1 1 1 1 1] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] native_witness_qps=[0 0 0 0 0]
+generic_calls=[0 245 245;0 260 260;0 0 0] generic_positives=[0 95 95;0 110 110;0 0 0] generic_iterations=[0 13125 13125;0 13155 13155;0 0 0]
+HLC_B_proven=0 directed_rounding_proven=0 safe_to_commit=0
+NOTE native tree witness is an UNKNOWN locator, NOT a collision proof.
+NOTE native positives do not establish directed interval arithmetic.

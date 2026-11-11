@@ -1,0 +1,23 @@
+status=UNKNOWN_FUSED_25D_NOMINAL_REGRESSION__NO_ENABLE
+error=
+tested_12_shapes=12 positive_parity=1 near_negative=1
+completed=[15 15 15] regressions=10
+scene=sphere_25d mode=canonical success=[true true true true true] median=80.7911 p95=224.4823 max=257.3643
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] witness_free_qps=[0 0 0 0 0]
+scene=sphere_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=62.7372 p95=99.84562 max=99.8991
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[2 2 2 2 2] witness_free_qps=[0 0 0 0 0]
+scene=sphere_25d mode=fused_positive_witness_free_intermediate success=[false false false false false] median=6.2936 p95=23.9805 max=28.3993
+  native_calls=[2 2 2 2 2] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] witness_free_qps=[2 2 2 2 2]
+scene=sphere_ellipsoid_25d mode=canonical success=[true true true true true] median=72.5548 p95=97.09472 max=102.9544
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] witness_free_qps=[0 0 0 0 0]
+scene=sphere_ellipsoid_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=62.2088 p95=66.12436 max=67.0267
+  native_calls=[3 3 3 3 3] positives=[1 1 1 1 1] fallback=[2 2 2 2 2] witness_free_qps=[0 0 0 0 0]
+scene=sphere_ellipsoid_25d mode=fused_positive_witness_free_intermediate success=[false false false false false] median=3.6072 p95=5.39248 max=5.7656
+  native_calls=[2 2 2 2 2] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] witness_free_qps=[2 2 2 2 2]
+scene=clear_25d mode=canonical success=[true true true true true] median=2.3329 p95=9.53856 max=10.9064
+  native_calls=[0 0 0 0 0] positives=[0 0 0 0 0] fallback=[0 0 0 0 0] witness_free_qps=[0 0 0 0 0]
+scene=clear_25d mode=fused_positive_with_canonical_witness success=[true true true true true] median=2.1025 p95=4.65192 max=5.2497
+  native_calls=[1 1 1 1 1] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] witness_free_qps=[0 0 0 0 0]
+scene=clear_25d mode=fused_positive_witness_free_intermediate success=[true true true true true] median=2.052 p95=2.66002 max=2.7868
+  native_calls=[1 1 1 1 1] positives=[1 1 1 1 1] fallback=[0 0 0 0 0] witness_free_qps=[0 0 0 0 0]
+HLC_B_proven=0 directed_rounding_proven=0 safe_to_commit=0

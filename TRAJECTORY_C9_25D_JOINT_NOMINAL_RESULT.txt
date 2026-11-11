@@ -1,0 +1,22 @@
+status=PASS_25D_COLLISION_STRESS_NOMINAL_ONLY__B_HLC_PENDING
+error_message=
+degree27_preflight=PASS_DEGREE27_DIRECTED_NOMINAL_TORQUE_MEX_PINNED
+geometry_25d_fd_error=9.5939039266565003e-11
+torque_25d_fd_error=3.8844838540413204e-14
+no_obstacle_nominal=1 two_obstacle_nominal=1
+degree23_to_27_elevation_max_error=6.7146288529329468e-13
+search=CONDITIONAL_C9_25D_DEGREE27_NOMINAL_FULLTIME__HLC_PENDING pipeline=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING
+nominal_torque_reused=1 heading_reused=1
+integrated_total_ms=36.6367
+collision_stress=CONDITIONAL_C9_25D_DEGREE27_NOMINAL_FULLTIME__HLC_PENDING QPs=2
+native_preflight=PASS_25D_BATCH_NATIVE_PINNED__MATLAB_AB_STILL_REQUIRED native_torque_parity=0
+native_stress_pairs=5 native_actual_calls=10
+native_stress_base_median=86.2772 p95=98.82918 max=100.7249
+native_stress_mex_median=86.301 p95=118.15326 max=125.9796
+metric_gauss_gram_relative_error=5.04295897866458e-14 qr_residual=4.3927722852497306e-18
+nominal_chain_5_median=28.3656 p95=84.26994 max=96.8306
+collision_qp_ready=1 collision_stress_certified=1
+collision_last_qp_status=LOCAL_C9_25D_QP_READY__FULL_TIME_PROOF_REQUIRED
+collision_failure_reason=Actual HLC reachable tube/4 inputs not certified.
+optional_leaf_skips=0 optional_torque_skips=0
+actual_HLC_B_proven=0 safe_to_commit=0

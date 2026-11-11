@@ -1,4 +1,4 @@
-function S=TRAJECTORY_C9_DURATION_SENSITIVITY(t0_s,T_s,left_jets,right_jets,free,phase_samples)
+function S=TRAJECTORY_C9_DURATION_SENSITIVITY(t0_s,T_s,left_jets,right_jets,free,phase_samples,retain_basis)
 % TRAJECTORY_C9_DURATION_SENSITIVITY
 % Analytic derivative with respect to *physical duration* of the degree-23
 % Bernstein payload polynomial, keeping its prescribed physical 0..9
@@ -20,6 +20,12 @@ function S=TRAJECTORY_C9_DURATION_SENSITIVITY(t0_s,T_s,left_jets,right_jets,free
 % certificates before accepting any candidate. No heuristic time cap,
 % minimum speed threshold or arbitrary objective weight is introduced.
 if nargin<6,phase_samples=zeros(1,0);end
+if nargin<7,retain_basis=false;end
+assert((islogical(retain_basis)||isnumeric(retain_basis))&& ...
+    isscalar(retain_basis)&&isreal(retain_basis)&& ...
+    isfinite(double(retain_basis))&&any(double(retain_basis)==[0 1]), ...
+    'C9_DURATION_SENSITIVITY:BasisMode','Basis retention must be 0/1.');
+retain_basis=logical(retain_basis);
 assert(isnumeric(phase_samples)&&isreal(phase_samples)&& ...
        (isempty(phase_samples)||isvector(phase_samples))&&all(isfinite(phase_samples(:)))&& ...
        all(phase_samples(:)>=0)&&all(phase_samples(:)<=1), ...
@@ -72,6 +78,11 @@ S=struct('status','ANALYTIC_DURATION_DERIVATIVE__NOT_A_FEASIBILITY_PROOF', ...
 u=double(phase_samples(:).');N=numel(u);
 S.phase_samples=u;
 S.physical_jets=zeros(3,10,N);
+% Retain the EXACT basis already evaluated by this one duration kernel.
+% Candidate-specific data are never cached across QP iterations/Flights.
+if retain_basis
+    S.bernstein_basis_by_degree=cell(1,10);
+end
 S.dphysical_jets_dT_fixed_phase=zeros(3,10,N);
 S.dphysical_jets_dT_fixed_time=zeros(3,9,N);
 for r=0:9
@@ -83,6 +94,7 @@ for r=0:9
         c(jj+1)=c(jj)*(deg-jj+1)/jj;
     end
     weights=weights.*c;
+    if retain_basis,S.bernstein_basis_by_degree{r+1}=weights.';end
     S.physical_jets(:,r+1,:)=reshape(D{r+1}*weights.',3,1,N);
     S.dphysical_jets_dT_fixed_phase(:,r+1,:)= ...
         reshape(dD{r+1}*weights.',3,1,N);

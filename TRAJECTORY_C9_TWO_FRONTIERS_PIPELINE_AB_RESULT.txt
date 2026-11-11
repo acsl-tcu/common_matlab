@@ -1,0 +1,59 @@
+status=COMPLETED_THREE_SCENE_AB__15_CASE_HLC_AND_5_7MS_PENDING
+error=
+nominal=[1 1 2] regressions=[0 0] gains=[0 1]
+scene=clear_affine mode=legacy13D median=25.6597000 p95=154.9016000 max=154.9016000 jitter=145.1619000
+ trial=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=154.9016000 geometry=59.4987000 planes=0.0000000 qp=0.0000000 torque=22.2455000 shared=0 leaf=0 error=
+ trial=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=23.1914000 geometry=5.2222000 planes=0.0000000 qp=0.0000000 torque=5.3661000 shared=0 leaf=0 error=
+ trial=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=25.6597000 geometry=2.8174000 planes=0.0000000 qp=0.0000000 torque=2.6034000 shared=0 leaf=0 error=
+ trial=4 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=9.7397000 geometry=1.9667000 planes=0.0000000 qp=0.0000000 torque=2.1528000 shared=0 leaf=0 error=
+ trial=5 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=68.4621000 geometry=16.7722000 planes=0.0000000 qp=0.0000000 torque=14.2787000 shared=0 leaf=0 error=
+scene=clear_affine mode=shared13D median=1.3894000 p95=7.8705000 max=7.8705000 jitter=6.5504000
+ trial=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=7.8705000 geometry=1.6746000 planes=0.0000000 qp=0.0000000 torque=0.9085000 shared=0 leaf=0 error=
+ trial=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.6119000 geometry=0.1949000 planes=0.0000000 qp=0.0000000 torque=0.2486000 shared=0 leaf=0 error=
+ trial=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.3475000 geometry=0.1365000 planes=0.0000000 qp=0.0000000 torque=0.2077000 shared=0 leaf=0 error=
+ trial=4 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.3894000 geometry=0.1338000 planes=0.0000000 qp=0.0000000 torque=0.2316000 shared=0 leaf=0 error=
+ trial=5 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.3201000 geometry=0.1483000 planes=0.0000000 qp=0.0000000 torque=0.2133000 shared=0 leaf=0 error=
+scene=clear_affine mode=shared_with_leaf13D median=1.4771000 p95=10.6475000 max=10.6475000 jitter=9.3474000
+ trial=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.3001000 geometry=0.1284000 planes=0.0000000 qp=0.0000000 torque=0.2033000 shared=0 leaf=0 error=
+ trial=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.3766000 geometry=0.1313000 planes=0.0000000 qp=0.0000000 torque=0.2003000 shared=0 leaf=0 error=
+ trial=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=1.4771000 geometry=0.1583000 planes=0.0000000 qp=0.0000000 torque=0.2346000 shared=0 leaf=0 error=
+ trial=4 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=10.6475000 geometry=7.4711000 planes=0.0000000 qp=0.0000000 torque=0.8409000 shared=0 leaf=0 error=
+ trial=5 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=2.6610000 geometry=0.3266000 planes=0.0000000 qp=0.0000000 torque=0.3806000 shared=0 leaf=0 error=
+scene=sphere_13D mode=legacy13D median=34.3882000 p95=177.8630000 max=177.8630000 jitter=153.6634000
+ trial=1 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=177.8630000 geometry=53.6442000 planes=106.7739000 qp=5.8177000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=2 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=34.3882000 geometry=8.8610000 planes=20.9910000 qp=1.2684000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=52.8662000 geometry=7.4986000 planes=36.2362000 qp=3.8440000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=4 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=24.1996000 geometry=6.6743000 planes=13.6461000 qp=1.0778000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=5 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=27.2855000 geometry=6.6331000 planes=13.9388000 qp=4.1061000 torque=0.0000000 shared=0 leaf=0 error=
+scene=sphere_13D mode=shared13D median=24.6834000 p95=30.7182000 max=30.7182000 jitter=9.0571000
+ trial=1 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=30.7182000 geometry=6.6964000 planes=21.1363000 qp=0.7301000 torque=0.0000000 shared=2 leaf=0 error=
+ trial=2 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=23.1249000 geometry=7.4417000 planes=13.8751000 qp=0.2238000 torque=0.0000000 shared=2 leaf=0 error=
+ trial=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=24.6834000 geometry=7.5993000 planes=14.8154000 qp=0.2927000 torque=0.0000000 shared=2 leaf=0 error=
+ trial=4 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=21.6611000 geometry=6.7246000 planes=13.0491000 qp=0.2172000 torque=0.0000000 shared=2 leaf=0 error=
+ trial=5 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=25.6110000 geometry=7.0390000 planes=16.4913000 qp=0.3098000 torque=0.0000000 shared=2 leaf=0 error=
+scene=sphere_13D mode=shared_with_leaf13D median=43.4087000 p95=88.4359000 max=88.4359000 jitter=59.2221000
+ trial=1 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=88.4359000 geometry=14.5392000 planes=38.3445000 qp=5.9282000 torque=21.0672000 shared=2 leaf=2 error=
+ trial=2 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=43.9525000 geometry=12.0379000 planes=18.6355000 qp=0.4266000 torque=7.9945000 shared=2 leaf=2 error=
+ trial=3 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=43.4087000 geometry=11.2532000 planes=24.2561000 qp=0.4581000 torque=4.0523000 shared=2 leaf=2 error=
+ trial=4 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=29.2138000 geometry=10.2262000 planes=13.3860000 qp=0.2758000 torque=2.5472000 shared=2 leaf=2 error=
+ trial=5 status=CONDITIONAL_INTEGRATED_C9_C7_YAW_TORQUE_NOMINAL__HLC_PENDING total=33.7932000 geometry=10.4254000 planes=13.4558000 qp=0.3482000 torque=6.4405000 shared=2 leaf=2 error=
+scene=sphere_ellipsoid_13D mode=legacy13D median=38.0766000 p95=119.4966000 max=119.4966000 jitter=85.3192000
+ trial=1 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=119.4966000 geometry=32.6039000 planes=65.6698000 qp=10.0675000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=2 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=38.0766000 geometry=12.3042000 planes=21.3049000 qp=1.9417000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=34.2294000 geometry=11.1214000 planes=20.1115000 qp=0.8142000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=4 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=34.1774000 geometry=11.1905000 planes=20.2778000 qp=0.7611000 torque=0.0000000 shared=0 leaf=0 error=
+ trial=5 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=48.2108000 geometry=11.1097000 planes=33.4107000 qp=1.6670000 torque=0.0000000 shared=0 leaf=0 error=
+scene=sphere_ellipsoid_13D mode=shared13D median=33.2490000 p95=42.4693000 max=42.4693000 jitter=9.8877000
+ trial=1 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=34.2340000 geometry=11.0325000 planes=20.7058000 qp=0.7628000 torque=0.0000000 shared=3 leaf=0 error=
+ trial=2 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=42.4693000 geometry=14.2975000 planes=25.5515000 qp=0.7148000 torque=0.0000000 shared=3 leaf=0 error=
+ trial=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=33.2490000 geometry=11.2871000 planes=19.6027000 qp=0.6478000 torque=0.0000000 shared=3 leaf=0 error=
+ trial=4 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=33.1211000 geometry=11.1217000 planes=19.7189000 qp=0.6225000 torque=0.0000000 shared=3 leaf=0 error=
+ trial=5 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=32.5816000 geometry=10.5924000 planes=19.7241000 qp=0.5736000 torque=0.0000000 shared=3 leaf=0 error=
+scene=sphere_ellipsoid_13D mode=shared_with_leaf13D median=53.4363000 p95=65.5840000 max=65.5840000 jitter=12.4772000
+ trial=1 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=65.5840000 geometry=23.1785000 planes=33.5551000 qp=6.2672000 torque=0.0000000 shared=4 leaf=4 error=
+ trial=2 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=53.4363000 geometry=20.5373000 planes=28.5944000 qp=1.8603000 torque=0.0000000 shared=4 leaf=4 error=
+ trial=3 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=53.1068000 geometry=20.6426000 planes=28.7494000 qp=1.3487000 torque=0.0000000 shared=4 leaf=4 error=
+ trial=4 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=55.6503000 geometry=21.5285000 planes=30.2339000 qp=1.3881000 torque=0.0000000 shared=4 leaf=4 error=
+ trial=5 status=UNKNOWN_C9_SEARCH_DID_NOT_CERTIFY_ALL_TIME total=53.1086000 geometry=20.0107000 planes=29.0034000 qp=1.3890000 torque=0.0000000 shared=4 leaf=4 error=
+safe_to_commit=0
+HLC_proven=0

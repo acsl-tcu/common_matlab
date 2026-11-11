@@ -14,6 +14,8 @@ R=struct('status','UNKNOWN_FORWARD_TORQUE_NOT_EVALUATED', ...
     'gradient_Nm_per_physical',NaN(3,13,numel(ts)), ...
     'heading_speed_mps',NaN(1,numel(ts)), ...
     'duration_cache_reused',false,'jet_batch_enabled',false, ...
+    'shared_jet_enabled',false,'native_torque_batch_requested',false, ...
+    'native_torque_batch_executed',false,'native_torque_batch_ms',0, ...
     'elapsed_ms',NaN,'safe_to_commit',false, ...
     'scope','NOMINAL_POINT_LOCAL_JACOBIAN_ONLY__NOT_ALL_TIME_OR_ACTUAL_HLC');
 try
@@ -83,6 +85,24 @@ try
             piece.t0_s,piece.duration_s,piece.start_jets, ...
             piece.end_jets,piece.control_points_m(:,11:14));
     end
+    use_shared=false;
+    if isfield(options,'use_13d_shared_jet_kernel')
+        flag=options.use_13d_shared_jet_kernel;
+        assert((isnumeric(flag)||islogical(flag))&&isscalar(flag)&& ...
+            isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+            'C9_FORWARD_JAC:SharedJetFlag','Shared-jet mode must be 0/1.');
+        use_shared=logical(flag);
+    end
+    if use_shared
+        assert(nargin==5&&R.duration_cache_reused, ...
+            'C9_FORWARD_JAC:MissingSharedCache', ...
+            'Shared jets require the validated SAME-QP duration snapshot.');
+        jet_values=TRAJECTORY_C9_13D_SHARED_JET_KERNEL(S, ...
+            piece.duration_s,uvals);
+        batch=true;
+        R.jet_batch_enabled=true;
+        R.shared_jet_enabled=true;
+    else
     Z=zeros(42,24);
     Z(1:3,:)=double(piece.control_points_m);
     E=eye(12);
@@ -109,6 +129,58 @@ try
             W=local_bernstein_basis_matrix(23-k,uvals);
             jet_values{k+1}=Dpoly{k+1}*W;
         end
+    end
+    end % legacy 42x24 polynomial dual jet path
+    % Optional single native 13D dual-Jet evaluation for ALL search phases.
+    % Local QP search gradients ONLY; never use it to certify all-time
+    % torque, tracking or actuator safety. No pre-Flight build in this call.
+    native_on=false;
+    if isfield(options,'use_native_13d_torque_batch_kernel')
+        flag=options.use_native_13d_torque_batch_kernel;
+        assert((isnumeric(flag)||islogical(flag))&&isscalar(flag)&& ...
+            isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+            'C9_FORWARD_JAC_13D:NativeFlag','Native batch switch must be 0/1.');
+        native_on=logical(flag);
+    end
+    R.native_torque_batch_requested=native_on;
+    if native_on
+        % The native kernel requires the same seven 42xN jet blocks as
+        % the existing batched MATLAB evaluator. No local time samples
+        % can be promoted to continuous-time proof by this switch.
+        if ~batch
+            R.status='UNKNOWN_NATIVE_13D_REQUIRES_BATCHED_JETS';
+            R.elapsed_ms=1000*toc(clock);return
+        end
+        folder=fileparts(mfilename('fullpath'));
+        expected=fullfile(folder, ...
+            ['TRAJECTORY_C9_13D_TORQUE_BATCH_NATIVE.' mexext]);
+        actual=which('TRAJECTORY_C9_13D_TORQUE_BATCH_NATIVE');
+        if exist(expected,'file')~=3 || ~strcmpi(actual,expected) || ...
+                ~strcmp(TRAJECTORY_C9_13D_TORQUE_BATCH_NATIVE(), ...
+                'C9_13D_TORQUE_BATCH_NATIVE_20261110_V1')
+            R.status='UNKNOWN_NATIVE_13D_NOT_COMPILED_OR_PINNED';
+            R.elapsed_ms=1000*toc(clock);return
+        end
+        native_clock=tic;
+        [tmat,jmat,vmask,hsp]=TRAJECTORY_C9_13D_TORQUE_BATCH_NATIVE( ...
+            jet_values,g,[mu;ml;L],J,[fzmin;hmin]);
+        R.native_torque_batch_ms=1000*toc(native_clock);
+        assert(isequal(size(tmat),[3,numel(ts)])&& ...
+            isequal(size(jmat),[3,13,numel(ts)])&& ...
+            islogical(vmask)&&numel(vmask)==numel(ts)&& ...
+            numel(hsp)==numel(ts), ...
+            'C9_FORWARD_JAC_13D:NativeOutput','Native batch shape mismatch.');
+        R.torque_Nm=tmat;
+        R.gradient_Nm_per_physical=jmat;
+        R.valid=reshape(vmask,1,[]);
+        R.heading_speed_mps=reshape(hsp,1,[]);
+        R.native_torque_batch_executed=true;
+        if all(R.valid)
+            R.status='FORWARD_NOMINAL_TORQUE_13D_JACOBIAN__NOT_A_CERTIFICATE';
+        else
+            R.status='UNKNOWN_FORWARD_SINGULAR_OR_NONFINITE';
+        end
+        R.elapsed_ms=1000*toc(clock);return
     end
     for it=1:numel(ts)
         u=uvals(it);

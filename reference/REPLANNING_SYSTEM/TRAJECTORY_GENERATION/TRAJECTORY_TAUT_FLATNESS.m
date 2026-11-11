@@ -119,7 +119,7 @@ classdef TRAJECTORY_TAUT_FLATNESS
                 end
             end
             Acc=Dactual{3};
-            W=repmat(A.gravity_world_mps2,1,22)-Acc;
+            W=repmat(A.gravity_world_mps2,1,size(Acc,2))-Acc;
             [ok,margin,leaf_count]=TRAJECTORY_TAUT_FLATNESS.check_w( ...
                 W,A.acceleration_guard_mps2+A.minimum_tension_N/A.payload_mass_kg, ...
                 proof_options.max_subdivision_depth);

@@ -25,7 +25,25 @@ Q=struct('status','UNKNOWN_NOT_STARTED','solved',false, ...
     'duration_s',req.duration_s,'elapsed_ms',NaN, ...
     'shared_duration_cache_enabled',false,'batched_jet_enabled',false, ...
     'duration_sensitivity_ms',NaN,'fullbody_tangent_ms',NaN, ...
-    'torque_gradient_ms',NaN,'cached_gram_enabled',false, ...
+    'torque_gradient_ms',NaN,'cached_gram_enabled',false,'shared_jet_enabled',false, ...
+    'shared_jet_executed',false, ...
+    'native_torque_batch_executed',false,'native_torque_batch_ms',0, ...
+    'batched_geometry_requested',false,'batched_geometry_executed',false, ...
+    'batched_geometry_ms',0,'batched_geometry_row_count',0, ...
+    'certificate_leaf_cut_enabled',false,'certificate_leaf_cut_count',0, ...
+    'certificate_leaf_cut_support_calls',0,'certificate_leaf_cut_status','NOT_REQUESTED', ...
+    'certificate_leaf_physical_duration_tangent',false, ...
+    'certificate_leaf_payload_witness_gate',false, ...
+    'oracle_body_time_focus_requested',false, ...
+    'oracle_body_time_focus_active',false, ...
+    'oracle_body_time_focus_skipped_shape_phase_groups',0, ...
+    'oracle_body_time_focus_skipped_body_planes',0, ...
+    'oracle_body_time_focus_eligible_shape_phase_groups',0, ...
+    'oracle_body_time_outer_guard_requested',false, ...
+    'oracle_body_time_outer_guard_checked',false, ...
+    'oracle_body_time_outer_guard_rejected',false, ...
+    'oracle_body_time_outer_guard_far_body_checks',0, ...
+    'oracle_body_time_outer_guard_near_body_checks',0, ...
     'gram_build_ms',NaN, ...
     'witness_transverse_enabled',false, ...
     'witness_plane_replacements',0, ...
@@ -57,10 +75,23 @@ if isfield(req.search_options,'use_shared_13d_duration_cache')
     share=logical(v);
 end
 Q.shared_duration_cache_enabled=share;
+% The A/B option is read BEFORE the sensitivity kernel so that the
+% legacy OFF path allocates no extra cached basis matrices at all.
+share_jets=false;
+if isfield(req.search_options,'enable_13d_shared_jet_kernel')
+    flag=req.search_options.enable_13d_shared_jet_kernel;
+    assert((isnumeric(flag)||islogical(flag))&&isscalar(flag)&& ...
+        isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+        'C9_13D_QP:SharedJetFlag','Shared-jet switch must be 0/1.');
+    share_jets=logical(flag);
+end
+share_jets=share_jets&&share;
+Q.shared_jet_enabled=share_jets;
 t_s=tic;
 S=TRAJECTORY_C9_DURATION_SENSITIVITY(req.t0_s,T, ...
-    req.start_jets,req.end_jets,free,phases);
+    req.start_jets,req.end_jets,free,phases,share_jets);
 Q.duration_sensitivity_ms=1000*toc(t_s);
+S.enable_13d_shared_basis=share_jets;
 % Physical derivative of pL'' with respect to each free P_j and to T.
 % Coefficient arrays in the Bernstein basis B^21_k (k=0..21).
 n=21; C=zeros(3,n+1,13);
@@ -196,12 +227,178 @@ b=zeros(size(A,2),1);m=0;
 Ng=3*N*(numel(shapes)+double(ground_active));
 gnormal=zeros(3,Ng);gthreshold=zeros(Ng,1);
 glambda=zeros(Ng,1);gphase=zeros(Ng,1);grhs=zeros(Ng,1);ng=0;
+% Search-only proof-witness focus. If the last UNFILTERED oracle reports
+% an exact unresolved obstacle/body/physical-time leaf, build shape
+% separation rows only for that witness. This removes stale safe-body
+% planes from a single simultaneous QP, NOT from the safety certificate.
+% Ground and torque rows remain unconditional. Never apply it to a
+% geometry-PASS/torque-failure oracle or a coherent shared-endpoint plane.
+focus_requested=false;
+if isfield(req.search_options,'enable_13d_oracle_body_time_qp_rows')
+    v=req.search_options.enable_13d_oracle_body_time_qp_rows;
+    assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+        isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+        'C9_13D_QP:BodyTimeFocusFlag','Body/time focus must be 0/1.');
+    focus_requested=logical(v);
+end
+Q.oracle_body_time_focus_requested=focus_requested;
+focus_active=false;focus_shape_ids=[];focus_body_ids=[];
+focus_leaf=[NaN NaN];focus_phase_mask=false(1,N);
+if focus_requested && ~coherent && ~isempty(shapes) && ...
+        isstruct(prior_proof)&&isscalar(prior_proof)&& ...
+        isfield(prior_proof,'status')&& ...
+        strcmp(prior_proof.status,'UNKNOWN_JOINT_GEOMETRY_NOT_SEPARATED')&& ...
+        all(isfield(prior_proof,{'unresolved_obstacle_ids', ...
+            'unresolved_body_indices','unresolved_time_interval_s'}))
+    ids=double(prior_proof.unresolved_obstacle_ids(:)).';
+    bodies=double(prior_proof.unresolved_body_indices(:)).';
+    leaf=double(prior_proof.unresolved_time_interval_s(:)).';
+    available=double([shapes.id]);
+    valid=~isempty(ids)&&all(isfinite(ids))&& ...
+        all(ismember(ids,available)) && ...
+        ~isempty(bodies)&&all(ismember(bodies,[1 2 3])) && ...
+        numel(leaf)==2&&all(isfinite(leaf))&&leaf(1)<=leaf(2)&& ...
+        leaf(1)>=req.t0_s&&leaf(2)<=req.t0_s+T;
+    if valid
+        times=req.t0_s+T*double(phases(:).');
+        scale=max([1,abs(times),abs(leaf)]);
+        guard=128*eps(max(scale)); % roundoff-only overlap tolerance
+        probe=(times>=leaf(1)-guard)&(times<=leaf(2)+guard);
+        if any(probe)
+            focus_shape_ids=unique(ids,'stable');
+            focus_body_ids=unique(bodies,'stable');
+            focus_leaf=leaf;
+            focus_phase_mask=probe;
+            focus_active=true;
+        end
+    end
+end
+% The independent oracle only identifies one UNRESOLVED leaf. It does
+% NOT certify that the other bodies/times may be discarded from a local QP.
+% If enabled, keep the aggressive focus ONLY when every omitted CURRENT
+% body/shape/phase pair is strictly outside a mathematically enclosing
+% obstacle sphere. This is an A/B SEARCH guard, NEVER an all-time proof.
+% If ANY omitted body cannot be screened, immediately restore ALL local
+% body/time rows BEFORE the QP is built (no extra search stage, no second
+% oracle). It uses no fixed detour side or empirical geometric threshold.
+outer_guard=false;
+if isfield(req.search_options,'enable_13d_oracle_body_time_outer_guard')
+    sw=req.search_options.enable_13d_oracle_body_time_outer_guard;
+    assert((isnumeric(sw)||islogical(sw))&&isscalar(sw)&& ...
+        isreal(sw)&&isfinite(double(sw))&&any(double(sw)==[0 1]), ...
+        'C9_13D_QP:BodyTimeOuterGuard','Expected 0/1 outer guard.');
+    outer_guard=logical(sw);
+end
+Q.oracle_body_time_outer_guard_requested=outer_guard;
+if outer_guard && focus_active
+    Q.oracle_body_time_outer_guard_checked=true;
+    % The existing canonical shape-radius formulas encompass the true 3D
+    % geometry (including arbitrary SO(3) orientation). No whole-system
+    % enclosing sphere is used as a final collision certificate.
+    if ~qp_outer_ball
+        for sj=1:numel(shapes)
+            shape_outer(sj)=c9_qp_prepared_shape_outer_radius(shapes(sj));
+        end
+    end
+    reject=false;
+    for k_guard=1:N
+        p_guard=F.payload_m(:,k_guard);
+        q_guard=F.cable_direction(:,k_guard);
+        for sj=1:numel(shapes)
+            shape_guard=shapes(sj);
+            in_leaf=focus_phase_mask(k_guard)&& ...
+                ismember(double(shape_guard.id),focus_shape_ids);
+            if in_leaf
+                omitted_body=find(~ismember(1:3,focus_body_ids));
+            else
+                omitted_body=1:3;
+            end
+            if isempty(omitted_body),continue;end
+            v_guard=p_guard-double(shape_guard.center(:));
+            lambda_guard=max(0,min(1,(v_guard.'*q_guard)/Ls));
+            cable_lambdas=[1,lambda_guard,0];
+            for b_guard=omitted_body
+                center_guard=p_guard-Ls*cable_lambdas(b_guard)*q_guard;
+                distance_guard=norm(center_guard-shape_guard.center(:));
+                threshold_guard=shape_outer(sj)+rad(b_guard)+delta;
+                % Roundoff allowance for a SEARCH decision only; the
+                % final full-time oracle independently rechecks everything.
+                magnitude_guard=max([1;abs(center_guard(:)); ...
+                    abs(shape_guard.center(:));abs(shape_outer(sj)); ...
+                    abs(rad(b_guard));abs(delta)]);
+                rounding_guard=128*eps(magnitude_guard);
+                if ~(isfinite(distance_guard)&&isfinite(threshold_guard)&& ...
+                        distance_guard>threshold_guard+rounding_guard)
+                    Q.oracle_body_time_outer_guard_near_body_checks= ...
+                        Q.oracle_body_time_outer_guard_near_body_checks+1;
+                    reject=true;break
+                end
+                Q.oracle_body_time_outer_guard_far_body_checks= ...
+                    Q.oracle_body_time_outer_guard_far_body_checks+1;
+            end
+            if reject,break;end
+        end
+        if reject,break;end
+    end
+    if reject
+        focus_active=false;
+        Q.oracle_body_time_outer_guard_rejected=true;
+    end
+end
+Q.oracle_body_time_focus_active=focus_active;
+% Structural performance path: replace O(probes * shapes * bodies) MATLAB
+% calls by one batched all-body geometry/13D-Jacobian assembly. This is an
+% algebraic rearrangement of the SAME search planes, not a collision or
+% input certificate. Other explicit witness/coherent/focused strategies
+% retain their original code and do not silently change behaviour.
+batch_planes=false;
+if isfield(req.search_options,'enable_13d_batched_geometry_planes')
+    flag=req.search_options.enable_13d_batched_geometry_planes;
+    assert((isnumeric(flag)||islogical(flag))&&isscalar(flag)&& ...
+        isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+        'C9_13D_QP:BatchFlag','Batch switch must be 0/1.');
+    batch_planes=logical(flag);
+end
+Q.batched_geometry_requested=batch_planes;
+if batch_planes && ~witness_on && ~coherent && ~focus_active
+    BB=TRAJECTORY_C9_13D_BATCH_GEOMETRY_PLANES( ...
+        F,shapes,phases,rad,Ls,delta,ground_active, ...
+        qp_outer_ball,shape_outer);
+    Q.batched_geometry_ms=BB.elapsed_ms;
+    if ~strcmp(BB.status,'LOCAL_BATCH_GEOMETRY_PLANES_READY__NOT_CERTIFIED')
+        Q.status=BB.status;Q.elapsed_ms=1000*toc(clock);return
+    end
+    Q.batched_geometry_executed=true;
+    Q.batched_geometry_row_count=size(BB.A,2);
+    Q.qp_outer_ball_groups_tested=BB.outer_groups_tested;
+    Q.qp_outer_ball_groups_skipped=BB.outer_groups_skipped;
+    Q.obstacle_plane_count=BB.obstacle_count;
+    Q.ground_plane_count=BB.ground_count;
+    m=size(BB.A,2);
+    A(:,1:m)=BB.A;b(1:m)=BB.b;
+    ng=numel(BB.lambda);
+    gnormal(:,1:ng)=BB.normal;
+    gthreshold(1:ng)=BB.threshold;
+    glambda(1:ng)=BB.lambda;
+    gphase(1:ng)=BB.phase;
+    grhs(1:ng)=BB.rhs;
+else
 for k=1:N
     pos=F.payload_m(:,k);q=F.cable_direction(:,k);
     jp=F.payload_J_fixed_phase(:,:,k);
     jq=F.cable_q_J_fixed_phase(:,:,k);
     for j=1:numel(shapes)
         shape=shapes(j);
+        if focus_active && (~focus_phase_mask(k) || ...
+                ~ismember(double(shape.id),focus_shape_ids))
+            Q.oracle_body_time_focus_skipped_shape_phase_groups= ...
+                Q.oracle_body_time_focus_skipped_shape_phase_groups+1;
+            continue
+        end
+        if focus_active
+            Q.oracle_body_time_focus_eligible_shape_phase_groups= ...
+                Q.oracle_body_time_focus_eligible_shape_phase_groups+1;
+        end
         if qp_outer_ball
             Q.qp_outer_ball_groups_tested=Q.qp_outer_ball_groups_tested+1;
             separation=norm(pos-shape.center);
@@ -287,6 +484,11 @@ for k=1:N
         end
         frac=[1,lambda,0];
         for body=1:3
+            if focus_active && ~ismember(body,focus_body_ids)
+                Q.oracle_body_time_focus_skipped_body_planes= ...
+                    Q.oracle_body_time_focus_skipped_body_planes+1;
+                continue
+            end
             lam=frac(body);
             center=pos-lam*Ls*q;
             jac=jp-lam*Ls*jq;
@@ -346,11 +548,62 @@ for k=1:N
         end
     end
 end
+end % batched QP search planes versus legacy per-shape/per-phase loops
 Q.geometry_plane_normals_3xm=gnormal(:,1:ng);
 Q.geometry_plane_thresholds_m=gthreshold(1:ng);
 Q.geometry_plane_lambdas=glambda(1:ng);
 Q.geometry_plane_phases=gphase(1:ng);
 Q.geometry_plane_linearized_rhs_m=grhs(1:ng);
+% OPTIONAL: use a failed ALL-TIME proof's actual Bernstein leaf to form
+% additional 13D payload-hull SEARCH rows in THIS SAME simultaneous QP.
+% This targets all-time hull failure instead of a point-only witness.
+% Final candidate safety remains the independent unfiltered oracle.
+add_leaf=false;
+if isfield(req.search_options,'enable_13d_certificate_leaf_hull_cuts')
+    flag=req.search_options.enable_13d_certificate_leaf_hull_cuts;
+    assert((isnumeric(flag)||islogical(flag))&&isscalar(flag)&& ...
+        isreal(flag)&&isfinite(double(flag))&&any(double(flag)==[0 1]), ...
+        'C9_13D_QP:LeafCutFlag','Leaf cut mode must be 0/1.');
+    add_leaf=logical(flag);
+end
+Q.certificate_leaf_cut_enabled=add_leaf;
+if add_leaf && share && ~isempty(shapes)
+    % Fixed physical-time tangent corrects the moving leaf endpoints as
+    % duration changes. Explicit OFF is retained for previous A/B tests.
+    use_physical_leaf=false; % Preserve previous explicit leaf-ON A/B unless opted in.
+    if isfield(req.search_options,'enable_13d_physical_leaf_duration_tangent')
+        v=req.search_options.enable_13d_physical_leaf_duration_tangent;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_13D_QP:PhysicalLeafFlag','Physical leaf derivative must be 0/1.');
+        use_physical_leaf=logical(v);
+    end
+    Q.certificate_leaf_physical_duration_tangent=use_physical_leaf;
+    payload_witness_gate=false; % Backward-compatible; focused A/B explicitly ON.
+    if isfield(req.search_options,'enable_13d_payload_witness_leaf_gate')
+        v=req.search_options.enable_13d_payload_witness_leaf_gate;
+        assert((islogical(v)||isnumeric(v))&&isscalar(v)&& ...
+            isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+            'C9_13D_QP:PayloadWitnessFlag','Payload witness gate must be 0/1.');
+        payload_witness_gate=logical(v);
+    end
+    Q.certificate_leaf_payload_witness_gate=payload_witness_gate;
+    [LA,Lb,LD]=TRAJECTORY_C9_13D_CERTIFICATE_LEAF_CUTS( ...
+        S.piece,S,shapes,prior_proof,rad(3),delta, ...
+        use_physical_leaf,payload_witness_gate);
+    Q.certificate_leaf_cut_status=LD.status;
+    Q.certificate_leaf_cut_support_calls=LD.support_calls;
+    for rowidx=1:numel(Lb)
+        [A,b,m,Q]=append_plane(A,b,m,Q,LA(:,rowidx),Lb(rowidx),'shape');
+        if Q.unmovable_count>0
+            Q.status='UNKNOWN_13D_IMMOVABLE_CERTIFICATE_LEAF_CUT';
+            Q.elapsed_ms=1000*toc(clock);return
+        end
+        Q.certificate_leaf_cut_count=Q.certificate_leaf_cut_count+1;
+    end
+elseif add_leaf
+    Q.certificate_leaf_cut_status='NOT_APPLICABLE_NO_SHARED_CACHE_OR_SHAPES';
+end
 % The SAME local QP also carries pointwise linearizations of the
 % *actual 3-axis nominal torque map* in all 13 physical coordinates.
 % These are SEARCH inequalities only. They must never certify all time.
@@ -367,14 +620,23 @@ if ~(isfield(req.authority,'torque_limits_Nm')&& ...
     Q.elapsed_ms=1000*toc(clock);return
 end
 t_grad=tic;
+torque_options=req.torque_options;
 if share
+    torque_options.use_13d_shared_jet_kernel=share_jets;
     Z=TRAJECTORY_C9_TORQUE_FORWARD_JACOBIAN_13D( ...
-        S.piece,req.authority,req.torque_options,phases,S);
+        S.piece,req.authority,torque_options,phases,S);
 else
     Z=TRAJECTORY_C9_TORQUE_FORWARD_JACOBIAN_13D( ...
         S.piece,req.authority,req.torque_options,phases);
 end
 Q.torque_gradient_ms=1000*toc(t_grad);
+Q.native_torque_batch_executed=isfield(Z,'native_torque_batch_executed')&& ...
+    isequal(Z.native_torque_batch_executed,true);
+if isfield(Z,'native_torque_batch_ms')
+    Q.native_torque_batch_ms=Z.native_torque_batch_ms;
+end
+Q.shared_jet_executed=isfield(Z,'shared_jet_enabled')&& ...
+    isequal(Z.shared_jet_enabled,true);
 Q.batched_jet_enabled=Z.jet_batch_enabled;
 Q.torque_point_status=Z.status;
 if ~all(Z.valid)

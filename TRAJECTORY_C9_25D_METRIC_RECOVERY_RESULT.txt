@@ -1,0 +1,4 @@
+status=PASS_C9_25D_ACCELERATION_JACOBIAN_AND_QR__NOT_FLIGHT_CERTIFIED
+error=
+tensor_finite_failures=0 cross_axis_nonzeros=0
+metric_rank=25 min_R_diag=0.0016432260842836912 QR_err=4.3927722852497306e-18 gram_err=5.0508640194418099e-14 FD_err=4.9984973459604657e-11

@@ -1,0 +1,8 @@
+status=PASS_CONE_REAL_ARITHMETIC_AND_DEGREE27_FULLTIME__HLC_PENDING
+error_message=
+cone_random_cases=4000
+cone_containment_violations=0
+cone_strictly_tighter_cases=3580
+degree_elevation_max_error=1.77635683940025e-15
+certified_23_old=1 certified_23_cone=1 certified_27_cone=1
+oracle_ms=49.1688 9.1512 5.0376

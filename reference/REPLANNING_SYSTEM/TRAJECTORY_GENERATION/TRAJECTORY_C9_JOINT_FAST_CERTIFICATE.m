@@ -2,7 +2,7 @@ function [R,prepared_shapes]=TRAJECTORY_C9_JOINT_FAST_CERTIFICATE(piece,observed
 % TRAJECTORY_C9_JOINT_FAST_CERTIFICATE
 % One-pass SUFFICIENT continuous-time certificate, ideal taut-load model.
 % Tension, thrust-magnitude, and UAV/cable/payload geometry are proved
-% from ONE set of degree-23 payload Bernstein controls per time leaf.
+% from ONE set of payload Bernstein controls per time leaf (degree 23 or 27).
 %
 %   w=g-pL'', q=w/||w||, pU=pL-L*q, cable=pL-lambda*L*q.
 % If the Bernstein hull of w lies within B(c,rho), ||c||>rho, then
@@ -30,7 +30,8 @@ function [R,prepared_shapes]=TRAJECTORY_C9_JOINT_FAST_CERTIFICATE(piece,observed
 start=tic;
 assert(isstruct(piece)&&isscalar(piece)&& ...
     all(isfield(piece,{'control_points_m','t0_s','duration_s'})) && ...
-    isequal(size(piece.control_points_m),[3 24])&& ...
+    size(piece.control_points_m,1)==3&& ...
+    any(size(piece.control_points_m,2)==[24 28])&& ...
     isnumeric(piece.control_points_m)&&isreal(piece.control_points_m)&& ...
     all(isfinite(piece.control_points_m(:)))&& ...
     isnumeric(piece.duration_s)&&isreal(piece.duration_s)&& ...
@@ -38,7 +39,7 @@ assert(isstruct(piece)&&isscalar(piece)&& ...
     piece.duration_s>0&&isnumeric(piece.t0_s)&& ...
     isscalar(piece.t0_s)&&isreal(piece.t0_s)&& ...
     isfinite(piece.t0_s)&&isfinite(piece.t0_s+piece.duration_s), ...
-    'TRAJECTORY_C9_JOINT:Piece','Require finite degree-23 load piece.');
+    'TRAJECTORY_C9_JOINT:Piece','Require finite 3D degree-23 or degree-27 load piece.');
 assert(isstruct(observed), 'TRAJECTORY_C9_JOINT:Observed', ...
     'Only explicitly observed static obstacles may be checked.');
 assert(isstruct(authority)&&isscalar(authority)&& ...
@@ -170,6 +171,32 @@ if isfield(geometry_options,'use_lambda_exact_cable_cone_envelope')
         'TRAJECTORY_C9_JOINT:CableEnvelopeFlag','Expected boolean 0/1');
     use_lambda_cable_envelope=logical(v);
 end
+% Optional whole-separator native NORMAL generator. The proposed
+% direction is always rechecked using the ORIGINAL MATLAB support value;
+% a native proposal can never act as a complete geometry certificate.
+use_native_support_separator=false;
+if isfield(geometry_options,'use_native_support_separator')
+    v=geometry_options.use_native_support_separator;
+    assert((isnumeric(v)||islogical(v))&&isscalar(v)&& ...
+        isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+        'TRAJECTORY_C9_JOINT:NativeSeparatorFlag', ...
+        'Native support separator flag must be 0/1.');
+    use_native_support_separator=logical(v);
+end
+% Optional exact spherical-cap plane support for taut q=w/||w||.
+% A single geometry halfspace then treats payload, cable and UAV with
+% their respective physical radii. The previous chord-envelope and the
+% canonical full-time oracle remain intact as a fallback. This changes
+% only the mathematical SUFFICIENT full-time test, never returns a false
+% positive under its stated real-arithmetic premises.
+use_direction_cone_support=false;
+if isfield(geometry_options,'use_exact_direction_cone_support')
+    v=geometry_options.use_exact_direction_cone_support;
+    assert((isnumeric(v)||islogical(v))&&isscalar(v)&& ...
+        isreal(v)&&isfinite(double(v))&&any(double(v)==[0 1]), ...
+        'TRAJECTORY_C9_JOINT:ConeFlag','Cone support flag must be 0/1.');
+    use_direction_cone_support=logical(v);
+end
 % When a parent time cell has ALREADY certified one obstacle to be
 % separated for every time, descendants need not repeat that particular
 % obstacle. This is a proof-tree memo, NOT a sampled-point shortcut.
@@ -183,7 +210,14 @@ if isfield(geometry_options,'use_ancestral_obstacle_certificate_reuse')
         'Ancestral shape-certificate reuse flag must be 0/1.');
     use_ancestral_shape_certificates=logical(v);
 end
-R=struct('ancestral_shape_certificates_enabled',use_ancestral_shape_certificates, ...
+R=struct('exact_direction_cone_enabled',use_direction_cone_support, ...
+    'exact_direction_cone_axes',0, ...
+    'exact_direction_cone_positive_part_gates',0, ...
+    'exact_direction_cone_completed_obstacles',0, ...
+    'exact_direction_cone_ground_rescues',0, ...
+    'native_separator_requested',use_native_support_separator, ...
+    'native_separator_proposals',0, ...
+    'ancestral_shape_certificates_enabled',use_ancestral_shape_certificates, ...
     'ancestral_shape_skipped_node_checks',0, ...
     'ancestral_shape_certified_parent_clears',0, ...
     'ancestral_shape_inherited_outer_clears',0, ...
@@ -216,9 +250,13 @@ if ~ground_active
     R.ground_minimum_clearance_lower_bound_m=NaN;
 end
 P=double(piece.control_points_m);T=double(piece.duration_s);
-W=repmat(g,1,22)-(23*22/T^2)*diff(P,2,2);
-W1=-(23*22*21/T^3)*diff(P,3,2);
-W2=-(23*22*21*20/T^4)*diff(P,4,2);
+% Degree-general polynomial proof: allows the exact SAME continuous-time
+% geometric sufficient certificate to verify degree-27 C9 candidates.
+% The TORQUE, HLC and optimizer modules are not generalized by this edit.
+degree=size(P,2)-1;
+W=repmat(g,1,degree-1)-(degree*(degree-1)/T^2)*diff(P,2,2);
+W1=-(degree*(degree-1)*(degree-2)/T^3)*diff(P,3,2);
+W2=-(degree*(degree-1)*(degree-2)*(degree-3)/T^4)*diff(P,4,2);
 [passed,R]=test_leaf(P,W,W1,W2,double(piece.t0_s),T,0,R,1:numel(shapes));
 R.certified=passed;
 R.certified_continuous_geometry=passed;
@@ -275,6 +313,29 @@ R.elapsed_ms=toc(start)*1000;
                 if ground_active
                     [groundok,clearance]=TRAJECTORY_C9_GROUND_LEAF( ...
                         Q,direction,pad,L,rr([1 3 2]),ground,tol);
+                    if ground_active && use_direction_cone_support
+                        % Exact cap projection in upward world ground normal.
+                        % The original ground routine is still invoked and
+                        % validates the SOURCE ground definition. Both are
+                        % legitimate lower bounds; take their maximum.
+                        legacyGroundOK=groundok;
+                        [capGround,~,capGroundValid]= ...
+                            TRAJECTORY_C9_DIRECTION_CONE_SUPPORT( ...
+                                c,rho,ground.normal_world);
+                        if capGroundValid
+                            minz=min(Q(3,:));
+                            capClear=[minz-L*capGround-rr(1), ...
+                                minz-rr(3), ...
+                                minz-L*max(0,capGround)-rr(2)] ...
+                                -ground.height_m-tol;
+                            clearance=max(clearance,capClear);
+                            groundok=all(isfinite(clearance))&&all(clearance>0);
+                            if groundok && ~legacyGroundOK
+                                S.exact_direction_cone_ground_rescues= ...
+                                    S.exact_direction_cone_ground_rescues+1;
+                            end
+                        end
+                    end
                     if ~groundok
                         S.ground_status='UNKNOWN_GROUND_CLEARANCE_NOT_PROVEN';
                     end
@@ -317,6 +378,8 @@ R.elapsed_ms=toc(start)*1000;
                     normals=[m-O.center, m-L*direction-O.center, ...
                         m-(L/2)*direction-O.center];
                     separated_parts=false(1,3);
+                    % A positive certificate is obstacle-wide only if
+                    % all three physical bodies have been separated.
                     for a=1:3
                         n=normals(:,a);len=norm(n);
                         if ~(isfinite(len)&&len>0),continue;end
@@ -325,6 +388,30 @@ R.elapsed_ms=toc(start)*1000;
                         S.shape_support_calls=S.shape_support_calls+1;
                         mn=min(n.'*Q);
                         sh=L*(n.'*direction);
+                        % NEW: exact support of the spherical direction
+                        % cap; if this direct plane works, expensive
+                        % repeated Gilbert searches can be bypassed.
+                        if use_direction_cone_support
+                            S.exact_direction_cone_axes= ...
+                                S.exact_direction_cone_axes+1;
+                            [capMax,~,capValid]= ...
+                                TRAJECTORY_C9_DIRECTION_CONE_SUPPORT(c,rho,n);
+                            if capValid
+                                prev=separated_parts;
+                                % UAV pU=pL-L*q; all-time control hull.
+                                separated_parts(1)=separated_parts(1)|| ...
+                                    (mn-L*capMax>h+rr(1)+tol);
+                                % Entire cable p(lambda)=pL-lambda L*q.
+                                separated_parts(2)=separated_parts(2)|| ...
+                                    (mn-L*max(0,capMax)>h+rr(2)+tol);
+                                % The payload position has no q term.
+                                separated_parts(3)=separated_parts(3)|| ...
+                                    (mn>h+rr(3)+tol);
+                                S.exact_direction_cone_positive_part_gates= ...
+                                    S.exact_direction_cone_positive_part_gates+ ...
+                                    nnz(separated_parts&~prev);
+                            end
+                        end
                         if mn-sh>h+rr(1)+pad+tol
                             separated_parts(1)=true;
                         end
@@ -355,6 +442,10 @@ R.elapsed_ms=toc(start)*1000;
                         end
                         if all(separated_parts),break;end
                     end
+                    if use_direction_cone_support &&all(separated_parts)
+                        S.exact_direction_cone_completed_obstacles= ...
+                            S.exact_direction_cone_completed_obstacles+1;
+                    end
                     if ~all(separated_parts)
                         % No world-fixed bypass direction. Use the genuine
                         % supporting shape/witness for a data-derived
@@ -362,9 +453,13 @@ R.elapsed_ms=toc(start)*1000;
                         hulls={Q-L*direction,[Q,Q-L*direction],Q};
                         margins=[rr(1)+pad+tol,rr(2)+pad+tol,rr(3)+tol];
                         for body=find(~separated_parts)
-                            [proof,~,~,ncalls]=TRAJECTORY_C9_SUPPORT_SEPARATOR( ...
-                                hulls{body},O,margins(body),m, ...
-                                geometry_options.max_node_count);
+                            [proof,~,~,ncalls,~,nativeUsed]= ...
+                                TRAJECTORY_C9_SUPPORT_SEPARATOR( ...
+                                    hulls{body},O,margins(body),m, ...
+                                    geometry_options.max_node_count, ...
+                                    use_native_support_separator);
+                            S.native_separator_proposals= ...
+                                S.native_separator_proposals+double(nativeUsed);
                             S.shape_support_calls=S.shape_support_calls+ncalls;
                             separated_parts(body)=proof;
                         end

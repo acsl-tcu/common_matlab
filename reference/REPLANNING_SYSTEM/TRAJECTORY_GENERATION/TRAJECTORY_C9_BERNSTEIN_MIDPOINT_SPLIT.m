@@ -8,17 +8,16 @@ function [left,right]=TRAJECTORY_C9_BERNSTEIN_MIDPOINT_SPLIT(P)
 %
 % Precompute only the degree-dependent dyadic Pascal matrix; it depends
 % on neither obstacle configuration nor Flight/mass/controller state.
-% Degrees <=24 use one dense small matrix multiplication; any other input
-% retains the original de Casteljau implementation. All production C9
-% controls are double, degree <=23. This does not implement directed
+% Degrees <=27 use one dense small matrix multiplication; any other input
+% retains the original de Casteljau implementation. The degree-27 single-piece C9 extension also uses the cached matrix. This does not implement directed
 % floating-point rounding; the existing numerical-certificate limitation
 % remains, and this helper does not itself establish physical safety.
 n=size(P,2);
 assert(isnumeric(P)&&ismatrix(P)&&n>=1, ...
     'TRAJECTORY_C9_SPLIT:Input','Need a nonempty 2D numeric control matrix.');
-if isa(P,'double') && n<=25
+if isa(P,'double') && n<=28
     persistent matrices
-    if isempty(matrices),matrices=cell(1,25);end
+    if isempty(matrices),matrices=cell(1,28);end
     C=matrices{n};
     if isempty(C)
         % Integer binomial coefficients up to degree 24 are exact in

@@ -130,7 +130,7 @@ catch ME
     R.elapsed_ms=1000*toc(start_clock);return
 end
 V=double(D{2}(1:2,:));
-W=repmat(double(authority.gravity_world_mps2),1,22)-double(D{3});
+W=repmat(double(authority.gravity_world_mps2),1,size(D{3},2))-double(D{3});
 W1=-double(D{4});
 if ~(all(isfinite([V(:);W(:);W1(:)])))
     R.status='UNKNOWN_NONFINITE_CONTROLS';

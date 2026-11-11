@@ -1,0 +1,13 @@
+status=PASS_LOCAL_POLYNOMIAL_IDENTITIES__FULL_FLIGHT_HLC_AND_15_CASE_PENDING
+error=
+tests=100
+shared_jet_checks=700
+jet_scaled_error=3.2294115030486956e-13
+jet_abs_error=2.9802322387695312e-08
+degree27_endpoint_control_scaled=4.4457369170246938e-14
+degree27_endpoint_physical_absolute=0.00021997507900956681
+leaf_cut_gradient_scaled=3.0276463593159608e-08
+degree27_duration_scaled=1.8774537480226172e-10
+embedded23_scaled=1.1365360614814507e-13
+safe_to_commit=0
+HLC_proven=0
