@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import os
+from torch.nn.utils import parametrize
+from torch.nn.utils.parametrizations import spectral_norm
 
 class NNModel(nn.Module):
     """全結合NN (config: input_size, hidden_sizes, output_size, num_layers, activation_function)"""
-    def __init__(self, input_size, hidden_sizes, output_size, num_layers=None, activation_function='relu'):
+    def __init__(self, input_size, hidden_sizes, output_size, num_layers=None, activation_function='relu',
+                 spectral_norm_layers=()):
         super(NNModel, self).__init__()
         sizes = [input_size] + list(hidden_sizes) + [output_size]
         self.layers = sizes
@@ -15,6 +19,11 @@ class NNModel(nn.Module):
         self.linears = nn.ModuleList(
             [nn.Linear(sizes[i], sizes[i + 1]) for i in range(len(sizes) - 1)]
         )
+
+        # Spectral Normalization付きで学習したモデル用(state_dictのキーが
+        # linears.i.parametrizations.weight.original / .0._u / .0._v になる)
+        for idx in spectral_norm_layers:
+            spectral_norm(self.linears[idx])
 
     @staticmethod
     def _get_activation(name):
@@ -70,20 +79,31 @@ class InferenceWrapper(nn.Module):
         self.device = torch.device("cpu") # 推論だけなのでcpuで十分
         checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
         config = checkpoint['config']
+        state_dict = checkpoint['state_dict']
 
-        if 'RNN' in model_path:
+        if 'RNN' in os.path.basename(model_path):
             self.model = RNNModel(**config)
         else:
-            self.model = NNModel(**config)
-        self.model.load_state_dict(checkpoint['state_dict'])
+            # state_dictのキーからSpectral Normalizationが掛かっている層を検出
+            sn_layers = sorted({int(key.split('.')[1]) for key in state_dict
+                                if key.startswith('linears.') and '.parametrizations.weight.' in key})
+            self.model = NNModel(**config, spectral_norm_layers=sn_layers)
+        self.model.load_state_dict(state_dict)
         self.model.eval() # 推論モードに設定
+
+        # SN層は保存されたu,vで正規化済みの重みに固定してパラメトリゼーションを外す
+        # (eval時の出力は変わらず、推論毎のσ計算が不要になる)
+        if isinstance(self.model, NNModel):
+            for linear in self.model.linears:
+                if parametrize.is_parametrized(linear, 'weight'):
+                    parametrize.remove_parametrizations(linear, 'weight', leave_parametrized=True)
         self.architecture_info = self._extract_info(config)
 
     def _extract_info(self, config):
         # configをそのまま返せば十分だが、見やすく整形
         return {
             'input_size': config['input_size'],
-            'hidden_sizes': list(config['hidden_sizes']),
+            'hidden_sizes': [int(h) for h in np.atleast_1d(config['hidden_sizes'])],
             'output_size': config['output_size'],
             'num_layers': config['num_layers'],
             'activation_function': config['activation_function'],
@@ -110,7 +130,8 @@ class InferenceWrapper(nn.Module):
 
 if __name__ == "__main__": # デバッグ用のテストコード
     # 確認したいモデルのフルパス
-    model_full_path = r"C:\Users\hiyou\Github\common_matlab\controller\NNMEC\NN_Model\pt\2026-8-3_12_40_53__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=6__Middle=[48]__100000epoch_model.pt"
+    model_full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "NN_Model", "pt",
+        "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__1000000epoch_model.pt")
     inference_wrapper = InferenceWrapper(model_full_path)
 
     # テスト入力データ
