@@ -212,23 +212,20 @@ figure(200); clf; set(gcf, "Name", "rmse_boxplot");
 rmseNames = ["rmseX", "rmseY", "rmseZ", "rmseNorm"];
 tiledlayout(1, numel(rmseNames));
 for rmseIdx = 1:numel(rmseNames)
-    nexttile;
-    values = [];
-    groups = [];
+    nexttile; hold on
+    % 他の図と色を揃えるため，データファイルごとに boxchart を描く（全カテゴリを指定して x 軸の並びを固定）
     for fileIdx = 1:fileN
         st = data(fileIdx).summaryTable;
         validValue = st.(rmseNames(rmseIdx))(~st.fDiverged);
-        values = [values; validValue]; %#ok<AGROW>
-        groups = [groups; repmat(fileIdx, numel(validValue), 1)]; %#ok<AGROW>
+        boxchart(categorical(repmat(fileIdx, numel(validValue), 1), 1:fileN, cellstr(labelList)), validValue, ...
+                 "BoxFaceColor", colors(fileIdx, :), "MarkerColor", colors(fileIdx, :));
     end
-    boxHandle = boxchart(categorical(groups, 1:fileN, cellstr(labelList)), values);
     ylabel(rmseNames(rmseIdx) + " [m]"); grid on; grid minor
     set(gca, "FontSize", FS, "TickLabelInterpreter", "none");
 end
 % 箱ひげ図の見方の凡例（凡例表示用のダミー描画。x 軸が categorical のため x も categorical の欠損値にする）
 if fLegend
-    hold on
-    boxColor = boxHandle.BoxFaceColor;
+    boxColor = [0.4 0.4 0.4]; % 箱の色はデータごとに異なるため，見方の凡例はグレーで描く
     dummyX = categorical(missing);
     legendHandle = [ ...
         plot(dummyX, NaN, "s", "MarkerSize", 12, "MarkerFaceColor", boxColor * 0.4 + 0.6, "MarkerEdgeColor", boxColor, "DisplayName", "箱 : 25〜75 パーセンタイル"), ...
