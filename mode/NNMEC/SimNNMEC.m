@@ -1,3 +1,4 @@
+if ~batchStartupOptionUsed % matlab -batch(Ntimes_SimNNMEC の子プロセス)ではエディタが無いため，パス設定は呼び出し元に任せる
 tmp = matlab.desktop.editor.getActive;
 dir = fileparts(tmp.Filename);
 if ~contains(path,dir)
@@ -7,11 +8,12 @@ cellfun(@(xx) addpath(xx), tmp, 'UniformOutput', false);
 close all hidden; clear ; clc;
 userpath('clear');
 end
+end
 %%
-clc;
+% clc;
 ts = 0; % initial time
 dt = 0.025; % sampling period
-te = 100; % terminal time
+te = 50; % terminal time
 agentN = 1;
 time = TIME(ts,dt,te,agentN); % instance of time class
 in_prog_func = @(app) dfunc(app); % in progress plot
@@ -19,9 +21,9 @@ post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te,2), 0, [],[]); % instance of LOOGER class for data logging
 logger.display_func = @(agent, time) build_display_vector(agent, time);
-logger.display_on = true;
+logger.display_on = false;
 logger.set_time_handler(time);
-fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  delta_U:[T, tx, ty, tz]\n\n");
+% fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  delta_U:[T, tx, ty, tz]\n\n");
 
 base = [0,0]; % center
 initial_state.p = arranged_position(base, 1, 1, 0);
@@ -119,7 +121,12 @@ ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100
 % ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
 
 
-ptName = "2026-10-23_22_56_53__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__100000epoch_model.pt";
+ptName = "2026-11-11_19_0_43__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__500epoch_model.pt"; % 500epoch model
+% ptName = "2026-10-23_22_56_53__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__100000epoch_model.pt";
+
+% すぺくとるせいきか
+% ptName = "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__500epoch_model.pt";
+% ptName = "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__1000000epoch_model.pt";
 
 % Learn Exp
 % ptName = "2026-7-23_11_28_41__DNN12__Exp_random__Euler__Activation=ReLU__100000epoch_model.pt";
@@ -143,12 +150,12 @@ agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.l.reference = "landing";
 
-agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
+% agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
 
-% 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
-cha_schedule = {"t", 15;
-                "f", 45;
-                "l", 50};
+% % 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
+% cha_schedule = {"t", 15;
+%                 "f", 45;
+%                 "l", 50};
 
 
 function post(app)
@@ -167,8 +174,8 @@ app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",p
 app.logger.plot({1, "controller.result.nominal_input", ""},"fig_num",54, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2", "re"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2-p3", "re"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-show_animation(app);
-% plot_calc_time(app.logger, app.time);
+% show_animation(app);
+plot_calc_time(app.logger, app.time);
 end
 
 function dfunc(app)
@@ -205,9 +212,9 @@ else
     p = [NaN; NaN; NaN];
     q = [NaN; NaN; NaN];
 end
-% u = agent(idx).controller.result.input;
-% v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : Q [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', q', u');
+u = agent(idx).controller.result.input;
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : Q [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', q', u');
 
-du = agent(idx).controller.result.delta_input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : Q [%7.3f,%7.3f,%7.3f] : dU [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', q', du');
+% du = agent(idx).controller.result.delta_input;
+% v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : Q [%7.3f,%7.3f,%7.3f] : dU [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', q', du');
 end
