@@ -31,25 +31,34 @@ fileNames = [
     
     % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_10_35_57__SaddleT=5__Ntimes_SimHL__trial1000.mat";
     % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_12_44_47__SaddleT=5__Ntimes_SimHL_with_NNMEC__trial1000.mat"
+
+    % ↓ モデル誤差が大きい場所でNN-MECが有効なことがわかる
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-10-28_18_2_32__Ntimes_SimHL__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-11-7_15_15_24__Ntimes_SimNNMEC__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-11-10_1_21_38__Ntimes_SimNNMEC_SN__trial1000.mat";
+
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.18 0.24]\2026-11-9_16_29_12__Ntimes_SimNNMEC__trial1000.mat"
     ];
 % 凡例ラベル（fileNames と同じ数）。空ならファイルの ptName（無ければファイル名）を使う
 labels = [
     "w/o NN-MEC";
     "w/ NN-MEC";
+    "w/ NN-MEC (SN)";
     ];
 nSigma = 2;             % 時系列の描画で 平均 ± nSigma×標準偏差 をバンドで描く
 fExcludeFailed = true;  % true: 時系列の統計から発散/墜落した試行を除く（途中で打ち切られて長さが揃わないため）
 fPlotEachTrial = false; % true: 時系列・xy 軌跡に各試行も細線で重ねて描く
-plotPhase = 'tf';       % 時系列を描画するフェーズ（'a','t','f','l' の組合せ）
+plotPhase = 'f';       % 時系列を描画するフェーズ（'a','t','f','l' の組合せ）
 fLegend = true;         % true: 全ての図に凡例を表示する
-fSaveFig = false;       % true: 図を figDir に figFormats の形式で保存する
+fSaveFig = true;       % true: 図を figDir に figFormats の形式で保存する
 figFormats = ["png", "pdf"]; % 保存形式（複数指定可）: "png","jpg","tif" 等のラスタ形式，"pdf","eps","emf" のベクトル形式
 figDir = fullfile(dataDir, "compare_fig");
+figDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]";
 
 FS = 14; % FontSize
 LW = 1.0;% LineWidth
-MS = 7;  % MarkerSize [pt]（散布図のマーカー。scatter は面積指定のため MS^2 で渡す）
-MA = 0.5;% MarkerAlpha（散布図のマーカーの不透明度。1: 不透明, 0: 透明）
+MS = 5;  % MarkerSize [pt]（散布図のマーカー。scatter は面積指定のため MS^2 で渡す）
+MA = 0.25;% MarkerAlpha（散布図のマーカーの不透明度。1: 不透明, 0: 透明）
 
 %% 読み込み ===========================================================================================================================================
 if isempty(fileNames)
