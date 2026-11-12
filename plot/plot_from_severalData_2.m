@@ -12,7 +12,8 @@ clc;
 %% 設定（普段はこのブロックを変更する）
 % defaults.target = ["p1-p2-p3"];
 
-defaults.target = ["p1-p2-p3", "input1", "input2:4", "controller.result.delta_u"];
+defaults.target = ["p1-p2-p3"];
+% "controller.result.delta_u"
 % input1: スラストのみ、input2:4: 回転方向の入力のみ（別々のFigure）。
 % このログのinput2:4はトルク[Nm]。実際の角速度[rad/s]は "w" を指定する。
 % 選択例: ["p","v","q","w","input","input2:4","p1-p2"]
@@ -22,7 +23,7 @@ defaults.attribute = "er"; % e:推定、s:センサ、r:目標、p:真値
 defaults.phase = "fl";      % "tfl":離陸・飛行・着陸、"":全フェーズ
 defaults.time = [-Inf Inf]; % 絶対時刻[s]の範囲（phaseと両方適用）
 defaults.agent_id = 1;     % 保存されたData.agentの番号
-defaults.fsave = 1;       % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
+defaults.fsave = 0;       % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
 defaults.savefolder = "";  % 保存時に空ならフォルダ選択
 defaults.ftitle = false;
 defaults.fcolor = true;    % 時系列のフェーズ背景

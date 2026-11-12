@@ -1,0 +1,21 @@
+========== 実験メモ ==========
+作成日時 : 2026/11/06 15:17:48
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_1.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_10.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_11.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_12.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_13.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_14.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_2.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_3.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_4.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_5.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_6.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_7.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_8.mat
+4kidou_reiki_0Jogai__LYKL_err_20261106_115127_9.mat
+LYKL回数 : 14

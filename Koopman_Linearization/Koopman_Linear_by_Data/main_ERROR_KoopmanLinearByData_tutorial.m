@@ -1,6 +1,6 @@
 %% Koopman Linear by Data %%
 %--------------------------------------------------------------------------------
-%初心者用のクープマン線形化プログラム
+%初心者用のクquaternionープマン線形化プログラム
 %コマンドウィンドウの案内に従えばできるようになっているはず．．．
 %慣れてきたら，main_KoopmanLinearByDataのほうでやるといいかも(設定を自分でできる)
 %--------------------------------------------------------------------------------
@@ -627,11 +627,15 @@ fprintf('メモファイル "%s" を保存しました。\n', memoFilePath);
 
 
 
-% 保存先のフルパス
-% targetPath = fullfile(nowFolder, saveFileName);
+% 保存日時
+timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+
+% ファイル名に日時を追加
+[folder, name, ext] = fileparts(targetPath);
+targetPath = fullfile(folder, [name '_' timestamp ext]);
+
 % 保存
 save(targetPath, 'est', 'Data', 'simResult', 'F');
-
 % save(targetpath,'est','Data','simResult','F')
 
 disp('Saved to')

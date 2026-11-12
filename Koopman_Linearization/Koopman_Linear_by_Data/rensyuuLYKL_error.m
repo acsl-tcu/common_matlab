@@ -51,6 +51,8 @@ dyn_idx = 1:p_theta;
 p_theta_dyn = p_theta;
 
 
+
+
 %% 数値状態の確認
 fprintf('\n===== Numerical diagnostics =====\n');
 
@@ -137,6 +139,7 @@ for iter = 1:max_iter
 
     Constraints_U = [];
 
+
     Constraints_U = [Constraints_U, trace(W) <= nu];
     Constraints_U = [Constraints_U, W >= epsilon * eye(p_theta)];
 
@@ -146,7 +149,7 @@ for iter = 1:max_iter
         matrix_M >= epsilon * eye(size(matrix_M,1))];
 
 
-    % ★安定性LMIは動的部分空間 A_dyn = A(dyn_idx,dyn_idx) のみに課す
+
     A_dyn = A(dyn_idx, dyn_idx);
     matrix_P = [rho_bar * P_val,        A_dyn' * P_val;
         P_val' * A_dyn,         rho_bar * P_val];
@@ -177,7 +180,7 @@ for iter = 1:max_iter
     objective_val = value(Objective_U);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Step 2：Aを固定して P を最適化（★動的部分空間のみ）
+    % Step 2：Aを固定して P を最適化
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     P   = sdpvar(p_theta_dyn, p_theta_dyn, 'symmetric');
@@ -389,7 +392,7 @@ result.B = B_val;
 result.P = P_val;              % 動的部分空間のみのサイズ
 
 result.dyn_idx   = dyn_idx;    % 追加：安定化された動的部分空間の行番号
-result.A_dyn     = A_val(dyn_idx, dyn_idx); % ★追加：動的部分のみのA
+result.A_dyn     = A_val(dyn_idx, dyn_idx); % 動的部分のみのA
 
 result.eigenvalues  = eigenvalues;
 result.max_abs_eig  = max_abs_eig;

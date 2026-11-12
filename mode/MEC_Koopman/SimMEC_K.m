@@ -41,9 +41,13 @@ plant_model = Model_EulerAngle(dt, initial_state, 1);
 % plant_model.param.param(1) = 0.6; % ５％減->0.7125 ５％増->0.7875
 
 % モデル誤差
-plant_model.param.param(6) = 0.21; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.21; % 
+% result確認するときこっち
+% plant_model.param.param(6) = 0.21; % 0.18<jx,jy<0.22ぐらいが良き
+% plant_model.param.param(7) = 0.21; % 
 
+% dataset確認するときこっち
+plant_model.param.param(6) = 0.2; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.2; % 
 
 
 % agent.parameter = DRONE_PARAM("DIATONE", "jx", 0.185);
@@ -75,11 +79,9 @@ agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_square", {"T",10}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle", {"freq",10,"center",[0;0;1],"radius",[1 1 0.5],"phase",0}}));%これ位相ずらす必要あるんかな…
 
-% agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_case_study",{"orig",[0;0;1],},4}));%最後は微分回数(ドローンだけの時は4，他は他に合わせる)
-
 
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",32,"start",[0;0;0.6],"seed",42}}));%seedを固定すると同じ軌道，外すとランダム軌道
-% % これ使うやつ↓
+% % % これ使うやつ↓
 % seed = app.initial_setting.trajectory_seed;
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_random", {"T",50,"start",[0;0;1],"seed",seed}}));%seedを固定すると同じ軌道，外すとランダム軌道
 
@@ -119,9 +121,7 @@ app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te
 % app.logger.plot({1, "controller.result.input", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",6);
 % app.logger.plot({1, "controller.result.delta_u", ""}, "xrange",[app.time.ts,app.time.te],"fig_num",7);
 % まず普通に描画
-app.logger.plot({1, "controller.result.input", ""}, ...
-    "xrange",[app.time.ts,app.time.te], ...
-    "fig_num",6);
+app.logger.plot({1, "controller.result.input", ""}, "xrange",[app.time.ts,app.time.te], "fig_num",6);
 
 app.logger.plot({1, "controller.result.delta_u", ""}, ...
     "xrange",[app.time.ts,app.time.te], ...

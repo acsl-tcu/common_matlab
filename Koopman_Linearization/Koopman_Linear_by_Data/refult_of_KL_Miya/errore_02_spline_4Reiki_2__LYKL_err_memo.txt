@@ -1,0 +1,21 @@
+========== 実験メモ ==========
+作成日時 : 2026/10/28 18:09:47
+データセット : datasets
+
+=== datasets 内のファイル一覧 ===
+
+errore_02_spline_4Reiki_001_Log(28-Oct-2026_17_04_58).mat
+errore_02_spline_4Reiki_002_Log(28-Oct-2026_17_05_37).mat
+errore_02_spline_4Reiki_003_Log(28-Oct-2026_17_06_14).mat
+errore_02_spline_4Reiki_004_Log(28-Oct-2026_17_06_53).mat
+errore_02_spline_4Reiki_005_Log(28-Oct-2026_17_07_27).mat
+errore_02_spline_4Reiki_006_Log(28-Oct-2026_17_08_01).mat
+errore_02_spline_4Reiki_007_Log(28-Oct-2026_17_08_35).mat
+errore_02_spline_4Reiki_008_Log(28-Oct-2026_17_09_09).mat
+errore_02_spline_4Reiki_009_Log(28-Oct-2026_17_09_43).mat
+errore_02_spline_4Reiki_010_Log(28-Oct-2026_17_10_16).mat
+errore_02_spline_4Reiki_011_Log(28-Oct-2026_17_10_51).mat
+errore_02_spline_4Reiki_012_Log(28-Oct-2026_17_11_25).mat
+errore_02_spline_4Reiki_013_Log(28-Oct-2026_17_12_00).mat
+errore_02_spline_4Reiki_014_Log(28-Oct-2026_17_12_45).mat
+LYKL回数 : 14

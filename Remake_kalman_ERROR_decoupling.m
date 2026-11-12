@@ -30,20 +30,49 @@ else
     error('MATファイルに est または A,B,C がありません。');
 end
 
+fprintf('\n===== MATファイル内の行列 =====\n');
+
+if isfield(est, 'A')
+    fprintf('est.A          : %s\n', mat2str(size(est.A)));
+end
+
+if isfield(est, 'A_original')
+    fprintf('est.A_original : %s\n', mat2str(size(est.A_original)));
+end
+
+if isfield(est, 'B')
+    fprintf('est.B          : %s\n', mat2str(size(est.B)));
+end
+
+if isfield(est, 'B_original')
+    fprintf('est.B_original : %s\n', mat2str(size(est.B_original)));
+end
 %% 元の26状態・4入力のモデルを使用
 
 if ~all(isfield(est, {'A_original', 'B_original'}))
     error('estにA_originalまたはB_originalがありません。');
 end
+% A = double(est.A_original);
+% B = double(est.B_original);
+% 
+% n = size(A, 1);
+% m = size(B, 2);
+% 
+% % 全誤差状態を出力として扱う
+% C = eye(n);
 
-A = double(est.A_original);
-B = double(est.B_original);
+keep_idx = loaded.Data.keep_idx;
 
-n = size(A, 1);
-m = size(B, 2);
+A = double(est.A_reduced);
+B = double(est.B_original(keep_idx,:));
 
-% 全誤差状態を出力として扱う
+n = size(A,1);
+m = size(B,2);
+
 C = eye(n);
+
+assert(n == 25 && m == 4, ...
+    '25状態・4入力ではありません');
 
 %% サイズ確認
 fprintf('\n===== モデルのサイズ =====\n');
@@ -51,8 +80,8 @@ fprintf('A : %d x %d\n', size(A));
 fprintf('B : %d x %d\n', size(B));
 fprintf('C : %d x %d\n', size(C));
 
-assert(n == 26 && m == 4, ...
-    '元の26状態・4入力に復元されていません');
+% assert(n == 26 && m == 4, ...
+%     '元の26状態・4入力に復元されていません');
 %%
 if n == 0 || size(A, 2) ~= n || size(B, 1) ~= n || ...
         size(C, 2) ~= n || m == 0
@@ -65,31 +94,49 @@ end
 
 
 
-%% 2. 状態重み行列 Q の設定
-
-% ===== 各状態の重みを設定 =====
-
-weight_P = 100;    % P1, P2, P3（位置）
-weight_Q = 1;     % Q1, Q2, Q3
+% % %% 2. 状態重み行列 Q の設定
+% % 
+% % % ===== 各状態の重みを設定 =====
+% % 
+weight_P = 1;    % P1, P2, P3（位置）
+weight_Q = 1;     % Q1, Q2, Q3（姿勢角）
 weight_V = 1;   % V1, V2, V3（速度）
-weight_W = 1;    % W1, W2, W3（角速度）
+weight_W = 1000;    % W1, W2, W3（角速度）
 weight_R = 1;     % R13, R23, R33
-weight_other = 1; % 16～26番目の状態
+weight_other = 1; % 定数項1の16～26番目の状態
+% % 
+% % % ===== 26状態の重みを設定 =====
+% % q = weight_other * ones(n, 1);
+% % q(1:3)   = weight_P;  % P1, P2, P3
+% % q(4:6)   = weight_Q;  % Q1, Q2, Q3
+% % q(7:9)   = weight_V;  % V1, V2, V3
+% % q(10:12) = weight_W;  % W1, W2, W3
+% % q(13:15) = weight_R;  % R13, R23, R33
+% % % ===== 状態重み行列 =====
+% % 
+% % Qfull = diag(q);
+% % 
+% % % ===== 入力重み行列 =====
+% % 
+% % R =  eye(m);
 
-% ===== 26状態の重みを設定 =====
-q = weight_other * ones(n, 1);
-q(1:3)   = weight_P;  % P1, P2, P3
-q(4:6)   = weight_Q;  % Q1, Q2, Q3
-q(7:9)   = weight_V;  % V1, V2, V3
-q(10:12) = weight_W;  % W1, W2, W3
-q(13:15) = weight_R;  % R13, R23, R33
-% ===== 状態重み行列 =====
+%% 状態重み行列
+
+q26 = weight_other * ones(26,1);
+
+q26(1:3)   = weight_P;
+q26(4:6)   = weight_Q;
+q26(7:9)   = weight_V;
+q26(10:12) = weight_W;
+q26(13:15) = weight_R;
+
+% 16番目を除外
+q = q26(keep_idx);
 
 Qfull = diag(q);
 
-% ===== 入力重み行列 =====
-
-R =  eye(m);
+%% 入力重み行列
+R = 100*eye(m);
 
 %=================以下元のコード=====================
 % % ctrbfのtolは行列の大きさに合わせて設定する必要あり
@@ -163,12 +210,25 @@ Qc = (Qc + Qc') / 2;
 [Kc, Pc, eigControlledClosed] = dlqr(Ac, Bc, Qc, R);
 K_dyn = Kc;  % 可制御座標のゲインとして保存する互換名
 
-% u=-Kc*z_c, z_c=Tc*x より元座標のゲインを復元する。
-K_all = [zeros(m, nUncont), Kc];
-K_full = K_all * T;  % = Kc*Tc
+% % u=-Kc*z_c, z_c=Tc*x より元座標のゲインを復元する。
+% K_all = [zeros(m, nUncont), Kc];
+% K_full = K_all * T;  % = Kc*Tc
 
+% eigUncontrolled = eig(Auc);
+% eigClosed = eig(A - B*K_full);
+%% 25状態のLQRゲイン
+K_all = [zeros(m, nUncont), Kc];
+K25 = K_all * T;
+
+%% 元の26状態に対応するゲインを作成
+K_full = zeros(m,26);
+K_full(:,keep_idx) = K25;
+
+%% 閉ループ固有値
 eigUncontrolled = eig(Auc);
-eigClosed = eig(A - B*K_full);
+% 25状態モデルに対する閉ループ
+eigClosed = eig(A - B*K25);
+
 fprintf('\n可制御部分の閉ループ最大固有値絶対値: %.6g\n', ...
     max(abs(eigControlledClosed)));
 fprintf('全状態の閉ループ最大固有値絶対値: %.6g\n', ...
@@ -192,7 +252,7 @@ if ~exist(saveFolder, 'dir')
 end
 timeStamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss_SSS'));
 saveFileName = fullfile(saveFolder, ...
-    [baseName '_gain_controllable_dlqr_Q1_R1000_' timeStamp '.mat']);
+    [baseName '_gain_controllable_dlqr_Q1_R100_' timeStamp '.mat']);
 save(saveFileName, ...
     'A', 'B', 'C', 'F', 'G', 'H', 'T', 'S', 'T_inv', 'kSteps', ...
     'nCont', 'nUncont', 'cIdx', 'ucIdx', 'Ac', 'Bc', 'Auc', ...
