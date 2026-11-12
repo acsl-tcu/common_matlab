@@ -32,21 +32,21 @@ seed = 0;                 % 乱数シード（パラメータサンプリング�
 errorParam = struct( ...
     "name",  {"mass",          "jx",         "jy"}, ...
     "idx",   {1,               6,            7}, ...
-    "range", {[0.7125 0.7875], [0.06 0.18], [0.06 0.18]});
+    "range", {[0.7125 0.7875], [0.06 0.20], [0.06 0.20]});
 fSameJxJy = true; % true: jy に jx と同じサンプル値を使う（機体の対称性を仮定）
 
 % フェーズ遷移（キー入力の代替）
 nArmingStep = 1;        % arming(a) のステップ数（時刻は進まない）
-tFlightStart = 20;      % この時刻で take-off(t) -> flight(f)
-tLandingStart = inf;    % この時刻で flight(f) -> landing(l)。inf なら landing なし（te で終了）
+tFlightStart = 15;      % この時刻で take-off(t) -> flight(f)
+tLandingStart = 45;    % この時刻で flight(f) -> landing(l)。inf なら landing なし（te で終了）
 divergeLimit = 10;      % プラント位置のノルムがこれを超えたら発散とみなして試行を打ち切る [m]
-zLowerLimit = 0;        % flight 中にプラントの z がこれを下回ったら墜落とみなして試行を打ち切る [m]
+zLowerLimit = -0.5;        % flight 中にプラントの z がこれを下回ったら墜落とみなして試行を打ち切る [m]
 
 fDisplay = false;       % 各ステップのコンソール表示（SimNNMEC の logger.display_on）
 fKeepLogger = false;    % true: 各試行の LOGGER を結果に保持する（メモリ・保存容量が大きくなる）
 fSave = true;           % 結果を .mat で保存する
 saveDir = fullfile("Data", "NNMEC_MonteCarlo");
-saveDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error";
+saveDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]";
 
 %% パラメータのサンプリング ===========================================================================================================================
 rng(seed);
