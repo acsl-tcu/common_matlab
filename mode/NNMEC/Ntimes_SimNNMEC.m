@@ -5,6 +5,8 @@
 %   - SimNNMEC.m 内のプラントパラメータ上書きは，本スクリプトでサンプリングした値で再度上書きする
 %   - フェーズ遷移(a -> t -> f (-> l))はキー入力の代わりに時刻で自動切替する
 %   - 結果(サンプル値，飛行フェーズの追従誤差，軌跡)は Data/NNMEC_MonteCarlo/ に保存する
+%   - R2026b では同一プロセスで累計約130万ステップ回すとクラッシュするため，chunkSize 試行ごとに
+%     子プロセス(matlab -batch)を起動し直して実行し，チャンクごとに保存した結果を最後に結合する
 %
 % 2026/10 作成
 
@@ -48,6 +50,12 @@ fSave = true;           % 結果を .mat で保存する
 saveDir = fullfile("Data", "NNMEC_MonteCarlo");
 saveDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]";
 
+% チャンク分割実行（子プロセスの MATLAB を起動し直して実行する）
+chunkSize = 200;        % 1回の子プロセスで回す試行数。chunkSize*(te/dt) が60万ステップ程度以下になるようにする
+startTrial = 1;         % 開始試行。途中から再開する場合に指定する
+runName = "SimNNMEC_500epoch";           % チャンクの保存フォルダ名(saveDir 配下)。"" なら日時から自動生成。再開時は前回のフォルダ名を指定（保存済みチャンクは飛ばす）
+maxRetry = 1;           % 子プロセスが異常終了したチャンクを再実行する回数
+
 %% パラメータのサンプリング ===========================================================================================================================
 rng(seed);
 paramN = numel(errorParam);
@@ -64,50 +72,69 @@ end
 %% モンテカルロシミュレーション =======================================================================================================================
 phaseOpts = struct("nArmingStep", nArmingStep, "tFlightStart", tFlightStart, ...
                    "tLandingStart", tLandingStart, "divergeLimit", divergeLimit, "zLowerLimit", zLowerLimit);
-results = repmat(struct("trial", [], "param", [], "fDiverged", false, "errorMsg", "", ...
-                        "rmse", nan(1, 3), "maxError", nan(1, 3), "t", [], "p", [], "pr", [], "log", [], ...
-                        "calcTime", nan, "logger", []), trialN, 1);
 
-for trial = 1:trialN
-    fprintf("\n===== Trial %d / %d =====\n", trial, trialN);
-    results(trial).trial = trial;
-    results(trial).param = sampledParam(trial, :);
-    try
-        [agent, time, logger, env, simInfo] = build_sim(simScript);
-        logger.display_on = fDisplay;
+% 子プロセス: 指定範囲の試行を実行してチャンクファイルに保存し終了する
+childRange = getenv("NTIMES_CHILD_RANGE"); % 親プロセスが "開始,終了" を設定する
+if ~isempty(childRange) && batchStartupOptionUsed
+    trialRange = sscanf(childRange, "%d,%d")';
+    chunkFile = string(getenv("NTIMES_CHUNK_FILE"));
+    [results, simInfo] = run_trials(trialRange(1):trialRange(2), sampledParam, errorParam, simScript, seed, phaseOpts, fDisplay, fKeepLogger);
+    % 保存途中で落ちた不完全なファイルを保存済みと誤認しないよう，一時ファイルに保存してから名前を変える
+    [chunkFolder, chunkName] = fileparts(chunkFile);
+    tmpFile = fullfile(chunkFolder, "tmp_" + chunkName + ".mat");
+    save(tmpFile, "results", "simInfo", "-v7.3");
+    movefile(tmpFile, chunkFile);
+    fprintf("チャンク保存先 : %s\n", chunkFile);
+    return
+end
 
-        % モデル誤差をプラントに与える（SimNNMEC.m 内の上書きをさらに上書き）
-        for paramIdx = 1:paramN
-            agent.plant.param(errorParam(paramIdx).idx) = sampledParam(trial, paramIdx);
+% 親プロセス: チャンクごとに子プロセスを起動する
+if strlength(runName) == 0
+    runName = string(datetime("now", "Format", "yyyy-M-d_H_m_s")) + "__Ntimes_SimNNMEC_chunks";
+end
+chunkDir = fullfile(saveDir, runName);
+if ~exist(chunkDir, "dir"); mkdir(chunkDir); end
+scriptFile = which("Ntimes_SimNNMEC");
+matlabExe = fullfile(matlabroot, "bin", "matlab.exe");
+for chunkStart = startTrial:chunkSize:trialN
+    chunkEnd = min(chunkStart + chunkSize - 1, trialN);
+    chunkFile = fullfile(chunkDir, sprintf("chunk_%04d-%04d.mat", chunkStart, chunkEnd));
+    if exist(chunkFile, "file")
+        fprintf("Trial %d - %d : 保存済みのため飛ばします\n", chunkStart, chunkEnd);
+        continue
+    end
+    for attempt = 1:maxRetry + 1
+        fprintf("\n##### Trial %d - %d / %d を子プロセスで実行 (attempt %d) #####\n", chunkStart, chunkEnd, trialN, attempt);
+        setenv("NTIMES_CHILD_RANGE", sprintf("%d,%d", chunkStart, chunkEnd));
+        setenv("NTIMES_CHUNK_FILE", chunkFile);
+        logFile = replace(chunkFile, ".mat", sprintf("_attempt%d.log", attempt));
+        status = system(sprintf('"%s" -batch "run(''%s'')" -logfile "%s"', matlabExe, scriptFile, logFile), "-echo");
+        setenv("NTIMES_CHILD_RANGE", "");
+        setenv("NTIMES_CHUNK_FILE", "");
+        if exist(chunkFile, "file")
+            break
         end
-        fprintf("plant param : %s\n", strjoin(paramNames + "=" + string(sampledParam(trial, :)), ", "));
-
-        rng(seed + trial); % センサノイズ等の再現用
-        tStart = tic;
-        results(trial).fDiverged = run_headless(agent, time, logger, env, phaseOpts);
-        results(trial).calcTime = toc(tStart);
-
-        % 全フェーズ(空回しを除く)のログ: plant/estimator/sensor/reference の全状態，入力，controller の結果
-        results(trial).log = extract_log_data(logger);
-        % 飛行フェーズのプラント位置(真値)とリファレンス位置
-        flightIds = results(trial).log.phase == 'f';
-        results(trial).t = results(trial).log.t(flightIds);
-        results(trial).p = results(trial).log.plant.state.p(flightIds, :);
-        results(trial).pr = results(trial).log.reference.state.p(flightIds, :);
-        posError = results(trial).p - results(trial).pr;
-        results(trial).rmse = sqrt(mean(posError.^2, 1));
-        results(trial).maxError = max(abs(posError), [], 1);
-        if fKeepLogger
-            results(trial).logger = logger;
-        end
-        fprintf("diverged : %d  |  RMSE [x y z] = [%.4f %.4f %.4f]  |  %.1f s\n", ...
-                results(trial).fDiverged, results(trial).rmse, results(trial).calcTime);
-    catch err
-        results(trial).fDiverged = true;
-        results(trial).errorMsg = string(err.message);
-        warning("Ntimes_SimNNMEC: Trial %d failed : %s", trial, err.message);
+        warning("Ntimes_SimNNMEC: Trial %d - %d の子プロセスが異常終了しました (exit code %d)", chunkStart, chunkEnd, status);
     end
 end
+
+% チャンクの結合（保存されなかった試行は失敗扱い）
+results = repmat(new_result(0, nan(1, paramN)), trialN, 1);
+for trial = 1:trialN
+    results(trial) = new_result(trial, sampledParam(trial, :));
+    results(trial).fDiverged = true;
+    results(trial).errorMsg = "未実行";
+end
+simInfo = struct();
+chunkFiles = dir(fullfile(chunkDir, "chunk_*.mat"));
+for chunkIdx = 1:numel(chunkFiles)
+    chunk = load(fullfile(chunkFiles(chunkIdx).folder, chunkFiles(chunkIdx).name), "results", "simInfo");
+    results([chunk.results.trial]) = chunk.results;
+    if ~isempty(fieldnames(chunk.simInfo))
+        simInfo = chunk.simInfo;
+    end
+end
+fprintf("チャンク保存フォルダ : %s\n", chunkDir);
 
 %% 結果の集計・保存 ===================================================================================================================================
 summaryTable = array2table(sampledParam, "VariableNames", cellstr(paramNames));
@@ -127,7 +154,7 @@ if fSave
     nowTime = datetime("now", "Format", "yyyy-M-d_H_m_s");
     saveName = fullfile(saveDir, string(nowTime) + "__Ntimes_SimNNMEC__trial" + trialN + ".mat");
     if ~exist("simInfo", "var"); simInfo = struct(); end % 全試行が構築段階で失敗した場合
-    save(saveName, "results", "summaryTable", "errorParam", "sampledParam", "seed", "phaseOpts", "simScript", "simInfo", "-v7.3");
+    save(saveName, "results", "summaryTable", "errorParam", "sampledParam", "seed", "phaseOpts", "simScript", "simInfo", "runName", "-v7.3");
     fprintf("保存先 : %s\n", saveName);
 end
 
@@ -171,6 +198,63 @@ set(gca, "FontSize", FS);
 
 
 %% ローカル関数 =======================================================================================================================================
+function [results, simInfo] = run_trials(trialIds, sampledParam, errorParam, simScript, seed, phaseOpts, fDisplay, fKeepLogger)
+% trialIds の各試行を実行し，結果の構造体配列を返す
+paramN = numel(errorParam);
+paramNames = [errorParam.name];
+trialN = size(sampledParam, 1);
+simInfo = struct(); % 全試行が構築段階で失敗した場合
+results = repmat(new_result(0, nan(1, paramN)), numel(trialIds), 1);
+for resultIdx = 1:numel(trialIds)
+    trial = trialIds(resultIdx);
+    fprintf("\n===== Trial %d / %d =====\n", trial, trialN);
+    results(resultIdx) = new_result(trial, sampledParam(trial, :));
+    try
+        [agent, time, logger, env, simInfo] = build_sim(simScript);
+        logger.display_on = fDisplay;
+
+        % モデル誤差をプラントに与える（SimNNMEC.m 内の上書きをさらに上書き）
+        for paramIdx = 1:paramN
+            agent.plant.param(errorParam(paramIdx).idx) = sampledParam(trial, paramIdx);
+        end
+        fprintf("plant param : %s\n", strjoin(paramNames + "=" + string(sampledParam(trial, :)), ", "));
+
+        rng(seed + trial); % センサノイズ等の再現用
+        tStart = tic;
+        results(resultIdx).fDiverged = run_headless(agent, time, logger, env, phaseOpts);
+        results(resultIdx).calcTime = toc(tStart);
+
+        % 全フェーズ(空回しを除く)のログ: plant/estimator/sensor/reference の全状態，入力，controller の結果
+        results(resultIdx).log = extract_log_data(logger);
+        % 飛行フェーズのプラント位置(真値)とリファレンス位置
+        flightIds = results(resultIdx).log.phase == 'f';
+        results(resultIdx).t = results(resultIdx).log.t(flightIds);
+        results(resultIdx).p = results(resultIdx).log.plant.state.p(flightIds, :);
+        results(resultIdx).pr = results(resultIdx).log.reference.state.p(flightIds, :);
+        posError = results(resultIdx).p - results(resultIdx).pr;
+        results(resultIdx).rmse = sqrt(mean(posError.^2, 1));
+        results(resultIdx).maxError = max(abs(posError), [], 1);
+        if fKeepLogger
+            results(resultIdx).logger = logger;
+        end
+        fprintf("diverged : %d  |  RMSE [x y z] = [%.4f %.4f %.4f]  |  %.1f s\n", ...
+                results(resultIdx).fDiverged, results(resultIdx).rmse, results(resultIdx).calcTime);
+    catch err
+        results(resultIdx).fDiverged = true;
+        results(resultIdx).errorMsg = string(err.message);
+        warning("Ntimes_SimNNMEC: Trial %d failed : %s", trial, err.message);
+    end
+    [userMem, sysMem] = memory; fprintf("MATLAB mem : %.3f GB  |  system available : %.3f GB\n", userMem.MemUsedMATLAB/1e9, sysMem.PhysicalMemory.Available/1e9);
+end
+end
+
+function result = new_result(trial, param)
+% 1試行分の結果構造体の初期値
+result = struct("trial", trial, "param", param, "fDiverged", false, "errorMsg", "", ...
+                "rmse", nan(1, 3), "maxError", nan(1, 3), "t", [], "p", [], "pr", [], "log", [], ...
+                "calcTime", nan, "logger", []);
+end
+
 function [agent, time, logger, env, simInfo] = build_sim(simScript)
 % simScript をこの関数のワークスペースで評価し，シミュレーションに必要なインスタンスを返す。
 % （スクリプト内の clear 等が呼び出し元のワークスペースに影響しないよう関数内で実行）
