@@ -1,0 +1,13 @@
+inputMode,shape,obstacle,nRows,coeffMs,qpMs
+real,C,sphere,48,15.6268,6.3495
+real,C,ellipsoid,48,17.6624,6.4585
+real,B,sphere,15,8.5883,5.9888
+real,B,ellipsoid,15,8.8294,6.2163
+real,D,sphere,14,9.2955,6.4048
+real,D,ellipsoid,14,8.6843,6.108
+virtual,C,sphere,40,11.0045,5.984
+virtual,C,ellipsoid,40,10.4536,6.3041
+virtual,B,sphere,7,3.7542,6.2108
+virtual,B,ellipsoid,7,3.3923,5.859
+virtual,D,sphere,6,4.5075,8.1078
+virtual,D,ellipsoid,6,3.6694,6.241

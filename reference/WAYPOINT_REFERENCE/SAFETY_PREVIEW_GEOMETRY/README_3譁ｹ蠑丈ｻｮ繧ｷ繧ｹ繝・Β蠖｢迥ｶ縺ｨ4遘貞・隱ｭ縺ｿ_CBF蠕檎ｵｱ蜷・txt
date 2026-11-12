@@ -1,0 +1,272 @@
+【CBF完成後に統合するための仮実装】
+WAYPOINT_REFERENCE / SAFETY_PREVIEW_GEOMETRY
+モデルC・B・D / 障害物交差・地面判定 / 4秒先読み
+作成：2026-11-11（第一実装、MATLAB実機実行前）
+===============================================================================
+
+0. この成果物の位置づけ
+---------------------------------------------
+今回のファイル群は、Waypoint軌道生成側での「仮システム形状」「幾何衝突判定」「4秒間の名目予測」です。
+既存CBFの安全関数、相対次数、Lie微分、QP入力制約、張力条件は、まだ組み込んでいません。
+CBFの形状が確定した段階で、同じパラメータと共通幾何へ置き換える前提です。
+この事実をフォルダ名とドキュメント名に残しています。適用済みCBFの安全証明ではありません。
+既存の HLC / WAYPOINT_REFERENCE.m / DRAW_SUSPENDED_LOAD.m / DRONE_OBSTACLES.m を変更しません。
+
+1. 配置する場所
+---------------------------------------------
+commonmatlab/
+  reference/
+    WAYPOINT_REFERENCE/
+      WAYPOINT_REFERENCE.m                     （既存、変更しない）
+      SAFETY_PREVIEW_GEOMETRY/                 （今回追加）
+        README_3方式仮システム形状と4秒先読み_CBF後統合.txt
+        wp_system_geometry_config.m           共通設定・切替
+        wp_system_shape_at_pose.m             状態から3方式の形状へ振り分け
+        wp_system_collision.m                 専用判定への振り分け
+        wp_preview_4s.m                       4秒先読みの共通本体
+        wp_preview_reference_series.m         V3の進行時計をコピーして将来参照を読む
+        wp_pose_from_reference.m              張ったケーブルでの名目姿勢再構成
+        wp_plot_preview_3d.m                   判定と障害物の目視確認
+        MODEL_C_MULTIPLE_SPHERES/
+          wp_shape_C.m                         機体球＋球列＋吊り荷球
+          wp_collision_C.m                     C専用判定窓口
+        MODEL_B_SPHERE_CAPSULE/
+          wp_shape_B.m                         機体球＋カプセル＋吊り荷球
+          wp_collision_B.m                     B専用判定窓口
+        MODEL_D_SPHERE_CABLE_ELLIPSOID/
+          wp_shape_D.m                         機体球＋ケーブル楕円体＋吊り荷球
+          wp_collision_D.m                     D専用判定窓口
+        COMMON_GEOMETRY/
+          wp_item.m / wp_frame_from_axis.m
+          wp_segment_point_distance.m
+          wp_point_ellipsoid_distance.m
+          wp_segment_ellipsoid_distance.m
+          wp_ellipsoid_ellipsoid_margin.m
+          wp_pair_far_bound.m / wp_sphere_vs_part.m / wp_collision_common.m
+
+commonmatlab/ 直下：
+  TEST_WP_SYSTEM_GEOMETRY_CBD_TEMP.m           （一時検証・合格後に削除可）
+  TEST_WP_PREVIEW_4S_SPEED_TEMP.m              （一時検証・合格後に削除可）
+  TEST_WP_PREVIEW_BENCHMARK_TEMP.m             （一時ベンチ・合格後に削除可）
+  TEST_WP_PREVIEW_ROUTE_VARIANTS_TEMP.m        （V3の直線・旋回・円・サドル試験）
+
+これら以外のMATLABファイルは追加・上書き不要です。
+
+2. 3方式の形状と共通パラメータ
+---------------------------------------------
+形状は全方式とも機体中心pDと吊り荷中心pL（3×1、世界座標）から生成します。
+L=||pL-pD||（張ったケーブルを仮定）。障害物は従来のDRONE_OBSTACLESで定義します。
+
+方式C：機体の球、ケーブル上にN+1個の球列、吊り荷の球。
+   ケーブル球の中心： p_k=pD+(k/N)(pL-pD), k=0,...,N
+   半径： sqrt((L/(2N))^2+(r_c+m)^2)
+   これにより、中心線から半径r_c+mのケーブルのカプセルを球列の和集合が包含します。
+   高次CBFで固定の球中心を扱う際の候補。ただし制約数が増える。
+
+方式B：機体球＋有限線分のカプセル（半径r_c+m）＋吊り荷球。
+   カプセルと球状障害物：線分への最近接距離 - (カプセル半径+障害物半径)。
+   カプセルと楕円体障害物：線分と楕円体のEuclidean距離 - カプセル半径。
+   距離の符号により接触判定。最近接点切替があるため、これをそのまま
+   高次CBFで何回も微分してよいとは限らない。
+
+方式D：機体球＋ケーブルを包含する1個の細長い楕円体＋吊り荷球。
+   半ケーブル長h=L/2、外接カプセル半径r=r_c+m、パラメータeta>0。
+   短軸 B=sqrt(1+1/eta)*r
+   長軸 A=sqrt((1+eta)*h^2+(1+1/eta)*r^2)
+   局所z軸は(pL-pD)方向。これは支持関数のCauchy-Schwarz不等式により
+   全カプセルを安全側に包含する楕円体で、細長い見た目だけの内接楕円体ではない。
+   楕円体障害物との交差は、楕円体間の凸二次最小化の符号で判定。
+   Cより要素数は少ないが、外側に膨らむことと高階微分の計算が課題。
+
+注意：いずれもCBFとはパラメータ未統合。方式C/B/Dを切り替えても、
+      「CBFの安全保証」を主張できるわけではありません。
+
+初期パラメータ（研究用の暫定値。実機寸法・CBFとは未照合）
+  droneRadius=0.25 m   / loadRadius=0.16 m
+  cableRadius=0.015 m  / safetyMargin=0.05 m
+  cableLength=2.00 m   / cableSegments=8
+  ellipsoidEta=0.25    / cableLengthTol=0.15 m
+  nearDistance=1.0 m   / checkGround=true
+
+全方式で安全余裕はシステム側にだけ一度加算します。地面のsafetyMarginは
+別の地面固有マージンです。後でCBFと合流するときは二重加算を避けてください。
+
+3. 初めて試すサンプル：独立した衝突判定
+---------------------------------------------
+  cfg = wp_system_geometry_config('C');
+  % cfg = wp_system_geometry_config('B');
+  % cfg = wp_system_geometry_config('D');
+
+  o = struct('maxPartsPerObstacle',6,'maxTotalParts',36,'targetPartSize',3, ...
+             'polySides',8,'hollowSides',16);
+  world = DRONE_OBSTACLES('scene_gate_square', ...
+                          'multiple_ellipsoids','ground_z0',o);
+  % 'multiple_spheres' に変更すると全障害物の近似方式を統一切替できる。
+
+  pD = [0;0;3];      % 機体位置
+  pL = [0;0;1];      % 吊り荷位置
+  shape = wp_system_shape_at_pose(cfg,pD,pL);
+  out = wp_system_collision(cfg,shape,world,5.0);
+  disp(out)
+
+  out.collision = true/false         判定時点で交差しているか
+  out.minGroundClearance             地面との最小余裕[m]
+  out.minObstacleClearance           障害物との最小余裕または外側下界[m]
+  out.numSystemParts / numObstacleParts
+  out.worstSystemPart / worstObstacle
+  out.worstCheckMethod              どの幾何計算を使ったか
+
+Dの楕円体対楕円体は交差符号は正しく計算するものの、minClearanceの値は
+厳密なEuclidean距離ではなく、単位mの符号付き代理尺度です。
+また遠方のペアは外接球による「安全側距離下界」だけを返す場合があります。
+純粋な距離の数値比較よりも「交差の有無」「最悪対」「実測時間」を優先してください。
+
+4. 4秒先読みの予測：何を計算し、何を計算しないか
+---------------------------------------------
+【今回の予測】
+  A. 現在のWaypoint V3の参照生成器から、t,t+dt,...,t+4[s]の28×1軌道を取得。
+     V3の適応進行が有効なら、現在の仮想時間、6段フィルタ状態、最後の進行指令を
+     コピーして未来へ進める。未来の追従誤差はまだ不明なので、進行指令は保持。
+     実際のWAYPOINT_REFERENCEオブジェクト自体は変更しない。
+  B. Waypointは既存SUSPENDED_LOAD_REF_ADJUSTより「zだけL下げて吊り荷目標へ」変換。
+     pL_des = xd(1:3) - [0;0;L]
+     aL_des = xd(9:11)
+  C. 張った質量なしケーブル、正の張力、点状吊り荷の名目力学を仮定して
+       q_des = -(aL_des+g*e_z)/||aL_des+g*e_z||,
+       pD_des = pL_des-L*q_des
+     と再構成（flatnessモード、標準）。これは垂直吊り下げ一定とは異なる。
+     ||aL_des+g*e_z||が小さい自由落下近傍は「予測不能」として検出。
+     検証用にはpredictionMode='vertical'も指定できるが、高速旋回には不正確。
+  D. 各時刻でC/B/Dの3方式のどれかから機体・紐・荷物の形状を生成。
+     静的・動的障害物の対応する時間の位置・姿勢を取得し、交差を判定。
+     地面z=0も判定。
+  E. 初回接触したサンプル時刻、障害物、システム部位、計算時間を返す。
+
+【今回まだ実装していない予測】
+  ・実際の状態を初期値としたプラント＋推定器＋HLCの前方シミュレーション。
+  ・未知外乱、未来の追従遅れ、CBFが介入した入力、張力変動、弛みの予測。
+  ・サンプル間の連続時間衝突を数学的に保証するスイープ判定。
+  ・回避用軌道の生成、4秒間安全の形式的保証。
+
+つまり：4秒先読みは【名目参照のサンプル幾何検査】であり、実機／プラントの
+確実な未来位置予測ではありません。安全でない可能性を見落とさないよう、
+衝突を検出しない場合のstatusは 'sampled_clear_not_guaranteed' となります。
+
+5. 独立4秒先読みを呼ぶ
+---------------------------------------------
+  cfg=wp_system_geometry_config('B');
+  opts=struct('horizon',4,'sampleDt',0.10,'predictionMode','flatness');
+  % sourceを関数ハンドルで渡すと、source(t)が28×1参照を返す必要あり。
+  result=wp_preview_4s(world,cfg,referenceFcn,5.0,opts);
+  disp(result.status)
+  disp(result.firstHitTime)
+
+既存V3をFlight中に使用する場合（注：CBF用runへはまだ接続しない）：
+  cfg=wp_system_geometry_config('C',struct('cableLength',agent.parameter.cableL));
+  opts=struct('horizon',4,'sampleDt',0.10,'predictionMode','flatness');
+  preview=wp_preview_4s(worldObstacles,cfg,agent.reference.waypoint,time.t,opts);
+  disp(preview.status)
+
+現在状態を初回検証だけに使うなら：
+  opts.currentPose=struct('pDrone',agent.estimator.result.state.p, ...
+                          'pLoad',agent.estimator.result.state.pL);
+  opts.maxTrackingDeviation=0.30;
+  preview=wp_preview_4s(worldObstacles,cfg,agent.reference.waypoint,time.t,opts);
+  % tracking_deviation_unboundedなら、目標の未来から実状態の未来を断定できません。
+
+【注意】Flightの5s〜47sの間で呼ぶこと。takeoff/landingをそのまま
+4秒越えて予測するための切替模擬は未実装です。必要ならFlight終了までhorizonを短縮。
+初期段階では、制御周期dt=0.025sごとに無条件に4秒×全障害物を評価しないこと。
+後で近接候補の絞り込みやイベント駆動を導入し、計算時間を比較してください。
+
+6. 結果のstatusと取り逃がしへの注意
+---------------------------------------------
+  sampled_collision：サンプルのどこかで幾何交差を検出。
+  sampled_clear_not_guaranteed：検査した時刻だけ非交差。間の衝突は未検査。
+  prediction_invalid：力学仮定の特異点、参照の形状異常、予測計算失敗。
+  tracking_deviation_unbounded：現在の実姿勢と名目姿勢との差が指定値以上。
+     ※これは未来の誤差上界が保証されていないという意味。確実な不安全判定ではない。
+  result.sampledOnly=true / result.cbfSafetyGuarantee=false は常に保持します。
+
+特に速い速度で飛ぶと、0.1秒ごとの間に小さい障害物を通り過ぎる可能性があります。
+速度v、時間刻みdtなら1サンプルで移動する距離は概ねv*dtです。
+最終的には連続衝突検査、経路スイープ、検証可能な運動・追従誤差上界が必要です。
+
+7. テスト（commonmatlab直下）
+---------------------------------------------
+  TEST_WP_SYSTEM_GEOMETRY_CBD_TEMP
+     -> C/B/D各方式について球・回転楕円体・地面、ケーブル部分の包含
+     -> 四角いゲート、混合配置、上方円柱群、動的シーン
+     -> 障害物近似：複数球 / 複数楕円体
+
+  TEST_WP_PREVIEW_4S_SPEED_TEMP
+     -> 4秒間、速度0.2/0.5/1.5m/sの直線で衝突タイミング
+     -> 自由落下のflatness特異点の検出
+     -> 各シーン、各方式、両近似方式、動的障害物の時刻更新
+
+  TEST_WP_PREVIEW_ROUTE_VARIANTS_TEMP
+     -> V3の直線 / 緩やかな旋回 / 円 / サドル例で実際のC6参照を評価
+     -> 複数球・複数楕円体の障害物、C/B/Dの3方式、速度0.3/1.0の組合せ
+
+  TEST_WP_PREVIEW_BENCHMARK_TEMP
+     -> 1個・複数・多数の障害物 / 速度0.2,1.5 / dt0.1,0.2
+     -> 総経過時間、1サンプル最大判定時間を記録
+     -> 25ms周期内に収まる保証はなく、測定結果から判断。
+
+  plotResult=wp_plot_preview_3d(world,result);   % 3D目視。自動保存しない
+
+これらのTEMPファイルは、MATLABで合格してから削除可能です。
+
+8. 研究上の次の段階
+---------------------------------------------
+  1) 今回の幾何衝突判定のMATLAB実行・テストを完了する。
+  2) 検出精度と実測処理時間を評価する。C/B/D × 複数球／複数楕円体。
+  3) HLC・プラントをコピーした一時ロールアウトで、実状態からの4秒予測と
+     名目flatness予測の差を定量化する（誤差、荷振れ、張力、入力飽和）。
+  4) 予測が信頼できる範囲・誤差の余裕を測る。必要なら有限長の安全チューブ。
+  5) CBF側の最終形状、安全半径、分割数、計算機予算を決め、共通幾何に一本化。
+  6) そこで初めて局所Waypoint再計画／イベント駆動の4秒先読みへ組み込む。
+
+9. 先行研究との関係（資料由来と文献の根拠を分けて整理）
+---------------------------------------------
+  ・Sreenath, Michael, Kumar (ICRA 2013):
+     Trajectory Generation and Control of a Quadrotor with a Cable-Suspended
+     Load—A Differentially-Flat Hybrid System.
+     https://publications.ri.cmu.edu/trajectory-generation-and-control-of-a-quadrotor-with-a-cable-suspended-load-a-differentially-flat-hybrid-system
+     本研究に使う平坦性・吊り荷からケーブル向きを再構成する基礎。
+  ・Sreenath, Lee, Kumar (CDC 2013):
+     Geometric Control and Differential Flatness of a Quadrotor UAV with a Cable-Suspended Load.
+     https://hybrid-robotics.berkeley.edu/publications/CDC2013.pdf
+     張った紐のモデル、吊り荷位置＋機体yawの平坦出力。
+  ・Son, Seo, Jang, Kim (IEEE RA-L 2020):
+     Real-Time Optimal Trajectory Generation and Control of a Multi-Rotor
+     With a Suspended Load for Obstacle Avoidance.
+     https://doi.org/10.1109/LRA.2020.2967279
+     機体・吊り荷・ケーブルを楕円体で扱い、リアルタイム最適化を検討する研究。
+     本研究のD方式の比較に特に関連するが、アルゴリズムを移植したわけではない。
+  ・Potdar, de Croon, Alonso-Mora (Autonomous Robots 2020):
+     Online Trajectory Planning and Control of a MAV Payload System in Dynamic Environments.
+     https://doi.org/10.1007/s10514-020-09919-8
+     吊り荷・ケーブル・障害物の接近制約と動的環境での計画を扱う。
+     論文の楕円体式の距離代理量と、本実装のEuclidean距離は同一ではない。
+  ・Tordesillas et al. (FASTER, IEEE T-RO 2022):
+     https://dspace.mit.edu/entities/publication/7606d656-908b-446e-8672-ffb7b831bdfd
+     衝突検査・安全な代替軌道を組み合わせる思想は参考。ただし本実装はFASTERではない。
+  ・Zhou et al. (EGO-Planner, RA-L 2021):
+     https://ieeexplore.ieee.org/abstract/document/9309347/metrics
+     軌道に関連する障害物だけを調べて計算量を抑える考え方。
+  ・添付の3D_CBF_統合研究メモ_線分カプセル_張力_特異性_QP可行性_20261111.txt：
+     C/B/Dの相対次数・高次CBF・弛みの懸念を踏まえ、今回の幾何専用試作を位置付けた。
+     このメモに書かれた制御安全証明そのものは実装していない。
+
+10. 制限・互換性
+---------------------------------------------
+  ・既存のDRONE_OBSTACLESの「球 / 楕円体」の近似パーツだけに対応。
+    その他4方式は本試作の対象外（誤判定せずエラーを返す）。
+  ・地面は既存のground_z0、negative半空間、任意法線まで幾何的に対応。
+  ・動的障害物は各時刻の既知軌道に沿って剛体変換するだけ。未来の運動誤差は未考慮。
+  ・未測定のMATLAB計算時間を「リアルタイム対応済み」とは主張しない。
+  ・システム形状は機体姿勢と荷物姿勢（半径球）を無視する。紐は張っている前提。
+  ・今回のコードは障害物回避、CBF制約生成、QP、制御入力計算を実行しない。
+
+以上。
