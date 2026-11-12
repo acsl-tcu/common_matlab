@@ -53,7 +53,7 @@ saveDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\20
 % チャンク分割実行（子プロセスの MATLAB を起動し直して実行する）
 chunkSize = 200;        % 1回の子プロセスで回す試行数。chunkSize*(te/dt) が60万ステップ程度以下になるようにする
 startTrial = 1;         % 開始試行。途中から再開する場合に指定する
-runName = "SimNNMEC_500epoch";           % チャンクの保存フォルダ名(saveDir 配下)。"" なら日時から自動生成。再開時は前回のフォルダ名を指定（保存済みチャンクは飛ばす）
+runName = "SimNNMEC_500epoch";           % チャンクの保存フォルダ名(saveDir 配下)。先頭に日時が自動で付く（"" なら "日時__Ntimes_SimNNMEC_chunks"）。再開時は日時込みの前回のフォルダ名をそのまま指定（既存フォルダなら日時を付けず，保存済みチャンクは飛ばす）
 maxRetry = 1;           % 子プロセスが異常終了したチャンクを再実行する回数
 
 %% パラメータのサンプリング ===========================================================================================================================
@@ -89,8 +89,12 @@ if ~isempty(childRange) && batchStartupOptionUsed
 end
 
 % 親プロセス: チャンクごとに子プロセスを起動する
+% 先頭に日時を付ける。ただし saveDir 配下に同名フォルダが既にある場合は再開とみなしてそのまま使う
 if strlength(runName) == 0
-    runName = string(datetime("now", "Format", "yyyy-M-d_H_m_s")) + "__Ntimes_SimNNMEC_chunks";
+    runName = "Ntimes_SimNNMEC_chunks";
+end
+if ~exist(fullfile(saveDir, runName), "dir")
+    runName = string(datetime("now", "Format", "yyyy-M-d_H_m_s")) + "__" + runName;
 end
 chunkDir = fullfile(saveDir, runName);
 if ~exist(chunkDir, "dir"); mkdir(chunkDir); end
@@ -151,8 +155,7 @@ fprintf("RMSE平均 [x y z] = [%.4f %.4f %.4f]\n", mean(rmseAll(validRow, :), 1)
 
 if fSave
     if ~exist(saveDir, "dir"); mkdir(saveDir); end
-    nowTime = datetime("now", "Format", "yyyy-M-d_H_m_s");
-    saveName = fullfile(saveDir, string(nowTime) + "__Ntimes_SimNNMEC__trial" + trialN + ".mat");
+    saveName = fullfile(saveDir, runName + "__trial" + trialN + ".mat"); % チャンクフォルダと同じ名前（日時込み）で保存
     if ~exist("simInfo", "var"); simInfo = struct(); end % 全試行が構築段階で失敗した場合
     save(saveName, "results", "summaryTable", "errorParam", "sampledParam", "seed", "phaseOpts", "simScript", "simInfo", "runName", "-v7.3");
     fprintf("保存先 : %s\n", saveName);
