@@ -1,7 +1,7 @@
 ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 10000; % termina time
-time = TIME(ts,dt,te);
+time = TIME(ts,dt,te,1);%差後の1はagentの数
 in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);

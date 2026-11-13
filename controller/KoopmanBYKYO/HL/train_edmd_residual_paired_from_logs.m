@@ -23,7 +23,12 @@ function results_edmd = train_edmd_residual_paired_from_logs(opts)
     opts = set_default(opts, 'du_abs_thresh', 3.0);
     opts = set_default(opts, 'jump_norm_hard_thresh', 80.0);
     opts = set_default(opts, 'mad_scale', 4.0);
-    opts = set_default(opts, 'use_gpu', gpuDeviceCount > 0);
+    if ~isfield(opts, 'use_gpu') || isempty(opts.use_gpu)
+        opts.use_gpu = false;
+        if license('test', 'Distrib_Computing_Toolbox')
+            opts.use_gpu = gpuDeviceCount > 0;
+        end
+    end
     opts = set_default(opts, 'run_indices', []);
 
     required_fields = {'data_dir', 'nominal_file_pattern', 'degraded_file_pattern', 'save_path'};
@@ -216,7 +221,7 @@ function [Z, ZN, U_NOM, DU, stats] = load_edmd_samples(opts, file_pattern, state
     stats.n_missing_nominal = 0;
 
     for fi = 1:numel(files)
-        fpath = fullfile(opts.data_dir, files(fi).name);
+        fpath = fullfile(files(fi).folder, files(fi).name);
         fprintf('[%3d/%d] %s ... ', fi, numel(files), files(fi).name);
         try
             tmp = load(fpath);

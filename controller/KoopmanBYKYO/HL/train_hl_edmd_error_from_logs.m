@@ -28,6 +28,7 @@ function results_hl_edmd_error = train_hl_edmd_error_from_logs(opts)
     opts = set_default(opts, 'rz_scale', 0.2);
     opts = set_default(opts, 'qa_scale', 15.0);
     opts = set_default(opts, 'ra_scale', 0.5);
+    opts = set_default(opts, 'training_phase', '');
 
     required_fields = {'data_dir', 'file_pattern', 'save_path'};
     for i = 1:numel(required_fields)
@@ -128,6 +129,13 @@ function results_hl_edmd_error = train_hl_edmd_error_from_logs(opts)
         used_file = 0;
         % 隣接時刻の誤差遷移から学習サンプルを作成する
         for k = 1:(N_steps - 1)
+            if ~isempty(opts.training_phase) && ...
+                    (log_data.Data.phase(k) ~= opts.training_phase || log_data.Data.phase(k + 1) ~= opts.training_phase)
+                continue;
+            end
+            if isfield(log_data.Data, 't') && log_data.Data.t(k + 1) <= log_data.Data.t(k)
+                continue;
+            end
             stats.raw_transitions = stats.raw_transitions + 1;
 
             if any(isnan(traj(k, :))) || any(isnan(traj(k + 1, :))) || ...
@@ -276,7 +284,7 @@ function x12 = extract_reference12(st)
     elseif isprop(st, 'xd') || (isstruct(st) && isfield(st, 'xd'))
         xd = double(st.xd(:));
         if numel(xd) >= 6
-            q = xd(4:6);
+            q = [0; 0; xd(4)];
         else
             q = zeros(3, 1);
         end
@@ -301,11 +309,7 @@ function x12 = extract_reference12(st)
         w = double(st.w(:));
     elseif isprop(st, 'xd') || (isstruct(st) && isfield(st, 'xd'))
         xd = double(st.xd(:));
-        if numel(xd) >= 12
-            w = xd(10:12);
-        else
-            w = zeros(3, 1);
-        end
+        w = zeros(3, 1);
     else
         w = zeros(3, 1);
     end

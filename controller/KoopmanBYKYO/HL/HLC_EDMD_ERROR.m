@@ -16,7 +16,7 @@ classdef HLC_EDMD_ERROR < handle
             obj.self = self;
             obj.param = param;
             obj.param.P = self.parameter.get(obj.parameter_name);
-            obj.result.input = zeros(self.estimator.model.dim(2), 1);
+            obj.result.input = zeros(self.estimator.ekf.model.dim(2), 1);
             obj.comp = obj.initialize_compensator(param);
         end
 
@@ -135,7 +135,7 @@ classdef HLC_EDMD_ERROR < handle
             % 学習済みモデルファイルが指定されていない場合は読み込まない
 
             try
-                mdl = load(param.comp.model_file, 'hl_edmd_error_model');
+                mdl = load(param.comp.model_file, 'results_hl_edmd_error');
                 res = mdl.results_hl_edmd_error;
                 comp.Az = res.Az;
                 comp.Bz = res.Bz;
@@ -222,7 +222,7 @@ classdef HLC_EDMD_ERROR < handle
             elseif isprop(st, 'xd')
                 xd = double(st.xd(:));
                 if numel(xd) >= 6
-                    qref = xd(4:6);
+                    qref = [0; 0; xd(4)];
                 else
                     qref = zeros(3, 1);
                 end
@@ -235,11 +235,7 @@ classdef HLC_EDMD_ERROR < handle
                 wref = double(st.w(:));
             elseif isprop(st, 'xd')
                 xd = double(st.xd(:));
-                if numel(xd) >= 12
-                    wref = xd(10:12);
-                else
-                    wref = zeros(3, 1);
-                end
+                wref = zeros(3, 1);
             else
                 wref = zeros(3, 1);
             end

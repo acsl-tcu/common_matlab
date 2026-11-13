@@ -17,9 +17,10 @@ classdef HLC < handle
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.model.dim(2),1);
+      obj.result.input = zeros(self.estimator.ekf.model.dim(2),1);
       if obj.use_mec
-         L = load('mec_model_20260916_HL_only_and_reiki.mat'); obj.mec = L.model;%EDMD-MEC model
+         L = load('mec_model_20260916_HL_only_and_reiki.mat'); 
+         obj.mec = L.model;%EDMD-MEC model
       end
     end
 
@@ -111,7 +112,9 @@ end
       
       obj.result.u_nom = [max(0,min(10,tmp(1)));max(-1,min(1,tmp(2)));max(-1,min(1,tmp(3)));max(-1,min(1,tmp(4)))];
       obj.result.deltau = obj.generate_identification_excitation(obj.result.u_nom, phase, varargin{1});
-      obj.result.deltau = 0;
+      if ~isfield(obj.param, 'apply_identification_excitation') || ~obj.param.apply_identification_excitation
+          obj.result.deltau = 0;
+      end
       obj.result.input=obj.result.u_nom+ obj.result.deltau;
       obj.result.input = [max(0,min(10,obj.result.input(1))); ...
                           max(-1,min(1,obj.result.input(2))); ...
