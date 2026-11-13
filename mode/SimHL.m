@@ -89,7 +89,6 @@ app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te],
     "fontsize", 14);
 app.logger.plot({1, "p1-p2-p3", "er"}, "fig_num", 4, "phase", 'tfl', "color", 0, ...
     "linewidth", 2.5, "fontsize", 14);
-app.logger.plot({1, "controller.result.delta_u_edmd_applied", ""}, ...
-    "fig_num", 5, "phase", 'f', "linewidth", 2.5, "fontsize", 14);
+app.logger.plot({1, "controller.result.delta_u_edmd_applied", ""}, "fig_num", 5, "phase", 'f', "linewidth", 2.5, "fontsize", 14);
 %app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end
