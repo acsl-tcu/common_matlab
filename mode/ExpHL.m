@@ -29,6 +29,8 @@ reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",1},4};
 % reference_args = {"gen_ref_figure8",{"freq",10,"orig",[0;0;0.6],"size",[1,1,0],"phase",0}}; % figure8
 % reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",0},4}; % hovering
 agent.reference.set_function_class("time_var", TIME_VARYING_REFERENCE(agent, reference_args));
+% Align the first point with the EKF position when flight starts.
+agent.reference.time_var.fAnchorXYToEstimator = true;
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 0.6));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "vd", 0.1));
 

@@ -10,6 +10,8 @@ classdef TIME_VARYING_REFERENCE < handle
         cha='s';
         dfunc
         result
+        fAnchorXYToEstimator = false;
+        xyOffset = zeros(2,1);
     end
 
     methods
@@ -47,12 +49,17 @@ classdef TIME_VARYING_REFERENCE < handle
            if obj.cha=='f'
                if isempty(obj.t)    %flightからreferenceの時間を開始
                 obj.t=varargin{1}.t; % 目標重心位置（絶対座標）
+                if obj.fAnchorXYToEstimator
+                    initial_ref = obj.func(0);
+                    obj.xyOffset = obj.self.estimator.result.state.p(1:2) - initial_ref(1:2);
+                end
                end
                t = varargin{1}.t-obj.t;
            else
                t =0;
            end
            obj.result.state.xd = obj.func(t); % 目標重心位置（絶対座標）
+           obj.result.state.xd(1:2) = obj.result.state.xd(1:2) + obj.xyOffset;
            obj.result.state.p = obj.result.state.xd(1:3);
            if length(obj.result.state.xd)>4
             obj.result.state.v = obj.result.state.xd(5:7);
