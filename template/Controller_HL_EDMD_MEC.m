@@ -31,7 +31,7 @@ function Controller = Controller_HL_EDMD_MEC(dt, model_file, state_source, apply
     % --- 平滑化の主要ノブ ---
     Controller.residual.alpha = 0.40;       % 補償ゲイン (0.25->0.40) 控えめに上げる
     Controller.residual.beta  = 0.15;       % ★ ローパス強め (0.20->0.15) 抖動抑制
-    Controller.residual.du_max = [0.30; 0.012; 0.012; 0.000]; % 推力補償枠を拡大
+    Controller.residual.du_max = [0.30; 0.1; 0.1; 0.000]; % 推力補償枠を拡大
 
     % --- チャンネル選択：推力 + roll + pitch を有効、yaw無効 ---
     Controller.residual.active_channels = [1; 1; 1; 0];

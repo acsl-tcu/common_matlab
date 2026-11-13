@@ -118,10 +118,10 @@ classdef HLC_EDMD_MEC < handle
             % 制御入力，補償入力，励振入力，診断情報を保存する
 
             result = obj.result;
-            if isfield(obj.param, 'enable_show') && obj.param.enable_show
+            % if isfield(obj.param, 'enable_show') && obj.param.enable_show
                 fprintf('controller: HLC_EDMD_MEC,  phase: %s \n', phase);
                 obj.show();
-            end
+            % end
         end
 
         function residual = initialize_residual_model(obj, param)
