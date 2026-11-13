@@ -43,9 +43,15 @@ methods
 
         if cha == 't' || cha == 'f' || cha == 'l'
             wh = obj.self.estimator.result.state.w; % estimated state
-            obj.self.estimator.(obj.self.estimator.name(1)).model.do(varargin{:}); % one step prediction using current input
-            whn = obj.self.estimator.(obj.self.estimator.name(1)).model.state.w; % predicted state
-            obj.self.estimator.(obj.self.estimator.name(1)).model.state.set_state(obj.self.estimator.result.state.get); % restore estimator.model
+            estimator = obj.self.estimator;
+            if isprop(estimator, "model")
+                estimator_model = estimator.model;
+            else
+                estimator_model = estimator.(estimator.name(1)).model;
+            end
+            estimator_model.do(varargin{:}); % one step prediction using current input
+            whn = estimator_model.state.w; % predicted state
+            estimator_model.state.set_state(estimator.result.state.get); % restore estimator.model
             % if cha == 'f'
                 gain = obj.param.gain;
                 th_offset = obj.select_th_offset(cha);

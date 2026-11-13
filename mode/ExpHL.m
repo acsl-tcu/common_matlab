@@ -37,6 +37,8 @@ agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt,
 
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
+% agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
+
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.a.reference = "takeoff";
 agent.cha_allocation.t.reference = "takeoff";

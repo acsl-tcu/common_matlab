@@ -213,7 +213,7 @@ function cfg = get_explore_config(obj)
 
     cfg = struct();
 
-    cfg.enable = 1;
+    cfg.enable = 0;
     % 1: 励振を有効化，0: 励振を無効化
 
     cfg.flight_only = 1;
