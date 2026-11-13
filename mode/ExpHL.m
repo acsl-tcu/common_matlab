@@ -6,7 +6,7 @@ in_prog_func = @(app) in_prog(app);
 post_func = @(app) post(app);
 logger = LOGGER(1, size(ts:dt:te, 2), 1, [],[]);
 
-motive = Connector_Natnet('192.168.100.59'); % connect to Motive
+motive = Connector_Natnet('192.168.101.59'); % connect to Motive
 motive.getData([], []); % get data from Motive
 rigid_ids = [1]; % rigid-body number on Motive
 sstate = motive.result.rigid(rigid_ids);
@@ -22,10 +22,19 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, motive, dt);
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
+
+% Leave exactly one reference_args line uncommented.
+% reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",1},4}; % circle
+% reference_args = {"gen_ref_saddle",{"freq",10,"center",[0;0;0.6],"radius",[1,1,0.2]},4}; % saddle
+% reference_args = {"gen_ref_figure8",{"freq",10,"orig",[0;0;0.6],"size",[1,1,0],"phase",0}}; % figure8
+reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",0},4}; % hovering
+Setting.simhl_trajectory = string(reference_args{1});
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent, reference_args));
+
 % agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 1],"size",[1 1 0],"phase",0}});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
-agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
+% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 1], "size", [1 1 0], "phase", pi/2}});
 
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});

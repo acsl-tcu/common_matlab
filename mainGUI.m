@@ -29,10 +29,10 @@ Setting.PInterval = 0.6; % sec : poling interval for emergency stop
 Setting.trajectory_seed = 1; % seed for SimHL's spline reference
 
 
-Setting.mode = SimBaseMode(5); % SimHL
+% Setting.mode = SimBaseMode(5); % SimHL
 % Setting.mode = SimBaseMode(15); % SimFHL
 
-% Setting.mode = ExpBaseMode(5); % Exp
+Setting.mode = ExpBaseMode(5); % Exp
 % Setting.mode = ExpBaseMode(13); % Exp
 if contains(Setting.mode,"Exp")
     Setting.fExp = 1;
@@ -40,4 +40,4 @@ else
     Setting.fExp = 0;
 end
 app = SimExp(Setting);
-app.run_auto_trials(1, "ME019_result");
+% app.run_auto_trials(1, "ME019_result");
