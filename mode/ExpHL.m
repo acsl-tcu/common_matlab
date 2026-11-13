@@ -39,8 +39,15 @@ agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENC
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
 
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
+
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
-agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
+% agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
+model_file = fullfile('C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\controller\KoopmanBYKYO\HL', 'hl_edmd_mec_nopayload.mat');
+assert(isfile(model_file), 'EDMDモデルが見つかりません');
+
+hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
+agent.controller.set_function_class("hlc", HLC_EDMD_MEC(agent, hlc_param));
+assert(agent.controller.hlc.residual.loaded, 'EDMDモデルを読み込めませんでした');
 
 agent.cha_allocation.reference = "time_var";
 agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
