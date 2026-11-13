@@ -70,8 +70,7 @@ assert(isfile(model_file), '学習済みモデルが見つかりません');
 
 hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
 hlc_param.enable_show = false;
-agent.controller.set_function_class( ...
-    "hlc", HLC_EDMD_MEC(agent, hlc_param));
+agent.controller.set_function_class( "hlc", HLC_EDMD_MEC(agent, hlc_param));
 
 %run("ExpBase");
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.6));

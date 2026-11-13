@@ -54,7 +54,7 @@ classdef GO_TO_FLIGHT_INITIAL_STATE_REFERENCE < handle
             end
         end
 
-        if abs( obj.self.estimator.(obj.self.cha_allocation.t.estimator).result.state.p(3)-obj.takeoff_ref_class.zd ) < obj.sigma
+        if abs( obj.self.estimator.result.state.p(3)-obj.takeoff_ref_class.zd ) < obj.sigma
             % 高度が収束判定の閾値obj.sigma以下ならカウントアップ
             obj.fCount = obj.fCount + 1;
             if obj.fCount >= 10, obj.fConvergence=true; end

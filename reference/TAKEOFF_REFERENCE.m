@@ -30,6 +30,7 @@ classdef TAKEOFF_REFERENCE < handle
           obj.base_time=varargin{1}.t;
           obj.base_state = [obj.self.estimator.result.state.p;... % x,y : current position, z : reference using at flight phase
                             obj.self.estimator.result.state.q(3)];% yaw: current yaw angle
+          % obj.base_state(1:2)=0;
           obj.result.state.xd = [obj.base_state;zeros(16,1)];
           if varargin{2} == 't'
             obj.fInit = obj.fInit + 1;

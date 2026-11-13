@@ -17,7 +17,7 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
+agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "serial", "COM4"));
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, motive, dt);
@@ -30,20 +30,21 @@ reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",1},4};
 % reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",0},4}; % hovering
 agent.reference.set_function_class("time_var", TIME_VARYING_REFERENCE(agent, reference_args));
 % Align the first point with the EKF position when flight starts.
-agent.reference.time_var.fAnchorXYToEstimator = true;
+% agent.reference.time_var.fAnchorXYToEstimator = true;
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 0.6));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "vd", 0.1));
+agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENCE(agent));
 
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
 
 agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
-% agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
+agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
 
 agent.cha_allocation.reference = "time_var";
-agent.cha_allocation.a.reference = "takeoff";
-agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
+agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.f.reference = "time_var";
 agent.cha_allocation.l.reference = "landing";
 agent.cha_allocation.controller = "hlc";
