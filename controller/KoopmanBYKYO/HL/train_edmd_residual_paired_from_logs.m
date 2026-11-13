@@ -30,6 +30,8 @@ function results_edmd = train_edmd_residual_paired_from_logs(opts)
         end
     end
     opts = set_default(opts, 'run_indices', []);
+    opts = set_default(opts, 'nominal_use_actual_input', false);
+    opts = set_default(opts, 'training_phase', '');
 
     required_fields = {'data_dir', 'nominal_file_pattern', 'degraded_file_pattern', 'save_path'};
     for i = 1:numel(required_fields)
@@ -52,6 +54,9 @@ function results_edmd = train_edmd_residual_paired_from_logs(opts)
     % nominalデータを読み込み，公称モデル用サンプルを作成する
     fprintf('\\n=== Load nominal dataset ===\\n');
     [Z_nom, ZN_nom, U_nom, DU_nom, stats_nom] = load_edmd_samples(opts, opts.nominal_file_pattern, state_source);
+    if opts.nominal_use_actual_input
+        U_nom = U_nom + DU_nom;
+    end
     [Z_nom, ZN_nom, U_nom, DU_nom, nom_keep] = prune_samples(Z_nom, ZN_nom, U_nom, DU_nom, opts);
     stats_nom.n_clean_after_prune = size(Z_nom, 2);
     fprintf('nominal kept after pruning: %d / %d\n', nnz(nom_keep), numel(nom_keep));
@@ -269,6 +274,13 @@ function [Z, ZN, U_NOM, DU, stats] = load_edmd_samples(opts, file_pattern, state
 
         n_clean_file = 0;
         for k = 1:(N_steps - 1)
+            if ~isempty(opts.training_phase) && ...
+                    (log_data.Data.phase(k) ~= opts.training_phase || log_data.Data.phase(k + 1) ~= opts.training_phase)
+                continue;
+            end
+            if isfield(log_data.Data, 't') && log_data.Data.t(k + 1) <= log_data.Data.t(k)
+                continue;
+            end
             if any(isnan(traj(k, :))) || any(isnan(traj(k + 1, :))) || ...
                any(isnan(u_raw_seq(k, :))) || any(isnan(ref_seq(k, :)))
                 continue;

@@ -7,7 +7,7 @@ classdef HLC < handle
     H=12;
     mec          % EDMD-MEC 
     du_prev = zeros(4,1);
-    use_mec = 1;   %  0=使わない　１＝使う
+    use_mec = 0;   %  0=使わない　１＝使う
     parameter_name = ["mass","Lx","Ly","lx","ly","jx","jy","jz","gravity","km1","km2","km3","km4","k1","k2","k3","k4"];
     excite_counter = 0;
   end
@@ -17,7 +17,7 @@ classdef HLC < handle
       obj.self = self;
       obj.param = param;
       obj.param.P = self.parameter.get(obj.parameter_name);
-      obj.result.input = zeros(self.estimator.ekf.model.dim(2),1);
+      obj.result.input = zeros(self.estimator.model.dim(2),1);
       if obj.use_mec
          L = load('mec_model_20260916_HL_only_and_reiki.mat'); 
          obj.mec = L.model;%EDMD-MEC model

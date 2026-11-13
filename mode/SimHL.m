@@ -34,16 +34,14 @@ nominal_plant_param = plant_model.param.param;
 % ↓パラメータの上書き モデル誤差をプラントに与える
 plant_model.param.param(1) = 0.7875; % ５％減->0.7125 ５％増->0.7875
 % plant_model.param.param(1) = 0.8;
-
-
 % モデル誤差
 % result確認するときこっち
-% plant_model.param.param(6) = 0.21; % 0.18<jx,jy<0.22ぐらいが良き
-% plant_model.param.param(7) = 0.21; %
-
+plant_model.param.param(6) = 0.21; % 0.18<jx,jy<0.22ぐらいが良き
+plant_model.param.param(7) = 0.21; %
 % dataset確認するときこっち
-plant_model.param.param(6) = 0.275; % 0.18<jx,jy<0.22ぐらいが良き
-plant_model.param.param(7) = 0.275; %
+% plant_model.param.param(6) = 0.275; % 0.18<jx,jy<0.22ぐらいが良き
+% plant_model.param.param(7) = 0.275; %
+
 Setting.simhl_nominal_plant_param = nominal_plant_param;
 agent.plant = MODEL_CLASS(agent, plant_model);
 
@@ -65,9 +63,16 @@ Setting.simhl_trajectory = string(reference_args{1});
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent, reference_args));
 
 
-mec_model_dir = '\\192.168.100.209\ws2026\Work2026\YuriMiyazaki\kyosa_jikken\学習後model\取り直し';
-addpath(mec_model_dir);
-agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
+model_file = fullfile(pwd, 'Data', 'Sim_data', ...
+    'edmd_mec_12_20261113_133936', 'hl_edmd_mec_model.mat');
+
+assert(isfile(model_file), '学習済みモデルが見つかりません');
+
+hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
+hlc_param.enable_show = false;
+agent.controller.set_function_class( ...
+    "hlc", HLC_EDMD_MEC(agent, hlc_param));
+
 %run("ExpBase");
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.6));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0.1));
@@ -85,5 +90,7 @@ app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te],
     "fontsize", 14);
 app.logger.plot({1, "p1-p2-p3", "er"}, "fig_num", 4, "phase", 'tfl', "color", 0, ...
     "linewidth", 2.5, "fontsize", 14);
+app.logger.plot({1, "controller.result.delta_u_edmd_applied", ""}, ...
+    "fig_num", 5, "phase", 'f', "linewidth", 2.5, "fontsize", 14);
 %app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end

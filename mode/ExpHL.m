@@ -22,19 +22,25 @@ agent.parameter = DRONE_PARAM("DIATONE");
 agent.estimator = EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)),["p", "q"]));
 agent.sensor = MOTIVE(agent, motive, dt);
 agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Throttle_drone()); % 推力からスロットルに変換
-% agent.reference.time_var = TIME_VARYING_REFERENCE(agent,{"gen_ref_figure8", {"freq",8,"orig",[0 0 1],"size",[1 1 0],"phase",0}});
-% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0]},"HL"});
-% agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_spline",{"point",10,"order",9,"point_dt",5,"ManualSetting",0,"check",1}});
-agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[1,1,0.2]},"HL"});
-% agent.reference.time_var=TIME_VARYING_REFERENCE(agent, {"gen_ref_star", {"freq", 20, "orig", [0 0 1], "size", [1 1 0], "phase", pi/2}});
+
+% Leave exactly one reference_args line uncommented.
+% reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",1},4}; % circle
+% reference_args = {"gen_ref_saddle",{"freq",10,"center",[0;0;0.6],"radius",[1,1,0.2]},4}; % saddle
+% reference_args = {"gen_ref_figure8",{"freq",10,"orig",[0;0;0.6],"size",[1,1,0],"phase",0}}; % figure8
+reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;0.6],"radius",0},4}; % hovering
+agent.reference.set_function_class("time_var", TIME_VARYING_REFERENCE(agent, reference_args));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent, "zd", 0.6));
+agent.reference.set_function_class("landing", LANDING_REFERENCE(agent, "dt", dt, "vd", 0.1));
 
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
 
-agent.controller.hlc = HLC(agent,Controller_HL(dt));
+agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
-run("ExpBase");
 agent.cha_allocation.reference = "time_var";
+agent.cha_allocation.a.reference = "takeoff";
+agent.cha_allocation.t.reference = "takeoff";
+agent.cha_allocation.l.reference = "landing";
 agent.cha_allocation.controller = "hlc";
 agent.cha_allocation.f.controller = ["hlc"];
 % agent.cha_allocation.f.controller = ["kmpc","hlc"];

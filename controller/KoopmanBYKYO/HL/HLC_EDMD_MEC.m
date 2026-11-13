@@ -15,7 +15,8 @@ classdef HLC_EDMD_MEC < handle
             obj.self = self;
             obj.param = param;
             obj.param.P = self.parameter.get();
-            obj.result.input = zeros(self.estimator.model.dim(2), 1);
+            % obj.result.input = zeros(self.estimator.model.dim(2), 1);
+            obj.result.input = zeros(self.estimator.ekf.model.dim(2),1);
             obj.residual = obj.initialize_residual_model(param);
         end
 
