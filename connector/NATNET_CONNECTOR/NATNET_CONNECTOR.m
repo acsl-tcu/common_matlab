@@ -48,18 +48,13 @@ classdef NATNET_CONNECTOR < handle
             for i = 1:obj.result.rigid_num
                 obj.on_marker_nums(i) = ModelDescription.MarkerSet(i).MarkerCount;
                 obj.on_marker{i} = zeros(obj.on_marker_nums(i),3);
-                valid_marker_count = 0;
                 for k = 1:obj.on_marker_nums(i)
-                    marker_position = get_labeled_marker_position(Frame, omnum+k);
-                    if isempty(marker_position)
-                        continue
-                    end
-                    valid_marker_count = valid_marker_count + 1;
-                    obj.on_marker{i}(valid_marker_count,:) = marker_position;
+                    marker=Frame.LabeledMarker(omnum+k);
+%                    marker=Frame.UnlabeledMarker(omnum+k);
+                    obj.on_marker{i}(k,:) = [marker.x, -marker.z, marker.y];
                 end
-                obj.on_marker{i} = obj.on_marker{i}(1:valid_marker_count,:);
                 body = Frame.RigidBody(i);
-                obj.result.local_marker_nums(i) = valid_marker_count;
+                obj.result.local_marker_nums(i) = ModelDescription.MarkerSet(i).MarkerCount;
                 %obj.result.local_marker{i} = double(rotmat(quaternion([body.qw body.qx -body.qz body.qy]),'frame')'*(obj.on_marker{i}-double([body.x, -body.z, body.y]))')';
                 obj.result.local_marker{i} = double(RodriguesQuaternion([body.qw body.qx -body.qz body.qy]')'*(obj.on_marker{i}-double([body.x, -body.z, body.y]))')';
                 omnum = omnum+obj.on_marker_nums(i);
@@ -93,7 +88,7 @@ classdef NATNET_CONNECTOR < handle
             obj.result.time    = Frame.Timestamp - obj.init_time;
             
             % %Count number of marker and rigid body
-            obj.result.marker_num = max(0, System.Array.IndexOf(Frame.LabeledMarker, []));
+            obj.result.marker_num = System.Array.IndexOf(Frame.LabeledMarker, []);
 %            obj.result.marker_num = System.Array.IndexOf(Frame.UnlabeledMarker, []);
             
             % %Get obj.Data and Organize
@@ -106,31 +101,12 @@ classdef NATNET_CONNECTOR < handle
                 obj.result.rigid(i).q = double([body.qw, body.qx, -body.qz, body.qy]'); % 軸の対応関係注意
             end
             obj.result.marker = zeros(obj.result.marker_num,3);
-            valid_marker_count = 0;
             for i = 1:obj.result.marker_num
-                marker_position = get_labeled_marker_position(Frame, i);
-                if isempty(marker_position)
-                    continue
-                end
-                valid_marker_count = valid_marker_count + 1;
-                obj.result.marker(valid_marker_count,:) = marker_position;
+                marker = Frame.LabeledMarker(i);
+%                marker = Frame.UnlabeledMarker(i);
+                obj.result.marker(i,:) = [marker.x -marker.z marker.y];
             end
-            obj.result.marker = obj.result.marker(1:valid_marker_count,:);
-            obj.result.marker_num = valid_marker_count;
             ret = obj.result;
         end
     end
-end
-
-function position = get_labeled_marker_position(frame, index)
-position = [];
-try
-    marker = frame.LabeledMarker(index);
-    if isempty(marker) || ~(isobject(marker) || isstruct(marker))
-        return
-    end
-    position = double([marker.x, -marker.z, marker.y]);
-catch
-    % The frame may contain fewer visible markers than the model description.
-end
 end
