@@ -1,38 +1,75 @@
 function test_CBF_CableSpheres()
-%TEST_CBF_CABLESPHERES  可変ケーブル球数と被覆保証を検査。
+%TEST_CBF_CABLESPHERES 機体・吊り荷球を含む厳密被覆と最少球数を検証。
+% 元のケーブルに置く「内部球数」は可変、端の球は重複配置しない。
+
 test_CBF_SetupPaths();
 s=test_CBF_Fixture();
-a=cbf_choose_cable_spheres(s);
-assert(a.numberOfSpheres>=2);
-assert(a.extraRadius<=s.cable.maxExtraRadius+1e-12);
+plan=cbf_choose_cable_spheres(s);
+verifyCoverage(s,plan);
+assert(plan.totalSystemSpheres==plan.numberOfSpheres+2);
 
-% ケーブルが長い場合は、同じ許容膨張に対して球数が増える。
-sLong=s;sLong.physical.cableLength=2*s.physical.cableLength;
-b=cbf_choose_cable_spheres(sLong);
-assert(b.numberOfSpheres>a.numberOfSpheres);
+% 同じ球半径のままケーブルが長くなれば必要球数は非減少。
+sl=s;sl.physical.cableLength=2*s.physical.cableLength;
+longPlan=cbf_choose_cable_spheres(sl);
+verifyCoverage(sl,longPlan);
+assert(longPlan.numberOfSpheres>=plan.numberOfSpheres);
 
-% ケーブル半径方向の表面点について、球列がすべてを覆うか。
-L=s.physical.cableLength;r=s.shape.cableRadius;
-for t=linspace(0,L,401)
-    for theta=linspace(0,2*pi,21)
-        p=[r*cos(theta);r*sin(theta);t];
-        centers=[zeros(2,a.numberOfSpheres);linspace(0,L,a.numberOfSpheres)];
-        distances=sqrt(sum(bsxfun(@minus,centers,p).^2,1));
-        assert(min(distances)<=a.sphereRadius+1e-11, ...
-            'ケーブル表面が球列からはみ出しています。');
+% 外部から球半径を指定したときは、指定半径を厳密に維持する。
+se=s;se.cable.sphereRadius=0.035;
+se.cable.radiusRatioToSmallBody=[];
+ex=cbf_choose_cable_spheres(se);
+verifyCoverage(se,ex);
+assert(abs(ex.sphereRadius-0.035)<1e-14);
+
+% 最少球数より1個少ないものを指定しても黙って隙間は開けない。
+if ex.numberOfSpheres>0
+    bad=se;bad.cable.numberOfSpheres=ex.numberOfSpheres-1;
+    caught=false;
+    try,cbf_choose_cable_spheres(bad);catch,caught=true;end
+    assert(caught,'被覆できない球数を許可しました。');
+end
+
+% 機体・吊り荷の球だけで短いケーブルを覆える場合は追加球0個。
+ss=s;ss.physical.cableLength=0.1;
+zero=cbf_choose_cable_spheres(ss);
+verifyCoverage(ss,zero);
+assert(zero.numberOfSpheres==0);
+
+% 異なる姿勢でも球の相対配置が回転するだけで被覆は不変。
+for i=1:10
+    a=[sin(i);cos(2*i);sin(3*i)];a=a/norm(a);
+    verifyCoverage(s,plan,a);
+end
+fprintf('[PASS] C方式: 内部%d球＋機体/吊り荷2球=合計%d球、半径%.4f m\n', ...
+    plan.numberOfSpheres,plan.totalSystemSpheres,plan.sphereRadius);
+fprintf('[PASS] 外部半径0.035m：内部%d球。短いケーブルは内部球0個で被覆\n', ...
+    ex.numberOfSpheres);
+end
+
+function verifyCoverage(s,plan,axisDirection)
+if nargin<3,axisDirection=[0;0;1];end
+axisDirection=axisDirection(:)/norm(axisDirection);
+L=s.physical.cableLength;rc=s.shape.cableRadius;
+rD=s.shape.droneRadius;rL=s.shape.loadRadius;
+cs=plan.centerDistances;rs=plan.sphereRadius;
+anchor=[1;0;0];
+if abs(dot(anchor,axisDirection))>0.9,anchor=[0;1;0];end
+e1=cross(axisDirection,anchor);e1=e1/norm(e1);
+e2=cross(axisDirection,e1);
+centers=axisDirection*cs;
+% 真の3D位置で、ケーブル表面と円柱端キャップを含めて被覆確認。
+for t=linspace(0,L,403)
+    for angle=linspace(0,2*pi,19)
+        p=t*axisDirection+rc*(cos(angle)*e1+sin(angle)*e2);
+        nearest=min([norm(p),norm(p-L*axisDirection)]); %#ok<NASGU>
+        ok=(norm(p)<=rD+1e-11) || ...
+           (norm(p-L*axisDirection)<=rL+1e-11);
+        if ~isempty(cs)
+            ok=ok || any(sqrt(sum((centers-p).^2,1))<=rs+1e-11);
+        end
+        assert(ok,'CBF:CableCoverage','3Dでケーブルを被覆できていません。');
     end
 end
-
-% 手動で少なすぎる球数はエラー（黙って隙間を許さない）。
-sBad=s;sBad.cable.numberOfSpheres=2;
-failed=false;
-try
-    cbf_choose_cable_spheres(sBad);
-catch
-    failed=true;
-end
-assert(failed,'球数不足でエラーになりませんでした。');
-
-fprintf('[PASS] ケーブル球数: %d、間隔 %.5f m、球半径 %.5f m、追加膨張 %.5f m\n', ...
-    a.numberOfSpheres,a.centerSpacing,a.sphereRadius,a.extraRadius);
+assert(all(plan.centerFractions>=0) && all(plan.centerFractions<=1));
+assert(numel(plan.centerFractions)==plan.numberOfSpheres);
 end

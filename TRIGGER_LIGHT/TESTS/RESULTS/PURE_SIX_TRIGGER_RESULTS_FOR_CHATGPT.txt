@@ -1,0 +1,26 @@
+PURE PORT SIX-WAY GEOMETRY TESTS
+Status: PASS_SIX_WAY_CONDITIONAL_GEOMETRY__HLC_AND_2MS_PENDING
+Actual DRONE_OBSTACLES generator: SKIPPED_DRONE_OBSTACLES_NOT_ON_MATLAB_PATH
+Analytic pendulum: 30 cases, 180 decisions, 106 witnessed hits, 0 false-clears
+empty: six total median 9.514300, P95 9.813400, MAX 10.834200 ms; all <=2ms 0
+  individual median (rows C B D, columns spheres ellipsoids):
+  3.140250 3.128850
+  0.770100 0.767950
+  0.769000 0.766900
+distant_36: six total median 13.833150, P95 14.208700, MAX 15.897700 ms; all <=2ms 0
+  individual median (rows C B D, columns spheres ellipsoids):
+  4.516300 4.507900
+  1.159600 1.156650
+  1.153700 1.153350
+cable_contact: six total median 1.971600, P95 2.211500, MAX 2.901100 ms; all <=2ms 0
+  individual median (rows C B D, columns spheres ellipsoids):
+  0.533600 0.529650
+  0.211750 0.207200
+  0.177150 0.176000
+near_noncontact_36: six total median 23.669850, P95 24.261900, MAX 26.478000 ms; all <=2ms 0
+  individual median (rows C B D, columns spheres ellipsoids):
+  4.779900 4.772650
+  3.414400 3.407150
+  3.540550 3.533550
+Prepare 36 each: median 0.344750, P95 0.397200, MAX 0.611800 ms
+No automatic HLC bound, no numerical outward rounding, not a Flight certificate.

@@ -1,0 +1,71 @@
+PURE PORT: SIX SEPARATE SELECTED-MODE GEOMETRY TESTS
+Status: PASS_INDEPENDENT_SELECTED_GEOMETRY__HLC_AND_REALTIME_PENDING
+Original obstacle generator: SKIPPED_REAL_OBSTACLE_GENERATOR_NOT_ON_PATH
+Actual HLC Flight trace: SKIPPED_REQUIRES_REAL_HLC_FLIGHT_TRACE
+Random collision witnesses by mode rows C/B/D cols spheres/ellipsoids:
+  mode C: witnesses 20,16; false-clears 0,0
+  mode B: witnesses 19,15; false-clears 0,0
+  mode D: witnesses 20,16; false-clears 0,0
+
+SCENARIO empty (each row is a separate trigger call)
+C/multiple_spheres median 0.020700 P95 0.042900 max 0.105400 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.046200 P95 0.105700 MAX 1.289500 ms
+C/multiple_ellipsoids median 0.019000 P95 0.022100 max 0.168700 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.045150 P95 0.051100 MAX 0.082300 ms
+B/multiple_spheres median 0.019550 P95 0.021400 max 0.031100 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.046150 P95 0.055200 MAX 0.082600 ms
+B/multiple_ellipsoids median 0.019400 P95 0.021400 max 0.031900 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.047000 P95 0.059700 MAX 0.128700 ms
+D/multiple_spheres median 0.019100 P95 0.021700 max 0.053500 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.045400 P95 0.058700 MAX 0.086700 ms
+D/multiple_ellipsoids median 0.018500 P95 0.019400 max 0.028700 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.044700 P95 0.052200 MAX 0.061800 ms
+
+SCENARIO distant_36 (each row is a separate trigger call)
+C/multiple_spheres median 0.049850 P95 0.056600 max 0.069100 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.081400 P95 0.093900 MAX 0.118700 ms
+C/multiple_ellipsoids median 0.049600 P95 0.053400 max 0.059400 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.081350 P95 0.100200 MAX 0.170200 ms
+B/multiple_spheres median 0.048300 P95 0.054300 max 0.263400 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.080300 P95 0.092000 MAX 0.105000 ms
+B/multiple_ellipsoids median 0.048850 P95 0.055400 max 0.071100 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.081700 P95 0.130200 MAX 0.227400 ms
+D/multiple_spheres median 0.053900 P95 0.073300 max 0.105100 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.085050 P95 0.109500 MAX 0.165100 ms
+D/multiple_ellipsoids median 0.052500 P95 0.062200 max 0.076500 ms; status=CLEAR_CONDITIONAL; max<=2ms=1
+   synthetic-provider selected tick: median 0.084350 P95 0.098700 MAX 0.108700 ms
+
+SCENARIO cable_contact (each row is a separate trigger call)
+C/multiple_spheres median 0.752650 P95 0.798400 max 0.850400 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.878800 P95 1.189400 MAX 1.812400 ms
+C/multiple_ellipsoids median 0.793950 P95 1.045800 max 1.230500 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.793950 P95 0.969100 MAX 1.446300 ms
+B/multiple_spheres median 0.387150 P95 0.459200 max 0.584200 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.425050 P95 0.620000 MAX 0.806100 ms
+B/multiple_ellipsoids median 0.372050 P95 0.395100 max 0.615400 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.438050 P95 0.521300 MAX 0.705300 ms
+D/multiple_spheres median 0.342850 P95 0.398500 max 0.443400 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.378100 P95 0.507200 MAX 0.649000 ms
+D/multiple_ellipsoids median 0.336800 P95 0.374500 max 0.538400 ms; status=POSSIBLE_CONTACT; max<=2ms=1
+   synthetic-provider selected tick: median 0.370800 P95 0.430700 MAX 0.540200 ms
+
+SCENARIO near_noncontact_36 (each row is a separate trigger call)
+C/multiple_spheres median 7.336050 P95 7.796200 max 8.124400 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 7.299800 P95 7.641300 MAX 9.084800 ms
+C/multiple_ellipsoids median 7.271450 P95 7.921200 max 9.015800 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 7.306250 P95 7.773300 MAX 7.973000 ms
+B/multiple_spheres median 4.562800 P95 4.922700 max 6.218100 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 4.560000 P95 4.801300 MAX 5.050900 ms
+B/multiple_ellipsoids median 4.550850 P95 4.758300 max 5.449900 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 4.609250 P95 4.869200 MAX 5.640500 ms
+D/multiple_spheres median 4.702850 P95 5.009200 max 5.377400 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 4.586050 P95 4.932900 MAX 5.290500 ms
+D/multiple_ellipsoids median 4.713700 P95 5.036200 max 5.777200 ms; status=CLEAR_CONDITIONAL; max<=2ms=0
+   synthetic-provider selected tick: median 4.696050 P95 4.925900 MAX 5.521400 ms
+
+Known-obstacle cache rebuild, sphere/ellipsoid, rows median P95 max: 
+0.174200 0.162900
+0.284900 0.234900
+0.397100 0.344400
+
+PROVISIONAL: input HLC state bounds absent; no Flight/CBF/planner time in tests.

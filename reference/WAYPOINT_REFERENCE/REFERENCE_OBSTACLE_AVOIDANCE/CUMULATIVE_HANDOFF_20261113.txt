@@ -1,0 +1,989 @@
+=== 2026-11-13 V7.1 NOMINAL BASELINE / BENCHMARK ACCOUNTING FIX ===
+Scope: Only TESTS/ and RUN_PURE_TRIGGER_V7_SELECTED_AUDIT.m changed;
+NO production C/B/D geometry, forecast, existing HLC, EKF or plant changes.
+Prior user V7 measured: 8 nominal 4-second PV forecasts max load error
+5.210mm; PV forecast median 0.365--0.445ms. With synthetic p/v EKF noise
+1mm / 0.01m/s, worst among 8*8 stress draws 32.2mm. NOT real EKF bound.
+Critical prior V7 audit bugs: all 96 truth geometry statuses UNKNOWN,
+so all 96 classifications disagreed and geometry baseline was invalid.
+Reason: original ODE taut-cable numerical length residual up to ~1e-6m,
+but comparison sent exact-zero rhos/acc to nominal geometry checker.
+Fix: test-only projecting original baseline drone along the ORIGINAL endpoint direction
+(pL-pD) to pL - L*unit(pL-pD), recording per-case correction magnitude, while
+retaining original unaltered trace elsewhere. This is NOT a guessed physical
+uncertainty bound and cannot be used for safety certification.
+Second bug: bench array was zeros(1,25) but only 12 were filled;
+thus all 96 reported medians 0ms and all appeared within 2ms falsely.
+Fix: 40 REAL samples per each 96 single-mode configurations, nan-init;
+assert each measured positive, report median/P95/max and forecast/geom.
+Status is invalid if any nominal baseline UNKNOWN, mismatch if comparisons
+differ, even after normalization. Only claim nominal polyline comparison.
+Selected production candidate still NOT physically safety-qualified.
+Every cycle uses current EKF state.mL; no truth mass, no writeback.
+Do not use future original trace to predict; source future is used only in
+TESTS as baseline and comparison.
+New test contract: TEST_TRIGGER_V7_1_AUDIT_CONTRACT() prints input
+numerical taut residual and projected residual, no 4s HLC rollout.
+Run: RUN_PURE_TRIGGER_V7_SELECTED_AUDIT(). Save a new timestamp ZIP.
+Existing 1-2ms claim is NOT validated by V7 old output; some prior
+unfiltered maxima >5ms. Offline 6s HLC traces are NOT online predictor.
+Unfinished: full 25ms Flight trace, real EKF noise, nominal scenario
+false-trigger/miss metrics after correcting baseline, saturating HLC.
+=== END V7.1 ===
+
+=== 2026-11-12 V4 DEVELOPMENT HANDOFF / THIS SECTION FIRST ===
+THIS HANDOFF IS FOR THE "純粋移植へ戻す" TRIGGER_LIGHT THREAD ONLY.
+No imported trajectory-generator HANDOFF. Previous text is retained below.
+
+Goal: one SELECTED C/B/D system model x one SELECTED sphere/ellipsoid
+obstacle approximation per actual 25ms control tick. Six alternatives
+are individually tested; their timings are NEVER summed as one flight tick.
+Desired ALL-IN 4s trigger = 1 to 2 ms including future-state generation.
+Only known/observed obstacle memory enters geometry. System body radii
+come from external geometry definition; original model supplies L, masses,
+g, inertia, etc. CURRENT post-EKF mL is the sole prediction model mass.
+Never take the actual plant mass for the predictor or silently set agent.
+
+Latest measured V3 on user PC: 4s/41-point geometry ONLY for near
+noncontact 36 approximation parts ~0.4--0.6ms. Thin ellipsoid 36 parts,
+B x multiple_ellipsoids ~2.543ms median (P95~2.791 max~3.966).
+Offline original 24-state RHS + original HLC 160 future calls ~333.81ms;
+not an online candidate. Original RHS equations passed 300 random checks at
+~2e-14 residual; original HLC 4s nominal straight scenario passed.
+No real Flight EKF/future observation comparison, no HLC physical error tube.
+
+V4 CHANGE (candidate; MATLAB on user PC NOT YET RUN):
+ - wp_six_trigger_prepare caches the exact world-axis AABB half-width of
+   each observed outward rotated ellipsoid: h_i=sqrt(sum_j (R_ij*a_j)^2).
+   This is the obstacle's exact AABB and no user-tuned threshold is introduced.
+ - V4 geometry uses its disjoint AABBs as one more SUFFICIENT early-clear
+   condition, including full chosen-mode physical radii and sweep inflation.
+   No geometry body, obstacle, HLC/EKF/plant or nominal dynamics are changed.
+ - Sphere-based obstacle cover uses unchanged V3; orientation improvement
+   is only relevant for non-spherical ellipsoids. Six models separate.
+ - wp_six_trigger_run_selected_v4 checks cache format and forces a rebuild
+   on stale V3 observations, reads current mL, and times provider callbacks.
+ - V3 remains installed for independent comparison and rollback.
+
+V4 TESTS (not yet run in MATLAB):
+ 1) 6 independent variants x random geometric cases; witnessed contact at
+    an actual endpoint must NEVER be cleared; V3 CLEAR must remain CLEAR;
+    the numerical point test checks rotated ellipsoid AABB containment.
+ 2) V3 vs V4 alternating PC timing 5 cases incl. thin rotated ellipsoid 36.
+ 3) Original 24-state identity over *varying* mD, mLhat, L, g, J; original
+    mL is the current estimator model parameter, not plant truth.
+ 4) Original HLC 160-step offline stress: nominal, lateral rejoin, initial
+    cable swing, larger deviation, saturation logging and tautness checks.
+    Captures each nominal HLC trajectory and goal-tracking errors. This is
+    NOT a real Flight measurement nor a guaranteed future true-state tube.
+ 5) selected tick estimated-mL, observation generation cache and no plant
+    param mutation test.
+
+CRITICAL UNFINISHED:
+ - Lightweight *accurate* 4s future closed-loop predictor not completed.
+   No 160-call original HLC/ODE rollout in the online 1-2ms tick.
+   4s force-only all-reachable ball is REJECTED as needlessly coarse;
+   it can label harmless near obstacles as risk.
+ - To build a light predictor, first use stress traces to determine which
+   HLC rejoining/swing/saturation dynamics must be represented. Derive
+   any reduced/linearized motion directly from the original RHS and gains;
+   validate out-of-sample vs original HLC, including missed collisions and
+   nuisance trigger frequency. No arbitrary fixed future inputs, no
+   arbitrary fallbacks for updated mL, and no unproven guaranteed bound.
+ - Current geometric CLEAR is conditional on externally justified forecast
+   errors and interval acceleration bounds. We have no proof for true
+   future closed-loop EKF/plant deviation. True physical safety is NOT
+   certified. If a valid error bound is unavailable the real gate must
+   return UNKNOWN and NOT falsely label nominal clearance proven.
+ - Actual Flight/CBF/trajectory-generation all-in 25ms timing not tested.
+ - MATLAB V4 runtime/PASS is pending; no speed assertion now.
+
+Reference for PRIOR full cumulative history (unchanged verbatim):
+
+=== 2026-11-12 V3 ORIGINAL HLC TEST FIX (THIS SECTION IS CURRENT) ===
+
+The user ran V3 geometry A/B. Near 36-part noncontact cases have large wins: V3 median 0.4012~0.5662 ms per selected mode, versus V2 median 3.2046~6.0380 ms. The 36 number is approximation parts, not necessarily 36 independent obstacles. Thin ellipsoid stress was slower in ALL six modes, with V3 B/multiple_ellipsoids median 2.6609 ms, P95 3.0353 ms, MAX 3.3903 ms. Empty/distant V3 slightly slower than V2. Keep modes mutually exclusive. Do not claim overall 1~2 ms target achieved; HLC future predictor is NOT included.
+
+The V3 test stopped before original HLC rollout because TEST_TRIGGER_V3_ORIGINAL_HLC_4S.m line 81 had an unmatched square bracket. Inspecting the original source also revealed invalid test agent calls to PARAMETER_CLASS.set('cableL',2.0) and set('loadmass',0.01), which require a struct argument. The 25-element estimator vector must not be handed as a 24-state RHS vector; explicitly extract the 8 3-vector groups. All three test-only defects are corrected in this package. Original 24-state RHS and HLC sources unchanged; no safety guarantee has been added.
+
+NEXT: run TEST_TRIGGER_V3_ORIGINAL_HLC_4S() FIRST, inspect returned status and original rollout; then run RUN_PURE_TRIGGER_FAST_V3_TESTS(60,100,true). If original HLC source is missing from MATLAB path, report SKIPPED; do not substitute a fake controller. Compare rollback V2/V3 decision equality. Do not adopt V3 unconditionally in thin-ellipsoid stress.
+
+For physical modeling the trigger uses EKF estimated mL as NOMINAL prediction parameter. The physical true mass is not read. This does NOT automatically bound the true physical prediction error. There is no proved 4-second physical error enclosure.
+
+=== PREVIOUS CUMULATIVE HANDOFF (UNCHANGED) ===
+
+=== 2026-11-12 純粋移植 TRIGGER_LIGHT V3 追記 (最優先参照) ===
+別系統のオンライン軌道生成HANDOFFは使わない。本TXTの過去本文を保存。
+
+(1) 絶対に変更しない方針
+・C/B/Dシステム×multiple_spheres/multiple_ellipsoids障害物の6方式は代替手法。
+・実際の1周期は1方式のみ実行。6方式合計時間を1～2msの予算に使わない。
+・総周期25ms、トリガ=未来予測+足切り+詳細幾何1～2ms目標。
+・HLC/EKF/plant/Waypoint/CBF/runの本体をこの段階で変更しない。
+・吊り荷質量は現在のEKF推定値 mL を、その予測時点のモデル質量として使用。
+  plant真質量、Parameter側の古い質量、無根拠なブレンドは予測に使わない。
+・他の物理値は原agent.parameterの値を取得。仮固定値を本番へ埋め込まない。
+・六方式のシステム・障害物形状は外部の仮定義から取得し、後でCBF定義へ置換。
+・障害物は観測・記憶したもののみ。未来の制御入力一定という仮定は使用しない。
+・軽量トリガは論文の新規性そのものではなく、CBF・軌道生成を起動する補助。
+
+(2) 直前の実MATLAB V2結果 (ユーザーPC)
+・V2 近接36パーツの1方式中央値 C複数球=5.840ms、C楕円体=5.856ms、
+  B複数球=3.200ms、B楕円体=3.187ms、D複数球=3.194ms、D楕円体=3.174ms。
+・外接球が遠い時は速いが、近接36では1～2ms目標未達。
+・内訳の主因は掃引形状の繰返し生成と部位別足切り。細長い障害物でV2悪化あり。
+・元DRONE_OBSTACLES生成器3シーン実施 PASS。合成振動60ケース/360判断で観測見逃し0。
+・これは物理実機の予測保証、Flight閉ループ、厳密な浮動小数点証明ではない。
+
+(3) 今回のV3（初回、MATLABユーザー実行前）
+・SIX_WAY/wp_six_trigger_evaluate.mは旧V2のまま。
+・SIX_WAY/wp_six_trigger_evaluate_fast_v3.mと
+  wp_six_trigger_interval_broadphase.mを追加したV3 A/B候補。
+  機体/吊り荷の球半径、ケーブル物理半径、外部安全余裕、C/B/Dのケーブル
+  外側包絡、誤差・区間加速度の包含を使い、40区間×近接近似パーツの
+  AABB足切りをまとめて行う。判断不能なら旧V2の詳細検査を維持する。
+  複数方式を同時に適用せず、比較用に6回独立実行。
+・独立Python数値監査: 5000ランダム近接ケース、30,427個の原形状
+  掃引AABBがV3粗包絡AABBに含まれるかを照合、最終反例0。
+  これは数値的点検のみで、外向き丸めの厳密保証ではない。
+・TEST_TRIGGER_V3_GEOMETRY_AUDIT、BENCH_TRIGGER_V3_ONE_MODE_ABを追加。
+  V2/V3の判断の一致・早期検査箇所・中央値/P95/MAXを比較。
+  効果が認められないモードではV3を本番置換しない。
+
+(4) 実24状態モデルを発見して名目HLC未来予測を作成
+・「元24状態RHSがない」という過去の回答は誤り。
+・R193_USED_FLIGHT_20261030_222702_252.zip の
+  SOURCE/.../PROJECT_FULL/model/substance/with_load_model_euler_for_HL.m に
+  元の数式生成済み24状態RHSが存在する。
+・Model_Suspended_Load.m -> get_model_name('Load_HL') ->
+  with_load_model_euler_for_HL; 24状態4入力21物理パラメータ。
+・SIX_WAY/wp_six_trigger_original_model_binding.mは original get_model_name
+  を確認し、model 21パラメータをローカルコピー、インデックス20に現在推定mL。
+  パラメータオブジェクトのsetはしない。agent.plant.paramは使わない。
+・SIX_WAY/wp_six_trigger_predict_hlc_4s.mは現在の24状態EKF推定、
+  元HLC_SUSPENDED_LOAD（実入力飽和含む）、元RHS (ode15s)、
+  元WAYPOINT_REFERENCEの6段フィルタ・未来予測荷重へのフィードバックを
+  25ms×160周期、計4秒ロールアウト。現在のagent状態を一切変更しない。
+  将来EKF更新は未知なので、各時刻の「未来推定」は予測状態そのものと置く。
+  nominal closed-loop = 名目モデル比較基準。真の実行誤差の保証ではない。
+  数値ODEの積分誤差の厳密包含でもないため、rhoDrone/rhoLoadなどはNaNに
+  して実際の安全判定がCLEARへ進まないようにする。
+  160回のHLC+ODEをオンライン1～2msに入るとは主張しない。
+・TEST_TRIGGER_V3_24STATE_FORMULASは元RHSの運動式を直接照合。
+・TEST_TRIGGER_V3_ORIGINAL_HLC_4Sは独立作成テスト用agentで原HLCの
+  4秒予測、現在推定mLの使用、原agent不変性、ケーブル整合性を試験。
+・COMPARE_TRIGGER_V3_HLC_TO_FLIGHT_LOGは実Flight軌跡との誤差比較。
+  過去の比較誤差最大値を予測安全保証の係数には使わない。
+
+(5) 元の24状態張り索モデルと加速度（理論条件付き）
+  q = (pL-pD)/L; ||q||=1; omega dot q=0; e3=z up; b=R e3;
+  qdot=omega cross q;
+  T = (mD*mLhat/(mD+mLhat))*L*||omega cross q||^2
+      - (mLhat/(mD+mLhat))*F*(q dot b);
+  aD=-g*e3+(F/mD)*b+(T/mD)*q;
+  aL=-g*e3-(T/mLhat)*q;
+  omegaDot= -(F/(mD*L))*(q cross b).
+  元RHSと照合するテストを追加。数式は張り索・正張力の枝に限定。
+  F <= 20Nの元HLC飽和、mD, mLhat, L, gを使用できる。
+  絶対加速度上界は上記から三角不等式で得る。
+  真の4秒物理的予測誤差は、推定誤差や真パラメータ差の上界なしには
+  ここから導けない。無根拠な経験的誤差幅は作らない。
+
+(6) 先行研究の位置付け（2026-11-12確認）
+・Son et al., ICRA 2018, DOI 10.1109/ICRA.2018.8460749
+  吊荷系MPCの実時間回避と実験。提供される公開概要から、独立した既存HLC
+  の4秒真状態到達集合の厳密保証まで行うとは確認できない。
+・Son et al., RA-L 2020, DOI 10.1109/LRA.2020.2967279
+  機体・ケーブル・吊荷の幾何制約と簡略化MPC。
+・Robust MPC-based Trajectory Tracking Control for Quadrotor UAV-slung
+  Load System, CCC 2024, DOI 10.23919/CCC63176.2024.10661941
+  Tube MPCで追従と外乱に対処。ただし専用制御構造であり、現HLCトリガ
+  にそのまま保証の転用はできない。
+・Bucki & Mueller 2019, arXiv:1904.04223, 多項式経路の連続時間衝突確認。
+  これは実HLC閉ループの予測誤差チューブとは別。
+結論: このトリガ研究のスコープでは元HLCの厳密な真物理追従誤差保証を
+新規性として追わず、まず名目予測+実HLC Flight検証と保守的幾何検査。
+実物理に対する無見逃し保証をこの時点で主張しない。
+
+(7) 未完了・次の優先事項
+・今V3はユーザー MATLAB未実行。原RHS照合のPASSをまだ主張しない。
+・V2/V3の実PC比較で退行や1～2ms達成を判断。
+・原HLC 160step 4秒ロールアウトの時間内訳、結果を実Flightログと比較。
+・オンライン1～2ms用の軽量予測は未完成。オフラインフルrolloutは代替ではない。
+・真EKF未来測定は未予測。実際の物理誤差チューブは未保証。
+・25ms全工程CBF/軌道生成統合評価は未完成。
+・後に移植する本体場所: WAYPOINT_REFERENCE/SAFETY_PREVIEW_GEOMETRY 等、
+  ユーザー指示の正式統合先。今はcommon_matlab/TRIGGER_LIGHT/のみ。
+
+=== 以下、前版の累積引継ぎ全文（変更せず継承） ===
+
+純粋移植へ戻す — 2026-11-12 16:19 依頼に対する FAST V2 実装追記
+================================================================
+【今回のユーザー確定事項（以前の記録より優先）】
+・1制御周期で6方式を同時適用しない。選択した C/B/D × 球/楕円体の1方式のみ。
+  テストで6方式を順に6回実行する。1〜2msは選択1方式の「未来予測を含むトリガ全体」目標。
+・25msはEKF/HLC/通常処理/CBF/必要時軌道生成を含む全体上限。
+・索全長を覆う4sの巨大球体は真横・上向きの揺動を仮定した到達可能集合ではない。
+  粗判定が失敗しても「実際にそこへ行く」とは言えず、詳細判定へ進めるだけ。
+・現在EKFが推定した吊り荷質量 mL が予測モデルの唯一の質量値。
+  プラント真値、parameter.loadmassへの代替、任意補正、parameter.setは禁止。
+・ほかの物理値は元agent.parameter、形状半径等は外部の仮定義から読み取る。
+・安全保証は実測誤差MAXで代用しない。元24状態RHS・実HLCの式から導出が必要。
+
+【今回使ったユーザーPCの実測／修正前】
+RUN_PURE_SIX_TRIGGER_TESTS -> PURE_SELECTED_TRIGGER_RESULTS_FOR_CHATGPT.zip の結果。
+1方式の幾何判定のみ：empty およそ 0.019〜0.021ms、distant36 およそ0.048〜0.054ms。
+near_noncontact_36 の中央値：
+  C/spheres=7.33605ms, C/ellipsoids=7.27145ms,
+  B/spheres=4.56280ms, B/ellipsoids=4.55085ms,
+  D/spheres=4.70285ms, D/ellipsoids=4.71370ms。
+  この36は障害物の「近似パーツ」36個であり、独立障害物36個とは限らない。
+  いずれもオンライン未来生成、EKF/HLC/CBF、Flight25ms全体を含まない。
+もとの全体球→区間球→部位球の足切りだけでは、近接時の多数の分離判定を回避できなかった。
+
+【今回実装した数学的に安全側の高速足切り】
+選択方式の掃引形状の各部位が S=conv(V)+B(r) に含まれるとする。
+この集合は AABB [min(V)-r,max(V)+r] に含まれる。
+障害物近似パーツ O_j の外接球 c_j+B(R_j) に対して、
+    dist(c_j,AABB)>R_j
+なら S∩O_j は空である（安全側の十分条件）。
+これを(1)4秒全体、(2)各時間区間、(3)各部位（機体球/吊り荷球/ケーブル）で、
+既存外接球判定と論理ORで併用。各部位の半径は外部shape configから取得し、
+真の長さと掃引誤差で膨張している。絶対に「AABBの重なり=実衝突」と判定しない。
+
+【同一方式内のバッチ支持関数分離】
+残った候補障害物について、元の十分分離法線（中心差、±世界座標軸、±障害物主軸、
+±(掃引頂点-障害物中心)）を候補全体で行列評価する。
+方向nで
+   min_v nᵀv - r > nᵀc_j + ||diag(a_j) R_jᵀn||
+を満たせば間隙が存在。法線が見つからない場合は接触確定でなくPOSSIBLE_CONTACT。
+旧版と同じ条件を数値的に保持する設計で、ベンチによる実MATLAB結果はこれから。
+浮動小数点原始演算の外向き丸めは未証明（64/128eps経験的guardは絶対証明でない）。
+
+【理想張り索モデルからの加速度上界：ユーザー要望の式】
+推定質量 mL = その周期のEKF mL、機体質量 mD、索長 L、重力 g、
+正張力の張り索 q=(pL-pD)/L、機体姿勢による単位推力方向 b、
+既存HLCの飽和を外部から確認できた 0<=f<=Fmax を仮定すると、
+  aD = -g e3 + (f/mD)b + (T/mD)q
+  aL = -g e3 - (T/mL)q
+  T = (mD*mL/(mD+mL))*L*||qdot||² - (mL/(mD+mL))*f*(qᵀb)
+  omega = q×qdot, domega/dt = -(f/(mD*L))*(q×b)
+ゆえに、|omega(t)| <= |omega(0)| + Fmax*t/(mD L) = Omega(t) なら
+  |T(t)| <= (mD*mL/(mD+mL))*L*Omega(t)²+(mL/(mD+mL))*Fmax = Tmax(t)
+  |aD(t)| <= g + Fmax/mD + Tmax(t)/mD
+  |aL(t)| <= g + Tmax(t)/mL
+（等号ではなく上界、区間終端の単調な上界で全区間を包む）。
+補助関数 wp_six_trigger_taut_model_accel_bounds.m に数式を実装。
+Fmaxを関数内で勝手に20N固定せず、実HLCから検証した上限を外部入力とする。
+テストだけ20Nを明記して計算。mL真値は一切取得しない。
+
+【予測誤差チューブの定義：さらに必要な外部証明】
+現在モデル予測中心を pbar とし、もし
+  ||p(0)-pbar(0)||<=rho_p0, ||v(0)-vbar(0)||<=rho_v0,
+  ||a(t)-abar(t)||<=DeltaA_k  for all t∈[t_k,t_{k+1}]
+の真の差上界が得られたとき、
+  rho_v[k+1] = rho_v[k] + DeltaA_k*h_k,
+  rho_p[k+1] = rho_p[k] + rho_v[k]*h_k + 1/2 DeltaA_k*h_k²
+で端点誤差を含む。補助関数 wp_six_trigger_error_tube_from_accel.m。
+DeltaA_k は「単なるモデル加速度上限」ではない。
+EKF共分散、実験最大誤差、推定質量を真値と取り違える操作から、
+決定論的な真の誤差上界を生成してはならない。
+
+【上式の限界と未解決：安全認証しない】
+R193_USED_FLIGHTの保存ソースには Model_Suspended_Load.mというモデル組立があるが、
+実24状態の動力学RHS関数 Load_HL の実装は同ZIPから確認できなかった。
+現行HLC_SUSPENDED_LOAD.mの飽和値は [0,20]N, [-1,1]Nm と読めるが、
+オフライン解析式が元RHSの枝・外乱・モデルに完全一致することは未照合。
+理想張り索・推定質量モデルの式を、現行Flight/真プラントに対する厳密証明とは呼ばない。
+上記Omega boundは保守的で4sでは非常に大きくなり得るため、そのまま
+軽量トリガの実用CLEARに使えるとは限らない。
+必要：実RHS、HLC/飽和/サンプル保持、EKF初期誤差集合、張力正値、
+入力の全時間区間包含、必要に応じた不確かさと外向き区間演算。
+それら未接続の間 safeToCommit=false、physicalSafetyCertified=false。
+
+【V2プログラムと試験の場所】
+共通 root: common_matlab/TRIGGER_LIGHT/
+実用候補: SIX_WAY/wp_six_trigger_evaluate.m（選択方式1回）, 
+            SIX_WAY/wp_six_trigger_separation_batch.m（同じ方式の障害物一括演算）, 
+            SIX_WAY/wp_six_trigger_run_selected.m（任意段階時間測定）, 
+            SIX_WAY/wp_six_trigger_taut_model_accel_bounds.m（条件付き理論）, 
+            SIX_WAY/wp_six_trigger_error_tube_from_accel.m（差上界の積分）。
+試験のみ: TESTS/BASELINE/wp_six_trigger_evaluate_baseline_20261112.m、
+          TESTS/TEST_TRIGGER_V2_FAST_GATES.m、
+          TESTS/TEST_TRIGGER_V2_MODEL_FORMULAS.m、
+          TESTS/BENCH_TRIGGER_V2_STAGE_TIMES.m、
+          TESTS/BENCH_TRIGGER_V2_TICK_STAGES.m、
+          TESTS/TEST_TRIGGER_V2_SOURCE_DISCOVERY.m。
+DRONE_OBSTACLESは元の提供ZIPを TESTS/REFERENCE_DRONE_OBSTACLES に同梱し、
+MATLABで外部実装が見つからないときのテスト比較にだけ使用する。
+元のFlight・HLC・EKF・CBF・runは一切編集しない。
+
+【最初に実行するコマンド】
+cd('C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT')
+clear classes; rehash;
+R=RUN_PURE_TRIGGER_FAST_V2_TESTS(60,100);
+disp(R.status); disp(R.benchmark.near_noncontact_36); disp(R.syntheticTick);
+結果: TESTS/RESULTS/PURE_TRIGGER_V2_PROFILE_RESULTS_FOR_CHATGPT.zip
+試験成功やモデル条件付きPASSと、実際のHLC追従・真機物理安全・25ms実証を混同しない。
+==============================================================
+【以下に以前の累積全文を保持】
+
+純粋移植へ戻す 累積引継ぎ 2026-11-12 15時以降のユーザー最終訂正
+================================================================
+【最優先：以前の記録に優先する現在の確定仕様】
+・6方式（C/B/D × multiple_spheres/multiple_ellipsoids）は実際には同時適用しない。
+  1制御周期で選択済みの1方式だけを実行する。テストで6方式を比較するときは
+  1方式の同じ本番関数を6回個別実行し、それぞれの時間・衝突結果を比較する。
+  「6方式合計で1～2ms」「6方式のORを本番トリガにする」は撤回済み。
+・25msは通常処理+EKF+HLC+CBF+軌道生成を含む全制御周期の制限。
+  トリガは未来生成を含む選択方式1回あたり1～2msを目標とする。
+・現時点の近接36件は6方式同時幾何判定で中央値23.6699ms、最大26.4780ms。
+  これは本番1方式の計測値ではない。旧試験の「各方式個別」は内部時間のみであり
+  1回の選択方式独立呼び出しで改めて実測すること。
+・機体球・牽引物球半径は元の外部幾何定義から取得し、最初の球足切りに含める。
+  ケーブルはC=球列、B=カプセル、D=外接楕円体を各々維持。
+・牽引物質量は現在の推定状態mLを予測における真値として使用。
+  parameter.loadmassからの代替取得、固定値、補正、parameter.setは禁止。
+  機体質量・索長・重力・慣性等は原agent.parameterから読み取りのみ。
+・元のCBF形状が確定するまでは SAFETY_PREVIEW_GEOMETRY の仮定義を外部入力。
+  本番CBF形状定義が出来たら入口の外部幾何だけ置き換える。
+・common_matlab/TRIGGER_LIGHT/SIX_WAY を本番前の検証置場にし、
+  TESTS は本体移植時に除く。HLC/EKF/runnerは上書きしない。
+・固定サンプルは障害物のない区間の基本点+近傍点、各パーツ点数上限、
+  既知障害物更新時だけ再構築。各固定サンプル間は区間全体の包絡で判定する。
+・入力一定の未来予測はしない。4秒は実時間で固定。
+
+【今回の変更（TRIGGER_LIGHT選択1方式版）】
+・wp_six_trigger_evaluate：1回につき選択したC/B/D×障害物近似1つだけ評価。
+  6方式の集約は廃止。最初に4秒全体の球足切り→区間球→各部位判定。
+・wp_six_trigger_run_selected：実Flight用インタフェース仮設。
+  毎周期のmodel snapshot、外部形状、観測メモリ版数によるキャッシュ、
+  予測器コールバック、1方式判定。まだFlight本体には接続しない。
+・wp_six_trigger_model_snapshot：現在の推定mLを必須入力、他を原物理パラメータ。
+  代替固定値なし、外部パラメータは読み取りだけ。
+・固定計画、準備、掃引、支持関数の数式は基本的に継承し、
+  C球列はその全体を含む粗カプセルで先に安全に除外する。
+・RUN_PURE_SIX_TRIGGER_TESTS：6方式を別々に6回呼んで比較、
+  独立時刻/判断/P95/MAXを記録。元形状、解析的振動、実障害物生成器接続、
+  元推定mL・質量ソース、半径の実際の足切り効果を検査。
+・TEST_SIX_TRIGGER_REJOIN_TRACE：実際のHLC Flightトレースを受ける検査器。
+  本物のFlightトレース/独立予測がまだ無いため通常SKIPとする。
+・添付READMEの中ではなく、INSTALL_AND_TEST_JA.txtを根元に置いた。
+
+【達成の範囲を誤らない】
+・今回MATLAB本体を実行できておらず、新しい1方式実行の実測は未取得。
+・原HLCから4秒閉ループ予測、真の加速度・誤差上界の生成は未達。
+・解析的テストPASSでも実Flightの数理的保証・25ms周期保証ではない。
+・近接時の証明困難、MEX/C++、物理入力飽和、EKF誤差上界、浮動小数点外向き丸めは未解決。
+・前回記録の「6方式同時適用」「合計1～2ms」は以下の歴史的記録として残すが
+  今回のユーザー最終訂正により無効である。
+
+=================== 過去の引継ぎ全文（歴史情報） ===================
+
+純粋移植へ戻す・累積引継ぎ 2026-11-12 [最新: 6方式テスト専用作業]
+========================================================
+【混入禁止】別系列の HANDOFF_TRAJECTORY / C9 軌道生成ZIPを根拠にしない。
+
+【今回確認したユーザー方針】
+・本体合流前は common_matlab/TRIGGER_LIGHT/ で独立に検証する。
+・安全確認は6方式すべてを同時評価：
+  システムC=ケーブル複数球、B=ケーブルカプセル、D=ケーブル楕円体。
+  障害物=multiple_spheres または multiple_ellipsoids。計3×2。
+・CBF側の形状は未定義なので暫定の形状。後で定義を置き換える。
+・通常飛行EKF・HLC・CBF・再計画等を含む25ms周期。
+・トリガ単独は1～2msを目標。4秒は実時間で固定（速度には依存しない）。
+・固定サンプルは既知障害物近傍を密に、それ以外にも点を残す。
+  1近似パーツあたり追加点数の上限、毎周期配置は変更しない。
+・実運動／軌道逸脱・再合流を考慮。入力一定の未来予測は採用しない。
+・今回実行PCは将来本番でも使うPC。通常/近接/6方式の時間を測る。
+・実用関数は人間に読みやすく、テスト群を後から除外できる構造。
+
+【現在このZIPで新規追加した6方式の条件付き掃引判定】
+・SIX_WAY/ に6つの責務別の関数を配置。
+・C/B/Dすべて独立した掃引外側近似を持つ。
+  C: 全ケーブル球の各中心掃引＋区間内ケーブル長上界。
+  B: 両端4点の凸包＋カプセル半径。
+  D: 元の楕円体を必ず含む、ケーブル区間の外側膨張。
+  Dは正確な楕円体vs楕円体の交差検査を代用するものではなく、
+  過大検出する可能性を持つ条件付き外側近似。
+・各身体の掃引集合と観測済み障害物の外側近似を球体→支持方向で分離。
+・サンプル区間の膨張は最大(rho端点)+加速度上界*dt^2/8。
+・非分離は接触可能性を返すのみ、接触確定としない。
+・6方式とも予測誤差上界・真加速度上界が外部から与えられた場合のみ
+  CLEAR_CONDITIONAL。真HLC/EKF/Plantの上界自動導出は未完成。
+・現行のD元形状は、搭載CBF定義と未一致。
+・厳密丸め誤差保証と動的障害物への対応は未実装。
+・未来状態の生成は本パッケージに含まない。
+・性能は MATLAB実機結果を受領するまで未達成として扱う。
+・TEST_SIX_TRIGGER_DRONE_OBSTACLESは実障害物近似生成器がMATLABパスに
+  存在するときだけ実シーンから両近似を生成して6通りを検証（テスト限定）。
+・TESTS/REFERENCE_GEOMETRYは受領した元の形状コードの検証用スナップショット。
+・Flightランナー、HLC、EKF、元のWaypointと元の形状コードを変更していない。
+
+【ユーザーが実行済みの前段階ベンチマーク】
+・旧軽量トリガの合成試験10/10 PASS、ランダム200ケース中45接触観測、
+  誤安全0、42 clear、158 possible。真モデル/実HLC認証ではない。
+・旧1方式の幾何判定のみ：空中央値0.2126ms、遠方36 0.3464ms、
+  近接ケーブル接触0.1132ms、近接36で11.9568ms(P95 12.4389、MAX14.0760)。
+・この旧値は6方式全体の予算ではない。
+
+【今回のテスト入口・ファイル配置】
+common_matlab/TRIGGER_LIGHT/RUN_PURE_SIX_TRIGGER_TESTS.m
+MATLAB: R=RUN_PURE_SIX_TRIGGER_TESTS(30,100);
+結果ZIP: TRIGGER_LIGHT/TESTS/RESULTS/PURE_SIX_TRIGGER_RESULTS_FOR_CHATGPT.zip
+テスト用ファイルはTESTS/に集約し本番移植時に削除。
+全関数配置は INSTALL_AND_TEST_JA.txt に詳記。
+
+【次の厳密な作業順】
+1. MATLABで6形状との包含試験/ランダム衝突照合/速度を測る。
+2. 1～2ms超の近接36パーツは、正しい支持関数の判定を保持したまま高速化。
+3. HLCと真プラントから未来状態の到達上界・入力飽和・吊り荷運動を導出。
+4. 実際の経路逸脱／再合流の閉ループFlightログと比較。
+5. 実観測・保持した2種類の障害物近似に接続、通常全工程25msを測定。
+6. 合格後だけ SIX_WAY/ の本番関数を実際の場所へ移す。
+
+===== 以下は今回以前の「純粋移植へ戻す」系統の累積記録（そのまま保持） =====
+
+純粋移植へ戻す — 累積引継ぎ（別系列混入禁止）
+版: 2026-11-12 / v1.0
+目的: 「純粋移植へ戻す」の未来衝突トリガ検討を、コード・設定・未解決問題・25ms予算まで含めて次チャットへ渡す。
+今後この系統で作るソースZIPのルートに、必ず同一名称 PURE_PORT_CUMULATIVE_HANDOFF.txt を入れ、過去の確定内容を消さず更新履歴を追記する。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 出典の区分／絶対に守ること
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[A] 元チャット「純粋移植へ戻す」（2026-11-10）について、このプロジェクトから参照できるユーザー発言の抜粋3件。
+    元チャットの全文（全発言、当時のアシスタントによるコード差分やファイル）は直接取得できていない。
+    本文Aで確認できないことを、当時の決定済み仕様に格上げしない。
+[B] この後の会話でユーザーが追加・訂正した方針（2026-11-12）。これは元チャットの原文ではないが現在の有効な指示。
+[C] 今回ユーザー添付のファイルから直接読み取れる実装状況。会話上の合意と「コードにあるもの」を明示的に区別。
+[D] 今後の技術提案／検証計画。未採用・未検証と明記。
+
+禁止事項:
+- 別系列の HANDOFF_TRAJECTORY、THEORY_TRIGGER、6Ckidou、C9/13D/コリドー等の文書を、この「純粋移植へ戻す」の合意事項や研究新規性の根拠にしない。
+- 別チャット「ドローンCBF設計検討」等の結果を、元チャット内の合意だと称さない。
+- 本文で検証できなかった「研究の新規性の最終定義」を勝手に決めない。予測トリガ自体を新規性だとしない。
+- 現在入力を未来4秒も一定とする無根拠な仮定をしない。参照進行指令の保持も真の将来予測とは別物。
+- 追加の予測器やQPを、目的・コスト・正しさの検証なしに飛行ループへ増やさない。
+- 未保証のサンプル判定を「全時間安全」と表記しない。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. [A] 元チャット抜粋から確認できる作業と要求
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【発言1：表示上は途中まで】
+「こうなった後今は交渉軌道から離れたら予測できないですよねそこらへん先行研究知りたい離れていない前提なのか他にあるのか，後今初期の状態」
+→ 公称軌道から外れた現在状態で未来予測できるか、目標軌道へ合流する過程はどうするか、吊り荷系の先行研究は軌道上を前提にしているかが疑問。
+
+【発言2】
+「というか未来も同じ入力続くとか変な家庭置くからダメなんですよ．しっかりと変なことしていないでいい加減選考シッカリとみてやりなさい．あと計算負荷からラナイ手法が好ましい．しっかりとやろう変なことばかりしないで．」
+→ 現在入力が将来も継続するという便宜的仮定への明確な反対。先行研究と計算負荷を重視する。「ラナイ手法」は抜粋の原文表記であり、未確認の固有名詞として読み替えない。
+
+【発言3】
+「そうですね．まず球体近似でぶつかるものがなかったらそこで打ち切り，ぶつかるのあったら今のサンプルのやる？あと時間としては数ミリmsくらいなら今ノートPCなので許容ないかな？あとどうせやるなら目標軌道から離れていて合流するときの動作とかも見たら？しっかりとやりましょう．」
+→ 二段階：保守的な球体粗判定で安全確認できれば終了、候補のみ既存サンプル検査。ノートPCで数msは「許容を検討した目安」であり測定値ではない。合流時の検証が必要。
+
+以上3件からは「どの実装が完成済みか」「元チャットで研究新規性を何に定めたか」「確定した積分法/時間刻み/点数上限」は確認できない。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. [B] このチャット（2026-11-12）で追加・再確認した有効要求
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 完成対象は「障害物回避へ移る必要があるか」を判断する軽量な未来衝突トリガ。回避軌道生成やCBF-QPそのものをここで開発しない。
+- トリガ／合流中の予測は研究の新規性として売らない。研究全体の新規性は元チャット全文未確認のためここでは未確定。
+- 現在状態から既存HLCが元軌道へ合流する挙動を無視しない。コントローラが合流できることと、合流中の衝突を予測できることは別。
+- サンプル点は障害物のある経路区間を密にし、障害物のない区間にも基本点を残す。障害物近似形状1個あたり追加点数に上限を持たせる。
+- サンプル配置は毎制御周期で付け足し／削り直さず、同じ構成を再利用する。既知障害物集合や有効経路が変わったイベントでの再構成は、毎周期の再配置とは区別する。
+- 固定するサンプル位置の座標と、実際にそこを通る「未来の物理時刻」は区別する。Reference Governorで仮想時間が変わるため、未来4秒の検査範囲の欠落を起こさない。
+- 予測トリガだけに多くの時間を割かない。25ms/制御周期には通常処理・センサ・推定・参照・HLC・CBF・必要な回避軌道生成など全部が入る。
+- 「直近の別ZIPに入っていたHANDOFF等」は誤混入。引継ぎ根拠から除外する。
+- 今後、この系統で新たに生成するすべてのZIPへ、過去の決定・実測・未解決・出典を累積した本TXTをルートに同梱する。新チャットではこのTXTと最新コードを読む。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. [C] 今回の純粋移植側で確認したファイル／ハッシュ（ソース照合用）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+run_flight_SimSuspendedLoad_trj_obs.m
+ SHA256 0ddd1810ac80fad3fbb42bcabf4340d93f62ec84561c3bed0f7eaf8a2cae15f1
+WAYPOINT_REFERENCE.zip
+ SHA256 16ee7834093ea8d986e733c4eb337e9809e10c596b764ebae28f350322cbab75
+DRONE_OBSTACLES.zip
+ SHA256 fa8b255dbeb3718977ce9035b65b6c4657f756dfe994ccb973240a8ac8dfe591
+R193_USED_FLIGHT_20261030_222702_252.zip
+ SHA256 5d3ba6bc07dd27119873b1975ff61cb2eacb638cc84113af815b103455bd9b7a
+
+※これらは2026-11-12に添付されたコードの根拠。元チャットの全文や当時の開発履歴そのものではない。
+※同じ日に生成された WAYPOINT_REFERENCE_FIXED_SAMPLING_20261112.zip は本系統の採用済み純粋移植基準ソースとはみなさず、ユーザーの確認を得るまで試作差分として隔離する。別系列HANDOFF文書も持ち込まない。
+
+3.1 実行ループ（run_flight_SimSuspendedLoad_trj_obs.m）
+- GUI無しの `SimSuspendedLoad` 相当を意図。SimExp.m が無いので完全な動作等価性は断定できない。
+- ts=0, dt=0.025s, te=50s。現在のスクリプトのモード分岐は0<t<5離陸、5<=t<47飛行、47<=t着陸。
+- plant 構築時 `loadmass=0.14`, `cableL=2.0`; そのあと `loadmass=0.01` に変えてEKFを構築。この順序を勝手に揃えない。
+- センサは Connector_Natnet_sim / MOTIVE。EKF と SUSPENDED_LOAD_STATE_MANAGER を利用。
+- `gen_wp_straight`, 速度指定1.5m/s, WAYPOINT_REFERENCE（28x1の目標）と SUSPENDED_LOAD_REF_ADJUST。
+- 元の HLC_SUSPENDED_LOAD + Controller_HL_Suspended_Load をそのまま使用。
+- scene_cylinders_high_side, multiple_ellipsoids, ground_z0。
+- `maxPartsPerObstacle=6`, `maxTotalParts=36`, `targetPartSize=3.0`。
+- 障害物 worldObstacles はこのrunでは主として描画/動画に使用。トリガ・回避・CBFのフィルタは制御ループに接続されていない（コメントでも明示）。
+- time計測の `controllertime_total` はセンサ→推定→参照→制御→入力変換→plantを含む。さらにログ・描画・後処理は別。このrunnerの測定範囲と実機25ms制約の範囲を混同しない。
+
+3.2 元のHLC・物理状態
+- 元のモデルには機体の位置/速度/姿勢/角速度と、吊り荷の位置/速度、ケーブル方向/角速度がある。
+- Controller_HL_Suspended_Load.m では z, yaw は2次、x, y は6次の仮想サブシステムについて `lqrd` ゲインを生成。
+- HLC_SUSPENDED_LOAD.m では推力を [0,20]、三軸トルクをそれぞれ[-1,1]へクリップしている。これはソース上の出力制限であり、将来の安全・飽和なし・可行性を証明するものではない。
+- EKF.m は予測モデルと実測補正・射影を使う。実際の推定状態と真状態の差はゼロではない。仮想入力と実入力、飽和の影響を混同しない。
+
+3.3 WaypointとReference Governor
+- `WAYPOINT_REFERENCE.m` は28x1 `[p(3),yaw, dp(3),dyaw,...,d6p(3),d6yaw]` を出す。
+- `adaptiveProgress=true`; 仮想進行の閾値 `slowdownStart=0.30m`, `slowdownFull=0.90m`, `minScale=0.05`, `filterTime=0.70s`。
+- 6段フィルタ `wp_governor_step.m` でvirtualTimeの高階滑らかさを保ち、推定吊り荷の位置誤差に応じて進行を調整。
+- これは「軌道進行位置の調整」であり、「障害物に応じた衝突判定サンプル位置の調整」と別。
+- 将来の仮想時間がどう進むかは、将来の追従誤差で変わる。現在の進行指令を未来も保持するだけでは閉ループ予測にならない。
+
+3.4 既存4秒previewの限界
+- `wp_preview_4s.m` 初期設定は horizon=4s, sampleDt=0.10s、通常41点。
+- `wp_pose_from_reference.m` は平坦性に基づき公称吊り荷位置・加速度から公称ケーブル方向と機体位置を再構成する。これは真の追従誤差の将来予測ではない。
+- `wp_preview_reference_series.m` は将来の参照生成に `held_current_progress_command` を使う。出力は「保持した進行指令を前提にしたシナリオ予測」であり、将来のフィードバックを反映していない。
+- 現在推定姿勢（機体/吊り荷位置）の単発検査オプションはあるが、未来への状態伝播は無い。
+- ステータスに `sampled_clear_not_guaranteed`, `sampled_collision`, `prediction_invalid`, `tracking_deviation_unbounded` があり、ソースに連続時間安全保証なしと明記。
+- このpreviewが公称経路からの合流中の衝突を否定できる、と判断してはいけない。
+- 現在のサンプリングは物理時刻等間隔。障害物近傍へ点数を再配分する機能は元zipには無い。
+
+3.5 障害物・幾何判定
+- DRONE_OBSTACLES.zip に原形状と複数楕円体/複数球などの近似、地面、静的/動的シーンと描画を含む。
+- WAYPOINT_REFERENCE 側には試作の B（球+カプセル）、C（複数球）、D（球+ケーブル+楕円体）モデルと形状ペア判定を含む。
+- `wp_system_geometry_config.m` は `isProvisional=true`, `cbfMatched=false` と明示。ドローン半径0.25、荷半径0.16、索半径0.015、安全余裕0.05、索長2mなどは暫定値であり、CBFや物理仕様との一致は未証明。
+- ペア距離の外接球による枝刈りと、「4秒全体をまず保守的に安全除外する」手順を混同しない。
+- このrunで障害物が作られていても、「機体搭載の障害物検知センサが接続済み」とは言えない。未知障害物のオンライン検知の仕様は元チャット抜粋から確定できない。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 研究全体で区別する構成／責務
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(1) 原plant・HLC・EKF：まず既存系を保持し、他の系が汚染しないよう基準テストを行う。
+(2) Waypoint／Reference Governor：公称28目標と進行調整。安全性は保証しない。
+(3) 障害物原形状・近似／地面：障害物をどう表現するか。これは「検知センサ」とは別。
+(4) 衝突予測トリガ：回避制御へ切り替える必要があるかだけを決める。生成軌道・トルクQPをここで解かない。
+(5) 回避軌道生成：別機能。今回のトリガ検討に重い再計画器を実装しない。
+(6) CBF/QP：別機能。既存runには未接続。CBFに予算を残す必要があるが、具体的に何msを使うかは未計測。
+(7) 可視化／検証／ログ：オンライン本体の時間との分離、または全部含む場合の明記が必要。
+(8) 先行研究：原チャットでは調査を明確に要求。特定の論文の採用決定は可視な元チャット抜粋にない。
+
+「研究の新規性の具体的な内容」については、元チャットの確認可能部分に結論がない。過去の別系列で得たC9/多項式などの仕様を代入しない。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. [D] 25ms制御周期を守るためのトリガ設計案（提案、未実装）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原則：重い4秒・41点の詳細衝突判定や24状態非線形閉ループ計算を、正常な毎周期に無条件で実行しない。
+
+1) 飛行前／新障害物の検知イベント時にのみ、障害物の原形状/近似、外接球・AABB、経路上の固定検査点を前処理する。障害物付近を密に、他の部分にも基礎点を残し、1パーツの点数上限を守る。新障害物検知の処理も25ms制御周期の計算量であり「無料」ではない。
+2) 毎周期、まず有効な障害物集合が空なら即終了。障害物候補の集合と現在状態の更新だけを簡単に扱う。
+3) 既知障害物に対して、機体・吊り荷・索を含む将来の到達可能範囲を保守的に包絡した軽量な外接球/区間形状で「明らかな非衝突」を除外する。真の運動の上界が得られていない場合に公称軌道だけを見て安全宣言しない。
+4) 粗判定で除外できない候補だけ、必要な参照・現在推定状態を使った詳細判定に進む。精緻化の最小単位は固定サンプル区間とし、点の配置を毎周期変えない。固定サンプル間で未検証の衝突を「無い」と言わない。
+5) 危険候補が早く見つかれば残りの高価な検査を省略できる。陰性を言う場合は全候補の必要条件を確認する。予測不確か・姿勢不正・飽和やモデル外状態・区間未検証なら UNKNOWN と区別する。
+6) UNKNOWN を単に clear とすることは禁止。保守的な再計画要求・安全側動作は将来の統合設計で決める。未検証だからといって確定衝突と記録するのも禁止。
+7) 公称軌道から外れた状態の合流では、現在のEKF状態からの予測が必要。現行プレビューの仮想時間保持や、現在位置を参照へ平行移動する近似だけを安全判定根拠にしない。
+8) 毎周期の未来フル非線形積分はまず比較・精度検証の基準として使用し、通常のオンライン経路へ入れるのは簡易トリガとの差と25ms全体実測で必要性が証明されたときだけ。これによりトリガに研究資源を過投入しない。
+
+【25msの具体的な判定式】
+    T_sensor + T_EKF + T_reference + T_trigger + T_nominalHLC + T_CBF/QP
+      + I_replan*T_replanner + T_inputTransform + T_inLoopOverhead  < 25 ms
+
+MATLABシミュレーションの全ループ時間には plant 計算と logging も加わりうる。実機実行時計測との内訳を分ける。
+各項の平均だけでなく P95、最大、同じ条件でのジッタ、回避開始イベント時の最大時間を測る。
+トリガ単体を数msにしただけでは25msを満たせない。まず既存通常処理/CBF/QPの実測で残り予算を定める。暫定設計目標は「大半の周期で1ms前後以下、候補時でも極力数ms以内」だが保証値ではなく、他処理計測で再設定する。
+トリガの固定タイムアウトで UNKNOWN にして黙って通常飛行するのは禁止。deadline超過時の実行保証を別途定義する必要がある。
+
+【速度と正しさの両立で最初に試す順】
+A. `worldObstacles` の形状構築・固定サンプル構築をループ外／検知イベントへ移す（根拠なき事前全障害物使用は禁止）。
+B. 圧倒的に簡単な球体/区間の否接触十分条件を先に評価、確実に非衝突なら即終了。
+C. 候補数が小さいときだけ B/capsule 等の詳細検査を呼ぶ。
+D. 経路逸脱/振れ/合流ケースで軽量判定と元非線形フライトの衝突結果を比較する。
+E. CBF・軌道生成を同時に動かして制御周期の P95/最大を検査する。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 直近の検証計画／成否を判定する条件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+テストケース（まだ成功を主張しない）:
+- 無障害物／遠距離の障害物：粗判定で正常終了し、詳細ループはゼロ回。
+- 近接だが非衝突：過剰なトリガ件数と計算時間を評価。
+- 現在状態が公称軌道から離れ、HLCで合流：逸脱量、速度、索方向、角速度を変えて検出の見逃しを評価。
+- 吊り荷だけが振れている：機体中心だけの判定で見逃さない。
+- 細い障害物がサンプル点の中間にある：サンプル間の未保証を検出して UNKNOWN/リスクにできる。
+- 複数障害物/複数近似パーツ：固定点数上限と障害物数増加に対する時間の伸びを確認。
+- 飽和・推定値不正・張り索モデル不適：安全判定を偽らない。
+- 検知イベントと再計画イベントが同時に起きる：25ms全体の最大値を計測。
+
+必須ログ: tick時刻/相、障害物数/パーツ数、固定点数と配置版、粗判定呼出し/clear数、詳細判定回数、予測器実呼出し数、早期終了理由、最初の危険障害物ID/時間区間、status、各所要時間と全周期所要時間、CBF/QP/軌道生成の稼働有無。
+「非常に速い」が予測ゼロ回や障害物ゼロ個の結果ではないこともログで確認する。
+
+成果として必要なもの:
+① 動作するトリガ接続、② 軌道逸脱下での見逃し検証、③ 固定サンプルと区間検査、④ 全工程25ms予算の測定、⑤ 未判定と安全の区別。
+MATLAB環境では未実行であり、所要時間達成・物理的安全保証の主張はしない。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 今後のZIP運用規約（本系統だけ）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ZIPルートに PURE_PORT_CUMULATIVE_HANDOFF.txt を1本同梱する。ファイル名を毎回変えない。
+- 各新バージョンの冒頭に更新日・当該ZIP名・追加/変更した関数・測定結果・残課題・元の仕様との相違を追記する。過去の確認事項や失敗履歴を消さず、古い数値は版と試験条件を添える。
+- 本TXTには「元チャット抜粋」「このチャットの後続合意」「ソースから分かる実装」「未実装／提案」の出典区分を維持する。
+- 別系列ZIP、別HANDOFF、CBF単独開発系の実測値・定義を勝手に統合しない。
+- ZIPのコードが真の基準。TXTをMATLAB本番実行の依存ファイルとしない。
+- 最新ZIPと本TXTの双方が揃えば、新チャットで意図を取り違えずに作業再開できるようにする。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 明示的な未確認事項（今後も勝手に「決定済み」にしない）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 「純粋移植へ戻す」元チャットの全文、全アシスタント回答、当時の差分・最終成果物。
+- 当時すでに合意していた研究の独自性の正確な文言。
+- 吊り荷系の軽量予測モデルとして最終採用する厳密な数式・有効領域。
+- 複雑な形状/複数障害物/相対運動を含む全時間の速度・クリアランスの保証上界。
+- 固定サンプルの最適な点数/割り当てと、実飛行における再利用条件。
+- CBF系の実装状態・実測時間（この純粋移植コード集合にはCBF本体を確認できない）。
+- 25ms周期がノートPC上の全ケース・最悪時でも達成可能か。
+- 真の推定誤差・モデル誤差を含む安全保証。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 2026-11-12時点の最優先判断（提案）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+「重い予測器を完成させる」こと自体を主目的にしない。
+まず、1) 既存原系を保持、2) 25ms内訳の計測用タイマ、3) 簡単で保守的な球体粗判定、4) 候補だけ固定サンプル/索全長の詳細判定、5) 逸脱・合流下で誤判定/時間を検証する。
+参照生成器の試作ZIPに含まれた独自仕様へ無批判に乗り換えない。未確定の論点は、事実と提案を分け、ユーザーへ必要以上の再確認を求めず、具体的なテストで解消する。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 累積付録：前回の会話限定引継ぎノート全文
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 「純粋移植へ戻す」会話限定・引継ぎノート
+
+作成日：2026-11-12
+
+> **出典と限界**：このファイルは、プロジェクト内で現在参照可能な「純粋移植へ戻す」（2026-11-10）の**会話抜粋だけ**を基礎に作成した。元チャットの全文を直接取得できたわけではない。会話抜粋のうち、表示されているユーザー発言を下の「原文確認」に記録した。抜粋にない過去の決定や実装済み機能を、推測によって補わない。
+>
+> **除外したもの**：`HANDOFF_TRAJECTORY.txt`、`THEORY_TRIGGER_*.txt`などのHANDOFF・THEORY文書、別チャット、アップロードされたMATLAB/ZIPの内容、およびこのチャットで後から提案した設計を、元チャットの決定事項として採用していない。
+
+## 1. 当時何を検討していたか（会話抜粋から確認できる範囲）
+
+**吊り荷付きドローンの障害物回避に関連する未来予測**の方針を検討していた。特に、公称・目標軌道に正確に乗っていない現在状態から、軌道への合流中の動きをどう予測して衝突の可能性を評価するかが焦点だった。
+
+ユーザーが問題視していたのは、従来の予測が経路から逸脱した状態を扱えるのかという点と、「未来も同じ入力が続く」といった根拠のない仮定による予測である。関連する先行研究を確認して、軌道上にいる前提なのか、逸脱状態に対応する方法があるのか調べることを求めていた。
+
+また、リアルタイム実行のために軽量化を強く要求しており、概略として「球体近似で衝突候補がなければそこで終了し、候補がある場合に限って既存のサンプル判定へ進む」という段階式の検討を提案していた。手元のノートPCで**数ms程度**なら許容し得る、という発言があるが、これは**実測達成値ではない**。
+
+## 2. 発言から直接確認できる要求・方向性
+
+| 項目 | 会話抜粋で確認できる内容 | 確度 |
+|---|---|---|
+| 逸脱状態 | 公称／目標軌道から離れているときにも将来を見たい | 明確な問題提起 |
+| 合流動作 | 離れたところから目標軌道へ合流する動作も検証したい | 明確な要望 |
+| 未来入力 | 「現在入力が未来も同じ」といった無根拠な仮定を置かない | 明確な禁止・批判 |
+| 文献調査 | 先行研究がどの前提・手法を使っているか真剣に調べる | 明確な要望 |
+| 軽量化 | 計算負荷の小さい方法を優先したい | 明確な要望 |
+| 二段階判定 | 球体近似で明らかにぶつからなければ打切り、候補のみ既存サンプルへ | 検討中の具体案 |
+| 実行時間 | ノートPCで数ms程度を一つの実用目安として意識 | 目安、未計測 |
+
+## 3. 当時の作業をどう続けるべきか（発言に即した作業項目）
+
+1. **既存の将来予測が何を初期状態に取り、未来の入力・追従誤差をどう扱うか確認する。** 公称経路上にいることを暗黙に仮定していないかを優先確認する。
+2. **「入力一定」などの便宜的仮定を採用せず、先行研究を調べる。** 吊り荷の振れ、実状態からの合流過程をどう扱うか、計算負荷はどの程度かを比較する。
+3. **高速な粗判定を先に検討する。** 保守的な球体近似で衝突可能性がないと確認できる場合は詳細計算を省略する。衝突可能性がある場合のみ、既存のサンプルベース判定を使う候補を検討する。
+4. **元の経路から外れた条件をテストに含める。** 目標軌道へ戻る途中の機体と吊り荷がどう動くか、先読み判定が見落とさないかを検証する。
+5. **計算時間を実測する。** 粗判定で終わる場合と、詳細判定に進む場合を分け、ノートPCで数msという目安に照らして評価する。
+
+※上記は「会話で提起された課題からの作業整理」であり、全項目が実装済み・検証済みであるという意味ではない。
+
+## 4. この会話抜粋だけでは確定できないこと
+
+- **研究の新規性をどこに置くと合意したか**：閲覧可能な当該チャット抜粋には具体的記述がない。別資料の新規性説明を代入してはならない。
+- 予測器の最終採用方式、実際のモデル方程式、現在のコードの完成度。
+- 先行研究の具体的な論文名・手法・比較の結論。
+- 先読みホライズン、サンプル点数、固定サンプルの配置規則、近似パーツごとの点数上限。
+- 球体近似の厳密な形状定義や、粗判定で「非衝突」と言える十分条件。
+- 機体・吊り荷・ケーブルの各判定をどこまで実装したか、実際の計算時間や衝突検出性能。
+
+これらは後続のチャットや混入ファイルから推定して「純粋移植へ戻す」の合意事項に上書きしない。
+
+## 5. 原文確認（このプロジェクトから可視の「純粋移植へ戻す」抜粋）
+
+以下は表示されていたユーザー発言。原文の誤字・表記ゆれも原則保持した。一部は元表示の時点で途中までしか見えていない。
+
+> 「こうなった後今は交渉軌道から離れたら予測できないですよねそこらへん先行研究知りたい離れていない前提なのか他にあるのか，後今初期の状態」
+>
+> ※この引用は途中で切れている。「交渉軌道」は原文表示のまま。
+
+> 「というか未来も同じ入力続くとか変な家庭置くからダメなんですよ．しっかりと変なことしていないでいい加減選考シッカリとみてやりなさい．あと計算負荷からラナイ手法が好ましい．しっかりとやろう変なことばかりしないで．」
+>
+> ※「ラナイ手法」は表示された文字列のまま。特定手法名に読み替えていない。
+
+> 「そうですね．まず球体近似でぶつかるものがなかったらそこで打ち切り，ぶつかるのあったら今のサンプルのやる？あと時間としては数ミリmsくらいなら今ノートPCなので許容ないかな？あとどうせやるなら目標軌道から離れていて合流するときの動作とかも見たら？しっかりとやりましょう．」
+
+## 6. 次チャットへ渡す短い引継ぎメッセージ
+
+「純粋移植へ戻す」で主に議論していたのは、吊り荷付きドローンの**軽量な未来衝突予測**である。現在の実状態が公称軌道から離れている場合、特に元の軌道へ合流する過程を予測できるかが問題となった。未来入力を現在値で固定するなど根拠のない仮定は禁止。先行研究の前提・方法を確認する。計算負荷を抑えるため、まず保守的な球体粗判定で非衝突なら打切り、衝突候補だけ既存サンプル判定を検討。ノートPCで数ms程度が実用上の目安だが未実証。研究の新規性や細かなサンプリング仕様は、このチャット抜粋からは確定できない。HANDOFF文書など別系列の混入情報をこの会話の決定事項として扱わない。」
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 2026-11-12 13:46 JST 追記：4秒固定・1〜2msトリガの理論設計（提案、未実装）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【出典区分】[B] このチャットでの新しいユーザー指定：[トリガ1〜2msを目標]、[物理4秒の到達時間は速度により変わらないので低速時の近接距離を問題にしない]。[D] 以下の数式・構成は現チャットの理論提案であり元チャットから決定済みだった仕様ではない。
+
+【責務・時間】
+全周期25msにはsensor/EKF/reference/HLC/CBF-QP/回避軌道生成(実行周期)/入力変換ほかを含む。トリガ単独1〜2msは目標（P95・MAXを別測定）；実測値、ハード保証ではない。未来判定は常に実時間[tk,tk+4s]で行う。低速だから将来予測時間を延長する処理はしない。
+
+【方式】
+A. 現在EKF状態、現行Reference Governor状態、既知障害物のみを取得。
+B. 入力・推定誤差・外乱・張り索モードを有効条件として、公称/閉ループ予測中心に対する実状態の包含集合（機体中心rhoD、吊荷中心rhoL）を構成。現在状態からの合流を含め、nominal onlyではsafeを返さない。具体的上界は元HLC/plantの数式と条件から導出が必要。任意経験的marginは禁止。
+C. 障害物原形状を安全側に覆う外接球/AABB等で全時間区間の包含を高速に比較。全障害物・全区間を排除できれば即CLEAR。
+D. 候補区間のみ、既知障害物の球/楕円体など詳細形状と機体球・荷球・索カプセルを比較。固定サンプル位置・パーツごとの点数上限を厳守。時間区間に対して全時間証明を行い、未証明区間はUNKNOWN/possible_contactとして返す。点上の安全だけでCLEARにしない。オンラインの点追加/再配置はしない。
+E. CONTACT_PREDICTED（検出）、POSSIBLE_CONTACT_OR_UNKNOWN（未保証）、CERTIFIED_CLEAR（成立条件つき）の3状態を返し、原因となる障害物IDと可能時間区間、検査実行回数、時間を記録する。UNKNOWNを安全に変更しない。切替・安全側処理は運用側の責務として統合仕様で決める。
+
+【区間包含の数学式（張り索かつ真の加速度上界が成立する場合）】
+区間I=[ti,ti+1]、Δ=ti+1-ti。機体端Dと荷端Lの真中心軌道の2階微分ノルム上界をAD,ALとする。各真端点は予測端点中心pbar_D,i、pbar_L,iおよび半径rho_D,i、rho_L,iに包含されているとする。2階微分上界なら、任意中間時刻の真中心は、真端点間の直線補間から最大 A*Δ^2/8 しか外れない。
+したがって任意時刻の真ケーブル全長は
+ conv{pbar_D,i,pbar_D,i+1,pbar_L,i,pbar_L,i+1} ⊕ B(eta_i)
+に入り、eta_i = max(rho_D,i,rho_D,i+1,rho_L,i,rho_L,i+1)+max(AD,AL)*Δ^2/8 + r_cable。機体・吊荷球は同様にそれぞれの2端点convを用い、物理半径を加える。
+障害物O_jの真形状が含まれる安全側の外側集合Oj+に対し、上記の各全時間占有集合とOj+が交わらなければ、区間I中の非衝突を保証できる（モデルと丸めを含む境界が真に包含していることが条件）。接触有無不明ならUNKNOWN。
+別法として、距離下界d_i,d_i+1、端点速度の区間内上界Vなら d_i+d_i+1>VΔ は区間の非接触十分条件（どちらかだけで安全と言わない）。
+
+【上界の生成】
+既存HLCが無飽和で厳密に仮想誤差ダイナミクスに従う領域を確認できれば、誤差系e'=A_cl e + r の解のノルム上界 ||e(t)|| ≤ ||exp(A_cl t)||||e(0)|| + integral_0^t ||exp(A_cl(t-s))||rmax(s)ds を使う。実モデル残差rmax、入力制約、ケーブル張力・モデル特異性、EKF初期誤差の包含が要る。これが成立しない領域では公称だけのCLEARは出さず、物理状態の別の安全側粗い到達上界で証明するかUNKNOWNを返す。無飽和を単に仮定してはいけない。
+
+【Reference Governorの未来】
+現在の進行指令が4秒同じと仮定しない。既存コードでは指令は[minScale,1]にある。6段線形正システムに対し、将来入力がこの範囲にあることと状態初期値の範囲が保証されれば、定数下限minScaleと上限1の駆動により将来仮想時間τ(t)の上下包絡を効率良く計算できる。これは将来入力保持の仮定ではなく、全ての許容指令を含む。4秒物理窓は変えない。包絡が広過ぎれば、追従誤差に基づくもっと狭い区間制約を導出する。
+
+【固定サンプル】
+経路上の基礎サンプルを残し、既知障害物近傍を密にし、パーツごとの点数上限を課す。イベントで経路・既知障害物集合が変わった時だけ配置版を更新する。現在時刻tkとtk+4sは時間区間の端点として常時評価し、内側の固定経路サンプルが欠けても区間全体を安全と断定しない。1パーツ点数上限は計算資源上限であり安全性の証明ではない。有限点の間を外包して検査する。
+
+【1〜2ms達成の検証条件と不可能性】
+障害物/近似パーツ数、サンプル上限、計算回数に外部上限が無い限り、すべてのケースで1〜2msを数学的に保証することはできない。衝突候補が多数ならUNKNOWN/安全側措置が増える可能性がある。処理打ち切りだけで『1〜2ms達成・安全』と主張しない。MATLAB実測で無障害物、遠距離、多障害物、合流中、吊荷の振れ、索障害物、センサ検知更新のケースについてmedian/P95/MAXとCLEAR/CONTACT/UNKNOWN件数および予測器呼出し回数を同時報告する。トリガ+CBF+回避生成+元ループの最悪時間を測る。
+
+【保留・次に導出すること】
+1. 現HLC・プラントから、誤差状態の正しい動力学と無飽和有効範囲を導出（新制御器は作らない）。
+2. 推定誤差・物理パラメータ・外乱・張力の明示的な境界と、上記rho・AD・ALの厳密または検証可能な上界を得る。未取得なら形式保証は未達。
+3. 原形状を必ず含む障害物外包と、距離・支持関数オラクルを検証する。
+4. 1〜2msを達成できる前処理/静的配列/早期枝刈りをA/B計測で確かめる。標準の4秒41点・公称保持を『予測保証』と呼ばない。
+
+【重要】この追記はアルゴリズム提案であってMATLAB実装・安全証明・時間達成を主張しない。別系列HANDOFF資料は使用していない。次にソースZIPを作成したときに本ファイル全文をZIPルートへ入れる。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 2026-11-12 本ターン：軽量トリガ幾何・固定サンプル・テスト作成（検証状況を明記）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【有効要求】実時間4秒先読み、25ms周期のうちトリガ1〜2msを目標。低速だから窓を変えない。CBF/回避生成/HLC/EKFは本段階で変更しない。新規性はトリガではない。未来入力一定という仮定は禁止。異系列HANDOFFを混ぜない。
+【今回新規作成・ZIP内ファイル】
+- TRIGGER_LIGHT/wp_trigger_prepare_known.m：観測・保持済みの球/楕円体近似を数値配列に前処理、地面半空間、動的障害物未対応を検出。ワールドの真値そのものを勝手に取得する機能はない。
+- TRIGGER_LIGHT/wp_trigger_plan_once.m：4秒物理時間のサンプル位置を事前に選び、背景点を保持、障害物近傍にパーツ毎上限付き追加点。オンライン衝突判定時に点を変更しない。近接は外接球の幾何交差で定義し、任意距離マージンは追加しない。障害物の検知イベント／参照変更時だけ呼び直す。参照予測は配置決定にのみ用い、安全証明に流用しない。固定タイムオフセットは経路の仮想時刻固定とは違うため、正規のウェイポイント予測接続時には物理4秒を全区間で覆うことを必須とする。
+- TRIGGER_LIGHT/wp_trigger_constant_velocity_enclosure.m：現在の機体/吊荷位置・速度と外部で証明された真の加速度・初期位置速度誤差上界から4秒到達球を作る。p0+v0*tは予測中心だけであり、実速度一定／実入力一定と仮定しない。A不明なら決して0を補完しない。保守性が高く通常運用で過剰な回避切替が生じ得るため、これを実用確定モデルとは呼ばない。
+- TRIGGER_LIGHT/wp_trigger_swept_gate.m：全区間の機体球、吊荷球、索全長の掃引外包。区間内の補間誤差 <= A*dt^2/8 を使い、球外接の高速除外と回転楕円体/球の支持関数による分離十分条件。できなければPOSSIBLE_CONTACTとして最早の障害物ID、時刻区間、身体部位を返す。必要境界が未定義ならUNKNOWN、すべて分離ならCLEAR_CONDITIONALを返す。浮動小数点外向き丸め・実機EKF/HLC/plantの真値包含は未実装、safeToCommitは常にfalse。
+- TEST_PURE_TRIGGER_ALL.m：10独立テスト、途中接触、逸脱、回転楕円体、地面、障害物近傍サンプル、上界不足など。
+- TEST_PURE_TRIGGER_RANDOM.m：解析的に真加速度が上界内にある合成振動曲線を生成、4001点の独立密チェックでFalse-clearを監査。
+- BENCH_PURE_TRIGGER_1_2MS.m：4秒41点、0/36/接触1/近接36の速度を実測。median/P95/MAXと全関数実行回数を記録する。ソース上の理論計算回数の上限と1〜2ms実時間保証は別。
+- RUN_PURE_TRIGGER_TESTS.m：テスト一式→実測→MAT/TXT/ZIPを common_matlab直下へ出力。
+- README_PURE_TRIGGER_TESTS_20261112.txt：導入とコマンド。
+- PURE_PORT_CUMULATIVE_HANDOFF.txt：従来の全文を保持し本追記を追加。
+【単体設計の数学的意味】真の機体位置D(t),吊荷位置L(t)がC2で、I区間で真加速度の全ノルムがA_D,A_L以下、両端時刻の位置推定誤差が rho 以下、索が張った直線なら、真の機体掃引は予測端点間線分をmax(rho_D)+A_D*dt^2/8+rD膨張、吊荷は同様、索は4端点凸包をmax(rho_D+...,rho_L+...)+rCable膨張した集合に含まれる。これと全観測形状の外側包絡を正のサポート平面で分離できれば連続時間の非接触十分条件。分離に失敗しても衝突が確定したわけではない。
+【未完成・検証待ち】現HLCと真プラントから真加速度/追従誤差上界を自動生成していない。動的障害物には未対応。ソースに外向き丸め証明はない。現在Flightループへの接続も未実装。MATLAB実機はこの生成環境にないため、実行・1〜2ms達成を主張できない。Pythonで類似の数式判定を1000個の合成解析曲線について独立スポットチェックし、真接触213件、数学的CLEAR225件、false-clear0件だったが、MATLABの本番テストではない。結果を偽らない。
+【次の必須ステップ】ユーザーMATLABでR=RUN_PURE_TRIGGER_TESTS(200,200)を実行しPURE_TRIGGER_TEST_RESULTS_FOR_CHATGPT.zipを共有。失敗を修正。続いてHLC+EKF+元plantの実閉ループから真加速度/追従誤差を導出・検証し、包絡の非自明なtightnessを調べる。実物理データ無しでA=0やrho=0を本番へ埋め込まない。トリガ→CBF→軌道生成→25ms全工程の時間を必ず別途検証。
+
+
+========== V5→V6 2026-11-13 因果的軽量予測テスト追加 ==========
+V6: 元HLC 6秒基準 + 未来情報を借りない4秒予測候補（オフライン監査）
+
+【実行】
+cd('C:\Users\student\Documents\GitHub\common_matlab'); addpath(genpath(pwd));
+cd('TRIGGER_LIGHT'); clear classes; rehash;
+R=RUN_PURE_TRIGGER_V6_CAUSAL_AUDIT(false);
+disp(R.status);
+if isstruct(R.causalForecast) && isfield(R.causalForecast,'records')
+    disp(struct2table(R.causalForecast.records));
+    disp(struct2table(R.causalForecast.noiseRecords));
+end
+
+【必ず確認】
+- MATLAB本番実行は提供環境で未実施。PASSはユーザーPCの結果で判断する。
+- 元24状態RHS、元HLC、元WAYPOINT_REFERENCE、その他元ソースがMATLABパスに必要。
+- TEST_TRIGGER_V6_HLC_STRESS_6Sは元TEST_TRIGGER_V4_HLC_STRESSを上書きしない。
+- 原HLC+24状態ODEを6秒×4ケースのオフライン比較基準として計算。途中t=2秒から4秒を比較するため6秒が必要。
+- 予測器は当該t=2秒までの1秒の荷位置と目標位置履歴、現在のGovernor 6状態・保持コマンド、既知の経路、HLCゲイン、推定質量だけを使う。
+- 未来の真の荷位置・未来HLC入力・記録済み未来Governor軌跡を予測器へ渡さない。
+- ただし履歴はこのテストでは元HLC名目シミュレーションに由来し、実EKF履歴ではない。
+- ゲインと履歴から高次誤差状態を逆推定するため雑音に敏感。実EKFによる誤差検証が必要。
+- 元の6次・2次HLC誤差モードは無飽和、張り索、特異点のないフィードバック線形化成立時のみ。
+- オンライン側では未来4秒の推定質量を固定（当該周期の現在の推定値）する仮定。真値は使わない。
+- 経路の28要素jetは既知の元ルートからオフライン表を作り、pchipで補間。補間誤差の証明なし。原評価との偏差をログで評価。
+- 軽量予測出力のrhoDrone/rhoLoad/accDrone/accLoadはNaNのまま。
+  物理的誤差上界なしに幾何のCLEAR判定へ渡してはならない。
+- 全方式を本番同時実行する構造ではなく、幾何比較は別計画。
+- 候補の時間は幾何、履歴の収集、キャッシュ更新、EKF、CBF、Flightを含まない。
+- 実Flightでの合流比較、飽和4秒、総1～2ms、25msは未検証。
+
+【診断】
+- `R.causalForecast.records` = 各ケースの未来4秒の荷/機体最大位置誤差、Governor誤差、計算時間、モード復元行列条件数。
+- `R.causalForecast.noiseRecords` = 過去位置に0.1mm/1mmの合成ノイズを入れた誤差感度。実EKF測定値ではない。
+- `R.oneStepSaturation` = `RUN_PURE_TRIGGER_V6_CAUSAL_AUDIT(true)`の場合にだけ追加。一歩の飽和調査であって4秒の飽和検証ではない。
+- ZIPは TESTS/RESULTS に時刻付きで保存され、既存ファイルを上書きしない。
+
+【評価基準】
+(1) 4ケースで成功、未来軌跡情報が予測器に混入しない。
+(2) 途中の最大位置誤差と偽陽性/偽陰性を調べる。本テストにはまだ障害物回避の偽陰性・偽陽性判定はない。
+(3) 事後に1～2msの予算（予測+選択1幾何+前処理）を確認する。
+(4) 無資格状態を偽のCLEARにすることは禁止。
+============================================================
+V6.1 GOVERNOR TRACE CONTRACT FIX — 2026-11-13
+============================================================
+USER RESULT: PURE_TRIGGER_V6_CAUSAL_AUDIT_20261113_012347.zip
+R.governor: PASS 500 governor ZOH numeric comparisons, max state difference
+6.66e-16, tau difference 8.88e-16, tau derivative 1.27e-11.
+R.original6: ALL FOUR CASES FAILED AFTER nominal rollout because legacy
+wp_six_trigger_predict_hlc_4s.m lacked result.governorRateState. This is
+NOT evidence of physical 6-second divergence or failed source dynamics.
+The V6-distribution omitted the newer predictor file: confirmed by
+comparison with ORIGINAL V3/V4 archives. Original V3/V4 implementation
+returned governorCommand and virtualTime, but NOT governorRateState nor
+governorSettings. The supported new output fields are:
+  result.governorRateState  [6 x (N+1)]
+  result.governorCommand    [1 x (N+1)]
+  result.governorSettings  scalar struct of source governor settings
+  result.virtualTime       [1 x (N+1)]
+The newer predictor adds zHist storage at t=0 and after each native
+wp_governor_step call; no change to physical RHS, HLC, estimator snapshot,
+input saturation, conditional status, or offline 6-second time step.
+V6.1 includes the exact 11kB patched function in SIX_WAY (not only tests).
+V6.1 adds source preflight, runtime trace shape validation, and per-case
+error summaries in the generated results TXT. Underlying 6s source
+rollout remains an OFFLINE reference, not qualified real Flight or real EKF.
+Execution after overlay:
+  cd('C:\Users\student\Documents\GitHub\common_matlab'); addpath(genpath(pwd));
+  cd('TRIGGER_LIGHT'); clear classes; rehash;
+  C=TEST_TRIGGER_V6_SOURCE_CONTRACT(); disp(C.status);
+  R=RUN_PURE_TRIGGER_V6_CAUSAL_AUDIT(false);
+  disp(R.status);
+  if isstruct(R.causalForecast) && isfield(R.causalForecast,'records')
+      disp(struct2table(R.causalForecast.records));
+      disp(struct2table(R.causalForecast.noiseRecords));
+  end
+MATLAB real execution and performance NOT performed in this environment.
+No candidate may be declared physically clear with missing error envelopes;
+no current real mass or future measured trajectory passed to forecast.
+================================================================
+
+===========================================================================
+2026-11-13 V7 PV履歴因果予測＋選択一方式の名目幾何統合
+===========================================================================
+・ユーザ指示：質量真値との誤差スイープを最優先にはしない。毎周期の最新EKF mLのみ使用。
+  実機では質量推定が進む。必要のない追加機構は導入せず、予測+幾何1～2msを
+  最優先にする。数メートル規模の巨大な保守球は作らない。
+・実装：元HLCのx/y 6次,z 2次誤差モードを、保存したEKF pL,vLと
+  その時点で既知の参照pL,vLの1秒履歴で線形最小二乗初期化。
+  速度の重み=position_noise_std/velocity_noise_std (seconds)。
+  TESTでは0.1sを仮定し、これは幾何安全マージンではない。
+  モード行列/最小二乗の解作用素/元GovernorのZOH係数はtick外で用意。
+・4秒内部の誤差モード+元Governorの160回更新は軽量線形代数と経路キャッシュ
+  のみ。未来の真値・未来HLC・入力一定は使用しない。
+・オンライン形式：wp_six_trigger_selected_nominal_v7 は既存知覚済み障害物の
+  prepared known、外部形状cfg、routeCache、modalCacheと最新EKF参照historyを受け
+  ONE選択方式で評価。地面無効・パーツなしの場合は未来予測をスキップ。
+・注意：幾何には0.1秒刻み41ノットの名目折線を投入。ここでのゼロrho/accは
+  名目折線の幾何診断に限る入力であり、真の4秒予測誤差や連続時間運動上界を
+  ゼロと仮定したものではない。絶対にこれで実物理安全を宣言しない。
+  V7最終出力はsafeToCommit=false、physicalClearCertified=falseに固定。
+・検証：添付されたV6.1 6秒元HLC 4シナリオのMATを試験参照として同梱。
+  t0=1,2sから残り4秒予測、位置・索角度・Governor誤差・合成ノイズ・
+  選択1方式×6方式の名目折線衝突一致・合計時間を収集する。
+  MATを読み出すことはオフラインの比較のみに使用し、予測関数に未来の値を渡さない。
+・「実HLCとの一致」「本番2ms達成」はMATLAB試験未実施であり現在未確認。
+  独立Python検証は数式の概算・過去軌跡の補助検討のみであり、
+  MATLABの速度合否／実Flightの保証を代替しない。
+・本番の物理予測誤差保証は、先行研究と別に要求されていないため、
+  今回は新たな巨大な保証球・質量真値スイープを作らない。
+  ただし名目判定を「保証付きCLEAR」と読み替えることも禁止。
+・変更はTRIGGER_LIGHTに限定。元HLC,元24状態RHS,元EKF,元CBF,Flightは未変更。
+
+======================================================================
+2026-11-13 PURE PORT V8 / selected one-mode near-36 C AABB + EKF 25ms adapter + optional MEX
+======================================================================
+ユーザー提供 V7.1結果ZIP PURE_TRIGGER_V7_SELECTED_AUDIT_20261113_023000_603.zipから確認：
+  status NOMINAL_GEOMETRY_AGREEMENT__NOT_SAFETY_QUALIFIED
+  名目一致96/96、UNKNOWN0、中央値<=2 ms 92/96、P95<=2 ms 86/96。
+  4/96の中央値が2 ms超、10/96のP95が2 ms超。
+  worst large_offset at 1.0s, near_offset_36 C×multiple_ellipsoids:
+     total median 3.3611 ms, P95 3.565, geometry median 2.42985, PV median .4819.
+  C×spheres same: total 2.9067, geometry median 1.98345.
+  MEXの実行時間はまだ計測していない。
+
+V8で追加（元V7.1/旧V4を変更・消去しない）：
+  - Cの機体/吊り荷＋9個のケーブル球の区間掃引AABBを使った、証明可能な追加足切り。
+  - 完全に離れたパーツ×時間区間を先に除き、詳細形状を作るループを節約する。
+  - B/Dは元V4/V3のアルゴリズムのまま。6方式は一度に1方式ずつ。
+  - PCHIPの3ジェット補間係数をルート準備時に作成、毎周期はppval。
+  - 25ms周期EKF＋参照＋Governor情報から、41サンプル(1秒)履歴を管理し、
+    毎周期最新EKF mLでPV+選択幾何を実行する wp_six_trigger_tick_v8。
+    1秒ウォームアップや周期欠落は UNKNOWN として隠さない。
+  - V7/V8 96条件比較（元HLC保存6秒トレース）、ストリーム接続テスト、
+    ランダムMEX一致250試験、フルトリガ比較ベンチを追加。
+  - C幾何十分条件で V7のPOSSIBLE→V8のCLEAR という名目改善だけ許可。
+    V7クリアの退行や他の予期しない差はFAIL。
+  - オプション: Matlab Coder不要のネイティブC MEXまたはMATLAB Coder MEX。
+    MEX対象はC AABBカーネルだけ。最終タイムは全selected tickで判断。
+
+独立 Python/NumPy 幾何点検：ランダム5000掃引条件、約355416点の
+サンプルで包含見逃し0。GCC -std=c11 -Wall -Wextra -Werrorで
+ネイティブMEXソースのC構文点検 PASS（mex.hは検査用スタブ）。
+これはMATLAB実行/MEXコンパイル/実機安全の合格ではない。
+
+残る項目（完了扱いにしない）：
+ 1. V8のMATLABでの96条件判定と予測込み中央値/P95/最大の実測。
+ 2. C MEXビルドとMATLAB版の250条件一致、実際の全selected tickで時間計測。
+ 3. V8 tick を既存の Flight 25ms に接続し、リアルEKFでの履歴・参照順序を監査。
+ 4. 実Flightでの接触見逃しと不要な起動、振動と合流、飽和の未検証を評価。
+ 5. 真の物理運動/連続時間の上界、浮動小数点厳密包含、最終CBF幾何一致は未証明。
+    実機の安全保証なし。名目CLEARを物理安全判定として扱わない。
+ 6. 2 msトリガ/25ms Flight一式のworst/P95保証は未達。
+
+推定質量誤差の広い感度スイープはユーザー指示により行わない。
+予測時には毎回最新の agent.estimator.result.state.mL だけを読み、
+agent.parameter.loadmassやプラント真値を名目予測へ渡さず、triggerはparameterを変更しない。
+
+
+========================================================================
+2026-11-13  REFERENCE_OBSTACLE_AVOIDANCE functional reorganization 2
+========================================================================
+Request: Move all C-system MEX source/build/binary into TRIGGER; rebuild
+missing MEX automatically; clear usage/definitions, place independent tests
+in common_matlab instead of mixing with runtime code.
+
+1) Deployed paths:
+ common_matlab/WAYPOINT_REFERENCE/REFERENCE_OBSTACLE_AVOIDANCE/
+ common_matlab/REFERENCE_OBSTACLE_AVOIDANCE_TESTS/
+ Old SAFETY_PREVIEW_GEOMETRY, TRIGGER_LIGHT are left unchanged.
+
+2) Original geometry C/B/D, V8 forecast and v3/v4/v8 screening numerical
+formulas are unchanged. Three externally-facing MATLAB wrappers and setup
+are updated for auto-MEX. Internal old C source itself copied byte-for-byte.
+
+3) Optional native C sphere-chain AABB kernel:
+ TRIGGER/MEX_ACCELERATION/SOURCE/wp_six_trigger_C_chain_numeric_mex_v8.c
+ TRIGGER/MEX_ACCELERATION/BIN/<platform native MEX>
+ MEX manager automatically runs in reference_avoidance_prepare_observed
+ for C and observed parts count from 3 to 128. It verifies 80 deterministic
+ parity fixtures with MATLAB kernel before enabling MEX.
+ The official tick can rebuild if a previously validated MEX disappears;
+ WARNING a runtime compile could block for seconds and miss the 25ms deadline.
+ Explicit cfg.autoRebuildMexDuringTick=false avoids such blocking and uses
+ the MATLAB fallback. Runtime compile failure retries only when preparing
+ again (or force); it does not compile every 25ms.
+ B and D do not compile or use this C-only native kernel.
+
+4) Independent TESTS:
+ 01_INSTALLATION: new code paths and original smoke
+ 02_GEOMETRY: independent 6-system/obstacle mode checks
+ 03_MEX: auto build + numerical parity + native-versus-MATLAB classification
+ 04_TRIGGER: 41 real 25ms history samples + latest mL + history reset
+ 05_PERFORMANCE: geometry-only 6 mode timings; not end-to-end 1~2ms proof
+ 06_ORIGINAL_TRACE_REPLAY: optional 96-case original-V7/V8 regression with
+   saved 6s HLC baseline; requires original DRONE/Controller on MATLAB path
+ SUPPORT: synthetic fixtures, not physical guarantees
+ RESULTS: timestamped MATLAB MAT/ZIP
+ Entry: RUN_REFERENCE_AVOIDANCE_TESTS(true,false) or (true,true) for replay.
+
+5) Safety/completeness status:
+  - Existing name-only nominal geometry verdicts are NOT physical clearance.
+  - Latest EKF estimator.state.mL only, not plant mass or guessed fallback.
+  - Simulated sensor remains a folder+contract; no detection cap implemented.
+  - Live Flight integration/whole 25ms full loop and moved MATLAB tests
+    have NOT been run in this environment (MATLAB unavailable).
+  - Source relocation file hash and C syntax are checked independently.
+========================================================================

@@ -118,7 +118,7 @@ static bool support_axis(const std::vector<V>&H,const Shape&s,
     for(V p:H)v=std::min(v,dot(p,n));
     return std::isfinite(v)&&std::isfinite(h)&&v>h+margin;
 }
-static bool generic_separator(const std::vector<V>&H,const Shape&s,
+static bool generic_separator_fw(const std::vector<V>&H,const Shape&s,
                               V reference,double margin,int maxiter,
                               int&calls,int&iterations){
     V mean{0,0,0};
@@ -160,6 +160,130 @@ static bool generic_separator(const std::vector<V>&H,const Shape&s,
     }
     return support_axis(H,s,q,margin,calls);
 }
+// Fully-corrective Gilbert/GJK proposal for the minimum-norm point of
+// conv(H)-shape. It never certifies positive safety on its own: the ONLY
+// positive return comes from support_axis() with the actual shape support.
+// If a convex combination has norm <= margin, no single separating plane
+// with that margin can certify this WHOLE leaf. This returns UNKNOWN,
+// not physical collision. No application-dependent stopping tolerance.
+static bool small_linear(double a[6][7],int n,double out[6]) {
+    double maxA=0.;
+    for(int i=0;i<n;++i)for(int j=0;j<n;++j)
+        maxA=std::max(maxA,std::abs(a[i][j]));
+    if(!(maxA>0&&std::isfinite(maxA)))return false;
+    const double tol=128*std::numeric_limits<double>::epsilon()*maxA;
+    for(int col=0;col<n;++col){
+        int piv=col;
+        for(int i=col+1;i<n;++i)if(std::abs(a[i][col])>std::abs(a[piv][col]))piv=i;
+        if(!(std::abs(a[piv][col])>tol))return false;
+        if(piv!=col)for(int j=col;j<=n;++j)std::swap(a[piv][j],a[col][j]);
+        const double v=a[col][col];
+        for(int j=col;j<=n;++j)a[col][j]/=v;
+        for(int i=0;i<n;++i){
+            if(i==col)continue;
+            const double f=a[i][col];
+            for(int j=col;j<=n;++j)a[i][j]-=f*a[col][j];
+        }
+    }
+    for(int i=0;i<n;++i){out[i]=a[i][n];if(!std::isfinite(out[i]))return false;}
+    return true;
+}
+static bool closest_origin_fully_corrective(const std::vector<V>&points,
+                                             V&nearest,std::vector<V>&simplex){
+    const int n=int(points.size());
+    if(n<1||n>5)return false;
+    double best=std::numeric_limits<double>::infinity();
+    int bestMask=0;double bestWeights[5]{};
+    V bestQ{0,0,0};
+    for(int mask=1;mask<(1<<n);++mask){
+        int ids[5],k=0;
+        for(int j=0;j<n;++j)if(mask&(1<<j))ids[k++]=j;
+        if(k>4)continue;
+        double weights[5]{};
+        if(k==1)weights[0]=1.;
+        else{
+            double a[6][7]{};double x[6]{};
+            for(int i=0;i<k;++i){
+                for(int j=0;j<k;++j)a[i][j]=dot(points[ids[i]],points[ids[j]]);
+                a[i][k]=1.;
+            }
+            for(int j=0;j<k;++j)a[k][j]=1.;
+            a[k][k+1]=1.;
+            if(!small_linear(a,k+1,x))continue;
+            for(int i=0;i<k;++i)weights[i]=x[i];
+        }
+        bool feasible=true;
+        double sum=0.;
+        for(int i=0;i<k;++i){
+            if(weights[i]<-256*std::numeric_limits<double>::epsilon()){
+                feasible=false;break;
+            }
+            weights[i]=std::max(0.,weights[i]);sum+=weights[i];
+        }
+        if(!feasible||!(sum>0.))continue;
+        V q{0,0,0};
+        for(int i=0;i<k;++i)q=add(q,mul(points[ids[i]],weights[i]/sum));
+        const double sq=dot(q,q);
+        if(std::isfinite(sq)&&sq<best){
+            best=sq;bestMask=mask;bestQ=q;
+            for(int i=0;i<k;++i)bestWeights[ids[i]]=weights[i]/sum;
+        }
+    }
+    if(bestMask==0)return false;
+    nearest=bestQ;
+    simplex.clear();
+    for(int j=0;j<n;++j)if((bestMask&(1<<j))&&bestWeights[j]>0.)
+        simplex.push_back(points[j]);
+    if(simplex.empty())return false;
+    return true;
+}
+static bool generic_separator(const std::vector<V>&H,const Shape&s,
+                              V reference,double margin,int maxiter,
+                              int&calls,int&iterations,
+                              int&gjk_steps,int&gjk_fallbacks,
+                              int&gjk_convex_hull_nonseparation_witnesses){
+    V mean{0,0,0};
+    for(V p:H)mean=add(mean,p);
+    mean=mul(mean,1./H.size());
+    if(support_axis(H,s,sub(mean,s.c),margin,calls)||
+       support_axis(H,s,sub(reference,s.c),margin,calls))return true;
+    V a=sub(mean,s.c);
+    if(!(std::isfinite(norm(a))&&norm(a)>0))a={0,0,1};
+    size_t idx=0;double v=std::numeric_limits<double>::infinity();
+    for(size_t j=0;j<H.size();++j)if(dot(a,H[j])<v){idx=j;v=dot(a,H[j]);}
+    V q=sub(H[idx],support_point(s,a));
+    std::vector<V> simplex{q};
+    for(int k=0;k<maxiter;++k){
+        ++iterations;++gjk_steps;
+        if(support_axis(H,s,q,margin,calls))return true;
+        const double nn=norm(q);
+        if(!std::isfinite(nn)||nn==0||nn<=margin){
+            if(std::isfinite(nn))++gjk_convex_hull_nonseparation_witnesses;
+            return false;
+        }
+        idx=0;v=std::numeric_limits<double>::infinity();
+        for(size_t j=0;j<H.size();++j){
+            double t=dot(q,H[j]);if(t<v){v=t;idx=j;}
+        }
+        V w=sub(H[idx],support_point(s,q));
+        std::vector<V> augmented=simplex;
+        augmented.push_back(w);
+        V next{0,0,0};std::vector<V> reduced;
+        if(!closest_origin_fully_corrective(augmented,next,reduced))break;
+        // Pure machine-precision nonprogress diagnostic, not a geometric
+        // clearance margin. Fall back to the legacy Gilbert optimizer.
+        const double scale=std::max({1.,dot(q,q),dot(next,next)});
+        if(dot(next,next)>=dot(q,q)-64*std::numeric_limits<double>::epsilon()*scale)break;
+        q=next;simplex=std::move(reduced);
+    }
+    // Preserve the old positive-certificate discovery capability when
+    // the simplex projection is numerically degenerate or stalls.
+    ++gjk_fallbacks;
+    int c0=0,i0=0;
+    const bool ok=generic_separator_fw(H,s,reference,margin,maxiter,c0,i0);
+    calls+=c0;iterations+=i0;
+    return ok;
+}
 static double cap_max(V c,double rho,V n){
     const double nc=norm(c),ln=norm(n);
     if(!(nc>rho&&ln>0))return std::numeric_limits<double>::quiet_NaN();
@@ -188,12 +312,16 @@ struct Options{
     double mU,mL,L,minw,thrustlo,thrusthi,fguard,ru,rc,rp,tol;
     int maxdepth,maxnodes;bool ground;
     V g;
+    bool useGjk=true;
+    bool collectBank=false;
 };
 struct Stats{
     bool certified=false;
     std::string status="UNKNOWN_UNPROVEN";
     int nodes=0,leaves=0,supports=0,outer=0,near=0;
+    int inherited_shape_prunes=0, banked_shape_skips=0;
     int generic_separator_calls=0,generic_separator_positives=0,generic_separator_iterations=0;
+    int gjk_steps=0,gjk_fallbacks=0,gjk_convex_hull_nonseparation_witnesses=0;
     double tension=std::numeric_limits<double>::infinity();
     double thrustlo=std::numeric_limits<double>::infinity();
     double thrusthi=0;
@@ -208,7 +336,18 @@ struct Stats{
     double unresolved_id=std::numeric_limits<double>::quiet_NaN();
     std::array<bool,3> unresolved{{false,false,false}};
     int witness_node_depth=-1;
+    struct Witness { double id,a,b; std::array<bool,3> parts; int depth; };
+    std::vector<Witness> bank;
 };
+// A witness is a location at which a sufficient proof failed, not a
+// collision certificate. Once an obstacle ID has a witness in this search
+// call, revisiting it cannot add new distinct-ID information. This pruning
+// applies ONLY to failed candidate search, never to accepted certification.
+static bool already_witnessed(const Stats&s,double id){
+    for(const auto &w:s.bank)if(w.id==id)return true;
+    return false;
+}
+
 static void record_witness(Stats &s,double a,double b,int depth,
                            double id,const std::array<bool,3>&parts){
     if(s.witness)return; // deterministic first unresolved subtree
@@ -220,7 +359,7 @@ static void record_witness(Stats &s,double a,double b,int depth,
 static bool test(const std::vector<V>&P,const std::vector<V>&W,
                  const std::vector<V>&W1,const std::vector<V>&W2,
                  double T,int depth,double phase0,double phase1,const std::vector<Shape>&sh,
-                 const Options&o,Stats&s){
+                 const std::vector<size_t>&active,const Options&o,Stats&s){
     if(s.nodes>=o.maxnodes){
         s.status="UNKNOWN_NODE_BUDGET";
         record_witness(s,phase0,phase1,depth,
@@ -228,6 +367,12 @@ static bool test(const std::vector<V>&P,const std::vector<V>&W,
         return false;
     }
     ++s.nodes;
+    // A parent full-interval separating plane remains valid for any child
+    // Bernstein subdivision (the child's geometric set is a subset).
+    // If this failed-candidate witness search has no unresolved shape left
+    // in this subtree, no additional ID witness can be obtained here.
+    if(o.collectBank && !s.bank.empty() && active.empty())return false;
+    std::vector<size_t> childActive=active;
     V c{0,0,0},m{0,0,0};
     for(V x:W)c=add(c,x);
     c=mul(c,1./W.size());
@@ -268,11 +413,21 @@ static bool test(const std::vector<V>&P,const std::vector<V>&W,
             geom=groundpass;
             if(geom){
                 const double broad=Rload+std::max({o.ru+o.L,o.rc+o.L,o.rp})+o.tol;
-                for(const Shape&shape:sh){
+                std::vector<size_t> nextActive;
+                nextActive.reserve(active.size());
+                for(size_t ai=0;ai<active.size();++ai){
+                    const size_t shapeIndex=active[ai];
+                    const Shape&shape=sh[shapeIndex];
+                    if(o.collectBank && already_witnessed(s,shape.id)){
+                        ++s.banked_shape_skips;
+                        continue;
+                    }
                     const double distance=norm(sub(shape.c,m));
                     // Excess numerical guard only in the DISCARD direction.
                     const double guard=64*std::numeric_limits<double>::epsilon()*std::max(1.,std::abs(distance)+std::abs(broad)+std::abs(shape.outer));
-                    if(distance>broad+shape.outer+guard){++s.outer;continue;}
+                    if(distance>broad+shape.outer+guard){
+                        ++s.outer;++s.inherited_shape_prunes;continue;
+                    }
                     ++s.near;
                     std::array<bool,3> separated{{false,false,false}};
                     const V normals[3]={sub(m,shape.c),sub(sub(m,mul(q0,o.L)),shape.c),sub(sub(m,mul(q0,o.L/2)),shape.c)};
@@ -312,19 +467,48 @@ static bool test(const std::vector<V>&P,const std::vector<V>&W,
                                 (body==2?0.:pad)+o.tol;
                             int calls=0,iters=0;
                             ++s.generic_separator_calls;
-                            const bool passed=generic_separator(H,shape,m,margin,
-                                                                o.maxnodes,calls,iters);
+                            const bool passed=o.useGjk?
+                                generic_separator(H,shape,m,margin,o.maxnodes,
+                                  calls,iters,s.gjk_steps,s.gjk_fallbacks,
+                                  s.gjk_convex_hull_nonseparation_witnesses):
+                                generic_separator_fw(H,shape,m,margin,o.maxnodes,calls,iters);
                             s.supports+=calls;
                             s.generic_separator_iterations+=iters;
                             if(passed){separated[body]=true;++s.generic_separator_positives;}
                         }
                     }
-                    if(!(separated[0]&&separated[1]&&separated[2])){
-                        blocked_id=shape.id;
-                        for(int k=0;k<3;++k)blocked_parts[k]=!separated[k];
-                        geom=false;break;
+                    if(separated[0]&&separated[1]&&separated[2]){
+                        ++s.inherited_shape_prunes;
+                    }else{
+                        nextActive.push_back(shapeIndex);
+                        if(!std::isfinite(blocked_id)) {
+                            blocked_id=shape.id;
+                            for(int k=0;k<3;++k)blocked_parts[k]=!separated[k];
+                        }
+                        geom=false;
+                        if(o.collectBank && depth>=o.maxdepth){
+                            bool found=false;
+                            for(const auto &w:s.bank) if(w.id==shape.id){found=true;break;}
+                            if(!found){
+                                s.bank.push_back({shape.id,phase0,phase1,
+                                    {{!separated[0],!separated[1],!separated[2]}},depth});
+                            }
+                        }
+                        // At a terminal leaf, collect every unresolved shape
+                        // without paying for more candidate/proof iterations.
+                        if(!(o.collectBank && depth>=o.maxdepth)){
+                            // All later obstacle IDs were not tested on
+                            // this parent. They MUST remain active below.
+                            for(size_t other=ai+1;other<active.size();++other){
+                                const auto idx=active[other];
+                                if(!(o.collectBank && already_witnessed(s,sh[idx].id)))
+                                    nextActive.push_back(idx);
+                            }
+                            break;
+                        }
                     }
                 }
+                childActive=std::move(nextActive);
             }
         }
     }
@@ -344,8 +528,10 @@ static bool test(const std::vector<V>&P,const std::vector<V>&W,
     split_half(P,pa,pb);split_half(W,wa,wb);
     split_half(W1,da,db);split_half(W2,ea,eb);
     const double mid=0.5*(phase0+phase1);
-    return test(pa,wa,da,ea,T/2,depth+1,phase0,mid,sh,o,s) &&
-           test(pb,wb,db,eb,T/2,depth+1,mid,phase1,sh,o,s);
+    const bool left=test(pa,wa,da,ea,T/2,depth+1,phase0,mid,sh,childActive,o,s);
+    if(!left && (!o.collectBank || s.bank.size()>=sh.size()))return false;
+    const bool right=test(pb,wb,db,eb,T/2,depth+1,mid,phase1,sh,childActive,o,s);
+    return left && right;
 }
 static Stats verify(const std::vector<V>&P,double T,const std::vector<Shape>&sh,const Options&o){
     Stats s;
@@ -357,7 +543,9 @@ static Stats verify(const std::vector<V>&P,double T,const std::vector<Shape>&sh,
     for(size_t i=0;i<a2.size();++i)W[i]=sub(o.g,a2[i]);
     for(size_t i=0;i<a3.size();++i)W1[i]=mul(a3[i],-1.);
     for(size_t i=0;i<a4.size();++i)W2[i]=mul(a4[i],-1.);
-    s.certified=test(P,W,W1,W2,T,0,0.,1.,sh,o,s);
+    std::vector<size_t> active(sh.size());
+    for(size_t i=0;i<sh.size();++i)active[i]=i;
+    s.certified=test(P,W,W1,W2,T,0,0.,1.,sh,active,o,s);
     if(s.certified)s.status="CERTIFIED_NATIVE_REAL_ARITHMETIC_GEOMETRY_FORCE_TENSION__NO_HLC";
     return s;
 }
@@ -445,7 +633,10 @@ static mxArray* result(const Stats&s,double elapsed){
         "unresolved_phase_interval","unresolved_obstacle_ids",
         "unresolved_body_indices","witness_depth",
         "generic_separator_calls","generic_separator_positives",
-        "generic_separator_iterations"};
+        "generic_separator_iterations",
+        "gjk_steps","gjk_fallbacks","gjk_convex_hull_nonseparation_witnesses","gjk_enabled",
+        "witness_bank_ids","witness_bank_phase_intervals","witness_bank_body_mask",
+        "witness_bank_depths","inherited_shape_prunes","banked_shape_skips"};
     mxArray*out=mxCreateStructMatrix(1,1,sizeof(names)/sizeof(names[0]),names);
     const double nums[]={double(s.certified),0,double(s.nodes),double(s.leaves),double(s.supports),double(s.outer),double(s.near),s.tension,s.thrustlo,s.thrusthi,s.groundclear,elapsed,0,0,0};
     for(int i=0;i<15;++i)
@@ -465,21 +656,44 @@ static mxArray* result(const Stats&s,double elapsed){
     mxSetField(out,0,"generic_separator_calls",scalar(s.generic_separator_calls));
     mxSetField(out,0,"generic_separator_positives",scalar(s.generic_separator_positives));
     mxSetField(out,0,"generic_separator_iterations",scalar(s.generic_separator_iterations));
+    mxSetField(out,0,"gjk_steps",scalar(s.gjk_steps));
+    mxSetField(out,0,"gjk_fallbacks",scalar(s.gjk_fallbacks));
+    mxSetField(out,0,"gjk_convex_hull_nonseparation_witnesses",scalar(s.gjk_convex_hull_nonseparation_witnesses));
+    mxSetField(out,0,"gjk_enabled",scalar(s.gjk_steps>0||s.gjk_fallbacks>0));
+    const mwSize nw=static_cast<mwSize>(s.bank.size());
+    mxArray*wi=mxCreateDoubleMatrix(nw,1,mxREAL);
+    mxArray*wt=mxCreateDoubleMatrix(nw,2,mxREAL);
+    mxArray*wb=mxCreateDoubleMatrix(nw,3,mxREAL);
+    mxArray*wd=mxCreateDoubleMatrix(nw,1,mxREAL);
+    for(mwSize i=0;i<nw;++i){
+       const auto&w=s.bank[i];
+       mxGetDoubles(wi)[i]=w.id;
+       mxGetDoubles(wt)[i]=w.a;
+       mxGetDoubles(wt)[i+nw]=w.b;
+       for(int k=0;k<3;++k)mxGetDoubles(wb)[i+nw*k]=w.parts[k]?1.:0.;
+       mxGetDoubles(wd)[i]=w.depth;
+    }
+    mxSetField(out,0,"witness_bank_ids",wi);
+    mxSetField(out,0,"witness_bank_phase_intervals",wt);
+    mxSetField(out,0,"witness_bank_body_mask",wb);
+    mxSetField(out,0,"witness_bank_depths",wd);
+    mxSetField(out,0,"inherited_shape_prunes",scalar(s.inherited_shape_prunes));
+    mxSetField(out,0,"banked_shape_skips",scalar(s.banked_shape_skips));
     return out;
 }
 void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
-    if(nrhs==0&&nlhs==1){plhs[0]=mxCreateString("C9_FUSED_V3_GENERAL_SEPARATOR_20261111");return;}
+    if(nrhs==0&&nlhs==1){plhs[0]=mxCreateString("C9_FUSED_V6_ANCESTOR_PROOF_REUSE_20261112");return;}
     if(nrhs!=6||nlhs!=1)mexErrMsgIdAndTxt("C9Fused:Arity","Need P,T,g,parameters,preparedShapes,signature.");
     try{
         if(!mxIsChar(prhs[5]))throw std::runtime_error("PIN_REQUIRED");
         char*pin=mxArrayToString(prhs[5]);
-        bool matched=pin&&std::string(pin)=="C9_FUSED_V3_GENERAL_SEPARATOR_20261111";
+        bool matched=pin&&std::string(pin)=="C9_FUSED_V6_ANCESTOR_PROOF_REUSE_20261112";
         if(pin)mxFree(pin);
         if(!matched)throw std::runtime_error("PIN_MISMATCH");
         if(mxGetM(prhs[0])!=3||!(mxGetN(prhs[0])==24||mxGetN(prhs[0])==28))throw std::runtime_error("CONTROL_SIZE");
         auto data=num(prhs[0]);
         auto Tv=num(prhs[1]);auto gg=num(prhs[2]);auto par=num(prhs[3]);
-        if(Tv.size()!=1||gg.size()!=3||par.size()!=14||!mxIsStruct(prhs[4]))throw std::runtime_error("INPUT_SIZE");
+        if(Tv.size()!=1||gg.size()!=3||par.size()!=16||!mxIsStruct(prhs[4]))throw std::runtime_error("INPUT_SIZE");
         for(double x:data)if(!std::isfinite(x))throw std::runtime_error("NONFINITE_CONTROL");
         for(double x:par)if(!std::isfinite(x))throw std::runtime_error("NONFINITE_PARAMETERS");
         auto start=std::chrono::steady_clock::now();
@@ -490,6 +704,10 @@ void mexFunction(int nlhs,mxArray*plhs[],int nrhs,const mxArray*prhs[]){
         for(mwIndex i=0;i<mxGetNumberOfElements(prhs[4]);++i)sh.push_back(shape_at(prhs[4],i));
         Options o{par[0],par[1],par[2],par[3],par[4],par[5],par[6],par[7],par[8],par[9],par[10],int(par[11]),int(par[12]),par[13]!=0,{gg[0],gg[1],gg[2]}};
         if(!(o.mU>0&&o.mL>0&&o.L>0&&o.minw>=0&&o.thrustlo>=0&&o.thrusthi>=o.thrustlo&&o.fguard>=0&&o.ru>=0&&o.rc>=0&&o.rp>=0&&o.tol>=0&&o.maxdepth>=0&&o.maxnodes>0&&std::isfinite(Tv[0])))throw std::runtime_error("INVALID_PARAMETERS");
+        if(!(par[14]==0.||par[14]==1.))throw std::runtime_error("INVALID_GJK_SWITCH");
+        o.useGjk=(par[14]==1.);
+        if(!(par[15]==0.||par[15]==1.))throw std::runtime_error("INVALID_WITNESS_BANK_SWITCH");
+        o.collectBank=(par[15]==1.);
         Stats st=verify(P,Tv[0],sh,o);
         double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
         plhs[0]=result(st,ms);
@@ -513,6 +731,18 @@ int main(){
        !std::isfinite(near.phase0)||near.unresolved_id!=913.||
        !(near.unresolved[0]||near.unresolved[1]||near.unresolved[2])){
        std::cerr<<"Missing native witness for near sphere\n";return 2;
+    }
+    Options bankOptions=o;
+    bankOptions.collectBank=true;
+    Shape s2=s; s2.id=914.; s2.c={0.,21.,3.};
+    Shape s3=s; s3.id=915.; s3.c={0.,7.,3.};
+    auto bank=verify(P,27,{s,s2,s3},bankOptions);
+    if(bank.certified||bank.bank.size()<3){
+      std::cerr<<"Missing independent multi-obstacle witness bank: "<<bank.bank.size()<<"\n";
+      return 4;
+    }
+    for(auto w:bank.bank){
+      if(!(w.a>=0.&&w.b<=1.&&w.b>w.a&&w.depth>=0))return 5;
     }
     std::mt19937 gen(25);
     std::uniform_real_distribution<double> ud(-15,15);

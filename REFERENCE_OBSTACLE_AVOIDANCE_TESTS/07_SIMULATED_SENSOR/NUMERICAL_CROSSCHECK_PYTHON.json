@@ -1,0 +1,8 @@
+{
+  "test": "independent_python_numerical_distance_crosscheck",
+  "randomized_cases": 380,
+  "max_distance_difference_m": 6.229912230537593e-08,
+  "differences_over_1e-5_m": 0,
+  "analytic_boundary_rotation_cases": 5,
+  "matlab_runtime_executed": false
+}

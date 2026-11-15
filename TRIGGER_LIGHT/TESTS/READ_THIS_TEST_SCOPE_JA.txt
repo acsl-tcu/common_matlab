@@ -1,0 +1,11 @@
+今回のTESTSフォルダは、本番への移植時に削除する検証用ファイル群です。
+
+(1) BASELINE: 2026-11-12の「選択1方式版」旧評価関数を比較のためだけに保存。
+(2) REFERENCE_GEOMETRY: 添付SAFETY_PREVIEW_GEOMETRYの元C/B/D定義の比較用コピー。
+(3) REFERENCE_DRONE_OBSTACLES: ユーザー提供のDRONE_OBSTACLES.zipを展開した
+    元ソースの比較用コピー。Flightの観測メモリには接続しない。
+(4) RUN_PURE_TRIGGER_FAST_V2_TESTS.m: ソース直下の実行入口。
+(5) BENCH_TRIGGER_V2_STAGE_TIMES.m: unprofiled旧/新比較とprofiled時間内訳。
+(6) BENCH_TRIGGER_V2_TICK_STAGES.m: 合成予測器による1方式実行入口の内訳。
+
+本番候補はTRIGGER_LIGHT/SIX_WAYのみ。TESTSの元障害物シーンを本番へ持ち込まない。

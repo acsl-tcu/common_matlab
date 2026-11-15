@@ -1,0 +1,117 @@
+SELECTED ONE-MODE TRIGGER V2 / STAGE PROFILE / USER PC
+STATUS PASS_V2_IF_ALL_ASSERTIONS_PASSED__REAL_HLC_AND_NUMERIC_PROOF_PENDING
+Original obstacle generator PASS_ORIGINAL_GENERATOR_6_INDEPENDENT_RUNS
+Original RHS resolver NOT_AVAILABLE, identifier 
+Selected one mode ONLY; estimated mL ONLY; no HLC/CBF/Flight timing.
+A/B and separate instrumented stage costs, units milliseconds.
+
+SCENARIO empty
+C/multiple_spheres old_median 0.018900 old_p95 0.057300 old_max 0.099900 new_median 0.025750 new_p95 0.058200 new_max 0.111500 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.024850 validation=0.006100 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+C/multiple_ellipsoids old_median 0.019700 old_p95 0.024500 old_max 0.061500 new_median 0.026900 new_p95 0.065100 new_max 0.661700 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.024700 validation=0.005850 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+B/multiple_spheres old_median 0.018800 old_p95 0.020300 old_max 0.029700 new_median 0.025500 new_p95 0.028000 new_max 0.035800 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.024200 validation=0.005700 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+B/multiple_ellipsoids old_median 0.018900 old_p95 0.022400 old_max 0.078100 new_median 0.026000 new_p95 0.028000 new_max 0.042900 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.024600 validation=0.005800 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+D/multiple_spheres old_median 0.019200 old_p95 0.020700 old_max 0.025500 new_median 0.026100 new_p95 0.029500 new_max 0.038900 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.025100 validation=0.006000 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+D/multiple_ellipsoids old_median 0.019600 old_p95 0.021500 old_max 0.122900 new_median 0.026500 new_p95 0.034900 new_max 0.040000 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.024850 validation=0.005800 inflation=0.000000 globalBroadphase=0.000000 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+
+SCENARIO distant_36
+C/multiple_spheres old_median 0.058450 old_p95 0.110800 old_max 0.181600 new_median 0.072850 new_p95 0.113300 new_max 0.266500 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.068600 validation=0.006800 inflation=0.024600 globalBroadphase=0.011350 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+C/multiple_ellipsoids old_median 0.056650 old_p95 0.070000 old_max 0.161600 new_median 0.070500 new_p95 0.109100 new_max 0.170900 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.065950 validation=0.006400 inflation=0.024250 globalBroadphase=0.010600 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+B/multiple_spheres old_median 0.053300 old_p95 0.058200 old_max 0.119300 new_median 0.066700 new_p95 0.075700 new_max 0.094600 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.066050 validation=0.006700 inflation=0.022650 globalBroadphase=0.011200 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+B/multiple_ellipsoids old_median 0.053800 old_p95 0.056300 old_max 0.067500 new_median 0.067600 new_p95 0.071500 new_max 0.092200 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.066050 validation=0.006800 inflation=0.022600 globalBroadphase=0.011200 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+D/multiple_spheres old_median 0.056450 old_p95 0.062000 old_max 0.078200 new_median 0.070600 new_p95 0.079100 new_max 0.216300 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.069000 validation=0.006900 inflation=0.025000 globalBroadphase=0.011350 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+D/multiple_ellipsoids old_median 0.056500 old_p95 0.070300 old_max 0.167700 new_median 0.070400 new_p95 0.082100 new_max 0.138700 status CLEAR_CONDITIONAL
+  counts component_pairs 0 narrow_pairs 0 global_AABB 0 interval_AABB 0 component_AABB 0
+  instrumented_total_median 0.068450 validation=0.006450 inflation=0.025000 globalBroadphase=0.011150 intervalBroadphase=0.000000 sweepBuild=0.000000 componentBroadphase=0.000000 supportSeparation=0.000000
+
+SCENARIO cable_contact
+C/multiple_spheres old_median 0.799150 old_p95 0.977400 old_max 1.577200 new_median 1.116800 new_p95 1.286200 new_max 1.417600 status POSSIBLE_CONTACT
+  counts component_pairs 11 narrow_pairs 2 global_AABB 0 interval_AABB 3 component_AABB 1
+  instrumented_total_median 1.123250 validation=0.012450 inflation=0.028200 globalBroadphase=0.011250 intervalBroadphase=0.073300 sweepBuild=0.169150 componentBroadphase=0.132500 supportSeparation=0.600900
+C/multiple_ellipsoids old_median 0.760500 old_p95 0.890200 old_max 1.226900 new_median 1.082100 new_p95 1.260800 new_max 1.511000 status POSSIBLE_CONTACT
+  counts component_pairs 11 narrow_pairs 2 global_AABB 0 interval_AABB 3 component_AABB 1
+  instrumented_total_median 1.102800 validation=0.011300 inflation=0.028750 globalBroadphase=0.010950 intervalBroadphase=0.073350 sweepBuild=0.164850 componentBroadphase=0.130950 supportSeparation=0.593850
+B/multiple_spheres old_median 0.403250 old_p95 0.494600 old_max 0.781900 new_median 0.663300 new_p95 0.787100 new_max 0.930100 status POSSIBLE_CONTACT
+  counts component_pairs 9 narrow_pairs 1 global_AABB 0 interval_AABB 3 component_AABB 2
+  instrumented_total_median 0.681900 validation=0.010100 inflation=0.024750 globalBroadphase=0.010300 intervalBroadphase=0.083000 sweepBuild=0.063250 componentBroadphase=0.100400 supportSeparation=0.326000
+B/multiple_ellipsoids old_median 0.400950 old_p95 0.533500 old_max 0.686200 new_median 0.657950 new_p95 0.903800 new_max 1.198700 status POSSIBLE_CONTACT
+  counts component_pairs 9 narrow_pairs 1 global_AABB 0 interval_AABB 3 component_AABB 2
+  instrumented_total_median 0.692000 validation=0.010950 inflation=0.026300 globalBroadphase=0.010350 intervalBroadphase=0.082750 sweepBuild=0.064000 componentBroadphase=0.101250 supportSeparation=0.326600
+D/multiple_spheres old_median 0.359350 old_p95 0.391500 old_max 0.422300 new_median 0.606000 new_p95 0.784200 new_max 1.087900 status POSSIBLE_CONTACT
+  counts component_pairs 6 narrow_pairs 1 global_AABB 0 interval_AABB 3 component_AABB 1
+  instrumented_total_median 0.645500 validation=0.011650 inflation=0.030850 globalBroadphase=0.011350 intervalBroadphase=0.073750 sweepBuild=0.048100 componentBroadphase=0.069200 supportSeparation=0.334600
+D/multiple_ellipsoids old_median 0.362000 old_p95 0.428400 old_max 0.742200 new_median 0.605350 new_p95 0.655500 new_max 0.758300 status POSSIBLE_CONTACT
+  counts component_pairs 6 narrow_pairs 1 global_AABB 0 interval_AABB 3 component_AABB 1
+  instrumented_total_median 0.624250 validation=0.010450 inflation=0.028350 globalBroadphase=0.010350 intervalBroadphase=0.070500 sweepBuild=0.044400 componentBroadphase=0.066750 supportSeparation=0.328950
+
+SCENARIO near_noncontact_36
+C/multiple_spheres old_median 7.356550 old_p95 8.022300 old_max 11.376900 new_median 5.839750 new_p95 6.290600 new_max 6.646600 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 6.379250 validation=0.014150 inflation=0.032800 globalBroadphase=0.014950 intervalBroadphase=0.770200 sweepBuild=3.170750 componentBroadphase=1.702250 supportSeparation=0.000000
+C/multiple_ellipsoids old_median 7.370300 old_p95 7.950500 old_max 9.303200 new_median 5.855650 new_p95 6.344400 new_max 6.574600 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 6.137850 validation=0.012900 inflation=0.028900 globalBroadphase=0.014100 intervalBroadphase=0.720300 sweepBuild=3.091450 componentBroadphase=1.648000 supportSeparation=0.000000
+B/multiple_spheres old_median 4.570500 old_p95 4.840000 old_max 5.085700 new_median 3.200150 new_p95 3.575900 new_max 4.237000 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 3.492550 validation=0.011900 inflation=0.029100 globalBroadphase=0.014000 intervalBroadphase=0.714000 sweepBuild=0.792500 componentBroadphase=1.575950 supportSeparation=0.000000
+B/multiple_ellipsoids old_median 4.573250 old_p95 4.856900 old_max 5.610100 new_median 3.187450 new_p95 3.384400 new_max 3.915700 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 3.409300 validation=0.010900 inflation=0.026500 globalBroadphase=0.013200 intervalBroadphase=0.692500 sweepBuild=0.777100 componentBroadphase=1.546200 supportSeparation=0.000000
+D/multiple_spheres old_median 4.706050 old_p95 4.975400 old_max 5.158300 new_median 3.194350 new_p95 3.510400 new_max 3.951900 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 3.413500 validation=0.010950 inflation=0.029400 globalBroadphase=0.013600 intervalBroadphase=0.691700 sweepBuild=0.781100 componentBroadphase=1.543550 supportSeparation=0.000000
+D/multiple_ellipsoids old_median 4.676150 old_p95 4.803800 old_max 4.982500 new_median 3.174050 new_p95 3.466900 new_max 3.683100 status CLEAR_CONDITIONAL
+  counts component_pairs 1143 narrow_pairs 0 global_AABB 0 interval_AABB 536 component_AABB 381
+  instrumented_total_median 3.363750 validation=0.011500 inflation=0.029600 globalBroadphase=0.013700 intervalBroadphase=0.689600 sweepBuild=0.763100 componentBroadphase=1.525550 supportSeparation=0.000000
+
+SCENARIO thin_ellipsoid_36
+C/multiple_spheres old_median 0.350250 old_p95 0.509100 old_max 0.746300 new_median 0.952500 new_p95 1.155200 new_max 1.303400 status POSSIBLE_CONTACT
+  counts component_pairs 17 narrow_pairs 3 global_AABB 0 interval_AABB 10 component_AABB 2
+  instrumented_total_median 0.963400 validation=0.013050 inflation=0.032350 globalBroadphase=0.014400 intervalBroadphase=0.023950 sweepBuild=0.089700 componentBroadphase=0.098850 supportSeparation=0.609400
+C/multiple_ellipsoids old_median 0.531550 old_p95 0.654000 old_max 1.388800 new_median 1.243650 new_p95 1.447800 new_max 1.907300 status POSSIBLE_CONTACT
+  counts component_pairs 32 narrow_pairs 6 global_AABB 0 interval_AABB 20 component_AABB 4
+  instrumented_total_median 1.266600 validation=0.013900 inflation=0.031750 globalBroadphase=0.014550 intervalBroadphase=0.045800 sweepBuild=0.176950 componentBroadphase=0.142300 supportSeparation=0.743450
+B/multiple_spheres old_median 0.294250 old_p95 0.352500 old_max 0.824300 new_median 0.590600 new_p95 0.710700 new_max 0.982800 status POSSIBLE_CONTACT
+  counts component_pairs 27 narrow_pairs 1 global_AABB 0 interval_AABB 20 component_AABB 8
+  instrumented_total_median 0.578800 validation=0.009600 inflation=0.026350 globalBroadphase=0.012600 intervalBroadphase=0.039350 sweepBuild=0.042200 componentBroadphase=0.075000 supportSeparation=0.321300
+B/multiple_ellipsoids old_median 2.057550 old_p95 2.250800 old_max 2.413000 new_median 2.246300 new_p95 2.561200 new_max 2.861000 status POSSIBLE_CONTACT
+  counts component_pairs 519 narrow_pairs 69 global_AABB 0 interval_AABB 220 component_AABB 104
+  instrumented_total_median 2.333700 validation=0.012750 inflation=0.027850 globalBroadphase=0.014200 intervalBroadphase=0.324050 sweepBuild=0.351450 componentBroadphase=0.664200 supportSeparation=0.750300
+D/multiple_spheres old_median 0.187600 old_p95 0.222500 old_max 0.245600 new_median 0.473700 new_p95 0.662000 new_max 0.809800 status POSSIBLE_CONTACT
+  counts component_pairs 12 narrow_pairs 2 global_AABB 0 interval_AABB 10 component_AABB 2
+  instrumented_total_median 0.532050 validation=0.011700 inflation=0.032500 globalBroadphase=0.013700 intervalBroadphase=0.023250 sweepBuild=0.025750 componentBroadphase=0.040150 supportSeparation=0.324100
+D/multiple_ellipsoids old_median 0.300750 old_p95 0.343300 old_max 0.509600 new_median 0.673450 new_p95 0.725100 new_max 0.838100 status POSSIBLE_CONTACT
+  counts component_pairs 27 narrow_pairs 5 global_AABB 0 interval_AABB 20 component_AABB 4
+  instrumented_total_median 0.692600 validation=0.010350 inflation=0.028100 globalBroadphase=0.012800 intervalBroadphase=0.041400 sweepBuild=0.044450 componentBroadphase=0.075450 supportSeparation=0.421450
+
+SYNTHETIC selected-tick stage medians (NO real HLC predictor)
+C/multiple_spheres total_median 5.898100 profile_GEOM 5.847700 callback 0.002900 snapshot 0.018450 config 0.021550 cache 0.001750
+C/multiple_ellipsoids total_median 5.898850 profile_GEOM 5.848100 callback 0.002900 snapshot 0.018200 config 0.021600 cache 0.001800
+B/multiple_spheres total_median 3.194450 profile_GEOM 3.147850 callback 0.002550 snapshot 0.016400 config 0.019850 cache 0.001600
+B/multiple_ellipsoids total_median 3.183300 profile_GEOM 3.139000 callback 0.002550 snapshot 0.016000 config 0.019350 cache 0.001500
+D/multiple_spheres total_median 3.255600 profile_GEOM 3.203700 callback 0.002950 snapshot 0.017500 config 0.020900 cache 0.001800
+D/multiple_ellipsoids total_median 3.270000 profile_GEOM 3.209750 callback 0.002900 snapshot 0.017500 config 0.022250 cache 0.001900
+
+NOTE: instrumented stages incur tic/toc overhead. Uninstrumented total is authoritative.
+The analytic taut acceleration envelope is for estimated-mass model ONLY; it is NOT a true-plant or HLC error certificate.

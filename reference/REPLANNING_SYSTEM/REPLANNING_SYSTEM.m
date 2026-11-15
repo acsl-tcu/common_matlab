@@ -41,6 +41,9 @@ classdef REPLANNING_SYSTEM < handle
         trigger_native_gate_status='UNKNOWN_NATIVE_PARITY_NOT_VERIFIED' 
         native_mex_preflight_build_status='NOT_CHECKED'
         preflight_model_binding_ready=false
+        trajectory_25d_static_prearm_status='NOT_RUN'
+        trajectory_25d_static_prearm_ready=false
+        trajectory_25d_static_prearm_ms=NaN
         preflight_model_binding_ms=NaN
         preflight_model_binding_status='NOT_PREBOUND'
         isolated_first_use_prepare_ms=NaN
@@ -910,6 +913,24 @@ classdef REPLANNING_SYSTEM < handle
             % On prebind failure, fail closed; NEVER retry inside update().
             started=tic;
             obj.preflight_update_ready=false;
+            % Flight-independent trajectory representation preparation only.
+            % No obstacle IDs, EKF state, future reference or physical values.
+            % A failure does not compromise or alter the existing trigger.
+            % The experimental trajectory planner remains OFF in Flight.
+            obj.trajectory_25d_static_prearm_status='NOT_RUN';
+            obj.trajectory_25d_static_prearm_ready=false;
+            obj.trajectory_25d_static_prearm_ms=NaN;
+            if exist('TRAJECTORY_C9_25D_STATIC_PREARM_PREPARE','file')==2
+                try
+                    q=TRAJECTORY_C9_25D_STATIC_PREARM_PREPARE();
+                    obj.trajectory_25d_static_prearm_status=q.status;
+                    obj.trajectory_25d_static_prearm_ready=logical(q.ready);
+                    obj.trajectory_25d_static_prearm_ms=q.elapsed_ms;
+                catch prep_err
+                    obj.trajectory_25d_static_prearm_status= ...
+                        ['UNKNOWN_TRAJECTORY_STATIC_PREARM_' prep_err.identifier];
+                end
+            end
             obj.preflight_model_binding_ready=false;
             % A new software preflight must never inherit a parked
             % observed-generation token from a previous attempt.
@@ -1248,7 +1269,10 @@ classdef REPLANNING_SYSTEM < handle
                 'samples_ms',[], 'status',report, ...
                 'static_model_bound',obj.preflight_model_binding_ready, ...
                 'static_model_binding_ms',obj.preflight_model_binding_ms, ...
-                'static_model_binding_status',obj.preflight_model_binding_status);
+                'static_model_binding_status',obj.preflight_model_binding_status, ...
+                'trajectory_static_ready',obj.trajectory_25d_static_prearm_ready, ...
+                'trajectory_static_prearm_status',obj.trajectory_25d_static_prearm_status, ...
+                'trajectory_static_prearm_ms',obj.trajectory_25d_static_prearm_ms);
         end
 
         function frame=observe_sensor(obj,time_s,true_uav_position,ekf_uav_position)

@@ -1,0 +1,34 @@
+PURE PORT V3 | 2026-11-12 | original HLC 4s MATLAB test correction
+
+Root cause 1: In TEST_TRIGGER_V3_ORIGINAL_HLC_4S.m line 81,
+  max([ ...]) missed closing square bracket.
+Root cause 2: Original PARAMETER_CLASS.set(name,valueStruct) requires a struct,
+  not a numeric scalar. The test-only DRONE agent now receives
+  set("cableL",struct("cableL",2.0)) and
+  set("loadmass",struct("loadmass",0.01)).
+  Both values are test-only agent values; predictor still uses current estimated mL=0.14.
+Root cause 3: model RHS has 24 states. The ESTIMATOR has a 25th mL;
+  test now explicitly selects the first 8 three-vector groups to form x0.
+  Estimated mL is passed as parameter 20, NEVER in the RHS x vector.
+
+No changes to FAST V3 geometry / V2 geometry / HLC / original RHS.
+No MATLAB execution has been performed in author environment.
+
+TEST FIRST (avoids re-running the geometry benchmark):
+  cd('C:\Users\student\Documents\GitHub\common_matlab')
+  addpath(genpath(pwd))
+  cd('TRIGGER_LIGHT')
+  clear classes; rehash
+  R0=TEST_TRIGGER_V3_ORIGINAL_HLC_4S();
+  disp(R0)
+
+If R0.status reports PASS or SKIPPED appropriately, run complete audit:
+  R=RUN_PURE_TRIGGER_FAST_V3_TESTS(60,100,true);
+  disp(R.status)
+  disp(R.originalHlc)
+
+Important benchmark interpretation from user-provided console log:
+  near_noncontact_36: V3 geometry approx 0.40-0.57 ms/mode median;
+  thin_ellipsoid_36: V3 slower than V2 in all six modes; B ellipsoid
+  approx V3 2.66 ms median, 3.39 ms max.
+The geometry results exclude the four-second future HLC rollout.

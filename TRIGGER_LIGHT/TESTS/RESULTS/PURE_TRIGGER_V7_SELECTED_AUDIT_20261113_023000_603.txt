@@ -1,0 +1,208 @@
+V7.1 status NOMINAL_GEOMETRY_AGREEMENT__NOT_SAFETY_QUALIFIED
+Baseline UNKNOWN count 0; nominal mismatches 0
+Measured times only: 40 repeats per scenario. 2ms median fraction 0.9583, P95 fraction 0.8958
+Maximum test-only source projection 9.18034447383e-07 m (NOT physical uncertainty)
+4s forecast comparison, each chosen geometry executed SEPARATELY
+nominal t0 1.0 LoadError_m 1.918592e-06 DroneError_m 1.59361e-06 PVmedianMs 0.441
+nominal t0 2.0 LoadError_m 5.57084e-06 DroneError_m 5.318592e-06 PVmedianMs 0.3728
+lateral_rejoin t0 1.0 LoadError_m 0.0001474821 DroneError_m 0.0001255262 PVmedianMs 0.38015
+lateral_rejoin t0 2.0 LoadError_m 9.184875e-05 DroneError_m 6.80989e-05 PVmedianMs 0.3533
+initial_swing t0 1.0 LoadError_m 0.002944331 DroneError_m 0.002522553 PVmedianMs 0.37225
+initial_swing t0 2.0 LoadError_m 0.0003550614 DroneError_m 0.0002627006 PVmedianMs 0.364
+large_offset t0 1.0 LoadError_m 0.005210015 DroneError_m 0.004407003 PVmedianMs 0.3632
+large_offset t0 2.0 LoadError_m 0.0003509051 DroneError_m 0.0002591243 PVmedianMs 0.3563
+nominal t0 1.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 1.0081 P95ms 1.3856 maxMs 1.5809
+  forecastMedian 0.4872 geometryMedian 0.12125 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9905 P95ms 1.0685 maxMs 1.1584
+  forecastMedian 0.45735 geometryMedian 0.13865 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.98135 P95ms 1.1442 maxMs 1.2592
+  forecastMedian 0.458 geometryMedian 0.11545 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9957 P95ms 1.1026 maxMs 1.2298
+  forecastMedian 0.4532 geometryMedian 0.13865 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9865 P95ms 1.0719 maxMs 1.1829
+  forecastMedian 0.457 geometryMedian 0.119 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 1.0004 P95ms 1.0401 maxMs 1.0543
+  forecastMedian 0.4519 geometryMedian 0.13895 baselineReason whole_horizon_outer_ball_clear projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.57575 P95ms 1.7609 maxMs 1.805
+  forecastMedian 0.4745 geometryMedian 0.6759 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7221 P95ms 2.2082 maxMs 2.4306
+  forecastMedian 0.4888 geometryMedian 0.801 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4653 P95ms 1.8162 maxMs 2.0123
+  forecastMedian 0.46 geometryMedian 0.58605 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.60135 P95ms 1.7576 maxMs 2.0945
+  forecastMedian 0.4642 geometryMedian 0.70895 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.45725 P95ms 1.5657 maxMs 1.9139
+  forecastMedian 0.46085 geometryMedian 0.58065 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.53365 P95ms 1.7892 maxMs 1.9207
+  forecastMedian 0.4533 geometryMedian 0.67595 baselineReason body_swept_possible projectionMax_m 2.13338021198e-09 N=40
+nominal t0 2.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.93425 P95ms 0.9856 maxMs 1.0124
+  forecastMedian 0.43715 geometryMedian 0.1115 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 1.00715 P95ms 1.5361 maxMs 1.6146
+  forecastMedian 0.46125 geometryMedian 0.1401 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.95865 P95ms 1.0129 maxMs 1.1765
+  forecastMedian 0.44775 geometryMedian 0.1155 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9923 P95ms 1.1983 maxMs 1.3837
+  forecastMedian 0.4521 geometryMedian 0.1406 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.968 P95ms 1.0182 maxMs 1.1965
+  forecastMedian 0.44885 geometryMedian 0.11775 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.98045 P95ms 1.0757 maxMs 1.2129
+  forecastMedian 0.4457 geometryMedian 0.1375 baselineReason whole_horizon_outer_ball_clear projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.54035 P95ms 1.7409 maxMs 1.9966
+  forecastMedian 0.4557 geometryMedian 0.6545 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.66775 P95ms 1.8131 maxMs 2.0364
+  forecastMedian 0.46405 geometryMedian 0.7763 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.44395 P95ms 1.5569 maxMs 1.604
+  forecastMedian 0.4561 geometryMedian 0.57515 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5719 P95ms 1.6179 maxMs 1.6641
+  forecastMedian 0.46135 geometryMedian 0.68935 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.44275 P95ms 1.5339 maxMs 1.7048
+  forecastMedian 0.4574 geometryMedian 0.56995 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+nominal t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5886 P95ms 1.8555 maxMs 1.9341
+  forecastMedian 0.47225 geometryMedian 0.6996 baselineReason body_swept_possible projectionMax_m 4.22029462709e-09 N=40
+lateral_rejoin t0 1.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7244 P95ms 1.8138 maxMs 2.1364
+  forecastMedian 0.4668 geometryMedian 0.83245 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.8824 P95ms 2.1465 maxMs 2.9294
+  forecastMedian 0.4805 geometryMedian 0.98075 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.66035 P95ms 1.9296 maxMs 2.1749
+  forecastMedian 0.46565 geometryMedian 0.764 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7797 P95ms 1.9769 maxMs 2.0373
+  forecastMedian 0.4674 geometryMedian 0.8824 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.61705 P95ms 1.7422 maxMs 1.8361
+  forecastMedian 0.45935 geometryMedian 0.7391 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7328 P95ms 1.9334 maxMs 2.4125
+  forecastMedian 0.45165 geometryMedian 0.8636 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.50725 P95ms 1.545 maxMs 1.6496
+  forecastMedian 0.44645 geometryMedian 0.64765 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.6295 P95ms 1.9563 maxMs 2.0335
+  forecastMedian 0.4567 geometryMedian 0.7673 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4388 P95ms 1.5585 maxMs 1.6027
+  forecastMedian 0.45005 geometryMedian 0.5757 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5619 P95ms 1.6296 maxMs 1.6454
+  forecastMedian 0.4557 geometryMedian 0.69175 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.43235 P95ms 1.4799 maxMs 1.6351
+  forecastMedian 0.44705 geometryMedian 0.57275 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.55015 P95ms 1.6831 maxMs 2.2499
+  forecastMedian 0.44945 geometryMedian 0.6891 baselineReason body_swept_possible projectionMax_m 1.65155244543e-08 N=40
+lateral_rejoin t0 2.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5658 P95ms 1.8976 maxMs 2.0469
+  forecastMedian 0.44315 geometryMedian 0.70995 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7535 P95ms 1.8987 maxMs 1.9933
+  forecastMedian 0.45935 geometryMedian 0.85735 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.50535 P95ms 1.7503 maxMs 1.8096
+  forecastMedian 0.46395 geometryMedian 0.6335 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.64665 P95ms 1.8259 maxMs 2.5039
+  forecastMedian 0.45455 geometryMedian 0.76085 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5044 P95ms 1.7481 maxMs 2.2164
+  forecastMedian 0.45625 geometryMedian 0.6439 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.60005 P95ms 1.8513 maxMs 2.2509
+  forecastMedian 0.4449 geometryMedian 0.7431 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.50185 P95ms 1.779 maxMs 3.6325
+  forecastMedian 0.44995 geometryMedian 0.65155 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.6281 P95ms 1.8474 maxMs 1.87
+  forecastMedian 0.45685 geometryMedian 0.7542 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.42145 P95ms 1.5292 maxMs 1.5532
+  forecastMedian 0.45335 geometryMedian 0.5626 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5467 P95ms 1.6898 maxMs 1.8301
+  forecastMedian 0.4595 geometryMedian 0.67425 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.43155 P95ms 1.5071 maxMs 1.5326
+  forecastMedian 0.45205 geometryMedian 0.5639 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+lateral_rejoin t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.54745 P95ms 1.6047 maxMs 2.2131
+  forecastMedian 0.455 geometryMedian 0.67845 baselineReason body_swept_possible projectionMax_m 2.29684504305e-08 N=40
+initial_swing t0 1.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.75935 P95ms 1.8558 maxMs 1.9456
+  forecastMedian 0.45305 geometryMedian 0.89245 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.90115 P95ms 2.1647 maxMs 2.6151
+  forecastMedian 0.45655 geometryMedian 1.0278 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.61665 P95ms 1.8192 maxMs 2.0046
+  forecastMedian 0.4627 geometryMedian 0.731 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.77875 P95ms 1.8816 maxMs 1.9389
+  forecastMedian 0.46585 geometryMedian 0.89905 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.59025 P95ms 1.717 maxMs 1.8858
+  forecastMedian 0.458 geometryMedian 0.7233 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.7549 P95ms 1.9586 maxMs 2.2081
+  forecastMedian 0.44955 geometryMedian 0.89775 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4864 P95ms 1.6536 maxMs 1.9671
+  forecastMedian 0.45245 geometryMedian 0.63125 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.59905 P95ms 1.8013 maxMs 1.9217
+  forecastMedian 0.4497 geometryMedian 0.74715 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.3786 P95ms 1.5215 maxMs 1.9393
+  forecastMedian 0.4473 geometryMedian 0.5411 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.6083 P95ms 1.9916 maxMs 2.352
+  forecastMedian 0.4875 geometryMedian 0.69425 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4073 P95ms 1.4712 maxMs 1.538
+  forecastMedian 0.4532 geometryMedian 0.554 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5215 P95ms 1.7723 maxMs 2.2835
+  forecastMedian 0.44675 geometryMedian 0.66635 baselineReason body_swept_possible projectionMax_m 3.13407839571e-07 N=40
+initial_swing t0 2.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.52 P95ms 1.5863 maxMs 1.6221
+  forecastMedian 0.43715 geometryMedian 0.66785 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.6892 P95ms 2.0683 maxMs 2.3255
+  forecastMedian 0.46345 geometryMedian 0.80645 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.52045 P95ms 1.741 maxMs 2.0832
+  forecastMedian 0.46445 geometryMedian 0.6217 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.56235 P95ms 1.7318 maxMs 1.8661
+  forecastMedian 0.4417 geometryMedian 0.7117 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4369 P95ms 1.4869 maxMs 1.6041
+  forecastMedian 0.4396 geometryMedian 0.5924 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.56655 P95ms 1.7524 maxMs 1.8537
+  forecastMedian 0.44485 geometryMedian 0.71485 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5236 P95ms 1.7657 maxMs 1.8002
+  forecastMedian 0.45555 geometryMedian 0.6475 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.60645 P95ms 2.2242 maxMs 10.0199
+  forecastMedian 0.4507 geometryMedian 0.7421 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4084 P95ms 1.5208 maxMs 1.7593
+  forecastMedian 0.44245 geometryMedian 0.55515 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5188 P95ms 1.5614 maxMs 1.5951
+  forecastMedian 0.44335 geometryMedian 0.66385 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.41595 P95ms 1.4916 maxMs 1.6984
+  forecastMedian 0.4417 geometryMedian 0.56095 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+initial_swing t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.52215 P95ms 1.7046 maxMs 2.4445
+  forecastMedian 0.44345 geometryMedian 0.66845 baselineReason body_swept_possible projectionMax_m 3.90369254051e-07 N=40
+large_offset t0 1.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 2.9067 P95ms 3.0626 maxMs 3.1003
+  forecastMedian 0.475 geometryMedian 1.98345 baselineReason all_intervals_separated_given_external_bounds projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 3.3611 P95ms 3.565 maxMs 3.7206
+  forecastMedian 0.4819 geometryMedian 2.42985 baselineReason all_intervals_separated_given_external_bounds projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.86185 P95ms 1.9339 maxMs 1.9725
+  forecastMedian 0.45195 geometryMedian 0.97045 baselineReason cable_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 2.0062 P95ms 2.1096 maxMs 2.1611
+  forecastMedian 0.45905 geometryMedian 1.1141 baselineReason cable_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.89945 P95ms 2.019 maxMs 2.05
+  forecastMedian 0.453 geometryMedian 1.01905 baselineReason cable_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 2.06815 P95ms 2.2183 maxMs 2.4445
+  forecastMedian 0.4681 geometryMedian 1.17395 baselineReason cable_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.50715 P95ms 1.7436 maxMs 1.7689
+  forecastMedian 0.45075 geometryMedian 0.64 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.60795 P95ms 1.7774 maxMs 2.3103
+  forecastMedian 0.4471 geometryMedian 0.7416 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.4282 P95ms 1.6657 maxMs 2.416
+  forecastMedian 0.4514 geometryMedian 0.5651 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.51575 P95ms 1.6298 maxMs 1.7506
+  forecastMedian 0.4453 geometryMedian 0.65945 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.41675 P95ms 1.625 maxMs 1.659
+  forecastMedian 0.44425 geometryMedian 0.5583 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.52095 P95ms 1.5596 maxMs 1.5718
+  forecastMedian 0.4455 geometryMedian 0.66475 baselineReason body_swept_possible projectionMax_m 7.44558840732e-07 N=40
+large_offset t0 2.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9105 P95ms 1.067 maxMs 2.6705
+  forecastMedian 0.42905 geometryMedian 0.10215 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.93405 P95ms 1.1546 maxMs 1.2619
+  forecastMedian 0.43055 geometryMedian 0.12435 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.93365 P95ms 1.088 maxMs 1.1139
+  forecastMedian 0.4416 geometryMedian 0.1071 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.94245 P95ms 1.236 maxMs 1.4423
+  forecastMedian 0.4351 geometryMedian 0.12435 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9134 P95ms 1.1153 maxMs 1.2381
+  forecastMedian 0.4287 geometryMedian 0.1058 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline CLEAR_CONDITIONAL agree 1 medianMs 0.9282 P95ms 0.9894 maxMs 1.1302
+  forecastMedian 0.42685 geometryMedian 0.1192 baselineReason whole_horizon_outer_ball_clear projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.5493 P95ms 1.9898 maxMs 2.1904
+  forecastMedian 0.45465 geometryMedian 0.65495 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.6417 P95ms 1.8863 maxMs 2.2894
+  forecastMedian 0.46175 geometryMedian 0.7607 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.42325 P95ms 1.4772 maxMs 1.4884
+  forecastMedian 0.45115 geometryMedian 0.5648 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.55185 P95ms 1.6739 maxMs 1.7996
+  forecastMedian 0.45895 geometryMedian 0.6794 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.417 P95ms 1.4996 maxMs 1.6493
+  forecastMedian 0.4515 geometryMedian 0.55465 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+large_offset t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline POSSIBLE_CONTACT agree 1 medianMs 1.53935 P95ms 1.583 maxMs 1.599
+  forecastMedian 0.44875 geometryMedian 0.67505 baselineReason body_swept_possible projectionMax_m 9.18034447383e-07 N=40
+All geometric classifications refer to NOMINAL piecewise-linear knot paths only.
+Physical prediction errors, EKF covariance, input saturation and real Flight not certified.
+Zero rho/acc is used ONLY for nominal polyline comparisons, NEVER certified real-safety clear.

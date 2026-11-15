@@ -1,0 +1,8 @@
+2026-11-12 / Non-MATLAB independent NumPy check (not physical safety proof)
+Rotated ellipsoid: world-axis exact AABB halfwidth(i)=sqrt(sum_j(R_ij*axes_j)^2).
+30,000 random SO(3) rotations, positive 3-axis radii and centers.
+10 random unit-vector points per ellipsoid = 300,000 containment checks.
+Maximum observed excess of true sample coordinate over computed exact AABB = 0.
+17,722 random disjoint box pairs were checked for sampled no-intersection.
+This is a floating-point numeric audit, NOT an outward-rounded proof, and
+MATLAB V4 has not been executed yet in the user's actual PC environment.

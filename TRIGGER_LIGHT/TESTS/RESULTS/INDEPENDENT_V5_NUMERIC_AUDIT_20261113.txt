@@ -1,0 +1,27 @@
+INDEPENDENT PYTHON V5 TRACE NUMERIC AUDIT 2026-11-13
+
+Input: ORIGINAL 4s nominal HLC MATLAB MAT supplied by user.
+MATLAB source F1/F2 LQR gains independently recomputed with exact ZOH cost discretization (lqrd equivalent).
+F2=[[251.10078873  671.730546572 710.162082424 368.109426762 106.057244846
+   16.329821489]]
+F1=[[82.338633212 24.832518352]]
+
+Method: original HLC 6th-order horizontal/2nd-order vertical output-error dynamics.
+At t=1 or 2s, ONLY the preceding 1s of actual load-reference error is used to fit modal state.
+Future ORIGINAL reference position and its numeric acceleration ARE REVEALED from the trace (oracle).
+Therefore this is NOT an online forecast and is optimistic about future governor behavior.
+Drone reconstructed from a_L+g*ez=-(T/mL)*q, with taut/positive tension assumption.
+mL source from the test EKF=0.14kg; this ideal modal output equation cancels mL, but saturated/uncertain dynamics do not.
+Synthetic iid 1mm position perturbations are NOT a measured EKF noise bound. 20 independent replicates.
+Observation: 4s trace allows only 3s forward at t=1s and 2s at t=2s.
+Saturation branch, real Flight/EKF future, 1-2ms integration and 4s forward from observed history are NOT verified.
+
+Table:
+{'case': 'nominal', 'start_s': 1.0, 'tested_horizon_s': np.float64(3.0), 'max_load_nominal_m': np.float64(1.9202065866349886e-06), 'max_drone_nominal_m': np.float64(0.00035350063155496845), 'noise_1mm_median_max_load_m': np.float64(0.03571426599186822), 'noise_1mm_worst_max_load_m': np.float64(0.05902594966590014), 'max_reference_path_displacement_m': np.float64(0.03570207570208113), 'reference_oracle': True}
+{'case': 'nominal', 'start_s': 2.0, 'tested_horizon_s': np.float64(2.0), 'max_load_nominal_m': np.float64(1.4278254188838592e-06), 'max_drone_nominal_m': np.float64(0.0003539853018959953), 'noise_1mm_median_max_load_m': np.float64(0.027968453985392112), 'noise_1mm_worst_max_load_m': np.float64(0.07469262952521964), 'max_reference_path_displacement_m': np.float64(0.03570207570208113), 'reference_oracle': True}
+{'case': 'lateral_rejoin', 'start_s': 1.0, 'tested_horizon_s': np.float64(3.0), 'max_load_nominal_m': np.float64(0.00013414246558972163), 'max_drone_nominal_m': np.float64(0.00011542425082532821), 'noise_1mm_median_max_load_m': np.float64(0.031208203868082547), 'noise_1mm_worst_max_load_m': np.float64(0.07131311376917888), 'max_reference_path_displacement_m': np.float64(0.016137599085159854), 'reference_oracle': True}
+{'case': 'lateral_rejoin', 'start_s': 2.0, 'tested_horizon_s': np.float64(2.0), 'max_load_nominal_m': np.float64(9.334789717236666e-05), 'max_drone_nominal_m': np.float64(0.000101869381916268), 'noise_1mm_median_max_load_m': np.float64(0.020774985474656532), 'noise_1mm_worst_max_load_m': np.float64(0.05757597366783139), 'max_reference_path_displacement_m': np.float64(0.016137599085159854), 'reference_oracle': True}
+{'case': 'initial_swing', 'start_s': 1.0, 'tested_horizon_s': np.float64(3.0), 'max_load_nominal_m': np.float64(0.0009696563250897754), 'max_drone_nominal_m': np.float64(0.0007774552443463891), 'noise_1mm_median_max_load_m': np.float64(0.027412312539103326), 'noise_1mm_worst_max_load_m': np.float64(0.07382668137842076), 'max_reference_path_displacement_m': np.float64(0.025209431586978442), 'reference_oracle': True}
+{'case': 'initial_swing', 'start_s': 2.0, 'tested_horizon_s': np.float64(2.0), 'max_load_nominal_m': np.float64(0.00035007332075186437), 'max_drone_nominal_m': np.float64(0.00026800395096495403), 'noise_1mm_median_max_load_m': np.float64(0.026827044877933144), 'noise_1mm_worst_max_load_m': np.float64(0.05959648229784769), 'max_reference_path_displacement_m': np.float64(0.025209431586978442), 'reference_oracle': True}
+{'case': 'large_offset', 'start_s': 1.0, 'tested_horizon_s': np.float64(3.0), 'max_load_nominal_m': np.float64(0.0016813786153473615), 'max_drone_nominal_m': np.float64(0.001377694039452999), 'noise_1mm_median_max_load_m': np.float64(0.036315035049920244), 'noise_1mm_worst_max_load_m': np.float64(0.06567975833271095), 'max_reference_path_displacement_m': np.float64(0.01722646637713954), 'reference_oracle': True}
+{'case': 'large_offset', 'start_s': 2.0, 'tested_horizon_s': np.float64(2.0), 'max_load_nominal_m': np.float64(0.0003423502502480874), 'max_drone_nominal_m': np.float64(0.0002802044375391059), 'noise_1mm_median_max_load_m': np.float64(0.038047784887959665), 'noise_1mm_worst_max_load_m': np.float64(0.06958669210093288), 'max_reference_path_displacement_m': np.float64(0.01722646637713954), 'reference_oracle': True}

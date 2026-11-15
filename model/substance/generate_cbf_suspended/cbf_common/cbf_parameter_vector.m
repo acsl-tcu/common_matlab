@@ -15,7 +15,7 @@ try
     tmin = u.torqueMin(:);
     tmax = u.torqueMax(:);
     % ケーブル球数の検証はcbf_choose_cable_spheresが行います。
-    settings.cable.maxExtraRadius;
+    settings.cable.maxNumberOfSpheres;
 catch
     error('CBF:MissingRuntimeSettings', ...
         'settingsの項目が不足しています。CBF_RuntimeSettings_Templateを参考に実行時に指定してください。');

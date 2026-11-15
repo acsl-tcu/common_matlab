@@ -1,0 +1,42 @@
+FAST V2 不具合修正（2026-11-12）
+
+【MATLABエラー】
+wp_six_trigger_evaluate 行110:
+フィールド名 "intervalAabbCleared" が認識されません。
+
+【原因】
+V2で追加した4つの診断カウンタが初期化されず、近接候補の検査時に
+既存値への加算に失敗。根本原因は blankResult(cfg) の初期値定義漏れ。
+
+【修正ファイル】
+SIX_WAY/wp_six_trigger_evaluate.m
+  初期化4フィールドを0で追加（式・足切り条件・質量取得は無変更）
+RUN_PURE_TRIGGER_FAST_V2_TESTS.m
+  専用回帰試験を先頭に追加
+TESTS/TEST_TRIGGER_V2_RESULT_FIELDS.m
+  各方式を1回ずつ独立にテストし、早期終了/近接/プロファイル/UNKNOWN時も
+  すべてのカウンタが存在することを確認
+PURE_PORT_CUMULATIVE_HANDOFF.txt
+  最新の実行失敗・修正・未検証事項を先頭に追記
+
+【上書き場所】
+common_matlab/TRIGGER_LIGHT/
+ZIPに含まれるTRIGGER_LIGHTフォルダをcommon_matlabに上書き展開。
+本体RUNやHLC/EKF/CBF、既存の障害物モデルは上書きしません。
+
+【再試行】
+cd('C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT')
+clear classes
+rehash
+R=RUN_PURE_TRIGGER_FAST_V2_TESTS(60,100);
+disp(R.resultFields)
+disp(R.status)
+disp(R.benchmark.near_noncontact_36)
+
+【結果送付】
+TRIGGER_LIGHT/TESTS/RESULTS/PURE_TRIGGER_V2_PROFILE_RESULTS_FOR_CHATGPT.zip
+
+【確認の区別】
+実施済み：元ZIPソースの原因特定、修正箇所の静的確認。
+未実施：修正版のMATLABでの再実行と処理時間の確認。
+本修正では理論・形状・制御への変更なし。1～2msの達成を主張しません。

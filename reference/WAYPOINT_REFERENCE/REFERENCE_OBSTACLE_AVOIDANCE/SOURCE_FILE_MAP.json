@@ -1,0 +1,320 @@
+{
+  "version": "20261113-functionally-organized-with-auto-MEX",
+  "files": [
+    {
+      "path": "CUMULATIVE_HANDOFF_20261113.txt",
+      "sha256": "abef273c8a71c71604758019f1e338ade0389dc79c828c62d2b4620611c166fc",
+      "bytes": 90046
+    },
+    {
+      "path": "MIGRATION_NOTES_JA.md",
+      "sha256": "6ba7ab63e6d0edbd407561b193121579e045c328a439693b910cc03e1e7b4ccd",
+      "bytes": 1142
+    },
+    {
+      "path": "PREVIEW_TOOLS/README_JA.md",
+      "sha256": "0a56262564b0c87d60a8661b20cf1a53d59ab557dbefa818efad0b83227045c6",
+      "bytes": 490
+    },
+    {
+      "path": "PREVIEW_TOOLS/wp_plot_preview_3d.m",
+      "sha256": "ded31b9f8443d0a7f8048c38f81b05ed7a6ad133ae9f9610ecc79e102fe0ab5c",
+      "bytes": 1647
+    },
+    {
+      "path": "PREVIEW_TOOLS/wp_pose_from_reference.m",
+      "sha256": "0d97042f4d3ca32a0805eb1ce86a3a3c3f5f2b1352ac95b1c80c6ea7d064d680",
+      "bytes": 1500
+    },
+    {
+      "path": "PREVIEW_TOOLS/wp_preview_4s.m",
+      "sha256": "05a4d2e049ba28b7c2c5bab3e56e9b0422c166a05e3f3322460fedb96bda0a6b",
+      "bytes": 5058
+    },
+    {
+      "path": "PREVIEW_TOOLS/wp_preview_reference_series.m",
+      "sha256": "f1fd79fea188c768e3c2fb7967df5f6489973e01a29f49f037b0f505acaa232e",
+      "bytes": 2313
+    },
+    {
+      "path": "README_JA.md",
+      "sha256": "514dcd2875ff8f06ad5691f57fa9138ec47012ad54669259372c5454d1c1f553",
+      "bytes": 8950
+    },
+    {
+      "path": "SETUP_REFERENCE_OBSTACLE_AVOIDANCE.m",
+      "sha256": "ef854f190e0fb00896a708810cf5fbf03272a689efa8530b248ca8fdaca566ff",
+      "bytes": 1935
+    },
+    {
+      "path": "SIMULATED_SENSOR/README_JA.md",
+      "sha256": "f44b0db5bc7d48c88c6e5035d8aaed441e2730fc4f2f4a6ec63eeeb1d20f81b4",
+      "bytes": 1406
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_collision_common.m",
+      "sha256": "61090da707f83c746b3efc1e9767e2aac18726f4ec8eb4d643980d80ed8de4e2",
+      "bytes": 2579
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_ellipsoid_ellipsoid_margin.m",
+      "sha256": "1a3231ff138f52fe18023568d4cb13d5ab8ec253f19ca8461310fd18f40c575d",
+      "bytes": 915
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_frame_from_axis.m",
+      "sha256": "1348e99a9861a981657faddb10d51e76ff3fa23dc88e42a9e1c7bca47fbd20a8",
+      "bytes": 307
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_item.m",
+      "sha256": "c836c56b7848e03409f16ed680a003b09011eb4687630472ff780c671a67a0ab",
+      "bytes": 427
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_pair_far_bound.m",
+      "sha256": "eea495c7c47ebeda3ed3a9a9d9dc422b345ae2727cb1a3203de52b58e5f7a162",
+      "bytes": 692
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_point_ellipsoid_distance.m",
+      "sha256": "95819ecb329fdd5b6d5efc995a80c6aee9647852bb22c1807177c2343f2eb013",
+      "bytes": 523
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_segment_ellipsoid_distance.m",
+      "sha256": "febd0fafdac269e03e4bc3ce930cdaa0a69b2ef27e1100c83041e64edade2656",
+      "bytes": 1073
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_segment_point_distance.m",
+      "sha256": "8e6503eb5e9263f2ff7b64e6dd1a28bd55e666df6970b4309340fa6b07d49d03",
+      "bytes": 179
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_sphere_vs_part.m",
+      "sha256": "b283b1aaf3cc175fac50dd3d963b4216498860e186ec60b556682c4dc18b9464",
+      "bytes": 450
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_system_collision.m",
+      "sha256": "a142f0eade22d741c5996b0ab6e9ea820e0805a04969e45e35923435c1caf4c3",
+      "bytes": 760
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_system_geometry_config.m",
+      "sha256": "5c8fdb0a4900ad4168cfd49c197f76c670eabb19793dc03b604dc2b99dff42ab",
+      "bytes": 1829
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/COMMON/wp_system_shape_at_pose.m",
+      "sha256": "c8c10731611ab2ab0795e304c46df6f43d61fbdf4fb82c3fafe5d82c9acdb764",
+      "bytes": 987
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_B_SPHERE_CAPSULE/wp_collision_B.m",
+      "sha256": "4d5b7c45f3332a8d97783dd2903048d865095155cc1014868534c2f2d430f4b4",
+      "bytes": 939
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_B_SPHERE_CAPSULE/wp_shape_B.m",
+      "sha256": "778970d9102d0ffba1468f1c5ade4227cc54e1c329ed8352b50426741963840a",
+      "bytes": 463
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_C_MULTIPLE_SPHERES/wp_collision_C.m",
+      "sha256": "28d1e3e9556f3e83a93a81f32fb828da83f85ac11d60075fc5bceea7c6dcc07b",
+      "bytes": 391
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_C_MULTIPLE_SPHERES/wp_shape_C.m",
+      "sha256": "4a9cac21b21befb7121ca2f48f426941f25a37e2b3e26abd3682eff9ddd18ad4",
+      "bytes": 704
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_D_SPHERE_CABLE_ELLIPSOID/wp_collision_D.m",
+      "sha256": "39f659d489d23e33035ffa0ca0179df16ab3db77048c4eb402392df31a6b20b7",
+      "bytes": 921
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/MODEL_D_SPHERE_CABLE_ELLIPSOID/wp_shape_D.m",
+      "sha256": "66bf26d383e0611f91b3514c267af4bd146afa31a0bce23b074b7e36108e7016",
+      "bytes": 921
+    },
+    {
+      "path": "SYSTEM_APPROXIMATION/README_JA.md",
+      "sha256": "de9d60a59bf8a32b73ffcfc1654318c64393e3d1886418b1470cd8a320f765ec",
+      "bytes": 2836
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_six_trigger_config.m",
+      "sha256": "bcd424cc926ef1bf1997aa991bdf71e9b9cb273ff5420b0930ec2948b7c4352d",
+      "bytes": 2767
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_six_trigger_model_snapshot.m",
+      "sha256": "fd46e38088887a8f4bfab3bb41bc0d7f9c609cceaa4bf485f78ab50d54057820",
+      "bytes": 2369
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_six_trigger_prepare.m",
+      "sha256": "35ca06143180e9aad4e69400ce1d2322918ee3f408215c861e24ed6b85fd21c1",
+      "bytes": 1447
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_six_trigger_selected_nominal_v8.m",
+      "sha256": "e03b148382b84c6028ca7d78f9ff78964f4e0072421b77fa75712ba542852dbc",
+      "bytes": 3957
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_six_trigger_tick_v8.m",
+      "sha256": "66d85773465dc37c169fd32448130652214aadad49ef1bff228ce4ff52f4d1ac",
+      "bytes": 4812
+    },
+    {
+      "path": "TRIGGER/ENTRY_AND_OBSERVATION/wp_trigger_prepare_known.m",
+      "sha256": "e2291ca6c113b497437b02ade1c36552366839ecfea0e53fc745e77b8de9fd9c",
+      "bytes": 2897
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_fixed_plan.m",
+      "sha256": "afe5f2e4886354ef4deeff21f770aa0b40bfbd5a08dd93ccf9951dcef52aa79c",
+      "bytes": 477
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_governor_fast_coeff.m",
+      "sha256": "3bc7460b37538895ebb722de22a96c9c4b02835b95242d39c14f9a95a5b629d5",
+      "bytes": 943
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_governor_fast_step.m",
+      "sha256": "de9efd9f15606a8985dab2e16fc7966a71263fa7e749eef500c9dfc48007f4cf",
+      "bytes": 601
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_pv_cache_prepare.m",
+      "sha256": "4b7401c54c9684c31af9b35bd2d2cdfab5cfa8d10213ba82c894eb14cbd17c1b",
+      "bytes": 1837
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_pv_forecast_v8.m",
+      "sha256": "e824ed7cfd73bcb11b877032435cbaae8b83865e4c74da9dbf4dfa05258e2707",
+      "bytes": 5908
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_route_cache_prepare.m",
+      "sha256": "8059bda8c2aa11b864b1625fa2b692f0c4d3db50aed618c7de56dd432e65f315",
+      "bytes": 1080
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_six_trigger_route_cache_prepare_v8.m",
+      "sha256": "fe5afb8e1bfb55d4f0f64b370f16cb4354cc7d3ecd1d1cb72b39d62569c8e552",
+      "bytes": 543
+    },
+    {
+      "path": "TRIGGER/FOUR_SECOND_PREDICTION/wp_trigger_plan_once.m",
+      "sha256": "01fb84f3685d7619633037960cd4a08c79e281579687e193031a86a0de13a73a",
+      "bytes": 2925
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_C_chain_aabb_v8.m",
+      "sha256": "7a62ec6eaa2a9c25e48b7a6eb55b4e573864a8ae39a66decbf29e587d8bd1647",
+      "bytes": 4941
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_C_chain_numeric_kernel_v8.m",
+      "sha256": "1d56a3fcf13d0d698eb8bfeefdfff07705ab96cc8043dd15145f8bb3177aa207",
+      "bytes": 2015
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_evaluate_fast_v3.m",
+      "sha256": "f9e7e2f20f2eb71b329efffdeb6074364638bef02ea125a4123e15d63a3947f4",
+      "bytes": 15321
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_evaluate_fast_v4.m",
+      "sha256": "4825f6ba0f4d5f79f4e15138f510267d5b17aa3c7f01c3d00e3773cd2af475e9",
+      "bytes": 16477
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_evaluate_fast_v8.m",
+      "sha256": "7b141a36f9b74b328e06e65f175a94da0cab9e4baf1fe4720945afd96518a2d9",
+      "bytes": 17345
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_interval_broadphase.m",
+      "sha256": "f75994cb5120e924d2c6a6d436ac82c8e4324261e591e27f8c91b0c7a99154d9",
+      "bytes": 3183
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_interval_broadphase_v4.m",
+      "sha256": "e27a2408fd9a1ef165845bcd962cc34df3637158b8c8024064cb61d9ba2eba79",
+      "bytes": 4116
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_make_sweep.m",
+      "sha256": "14184d5ca656fc81b71b16d7541a428f640dd264590d88914318b730eac78b22",
+      "bytes": 2874
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_oriented_box_clear.m",
+      "sha256": "597ba8a255b46fc43c367ed7bc4671c5fe239c1bcff8d7309c12fe66bdc5d3c9",
+      "bytes": 1631
+    },
+    {
+      "path": "TRIGGER/GEOMETRY_SCREENING/wp_six_trigger_separation_batch.m",
+      "sha256": "be645a5f73e73d3426935677ccf28008e8017fa1dcad012100cd68432b47940f",
+      "bytes": 3142
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/BIN/README_JA.md",
+      "sha256": "042f4ef8ef642c2f746d204a0f7fcf70b0c75b0fc4776186c175e6ec7108852f",
+      "bytes": 372
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/BUILD_REFERENCE_AVOIDANCE_C_MEX.m",
+      "sha256": "ff718d62f86b2b5a021a6eaf3d8bc163429e1b02fd8a03182ca553872d5f56ec",
+      "bytes": 332
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/README_JA.md",
+      "sha256": "25c6556ca1788beb263e052995fd281da71c99b6574ebafc934e87494a915609",
+      "bytes": 1990
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/SOURCE/wp_six_trigger_C_chain_numeric_mex_v8.c",
+      "sha256": "02e59addcf2cfe53f2dc01c57a37f62c8c63e8c578f76ed9b9b090da05251d85",
+      "bytes": 5428
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/reference_avoidance_mex_ensure.m",
+      "sha256": "e4a889ac05758b5d39375943f7cddcc98296ff04f9008a4ca2921b67f18cf018",
+      "bytes": 3330
+    },
+    {
+      "path": "TRIGGER/MEX_ACCELERATION/reference_avoidance_mex_verify.m",
+      "sha256": "cba3ecffdc7c4347b63ff7a4952d2bc9fb594e53d29fd19fc7cb5344a71a5e55",
+      "bytes": 1822
+    },
+    {
+      "path": "TRIGGER/README_JA.md",
+      "sha256": "906d2c6e1bb1efc517afd4e09b93d5259fc5cbdb3d72ef714744063d3a772840",
+      "bytes": 1955
+    },
+    {
+      "path": "reference_avoidance_prepare_forecast.m",
+      "sha256": "f0aa6208c667b1a9e603fbe041643692c87ba4fdb2db1cbadf385ce97ecbf6ec",
+      "bytes": 603
+    },
+    {
+      "path": "reference_avoidance_prepare_observed.m",
+      "sha256": "ba8d51b7e6aac12f88cd9198f374417b133a2cf8139ce61b40e4371e35a16ed6",
+      "bytes": 1591
+    },
+    {
+      "path": "reference_avoidance_tick.m",
+      "sha256": "e476145f70ec80d04471d29962650c52dcc825963384b92e2996ae7a124c173f",
+      "bytes": 1681
+    }
+  ]
+}

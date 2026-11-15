@@ -1,0 +1,97 @@
+PURE PORT V8 - selected one-mode 4s nominal trigger, real-EKF tick adapter, C chain AABB, optional MEX
+2026-11-13
+
+目的
+- V7.1 の近接36パーツ・大逸脱・C×楕円体約3.361 msという重いケースを改善する。
+- V7.1で示した名目分類96/96一致・P95 2ms以内86/96を基準とし、V7以前のコードを消さず比較。
+- 6方式はテストでそれぞれ単独実行する。本番候補で同時にORしない。
+- 現在のEKFの最新mLのみを周期ごとの名目モデル質量として取得。プラント真値を渡さない。
+- 粗い大球で当たらない障害物を危険扱いする改善は行わない。
+
+新機能
+1. SIX_WAY/wp_six_trigger_C_chain_aabb_v8.m
+  Cの機体球・吊り荷球とN+1個のケーブル球の各0.1 s掃引AABB。
+  もとの区間粗判定で残ったペアだけに追加の分離十分条件を適用する。
+  全部位の外接AABBが障害物の回転外接AABBと分離した組合せだけ除外。
+  分離が証明できない部分はV4と同じ詳細検査を残す。CをBに置換しない。
+2. SIX_WAY/wp_six_trigger_evaluate_fast_v8.m
+  Cには上記を適用。B,Dには元のV4/V3をそのまま呼び出す。
+3. SIX_WAY/wp_six_trigger_route_cache_prepare_v8.m
+  既知経路のpchip補間係数を事前計算し、周期内のinterp1/pchip傾き再計算を削減。
+4. SIX_WAY/wp_six_trigger_pv_forecast_v8.m
+  V7.1と同じ160×25 msの名目誤差モード＋Governor。ppval利用。
+5. SIX_WAY/wp_six_trigger_selected_nominal_v8.m
+  毎呼出しで最新EKFのmL使用、選択した1方式だけ実行。
+6. SIX_WAY/wp_six_trigger_tick_v8.m
+  EKF・Waypoint参照の更新後に毎25 ms呼ぶ履歴バッファ管理付き実行入口。
+  初回は41個の実測/推定サンプル（1秒間）が揃うまでUNKNOWN。
+  25 msの欠落/重複があれば履歴をリセット、捏造/外挿して継続しない。
+  Agent、既存HLC、EKF、CBF、runを変更しない。
+  実Flightへのrun接続と25ms総工程の実測はまだ未実施。
+
+形式的に成立する分離十分条件（独立の幾何部分）
+  s=j/N, j=0,...,N
+  c_j(t_i)=(1-s)pD(t_i)+s pL(t_i)
+  rhoD,k = max(rhoD_i,rhoD_i+1) + AD,k Δt²/8
+  rhoL,k = max(rhoL_i,rhoL_i+1) + AL,k Δt²/8
+  Lmax,k = max(|pL_i-pD_i|,|pL_i+1-pD_i+1|)+rhoD,k+rhoL,k
+  Rj,k = hypot(Lmax,k/(2N),rCable+safetyMargin) + (1-s)rhoD,k+s rhoL,k
+  各球の掃引領域 ⊂ AABB([c_j(t_i),c_j(t_i+1)]) enlarged by Rj,k.
+  機体/吊り荷の各掃引球も同様。
+  楕円体 E={center+R diag(a)u,|u|<=1} のAABB半幅
+       h_axis=sqrt(sum_j (R_axis,j*a_j)^2).
+  すべての部位について、ある軸で2個のAABBが分離すれば、その区間と障害物パーツは不接触。
+  数学上の十分性はrho/accが真に有効な場合に限る。実装は浮動小数点で、外向き丸め保証はない。
+
+最重要：現時点の4秒予測は「名目予測」であり、物理的な衝突回避の安全証明ではない。
+- V7/V8のオンライン比較は0.1 s折れ線に対してrho=acc=0を渡している。
+- これは実機の高階補間・モデル誤差・EKF誤差の保証上界ではない。
+- CLEAR_CONDITIONAL は外部へ物理的SAFEとして出さず、
+  NOMINAL_POLYLINE_SEPARATED__NOT_CERTIFIED として返す。
+- 実機の入力飽和、緩んだ索、未観測障害物、既存ルートの補間誤差も未保証。
+- 元の形状は暫定値で、後のCBF最終幾何との一致未証明。
+
+テスト手順： common_matlab にZIPを上書き展開。MATLABの既存パスを使用。
+cd('C:\Users\student\Documents\GitHub\common_matlab')
+addpath(genpath(pwd))
+cd('TRIGGER_LIGHT')
+clear classes
+rehash
+R=RUN_PURE_TRIGGER_V8_AUDIT(30,false);
+disp(R.status)
+disp(R.stream)
+disp(R.exactAgreementFraction)
+disp(R.validClearRefinements)
+disp(R.median2msPassFraction)
+disp(R.p95_2msPassFraction)
+disp(R.maxTotalMs)
+disp(R.resultsZip)
+
+V8はV7.1と新しいC分離十分条件に基づき、96条件について以下を検証。
+ - 完全一致、または V7 POSSIBLE_CONTACT → V8 CLEAR_CONDITIONAL
+   というC追加分離十分条件でのみ説明できる厳密化。
+ - V7 CLEAR → V8 POSSIBLE など予期しない退行はFAIL。
+ - 予測値、現在EKF質量、位置+速度履歴、40回/条件以下の実測は個別に検証。
+ - 時間計測はMATLABの実行値で判定。配布側ではMATLAB実行していない。
+
+MEX（MATLAB版を確認後、任意）
+M=BUILD_V8_NATIVE_MEX(); % MATLAB Coder不要。MATLAB mexとCコンパイラが必要。
+disp(M.status)
+if isfield(M,'fullSelected'), disp(M.fullSelected),end
+% MATLAB CoderがありネイティブMEXに問題がある場合のみ：
+% M=BUILD_AND_BENCH_V8_MEX();
+
+Cでコンパイルするのは「C方式の追加AABB足切りカーネル」だけ。
+元HLC全体をMEX化しない。TESTS/MEX_BUILD内で出力し、本番へコピーしない。
+250件ランダムのベクトルMATLAB版・数値MATLAB版・MEX版一致後、
+C×楕円体・大逸脱・近接36パーツの一方式全体で中央値/P95/最大を比較する。
+MEX版採用には結果一致に加え実時間の優位が必要。
+
+既存の受入れ条件
+- 4秒物理ホライズンは維持、未来入力一定の仮定は使わない。
+- 1周期のトリガ合計（現在状態取得、履歴更新、予測、幾何）1–2 ms、
+  かつFlight全体25 ms以内が目標。V8のMATLABで未測定。
+- 障害物近似キャッシュ、ルートキャッシュ、HLCゲインキャッシュは更新時のみ構築。
+- 観測済み障害物のみ入力。動的障害物未対応はUNKNOWN。
+- 物理安全保証を主張せず「名目接触候補」を本番CBF切替の正式条件として
+  有効化する前に、危険候補/過剰判定とFlight実測の追加検証が必要。

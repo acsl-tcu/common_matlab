@@ -24,8 +24,8 @@ H(end+1,:)=sphereRow(pL,rL);
 %% 2. ケーブル（固定球列 / カプセル支持関数 / 楕円体支持関数）
 switch upper(shape)
     case 'C'
-        for k=0:plan.numberOfSegments
-            s=k/plan.numberOfSegments;
+        for k=1:plan.numberOfSpheres
+            s=plan.centerFractions(k);
             pc=(1-s)*pDrone+s*pL;
             H(end+1,:)=sphereRow(pc,plan.sphereRadius);
         end
@@ -52,8 +52,8 @@ if strcmp(section,'obstacles'), return; end
 H(end+1,:)=pDrone(3,:)-C(rD+ground+margin);
 H(end+1,:)=pL(3,:)-C(rL+ground+margin);
 if upper(shape)=='C'
-    for k=0:plan.numberOfSegments
-        s=k/plan.numberOfSegments;
+    for k=1:plan.numberOfSpheres
+        s=plan.centerFractions(k);
         pc=(1-s)*pDrone+s*pL;
         H(end+1,:)=pc(3,:)-C(plan.sphereRadius+ground+margin);
     end

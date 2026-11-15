@@ -1,0 +1,53 @@
+純粋移植 TRIGGER_LIGHT / V4 (2026-11-12)
+=====================================
+
+設置場所: C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT\
+ZIPの最上位は TRIGGER_LIGHT/ です。common_matlab/ 直下に上書き展開。
+本番の HLC/EKF/plant/Waypoint/CBF/run は変更しない。古いV2/V3は保持。
+
+今回の改善（意味）:
+- 本番1周期で選んだ「C/B/D × 球/楕円体近似」の1方式だけを実行する。
+- 球側はV3の高速処理を再利用。
+- 楕円体側は観測済み回転楕円体から正確な軸方向外接AABBをキャッシュ。
+  それと機体球・吊り荷球・ケーブル選択方式の掃引包絡を比較する。
+  AABBが離れている場合しか候補を消さない。過大な4秒到達球を新規導入しない。
+- trueの吊り荷質量は読まない。現在EKF mLが唯一の予測モデル質量。
+- 4秒間のHLC+24状態ODE (~334ms) はオフラインの比較基準のみ。
+  元HLCの未来入力を一定にはしない。
+- 予測誤差の厳密包含やリアル25ms保証は、今回のPASS対象ではない。
+
+実用候補ソース（SIX_WAY/）:
+ wp_six_trigger_prepare.m                    外部で観測・保存された幾何のみキャッシュ
+ wp_six_trigger_oriented_box_clear.m         回転楕円体の数学的外接AABB分離
+ wp_six_trigger_interval_broadphase_v4.m     時間区間×選択方式の事前判定
+ wp_six_trigger_evaluate_fast_v4.m           選択1方式のV4判定器
+ wp_six_trigger_run_selected_v4.m            観測世代・推定質量・予測器を受取る入口
+ これ以外の従来V2/V3や形状定義のコードは上書きしない。
+
+テスト専用（TESTS/）:
+ TEST_TRIGGER_V4_ORIENTED_AABB.m              楕円体支持関数・衝突見逃し監査
+ TEST_TRIGGER_V4_SOURCE_PARAM_SWEEP.m         元24状態式と質量・索長等の可変照合
+ TEST_TRIGGER_V4_SELECTED_TICK.m              現在mL・cache・単独方式入口
+ TEST_TRIGGER_V4_HLC_STRESS.m                 元HLCで横逸脱・揺動・大逸脱等の名目Flight
+ BENCH_TRIGGER_V4_ONE_MODE_AB.m               V3/V4を交互に計測（各方式個別）
+ RUN_PURE_TRIGGER_V4_TESTS.m                  全監査入口、MAT/TXT/結果ZIP生成
+
+MATLABでの呼出し:
+ cd('C:\Users\student\Documents\GitHub\common_matlab')
+ addpath(genpath(pwd))
+ cd('TRIGGER_LIGHT'); clear classes; rehash
+ R=RUN_PURE_TRIGGER_V4_TESTS(100,60,true);
+ disp(R.status);disp(R.orientedBox);disp(R.parameterSweep)
+ disp(R.hlcStress.status);disp(R.benchmark.records)
+
+出力: TRIGGER_LIGHT/TESTS/RESULTS/PURE_TRIGGER_V4_RESULTS_FOR_CHATGPT.zip
+
+重要:
+ [A] 楕円体AABBの改善は理論的な「確実に非接触の組だけ除外」条件で、
+     重なったときは元のV3詳細判定に渡す。真に衝突する保証ではない。
+ [B] HLCストレスの「PASS」は4秒名目ODEが数値的に完走したという意味。
+     厳密な物理的な誤差保証ではない。索の緩み等が出たら個別確認が必要。
+ [C] 入力飽和が実際に観測されない場合、監査は「飽和未検証」と記録する。
+ [D] 近接楕円体V4の実測速度、現在実行しているPCでの2ms達成は未確認。
+ [E] 25ms全工程に収めるオンライン4秒HLC予測器はまだ存在しない。
+     極端に大きい到達可能球を使ってCLEARを大量のリスクに変える方法は拒否。

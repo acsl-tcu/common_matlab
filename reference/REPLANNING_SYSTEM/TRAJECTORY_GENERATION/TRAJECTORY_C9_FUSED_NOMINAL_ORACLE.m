@@ -23,7 +23,10 @@ R=struct('certified',false,'status','UNKNOWN_FUSED_NATIVE_NOT_RUN', ...
     'elapsed_ms',NaN,'native_elapsed_ms',NaN, ...
     'generic_separator_calls',0,'generic_separator_positives',0, ...
     'generic_separator_iterations',0, ...
+    'gjk_steps',0,'gjk_fallbacks',0,'gjk_convex_hull_nonseparation_witnesses',0, ...
     'native_status','NOT_RUN', ...
+    'witness_bank_count',0,'unresolved_witness_bank',struct([]), ...
+    'inherited_shape_prunes',0,'banked_shape_skips',0, ...
     'scope','EXPERIMENTAL_REAL_ARITHMETIC_TAUT_NOMINAL_ONLY__NO_DIRECTED_ROUNDING_OR_HLC');
 prepared=struct([]);
 try
@@ -39,7 +42,7 @@ try
      R.status='UNKNOWN_FUSED_NATIVE_MEX_MISSING';return
  end
  if ~strcmp(TRAJECTORY_C9_FUSED_ALLTIME_CORE(), ...
-    'C9_FUSED_V3_GENERAL_SEPARATOR_20261111')
+    'C9_FUSED_V6_ANCESTOR_PROOF_REUSE_20261112')
      R.status='UNKNOWN_FUSED_NATIVE_MEX_SIGNATURE';return
  end
  if ~isstruct(piece)||~isequal(size(piece.control_points_m,1),3)||...
@@ -89,6 +92,29 @@ try
     min(double(geo.max_node_count),double(force.max_node_count)), ...
     double(ground)];
  assert(numel(p)==14&&all(isfinite(p))&&all(p>=0));
+ % This is a flight-dependent algorithm switch, not a physical constant.
+ % Both modes require exactly the same final positive support-plane test.
+ useGjk=0;
+ if isfield(geo,'enable_fused_gjk_corrective')
+     sw=geo.enable_fused_gjk_corrective;
+     if ~(isscalar(sw)&&(isnumeric(sw)||islogical(sw)) && ...
+             isfinite(double(sw)) && any(double(sw)==[0 1]))
+         R.status='UNKNOWN_FUSED_GJK_FLAG_INVALID';return
+     end
+     useGjk=double(sw);
+ end
+ % Optional exact oracle witness collection for distinct obstacle IDs.
+ % Every returned interval is an unproved SEARCH location, never a PASS.
+ collectBank=0;
+ if isfield(geo,'enable_fused_witness_bank')
+     sw=geo.enable_fused_witness_bank;
+     if ~(isscalar(sw)&&(isnumeric(sw)||islogical(sw)) && ...
+             isfinite(double(sw)) && any(double(sw)==[0 1]))
+         R.status='UNKNOWN_FUSED_WITNESS_BANK_FLAG_INVALID';return
+     end
+     collectBank=double(sw);
+ end
+ p=[p,useGjk,collectBank];
  if isfield(geo,'use_native_support_separator') && ...
     isequal(geo.use_native_support_separator,1)
     % Native fused oracle is independent of the old per-node proposal MEX.
@@ -96,8 +122,44 @@ try
  Z=TRAJECTORY_C9_FUSED_ALLTIME_CORE( ...
    double(piece.control_points_m),double(piece.duration_s), ...
    double(authority.gravity_world_mps2(:)),p,prepared, ...
-   'C9_FUSED_V3_GENERAL_SEPARATOR_20261111');
+   'C9_FUSED_V6_ANCESTOR_PROOF_REUSE_20261112');
  R.native_status=Z.status;R.native_elapsed_ms=Z.elapsed_ms;
+ if isfield(Z,'witness_bank_ids') && ~isempty(Z.witness_bank_ids)
+     ids=double(Z.witness_bank_ids(:));
+     iv=double(Z.witness_bank_phase_intervals);
+     bm=double(Z.witness_bank_body_mask);
+     dp=double(Z.witness_bank_depths(:));
+     if isequal(size(iv),[numel(ids),2]) && ...
+             isequal(size(bm),[numel(ids),3]) && numel(dp)==numel(ids) && ...
+             all(isfinite([ids;iv(:);bm(:);dp])) && ...
+             all(iv(:,1)>=0 & iv(:,2)<=1 & iv(:,2)>iv(:,1)) && ...
+             all(bm(:)==0 | bm(:)==1) && all(any(bm~=0,2)) && ...
+             numel(unique(ids))==numel(ids) && ...
+             all(ismember(ids,[prepared.id]))
+         bank=repmat(struct('id',NaN,'time_interval_s',[NaN NaN], ...
+             'body_mask',false(1,3),'depth',NaN),numel(ids),1);
+         for kk=1:numel(ids)
+             bank(kk).id=ids(kk);
+             bank(kk).time_interval_s= ...
+                 double(piece.t0_s)+double(piece.duration_s)*iv(kk,:);
+             bank(kk).body_mask=logical(bm(kk,:));
+             bank(kk).depth=dp(kk);
+         end
+         R.unresolved_witness_bank=bank;
+         R.witness_bank_count=numel(bank);
+     else
+         R.status='UNKNOWN_FUSED_MALFORMED_WITNESS_BANK';return
+     end
+ end
+ if isfield(Z,'inherited_shape_prunes')
+     R.inherited_shape_prunes=double(Z.inherited_shape_prunes);
+ end
+ if isfield(Z,'banked_shape_skips')
+     R.banked_shape_skips=double(Z.banked_shape_skips);
+ end
+ R.gjk_steps=double(Z.gjk_steps);
+ R.gjk_fallbacks=double(Z.gjk_fallbacks);
+ R.gjk_convex_hull_nonseparation_witnesses=double(Z.gjk_convex_hull_nonseparation_witnesses);
  R.checked_node_count=Z.checked_node_count;
  R.checked_leaf_count=Z.checked_leaf_count;
  R.shape_support_calls=Z.shape_support_calls;

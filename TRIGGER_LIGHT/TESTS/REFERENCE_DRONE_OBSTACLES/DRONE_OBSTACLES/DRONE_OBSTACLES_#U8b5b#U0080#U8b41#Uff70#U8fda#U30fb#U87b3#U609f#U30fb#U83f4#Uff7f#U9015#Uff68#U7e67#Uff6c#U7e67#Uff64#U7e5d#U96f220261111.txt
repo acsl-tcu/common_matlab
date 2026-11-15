@@ -1,0 +1,629 @@
+DRONE_OBSTACLES 最新版・完全使用ガイド
+==============================================
+対象：MATLAB commonmatlab プロジェクト／ドローン吊り荷シミュレーション
+作成日：2026-11-11
+対応構成：Stage 2（静的・動的障害物）、DRAW専用パッチ、要素数予算パッチ、楕円体直接フィットパッチ、および今回の検証修正版
+
+【この文書の位置づけ】
+・途中の構想書ではなく、現時点で実装されている障害物サブシステムの使い方・定義規約・運用手順をまとめたもの。
+・元形状13種類、近似6種類、地面、静的シーン、動的シーン、DRAW、4方向画像、動画、テストを説明する。
+・障害物情報は現時点では配置・近似・表示の用途。Waypointの障害物回避、衝突回避CBF、動的障害物の高階微分と実時間安全保証はまだ未接続。
+・計算時間の上限値6/36は現段階の暫定値で、CBF評価時に変更する前提。
+・MATLAB本体はこの環境にないため、本書を作成した環境では新しい直接フィットの全ケース実行は未確認。
+
+目次
+  1. 全体の考え方と最新のフォルダ構成
+  2. 既存コードから最新版への更新順序
+  3. 最短の使用方法（静的／動的）
+  4. 座標系・単位・姿勢と局所座標の基本規約
+  5. 13種類の原形とすべての呼び出し例
+  6. scenes で複数障害物を実際に配置する方法
+  7. 6つの近似方式と単一・複数楕円体の直接フィット
+  8. 近似数予算・精度・計算負荷の調整方法
+  9. 地面の定義と切替
+ 10. 動的障害物の個別軌道（4方式）
+ 11. worldObstacles と時刻指定の参照方法
+ 12. DRAW（元形状濃色・近似半透明）と画像・動画
+ 13. run_flight_SimSuspendedLoad_trj.m への組込み
+ 14. 検証済み事項・最新検証・削除してよいファイル
+ 15. よくあるエラーと対処
+ 16. 将来のCBF・Waypoint接続時の留意点
+
+
+1. 全体の考え方と最新のフォルダ構成
+----------------------------------------------
+■ 元形状（obstacle original）と近似形状（approximation）を分ける。
+・元形状：実物の障害物の定義。中心、向き、実寸法、貫通穴などを保持。
+・近似形状：元形状を外側から包む、計算向けの球／楕円体等の和集合。
+・シーン：1つの実験に配置する障害物の集合。各障害物の名前・位置・姿勢を保存。
+・地面：有限障害物とは別の半空間として定義。
+・動的な動き：元形状の剛体に障害物ごとの運動則を付与。形状の作り直しは原則不要。
+・描画：元の障害物は濃く、近似は半透明で重ねて表示する。
+
+■ 推奨の最終配置（フォルダ直下に多数のDRAWファイルを置かない）
+commonmatlab/
+  run_flight_SimSuspendedLoad_trj.m     既存run（必要なら描画統合版を参照）
+  TEST_DRONE_ELLIPSOID_DIRECT_TEMP.m   今回の修正テスト。合格確認後は削除可
+  environment/
+    DRONE_OBSTACLES/
+      DRONE_OBSTACLES.m              シーン・統一近似・地面の入口
+      primitives/                   13形状の obs_*.m
+      approximations/               6方式と直接フィット／要素数予算用関数
+      geometry/                     座標変換・元形状判定・補助幾何
+      ground/                       ground_z0.m, ground_clearance.m
+      dynamic/                      個別運動・指定時刻姿勢の評価
+      scenes/
+        static/                     障害物の配置を保存する静的シーン
+        dynamic/                    個別の運動を付けた動的シーン
+  plot/
+    DRAW_SUSPENDED_LOAD.m            【変更しない】元の機体・吊り荷DRAW
+    DRAW_DRONE_OBSTACLES/
+      DRAW_DRONE_OBSTACLES.m         障害物描画専用クラス
+      obs_draw_original_shape.m
+      obs_draw_approx_parts.m
+      plot_obstacles_4views.m
+      plot_flight_obstacles_4views.m
+      animate_obstacles_only.m
+      animate_suspended_with_obstacles.m
+
+注意：古いStage 2の展開物には plot/DRAW_SUSPENDED_LOAD.m が含まれる版があるが、
+ユーザーが指定した運用は「DRAW_SUSPENDED_LOAD.m を変更しない」。このファイルは上書きしない。
+古い plot/ 直下に置いた障害物描画用関数が残っているなら重複を避ける。
+MATLABの `which DRAW_DRONE_OBSTACLES -all` で使用ファイルを確認する。
+
+
+2. 既存コードから最新版への更新順序
+----------------------------------------------
+すでに現在のプロジェクトにStage 2／DRAW／要素数予算パッチが反映済みなら、それらを再展開する必要はない。
+未反映の場合、過去の配布物の関係は以下。
+  基盤：DRONE_OBSTACLES_STAGE2_DYNAMIC_DRAW_FIXED.zip
+  描画：DRONE_OBSTACLES_DRAW_ONLY_PATCH.zip
+  要素数制限：DRONE_OBSTACLES_BUDGET_RUN_PATCH.zip
+  楕円体：DRONE_ELLIPSOID_DIRECT_FIT_PATCH.zip
+  最新テスト：今回の TEST_DRONE_ELLIPSOID_DIRECT_TEMP.m
+
+原則：古いファイルを最新の同名ファイルへ戻さない。
+特に `obs_approx_single_ellipsoid.m` と `obs_approx_multiple_ellipsoids.m` は「直接フィット版」を使う。
+`obs_approx_defaults.m` と `DRONE_OBSTACLES.m` は「要素数予算版」を使う。
+`plot/DRAW_DRONE_OBSTACLES/` はDRAW専用パッチ版を使う。
+既存のDRAW_SUSPENDED_LOAD.mは変更しない。
+
+MATLABを起動してcommonmatlabをカレントにし、必要なら次を一回実行する。
+  addpath(genpath(pwd));
+  which DRONE_OBSTACLES -all
+  which obs_approx_single_ellipsoid -all
+  which obs_approx_multiple_ellipsoids -all
+  which plot_obstacles_4views -all
+重複がある場合は新旧ファイルがMATLABパス上で競合していないか確かめる。
+
+
+3. 最短の使用方法
+----------------------------------------------
+■ 静的障害物の読み込み
+  sceneName='scene_cylinders_high_side';  % 追加済みの場合。なければ'scene_gate_square'
+  approxMethod='multiple_ellipsoids';    % シーン全体で統一
+  groundName='ground_z0';
+  opts=struct('maxPartsPerObstacle',6,'maxTotalParts',36, ...
+              'targetPartSize',3.0,'polySides',8,'hollowSides',16, ...
+              'superExponent',8);
+  worldObstacles=DRONE_OBSTACLES(sceneName,approxMethod,groundName,opts);
+  plot_obstacles_4views(worldObstacles,'time',0, ...
+      'filename','Data/ObstacleScene_4Views.png');
+
+■ 動的障害物の読み込みと動作表示
+  worldMoving=DRONE_OBSTACLES('scene_dynamic_independent', ...
+      'multiple_ellipsoids','ground_z0',opts);
+  animate_obstacles_only(worldMoving,0:0.1:12,'Data/DynamicObstacles.mp4');
+
+■ 近似だけを変更する
+  approxMethod='single_sphere';       % 全障害物が球型で統一
+  approxMethod='single_ellipsoid';    % 全障害物が単一楕円体
+  approxMethod='multiple_spheres';    % 全障害物が複数球
+  approxMethod='multiple_ellipsoids'; % 全障害物が複数楕円体
+  approxMethod='superellipsoid';      % 全障害物がスーパー楕円体
+  approxMethod='convex_polyhedra';    % 全障害物が凸多面体
+  % 1行だけ選んでDRONE_OBSTACLESに渡す。
+
+■ 地面なしにする
+  worldObstacles=DRONE_OBSTACLES(sceneName,approxMethod,'none',opts);
+
+
+4. 座標系・単位・姿勢
+----------------------------------------------
+・位置：ワールド座標 [x y z]、行ベクトル1x3、単位m。
+・元形状の寸法：m。回転していないときはローカルx,y,zを基準にする。
+・姿勢：rpyDeg=[roll pitch yaw]、単位は「度」。ラジアンではない。
+・回転行列：R = Rz(yaw)*Ry(pitch)*Rx(roll)。
+・ローカル位置 u とワールド位置 p の関係：p = position + R*u。
+・円柱・円錐・カプセル・三角柱は基本的にローカルz軸に長手方向／押出方向を持つ。
+・`height` は形状の全高／厚さ。ローカルz = -height/2 ～ +height/2。
+・姿勢 [0 0 0] は回転なし。`[90 0 0]` はローカルの穴軸（z方向）を横へ向ける例。
+・`name` は障害物ごとに一意で、MATLABの有効な変数名にする（例: 'wall_01'）。
+・同じシーン内で名前の重複は禁止。
+・姿勢角にはroll/pitch/yawを個別に設定でき、斜めの箱・円柱・ゲートを配置できる。
+
+
+5. 13種類の元形状と定義例
+----------------------------------------------
+すべてのコンストラクタは `primitives/` 内にある。`position` は中心・基準位置。
+姿勢rpyDegは省略可能なものが多く、省略時は[0 0 0]。
+以下はすべて具体的なMATLAB記述例であり、シーンの中で使用する。
+
+  1) 球：中心・半径
+     obs_sphere('ball_01',[6 3 4],0.80,[0 0 0]);
+
+  2) 楕円体：3軸の「半軸長」[a b c]、直径ではない
+     obs_ellipsoid('ellipsoid_01',[8 2 5],[1.4 0.5 0.9],[20 15 35]);
+
+  3) 直方体：全寸法 [lengthX lengthY lengthZ]
+     obs_box('box_01',[9 8 5],[4.0 1.0 3.0],[5 20 45]);
+
+  4) 円柱：半径r・高さh。軸はローカルz
+     obs_cylinder('cyl_01',[8 6 7],0.50,5.0,[25 -15 40]);
+
+  5) カプセル：半径r、中央の直線部分の長さstraightLength
+     obs_capsule('rod_01',[8 9 6],0.25,3.0,[10 40 0]);
+     ※全長は straightLength + 2*radius。両端は半球。
+
+  6) 凸多面体：ローカル頂点 Nx3 を指定。頂点の凸包が実体
+     V=[-1 -1 -1; 1 -1 -1; 1 1 -1; -1 1 -1; 0 0 1.5];
+     obs_convex_polyhedron('poly_01',[6 6 4],V,[10 20 35]);
+     ※頂点群の凸包を使用。非凸な形を1個の凸多面体として入力しない。
+
+  7) 円錐：底面半径r・高さh。ローカルz方向
+     obs_cone('cone_01',[12 4 6],0.9,2.5,[20 10 15]);
+
+  8) 三角錐：ローカルz=0上の底面三角形 3x2 と頂点1x3
+     base=[-1 -0.8;1 -0.8;0 1.2];
+     obs_triangular_pyramid('pyramid_01',[4 7 5],base,[0 0 2.1],[0 15 0]);
+
+  9) 三角柱：底面三角形3x2を±height/2に押出す
+     base=[-1 -0.8;1 -0.8;0 1.2];
+     obs_triangular_prism('prism_01',[8 7 4],base,2.0,[15 0 35]);
+
+ 10) 真ん中に四角い貫通穴のある四角柱：外枠・穴の寸法は[幅 奥行]
+     obs_hollow_square_prism('square_gate',[0 4 3], ...
+         [4.0 3.6],[2.2 2.0],0.4,[90 0 0]);
+     ※外枠と穴はローカルxy平面、貫通方向はローカルz。
+
+ 11) 円形貫通穴のある円柱：外半径、内半径、全高
+     obs_hollow_cylinder('round_gate',[2 4 3],2.0,1.0,0.5,[90 0 0]);
+     ※0<内半径<外半径。円筒リングの穴軸はローカルz。
+
+ 12) 三角形貫通穴のある三角柱：外側三角形3x2、内側縮小率0～1、全高
+     outer=[-2 -1;2 -1;0 2];
+     obs_hollow_triangular_prism('triangle_gate',[4 4 3], ...
+         outer,0.45,0.5,[90 0 0]);
+     ※内側三角形は外側三角形の重心から相似縮小したもの。
+
+ 13) 三角柱メッシュ：各体積要素の6頂点を6x3xN配列で定義
+     tri=[-1 -.8;1 -.8;0 1.4];
+     prismVertices=zeros(6,3,2);
+     prismVertices(:,:,1)=obs_prism_vertices(tri,1.2);
+     prismVertices(:,:,2)=obs_prism_vertices(tri+[2.7 0],1.2);
+     obs_triangular_prism_mesh('mesh_01',[6 5 3],prismVertices,[0 0 20]);
+     ※STLの三角形「表面」メッシュとは異なる。現在の実装は三角柱体積要素の集合。
+
+重要な寸法の区別：
+・球のradius、円柱のradius、楕円体のaxesは半径／半軸長。
+・boxのdimensions、円柱のheight、穴あき柱のouterXY/holeXYは全寸法。
+・中心や寸法を変えても、形状の生成関数本体を編集しない。配置ファイルだけ変更する。
+
+
+6. scenesで複数障害物を配置する
+----------------------------------------------
+■ 静的シーンは次へ保存
+  environment/DRONE_OBSTACLES/scenes/static/scene_my_test.m
+
+中身の例：
+  function objects=scene_my_test()
+  objects(1)=obs_cylinder('cyl_01',[ 8  6  7],0.45,4.0,[10 0 25]);
+  objects(2)=obs_cylinder('cyl_02',[11  9  9],0.55,5.5,[25 15 45]);
+  objects(3)=obs_box('wall_01',[14 10  6],[3 1 3],[0 0 30]);
+  end
+
+MATLAB関数名 = ファイル名（scene_my_test.m）。runでは
+  sceneName='scene_my_test';
+とするだけで切替可能。
+
+■ 既存のシーン例
+  scene_empty              ：障害物なし（地面だけにできる）
+  scene_single_sphere      ：単一球
+  scene_gate_square        ：四角いゲート
+  scene_holes              ：四角穴・円形穴・三角穴
+  scene_showcase_13        ：13元形状の一覧配置
+  scene_mixed_obstacles    ：大型箱、楕円体、円柱等の混在
+  scene_editable_layout    ：寸法・配置の編集例
+  scene_cylinders_high_side：原点から離した高い位置の多姿勢円柱群（別パッチを配置した場合）
+  scene_dynamic_independent：異なる軌道を各障害物に与えた動的例
+
+■ 注意
+・すべての障害物が同じ近似方法になるだけで、元形状は混在してよい。
+・例：直方体2個、円柱3個、ゲート1個でも、近似はすべて'multiple_ellipsoids'で統一。
+・名前はユニークにする。同名にすると動的描画で取り違える原因にもなる。
+・個別障害物ごとに近似方法を指定する `perObstacle` override は現在禁止。
+・runからシーン内の座標を1つずつ上書きするのではなく、sceneファイルを変更する。
+
+
+7. 近似6方式と直接フィット
+----------------------------------------------
+■ 近似方法の名称（runの approxMethod にそのまま入れる）
+  single_sphere          全体を1球で包含。穴は埋まる。
+  single_ellipsoid       全体を1楕円体で包含。穴は埋まる。
+  multiple_spheres       分割した外側領域を複数球で包含。
+  multiple_ellipsoids    分割した外側領域を複数楕円体で包含。
+  superellipsoid         1つまたは複数の高次偶数多項式形状。
+  convex_polyhedra       1つまたは複数の凸多面体で包含。
+
+■ 近似の最優先条件
+  真の障害物集合 O は、近似集合 O_hat に必ず含まれるように作る：O ⊆ O_hat。
+・穴の保存は近似方法・部品数・障害物寸法に依存する。
+・単一球と単一楕円体は「穴を埋めてよい」方式として運用する。
+・複数方式も部品数予算が小さい場合には通路や穴を塞ぐことがある。
+・外接の判定は浮動小数点・多面体生成誤差の検証も必要。サンプルPASSのみで全連続空間を数学的証明したとは言わない。
+
+■ 直接フィット版 single_ellipsoid / multiple_ellipsoids
+以前：元形状 → 外接直方体 → sqrt(3)倍の外接楕円体
+現在：元形状の凸部分の頂点または曲面の外接支持平面（support planes） →
+      外接多面体の頂点 → 近似最小体積外接楕円体（MVEE）。
+・従来の「まず箱にしてから楕円体にする」処理は、2つの楕円体方式から除去。
+・Khachiyan系の反復法（ツールボックス不要）で近似的なMVEEを求める。
+・全外接頂点を最後に検査し、必要に応じて楕円体をわずかに拡大する。
+・各楕円体は3軸長・中心・姿勢が異なり得る。
+・曲面で用いる有限本数の支持平面による保守性は残る。
+・直方体の単一MVEEは解析的なsqrt(3)倍の外接楕円体と一致するため、
+  直方体を1楕円体で囲う限り大幅な改善は起こらない。
+・球や楕円体そのものは「元形状と一致する楕円体」を直接作る特別処理。
+  外接支持多面体の頂点まで含める必要はない（今回のテスト修正点）。
+・『MVEE』は正確に最小体積解が保証されたという意味ではなく、
+  反復停止・数値誤差・有限支持平面に依存する数値近似。
+
+■ 他4方式の現在の実装
+・single_sphere：元形状の局所AABBを丸ごと外接球で包含。
+・multiple_spheres：要素数予算付きの外接箱分割を球で包含。
+・superellipsoid：部品群の外接箱を偶数指数pで包含。箱状の大きな障害物に有利。
+・convex_polyhedra：元形状が多面体なら頂点の凸包で表現、曲面は支持平面で外包。
+
+■ 高相対次数CBFに向けた評価上の注意
+・近似の原形が楕円体でも、元形状の相対次数が固定されるわけではない。
+・二次式は高階微分で比較的扱いやすいが、システム側の状態・入力と組み合わせたLie微分が必要。
+・凸多面体は形状精度が高くても面の切替で安全距離が微分不可能になる問題がある。
+・今回のライブラリはCBFの安全関数やHOCBFの高階Lie微分をまだ生成しない。
+
+
+8. 計算量と近似精度の調整
+----------------------------------------------
+■ 初期設定
+  opts=struct();
+  opts.maxPartsPerObstacle=6;   % 1障害物あたり上限
+  opts.maxTotalParts=36;       % 1シーン全体の上限
+  opts.targetPartSize=3.0;     % 分割の長さ目安 [m]／厳密な上限ではない
+  opts.superExponent=8;        % スーパー楕円体の偶数指数
+  opts.hollowSides=16;         % 穴あき円柱の元形状分割の周方向要素数
+  opts.polySides=8;            % 曲面を囲む支持平面生成の角度分割
+  opts.mveeTolerance=2e-3;     % 直接MVEE反復停止の許容値
+  opts.mveeMaxIterations=2500; % 最大反復数
+  opts.mveeSafetyFactor=1+1e-8;% 最終包含補正係数（1以上）
+
+※mvee*の3項目は直接フィット関数が個別に読む設定。
+※予算は「最大値」であり、実際に毎障害物6部品作るという意味ではない。
+※全体要素数36個から、少なくとも障害物数だけの枠を先に確保する。
+  例えば障害物40個でmaxTotalParts=36は設定エラーになる。
+※大きな障害物・穴が複雑な障害物で部品が増える可能性がある。
+※制限に達した場合、近似対象を削除せず、凸包等でまとめて外側近似を粗くする。
+
+■ 使い分け例
+・描画と基本動作の確認：maxPartsPerObstacle=4～6、maxTotalParts=24～36。
+・狭い穴を残したい：上限を増やして比較。ただしCBF制約数や微分コストも増える。
+・円柱やカプセル：直接フィット版楕円体では、外接箱→楕円体の二重保守性を減らせる。
+・大きな直方体：同じ予算でスーパー楕円体も比較候補。
+・曲面：polySidesを増やすと近似が改善しやすいが、初期生成の演算量も増える。
+
+■ 実際の要素数の確認
+  worldObstacles=DRONE_OBSTACLES(sceneName,approxMethod,groundName,opts);
+  counts=[worldObstacles.meta.numParts];
+  fprintf('parts=%d, max/object=%d\n',sum(counts),max(counts));
+  for i=1:numel(worldObstacles.meta)
+      fprintf('%-24s %d\n',worldObstacles.meta(i).obstacleName,counts(i));
+  end
+
+■ 計算時間について
+・形状生成と直接フィットはシーンを作る時の一回限りの前処理。
+・動的障害物の表示時は原形と近似を同じ剛体変換で移動し、毎時刻MVEEを解き直さない。
+・CBFの制御周期中に必要なのは近傍選択、評価、Lie微分、QP解法など。これはまだ未計測。
+・初期の6/36という上限は実機やシミュレーションで満たすことが実証された数ではない。
+
+
+9. 地面の定義
+----------------------------------------------
+  groundName='ground_z0';
+  groundName='none';
+
+`ground_z0.m` は以下の半空間を返す。
+  point=[0 0 0]
+  normal=[0 0 1]
+  forbiddenSide='negative'
+  safetyMargin=0
+つまり地面は z=0、許容側はz>=0。
+地面の近似は6方式へ変換しない。地面は地面として別に保持する。
+
+点群の余裕（正なら許容側）は次で計算できる。
+  d=ground_clearance(worldObstacles.ground,pointsXYZ); % Nx3 -> Nx1
+  % groundName='none'のときworldObstacles.ground=[]なので、この計算は行わない。
+
+注意：点の地面余裕と、ドローン・吊り荷・紐の実寸を含めた地面安全性は別物。
+既存のシミュレーションの初期吊り荷位置は地面以下の場合がある。
+現在の地面は定義／表示のみで、既存HLCの離陸・着陸へ自動的に安全制約を掛けない。
+
+
+10. 動的障害物：1つずつ独立した軌道
+----------------------------------------------
+■ ファイル保存先
+  environment/DRONE_OBSTACLES/scenes/dynamic/scene_my_moving.m
+
+■ 付け方
+  objects(1)=obs_box('moving_box',[0 0 2],[1 1 1],[0 0 0]);
+  objects(1)=obs_attach_motion(objects(1), ...
+      obs_motion_linear([0.2 0 0],[0 0 5],0));
+
+動的シーンでは、同じscene内に「動く障害物」と「静的障害物」を混在させてもよい。
+近似方式の混在は禁止だが、障害物の運動方式の混在は禁止していない。
+
+■ 4つの軌道定義
+ A. 等速度移動／等角速度（ローカル初期配置が基準）
+    obs_motion_linear([vx vy vz],[rollRate pitchRate yawRate],startTime)
+    速度m/s、角速度deg/s。
+    例：obs_motion_linear([0.2 0 0],[0 0 10],0)
+
+ B. XY円・楕円周回
+    obs_motion_circle(centerXYZ,[radiusX radiusY],period,phaseDeg,yawRateDeg)
+    例：obs_motion_circle([0 1.5 2.5],[1.6 0.9],9,0,15)
+    ※初期位置は軌道式から決定され、obs_* のpositionを軌道中心として使用しない。
+    ※元のobs_*のrpyDegにはyawRateDeg*tが追加される。
+
+ C. 時刻付きWaypoint（pchip補間）
+    obs_motion_waypoints(times,positionsXYZ,orientationsRPYDeg,loop)
+    例：obs_motion_waypoints([0 3 6], ...
+        [0 0 2;1 0 2;2 1 2],[0 0 0;0 0 30;0 0 60],false)
+    ※timesは0から始まり、昇順。positionsと姿勢は時刻数x3。
+    ※pchipは通常C1であり、CBF用高階微分の連続性は保証しない。
+    ※loop=trueの場合は始点終点の位置・姿勢を一致させる必要がある。
+
+ D. 任意式（各障害物に別の関数ハンドル）
+    obs_motion_formula(@(t)[5+sin(t),3,2],@(t)[0,0,10*sin(t)])
+    ※positionFunctionとrpyFunctionはワールド絶対位置[m]、絶対姿勢[deg]を返す。
+    ※高階時間微分関数を返すAPIにはまだなっていない。
+
+■ 3つの障害物を別軌道にする完全例
+  function objects=scene_my_moving()
+  objects(1)=obs_box('box_move',[0 0 2],[1 1 1],[0 0 0]);
+  objects(1)=obs_attach_motion(objects(1), ...
+      obs_motion_circle([3 0 2],[1.5 0.6],8,0,10));
+  objects(2)=obs_cylinder('cyl_move',[4 4 3],0.4,2.0,[15 0 0]);
+  objects(2)=obs_attach_motion(objects(2), ...
+      obs_motion_linear([0.1 -0.1 0],[0 0 6],0));
+  objects(3)=obs_ellipsoid('ell_move',[2 -3 2],[0.5 0.8 0.4],[0 0 0]);
+  objects(3)=obs_attach_motion(objects(3), ...
+      obs_motion_formula(@(t)[2 -3+sin(t) 2+0.1*cos(t)],@(t)[0 0 20*sin(t)]));
+  end
+
+■ 重要：この動的障害物システムは現在、表示・姿勢評価用。
+  将来の動的CBFには障害物速度・加速度・高階導関数、時間依存安全関数等を別途設計する。
+
+
+11. worldObstaclesの参照方法
+----------------------------------------------
+  W=DRONE_OBSTACLES(sceneName,approxMethod,groundName,opts);
+主なフィールド：
+  W.scene             選択したシーン名
+  W.approximation     選択した近似方式
+  W.objects           時刻0における元障害物配列
+  W.parts             時刻0における近似部品配列
+  W.meta              各障害物の要素数等
+  W.ground            地面の定義。'none'の場合は[]
+  W.options           近似・数予算設定
+  W.partBudgets       各障害物へ割り振られた要素数予算
+  W.sourceObjects     運動定義を持つ元障害物
+  W.baseObjects       基準時刻の元障害物
+  W.baseParts         基準時刻の近似部品
+  W.time              Wの現在の時刻
+
+時刻 t=4秒 のスナップショット：
+  W4=obs_world_at_time(W,4.0);
+  % W4.objects と W4.parts は同じ姿勢へ変換済み。
+  % W は時刻0の元データとして保持する。
+
+点群との包含判定（点はNx3）：
+  pts=[0 0 2;3 3 3;10 6 8];
+  insideApprox=obs_world_contains(W.parts,pts,1e-9);
+  % 点の包含判定は、有限障害物の近似体積の中かどうか。
+  % 機体・吊り荷全体との衝突判定ではない。
+
+同じ障害物の近似だけを抽出する：
+  name='cyl_01';
+  idx=strcmp({W.parts.obstacleName},name);
+  itsParts=W.parts(idx);
+
+
+12. DRAWとプロット・動画
+----------------------------------------------
+■ 描画用ファイルは必ず plot/DRAW_DRONE_OBSTACLES/ に入れる。
+・DRAW_SUSPENDED_LOAD.m は編集・上書きしない。
+・元形状は暗い不透明メッシュ（通常originalAlpha=0.88）。
+・近似形状は明るい半透明メッシュ（通常approxAlpha=0.16）。
+・障害物の名前ラベル、地面、元形状、近似は個別にON/OFFできる。
+
+A. 単独の3D障害物描画（指定時刻への更新可能）
+  W=DRONE_OBSTACLES('scene_gate_square','multiple_ellipsoids','ground_z0',opts);
+  d=DRAW_DRONE_OBSTACLES(W,'showOriginal',true, ...
+      'showApprox',true,'showGround',true, ...
+      'originalAlpha',0.88,'approxAlpha',0.16);
+  d.update(0);
+  d.update(3.0); % 動的シーンなら位置・姿勢が変わる
+
+B. 障害物だけの4方向静止画像（3D/XY/XZ/YZ）
+  plot_obstacles_4views(W,'time',0, ...
+      'filename','Data/ObstacleScene_4Views.png');
+
+C. 飛行ログの機体・吊り荷軌跡と障害物の4方向静止画像
+  plot_flight_obstacles_4views(logger,W,'time',10, ...
+      'filename','Data/Flight_4Views.png');
+
+D. 障害物だけの動画
+  animate_obstacles_only(W,0:0.1:12,'Data/Obstacles.mp4');
+
+E. 既存DRAWを変更しない機体＋吊り荷＋障害物の動画
+  animate_suspended_with_obstacles(logger,agent(1),W, ...
+      'target',1,'fps',20,'skip',8,'pause',0, ...
+      'mp4','Data/FlightWithObstacles.mp4');
+
+※Eは既存DRAWの公開描画を呼びながら、障害物DRAWを同じ時刻へ更新するアダプタ。
+※Eは現在1機（target=1）対応。
+※表示はpostprocessingで実施するので、HLC制御ループの各周期に描画負荷を入れない。
+※gifは元のDRAWでできても、今回のanimate_suspended_with_obstaclesが保存するのはMP4。
+※画像ファイルの保存先Data/がなければ、描画関数が作成する実装。
+※動画やFigureの表示範囲が狭い場合は、`lims` や描画クラスの範囲設定を調整する。
+
+
+13. runへの組込み（現行の描画統合run準拠）
+----------------------------------------------
+・現在のrunはHLCとWaypoint V3の飛行を行い、障害物定義は表示用として別途構築する。
+・既存の `env=[];` は変更しない。現段階でCBFやWaypointへ障害物を送っていない。
+・障害物は初期化時に1回だけ生成し、Figureと動画はシミュレーション終了後に生成。
+
+runで実験ごとに変更する主な設定例：
+  env=[];
+  sceneName='scene_cylinders_high_side';
+  approxMethod='multiple_ellipsoids';
+  chosenGround='ground_z0';
+  obstacleOptions=struct();
+  obstacleOptions.maxPartsPerObstacle=6;
+  obstacleOptions.maxTotalParts=36;
+  obstacleOptions.targetPartSize=3.0;
+  obstacleOptions.superExponent=8;
+  obstacleOptions.hollowSides=16;
+  obstacleOptions.polySides=8;
+  worldObstacles=DRONE_OBSTACLES( ...
+      sceneName,approxMethod,chosenGround,obstacleOptions);
+
+描画のON/OFF設定例：
+  obstacleDrawSceneViews=true;
+  obstacleDrawFlightViews=true;
+  obstacleDrawFlightMovie=true;
+  obstacleFigureTime=10.0;
+  obstacleMovieSkip=8;
+  obstacleMovieFPS=20;
+  obstacleOutputDir='Data';
+
+シミュレーション終了後の描画例：
+  if obstacleDrawSceneViews
+      plot_obstacles_4views(worldObstacles,'time',obstacleFigureTime, ...
+          'filename',fullfile(obstacleOutputDir,'ObstacleScene_4Views.png'));
+  end
+  if logger.k>1
+      if obstacleDrawFlightViews
+          plot_flight_obstacles_4views(logger,worldObstacles, ...
+              'time',obstacleFigureTime, ...
+              'filename',fullfile(obstacleOutputDir,'Flight_4Views.png'));
+      end
+      if obstacleDrawFlightMovie
+          animate_suspended_with_obstacles(logger,agent(1),worldObstacles, ...
+              'target',1,'fps',obstacleMovieFPS, ...
+              'skip',obstacleMovieSkip,'pause',0, ...
+              'mp4',fullfile(obstacleOutputDir,'FlightWithObstacles.mp4'));
+      end
+  end
+
+※runの最新版が既に上書き済みなら、改めて古いrunを丸ごと上書きしない。
+※楕円体直接フィットの今回修正ではrunを変更する必要はない。
+※シーン名と近似方式の2つをrunで変更するだけで比較実験できる。
+
+
+14. 検証済み項目・最新修正テスト
+----------------------------------------------
+■ 実際にMATLABでユーザーが報告した合格結果
+  TEST_DRONE_OBSTACLES_TEMP.m          ：132ケース PASS、失敗0
+  TEST_DRONE_OBSTACLES_BUDGET_TEMP.m  ：24シーン×方式の組合せ PASS
+  TEST_DRAW_DRONE_OBSTACLES_TEMP.m    ：静的13形状＋動的独立運動＋4方向表示 ALL PASS
+  `perObstacle` override の拒否       ：PASS
+
+■ 今回の直接フィットでのエラー
+  Outer support cover vertex leaked: sphere_demo / single_ellipsoid @ t=0
+これは次の条件の不一致によるもの。
+・元の球体を直接「完全一致する楕円体」で表現したのは正しい。
+・しかし旧テストは、球に外接する平面から構成した多面体の「球の外側の頂点」まで、
+  完全一致の楕円体に包含させようとしていた。
+・球を正確に囲むことと、球より大きな補助多面体を囲むことは異なる。
+・楕円体原形でも同じ不一致が起こり得る。
+
+■ 今回の修正版 TEST_DRONE_ELLIPSOID_DIRECT_TEMP.m の検証方針
+・元形状が球／楕円体そのものなら：中心・回転行列・3軸長による解析的包含条件を確認し、
+  さらに主軸の境界点をワールド座標でサンプル確認する。
+・それ以外：元形状の各部分に対する外接支持多面体の頂点すべての包含を確認する。
+・元の障害物実体内部の点を別途ランダムサンプルして確認する。
+・各障害物・シーンの部品数上限と方式統一を確認する。
+・細い円柱の旧外接箱方式との体積比較を行う。
+・15m箱の数値MVEE体積が解析値から大きく逸脱していないかを確認する。
+・動的シーンでは時刻を変えて確認する。
+
+使い方：
+  TEST_DRONE_ELLIPSOID_DIRECT_TEMP
+
+※「PASS」まで確認したのは旧3種のテスト。今回の直接フィット改訂テストは未実行。
+※こちらではMATLAB自体を動かせないため、実行結果の保証はできない。
+※合格後、テスト用 .m はcommonmatlab直下から削除してよい。
+※サンプル検査は離散的。全連続領域の数学的・浮動小数点まで含む厳密な検証とは区別する。
+
+
+15. よくあるエラーと対処
+----------------------------------------------
+【Outer support cover vertex leaked: sphere_demo】
+  → 旧直接フィットテストの過剰な要求。今回の更新テストへ置換。
+    単一球・単一楕円体の解析的な同形包含を確認する。
+
+【独自sceneが見つからない】
+  → `scenes/static/` または `scenes/dynamic/` に関数ファイルを配置し、
+    addpath(genpath(pwd)) を実行。MATLAB関数名とファイル名の一致を確認。
+
+【Unknown approximation method】
+  → 6方式の文字列を正確に指定。メソッド名の誤字に注意。
+
+【perObstacle approximation overrides are disabled】
+  → 仕様どおり。`obstacleOptions.perObstacle` を指定しない。
+    1回の実験で全障害物を同一方式に統一する。
+
+【BudgetTooSmall】
+  → maxTotalParts を障害物数以上にする。大規模シーンでは全体上限を増やす。
+
+【旧関数を読んでいる】
+  → `which obs_approx_multiple_ellipsoids -all` と
+    `which DRONE_OBSTACLES -all` で競合を確認。
+    `rehash`／`clear functions` 等は必要なときのみ実施。
+
+【DRAW_SUSPENDED_LOADと描画が競合する】
+  → 元のDRAWは変更しない。障害物描画は
+    `plot/DRAW_DRONE_OBSTACLES/` 内の別クラスを使用する。
+
+【MVEE反復が遅い】
+  → 反復回数・polySides・分割数予算・初期化時の生成時間を確認。
+    本来シミュレーションループ中には再フィットしない。
+
+【穴を近似が塞いでしまう】
+  → 複数部品近似の上限増加／障害物配置の見直し／別方式との比較を行う。
+    単一球・単一楕円体は穴を保存しない設計なので仕様上想定される。
+
+
+16. CBF・Waypointと今後結合するときの留意事項
+----------------------------------------------
+・現在はworldObstaclesをCBFやWaypointに接続せず、表示のみに用いている。
+・形状近似は「障害物を外から囲む」ためのもので、システムの形状モデルではない。
+・将来は機体・吊り荷・ケーブルとの距離、安全関数、相対次数、Lie微分を別途設計する。
+・各障害物の近似方法は実験ごとに統一し、制約形式を揃える。
+・CBFの計算量は近似部品数だけでなく、システム構成要素数、相対次数、入力次数、QP次元にも依存。
+・動的障害物は、元形状／近似形状の剛体運動は実装済みだが、
+  動的CBFに必要な軌道の高階時間微分は未実装。
+・Waypointの将来先読みや回避軌道生成は、同じworldObstaclesを共有できる構造を目指す。
+・地面はz=0を別定義として保持し、将来は機体・吊り荷の形状半径を考慮した制約に拡張する。
+・安全性の厳密な保証を議論する場合は、外側近似・姿勢・サンプリング誤差・数値誤差を分けて評価する。
+
+以上。

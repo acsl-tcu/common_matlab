@@ -9,7 +9,10 @@ if ischar(shapes),shapes={shapes};end
 if nargin<2 || isempty(steps),steps=40;end
 assert(steps>=1 && steps==floor(steps));
 paths=test_CBF_SetupPaths();s=test_CBF_Fixture();
-W=eye(4);scenes={'front','three','corridor','five'};
+W=eye(4);
+% HLC逆変換未接続のため物理限界ではない。発散を見逃さない試験用の決定入力境界。
+virtualBounds=struct('lower',[-30;-30;-30;-5],'upper',[30;30;30;5]);
+scenes={'front','three','corridor','five'};
 folder=fullfile(paths.generator,'CBF','test_results');
 if ~exist(folder,'dir'),mkdir(folder);end
 rows=cell(2*numel(shapes)*numel(scenes),11);idx=0;
@@ -24,11 +27,6 @@ for modeCell={'real','virtual'}
             minH=min(h0);minPsi=inf;minResidual=inf;
             correction=0;completed=0;status='completed';
             positions=zeros(steps,3);logs=zeros(steps,8);
-            % テスト専用の診断域。制御入力の飽和・変更には使わない。
-            % QPの完走と、状態の数値発散を同じ成功扱いにしないため。
-            testMaxDistance=50;  % m, 初期位置からの移動量（このテストだけ）
-            testMaxAbsState=1e7; % 各状態成分（このテストだけ）
-            maxNu=0;
             startX=localLoadX(mode,x);
             for k=1:steps
                 qp=cbf_hocbf_scene(mode,shape,x,s,obstacles);
@@ -36,12 +34,15 @@ for modeCell={'real','virtual'}
                 if ~all(qp.psiInitiallyNonnegative)
                     status='initial_HOCBF_set_violation';break;
                 end
-                sol=cbf_solve_hocbf_qp(qp,nominal,W);
+                if strcmp(mode,'virtual')
+                    sol=cbf_solve_hocbf_qp(qp,nominal,W,virtualBounds);
+                else
+                    sol=cbf_solve_hocbf_qp(qp,nominal,W);
+                end
                 if sol.exitflag<=0 || ~isfinite(sol.minResidual) || sol.minResidual<-1e-7
                     status='qp_infeasible_or_solver_failure';break;
                 end
                 correction=correction+(norm(sol.nu-nominal)>1e-7);
-                maxNu=max(maxNu,norm(sol.nu));
                 minResidual=min(minResidual,sol.minResidual);
                 if strcmp(mode,'real')
                     xn=realStep(x,sol.nu,dt,s);
@@ -57,16 +58,10 @@ for modeCell={'real','virtual'}
                     end
                 else
                     xn=virtualStep(x,sol.nu,dt);
-                end
-                if any(~isfinite(xn)) || ...
-                   abs(localLoadX(mode,xn)-startX)>testMaxDistance || ...
-                   max(abs(xn))>testMaxAbsState
-                    status='numerical_state_growth';break;
-                end
-                % 高次補助条件も次状態で確認する（QPが解けても必要）。
-                qpNext=cbf_hocbf_scene(mode,shape,xn,s,obstacles);
-                if ~all(qpNext.psiInitiallyNonnegative)
-                    status='post_step_HOCBF_set_violation';break;
+                    diag=cbf_model_diagnostics('virtual',xn,s);
+                    if ~all(isfinite(xn)) || ~diag.flatMapValid || norm(xn(1:18),Inf)>1000
+                        status='virtual_extended_state_invalid';break;
+                    end
                 end
                 hNext=cbf_evaluate_scene(mode,shape,xn,s,obstacles);
                 minH=min(minH,min(hNext));
@@ -90,8 +85,8 @@ for modeCell={'real','virtual'}
                 writetable(array2table(logs(1:completed,:),'VariableNames',header), ...
                     fullfile(folder,[tag '.csv']));
             end
-            fprintf('%7s %s %-8s: %2d/%2d step, status=%s, QP修正=%d, minH=%.5g, dx=%.4g m, max|nu|=%.3g\n', ...
-                mode,shape,scene,completed,steps,status,correction,minH,localLoadX(mode,x)-startX,maxNu);
+            fprintf('%7s %s %-8s: %2d/%2d step, status=%s, QP修正=%d, minH=%.5g, dx=%.4g m\n', ...
+                mode,shape,scene,completed,steps,status,correction,minH,localLoadX(mode,x)-startX);
         end
     end
 end

@@ -1,0 +1,26 @@
+V6 OFFLINE CAUSAL HLC PREDICTION AUDIT
+Status: PASS_OFFLINE_CAUSAL_AUDIT__NOT_DEPLOYABLE
+Error: 
+Predictor source resolved: C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT\SIX_WAY\wp_six_trigger_predict_hlc_4s.m
+Original HLC 6s per-case report:
+  nominal: NOMINAL_COMPLETED, error=
+  lateral_rejoin: NOMINAL_COMPLETED, error=
+  initial_swing: NOMINAL_COMPLETED, error=
+  large_offset: NOMINAL_COMPLETED, error=
+Original HLC and 24state used ONLY for 6s comparison baseline.
+Four-second candidate: modal closed-loop+governor, using history until t0=1/2s.
+Route cache from known ORIGINAL route (not future measured trajectory).
+Estimated mass only. No plant true mass to predictor.
+NOT physical error certified. NOT real-EKF validated.
+NOT ready for actual-CBF safe clearance or online integration.
+NOT 1-2ms qualified (geometry and preprocessing not included).
+case,startTime_s,loadMax_m,droneMax_m,govTauMax_s,govCmdMax,refMax_m,cableAngleMax_rad,medianCandidateMs,modalHistoryCondition
+nominal,1,1.92020659e-06,1.59563398e-06,3.50830476e-14,0,2.21350716e-15,3.45920821e-05,0.43525,17401565
+nominal,2,5.56542753e-06,5.3124344e-06,3.55271368e-14,0,1.48214774e-14,5.28578488e-05,0.3956,17401565
+lateral_rejoin,1,0.000134142782,0.000115438131,8.00569591e-05,0.000312706408,5.69507323e-06,8.25968637e-05,0.42215,17401565
+lateral_rejoin,2,9.33502436e-05,6.93494339e-05,1.88191312e-06,1.19153995e-05,2.82225835e-07,7.23680413e-05,0.3839,17401565
+initial_swing,1,0.000969656557,0.000777463135,0.000282928496,0.00131162309,2.99567874e-05,0.00018838682,0.4036,17401565
+initial_swing,2,0.00035007332,0.000258503084,4.7166791e-05,0.000225422662,9.87702501e-06,0.00016697278,0.3992,17401565
+large_offset,1,0.00168136495,0.00137755806,9.61583093e-05,0.000485681229,7.7886679e-06,0.000238089292,0.4113,17401565
+large_offset,2,0.000342351508,0.000251825903,8.63344408e-07,6.08964332e-06,1.73108713e-07,0.000175104184,0.41315,17401565
+One-step saturation probe: NOT_RUN_OPTIONAL

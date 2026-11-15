@@ -1,7 +1,7 @@
 function [h, info] = cbf_geometry_core(mode, shape, obstacleType, X, P, O, cablePlan)
 %CBF_GEOMETRY_CORE  機体・ケーブル・吊り荷の3次元衝突安全関数。
 %
-% 【機体形状】C: 全体を球（ケーブルは被覆球列）
+% 【機体形状】C: 機体・吊り荷は球、ケーブルは最少の内部追加球
 %             B: 機体球 + ケーブルカプセル + 吊り荷球
 %             D: 機体球 + ケーブル外接楕円体 + 吊り荷球
 % 【障害物】球または任意姿勢楕円体
@@ -44,11 +44,11 @@ orders = zeros(0,1);
 switch upper(shape)
     case 'C'
         % 等間隔に配置した球によって有限半径ケーブルを完全に被覆する。
-        for k=0:cablePlan.numberOfSegments
-            s=k/cablePlan.numberOfSegments;
+        for k=1:cablePlan.numberOfSpheres
+            s=cablePlan.centerFractions(k);
             pc=pd+s*(pl-pd);
             label=sprintf('cable_sphere_%02d',k+1);
-            if k==cablePlan.numberOfSegments, degree=6; else, degree=4; end
+            degree=4; % 内部球だけ。端の機体/吊り荷の球は別に存在する。
             [h,labels,orders] = addSphere(h,labels,orders,pc, ...
                 cablePlan.sphereRadius,label,degree,center,axisLength,R, ...
                 margin,epss,obstacleType);
@@ -81,12 +81,12 @@ h=[h;pd(3)-rD-ground-margin;pl(3)-rL-ground-margin];
 labels=[labels;{'ground_drone';'ground_load'}];
 orders=[orders;4;6];
 if upper(shape)=='C'
-    for k=0:cablePlan.numberOfSegments
-        s=k/cablePlan.numberOfSegments;
+    for k=1:cablePlan.numberOfSpheres
+        s=cablePlan.centerFractions(k);
         pc=pd+s*(pl-pd);
         h=[h;pc(3)-cablePlan.sphereRadius-ground-margin];
         labels{end+1,1}=sprintf('ground_cable_sphere_%02d',k+1);
-        if k==cablePlan.numberOfSegments, deg=6; else, deg=4;end
+        deg=4;
         orders(end+1,1)=deg;
     end
 elseif upper(shape)=='B'

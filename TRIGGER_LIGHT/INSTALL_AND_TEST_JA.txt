@@ -1,0 +1,137 @@
+2026-11-12 FAST V2：今回のZIPを common_matlab/ にそのまま展開
+================================================================
+配置先: common_matlab/TRIGGER_LIGHT/
+旧版をコピー/上書きする前に必要ならGitでコミットする。
+パッケージはHLC/EKF/CBF/runを変更しない。旧版ベースラインはTESTS/BASELINEに保存。
+テストでは6方式を個別実行するが、1回の本番評価は1方式のみ。
+
+実行:
+  cd('C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT');
+  clear classes; rehash;
+  R=RUN_PURE_TRIGGER_FAST_V2_TESTS(60,100);
+  disp(R.status);
+  disp(R.benchmark.near_noncontact_36);
+  disp(R.benchmark.thin_ellipsoid_36);
+  disp(R.syntheticTick);
+  disp(R.originalSource);
+
+出力ZIP: TRIGGER_LIGHT/TESTS/RESULTS/PURE_TRIGGER_V2_PROFILE_RESULTS_FOR_CHATGPT.zip
+新試験の中身: 旧版A/Bパリティ、元C/B/D形状との掃引照合、
+解析的吊り荷振動、実障害物生成器、推定mLを用いた理想モデル上界式、
+選択方式別の旧/新unprofiled時間、選択方式別のprofiled内訳。
+
+注意事項:
+ * ベンチマークの真の時間は unprofiled newMedianMs/newP95Ms/newMaxMs。
+ * stageMedianMsはtic/tocが追加される計測モードであり、足し合わせても
+   unprofiled時間になるとは限らない。
+ * Actual HLC / EKF / predictor / CBF / trajectory generationの時間は未計測。
+ * 実24状態RHSが見つかったかは R.originalSource を確認。
+ * 推定mL以外の質量パラメータへの代替使用はしない。
+ * 気象・外乱・張力モード等の真の動力学上界なしにCLEARを正式安全保証にしない。
+
+==============================================================
+以下は以前の説明（最新版は上記および累積引継ぎTXTを優先）
+
+純粋移植へ戻す：選択された1方式だけを実行する軽量トリガ（2026-11-12）
+================================================================
+
+【先に確認してください】
+  C, B, D × multiple_spheres, multiple_ellipsoids = 6つの比較候補です。
+  実際の制御周期ではそのうち「1方式だけ」を使います。
+  テストで6方式を比較する場合も、同じ1方式実行関数を6回「別々に」呼びます。
+  6方式合計時間を1～2ms目標と比較してはいけません。
+
+【上書き・配置】
+  ZIPは common_matlab/ に展開してください。配置は下記です。
+
+  common_matlab/
+    TRIGGER_LIGHT/
+      RUN_PURE_SIX_TRIGGER_TESTS.m     -- テストの入口（本番では不要）
+      PURE_PORT_CUMULATIVE_HANDOFF.txt -- 歴史・今回変更・限界（毎ZIP同梱）
+      INSTALL_AND_TEST_JA.txt          -- 本文
+      wp_trigger_prepare_known.m       -- 障害物の既存変換
+      wp_trigger_plan_once.m           -- 既存の固定サンプル配布
+      SIX_WAY/                         -- ここだけが本番移植候補
+        wp_six_trigger_model_snapshot.m -- 現在EKF推定mLと原モデル値を読み取る
+        wp_six_trigger_config.m        -- 外部形状 + 原モデルから1方式の設定
+        wp_six_trigger_prepare.m       -- 1種類の観測済み障害物を前処理
+        wp_six_trigger_fixed_plan.m    -- 1種類の固定サンプル配置
+        wp_six_trigger_make_sweep.m    -- C/B/Dの区間掃引外側包絡
+        wp_six_trigger_separation.m    -- 支持関数による十分分離条件
+        wp_six_trigger_evaluate.m      -- 1方式だけの幾何判定、二段足切り
+        wp_six_trigger_run_selected.m  -- 実周期で1方式を使うための入口
+      TESTS/                         -- 検証後の本番移植時は不要
+        TEST_SIX_TRIGGER_BASIC.m
+        TEST_SIX_TRIGGER_SWEEP_INCLUSION.m
+        TEST_SIX_TRIGGER_RANDOM.m
+        TEST_SIX_TRIGGER_DRONE_OBSTACLES.m
+        TEST_SIX_TRIGGER_TICK_INTERFACE.m
+        TEST_SIX_TRIGGER_REJOIN_TRACE.m
+        BENCH_SIX_TRIGGER_ON_PC.m
+        selected_test_context.m
+        six_test_fixture.m
+        six_test_forecast.m
+        REFERENCE_GEOMETRY/            -- 比較のためだけの原C/B/Dコピー
+        RESULTS/                       -- 実行で生成される結果
+
+【MATLABで実行】
+  cd('C:\Users\student\Documents\GitHub\common_matlab\TRIGGER_LIGHT')
+  clear classes
+  rehash
+  R = RUN_PURE_SIX_TRIGGER_TESTS(30,100);
+  disp(R.status)
+  disp(R.benchmark.near_noncontact_36)
+
+  追加で実HLC 4秒トレースと独立の未来予測・誤差上界を取得した場合だけ
+  TEST_SIX_TRIGGER_REJOIN_TRACE(...)を呼べます。
+  無引数時は SKIPPED_REQUIRES_REAL_HLC_FLIGHT_TRACE になり、
+  実HLC検証を捏造しません。
+
+  TESTS/RESULTS/PURE_SELECTED_TRIGGER_RESULTS_FOR_CHATGPT.zip ができます。
+  次のチャットにそのZIPを添付してください。
+
+【本番用の1方式のAPI例（今は配線しない）】
+  mode = 'B';               % 例: 1方式だけ
+  cover = 'multiple_ellipsoids';
+  externalGeometry = wp_system_geometry_config(mode);  % 後にCBF定義へ置換
+  % observedWorld はセンサで観測・保持した対象だけを同じcoverで近似
+  % agent はその周期の推定器更新を終えた実際のagent
+  % observationVersion は観測メモリが更新されるたび増えるID/番号
+  % forecastFn = @(model) ... ;   % 4秒の現在状態起点予測器（現在未実装）
+  % [result, cache] = wp_six_trigger_run_selected( ...
+  %     agent, observedWorld, externalGeometry, mode, cover, ...
+  %     forecastFn, observationVersion, cache);
+
+【外部から取得する値】
+  ・mL: その周期の agent.estimator.result.state.mL の値だけをモデル真値に使用。
+    agent.parameter.loadmass の既定値へフォールバックしない。パラメータに書き込まない。
+  ・機体質量、索長、重力、慣性: 原 agent.parameter.get(...) から取得。
+  ・機体球半径、吊荷球半径、索半径、C分割数、D eta、既存安全余裕:
+    外部 wp_system_geometry_config(mode) から取得。新たな固定値を追加しない。
+  ・障害物: 検知済み・保持済みの元の outer cover のみ。
+
+【高速化】
+  ・全4秒の保守的外接球で遠方障害物を一括除外。
+  ・続いて各時間区間の外接球で除外。
+  ・必要な区間だけ、機体球・吊荷球・索形状を独立に詳細検査。
+  ・Cは索の球列すべてを含む外側カプセルで先に足切り。
+    足切りできなければ各球の検査へ戻る（CをBに置き換えたわけではない）。
+  ・分離できないことは衝突確定ではなく POSSIBLE_CONTACT。
+
+【数学的条件、未達】
+  幾何判定は入力された誤差上界・加速度上界・索の直線張り・外接形状の
+  正しさを前提にする条件付き十分判定です。
+  原HLC・EKFからその真の上界を導出する予測器は未実装。
+  原24状態のリアルタイム4秒閉ループ予測も未接続。
+  数値計算の外向き丸め保証も未実装。
+  現状で実Flightに安全性認証として組み込むことは禁止。
+
+  計算時間1～2ms目標は、未来状態生成を含む選択方式1回分のトリガ全体。
+  付属ベンチマークはそのうち幾何判定のみ。
+  25ms全制御周期のHLC/EKF/CBF/QP/生成との統合検証はまだできない。
+  「外部 forecast が与えられたから未来入力を一定と仮定してよい」は誤り。
+
+【既存ZIPを上書きする場合】
+  今回は同名の SIX_WAY/*.m と TESTS/*.m を選択方式仕様に変更。
+  以前の「6方式同時実行」方式の呼び出しシグネチャとは互換ではない。
+  旧ソースはGit履歴・バックアップから参照し、本番のパスに混ぜない。

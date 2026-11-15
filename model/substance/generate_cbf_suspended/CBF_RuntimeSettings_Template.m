@@ -25,14 +25,15 @@ settings.shape.loadRadius = [];
 settings.shape.cableRadius = [];
 
 %% 3. 複数球によるケーブル被覆（実行時に球数を決める）
-settings.cable.numberOfSpheres = [];     % []: 自動選択。整数: 手動
-settings.cable.maxExtraRadius = [];      % 実半径から許す追加膨張 [m]
-settings.cable.maxNumberOfSpheres = [];  % 計算量上限（整数）
+settings.cable.sphereRadius = [];         % 優先：外部指定したケーブル内部球半径 [m]
+settings.cable.radiusRatioToSmallBody = []; % 半径未指定時：小さい方の端球半径との比
+settings.cable.numberOfSpheres = [];     % []: 最少の内部球数。0以上の整数: 手動
+settings.cable.maxNumberOfSpheres = [];  % 追加球数の上限（0以上の整数）
+settings.cable.maxExtraRadius = [];      % 旧形式互換。新しい半径指定を優先する
 
 %% 4. CBFの安全距離、平滑化・地面
 settings.cbf.safetyMargin = [];
 settings.cbf.smoothEpsilon = [];
-settings.cbf.fastGeometrySensitivity = false; % V6: 解析勾配高速法。比較テストに合格してからtrueにする
 settings.cbf.hocbfGain = [];            % 高次CBFの(D+k)^r hに使うゲイン
 settings.cbf.groundGain = [];           % 地面専用。[]ならhocbfGainを使用
 settings.cbf.pruneRedundantGround = true; % 証明済みの冗長な地面CBFのみ省略

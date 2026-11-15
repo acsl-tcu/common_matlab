@@ -42,7 +42,7 @@ for modeCell={'real','virtual'}
             d=find(~cellfun('isempty',strfind(slow.labels,'ground_drone'))); %#ok<STREMP>
             l=find(~cellfun('isempty',strfind(slow.labels,'ground_load'))); %#ok<STREMP>
             for kk=1:numel(id)
-                t=(kk-1)/(numel(id)-1);
+                t=plan.centerFractions(kk);
                 Aexpected=(1-t)*slow.A(d(1),:)+t*slow.A(l(1),:);
                 bexpected=(1-t)*slow.b(d(1))+t*slow.b(l(1));
                 assert(norm(slow.A(id(kk),:)-Aexpected,Inf)<1e-6*(1+norm(Aexpected,Inf)));

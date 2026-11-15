@@ -17,14 +17,25 @@ Q=struct('solved',false,'status','UNKNOWN_C9_25D_QP_NOT_STARTED', ...
     'optional_torque_tangent_skipped',false, ...
     'metric_status','NOT_RUN','metric_ms',NaN, ...
     'native_25d_torque_executed',false,'native_25d_torque_ms',0, ...
-    'linear_constraint_count',0);
+    'linear_constraint_count',0,'tangent_ms',NaN, ...
+    'geometry_rows_ms',NaN,'leaf_rows_ms',NaN, ...
+    'targeted_witness_rows',0, ...
+    'targeted_witness_skipped_combinations',0, ...
+     'group_corridor_enabled',false,'group_corridor_count',0, ...
+     'group_corridor_removed_scalar_rows',0, ...
+     'group_corridor_added_rows',0,'group_corridor_ms',0, ...
+     'group_corridor_support_evaluations',0, ...
+     'group_corridor_candidate_directions',0, ...
+     'group_corridor_status','NOT_REQUESTED');
 T=double(req.duration_s);
 F=double(req.nominal_free27);
+t_tangent=tic;
 S=TRAJECTORY_C9_25D_FULLBODY_TANGENT( ...
     req.t0_s,T,req.start_jets,req.end_jets,F,phase, ...
     double(req.authority.gravity_world_mps2(:)), ...
     double(req.authority.cable_length_m));
 Q.candidate_tangent=S;
+Q.tangent_ms=1000*toc(t_tangent);
 if ~strcmp(S.status, ...
         'VALID_LOCAL_C9_25D_TANGENT__NOT_A_CONTINUOUS_TIME_CERTIFICATE')
     Q.status=S.status;Q.elapsed_ms=1000*toc(clock);return
@@ -33,8 +44,24 @@ end
 % degree-25 acceleration derivatives. QR builds the acceleration metric
 % without ever forming the badly conditioned Bernstein 26x26 Gram.
 % A positive numerical regularization is NOT silently introduced.
-M=TRAJECTORY_C9_25D_EXACT_ACCELERATION_QR( ...
-    S.acceleration_control_J,T);
+% Experimental exact block factorization is opt-in until MATLAB parity
+% and complete-pipeline timing are verified. Neither option changes the QP
+% objective or relaxes a collision/tension/torque constraint.
+block_metric=false;
+if isfield(req.search_options,'enable_25d_block_acceleration_metric')
+    value=req.search_options.enable_25d_block_acceleration_metric;
+    assert((isnumeric(value)||islogical(value))&&isscalar(value)&& ...
+        isfinite(double(value))&&any(double(value)==[0 1]), ...
+        'C9_25D_QP:BlockMetricSwitch','Metric switch must be 0/1.');
+    block_metric=logical(value);
+end
+if block_metric
+    M=TRAJECTORY_C9_25D_BLOCK_ACCELERATION_METRIC( ...
+        S.acceleration_control_J,T);
+else
+    M=TRAJECTORY_C9_25D_EXACT_ACCELERATION_QR( ...
+        S.acceleration_control_J,T);
+end
 Q.metric_status=M.status;
 Q.metric_ms=M.elapsed_ms;
 if ~M.valid
@@ -54,14 +81,148 @@ N=numel(phase);
 A=zeros(25,3*N*(numel(shapes)+double(ground_active))+ ...
     28*numel(shapes)+6*N+2);
 b=zeros(size(A,2),1);m=0;
+batch_planes=false;
+if isfield(req.search_options,'enable_25d_batch_support_planes')
+    sw=req.search_options.enable_25d_batch_support_planes;
+    assert((isnumeric(sw)||islogical(sw))&&isscalar(sw)&& ...
+        isfinite(double(sw))&&any(double(sw)==[0 1]), ...
+        'C9_25D_QP:BatchSupportFlag','Batch support switch must be 0/1.');
+    batch_planes=logical(sw);
+end
+% Optional *search-only* witness targeting.  Base phases retain ALL
+% bodies/shapes.  Extra witness phases contribute ONLY the named obstacle
+% and failed bodies; final full-time certification remains unconditional.
+base_phase=phase;
+% Empty witness masks must have the same three body columns as populated
+% masks. [] is 0x0 and previously stopped the optional group corridor on
+% scene 26/35 even though NO corridor was being constructed.
+wp=[];wid=[];wm=false(0,3);
+if isfield(req.search_options,'witness_bank_base_phases') && ...
+        isfield(req.search_options,'witness_bank_targeted_phases') && ...
+        isfield(req.search_options,'witness_bank_targeted_ids') && ...
+        isfield(req.search_options,'witness_bank_targeted_body_mask')
+    base_phase=req.search_options.witness_bank_base_phases(:);
+    wp=double(req.search_options.witness_bank_targeted_phases(:));
+    wid=double(req.search_options.witness_bank_targeted_ids(:));
+    wm=logical(req.search_options.witness_bank_targeted_body_mask);
+    if ~(numel(wp)==numel(wid) && ...
+            isequal(size(wm),[numel(wp),3]) && ...
+            all(isfinite([wp;wid])) && ...
+            all(wp>=0 & wp<=1) && ...
+            all(ismember(wp,phase)) && ...
+            all(ismember(wid,[shapes.id])) && ...
+            all(any(wm,2)))
+        Q.status='UNKNOWN_C9_25D_WITNESS_BANK_INPUT_MISMATCH';
+        Q.elapsed_ms=1000*toc(clock);return
+    end
+end
+% The optional group corridor is a SEARCH-ONLY spatial polyhedron aid.
+% Only simultaneously violated shape/body/phase cuts are merged; it is
+% never substituted for the independent whole-time body/cable certificate.
+group_corridor=false;
+if isfield(req.search_options,'enable_25d_group_support_corridor')
+    f=req.search_options.enable_25d_group_support_corridor;
+    assert((islogical(f)||isnumeric(f))&&isscalar(f)&& ...
+        isfinite(double(f))&&any(double(f)==[0 1]), ...
+        'C9_25D_QP:GroupCorridorFlag','Expected 0/1.');
+    group_corridor=logical(f);
+end
+Q.group_corridor_enabled=group_corridor;
+if batch_planes||group_corridor
+    G=TRAJECTORY_C9_25D_BATCH_LOCAL_PLANES(S,shapes,rad,L,margin);
+    if ~G.valid
+        Q.status=G.status;Q.elapsed_ms=1000*toc(clock);return
+    end
+    batch_planes=true;  % same true-support rows, required by group search
+else
+    G=[];
+end
+C=[];
+if group_corridor && numel(shapes)>1
+    corr_target=struct('phases',wp(:), 'ids',wid(:), ...
+                       'body_mask',wm);
+    cg=[];
+    if isfield(req.search_options,'group_corridor_neighbour_graph')
+       cg=req.search_options.group_corridor_neighbour_graph;
+    end
+    C=TRAJECTORY_C9_25D_GROUP_CORRIDOR_CUTS( ...
+        S,shapes,G,rad,L,margin,base_phase, ...
+        double(req.authority.gravity_world_mps2(:)),corr_target,cg);
+    Q.group_corridor_status=C.status;
+    Q.group_corridor_ms=C.elapsed_ms;
+    if ~C.valid
+        % The group corridor is SEARCH guidance, never a safety proof.
+        % A malformed/singular optional group plane must not prevent the
+        % ordinary true-shape point-plane QP from being attempted. G is
+        % already independently validated and is used below if C=[];
+        % the candidate still requires the full-time independent oracle.
+        % Do NOT bypass an invalid G, invalid real authority, or any final
+        % full-time geometry/force/torque/heading certification.
+        Q.group_corridor_status=['SKIPPED_OPTIONAL_' C.status];
+        C=[];
+    else
+    Q.group_corridor_count=C.group_count;
+    Q.group_corridor_removed_scalar_rows=C.replaced_scalar_rows;
+    Q.group_corridor_added_rows=C.row_count;
+    Q.group_corridor_support_evaluations=C.support_evaluations;
+    Q.group_corridor_candidate_directions=C.candidate_direction_count;
+    end
+end
+t_geom=tic;
 for k=1:N
+    % A new witness midpoint must not expand to O(N_obstacles^2) rows.
+    targeted=~isempty(wp) && ~ismember(phase(k),base_phase);
+    if targeted
+        witness_indices=find(wp==phase(k));
+        if isempty(witness_indices)
+            Q.status='UNKNOWN_C9_25D_WITNESS_TIME_MISSING';
+            Q.elapsed_ms=1000*toc(clock);return
+        end
+    else
+        witness_indices=[];
+    end
     p=S.payload_m(:,k);q=S.cable_q(:,k);
     Jp=S.payload_J_fixed_phase(:,:,k);
     Jq=S.cable_q_J_fixed_phase(:,:,k);
     for j=1:numel(shapes)
         shape=shapes(j);
-        lamNear=max(0,min(1,(q.'*(p-shape.center))/L));
+        if targeted
+            wj=witness_indices(wid(witness_indices)==double(shape.id));
+            if isempty(wj)
+                Q.targeted_witness_skipped_combinations= ...
+                    Q.targeted_witness_skipped_combinations+3;
+                continue
+            end
+        else
+            wj=[];
+        end
+        if ~batch_planes
+            lamNear=max(0,min(1,(q.'*(p-shape.center))/L));
+        end
         for body=1:3
+            if targeted && ~any(wm(wj,body))
+                Q.targeted_witness_skipped_combinations= ...
+                    Q.targeted_witness_skipped_combinations+1;
+                continue
+            end
+            if targeted
+                Q.targeted_witness_rows=Q.targeted_witness_rows+1;
+            end
+            if batch_planes
+                idx=(k-1)*(numel(shapes)*3)+(j-1)*3+body;
+                if ~isempty(C) && C.suppress(idx)
+                    % This violated body/shape cut belongs to a common
+                    % true-support corridor; append its shared cuts below.
+                    continue
+                end
+                [A,b,m,possible]=add_row(A,b,m,G.A(:,idx),G.b(idx));
+                if ~possible
+                    Q.status='UNKNOWN_C9_25D_IMMOVABLE_OBSTACLE_PLANE';
+                    Q.elapsed_ms=1000*toc(clock);return
+                end
+                Q.geometry_plane_count=Q.geometry_plane_count+1;
+                continue
+            end
             switch body
                 case 1,lam=1;
                 case 2,lam=lamNear;
@@ -86,7 +247,7 @@ for k=1:N
             Q.geometry_plane_count=Q.geometry_plane_count+1;
         end
     end
-    if ground_active
+    if ground_active && ~targeted
         % Infinite z<=0 halfspace applies only to the Flight phase.
         % The straight cable reaches minimum z at one endpoint.
         lam=[1,double(q(3)>0),0];
@@ -103,6 +264,18 @@ for k=1:N
         end
     end
 end
+if ~isempty(C)
+    for ci=1:C.row_count
+        [A,b,m,possible]=add_row(A,b,m,C.A(:,ci),C.b(ci));
+        if ~possible
+            Q.status='UNKNOWN_C9_25D_IMMOVABLE_GROUP_CORRIDOR_PLANE';
+            Q.elapsed_ms=1000*toc(clock);return
+        end
+        Q.geometry_plane_count=Q.geometry_plane_count+1;
+    end
+end
+Q.geometry_rows_ms=1000*toc(t_geom);
+t_leaf=tic;
 % The failed full-time oracle can supply an entire unresolved physical
 % payload leaf, not merely sampled points. Those exact Bernstein control
 % inequalities are included in THIS SAME local 25D QP. The final proof
@@ -145,6 +318,7 @@ if nargin>=6 && isstruct(prior_proof)
         end
     end
 end
+Q.leaf_rows_ms=1000*toc(t_leaf);
 % The same 25-variable QP may include the actual *nominal flatness*
 % torque's 3-axis first-order rows, with no 13D-only Jacobian reuse.
 % These point rows are SEARCH constraints, never a whole-time torque proof.

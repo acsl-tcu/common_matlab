@@ -1,0 +1,18 @@
+V7.1：比較基準と時間集計の修正
+
+(1) 元HLCの6秒MATはケーブル長に数値積分誤差が残るため、ゼロ誤差の比較基準がUNKNOWNになっていました。テスト内だけで、元の吊り荷と機体の端点方向q=(pL-pD)/norm(pL-pD)を保持し、最小補正pD=pL-L*qを実施して名目幾何比較します。修正量は各結果に記録します。実機の予測誤差や安全余裕には使いません。
+(2) 25要素をゼロで初期化し12回しか記録せず、中央値が0msになった不具合を修正。40回の実測のみを使い中央値/P95/最大を集計します。
+(3) 比較基準にUNKNOWNが残るか、予測と基準に不一致があれば、監査の総合statusは合格扱いにしません。
+(4) 6方式は個別の1方式ずつ実行。毎周期現在EKFのmLのみ使用。元HLC/EKF/プラント/幾何V4/軽量予測器のコードは不変更。
+
+MATLAB:
+cd('C:\Users\student\Documents\GitHub\common_matlab')
+addpath(genpath(pwd))
+cd('TRIGGER_LIGHT')
+clear classes; rehash
+C=TEST_TRIGGER_V7_1_AUDIT_CONTRACT(); disp(C.status); disp(struct2table(C.results));
+R=RUN_PURE_TRIGGER_V7_SELECTED_AUDIT();
+disp(R.status); disp(R.nominalBaselineUnknownCount); disp(R.nominalClassificationDisagreements);
+disp(R.total2msMeasuredMedPassFraction); disp(R.total2msMeasuredP95PassFraction); disp(R.resultsZip);
+
+生成ZIPは日時入りでTESTS/RESULTSに保存されます。

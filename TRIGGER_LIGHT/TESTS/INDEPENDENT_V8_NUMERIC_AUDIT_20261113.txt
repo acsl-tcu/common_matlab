@@ -1,0 +1,2 @@
+Randomized C swept AABB inclusion screening: 5000 generated settings, 355416 sampled points tested for intersection in precleared pairs, 0 counterexamples observed. This is a finite numerical test, NOT a formal floating point/physical safety certificate. Source: /mnt/data/v8_numeric_check.py.
+C MEX syntax: gcc -std=c11 -Wall -Wextra -Werror -fsyntax-only with a mock mex.h passed; actual MATLAB MEX build not run.

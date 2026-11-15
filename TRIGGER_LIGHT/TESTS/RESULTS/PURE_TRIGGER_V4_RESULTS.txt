@@ -1,0 +1,44 @@
+Result: PASS_V4_GEOMETRY_AUDIT__LIGHT_HLC_PREDICTOR_PENDING
+6 alternatives: one mode per controller cycle
+orientedBox: PASS_ORIENTED_BOX_SUPPORT_AND_SIX_INDEPENDENT_MODES__CONDITIONAL
+selectedTick: PASS_V4_ONE_SELECTED_MODE_ESTIMATED_MASS_AND_CACHE
+sourceEquations: PASS_ORIGINAL_RHS_TAUT_IDENTITIES__ESTIMATED_MASS_MODEL
+parameterSweep: PASS_24STATE_SOURCE_IDENTITIES_ACROSS_MODEL_PARAMETER_VARIATION
+hlcStress: STRESS_CASE_FAILURES_REQUIRING_INSPECTION
+benchmark: PASS_V3_V4_PER_MODE_BENCHMARK
+empty               C x multiple_spheres    V3 0.02750 V4 0.02880 P95 0.07880 MAX 0.14900 ms tight=0
+empty               C x multiple_ellipsoids V3 0.02785 V4 0.02860 P95 0.03550 MAX 0.31710 ms tight=0
+empty               B x multiple_spheres    V3 0.02700 V4 0.02840 P95 0.02990 MAX 0.04070 ms tight=0
+empty               B x multiple_ellipsoids V3 0.02800 V4 0.02875 P95 0.03480 MAX 0.06620 ms tight=0
+empty               D x multiple_spheres    V3 0.02770 V4 0.02890 P95 0.03100 MAX 0.04260 ms tight=0
+empty               D x multiple_ellipsoids V3 0.02810 V4 0.02890 P95 0.03170 MAX 0.04000 ms tight=0
+distant_36          C x multiple_spheres    V3 0.07390 V4 0.07540 P95 0.09380 MAX 0.23340 ms tight=0
+distant_36          C x multiple_ellipsoids V3 0.08305 V4 0.10235 P95 0.14180 MAX 0.32030 ms tight=0
+distant_36          B x multiple_spheres    V3 0.07210 V4 0.07365 P95 0.13100 MAX 0.15180 ms tight=0
+distant_36          B x multiple_ellipsoids V3 0.07635 V4 0.09345 P95 0.09940 MAX 0.10700 ms tight=0
+distant_36          D x multiple_spheres    V3 0.07310 V4 0.07425 P95 0.08010 MAX 0.17510 ms tight=0
+distant_36          D x multiple_ellipsoids V3 0.07845 V4 0.09560 P95 0.11110 MAX 0.11460 ms tight=0
+cable_contact       C x multiple_spheres    V3 1.03015 V4 1.04335 P95 1.32270 MAX 1.71270 ms tight=0
+cable_contact       C x multiple_ellipsoids V3 1.03580 V4 1.22160 P95 1.45560 MAX 1.60540 ms tight=0
+cable_contact       B x multiple_spheres    V3 0.58100 V4 0.57985 P95 0.73510 MAX 1.02520 ms tight=0
+cable_contact       B x multiple_ellipsoids V3 0.61300 V4 0.73160 P95 1.01190 MAX 1.71360 ms tight=0
+cable_contact       D x multiple_spheres    V3 0.58350 V4 0.58535 P95 0.73500 MAX 0.95660 ms tight=0
+cable_contact       D x multiple_ellipsoids V3 0.60555 V4 0.74020 P95 0.90710 MAX 1.15980 ms tight=0
+near_noncontact_36  C x multiple_spheres    V3 0.40910 V4 0.40240 P95 0.47000 MAX 0.48320 ms tight=0
+near_noncontact_36  C x multiple_ellipsoids V3 0.44940 V4 0.60405 P95 0.76310 MAX 1.12570 ms tight=0
+near_noncontact_36  B x multiple_spheres    V3 0.34460 V4 0.34255 P95 0.55850 MAX 0.58440 ms tight=0
+near_noncontact_36  B x multiple_ellipsoids V3 0.35910 V4 0.48440 P95 0.68200 MAX 0.87040 ms tight=0
+near_noncontact_36  D x multiple_spheres    V3 0.39270 V4 0.39385 P95 0.49640 MAX 0.79760 ms tight=0
+near_noncontact_36  D x multiple_ellipsoids V3 0.39975 V4 0.57295 P95 0.62000 MAX 1.13450 ms tight=0
+thin_ellipsoid_36   C x multiple_spheres    V3 1.36585 V4 1.37565 P95 1.63890 MAX 2.07970 ms tight=0
+thin_ellipsoid_36   C x multiple_ellipsoids V3 1.75205 V4 1.86785 P95 2.97730 MAX 3.48790 ms tight=0
+thin_ellipsoid_36   B x multiple_spheres    V3 0.86945 V4 0.84990 P95 1.11600 MAX 1.41940 ms tight=0
+thin_ellipsoid_36   B x multiple_ellipsoids V3 2.64365 V4 1.27270 P95 1.64610 MAX 2.02010 ms tight=0
+thin_ellipsoid_36   D x multiple_spheres    V3 0.86005 V4 0.86500 P95 1.06960 MAX 1.22570 ms tight=0
+thin_ellipsoid_36   D x multiple_ellipsoids V3 1.14370 V4 1.26655 P95 1.49080 MAX 2.53740 ms tight=0
+HLC nominal            FAIL NaNms; sat=0 minT=NaN; クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'c' が認識されません。
+HLC lateral_rejoin     FAIL NaNms; sat=0 minT=NaN; クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'c' が認識されません。
+HLC initial_swing      FAIL NaNms; sat=0 minT=NaN; クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'c' が認識されません。
+HLC large_offset       FAIL NaNms; sat=0 minT=NaN; クラス 'DRONE_PARAM_SUSPENDED_LOAD' のメソッド、プロパティまたはフィールド 'c' が認識されません。
+ONLINE 1-2ms includes actual forecast? NO.
+TRUE physical prediction-error certificate? NO.

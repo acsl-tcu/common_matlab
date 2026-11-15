@@ -1,0 +1,10 @@
+V6 OFFLINE CAUSAL HLC PREDICTION AUDIT
+Status: FAIL_V6_AUDIT
+Error: V6:Original6: At least one original HLC 6s test failed
+Original HLC and 24state used ONLY for 6s comparison baseline.
+Four-second candidate: modal closed-loop+governor, using history until t0=1/2s.
+Route cache from known ORIGINAL route (not future measured trajectory).
+Estimated mass only. No plant true mass to predictor.
+NOT physical error certified. NOT real-EKF validated.
+NOT ready for actual-CBF safe clearance or online integration.
+NOT 1-2ms qualified (geometry and preprocessing not included).

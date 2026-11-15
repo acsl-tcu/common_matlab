@@ -1,0 +1,10 @@
+PURE PORT - TRIGGER TEST RESULTS
+Release: 26.1.0.3276743 (R2026a) Update 3
+Time: 2026-11-12 14:22:13
+Status: TESTS_COMPLETE_TIME_GOAL_NOT_GUARANTEED
+Bound-source caveat: no HLC/EKF certified bounds; geometry conditional.
+Run duration 3.142237 s
+empty_observation: median 0.212600 ms, p95 0.408300 ms, max 0.657400 ms, status CLEAR_CONDITIONAL, intervals 40, allCalls 200, <=2ms-all 1
+distant_36_parts: median 0.346350 ms, p95 0.426700 ms, max 0.860000 ms, status CLEAR_CONDITIONAL, intervals 40, allCalls 200, <=2ms-all 1
+near_cable_collision: median 0.113150 ms, p95 0.130000 ms, max 0.240000 ms, status POSSIBLE_CONTACT, intervals 5, allCalls 200, <=2ms-all 1
+offset_near_36: median 11.956850 ms, p95 12.438900 ms, max 14.076000 ms, status CLEAR_CONDITIONAL, intervals 40, allCalls 200, <=2ms-all 0

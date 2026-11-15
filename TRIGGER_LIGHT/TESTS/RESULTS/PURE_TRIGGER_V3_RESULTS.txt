@@ -1,0 +1,38 @@
+PURE PORT V3 - SELECTED MODE / ONE MODE PER CALL
+STATUS: PASS_V3_AUDIT__ONLINE_PREDICTION_AND_2MS_PENDING
+Geometry: PASS_V3_V2_EXACT_DECISION_PARITY_AND_PRESCREEN_INCLUSION
+Original HLC: PASS_ORIGINAL_24STATE_AND_HLC_NOMINAL_ROLLOUT__UNCERTIFIED
+Original 24-state RHS: PASS_ORIGINAL_RHS_TAUT_IDENTITIES__ESTIMATED_MASS_MODEL
+Original HLC reason: 
+Goal: 1-2ms including prediction, NOT YET ACHIEVED
+True physical error enclosure: NOT PROVEN
+empty C multiple_spheres V2median=0.026150 V3median=0.027400 V3P95=0.059800 V3MAX=0.123200 preclear=0
+empty C multiple_ellipsoids V2median=0.025600 V3median=0.027000 V3P95=0.030600 V3MAX=0.039800 preclear=0
+empty B multiple_spheres V2median=0.025600 V3median=0.026900 V3P95=0.031200 V3MAX=0.073300 preclear=0
+empty B multiple_ellipsoids V2median=0.026050 V3median=0.027450 V3P95=0.031500 V3MAX=0.044200 preclear=0
+empty D multiple_spheres V2median=0.026400 V3median=0.027900 V3P95=0.030100 V3MAX=0.052600 preclear=0
+empty D multiple_ellipsoids V2median=0.026800 V3median=0.028100 V3P95=0.039000 V3MAX=0.119000 preclear=0
+distant_36 C multiple_spheres V2median=0.070050 V3median=0.078000 V3P95=0.098700 V3MAX=0.197100 preclear=0
+distant_36 C multiple_ellipsoids V2median=0.070200 V3median=0.078100 V3P95=0.095600 V3MAX=0.145000 preclear=0
+distant_36 B multiple_spheres V2median=0.069450 V3median=0.076700 V3P95=0.088100 V3MAX=0.113800 preclear=0
+distant_36 B multiple_ellipsoids V2median=0.073400 V3median=0.081850 V3P95=0.097700 V3MAX=0.331000 preclear=0
+distant_36 D multiple_spheres V2median=0.069250 V3median=0.077100 V3P95=0.089300 V3MAX=0.173100 preclear=0
+distant_36 D multiple_ellipsoids V2median=0.071500 V3median=0.080050 V3P95=0.101900 V3MAX=0.151500 preclear=0
+cable_contact C multiple_spheres V2median=1.145000 V3median=1.052800 V3P95=1.259400 V3MAX=2.221700 preclear=32
+cable_contact C multiple_ellipsoids V2median=1.105050 V3median=1.015000 V3P95=1.220400 V3MAX=1.485500 preclear=32
+cable_contact B multiple_spheres V2median=0.673550 V3median=0.586500 V3P95=0.641500 V3MAX=0.912300 preclear=34
+cable_contact B multiple_ellipsoids V2median=0.692450 V3median=0.601550 V3P95=0.747700 V3MAX=0.906900 preclear=34
+cable_contact D multiple_spheres V2median=0.605600 V3median=0.585150 V3P95=0.821600 V3MAX=0.882000 preclear=32
+cable_contact D multiple_ellipsoids V2median=0.608450 V3median=0.584900 V3P95=0.686200 V3MAX=5.495800 preclear=32
+near_noncontact_36 C multiple_spheres V2median=5.898700 V3median=0.442650 V3P95=0.655200 V3MAX=0.792400 preclear=1440
+near_noncontact_36 C multiple_ellipsoids V2median=5.744750 V3median=0.405950 V3P95=0.534400 V3MAX=0.658100 preclear=1440
+near_noncontact_36 B multiple_spheres V2median=3.222650 V3median=0.414200 V3P95=0.565700 V3MAX=0.969200 preclear=1440
+near_noncontact_36 B multiple_ellipsoids V2median=3.197050 V3median=0.403700 V3P95=0.502500 V3MAX=0.700600 preclear=1440
+near_noncontact_36 D multiple_spheres V2median=3.218500 V3median=0.426800 V3P95=0.525700 V3MAX=1.063600 preclear=1440
+near_noncontact_36 D multiple_ellipsoids V2median=3.213950 V3median=0.438400 V3P95=0.547900 V3MAX=1.134400 preclear=1440
+thin_ellipsoid_36 C multiple_spheres V2median=0.958850 V3median=1.279500 V3P95=1.439200 V3MAX=1.988300 preclear=1178
+thin_ellipsoid_36 C multiple_ellipsoids V2median=1.284850 V3median=1.630000 V3P95=1.866800 V3MAX=2.043200 preclear=1178
+thin_ellipsoid_36 B multiple_spheres V2median=0.611350 V3median=0.859650 V3P95=1.044800 V3MAX=1.343600 preclear=1285
+thin_ellipsoid_36 B multiple_ellipsoids V2median=2.272950 V3median=2.543000 V3P95=2.790700 V3MAX=3.966000 preclear=1285
+thin_ellipsoid_36 D multiple_spheres V2median=0.511050 V3median=0.842100 V3P95=0.985100 V3MAX=1.122200 preclear=1171
+thin_ellipsoid_36 D multiple_ellipsoids V2median=0.725650 V3median=1.093900 V3P95=1.281600 V3MAX=1.367200 preclear=1171

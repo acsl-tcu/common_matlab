@@ -1,0 +1,108 @@
+V7 status COMPLETED_CANDIDATE_AUDIT__NOT_SAFETY_QUALIFIED
+4s forecast comparison, each chosen geometry executed SEPARATELY
+nominal t0 1.0 LoadError_m 1.918592e-06 DroneError_m 1.59361e-06 PVmedianMs 0.4449
+nominal t0 2.0 LoadError_m 5.57084e-06 DroneError_m 5.318592e-06 PVmedianMs 0.37645
+lateral_rejoin t0 1.0 LoadError_m 0.0001474821 DroneError_m 0.0001255262 PVmedianMs 0.38805
+lateral_rejoin t0 2.0 LoadError_m 9.184875e-05 DroneError_m 6.80989e-05 PVmedianMs 0.36525
+initial_swing t0 1.0 LoadError_m 0.002944331 DroneError_m 0.002522553 PVmedianMs 0.38275
+initial_swing t0 2.0 LoadError_m 0.0003550614 DroneError_m 0.0002627006 PVmedianMs 0.3776
+large_offset t0 1.0 LoadError_m 0.005210015 DroneError_m 0.004407003 PVmedianMs 0.37375
+large_offset t0 2.0 LoadError_m 0.0003509051 DroneError_m 0.0002591243 PVmedianMs 0.3828
+nominal t0 1.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.2406 maxMs 1.4824
+nominal t0 1.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0798 maxMs 1.4274
+nominal t0 1.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0274 maxMs 1.1942
+nominal t0 1.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0463 maxMs 1.0496
+nominal t0 1.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.1066 maxMs 1.1692
+nominal t0 1.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.1623 maxMs 1.2114
+nominal t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8509 maxMs 2.2146
+nominal t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0207 maxMs 2.9221
+nominal t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 3.973 maxMs 5.2967
+nominal t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7038 maxMs 1.7617
+nominal t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 3.5033 maxMs 4.9765
+nominal t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 3.0535 maxMs 4.2223
+nominal t0 2.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5588 maxMs 1.5707
+nominal t0 2.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0583 maxMs 1.1397
+nominal t0 2.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0487 maxMs 1.088
+nominal t0 2.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.2223 maxMs 1.2291
+nominal t0 2.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0285 maxMs 1.0309
+nominal t0 2.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0294 maxMs 1.0383
+nominal t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8643 maxMs 1.9583
+nominal t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9254 maxMs 1.934
+nominal t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.2646 maxMs 2.4361
+nominal t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0707 maxMs 2.1332
+nominal t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7314 maxMs 1.8154
+nominal t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6764 maxMs 2.0212
+lateral_rejoin t0 1.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.898 maxMs 2.106
+lateral_rejoin t0 1.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9886 maxMs 2.0105
+lateral_rejoin t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7061 maxMs 1.7901
+lateral_rejoin t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0466 maxMs 2.1309
+lateral_rejoin t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7279 maxMs 2.2725
+lateral_rejoin t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9055 maxMs 1.9083
+lateral_rejoin t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6019 maxMs 1.6731
+lateral_rejoin t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7124 maxMs 1.7454
+lateral_rejoin t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5147 maxMs 1.5177
+lateral_rejoin t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.598 maxMs 1.6266
+lateral_rejoin t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.1748 maxMs 2.2266
+lateral_rejoin t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8765 maxMs 2.0149
+lateral_rejoin t0 2.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7309 maxMs 2.0511
+lateral_rejoin t0 2.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.6148 maxMs 2.8742
+lateral_rejoin t0 2.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8456 maxMs 1.8623
+lateral_rejoin t0 2.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.75 maxMs 1.882
+lateral_rejoin t0 2.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5914 maxMs 1.9133
+lateral_rejoin t0 2.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6528 maxMs 1.6749
+lateral_rejoin t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6076 maxMs 1.8662
+lateral_rejoin t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8605 maxMs 3.6797
+lateral_rejoin t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.4831 maxMs 1.4986
+lateral_rejoin t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6147 maxMs 1.7603
+lateral_rejoin t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6133 maxMs 1.6326
+lateral_rejoin t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7547 maxMs 1.9317
+initial_swing t0 1.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0201 maxMs 2.022
+initial_swing t0 1.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.2697 maxMs 2.3648
+initial_swing t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0032 maxMs 2.0591
+initial_swing t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.1128 maxMs 2.3857
+initial_swing t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9356 maxMs 2.082
+initial_swing t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9382 maxMs 1.962
+initial_swing t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7402 maxMs 1.7531
+initial_swing t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9997 maxMs 2.0342
+initial_swing t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5733 maxMs 1.6975
+initial_swing t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9048 maxMs 1.9521
+initial_swing t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5156 maxMs 1.5268
+initial_swing t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8818 maxMs 1.929
+initial_swing t0 2.0 C x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8951 maxMs 2.0146
+initial_swing t0 2.0 C x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9022 maxMs 2.1201
+initial_swing t0 2.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5388 maxMs 1.8033
+initial_swing t0 2.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7055 maxMs 1.7423
+initial_swing t0 2.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6013 maxMs 1.6873
+initial_swing t0 2.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6923 maxMs 1.9216
+initial_swing t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6654 maxMs 1.9037
+initial_swing t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.8804 maxMs 1.9277
+initial_swing t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.4698 maxMs 1.491
+initial_swing t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6621 maxMs 1.6815
+initial_swing t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.4648 maxMs 1.5711
+initial_swing t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6768 maxMs 1.9374
+large_offset t0 1.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 3.2912 maxMs 3.3224
+large_offset t0 1.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 3.4538 maxMs 3.7945
+large_offset t0 1.0 B x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.2839 maxMs 3.425
+large_offset t0 1.0 B x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.3433 maxMs 3.4355
+large_offset t0 1.0 D x multiple_spheres near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.0368 maxMs 2.0696
+large_offset t0 1.0 D x multiple_ellipsoids near_offset_36 pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.2567 maxMs 2.3329
+large_offset t0 1.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6393 maxMs 1.6415
+large_offset t0 1.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6868 maxMs 1.7048
+large_offset t0 1.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.4905 maxMs 1.5294
+large_offset t0 1.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6429 maxMs 1.7801
+large_offset t0 1.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.9444 maxMs 2.6464
+large_offset t0 1.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6731 maxMs 1.7383
+large_offset t0 2.0 C x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 0.9592 maxMs 1.0128
+large_offset t0 2.0 C x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0536 maxMs 1.0783
+large_offset t0 2.0 B x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 0.9361 maxMs 0.9832
+large_offset t0 2.0 B x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.1029 maxMs 1.1424
+large_offset t0 2.0 D x multiple_spheres near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 0.9687 maxMs 1.1219
+large_offset t0 2.0 D x multiple_ellipsoids near_offset_36 pred CLEAR_CONDITIONAL baseline UNKNOWN agree 0 medianMs 0 P95ms 1.0048 maxMs 1.0122
+large_offset t0 2.0 C x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5358 maxMs 1.7911
+large_offset t0 2.0 C x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 2.2651 maxMs 2.2887
+large_offset t0 2.0 B x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.4832 maxMs 1.6367
+large_offset t0 2.0 B x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.5703 maxMs 1.5902
+large_offset t0 2.0 D x multiple_spheres baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.6218 maxMs 1.7179
+large_offset t0 2.0 D x multiple_ellipsoids baseline_load_contact pred POSSIBLE_CONTACT baseline UNKNOWN agree 0 medianMs 0 P95ms 1.7272 maxMs 1.904
+All geometric classifications refer to NOMINAL piecewise-linear knot paths only.
+Physical prediction errors, EKF covariance, input saturation and real Flight not certified.

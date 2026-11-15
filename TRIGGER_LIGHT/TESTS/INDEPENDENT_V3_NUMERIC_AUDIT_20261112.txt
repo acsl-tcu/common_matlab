@@ -1,0 +1,10 @@
+V3 independent Python numeric verification (2026-11-12)
+Tested 5,000 independent random valid cable configurations with system mode
+C/B/D alternating, including randomized cable length, 2 endpoint poses,
+C subdivisions, D ellipsoid eta, drone/payload/cable radii and endpoint errors.
+Verified that every original modeled swept-body AABB is contained in its
+corresponding V3 precomputed outer AABB (drone, payload and cable separately).
+Checked 30,427 individual body bounding boxes. Violations: 0.
+This is a floating-point numerical inclusion audit only, NOT an outward-
+rounded interval proof, NOT a MATLAB run, NOT a true-plant error certificate.
+The user's actual MATLAB A/B and original-RHS tests have not yet run.
