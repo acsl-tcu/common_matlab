@@ -30,6 +30,7 @@ agent = DRONE;
 agent.parameter = DRONE_PARAM("DIATONE"); %ノミナルモデル．DRONE_PARAMのパラメータを上書きしている．
 % プラントモデル定義 ================================================================================================================================
 plant_model = Model_EulerAngle(dt, initial_state, 1);
+nominal_plant_parameters = plant_model.param.param;
 % plant_model = MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1));
 % デフォルト物理パラメータ(DRONE_PARAM準拠: 2025/07/07時点)
 % 1:mass=0.75  |  2,3:Lx,y=0.16  |  4,5: lx,y=0.08  |  6,7,8: jx,y,z=0.06  |  9: gravity=9.81
@@ -68,7 +69,8 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODE
 
 
 
-agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4}));
+trajectory_args = {"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4};
+agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,trajectory_args));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_for_hovering", {"position", [0;0;1]}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_star", {"freq",-10,"center",[0;0;1],"radius",1.0}}));
 % agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p", {"p0",[0;0;1],"pf",[1;1;1],"T",10}}));
@@ -105,12 +107,26 @@ agent.cha_allocation.f.reference = "time_varying";
 agent.cha_allocation.l.reference="landing";
 
 agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
+
 agent.controller.set_function_class("mec", MECKC(agent,Controller_HL(dt)));
 
 %　agent.controller.mec=MECKC(agent,Controller_HL(dt));
 % agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent,Controller_FHL_Servo(dt));
 % agent.controller.mec=MECKC(agent,Controller_FHL_Servo(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
+
+% 自動保存名に使用する、この試行の設定。
+Setting.auto_save.trajectory = erase(agent.reference.time_varying.generator_name, "gen_ref_");
+Setting.auto_save.model_indices = find(plant_model.param.param ~= nominal_plant_parameters);
+Setting.auto_save.model_values = plant_model.param.param(Setting.auto_save.model_indices);
+Setting.auto_save.gain_file = string(MECKC.GAIN_FILE);
+if ~any(agent.cha_allocation.controller == "mec") || ~any(agent.controller.mec.K_full(:))
+    Setting.auto_save.method = "HL";
+elseif contains(upper(Setting.auto_save.gain_file), "LYKL")
+    Setting.auto_save.method = "LKMEC";
+else
+    Setting.auto_save.method = "KMEC";
+end
 
 function dfunc(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"xrange",[app.time.ts,app.time.te],"fig_num",1);

@@ -437,9 +437,11 @@ classdef SimExp < matlab.apps.AppBase
                     app.stop_app();
 
                     % 発散結果として保存
-                    filename = sprintf( ...
-                        '%s_%03d_DIVERGED_t%.3f', ...
-                        baseName, trial, diverge_time);
+                    if isfield(app.initial_setting, 'auto_save')
+                        filename = auto_trial_filename(app.initial_setting.auto_save, false, trial);
+                    else
+                        filename = sprintf('%s_%03d_DIVERGED_t%.3f', baseName, trial, diverge_time);
+                    end
 
                     % 小数点をファイル名用に変換
                     filename = strrep(filename, '.', 'p');
@@ -521,9 +523,11 @@ classdef SimExp < matlab.apps.AppBase
                     app.stop_app();
 
                     % 発散結果として保存
-                    filename = sprintf( ...
-                        '%s_%03d_DIVERGED_LANDING_t%.3f', ...
-                        baseName, trial, diverge_time);
+                    if isfield(app.initial_setting, 'auto_save')
+                        filename = auto_trial_filename(app.initial_setting.auto_save, false, trial);
+                    else
+                        filename = sprintf('%s_%03d_DIVERGED_LANDING_t%.3f', baseName, trial, diverge_time);
+                    end
 
                     filename = strrep(filename, '.', 'p');
 
@@ -583,7 +587,11 @@ classdef SimExp < matlab.apps.AppBase
                 % 保存
                 % =============================================================
 
-                filename = sprintf('%s_%03d', baseName, trial);
+                if isfield(app.initial_setting, 'auto_save')
+                    filename = auto_trial_filename(app.initial_setting.auto_save, true, trial);
+                else
+                    filename = sprintf('%s_%03d', baseName, trial);
+                end
                 app.data_file_name = filename;
 
                 % Save data ボタンのコールバックをそのまま実行

@@ -3,6 +3,7 @@ classdef TIME_VARYING_REFERENCE < handle
     % obj = TIME_VARYING_REFERENCE()
     properties
         param
+        generator_name % 参照軌道の生成関数名
         func % 時間関数のハンドル
         ref % 参照構造体（pYaw/q/rotms など）
         self
@@ -23,6 +24,7 @@ classdef TIME_VARYING_REFERENCE < handle
                 args
             end
             obj.self = self;
+            obj.generator_name = string(args{1});
             gen_func_name = str2func(args{1});
             param_for_gen_func = args{2};
             obj.func = gen_func_name(param_for_gen_func{:});

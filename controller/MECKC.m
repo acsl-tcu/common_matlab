@@ -14,7 +14,7 @@ classdef MECKC < handle
 
     end
     properties (Constant)
-        GAIN_FILE = '4reiki_last_LYKL_err_20261106_163610_gain_controllable_dlqr_QQ1000_R1_20261106_164032_189.mat';
+        GAIN_FILE = '4reiki_last_KL_err_20261106_173753_gain_controllable_dlqr_R_95_20261117_084919_857.mat';
     end
 
     properties
@@ -164,9 +164,9 @@ classdef MECKC < handle
             % obj.result.delta_u = max(-3, min(3, delta_u_raw));
 
             % 補償入力オン
-            % obj.result.delta_u = -obj.K_full*e;
+            obj.result.delta_u = -obj.K_full*e;
 
-            obj.result.delta_u = excitation_sweep_cos(t);  % 4入力励起オン
+            % obj.result.delta_u = excitation_sweep_cos(t);  % 4入力励起オン
 
             % obj.result.delta_u = -K_full*e + excitation_sweep_cos(t);
             % 補償入力＋4入力励起オン

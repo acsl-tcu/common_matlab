@@ -49,13 +49,6 @@ else
     Setting.fExp = 0;
 end
 
-% MECKCで使用するゲインファイル名を取得
-gainFile = MECKC.GAIN_FILE;
-
-% 拡張子.matを除去
-[~, gainName, ~] = fileparts(gainFile);
-
 % シミュレーション実行
 app = SimExp(Setting);
-% app.run_auto_trials(1, string(gainName) + "ME019_result");
-app.run_auto_trials(1,  "without_MEC_MErr019");
+app.run_auto_trials(1);
