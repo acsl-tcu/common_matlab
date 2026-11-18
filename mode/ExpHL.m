@@ -27,8 +27,8 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 % for datasets 
 % reference_args = {"gen_ref_circle",{"freq",7,"center",[0;0;1],"radius",1},4}; % circle
 % reference_args = {"gen_ref_saddle",{"freq",6,"center",[0;0;1.0],"radius",[1,1,0.2]},4}; % saddle
-reference_args = {"gen_ref_figure8",{"freq",10,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
-% reference_args = {"gen_ref_circle",{"freq",10,"center",[0;0;1.0],"radius",0},4}; % hovering
+reference_args = {"gen_ref_figure8",{"freq",6,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
+% reference_args = {"gen_ref_circle",{"freq",5,"center",[0;0;1.0],"radius",0},4}; % hovering
 
 % Align the first point with the EKF position when flight starts.
 % agent.reference.time_var.fAnchorXYToEstimator = true;
@@ -48,8 +48,7 @@ hlc_param.explore.flight_only = 1;
 hlc_param.apply_identification_excitation = true;
 
 agent.controller.set_function_class("hlc", HLC(agent, hlc_param));
-
-
+% agent.controller.set_function_class("hlcEDMD", HLC_EDMD_ERROR(agent, Controller_HL(dt)));
 
 % agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
 % agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
@@ -72,7 +71,7 @@ agent.cha_allocation.l.reference = "landing";
 agent.cha_allocation.a.controller = "hlc";
 agent.cha_allocation.t.controller = "hlc";
 agent.cha_allocation.f.controller = "hlc";
-% agent.cha_allocation.f.controller = ["hlcEDMD"];
+% agent.cha_allocation.f.controller = "hlcEDMD";
 agent.cha_allocation.l.controller = "hlc";
 % agent.cha_allocation.f.controller = ["hlcEDMD", "hlc"];
 % agent.cha_allocation.f.controller = ["kmpc","hlc"];
