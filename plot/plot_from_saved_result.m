@@ -12,8 +12,8 @@
 % プロットしたいフェーズを選べるようになると嬉しい
 
 %% 初期化&パスの設定
-clear all
-cf = pwd;
+% clear all
+% cf = pwd;
 
 if contains(mfilename('fullpath'), "mainGUI")
     cd(fileparts(mfilename('fullpath')));

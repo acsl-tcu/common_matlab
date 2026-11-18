@@ -27,7 +27,7 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 % for datasets 
 % reference_args = {"gen_ref_circle",{"freq",7,"center",[0;0;1],"radius",1},4}; % circle
 % reference_args = {"gen_ref_saddle",{"freq",6,"center",[0;0;1.0],"radius",[1,1,0.2]},4}; % saddle
-reference_args = {"gen_ref_figure8",{"freq",6,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
+reference_args = {"gen_ref_figure8",{"freq",7,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
 % reference_args = {"gen_ref_circle",{"freq",5,"center",[0;0;1.0],"radius",0},4}; % hovering
 
 % Align the first point with the EKF position when flight starts.
@@ -50,12 +50,12 @@ agent.controller.set_function_class("nominal", HLC(agent, hlc_param));
 % agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
 
 %%%%%============================================================%%%%%
-% model_file = fullfile('C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\controller\KoopmanBYKYO\HL', 'hl_edmd_mec_nopayload.mat');
-% assert(isfile(model_file), 'EDMDモデルが見つかりません');
-% 
-% hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
-% agent.controller.set_function_class("hlcEDMD", HLC_EDMD_MEC(agent, hlc_param));
-% assert(agent.controller.hlcEDMD.residual.loaded, 'EDMDモデルを読み込めませんでした');
+model_file = fullfile('C:\Users\acsl_students\Documents\GitHub_subfolder\common_matlab\controller\KoopmanBYKYO\HL', 'hl_edmd_mec_nopayload.mat');
+assert(isfile(model_file), 'EDMDモデルが見つかりません');
+
+hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
+agent.controller.set_function_class("hlcEDMD", HLC_EDMD_MEC(agent, hlc_param));
+assert(agent.controller.hlcEDMD.residual.loaded, 'EDMDモデルを読み込めませんでした');
 %%%%%============================================================%%%%%
 
 agent.cha_allocation.reference = "time_var";
@@ -65,6 +65,11 @@ agent.cha_allocation.f.reference = "time_var";
 agent.cha_allocation.l.reference = "landing";
 
 agent.set_cha_allocation_for_all("controller", "nominal");
+agent.cha_allocation.a.controller = "nominal";
+agent.cha_allocation.t.controller = "nominal";
+agent.cha_allocation.f.controller = "hlcEDMD";
+agent.cha_allocation.l.controller = "nominal";
+
 % agent.cha_allocation.f.controller = ["nominal", "mec"];
 % agent.cha_allocation.f.controller = ["hlcEDMD"];
 % agent.cha_allocation.f.controller = ["hlcEDMD", "nominal"];
@@ -73,9 +78,11 @@ agent.set_cha_allocation_for_all("controller", "nominal");
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");
 app.logger.plot({1, "inner_input", ""}, "fig_num", 1,"xrange",[app.time.ts,app.time.te]);
- app.logger.plot({1, "q", "e"},"fig_num", 4,"phase","tfl");
+ app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
+
+ % app.logger.plot({1, "q", "e"},"fig_num", 4,"phase","tfl");
 app.logger.plot({1, "input", ""},"fig_num", 1,"phase","tfl");
-app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
+% app.logger.plot({1, "v", "er"}, "fig_num", 2,"phase","tfl");
 % app.logger.plot({1, "input", ""},"ax",app.UIAxes5,"xrange",[app.time.ts,app.time.te]);
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
  app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
