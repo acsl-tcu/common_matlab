@@ -89,6 +89,15 @@ try
         'slowdownStart',g.slowdownStart, ...
         'slowdownFull',g.slowdownFull, ...
         'minScale',g.minScale,'filterTime',g.filterTime);
+    % These are CURRENT EKF states, never plant truth. The load p/v are
+    % fixed even if p/pT are absent; q anchoring is performed only when
+    % the current EKF cable state is present and dynamically feasible.
+    if isfield_or_prop_local(st,'p')
+        H.currentEKFDronePosition=st.p(:);
+    end
+    if isfield_or_prop_local(st,'pT')
+        H.currentEKFCableDirection=st.pT(:);
+    end
     T=wp_six_trigger_selected_nominal_v8(agent,H,K,routeCache,known,cfg,model);
     R=T;
     R.historySamples=S.filled;
@@ -105,4 +114,8 @@ function S=initHistory()
 S=struct('filled',0,'lastTime',-inf, ...
     'pastLoad',zeros(3,41),'pastVelocity',zeros(3,41), ...
     'pastRefLoad',zeros(3,41),'pastRefVelocity',zeros(3,41));
+end
+
+function yes=isfield_or_prop_local(x,name)
+if isstruct(x),yes=isfield(x,name);else,yes=isprop(x,name);end
 end

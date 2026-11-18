@@ -20,7 +20,6 @@ eLoad=nan(ne,nh);eDrone=eLoad;initialVel=nan(ne,1);
 initialLoad=eLoad(:,1);initialDrone=initialLoad;
 initialCableAngle=initialLoad;fitRms=nan(ne,3);
 forecastMs=nan(ne,1);failText=cell(ne,1);forecastInputSource=cell(ne,1);
-B=historyObservationMatrices(trace.gains,K.pastRelativeTimes,K.velocityWeight);
 for row=1:ne
  i=selected(row);hist=i-40:i;
  cur=r(i);
@@ -42,21 +41,20 @@ for row=1:ne
  H.slowdownFull=cur.governorSettings(2);
  H.minScale=cur.governorSettings(3);
  H.filterTime=cur.governorSettings(4);
+ if numel(cur.estP)==3 && all(isfinite(cur.estP))
+     H.currentEKFDronePosition=cur.estP(:);
+ end
+ if numel(cur.estCableDir)==3 && all(isfinite(cur.estCableDir))
+     H.currentEKFCableDirection=cur.estCableDir(:);
+ end
  try
    F=wp_six_trigger_pv_forecast_v8(H,K,route);
    forecastMs(row)=F.timeMs;
    forecastInputSource{row}='EKF_history_and_known_route_ONLY';
    initV=estVel(:,end);refV=H.pastRefVelocity(:,end);
-   % Estimate t=0 velocity of the fitted modal error (not the oracle).
-   modes=zeros(3,1);
-   for axis=1:3
-     y=[(estLoad(axis,:)-H.pastRefLoad(axis,:))'; ...
-         K.velocityWeight*(estVel(axis,:)-H.pastRefVelocity(axis,:))'];
-     x=K.W{axis}*y;
-     fitRms(row,axis)=norm(B{axis}*x-y)/sqrt(numel(y));
-     modes(axis)=x(2);
-   end
-   initialVel(row)=norm((refV+modes)-initV);
+   % Score the ACTUAL constrained forecast, not the old unconstrained W.
+   fitRms(row,:)=F.initialAnchor.modelFitWeightedRMS;
+   initialVel(row)=norm(F.vLoad(:,1)-initV);
    initialLoad(row)=norm(F.pLoad(:,1)-cur.estLoad);
    if all(isfinite(cur.estP))
        initialDrone(row)=norm(F.pDrone(:,1)-cur.estP);
@@ -136,7 +134,8 @@ end
 S.margin3mExceededAny=any(combined(:)>3);
 S.geometryUsesZeroForecastErrorEnvelope=true;
 S.empricalMarginsAreNotProvenUpperBounds=true;
-S.initialEKFPositionForcedToMatch=false;
+S.initialEKFPositionForcedToMatch=true;
+S.initialEKFDronePositionMatchedOnlyWhenCableModelAndEKFAgree=true;
 S.physicalErrorUpperBoundCertified=false;
 S.status='PASS_SCORED_NOT_CERTIFIED';
 if S.validForecastCount==0 || S.failedForecastCount>0

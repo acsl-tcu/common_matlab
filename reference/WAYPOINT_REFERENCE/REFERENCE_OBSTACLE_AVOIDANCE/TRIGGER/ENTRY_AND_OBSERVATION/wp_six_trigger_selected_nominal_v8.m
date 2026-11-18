@@ -52,6 +52,15 @@ try
     w=tic;
     pred=wp_six_trigger_pv_forecast_v8(H,K,routeCache);
     R.forecastMs=1000*toc(w);
+    R.initialAnchor=pred.initialAnchor;
+    % Do not label an inconsistent cable model as a nominal clearance.
+    % In particular, NEVER snap just one t=0 output to the EKF position.
+    if pred.initialAnchor.cableAnchorRequested && ...
+            ~pred.initialAnchor.cableAnchorApplied
+        R.status='UNKNOWN_INITIAL_CABLE_DYNAMICS';
+        R.reason=pred.initialAnchor.cableAnchorStatus;
+        R.totalMs=1000*toc(watch);return
+    end
     % 41 fixed 0.1 s knots, exact sampled output; NOT an intersample proof.
     ids=1:4:161;
     n=numel(ids);

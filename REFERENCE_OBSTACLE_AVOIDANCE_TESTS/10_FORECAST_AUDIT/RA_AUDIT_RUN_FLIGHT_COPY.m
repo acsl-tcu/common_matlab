@@ -4,6 +4,10 @@ function trace = RA_AUDIT_RUN_FLIGHT_COPY(root,scenario,number)
 sourcePath=fullfile(root,'run_flight_SimSuspendedLoad_trj_obs_sns.m');
 if ~isfile(sourcePath),error('RAAudit:MissingRun','Not found: %s',sourcePath);end
 source=fileread(sourcePath);
+% Windows CRLF is standard for the user's run. Normalize only the
+% generated TEST COPY, never the original file on disk.
+source=strrep(source,sprintf('\r\n'),sprintf('\n'));
+source=strrep(source,sprintf('\r'),sprintf('\n'));
 folder=fullfile(root,'REFERENCE_OBSTACLE_AVOIDANCE_TESTS','10_FORECAST_AUDIT','_GENERATED');
 if ~isfolder(folder),mkdir(folder);end
 name=sprintf('RA_AUDIT_GENERATED_CASE_%02d',number);

@@ -18,6 +18,14 @@ Ay=A6;Ay(6,:)=-reshape(gains.F3,1,[]);
 Az=[0 1;-reshape(gains.F1,1,[])];
 As={Ax,Ay,Az};
 K=struct();K.W=cell(1,3);K.Phi=cell(1,3);K.A2=cell(1,3);
+% Reduced least-squares maps with EKF e(0), e_dot(0) fixed exactly.
+% Also precompute the x/y map with e_ddot(0) fixed by EKF cable
+% direction, if the taut-cable condition is feasible at this tick.
+K.BfixedPV=cell(1,3);K.WfreePV=cell(1,3);
+K.BfixedPVA=cell(1,3);K.WfreePVA=cell(1,3);
+K.Bfull=cell(1,3);
+K.reducedConditionPV=nan(1,3);
+K.reducedConditionPVA=nan(1,3);
 K.condition=zeros(1,3);
 for j=1:3
     A=As{j};n=size(A,1);m=numel(t);
@@ -28,7 +36,27 @@ for j=1:3
     end
     B=[HM;velocityWeight*HV];
     % This solve happens ONCE at setup, never inside the 25ms call.
-    K.W{j}=B\eye(2*m);
+    K.W{j}=B\eye(2*m); % retained for compatible offline diagnostics
+    K.Bfull{j}=B;
+    K.BfixedPV{j}=B(:,1:2);
+    if n>2
+        U=B(:,3:end);
+        K.WfreePV{j}=U\eye(2*m);
+        K.reducedConditionPV(j)=cond(U);
+    else
+        K.WfreePV{j}=zeros(0,2*m); % vertical 2-state: exact EKF p/v
+        K.reducedConditionPV(j)=1;
+    end
+    if n>3
+        K.BfixedPVA{j}=B(:,1:3);
+        U=B(:,4:end);
+        K.WfreePVA{j}=U\eye(2*m);
+        K.reducedConditionPVA(j)=cond(U);
+    else
+        K.BfixedPVA{j}=zeros(2*m,0);
+        K.WfreePVA{j}=zeros(0,2*m);
+        K.reducedConditionPVA(j)=NaN;
+    end
     K.condition(j)=cond(B);
     K.Phi{j}=expm(A*.025);
     K.A2{j}=A*A;
@@ -39,6 +67,8 @@ K.gainsF1=gains.F1;K.gainsF2=gains.F2;K.gainsF3=gains.F3;
 K.governor=wp_six_trigger_governor_fast_coeff(.025,filterTime);
 K.samplePeriod_s=.025;
 K.precomputedOutsideTick=true;
+K.initialPVExactlyAnchoredToCurrentEKF=true;
+K.cableDirectionCanBeDynamicallyAnchored=true;
 K.modelIsConditionalOnUnSaturatedOriginalHLC=true;
 K.physicalPredictionErrorCertified=false;
 end
