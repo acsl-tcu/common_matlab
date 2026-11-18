@@ -2,6 +2,10 @@ ts = 0; % initial time
 dt = 0.025; % sampling period
 te = 50; % termina time
 time = TIME(ts,dt,te);
+%%-----CBF挿入場所切り替え-------
+cbfMode = 1;    % 0: 実入力CBF
+                % 1: 仮想入力CBF
+%%------------
 in_prog_func = @(app) in_prog(app);
 % post_func = @(app) post(app, worldObstacles);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
@@ -75,7 +79,20 @@ agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
 
-agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+hlcParam = Controller_HL_Suspended_Load(dt, agent);
+
+switch cbfMode
+    case 0
+        hlc = HLC_SUSPENDED_LOAD_CBF_REAL(agent, hlcParam);
+
+    case 1
+        hlc = HLC_SUSPENDED_LOAD_CBF_VIRTUAL(agent, hlcParam);
+
+    otherwise
+        error('Invalid cbfMode');
+end
+
+agent.controller.set_function_class("hlc_suspended", hlc);
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
