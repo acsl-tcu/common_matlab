@@ -12,8 +12,8 @@ for caseIndex = 1:size(cases, 1)
     if ~cases(caseIndex, 1)
         plant.param = app.initial_setting.simhl_nominal_plant_param;
     end
-    hlc = app.agent(1).controller.hlc;
-    hlc.use_mec = false;
+    app.agent(1).set_cha_allocation_for_all("controller", "nominal");
+    hlc = app.agent(1).controller.nominal;
     hlc.param.explore.enable = logical(cases(caseIndex, 2));
     hlc.param.apply_identification_excitation = logical(cases(caseIndex, 2));
     for phase = ['a', 't', 'f', 'l']

@@ -3,7 +3,7 @@ function Controller = Controller_HL_EDMD_ERROR(dt, model_file, state_source)
 % Parameter generator for HLC_EDMD_ERROR.
 
     if nargin < 2 || isempty(model_file)
-        model_file = 'C:\Users\student\Documents\GitHub\common_matlab\mode\KMPC\KQLMPC\hl_edmd_error_model_plant.mat';
+        model_file = HLC_EDMD_ERROR.default_model_file();
     end
     if nargin < 3 || isempty(state_source)
         state_source = 'estimator';

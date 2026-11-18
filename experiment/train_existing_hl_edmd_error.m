@@ -16,7 +16,7 @@ cleanupApp = onCleanup(@() delete(app));
 param = Controller_HL_EDMD_ERROR(app.time.dt, opts.save_path, 'estimator');
 controller = HLC_EDMD_ERROR(app.agent(1), param);
 assert(controller.comp.loaded, 'Model was not loaded.');
-app.agent(1).controller.set_function_class("hlc", controller);
+app.agent(1).controller.set_function_class("mec", controller);
 for phase = ['a', 't', 'f', 'l']
     app.cha = phase;
     app.motive.getData(app.agent);
