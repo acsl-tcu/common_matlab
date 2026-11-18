@@ -39,19 +39,14 @@ agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENC
 
 % agent.reference.time_var= TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10,"orig",[0;0;1],"size",[0,0,0]},"HL"});%{"Case_study_trajectory",{[0,0,0.6]},"HL"});
 % agent.reference.time_var=TIME_VARYING_REFERENCE(agent,{"gen_ref_hl_demo_multi", {"hover",[0 0 0.6]}});
-% agent.controller.set_function_class("hlc", HLC(agent,Controller_HL(dt)));
-
-
 hlc_param = Controller_HL(dt);
 hlc_param.explore.enable = 1;
 hlc_param.explore.flight_only = 1;
 hlc_param.apply_identification_excitation = true;
 
-agent.controller.set_function_class("hlc", HLC(agent, hlc_param));
-
-
-
-% agent.controller.hlc = HLC_EDMD_ERROR(agent,Controller_HL(dt));
+agent.controller.set_function_class("nominal", HLC(agent, hlc_param));
+% 飛行中に誤差補償を使う場合は，下の登録と f.controller の2段構成を有効にする。
+% agent.controller.set_function_class("mec", HLC_EDMD_ERROR(agent, Controller_HL(dt)));
 % agent.controller.hlc = HLC_EDMD_MEC(agent,Controller_HL(dt));
 
 %%%%%============================================================%%%%%
@@ -69,13 +64,11 @@ agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
 agent.cha_allocation.f.reference = "time_var";
 agent.cha_allocation.l.reference = "landing";
 
-agent.cha_allocation.a.controller = "hlc";
-agent.cha_allocation.t.controller = "hlc";
-agent.cha_allocation.f.controller = "hlc";
+agent.set_cha_allocation_for_all("controller", "nominal");
+% agent.cha_allocation.f.controller = ["nominal", "mec"];
 % agent.cha_allocation.f.controller = ["hlcEDMD"];
-agent.cha_allocation.l.controller = "hlc";
-% agent.cha_allocation.f.controller = ["hlcEDMD", "hlc"];
-% agent.cha_allocation.f.controller = ["kmpc","hlc"];
+% agent.cha_allocation.f.controller = ["hlcEDMD", "nominal"];
+% agent.cha_allocation.f.controller = ["kmpc","nominal"];
 %agent.cha_allocation.f.controller = ["kmpc"];
 function post(app)
 app.logger.plot({1, "p", "er"},"ax",app.UIAxes,"phase","tfl");

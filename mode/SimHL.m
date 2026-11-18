@@ -63,14 +63,8 @@ Setting.simhl_trajectory = string(reference_args{1});
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent, reference_args));
 
 
-model_file = fullfile(pwd, 'Data', 'Sim_data', ...
-    'edmd_mec_12_20261113_133936', 'hl_edmd_mec_model.mat');
-
-assert(isfile(model_file), '学習済みモデルが見つかりません');
-
-hlc_param = Controller_HL_EDMD_MEC(dt, model_file, 'estimator', true);
-hlc_param.enable_show = false;
-agent.controller.set_function_class( "hlc", HLC_EDMD_MEC(agent, hlc_param));
+agent.controller.set_function_class("nominal", HLC(agent, Controller_HL(dt)));
+agent.controller.set_function_class("mec", HLC_EDMD_ERROR(agent, Controller_HL(dt)));
 
 %run("ExpBase");
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.6));
@@ -89,6 +83,6 @@ app.logger.plot({1, "v", "er"}, "fig_num", 3,"xrange",[app.time.ts,app.time.te],
     "fontsize", 14);
 app.logger.plot({1, "p1-p2-p3", "er"}, "fig_num", 4, "phase", 'tfl', "color", 0, ...
     "linewidth", 2.5, "fontsize", 14);
-app.logger.plot({1, "controller.result.delta_u_edmd_applied", ""}, "fig_num", 5, "phase", 'f', "linewidth", 2.5, "fontsize", 14);
+app.logger.plot({1, "controller.result.delta_u_edmd", ""}, "fig_num", 5, "phase", 'f', "linewidth", 2.5, "fontsize", 14);
 %app.logger.plot({1, "input", ""},"ax",app.UIAxes4,"xrange",[app.time.ts,app.time.t]);
 end
