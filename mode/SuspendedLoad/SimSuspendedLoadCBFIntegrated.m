@@ -49,7 +49,7 @@ agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF_SuspendedLoad
 
 agent.estimator.set_function_class("loadstate", SUSPENDED_LOAD_STATE_MANAGER(agent));
 L = agent.parameter.cableL;
-agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
+% agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",5,"center",[0;0;1.5],"radius",[1,1,0]},6})); %円系軌道
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_p2p_back_and_forth",{"p0",[0;0;3.0], "p1",[2;2;3.0], "t_go",3.0, "t_hold",3.0, "t_back",3.0},6})); %P2P
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{"gen_ref_triangle",{"freq",9,"center",[0;0;1.5],"radius",[1,1,0]},6})); % triangle
 % agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent, {"gen_ref_p2p_line", {"p0", [0;0;3.0], "p1", [0;15.0;3.0], "t_go", 15.0}, 6}));
@@ -61,6 +61,16 @@ agent.reference.set_function_class("timevarying", TIME_VARYING_REFERENCE(agent,{
 %     "t_acc", 3.0, ...             % 3秒かけて滑らかに加速
 %     "t_start", 2.0 ...            % 開始2秒後から移動開始
 %     }, 6}));
+%%----------------------------------
+%ウェイポイントリファレンス
+flightRouteGenerator = "gen_wp_straight";
+flightNominalSpeed = 1.5;
+flightRouteParams = {"speed", flightNominalSpeed};
+
+agent.reference.set_function_class("waypoint", ...
+    WAYPOINT_REFERENCE(agent, ...
+    {char(flightRouteGenerator),flightRouteParams,6}));
+%%-----------------------------------------
 agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",3.0,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",-L,"te",3)); % zd = -Lとするのがミソ：l移行時のrefは牽引物用なので
@@ -71,8 +81,51 @@ agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
 agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセットする
 agent.cha_allocation.t.reference =["takeoff","sload"];
-agent.cha_allocation.f.reference =["timevarying","sload"];
+% agent.cha_allocation.f.reference =["timevarying","sload"];
+%%----------ウェイポイントリファレンス-------------
+agent.cha_allocation.f.reference = ["waypoint","sload"];
+%%-----------------------------------------------
 agent.cha_allocation.l.reference =["landing","sload"];
+
+%% ============================================================
+% ここから障害物・地面の定義
+% ============================================================
+
+sceneName = 'scene_cylinders_high_side';
+% sceneName = 'scene_gate_square';
+% sceneName = 'scene_showcase_13';
+% sceneName = 'scene_mixed_obstacles';
+
+% シングル楕円体近似
+approxMethod = 'single_ellipsoid';
+
+% 地面
+chosenGround = 'ground_z0';
+
+% 障害物生成
+worldObstacles = DRONE_OBSTACLES( ...
+    sceneName, ...
+    approxMethod, ...
+    chosenGround);
+%% ============================================================
+% 球形模擬センサ
+% ============================================================
+
+% 検知半径 [m]
+raSensorRadiusM = 5.0;
+
+% センサ設定
+raSensorCfg = ra_sim_sensor_config(raSensorRadiusM);
+
+% センサ登録
+agent.sensor.set_function_class("cbf_spherical", ...
+    CBF_SIM_SPHERICAL_SENSOR( ...
+    agent, worldObstacles, raSensorCfg));
+
+% Motiveと球形模擬センサを両方使用
+agent.set_cha_allocation_for_all( ...
+    "sensor", ["motive", "cbf_spherical"]);
+%%
 
 %%
 
