@@ -8,7 +8,7 @@ end
 
 methods
 
-    function obj = HLC_SUSPENDED_LOAD_CBF_REAL(self, param)
+    function obj = HLC_SUSPENDED_LOAD_CBF_REAL(self, param, cbfId)
         obj.self = self;
         obj.param = param;
 

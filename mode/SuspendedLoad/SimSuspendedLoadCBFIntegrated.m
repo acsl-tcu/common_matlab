@@ -3,7 +3,7 @@ dt = 0.025; % sampling period
 te = 50; % termina time
 time = TIME(ts,dt,te);
 %%-----CBF挿入場所切り替え-------
-cbfMode = 1;    % 0: 実入力CBF
+cbfMode = 0;    % 0: 実入力CBF
                 % 1: 仮想入力CBF
 %%------------
 in_prog_func = @(app) in_prog(app);
@@ -83,7 +83,8 @@ hlcParam = Controller_HL_Suspended_Load(dt, agent);
 
 switch cbfMode
     case 0
-        hlc = HLC_SUSPENDED_LOAD_CBF_REAL(agent, hlcParam);
+        realCBFId = 1;
+        hlc = HLC_SUSPENDED_LOAD_CBF_REAL(agent, hlcParam, realCBFId);
 
     case 1
         hlc = HLC_SUSPENDED_LOAD_CBF_VIRTUAL(agent, hlcParam);

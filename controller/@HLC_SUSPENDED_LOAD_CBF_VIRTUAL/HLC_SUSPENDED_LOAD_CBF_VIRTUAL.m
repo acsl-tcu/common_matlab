@@ -75,7 +75,10 @@ methods
         %disp("time: "+ num2str(t,2)+" z position of drone:
         %"+num2str(model.state.p(3),3)+" estimated load mass:
         %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
-        obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; %+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1; %入力にノイズを付与可能
+        cbfOut = CBF_REAL_DISPATCH( ...
+            obj.self, obj.cbfConfig, ...
+            x, tmp, P, Param.dt, varargin{:});
+        obj.result.input = cbfOut;
         % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
         obj.result.xd = xd;
         obj.result.x = x;
