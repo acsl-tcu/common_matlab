@@ -46,6 +46,9 @@ classdef DRONE_PARAM < PARAMETER_CLASS
                 param.jx = 2.2*10^-3; %0.06;
                 param.jy = 2.7*10^-3; %0.06;
                 param.jz = 4.5*10^-3; %0.06;
+                % param.jx = 0.06;
+                % param.jy = 0.06;
+                % param.jz = 0.06;
                 param.gravity = 9.81;
                 param.km1 = 0.0301; % ロータ定数
                 param.km2 = 0.0301; % ロータ定数
