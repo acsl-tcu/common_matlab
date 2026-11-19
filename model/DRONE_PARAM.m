@@ -9,7 +9,7 @@ classdef DRONE_PARAM < PARAMETER_CLASS
     % tau = [(Ly - ly)*(T3+T4)-ly*(T1+T2); lx*(T1+T3)-(Lx-lx)*(T2+T4); km1*T1-km2*T2-km3*T3+km4*T4]; % Torque for body
 
     properties
-        mass % DIATONE
+        mass % iFlight
         Lx 
         Ly 
         lx 
@@ -36,16 +36,16 @@ classdef DRONE_PARAM < PARAMETER_CLASS
     methods
         function obj = DRONE_PARAM(name,type,param)
             arguments
-                name % DIATONE
+                name % iFlight
                 type = "row";
-                param.mass = 0.7354;%0.5884;
+                param.mass = 0.75; %0.7354;%0.5884;
                 param.Lx = 0.16;
                 param.Ly = 0.16;
                 param.lx = 0.16/2;%0.05;
                 param.ly = 0.16/2;%0.05;
-                param.jx = 0.06;
-                param.jy = 0.06;
-                param.jz = 0.06;
+                param.jx = 2.2*10^-3; %0.06;
+                param.jy = 2.7*10^-3; %0.06;
+                param.jz = 4.5*10^-3; %0.06;
                 param.gravity = 9.81;
                 param.km1 = 0.0301; % ロータ定数
                 param.km2 = 0.0301; % ロータ定数

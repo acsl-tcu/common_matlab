@@ -15,6 +15,7 @@ a = param.radius;
 phase = param.phase;
 th = @(t) 2*pi*t/T+phase;
 
+if a<=0, error("gen_ref_leminscate: param.radius must be larger than 0."); end
 % 進行方向yaw角
 % 速度ベクトルは a/(1+cos^2)^2 * [cos(3-cos^2); 3cos^2-1] に比例（x方向の場合）
 % 進行方向は[-5pi/4, pi/4]の範囲を往復するため，atan2の不連続点(±pi)を

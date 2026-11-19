@@ -151,7 +151,7 @@ if any(reject.coverage > 0)
 end
 lines(end+1) = "  max_attempts を増やすと見つかる場合もあります。";
 msg = strjoin(lines, newline);
-end
+end% not_found_message
 
 function [waypoints, failReason] = gen_waypoints(stream, start, lb, ub, nRamp, nWalk, param)
 % 重複を除いた制御点列 [始点, 加速区間, ランダムウォーク, 減速区間] を生成する
@@ -253,7 +253,7 @@ if any(waypoints < lb | waypoints > ub, "all")
     waypoints = [];
     failReason = "ramp";
 end
-end
+end% gen_waypoints
 
 function fInside = is_arc_inside(p, theta, dtheta, stepLength, lb, ub)
 % 一定の旋回角で半周したときに水平方向の範囲内に収まるか
@@ -316,7 +316,7 @@ for j = 1:nSegment
     traj.yawBase(j) = yawPrev + angle(exp(1i*(yawRaw - yawPrev)));
     yawPrev = traj.yawBase(j);
 end
-end
+end% build_traj
 
 function M = bspline_matrix(k)
 % 一様Bスプライン（k次）のセグメント行列：p(u) = [1 u ... u^k] * M * [C_0; ...; C_k]
@@ -410,7 +410,7 @@ fail.tilt = stats.max_tilt > param.max_tilt;
 fail.yaw_rate = param.yaw_follow && stats.max_yaw_rate > param.max_yaw_rate;
 fail.coverage = stats.coverage < param.coverage;
 fOk = ~fail.tilt && ~fail.yaw_rate && ~any(fail.coverage);
-end
+end% check_traj
 
 function plot_traj(traj, lb, ub, stats)
 fig= figure(103);
@@ -457,4 +457,4 @@ plot(stats.t, stats.dyaw, 'LineWidth', 1.2)
 ylabel('d yaw [rad/s]')
 xlabel('time [s]')
 grid on
-end
+end% plot_traj

@@ -21,9 +21,9 @@ post_func = @(app) post(app); % function working at the "draw button" pushed.
 motive = Connector_Natnet_sim(dt); % imitation of Motive camera (motion capture system)
 logger = LOGGER(1, size(ts:dt:te,2), 0, [],[]); % instance of LOOGER class for data logging
 logger.display_func = @(agent, time) build_display_vector(agent, time);
-logger.display_on = false;
+logger.display_on = true;
 logger.set_time_handler(time);
-% fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  delta_U:[T, tx, ty, tz]\n\n");
+fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  delta_U:[T, tx, ty, tz]\n\n");
 
 base = [0,0]; % center
 initial_state.p = arranged_position(base, 1, 1, 0);
@@ -32,7 +32,7 @@ initial_state.v = [0; 0; 0];
 initial_state.w = [0; 0; 0];
 
 agent = DRONE;
-agent.parameter = DRONE_PARAM("DIATONE"); % プラントでModel_EulerAngleを使うときはノミナルモデル
+agent.parameter = DRONE_PARAM("iFlight"); % プラントでModel_EulerAngleを使うときはノミナルモデル
 
 % プラントモデル定義 ================================================================================================================================
 plant = Model_EulerAngle(dt, initial_state, 1);
@@ -52,16 +52,20 @@ sigma = 0.1;
 % agent.plant.param(1) = 0.7; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.8;
 
-agent.plant.param(6) = 0.18;
-agent.plant.param(7) = 0.18;
-agent.plant.param(8) = 0.18;
+% agent.plant.param(6) = 0.12;
+% agent.plant.param(7) = 0.12;
+% agent.plant.param(8) = 0.12;
+c = 0.15;
+agent.plant.param(6) = 2.2*10^-3*c;
+agent.plant.param(7) = 2.7*10^-3*c;
+agent.plant.param(8) = 4.5*10^-3*c;
 % ===================================================================================================================================================
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 
 % agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
+% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
+agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -79,7 +83,7 @@ ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",ce
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); %                     flower
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); %                      heart
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); %                       star
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",0, "seed",1, "coverage",0}}); %           Random B-spline
 % 
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
@@ -118,7 +122,7 @@ ptName = "2026-8-3_22_32_41__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__dt=20ms__
 %  =====================================================================================
 
 ptName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__100000epoch_model.pt"; % Middle48 24 12, step4, 25ms
-% ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
+ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Step=1__Middle=[48 24 12]__100000epoch_model.pt"; % Middle[48 24 12], step1, 25ms
 
 
 ptName = "2026-11-11_19_0_43__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__500epoch_model.pt"; % 500epoch model
@@ -127,6 +131,7 @@ ptName = "2026-11-11_19_0_43__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__S
 % すぺくとるせいきか
 % ptName = "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__500epoch_model.pt";
 % ptName = "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__1000000epoch_model.pt";
+
 
 % Learn Exp
 % ptName = "2026-7-23_11_28_41__DNN12__Exp_random__Euler__Activation=ReLU__100000epoch_model.pt";
@@ -139,7 +144,7 @@ onnxName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__1
 RNNptName = "2026-7-17_14_28_21__RNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__90000epoch_model";
 
 % agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
-agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
+% agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
 
 % agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",1));
 
@@ -152,10 +157,10 @@ agent.cha_allocation.l.reference = "landing";
 
 % agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
 
-% % 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
-% cha_schedule = {"t", 15;
-%                 "f", 45;
-%                 "l", 50};
+% 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
+cha_schedule = {"t", 15;
+                "f", 45;
+                "l", 50};
 
 
 function post(app)
@@ -170,12 +175,12 @@ app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Line
 app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "controller.result.nominal_input", ""},"fig_num",54, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "controller.result.nominal_input", ""},"fig_num",54, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2", "re"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2-p3", "re"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% show_animation(app);
-plot_calc_time(app.logger, app.time);
+show_animation(app);
+% plot_calc_time(app.logger, app.time);
 end
 
 function dfunc(app)
