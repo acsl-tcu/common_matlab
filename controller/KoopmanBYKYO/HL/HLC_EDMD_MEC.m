@@ -78,7 +78,7 @@ classdef HLC_EDMD_MEC < handle
             end
             % 補償を適用するかどうかを切り替える
 
-            u_comp = u_nom + delta_u;
+            u_comp = u_nom - delta_u;
             u_comp = [max(0, min(10, u_comp(1))); ...
                       max(-1, min(1, u_comp(2))); ...
                       max(-1, min(1, u_comp(3))); ...
@@ -127,7 +127,7 @@ classdef HLC_EDMD_MEC < handle
         function residual = initialize_residual_model(obj, param)
             % EDMD残差補償器の初期値を設定し，学習済みモデルを読み込む
             residual = struct();
-            residual.mode = 0;
+            residual.mode = 2;
             residual.loaded = false;
             residual.model_file = '';
             residual.state_source = 'estimator';
@@ -206,10 +206,10 @@ classdef HLC_EDMD_MEC < handle
 
             x_cur = obj.get_residual_state();
             x_ref = obj.get_reference_state();
-            if ~obj.within_compensation_envelope(x_cur, x_ref)
-                return;
-            end
-            % 状態誤差が大きすぎる場合は補償を行わない
+            % if ~obj.within_compensation_envelope(x_cur, x_ref)
+            %     return;
+            % end
+            % 状態誤差が大きすぎる場合は補償を行わないdelta_u
 
             z_cur = obj.klift_edmd_residual([x_cur; u_nom(:)]);
             z_ref = obj.klift_edmd_residual([x_ref; u_nom(:)]);
@@ -240,6 +240,7 @@ classdef HLC_EDMD_MEC < handle
 
             if any(~isfinite(delta_u_raw))
                 delta_u_raw = zeros(4, 1);
+                fprintf('[EDMD diag] emg');
             end
             % 数値異常がある場合は補償を0にする
 
@@ -267,10 +268,11 @@ classdef HLC_EDMD_MEC < handle
             e(7:9) = x_cur(7:9) - x_ref(7:9);
             e(10:12) = x_cur(10:12) - x_ref(10:12);
 
-            ok = norm(e(1:3)) <= obj.residual.max_pos_err && ...
-                 all(abs(e(4:6)) <= obj.residual.max_ang_err) && ...
-                 norm(e(7:9)) <= obj.residual.max_vel_err && ...
-                 norm(e(10:12)) <= obj.residual.max_w_err;
+            ok = 1;
+            % norm(e(1:3)) <= obj.residual.max_pos_err && ...
+            %      all(abs(e(4:6)) <= obj.residual.max_ang_err) && ...
+            %      norm(e(7:9)) <= obj.residual.max_vel_err && ...
+            %      norm(e(10:12)) <= obj.residual.max_w_err;
         end
 
         function delta_u = solve_active_delta_u(obj, rhs)
@@ -288,7 +290,21 @@ classdef HLC_EDMD_MEC < handle
 
             Be = obj.residual.B_err(:, idx);
             reg = obj.residual.pinv_damping * eye(size(Be, 2));
-            delta_active = (Be' * Be + reg) \ (Be' * rhs);
+
+            weight_p = 100*[1;1;1];
+            weight_q = [1;1;1];
+            weight_v = [1;1;1];
+            weight_w = [1;1;1];
+            weight_r = 1;
+            weight_other = 1;
+            
+            V26 = weight_other* ones(26,1);
+            V26(1:3) = weight_p;
+            V26(4:6) = weight_q;
+            V26(7:9) = weight_v;
+            V26(10:12) = weight_w;
+            V = diag(V26);
+            delta_active = (Be' *V* Be + reg) \ (Be' *V* rhs);
             delta_u(idx) = delta_active;
         end
 
