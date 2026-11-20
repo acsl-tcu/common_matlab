@@ -27,14 +27,14 @@ agent.parameter = DRONE_PARAM("iFlight");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive, dt));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-center = [0;0;1];
+center = [0;0;0.6];
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",center,"radius",0},4}); % hovering
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",center,"radius",1.0},4}); % circle
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1, "yaw_follow",1}, 4}); % lemniscate
-ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",180, "xlim",[-1.5,1.5], "ylim",[-1.5,1.5], "zlim",[0.5,1.7], "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1, "yaw_follow",0}, 4}); % lemniscate
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",180, "xlim",[-1.5,1.5], "ylim",[-1.5,1.5], "zlim",[0.5,1.7], "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
 
 agent.reference.set_function_class("time_varying", ref) % 最終的なset
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.6));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENCE(agent));
 
@@ -55,12 +55,12 @@ LW = 1.5;%LineWidth
 app.logger.plot({1, "p", "esr"},"ax",app.UIAxes,"phase",phase);
 
 % app.logger.plot({1, "p", "esr"},"fig_num",10, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "q", "s"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "q", "s"},"fig_num",20, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "v", "er"},"fig_num",30, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "w", "e"},"fig_num",40, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input", ""},"fig_num",50, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-% app.logger.plot({1, "inner_input", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+app.logger.plot({1, "inner_input1:4", ""},"fig_num",60, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2", "re"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "p1-p2-p3", "er"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 
