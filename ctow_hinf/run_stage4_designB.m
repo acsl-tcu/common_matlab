@@ -7,35 +7,16 @@ fprintf('%5s %7s %7s %8s %9s %22s %7s %9s\n', 'k_th','gopt','gamma','||TD||','||
 for i = 1:numel(k_list)
     G = ctow_genplant_B(P, struct('k_th', k_list(i)));
     gopt = ctow_hinf_gamma_opt(G.A, G.B1, G.B2, G.C1, G.rho_v);
-    gamma=1.05*gopt;
-    % if gopt < 1, gamma = max(1.05*gopt, min(1, 1.5*gopt)); else, gamma = 1.5*gopt; end
+    % gamma=1.05*gopt;
+    if gopt < 1, gamma = max(1.05*gopt, min(1, 1.5*gopt)); else, gamma = 1.5*gopt; end
     [K, ~, ok] = ctow_hinf_sf(G.A, G.B1, G.B2, G.C1, G.rho_v, gamma); assert(ok);
     % 連続時間の指標（閉ループ 8 次）
-    % e3 = [0 0 1 0 0 0];
-    % [A1, B, E] = ctow_chain(0.75);   Aa1 = [A1 zeros(6,2); G.Bw*e3/P.g G.Aw];  %質量比 r の変変更
-    % [Ar0, ~, ~] = ctow_chain(P.r0); Aa0 = [Ar0 zeros(6,2); G.Bw*e3/P.g G.Aw]; %質量比 r の変更大本は3行目
-    % Ba = [B; 0; 0]; Ea = [E; 0; 0];
-    % TD   = norm(ss(Aa0 - Ba*K, Ea, [P.r0*P.Wr*e3 0 0], 0), Inf);
-    % Twth = norm(ss(Aa1 - Ba*K, Ea, [e3/P.g 0 0], 0), Inf);
-    % rho  = arrayfun(@(t) ctow_impl_rho_B(K, P, G, t), P.tau_list);
-    % sigma = -log(rho(2))/P.dt;
-    % s2 = ctow_sim_impl_B(K, P, G, @(t) 0.5*double(t>=1));  %外乱の入力設計
-    % res(i).k_th = k_list(i); res(i).K = K; res(i).gopt = gopt; res(i).gamma = gamma;
-    % res(i).TD = TD; res(i).Twth = Twth; res(i).rho = rho; res(i).sigma = sigma;
-    % res(i).S2max = max(abs(s2.theta)); res(i).s2 = s2;
-    % fprintf('%5g %7.3f %7.3f %8.3f %9.4f   [%.4f %.4f %.4f] %7.3f %8.3f°\n', ...
-    %     k_list(i), gopt, gamma, TD, Twth, rho, sigma, rad2deg(res(i).S2max));
-    
-    %連続時間の指標(閉ループ 9次元)
     e3 = [0 0 1 0 0 0];
-    e1 = [1 0 0 0 0 0];                                                          % p（ξ' = p）
-    [A1, B, E] = ctow_chain(0.75);
-    Aa1 = [A1 zeros(6,2) zeros(6,1); G.Bw*e3/P.g G.Aw zeros(2,1); e1 zeros(1,2) 0];   %質量比 r の変更
-    [Ar0, ~, ~] = ctow_chain(P.r0);
-    Aa0 = [Ar0 zeros(6,2) zeros(6,1); G.Bw*e3/P.g G.Aw zeros(2,1); e1 zeros(1,2) 0]; %質量比 r の変更大本は3行目
-    Ba = [B; 0; 0; 0]; Ea = [E; 0; 0; 0];
-    TD   = norm(ss(Aa0 - Ba*K, Ea, [P.r0*P.Wr*e3 0 0 0], 0), Inf);
-    Twth = norm(ss(Aa1 - Ba*K, Ea, [e3/P.g 0 0 0], 0), Inf);
+    [A1, B, E] = ctow_chain(0.75);   Aa1 = [A1 zeros(6,2); G.Bw*e3/P.g G.Aw];  %質量比 r の変変更
+    [Ar0, ~, ~] = ctow_chain(P.r0); Aa0 = [Ar0 zeros(6,2); G.Bw*e3/P.g G.Aw]; %質量比 r の変更大本は3行目
+    Ba = [B; 0; 0]; Ea = [E; 0; 0];
+    TD   = norm(ss(Aa0 - Ba*K, Ea, [P.r0*P.Wr*e3 0 0], 0), Inf);
+    Twth = norm(ss(Aa1 - Ba*K, Ea, [e3/P.g 0 0], 0), Inf);
     rho  = arrayfun(@(t) ctow_impl_rho_B(K, P, G, t), P.tau_list);
     sigma = -log(rho(2))/P.dt;
     s2 = ctow_sim_impl_B(K, P, G, @(t) 0.5*double(t>=1));  %外乱の入力設計
@@ -44,6 +25,25 @@ for i = 1:numel(k_list)
     res(i).S2max = max(abs(s2.theta)); res(i).s2 = s2;
     fprintf('%5g %7.3f %7.3f %8.3f %9.4f   [%.4f %.4f %.4f] %7.3f %8.3f°\n', ...
         k_list(i), gopt, gamma, TD, Twth, rho, sigma, rad2deg(res(i).S2max));
+    
+    %連続時間の指標(閉ループ 9次元)
+    % e3 = [0 0 1 0 0 0];
+    % e1 = [1 0 0 0 0 0];                                                          % p（ξ' = p）
+    % [A1, B, E] = ctow_chain(0.75);
+    % Aa1 = [A1 zeros(6,2) zeros(6,1); G.Bw*e3/P.g G.Aw zeros(2,1); e1 zeros(1,2) 0];   %質量比 r の変更
+    % [Ar0, ~, ~] = ctow_chain(P.r0);
+    % Aa0 = [Ar0 zeros(6,2) zeros(6,1); G.Bw*e3/P.g G.Aw zeros(2,1); e1 zeros(1,2) 0]; %質量比 r の変更大本は3行目
+    % Ba = [B; 0; 0; 0]; Ea = [E; 0; 0; 0];
+    % TD   = norm(ss(Aa0 - Ba*K, Ea, [P.r0*P.Wr*e3 0 0 0], 0), Inf);
+    % Twth = norm(ss(Aa1 - Ba*K, Ea, [e3/P.g 0 0 0], 0), Inf);
+    % rho  = arrayfun(@(t) ctow_impl_rho_B(K, P, G, t), P.tau_list);
+    % sigma = -log(rho(2))/P.dt;
+    % s2 = ctow_sim_impl_B(K, P, G, @(t) 0.5*double(t>=1));  %外乱の入力設計
+    % res(i).k_th = k_list(i); res(i).K = K; res(i).gopt = gopt; res(i).gamma = gamma;
+    % res(i).TD = TD; res(i).Twth = Twth; res(i).rho = rho; res(i).sigma = sigma;
+    % res(i).S2max = max(abs(s2.theta)); res(i).s2 = s2;
+    % fprintf('%5g %7.3f %7.3f %8.3f %9.4f   [%.4f %.4f %.4f] %7.3f %8.3f°\n', ...
+    %     k_list(i), gopt, gamma, TD, Twth, rho, sigma, rad2deg(res(i).S2max));
 
 end
 % 基準 G1

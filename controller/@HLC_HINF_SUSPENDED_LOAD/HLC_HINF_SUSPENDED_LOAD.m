@@ -76,9 +76,6 @@ classdef HLC_HINF_SUSPENDED_LOAD < handle
             end
             vs(1:2) = Hinf_HLC(xi, Param.dt, 10,P(5));
 
-
-
-
             uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); % 第一層の仮想入力の実入力(推力)への変換
             % h234  = obj.H234_SuspendedLoadxyDst(x,xd',vf,P);  % ただの単位行列なのでなくてもいい
             %tic

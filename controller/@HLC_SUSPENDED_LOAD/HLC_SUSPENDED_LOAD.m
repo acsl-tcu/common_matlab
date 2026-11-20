@@ -18,6 +18,7 @@ classdef HLC_SUSPENDED_LOAD < handle
             model = obj.self.estimator.result; % 推定した状態
             ref = obj.self.reference.result; % 目標値
 
+
             % 目標値を取得
             if isprop(ref.state, 'xd')
                 xd = ref.state.xd; % 20次元の目標値に対応する用
@@ -70,12 +71,11 @@ classdef HLC_SUSPENDED_LOAD < handle
             % h234  = obj.H234_SuspendedLoadxyDst(x,xd',vf,P);  % ただの単位行列なのでなくてもいい
             %tic
             beta2 = obj.Beta2_SuspendedLoadxyDst(x, xd', vf, P); % 第二層のbetaの逆行列
-            obj.result.beta2.norm2   = norm(beta2);        % スペクトルノルム（最大特異値）
-            obj.result.beta2.normF   = norm(beta2, 'fro'); % フロベニウスノルム
-            obj.result.beta2.cond    = cond(beta2);        % 条件数
-            obj.result.beta2.rcond   = rcond(beta2);       % 逆条件数の推定（0に近いと特異）
-            obj.result.beta2.sigmin  = min(svd(beta2));    % 最小特異値
-            
+            obj.result.norm   = norm(beta2);         % スペクトルノルム
+            obj.result.normF   = norm(beta2, 'fro');  % F は数字なしでOK
+            obj.result.cond    = cond(beta2);
+            obj.result.rcond   = rcond(beta2);
+            obj.result.sigmin  = min(svd(beta2));
 
             vs_alpha2 = obj.V2_alpha2_SuspendedLoadxyDst(x, xd', vf, vs', P); % 第二層のvs - alpha
             us = beta2 \ vs_alpha2; % 第二層の実入力（roll,pitch,yawのトルク）への変換：bate^(-1)*(vs - alpha) %h234*invbeta2*a2;
@@ -90,6 +90,11 @@ classdef HLC_SUSPENDED_LOAD < handle
             %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
             obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; %+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1; %入力にノイズを付与可能
             % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
+
+            obj.result.theatx=atan2(model.state.pT(1), -model.state.pT(3));
+            obj.result.theaty=atan2(model.state.pT(2), -model.state.pT(3));
+
+
             obj.result.xd = xd;
             obj.result.x = x;
             result = obj.result;

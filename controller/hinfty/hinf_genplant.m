@@ -5,7 +5,10 @@ function G = hinf_genplant(P, opt)
 %   z = [alpha*sqrt(Qshape)*x ; W_theta(x3/g) ; r0*Wr*x3 ; rho_v*v]
 if nargin < 2, opt = struct(); end
 d = struct('alpha',0.01, 'Qshape',[100 800 600 1000 1 1], 'b_int',0.3, 'rho_v',0.003, ...
-    'k_th',3, 'w_w',2.5, 'z_w',0.7);
+    'k_th',3, 'w_w',2.5, 'z_w',0.7,"k_I",0.01);
+%'alpha':誤差の抑え　'Qshape':それぞれの重み
+%
+%'w_w',2.5, 'z_w',0.7,"k_I",0.01 W_θ（バンドパス）の設定
 f = fieldnames(d);
 for i = 1:numel(f), if ~isfield(opt, f{i}), opt.(f{i}) = d.(f{i}); end, end
 
