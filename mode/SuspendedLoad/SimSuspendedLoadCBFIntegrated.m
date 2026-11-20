@@ -4,12 +4,19 @@ te = 50; % termina time
 time = TIME(ts,dt,te);
 %%-----CBF挿入場所切り替え-------
 cbfMode = 0;    % 0: 実入力CBF
-                % 1: 仮想入力CBF
+                % 1: 仮想入力CBFlogger.display_func = @(agent, time) build_display_vector(agent, tim
+%%-----CBF診断表示設定-------
+cbfDiagConsole = true;  % 実行中の表示
+cbfDiagGraphs  = true;  % 終了後のグラフ
+
+
 %%------------
 in_prog_func = @(app) in_prog(app);
 % post_func = @(app) post(app, worldObstacles);
 logger = LOGGER(1, size(ts:dt:te, 2), 0, [],[]); % target, number, fExp, items, agent_items, option
 logger.display_func = @(agent, time) build_display_vector(agent, time);
+% logger.display_func = @(agent,time) CBF_REAL_DIAG_VIEW( ...
+%     'display',agent,time,build_display_vector(agent,time),cbfDiagConsole);
 logger.display_on = true;
 fprintf("表示物\nref:[px, py, pz]  est:[px, py, pz]  U:[T, tx, ty, tz]  mL\n\n");
 
@@ -68,7 +75,7 @@ L = agent.parameter.cableL;
 %%----------------------------------
 %ウェイポイントリファレンス
 flightRouteGenerator = "gen_wp_straight";
-flightNominalSpeed = 1.5;
+flightNominalSpeed = 0.5;
 flightRouteParams = {"speed", flightNominalSpeed};
 
 agent.reference.set_function_class("waypoint", ...
@@ -83,7 +90,7 @@ hlcParam = Controller_HL_Suspended_Load(dt, agent);
 
 switch cbfMode
     case 0
-        realCBFId = 1;
+        realCBFId = 2;
         hlc = HLC_SUSPENDED_LOAD_CBF_REAL(agent, hlcParam, realCBFId);
 
     case 1
@@ -94,6 +101,14 @@ switch cbfMode
 end
 
 agent.controller.set_function_class("hlc_suspended", hlc);
+
+% CBF診断履歴を初期化
+CBF_REAL_DIAG_VIEW('reset');
+
+% 実際に使用しているHLCの結果を診断関数へ渡す
+logger.display_func = @(agent,time) CBF_REAL_DIAG_VIEW( ...
+    'display',agent,time, ...
+    build_display_vector(agent,time),cbfDiagConsole,hlc);
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -143,12 +158,12 @@ agent.sensor.set_function_class("cbf_spherical", ...
 % Motiveと球形模擬センサを両方使用
 agent.set_cha_allocation_for_all( ...
     "sensor", ["motive", "cbf_spherical"]);
-post_func = @(app) post(app, worldObstacles);
+post_func = @(app) post(app, worldObstacles, cbfDiagGraphs);
 %%
 
 %%
 
-function post(app, worldObstacles)
+function post(app, worldObstacles, cbfDiagGraphs)
 % シミュレーション終了後の結果表示とアニメーション作成。
 app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
 % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
@@ -162,7 +177,9 @@ app.logger.plot({1, "controller.result.controllertime_total", ""}, "phase", "f",
 % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
 % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
 % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
-
+if cbfDiagGraphs
+    CBF_REAL_DIAG_VIEW('plot',app.logger,20);
+end
 show_suspended_load_animation(app, worldObstacles); % アニメーション描画
 end
 

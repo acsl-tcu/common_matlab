@@ -40,7 +40,9 @@ for k=0:N-1
 end
 pL=X(8:10,:); pT=X(14:16,:);
 pD=pL-P.cableL*pT;
-pC=pL-(P.cableL/2)*pT;
+% The union-of-spheres cable model encloses the central core; its centre
+% is not generally the full cable midpoint when end-sphere sizes differ.
+pC=pL-(G.cableCenterFromLoad*P.cableL)*pT;
 a=G.cableAxisShort; b=G.cableAxisLong;
 Qc=zeros(3,3,N+1);
 for k=0:N

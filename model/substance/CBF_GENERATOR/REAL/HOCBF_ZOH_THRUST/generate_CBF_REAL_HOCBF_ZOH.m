@@ -62,6 +62,14 @@ fprintf('[CBF GENERATED] %s\n',jointFile);
 P=struct('m',0.762,'mL',0.01,'cableL',2.0,'gravity',9.81, ...
     'J',[0.02237568;0.02985236;0.0480374],'dstx',0,'dsty',0);
 G=CBF_COMMON_GEOMETRY(P);
+% The cable ellipsoid covers the middle segment; the endpoint spheres
+% cover the omitted ends.  Smoke-test the UNION, not just the ellipsoid.
+cableGeometrySmoke=verify_cable_union_geometry(P,G);
+fprintf(['[CBF GEOMETRY] drone=%.3f m, payload=%.3f m; ' ...
+    'cable core=%.3f m, long=%.3f m, short=%.3f m; ' ...
+    'full length=%.3f m covered by union\n'], ...
+    G.droneRadius,G.loadRadius,G.cableCoreLength, ...
+    G.cableAxisLong,G.cableAxisShort,P.cableL);
 % Test fixtures are numerical probes, NOT operating-point assumptions.
 parts=struct('kind','ellipsoid','center',[1.25,0.70,1.45], ...
     'R',rotation_z(0.35), ...
@@ -337,7 +345,8 @@ result=struct('status',status,'diagnosticFile',diagnosticFile, ...
     'thrustLower',thrustLower,'thrustAt2',thrustAt2, ...
     'actualPlantComparisonAvailable',plantFound,'actualPlantError',plantError, ...
     'inputSensitivity',struct('thrust',ST,'torque',S), ...
-    'smoke',smoke,'classicalHOCBFCertified',false);
+    'smoke',smoke,'cableGeometrySmoke',cableGeometrySmoke, ...
+    'classicalHOCBFCertified',false);
 end
 
 function err=compare_to_active_24state_plant(x,u,P,rhs)
@@ -407,6 +416,44 @@ for mode=1:2
 end
 audit=struct('generic',generic,'hover',hover, ...
     'meaning','Direct torque effects on physical Cartesian load coordinates; not HLC transformed output');
+end
+
+function report = verify_cable_union_geometry(P,G)
+% Deterministic sanity check of the full finite cable capsule (NOT a proof).
+% Coordinate s is distance from the drone to the payload along the cable.
+% A point belongs to the protected volume if it belongs to at least one of
+%   (1) drone safety sphere, (2) payload safety sphere, (3) core ellipsoid.
+L = P.cableL;
+r = G.cableSafetyRadius;
+Rdrone = G.droneSafetyRadius;
+Rload = G.loadSafetyRadius;
+a = G.cableAxisLong;
+b = G.cableAxisShort;
+coreCentre = L*(1-G.cableCenterFromLoad);
+
+% Axial/radial directions and oblique offsets, all with norm <= r.
+directions = [eye(3),-eye(3), ...
+    [1;1;1]/sqrt(3),[-1;1;1]/sqrt(3), ...
+    [1;-1;1]/sqrt(3),[1;1;-1]/sqrt(3)];
+maxMinLevel = 0;
+for s = linspace(0,L,81)
+    for fraction = [0 0.5 1]
+        for j = 1:size(directions,2)
+            offset = fraction*r*directions(:,j);
+            point = [0;0;s] + offset;
+            inDrone = norm(point)/Rdrone;
+            inLoad = norm(point-[0;0;L])/Rload;
+            centreOffset = point-[0;0;coreCentre];
+            inCore = sqrt(sum(centreOffset(1:2).^2)/b^2 + ...
+                          centreOffset(3)^2/a^2);
+            maxMinLevel = max(maxMinLevel,min([inDrone,inLoad,inCore]));
+        end
+    end
+end
+assert(maxMinLevel <= 1+1e-10, ...
+    'CBF geometry: some sampled cable points are not protected.');
+report = struct('passed',true,'samples',81*3*size(directions,2), ...
+    'maxNormalisedLevel',maxMinLevel,'safetyRadius',r);
 end
 
 function R=rotation_z(a)
@@ -585,7 +632,9 @@ for k=0:N-1
 end
 pL=X(8:10,:); pT=X(14:16,:);
 pD=pL-P.cableL*pT;
-pC=pL-(P.cableL/2)*pT;
+% The union-of-spheres cable model encloses the central core; its centre
+% is not generally the full cable midpoint when end-sphere sizes differ.
+pC=pL-(G.cableCenterFromLoad*P.cableL)*pT;
 a=G.cableAxisShort; b=G.cableAxisLong;
 Qc=zeros(3,3,N+1);
 for k=0:N

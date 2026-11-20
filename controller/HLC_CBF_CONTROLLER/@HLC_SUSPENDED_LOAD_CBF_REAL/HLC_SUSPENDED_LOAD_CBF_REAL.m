@@ -1,17 +1,26 @@
-classdef HLC_SUSPENDED_LOAD_CBF_VIRTUAL < handle
+classdef HLC_SUSPENDED_LOAD_CBF_REAL < handle
 % クアッドコプター用階層型線形化を使った入力算出
 properties
     self
     result
     param
 end
+properties (SetAccess = private)
+    cbfConfig
+end
 
 methods
 
-    function obj = HLC_SUSPENDED_LOAD_CBF_VIRTUAL(self, param)
+    function obj = HLC_SUSPENDED_LOAD_CBF_REAL(self, param, cbfId)
         obj.self = self;
         obj.param = param;
-
+    
+        if nargin < 3 || isempty(cbfId)
+            cbfId = 0;
+        end
+    
+        obj.cbfConfig = CBF_REAL_INIT(cbfId, param);
+        obj.result = struct();
     end
 
     function result = do(obj, varargin)
@@ -78,7 +87,42 @@ methods
         cbfOut = CBF_REAL_DISPATCH( ...
             obj.self, obj.cbfConfig, ...
             x, tmp, P, Param.dt, varargin{:});
-        obj.result.input = cbfOut;
+        
+        % CBF診断情報をLOGGERへ渡す
+        obj.result.cbf = cbfOut.info;
+        obj.result.cbfId = obj.cbfConfig.cbfId;
+        
+        % CBF方式に依存しない失敗時ポリシー
+        policy = 'stop';
+        
+        if isfield(obj.cbfConfig,'failurePolicy')
+            policy = char(obj.cbfConfig.failurePolicy);
+        end
+        
+        candidate = cbfOut.input;
+        low  = [0;-1;-1;-1];
+        high = [20;1;1;1];
+        
+        validCandidate = isnumeric(candidate) && ...
+            isreal(candidate) && numel(candidate)==4 && ...
+            all(isfinite(candidate(:))) && ...
+            all(candidate(:)>=low) && ...
+            all(candidate(:)<=high);
+        
+        continueResearch = ~cbfOut.success && ...
+            strcmp(policy,'continueBounded') && validCandidate;
+        
+        if ~cbfOut.success && ~continueResearch
+            obj.result.input = [];
+            error('CBFReal:NoFeasibleInput', ...
+                'CBF failed: %s', cbfOut.info.status);
+        end
+        
+        obj.result.cbf.inputApplied = validCandidate;
+        obj.result.cbf.appliedWithoutCertificate = continueResearch;
+        
+        % CBFが決定した最終物理入力
+        obj.result.input = cbfOut.input;
         % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
         obj.result.xd = xd;
         obj.result.x = x;

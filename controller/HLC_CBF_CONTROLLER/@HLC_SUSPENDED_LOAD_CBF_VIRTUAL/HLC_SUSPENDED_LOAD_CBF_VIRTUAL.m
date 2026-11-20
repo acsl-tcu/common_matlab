@@ -1,4 +1,4 @@
-classdef HLC_SUSPENDED_LOAD_CBF_REAL < handle
+classdef HLC_SUSPENDED_LOAD_CBF_VIRTUAL < handle
 % クアッドコプター用階層型線形化を使った入力算出
 properties
     self
@@ -8,7 +8,7 @@ end
 
 methods
 
-    function obj = HLC_SUSPENDED_LOAD_CBF_REAL(self, param, cbfId)
+    function obj = HLC_SUSPENDED_LOAD_CBF_VIRTUAL(self, param)
         obj.self = self;
         obj.param = param;
 

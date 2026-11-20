@@ -1,10 +1,13 @@
-function cfg = CBF_REAL_INIT(cbfId,classDir,hlcParam)
+function cfg = CBF_REAL_INIT(cbfId,hlcParam)
 % CBF_REAL_INIT  飛行開始時にCBF方式を1つだけ確定する。
 %
 %   cbfId = 0 : CBFを使用しない（従来HLCと同じ入力制限）
 %   cbfId = 1 : 機体球・吊り荷球・紐楕円体 + 実入力4変数同時最適化
+%   cbfId = 2 : 3D attitude-dependent cable ellipsoid only, tauX/tauY adjusted
 %
-% CBF方式・機体等の近似・オプションは1つのSCHEMES/*.mで管理する。
+% CBF方式・機体等の近似・オプションはCBF_REAL/SCHEMES/*.mで管理する。
+% 01 uses analytic ZOH jets only; prior experimental HOCBF and joint filter
+% are NOT called. No dynamic thrust extension is used.
 % 飛行中にこの関数を呼び直さない。初期化時以外はパス変更しない。
 if nargin < 1 || isempty(cbfId)
     cbfId=0;
@@ -14,7 +17,8 @@ validateattributes(cbfId,{'numeric'}, ...
 validateattributes(hlcParam.dt,{'numeric'}, ...
     {'scalar','real','finite','positive'});
 
-cfg=struct('cbfId',double(cbfId),'dt',double(hlcParam.dt));
+cfg=struct('cbfId',double(cbfId),'dt',double(hlcParam.dt), ...
+    'failurePolicy','stop'); % Generic HLC policy; each scheme may configure it
 if cbfId==0
     cfg.name='OFF_NOMINAL_HLC';
     fprintf('[CBF REAL INIT] id=0 OFF (nominal HLC + original clipping)\n');
@@ -26,20 +30,42 @@ switch cbfId
     case 1
         cfg.name='JOINT_ZOH_SPHERE_CABLE_ELLIPSOID';
         schemeFile='CBF_REAL_SCHEME_01_JOINT_ZOH.m';
+        generatedSubfolder=fullfile('HOCBF_ZOH_THRUST','GENERATED');
+        requiredGenerated={'CBF_REAL_ZOH_DIAG_EVAL.m'};
+    case 2
+        cfg.name='XY';
+        schemeFile='CBF_REAL_SCHEME_02_XY.m';
+        generatedSubfolder=fullfile('XY','GENERATED');
+        requiredGenerated={'CBF_REAL_XY_JET.m', ...
+            'CBF_REAL_XY_EVAL.m'};
+        % ORIGINAL 3-D obstacle, rotating central cable ellipsoid ONLY.
+        % NO drone sphere, NO payload sphere, NO ground safety conditions.
+        % No thrust/yaw adjustment and NO dynamic extension.
+        % cfg.xyLambda=[4;4;4;4];
+        % cfg.xyLambda=[1;1.5;2;2.5];
+        % cfg.xyLambda=[1;1.2;1.4;1.6];
+        cfg.xyLambda=[1;2;8;16];
+        
+        cfg.xyTorqueWeights=[1;1];
+        cfg.xyMaxObstacles=Inf;
+        cfg.xyCableRadiusM=0.20;      % transverse SEMI-axis [m]
+        cfg.xyCableAxialMarginM=0.02; % a=L/2+axialMargin [m]
+        cfg.failurePolicy='continueBounded'; % General policy, research Sim ONLY
     otherwise
         error('CBFReal:UnknownCBF', ...
             'Unknown cbfId=%d; register a scheme in INIT and DISPATCH.',cbfId);
 end
 
-cbfDir=fullfile(classDir,'CBF');
-schemeDir=fullfile(cbfDir,'SCHEMES');
+classDir = fileparts(fileparts(mfilename('fullpath')));
+cbfDir = fullfile(classDir,'CBF_REAL');
+schemeDir = fullfile(cbfDir,'SCHEMES');
 if ~isfile(fullfile(schemeDir,schemeFile))
     error('CBFReal:SchemeMissing', ...
         'CBF scheme is missing: %s',fullfile(schemeDir,schemeFile));
 end
 
 % CBF_GENERATORはこのclassと別場所にあるので、初期化時に1度探す。
-ancestor=classDir;
+ancestor = cbfDir;
 generatorRoot='';
 for depth=1:9
     locations={fullfile(ancestor,'CBF_GENERATOR'), ...
@@ -58,20 +84,17 @@ for depth=1:9
 end
 if isempty(generatorRoot)
     error('CBFReal:GeneratorMissing', ...
-        'Cannot find CBF_GENERATOR under common_matlab from %s',classDir);
+        'Cannot find CBF_GENERATOR under common_matlab from %s',cbfDir);
 end
 
 commonDir=fullfile(generatorRoot,'COMMON');
-generatedDir=fullfile(generatorRoot,'REAL','HOCBF_ZOH_THRUST','GENERATED');
-requiredGenerated={'CBF_REAL_ZOH_DIAG_EVAL.m', ...
-    'CBF_REAL_ZOH_HOCBF_INEQUALITY.m', ...
-    'CBF_REAL_ZOH_JOINT_FILTER.m'};
+generatedDir=fullfile(generatorRoot,'REAL',generatedSubfolder);
 for k=1:numel(requiredGenerated)
     file=fullfile(generatedDir,requiredGenerated{k});
     if ~isfile(file)
         error('CBFReal:NotGenerated', ...
             ['Generated function is missing: %s\n' ...
-             'Run generate_CBF_REAL_HOCBF_ZOH in MATLAB.'],file);
+             'Run the generator matching cbfId in MATLAB.'],file);
     end
 end
 
