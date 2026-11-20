@@ -12,13 +12,17 @@ function figures = plot_from_severalData_2(files, settings)
 %% 設定（普段はこのブロックを変更する）
 % defaults.target = ["p1-p2-p3"];
 
-defaults.target = ["p1-p2-p3"];
-% "controller.result.delta_u"
+% defaults.target = ["p1-p2-p3"];
+defaults.target = [
+    % "controller.result.delta_u_edmd_applied1"
+    "controller.result.delta_u_edmd_applied2:4"
+];
+% "controller.result.delta_u_edmd_applied" は実際に公称入力から引いた補償量（全4成分）。
 % input1: スラストのみ、input2:4: 回転方向の入力のみ（別々のFigure）。
 % このログのinput2:4はトルク[Nm]。実際の角速度[rad/s]は "w" を指定する。
 % 選択例: ["p","v","q","w","input","input2:4","p1-p2"]
 % 任意の保存項目も指定可能: "controller.result.nominal_input"
-% 末尾の成分指定: "p1", "input2:4", "controller.result.delta_u2:4"
+% 末尾の成分指定: "p1", "input2:4", "controller.result.delta_u_edmd_applied2:4"
 defaults.attribute = "er"; % e:推定、s:センサ、r:目標、p:真値
 defaults.phase = "f";      % "tfl":離陸・飛行・着陸、"":全フェーズ
 defaults.time = [-Inf Inf]; % 絶対時刻[s]の範囲（phaseと両方適用）
@@ -251,7 +255,7 @@ elseif ~isempty(regexp(char(target),'^v\d*(:\d+)*$','once')), label="Velocity [m
 elseif startsWith(target,"q"), label="Angle [rad]";
 elseif startsWith(target,"w"), label="Angular velocity [rad/s]";
 elseif contains(target,"input") || contains(target,"delta_u")
-    if ~isempty(regexp(char(target),'(?:input|delta_u)1$','once'))
+    if ~isempty(regexp(char(target),'(?:input|delta_u|delta_u_edmd_applied)1$','once'))
         label="Thrust [N]";
     elseif endsWith(target,"2:4"), label="Torque [Nm]";
     else, label="Compensation Input [N], [Nm]"; end
