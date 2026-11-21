@@ -15,6 +15,8 @@ function figures = plot_from_severalData_2(files, settings)
 % defaults.target = ["p1-p2-p3"];
 defaults.target = [
     % "controller.result.delta_u_edmd_applied1"
+        "p1-p2"
+    % "p1-p2-p3"
     "controller.result.delta_u_edmd_applied2:4"
 ];
 % "controller.result.delta_u_edmd_applied" は実際に公称入力から引いた補償量（全4成分）。
@@ -27,7 +29,7 @@ defaults.attribute = "er"; % e:推定、s:センサ、r:目標、p:真値
 defaults.phase = "f";      % "tfl":離陸・飛行・着陸、"":全フェーズ
 defaults.time = [-Inf Inf]; % 絶対時刻[s]の範囲（phaseと両方適用）
 defaults.agent_id = 1;     % 保存されたData.agentの番号
-defaults.fsave = 0;       % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
+defaults.fsave = 0;      % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
 defaults.savefolder = "";  % 保存時に空ならフォルダ選択
 defaults.ftitle = false;
 defaults.fcolor = true;    % 時系列のフェーズ背景

@@ -27,7 +27,7 @@ agent.input_transform = THRUST2THROTTLE_DRONE(agent,InputTransform_Thrust2Thrott
 % for datasets 
 % reference_args = {"gen_ref_circle",{"freq",7,"center",[0;0;1],"radius",1},4}; % circle
 % reference_args = {"gen_ref_saddle",{"freq",6,"center",[0;0;1.0],"radius",[1,1,0.2]},4}; % saddle
-reference_args = {"gen_ref_figure8",{"freq",10,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
+reference_args = {"gen_ref_figure8",{"freq",5,"orig",[0;0;1.0],"size",[1,1,0],"phase",0}}; % figure8
 % reference_args = {"gen_ref_circle",{"freq",5,"center",[0;0;1.0],"radius",0},4}; % hovering
 
 % Align the first point with the EKF position when flight starts.
@@ -67,7 +67,8 @@ agent.cha_allocation.l.reference = "landing";
 agent.set_cha_allocation_for_all("controller", "nominal");
 agent.cha_allocation.a.controller = "nominal";
 agent.cha_allocation.t.controller = "nominal";
-agent.cha_allocation.f.controller = "hlcEDMD";
+% agent.cha_allocation.f.controller = "hlcEDMD";
+agent.cha_allocation.f.controller = "nominal";
 agent.cha_allocation.l.controller = "nominal";
 
 % agent.cha_allocation.f.controller = ["nominal", "mec"];
@@ -87,7 +88,7 @@ app.logger.plot({1, "controller.result.input", ""},"fig_num",5,"phase",'f');
  app.logger.plot({1, "inner_input", ""},"fig_num",3,"phase","tfl");
  app.logger.plot({1, "p1-p2-p3", "er"},"fig_num", 6,"phase",'tfl', "color",0);
  app.logger.plot({1, "controller.result.delta_u_edmd", ""},"fig_num", 10,"phase",'f', "color",0);
- app.logger.plot({1, "controller.result.u_explore", "er"},"fig_num", 11,"phase",'f');
+ % app.logger.plot({1, "controller.result.u_explore", "er"},"fig_num", 11,"phase",'f');
  app.logger.plot({{1, "controller.result.delta_u_edmd2", ""},{1, "controller.result.input2", ""},{1, "controller.result.u_nom2", ""}},"fig_num", 12,"phase",'f');
  app.logger.plot({{1, "controller.result.delta_u_edmd3", ""},{1, "controller.result.input3", ""},{1, "controller.result.u_nom3", ""}},"fig_num", 13,"phase",'f');
  app.logger.plot({1,"sensor.result.bias_eul",""},"fig_num", 14,"phase",'tfl');
