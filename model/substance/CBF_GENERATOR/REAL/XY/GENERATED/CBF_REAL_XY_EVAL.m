@@ -1,4 +1,4 @@
-function out = CBF_REAL_XY_EVAL(x,u,P,G,parts,lambda)
+function out = CBF_REAL_XY_EVAL(x,u,P,G,parts,lambda,tiltCfg)
 % CBF_REAL_XY_EVAL: 3-D direct support of two actual ellipsoids.
 % No XY projection; no extra Minkowski outer ellipsoid.
 % n(x)=(pCable-cObs)/norm(pCable-cObs) is a STATE-DEPENDENT unit normal.
@@ -11,6 +11,7 @@ function out = CBF_REAL_XY_EVAL(x,u,P,G,parts,lambda)
 validateattributes(x,{'double'},{'vector','numel',19,'finite','real'});
 validateattributes(u,{'double'},{'vector','numel',4,'finite','real'});
 validateattributes(lambda,{'double'},{'vector','numel',4,'positive','finite'});
+if nargin<7,tiltCfg=[];end
 if ~isstruct(parts), error('CBFXY:Parts','parts must be a struct array');end
 if ~isfield(G,'cableAxisLong') || ~isfield(G,'cableAxisShort') || ...
         ~isfield(G,'cableCenterFromLoad')
@@ -24,10 +25,33 @@ nParts=numel(parts);
 out=struct('names',{cell(nParts,1)},'stages',zeros(5,nParts), ...
     'hTaylor',zeros(5,nParts),'hDerivatives',zeros(5,nParts), ...
     'hDistance',zeros(nParts,1),'normal',zeros(3,nParts), ...
-    'bodyCentre',zeros(3,1),'cableShape',zeros(3));
-if nParts==0,return;end
+    'bodyCentre',zeros(3,1),'cableShape',zeros(3), ...
+    'tiltBodyStages',[],'tiltCableStages',[], ...
+    'tiltBodyDegrees',NaN,'tiltCableDegrees',NaN);
+if nParts==0 && isempty(tiltCfg),return;end
 jet=CBF_REAL_XY_JET(x,u,P);
 X=jet.stateTaylor;
+% Actual tilt-cone angle limits. Body thrust axis b3 must point near +e3.
+% Cable direction pT points near -e3 in this 19-state model.
+if ~isempty(tiltCfg)
+    qb=X(1:4,:);
+    b3z=xy_jet_scalar_product(qb(1,:),qb(1,:)) ...
+        -xy_jet_scalar_product(qb(2,:),qb(2,:)) ...
+        -xy_jet_scalar_product(qb(3,:),qb(3,:)) ...
+        +xy_jet_scalar_product(qb(4,:),qb(4,:));
+    cabz=-X(16,:);
+    out.tiltBodyDegrees=acosd(max(-1,min(1,b3z(1))));
+    out.tiltCableDegrees=acosd(max(-1,min(1,cabz(1))));
+    if tiltCfg.bodyEnabled
+        hb=b3z(1:3);hb(1)=hb(1)-cosd(tiltCfg.bodyMaxDeg);
+        out.tiltBodyStages=xy_tilt_stages(hb,tiltCfg.bodyLambda);
+    end
+    if tiltCfg.cableEnabled
+        hc=cabz;hc(1)=hc(1)-cosd(tiltCfg.cableMaxDeg);
+        out.tiltCableStages=xy_tilt_stages(hc,tiltCfg.cableLambda);
+    end
+end
+if nParts==0,return;end
 pT=X(14:16,:);
 C=X(8:10,:)-G.cableCenterFromLoad*P.cableL*pT;
 Qc=zeros(3,3,5);Qc(:,:,1)=as^2*eye(3);
@@ -68,6 +92,25 @@ for obstacle=1:nParts
         for k=1:order,poly=conv(poly,[lambda(k) 1]);end
         out.stages(order+1,obstacle)=poly*deriv(1:order+1);
     end
+end
+end
+
+function h=xy_jet_scalar_product(a,b)
+h=zeros(1,5);
+for k=0:4
+    for j=0:k,h(k+1)=h(k+1)+a(j+1)*b(k-j+1);end
+end
+end
+
+function stage=xy_tilt_stages(hTaylor,lambda)
+r=numel(lambda);
+assert(numel(hTaylor)==r+1,'CBFXY:TiltJet','Wrong tilt jet order');
+deriv=factorial(0:r)'.*hTaylor(:);
+stage=zeros(r+1,1);
+for k=0:r
+    poly=1;
+    for j=1:k,poly=conv(poly,[lambda(j) 1]);end
+    stage(k+1)=poly*deriv(1:k+1);
 end
 end
 

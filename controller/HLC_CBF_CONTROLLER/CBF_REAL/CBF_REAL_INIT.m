@@ -41,16 +41,40 @@ switch cbfId
         % ORIGINAL 3-D obstacle, rotating central cable ellipsoid ONLY.
         % NO drone sphere, NO payload sphere, NO ground safety conditions.
         % No thrust/yaw adjustment and NO dynamic extension.
-        % cfg.xyLambda=[4;4;4;4];
-        % cfg.xyLambda=[1;1.5;2;2.5];
-        % cfg.xyLambda=[1;1.2;1.4;1.6];
-        cfg.xyLambda=[1;2;8;16];
-        
+        cfg.xyLambda=[1;2;8;16]; % latest user setting; adjust as needed
         cfg.xyTorqueWeights=[1;1];
+        % HARD tilt limits in degrees from the world vertical axis.
+        % Body b3 relative +Z: order-2 HOCBF, independent 2 gains.
+        cfg.xyBodyTiltEnabled=true;
+        cfg.xyBodyTiltMaxDeg=45;
+        cfg.xyBodyTiltLambda=[2;2];
+        % Cable pT relative -Z: order-4 HOCBF, independent 4 gains.
+        cfg.xyCableTiltEnabled=true;
+        cfg.xyCableTiltMaxDeg=60;
+        cfg.xyCableTiltLambda=[1;2;8;16]; % latest user setting
+        % Optional smooth multi-obstacle guidance / one-ZOH-step guard.
+        % All obstacle/tilt hard inequalities stay in original QP.
+        % This is NOT guaranteed sampled-data or Backup CBF certification.
+        cfg.xyPreviewEnabled=true;
+        cfg.xyGuideStartH=3.5;          % smooth activation, zero at 3m
+        cfg.xyGuideMaxShiftNm=0.36;      % MAX adaptive guide shift, not fixed input
+        cfg.xyGuideMaxExtraNm=0.36;      % maximum extra torque vs hard QP
+        cfg.xyGuideSmoothWeight=0.16;   % preference for prior applied torque
+        cfg.xyGuideVelocityDamping=0.35;
+        cfg.xyGuideVelocityScale=0.45;
+        cfg.xyGuideMaxReserveLoss=0.012; % allowable 1-step predicted reserve loss
+        cfg.xyGuideMaxLowerDrop=0.025;   % relative tolerance for EACH lower stage
+        % Approximate one-ZOH lower-stage guard: ALL observed obstacles,
+        % body tilt and cable tilt, two time nodes, zero extra CBF EVALs.
+        % THIS IS A MODEL-BASED TAYLOR GUARD, NOT AN INTERSAMPLE PROOF.
+        cfg.xyZohGuardEnabled=true;
+        cfg.xyZohGuardMargin=0.0;
+        cfg.xyPreviewMaxPredictedParts=4; % cost cap; beyond => original hard QP
+        cfg.xyStateProjectionMaxError=0.005;
         cfg.xyMaxObstacles=Inf;
         cfg.xyCableRadiusM=0.20;      % transverse SEMI-axis [m]
         cfg.xyCableAxialMarginM=0.02; % a=L/2+axialMargin [m]
-        cfg.failurePolicy='continueBounded'; % General policy, research Sim ONLY
+        cfg.failurePolicy='continueBounded'; % Research Sim: bounded but uncertified on CBF failure
     otherwise
         error('CBFReal:UnknownCBF', ...
             'Unknown cbfId=%d; register a scheme in INIT and DISPATCH.',cbfId);

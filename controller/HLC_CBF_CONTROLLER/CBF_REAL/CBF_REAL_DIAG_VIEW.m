@@ -97,7 +97,7 @@ end
 partsPresent=(isfinite(a.parts) && a.parts>0) || ...
     (isfinite(a.objects) && a.objects>0);
 needsLine=partsPresent || (isfinite(a.modified) && a.modified~=0) || ...
-    strcmp(verdict,'UNCERTIFIED');
+    strcmp(verdict,'UNCERTIFIED') || generic_active_tilt_limits(info);
 if ~needsLine,return;end
 stage=member(info,'stageValues');
 if isnumeric(stage) && size(stage,1)>=5 && ~isempty(stage)
@@ -109,15 +109,66 @@ end
 [badHard,badStages]=generic_violation_text(info);
 inputText=generic_input_text(info);
 stateText=generic_state_integrity_text(info);
+tiltText=generic_tilt_limits_text(info);
+previewText=xy_preview_diag_text(info);
+massText=xy_cbf_mass_diag_text(info);
+zohText=xy_zoh_guard_diag_text(info);
 line=[line,sprintf(['\n  CBF id=%s %s status=%s obs=%s parts=%s' ...
     ' nomOK=%s dT=%s dTau=%s viol=%s ms=%s' ...
     ' | %s | hard=[%s] | stages=[%s]%s%s'], ...
     fmt_int(a.id),verdict,a.status,fmt_int(a.objects),fmt_int(a.parts), ...
     fmt_int(a.nominalFeasible),fmt_num(a.dT),fmt_num(a.dTau), ...
     fmt_num(a.violation),fmt_num(a.ms),stageText,badHard,badStages, ...
-    inputText,stateText)];
+    inputText,[stateText tiltText previewText zohText massText])];
 end
 
+
+function txt=xy_cbf_mass_diag_text(info)
+used=scalar_num(member(info,'massUsedKg'));
+if ~isfinite(used),txt='';return;end
+est=scalar_num(member(info,'massEstimatorKg'));
+txt=sprintf(' | mCBF=%s mEst=%s',fmt_num(used),fmt_num(est));
+end
+
+function txt=xy_zoh_guard_diag_text(info)
+mode=member(info,'zohGuardStatus');
+if isempty(mode),txt='';return;end
+if isstring(mode),mode=char(mode);end
+if ~ischar(mode),txt='';return;end
+rows=scalar_num(member(info,'zohGuardRows'));
+margin=scalar_num(member(info,'zohGuardMinNormalized'));
+txt=sprintf(' | zohModel=%s rows=%s minApprox=%s', ...
+    mode,fmt_int(rows),fmt_num(margin));
+end
+
+function txt=xy_preview_diag_text(info)
+% All timings here are internal to Scheme 02, NOT a full Sim step.
+st=member(info,'previewStatus');
+if isempty(st),txt='';return;end
+if isstring(st),st=char(st);end
+if ~ischar(st),txt='';return;end
+N=scalar_num(member(info,'previewCandidates'));
+m0=scalar_num(member(info,'previewCurrentReserve'));
+m1=scalar_num(member(info,'previewNextReserve'));
+b1=scalar_num(member(info,'previewBaseNextReserve'));
+a=scalar_num(member(info,'previewGuideActivation'));
+gain=scalar_num(member(info,'previewGuideShiftNm'));
+pc=scalar_num(member(info,'previewPredictedParts'));
+pre=scalar_num(member(info,'previewElapsedMs'));
+hard=scalar_num(member(info,'hardQpElapsedMs'));
+extra=member(info,'previewExtraTorque');
+if isnumeric(extra)&&numel(extra)==2&&all(isfinite(extra(:)))
+    extra=double(extra(:));
+else
+    extra=[NaN;NaN];
+end
+txt=sprintf([' | guide=%s cand=%s parts=%s' ...
+    ' act=%s shiftNm=%s R0=%s R1=%s Rbase=%s' ...
+    ' dXYguide=[%+.3g,%+.3g] msHard=%s msGuide=%s'], ...
+    st,fmt_int(N),fmt_int(pc),fmt_num(a),fmt_num(gain), ...
+    fmt_num(m0),fmt_num(m1),fmt_num(b1), ...
+    extra(1),extra(2),fmt_num(hard),fmt_num(pre));
+end
 
 function [hard,stages] = generic_violation_text(info)
 % 'hard' comes only from explicit scheme-provided violations or hard
@@ -206,6 +257,33 @@ end
 lo=[0;-1;-1;-1];hi=[20;1;1;1];
 sat=(abs(actual-lo)<=1e-8 | abs(actual-hi)<=1e-8);
 result=[result,sprintf(' satOut=[%d%d%d%d]',sat(1),sat(2),sat(3),sat(4))];
+end
+
+function tf=generic_active_tilt_limits(info)
+body=member(info,'tiltBodyEnabled');cable=member(info,'tiltCableEnabled');
+tf=(isscalar(body)&&(isnumeric(body)||islogical(body))&&logical(body)) || ...
+    (isscalar(cable)&&(isnumeric(cable)||islogical(cable))&&logical(cable));
+end
+
+function result=generic_tilt_limits_text(info)
+% Display angle hard constraints generically if the scheme reports them.
+body=member(info,'tiltBodyDegrees');
+cable=member(info,'tiltCableDegrees');
+if ~(isnumeric(body)&&isscalar(body)&&isfinite(body) && ...
+        isnumeric(cable)&&isscalar(cable)&&isfinite(cable))
+    result='';return
+end
+bmax=member(info,'tiltBodyMaxDeg');cmax=member(info,'tiltCableMaxDeg');
+bstage=member(info,'tiltBodyStages');cstage=member(info,'tiltCableStages');
+if ~(isnumeric(bmax)&&isscalar(bmax)&&isnumeric(cmax)&&isscalar(cmax)),result='';return;end
+result=sprintf(' | tiltBody=%.2f/%.2fdeg tiltCable=%.2f/%.2fdeg', ...
+    body,bmax,cable,cmax);
+if isnumeric(bstage) && ~isempty(bstage)
+    result=[result,sprintf(' bodyPsi2=%+.3g',bstage(end))];
+end
+if isnumeric(cstage) && ~isempty(cstage)
+    result=[result,sprintf(' cablePsi4=%+.3g',cstage(end))];
+end
 end
 
 function result=generic_state_integrity_text(info)

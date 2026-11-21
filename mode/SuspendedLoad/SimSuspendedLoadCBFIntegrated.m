@@ -35,7 +35,8 @@ initial_state.pL = initial_state.p + initial_state.pT*agent.parameter.cableL;
 initial_state.v = [0; 0; 0];
 % Note: set the model error after setting "plant"
 agent.plant = MODEL_CLASS(agent,Model_Suspended_Load(dt, initial_state,1,agent));%dt,initial,id,agent,modelName
-agent.parameter.set("loadmass",0.01);%0.0968);%0.968
+% agent.parameter.set("loadmass",0.01);%0.0968);%0.968
+agent.parameter.set("loadmass",0.14);%0.0968);%0.968
 
 % Sim only: getData works after setting "plant"
 motive = Connector_Natnet_sim(dt, {{1,"p","q"},{1,"pL","pT"}}); % imitation of Motive camera (motion capture system)

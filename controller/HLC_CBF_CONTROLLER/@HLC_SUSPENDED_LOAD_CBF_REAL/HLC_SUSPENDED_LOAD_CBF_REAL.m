@@ -100,29 +100,67 @@ methods
         end
         
         candidate = cbfOut.input;
+
         low  = [0;-1;-1;-1];
         high = [20;1;1;1];
         
-        validCandidate = isnumeric(candidate) && ...
-            isreal(candidate) && numel(candidate)==4 && ...
-            all(isfinite(candidate(:))) && ...
-            all(candidate(:)>=low) && ...
-            all(candidate(:)<=high);
+        isFinite4 = @(u) isnumeric(u) && isreal(u) && ...
+            numel(u)==4 && all(isfinite(u(:)));
         
-        continueResearch = ~cbfOut.success && ...
-            strcmp(policy,'continueBounded') && validCandidate;
+        if cbfOut.success
         
-        if ~cbfOut.success && ~continueResearch
-            obj.result.input = [];
-            error('CBFReal:NoFeasibleInput', ...
-                'CBF failed: %s', cbfOut.info.status);
+            % CBF成功時：従来の入力を採用
+            if ~isFinite4(candidate)
+                error('CBFReal:InvalidInput', ...
+                    'CBF returned invalid input.');
+            end
+        
+            % 大きな入力範囲違反は異常として扱う
+            if any(candidate(:)<low-1e-9) || ...
+               any(candidate(:)>high+1e-9)
+                error('CBFReal:InputOutOfBounds', ...
+                    'CBF returned input outside physical bounds.');
+            end
+        
+            applied = min(max(double(candidate(:)),low),high);
+            usedCandidate = true;
+            continuedUncertified = false;
+        
+        else
+        
+            % CBF失敗時
+            if ~strcmp(policy,'continueBounded')
+                obj.result.input = [];
+                error('CBFReal:NoFeasibleInput', ...
+                    'CBF failed: %s',cbfOut.info.status);
+            end
+        
+            % 研究用：入力上下限を維持して継続
+            if isFinite4(candidate)
+        
+                applied = min(max(double(candidate(:)),low),high);
+                usedCandidate = true;
+        
+            elseif isFinite4(tmp)
+        
+                % CBF出力が不正な場合のみHLC入力にフォールバック
+                applied = min(max(double(tmp(:)),low),high);
+                usedCandidate = false;
+        
+            else
+                error('CBFReal:NoFiniteInput', ...
+                    'Neither CBF nor HLC returned a finite input.');
+            end
+        
+            continuedUncertified = true;
+        
         end
         
-        obj.result.cbf.inputApplied = validCandidate;
-        obj.result.cbf.appliedWithoutCertificate = continueResearch;
+        obj.result.cbf.inputApplied = usedCandidate;
+        obj.result.cbf.appliedWithoutCertificate = continuedUncertified;
         
-        % CBFが決定した最終物理入力
-        obj.result.input = cbfOut.input;
+        % 最終物理入力
+        obj.result.input = applied;
         % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
         obj.result.xd = xd;
         obj.result.x = x;
