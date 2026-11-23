@@ -6,6 +6,10 @@ function output = KL(X,U,Y,F,flg)
 %   X, U, Y       観測する状態Xに入力Uを与えた際の出力Yを集めたデータセット
 %                 列：データ, 行：時系列
 %   F             観測量 関数ハンドル
+assert(isequal(size(X),size(Y)) && size(X,2)==size(U,2), ...
+    'KL:DataSize','X and Y must match and U must have the same sample count.');
+assert(all(isfinite([X(:);Y(:);U(:)])), ...
+    'KL:Nonfinite','Training data must be finite.');
 tic
 %Xlift,Yliftを計算する
 remi = round(size(X,2) / 5); j = 0;

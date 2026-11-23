@@ -62,7 +62,7 @@ renamedFilePaths  = cell(nFiles, 1);
 % loading_filename = input('\n統一するファイル名を入力してください(※ .matは含まない):','s');
 
 % FileName = input('保存するファイル名を入力してください(※ ～.matを付ける): ', 's');
-loading_filename = FileName;
+loading_filename = fullfile(folderPath,baseName);
 
 % for i = 1:length(fileList)
 %     oldFileName = fullfile(folderPath,fileList(i).name);
@@ -139,23 +139,17 @@ try
     fprintf('\n＜データセットの結合を行います＞\n')
 
     for i = 1:Data.HowmanyDataset
-        if contains(loading_filename,'.mat')
-            Dataset = ImportFromExpData_tutorial(loading_filename); %ImportFromExpData_tutorial:データセットをくっつけるための関数
+        if i == 1
+            setting = 1;
+            Dataset = ImportFromExpData_tutorial(renamedFilePaths{i},setting);
+            datarange = Dataset.datarange;
+            range = Dataset.range;
+            IDX = Dataset.IDX;
+            phase2 = Dataset.phase2;
+            vz_z = Dataset.vxyz;
         else
-            if i == 1 %66 ~ 78はコマンドウィンドウから入力するのに必要(クープマン線形化には関係ない)
-                setting = 1;
-                Dataset = ImportFromExpData_tutorial(append(loading_filename,'_',num2str(i),'.mat'),setting);
-                datarange = Dataset.datarange;
-                range = Dataset.range;
-                IDX = Dataset.IDX;
-                phase2 = Dataset.phase2;
-                % vz_z = Dataset.vz_z;
-                vz_z = Dataset.vxyz;
-                fprintf('\n')
-            else
-                setting = 0;
-                Dataset = ImportFromExpData_tutorial(append(loading_filename,'_',num2str(i),'.mat'),setting,datarange,range,IDX,phase2,vz_z);
-            end
+            setting = 0;
+            Dataset = ImportFromExpData_tutorial(renamedFilePaths{i},setting,datarange,range,IDX,phase2,vz_z);
         end
         if i==1
             Data.X = [Dataset.X];
@@ -171,16 +165,15 @@ try
 
     fprintf('\n＜データセットの結合が完了しました＞\n')
 
-    flg.normalize = input('\n＜正規化を行います＞\n はい:1，いいえ:0：','s');
-    % if str2double(flg.normalize) == 1 %正規化を行うか(正規化については自分で調べて！)
-    Ndata = Normalization(Data);
-    Data.X = Ndata.x;
-    Data.Y = Ndata.y;
-    Data.U = Ndata.u;
-    disp('正規化が完了しました')
-    % end
-
-
+    flg.normalize = str2double(input('正規化を行いますか？ はい:1、いいえ:0：','s'));
+    assert(ismember(flg.normalize,[0 1]),'正規化には0または1を指定してください。');
+    if flg.normalize == 1
+        Ndata = Normalization(Data);
+        Data.X = Ndata.x;
+        Data.Y = Ndata.y;
+        Data.U = Ndata.u;
+        disp('正規化が完了しました')
+    end
 
     %% クォータニオンのノルムをチェック(クォータニオンのノルムは1にならなければいけないという制約がある)
     % 閾値を下回った or 上回った場合注意文を提示
@@ -226,7 +219,12 @@ try
     end
 
 
-    % est.observable = F;
+    est.observable = F;
+    est.normalized = logical(flg.normalize);
+    if est.normalized
+        est.normalization.meanValue = Ndata.meanValue;
+        est.normalization.stdValue = Ndata.stdValue;
+    end
     fprintf('\n＜クープマン線形化が完了しました＞\n')
 
 %     %% 線形化が正常終了したのでファイル名を戻す
@@ -268,7 +266,7 @@ fprintf('\n＜ファイル名を元に戻しました＞\n');
     %構築したクープマンモデルがどの程度正確かを確認する部分
     fprintf('\n＜推定精度検証用データに設定するファイル名を選択してください＞\n')
     [fileName, filePath] = uigetfile('*.mat');
-    verification_data = fileName;
+    verification_data = fullfile(filePath,fileName);
     simResult.reference = ImportFromExpData_estimation_tutorial(verification_data); %検証用データを格納
 
     %arming時の実験データがうまく取れていないのを強引に解消
@@ -282,19 +280,16 @@ fprintf('\n＜ファイル名を元に戻しました＞\n');
         simResult.reference.N = simResult.reference.N - takeoff_idx;
     end
 
-    simResult.Z(:,1) = F(simResult.reference.X(:,1)); %検証用データの初期値を観測量に通して次元を合わせてる
+    initialState = simResult.reference.X(:,1);
     simResult.Xhat(:,1) = simResult.reference.X(:,1);
     simResult.U = simResult.reference.U(:,1:end);
     simResult.T = simResult.reference.T(1:end);
 
-    if flg.normalize == 1 %推定精度検証用データの正規化
-        for i  = 1:12
-            simResult.Z(i,1) = (simResult.Z(i,1)-Ndata.meanValue.x(i))/Ndata.stdValue.x(i); %状態の正規化
-        end
-        for i = 1:4
-            simResult.U(i,:) = (simResult.U(i,:)-Ndata.meanValue.u(i))/Ndata.stdValue.u(i); %入力の正規化
-        end
+    if flg.normalize == 1
+        initialState = (initialState-Ndata.meanValue.x)./Ndata.stdValue.x;
+        simResult.U = (simResult.U-Ndata.meanValue.u)./Ndata.stdValue.u;
     end
+    simResult.Z(:,1) = F([initialState;simResult.U(:,1)]);
 
     %方程式を用いて計算を行う部分
     if flg.bilinear == 1  %　flg.bilinear == 1:双線形
@@ -309,11 +304,10 @@ fprintf('\n＜ファイル名を元に戻しました＞\n');
     simResult.Xhat = est.C * simResult.Z; %出力方程式 x[k] = Cz[k]，次元を元の12状態に戻してる
 
     %正規化した場合には逆変換を行う必要がある
-    if str2double(flg.normalize) == 1 %逆変換
+    if flg.normalize == 1 %逆変換
         for i = 1:size(simResult.Xhat,1)
             simResult.Xhat(i,:) = (simResult.Xhat(i,:) * Ndata.stdValue.x(i)) + Ndata.meanValue.x(i);
         end
-        simResult.Xhat = cat(2,simResult.reference.X(:,1),simResult.Xhat);
     end
 
     fprintf('\n＜推定精度検証が完了しました(推定したA,B,C行列を用いた状態推定)＞\n')

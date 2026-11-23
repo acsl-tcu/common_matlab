@@ -59,7 +59,9 @@ classdef EKF < handle
         end
 
         function [result]=do(obj,varargin)
-            if ~isempty(obj.timer)
+            if numel(varargin) >= 3 && isa(varargin{3},'LOGGER') && ~varargin{3}.fExp
+                dt = varargin{1}.dt; % Simulation time is independent of solver wall time.
+            elseif ~isempty(obj.timer)
                 dt = toc(obj.timer);
                 if dt > obj.dt
                     dt = obj.dt;

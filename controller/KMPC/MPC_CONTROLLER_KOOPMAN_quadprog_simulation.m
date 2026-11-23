@@ -4,7 +4,8 @@ classdef MPC_CONTROLLER_KOOPMAN_quadprog_simulation < handle
 % 勾配MPCコントローラー
 
 properties
-    %         options
+    solver
+    options
     param
     current_state
     previous_input
@@ -25,11 +26,29 @@ methods
         %-- 変数定義
         obj.self = self; %agentへの接続
         %---MPCパラメータ設定---%
+        obj.solver = @quadprog;
+        if strcmpi(fileparts(which('quadprog')),fileparts(which('mskoptimset')))
+            obj.options = mskoptimset('Display','off');
+        else
+            obj.options = optimoptions('quadprog','Display','none',...
+                'MaxIterations',1e9,'ConstraintTolerance',1e-5);
+        end
         obj.param = param.param; %Controller_MPC_Koopmanの値を保存
 
         %%
         obj.input = obj.param.input;
         obj.model = self.plant;
+        % Hold each MPC input over whole plant ticks within a prediction step.
+        ticks = max(1,round(obj.param.dt / obj.model.dt));
+        obj.param.dt = ticks * obj.model.dt;
+        stepA = eye(size(obj.param.A));
+        stepB = zeros(size(obj.param.B));
+        for tick = 1:ticks
+            stepB = obj.param.A * stepB + obj.param.B;
+            stepA = obj.param.A * stepA;
+        end
+        obj.param.A = stepA;
+        obj.param.B = stepB;
 
         %% 入力
         obj.result.input = zeros(4, 1); % 入力初期値
@@ -54,15 +73,6 @@ methods
         Param.ref = obj.state.ref;
         obj.previous_state = repmat(obj.current_state, 1, obj.param.H);
 
-        % MPC設定(problem)
-        options = optimoptions('quadprog');
-        options = optimoptions(options, 'MaxIterations', 1.e+9); % 最大反復回数
-        options = optimoptions(options, 'ConstraintTolerance', 1.e-5); % 制約違反に対する許容誤差
-
-        %-- quadprog設定
-        options.Display = 'none'; % 計算結果の表示
-        problem.solver = 'quadprog'; % solver
-
         [H, f] = change_equation(Param);
         A = [];
         b = [];
@@ -72,9 +82,12 @@ methods
         ub = [];
         x0 = [obj.previous_input(:)];
 
-        [var, fval, exitflag, ~, ~] = quadprog(H, f, A, b, Aeq, beq, lb, ub, x0, options, problem); %最適化計算
+        [var, fval, exitflag, ~, ~] = obj.solver(H, f, A, b, Aeq, beq, lb, ub, x0, obj.options); %最適化計算
 
         %%
+        if isempty(var) || ~isfinite(exitflag) || exitflag <= 0 || any(~isfinite(var))
+            error('KMPC:SolverFailure','quadprog failed at t=%.3f (exitflag %d).',rt,exitflag);
+        end
         obj.previous_input = var;
         obj.result.input = var(1:4, 1); % 印加する入力 4入力
 
@@ -85,6 +98,7 @@ methods
 
         %% 保存するデータ
         obj.result.weight = Param.weight;
+        obj.result.exitflag = exitflag;
         result = obj.result; % controllerの値の保存
 
         %% 情報表示
@@ -106,7 +120,7 @@ methods
         fprintf("\n");
 
         %% z < 0で終了
-        if obj.self.estimator.result.state < 0
+        if obj.self.estimator.result.state.p(3) < 0
             warning("墜落しました")
         end
 
@@ -122,10 +136,25 @@ methods
         % params.dt = 0.1;
         xr = zeros(obj.param.total_size, obj.param.H); % initialize
         % 時間関数の取得→時間を代入してリファレンス生成
-        RefTime = obj.self.reference.func; % 時間関数の取得
+        active_ref = obj.self.reference.(obj.self.cha_allocation.(obj.self.cha).reference);
+        switch obj.self.cha
+            case 'f'
+                RefTime = active_ref.func;
+                if isempty(active_ref.t)
+                    T = 0; % Initial pass before the flight clock starts.
+                else
+                    T = T - active_ref.t;
+                end
+            case {'a','t'}
+                RefTime = @(t) active_ref.gen_ref_for_take_off(t);
+                T = T - active_ref.base_time;
+            case 'l'
+                RefTime = @(t) active_ref.gen_ref_for_landing(t);
+                T = T - active_ref.base_time;
+        end
 
         for h = 0:obj.param.H - 1
-            t = T + obj.param.dt * h; % reference生成の時刻をずらす
+            t = T + obj.param.dt * (h + 1); % reference生成の時刻をずらす
             ref = RefTime(t);
             xr(1:3, h + 1) = ref(1:3);
             xr(7:9, h + 1) = ref(5:7);

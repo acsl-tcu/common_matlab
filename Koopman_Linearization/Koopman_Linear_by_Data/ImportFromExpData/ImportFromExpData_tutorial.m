@@ -46,7 +46,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
                 data.startIndex = find(data.phase==102,1,'first');
                 data.endIndex = find(data.phase == 102,1,'last');
             elseif data.datarange == 4
-                data.startIndex = find(data.phase==112,1,'first');
+                data.startIndex = find(data.phase==102,1,'first');
                 data.endIndex = find(data.phase == 108,1,'last');
             else
                 range = input('\n＜データ範囲の初めを設定してください＞\n 1:take off + 何ステップ進めるか 2:flight + 何ステップ進めるか：','s');
@@ -77,7 +77,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
                 data.startIndex = find(data.phase==102,1,'first');
                 data.endIndex = find(data.phase == 102,1,'last');
             elseif datarange == 4
-                data.startIndex = find(data.phase==112,1,'first');
+                data.startIndex = find(data.phase==102,1,'first');
                 data.endIndex = find(data.phase == 108,1,'last');
             else
                 if range == 1
@@ -174,7 +174,7 @@ function data = ImportFromExpData_tutorial(expData_Filename,setting,datarange,ra
     elseif data.vxyz == 1 % vx, vy, vzから位置を算出する
         for i=1:data.N-1
         data.X(:,i) = [data.est.z(:,i);data.est.q(i,:)';data.est.v(i,:)';data.est.w(i,:)'];
-        data.Y(:,i) = [data.est.p(i+1,1:2)';data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
+        data.Y(:,i) = [data.est.z(:,i+1);data.est.q(i+1,:)';data.est.v(i+1,:)';data.est.w(i+1,:)'];
         data.U(:,i) = [data.input(i,:)'];
         data.T(:,i) = [data.t(i,:)];
         end

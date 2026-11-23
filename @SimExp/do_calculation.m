@@ -1,5 +1,8 @@
 function do_calculation(app)
 % profile on
+if ~isempty(app.motive)
+    app.motive.getData(app.agent);
+end
 for i = 1:app.N
     app.agent(i).cha = app.cha;
     app.do_prop(app.agent(i),"sensor",i);

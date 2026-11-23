@@ -1042,6 +1042,7 @@ Temporary Items
 
 # matlab
 *.mat
+!Koopman_Linearization/Koopman_Linear_by_Data/refult_of_KL_Miya/KL_26_MPC_fixed.mat
 # Log*
 !assets/Logger.m
 !connector/NATNET_CONNECTOR/*.dll

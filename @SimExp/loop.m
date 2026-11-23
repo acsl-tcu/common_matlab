@@ -40,9 +40,6 @@ end
       end
       app.cha0 = app.cha;
     end
-    if ~isempty(app.motive)
-      app.motive.getData(app.agent);            
-    end
     app.TimeSlider.Value = app.time.t;
     app.do_calculation();
     if app.fExp

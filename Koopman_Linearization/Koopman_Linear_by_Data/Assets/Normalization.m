@@ -1,50 +1,20 @@
-%正規化を行うための関数
-%なんで平均値引いてるんだろう？
-function  data = Normalization(Data)
-% 正規化(平均:0,標準偏差:1)
-
-%平均値の算出
-%セグウェイ，ドローンどっちも：Data
-%
-
-for i = 1:size(Data.X,1)
-    meanValue.x(i,:) = mean(Data.X(i,:));
-    meanValue.y(i,:) = mean(Data.Y(i,:));
-end
-
-%16と18はセグウェイの時は消す
-for i = 1:4
-    meanValue.u(i,:) = mean(Data.U(i,:));
-end
-
-%標準偏差の算出
-for i = 1:size(Data.X,1)
-    stdValue.x(i,:) = std(Data.X(i,:));
-    stdValue.y(i,:) = std(Data.Y(i,:));
-end
-
-%セグウェイの時は2729消しておｋ
-for i = 1:4
-    stdValue.u(i,:) = std(Data.U(i,:));
-end
-
-%データの正規化
-for i = 1:size(Data.X,1)
-    data.x(i,:) = (Data.X(i,:) - meanValue.x(i))/stdValue.x(i);
-    data.y(i,:) = (Data.Y(i,:) - meanValue.y(i))/stdValue.y(i);
-end
-
-%セグウェイの時は3840が消しておｋ
-for i = 1:4
-    data.u(i,:) = (Data.U(i,:)-meanValue.u(i))/stdValue.u(i);
-end
-
-
-data.meanValue.x = meanValue.x;
-data.meanValue.y = meanValue.y;
-data.meanValue.u = meanValue.u;
-data.stdValue.x = stdValue.x;
-data.stdValue.y = stdValue.y;
-data.stdValue.u = stdValue.u;
-
+function data = Normalization(Data)
+% Use the same state coordinates for current and next states.
+assert(isequal(size(Data.X),size(Data.Y)), 'Normalization:StateSize', ...
+    'X and Y must have identical state and sample dimensions.');
+assert(size(Data.X,2)==size(Data.U,2), 'Normalization:SampleSize', ...
+    'X, Y and U must have the same number of samples.');
+assert(all(isfinite([Data.X(:);Data.Y(:);Data.U(:)])), ...
+    'Normalization:Nonfinite','Training data must be finite.');
+data.meanValue.x = mean(Data.X,2);
+data.meanValue.y = data.meanValue.x;
+data.meanValue.u = mean(Data.U,2);
+data.stdValue.x = std(Data.X,0,2);
+data.stdValue.u = std(Data.U,0,2);
+data.stdValue.x(data.stdValue.x < 1e-12) = 1;
+data.stdValue.u(data.stdValue.u < 1e-12) = 1;
+data.stdValue.y = data.stdValue.x;
+data.x = (Data.X-data.meanValue.x)./data.stdValue.x;
+data.y = (Data.Y-data.meanValue.x)./data.stdValue.x;
+data.u = (Data.U-data.meanValue.u)./data.stdValue.u;
 end

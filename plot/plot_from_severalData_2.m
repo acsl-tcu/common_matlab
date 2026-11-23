@@ -10,9 +10,16 @@ function figures = plot_from_severalData_2(files, settings)
 clc;
 
 %% 設定（普段はこのブロックを変更する）
-% defaults.target = ["p1-p2-p3"];
-
-defaults.target = ["p1-p2-p3","input2:4"];
+% % defaults.target = ["p1-p2-p3"];
+% % defaults.target = [
+% %     "controller.result.delta_u1"
+% %     "controller.result.delta_u2:4"
+% % ];
+defaults.target = [
+    "p1-p2-p3",...
+    "input2:4",...
+    % "controller.result.delta_u"
+    ];
 % "controller.result.delta_u"
 % input1: スラストのみ、input2:4: 回転方向の入力のみ（別々のFigure）。
 % このログのinput2:4はトルク[Nm]。実際の角速度[rad/s]は "w" を指定する。

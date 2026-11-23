@@ -241,6 +241,9 @@ classdef SimExp < matlab.apps.AppBase
 
         function mySizeChangedFcn(app, ~) % ウインドウサイズ変更イベントハンドラ関数
             pause(0.5);
+            if isa(app.UIAxes.Parent,'matlab.ui.container.GridLayout')
+                return
+            end
             position = app.RightPanel.Position; % [Left, Bottom, Width, Height];
             app.TimeSliderLabel.Position = [7, position(4) - 22, 50, 22];
             app.TimeSlider.Position = [70, position(4) - 12, 284, app.TimeSlider.Position(4)];
