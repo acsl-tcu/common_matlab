@@ -93,6 +93,10 @@ classdef HLC_HINF_SUSPENDED_LOAD < handle
             %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
             obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; %+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1; %入力にノイズを付与可能
             % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
+
+            obj.result.theatx=atan2d(model.state.pT(1), -model.state.pT(3));
+            obj.result.theaty=atan2d(model.state.pT(2), -model.state.pT(3));
+
             obj.result.xd = xd;
             obj.result.x = x;
             result = obj.result;
