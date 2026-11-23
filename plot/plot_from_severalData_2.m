@@ -15,10 +15,11 @@ function figures = plot_from_severalData_2(files, settings)
 % defaults.target = ["p1-p2-p3"];
 defaults.target = [
     % "controller.result.delta_u_edmd_applied1"
-        "p1-p2"
+    "p1-p2"
+    % "input"
     % "p1-p2-p3"
-    "controller.result.delta_u_edmd_applied2:4"
-];
+    "controller.result.delta_u_edmd"
+    ];
 % "controller.result.delta_u_edmd_applied" は実際に公称入力から引いた補償量（全4成分）。
 % input1: スラストのみ、input2:4: 回転方向の入力のみ（別々のFigure）。
 % このログのinput2:4はトルク[Nm]。実際の角速度[rad/s]は "w" を指定する。
@@ -29,7 +30,7 @@ defaults.attribute = "er"; % e:推定、s:センサ、r:目標、p:真値
 defaults.phase = "f";      % "tfl":離陸・飛行・着陸、"":全フェーズ
 defaults.time = [-Inf Inf]; % 絶対時刻[s]の範囲（phaseと両方適用）
 defaults.agent_id = 1;     % 保存されたData.agentの番号
-defaults.fsave = 0;      % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
+defaults.fsave = 2;      % 0:保存なし 1:fig 2:png 3:jpg 4:pdf 5:eps
 defaults.savefolder = "";  % 保存時に空ならフォルダ選択
 defaults.ftitle = false;
 defaults.fcolor = true;    % 時系列のフェーズ背景
@@ -76,6 +77,18 @@ for file = reshape(files,1,[])
         mask = mask & ismember(phase,double(char(settings.phase)));
     end
     ids = find(mask);
+
+    % 連続するフライト区間を検出
+    if ~isempty(ids)
+        edges = [1; find(diff(ids) > 1) + 1; numel(ids) + 1];
+
+        % データ数が最大のフライト区間を選択
+        lengths = diff(edges);
+        [~, idx] = max(lengths);
+
+        % 本番フライトのデータのみ抽出
+        ids = ids(edges(idx):edges(idx+1)-1);
+    end
     if isempty(ids), warning('PlotLog:Empty','対象フェーズ・時刻にデータがありません: %s',file); continue; end
     assert(settings.agent_id<=numel(D.agent),'指定したagent_idは保存されていません。');
     agent = D.agent(settings.agent_id);
