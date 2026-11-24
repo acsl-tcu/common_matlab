@@ -7,8 +7,12 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
     % At every logging, LOGGER gathers the data listed in items from target
     % obj.Data.t : time
     % obj.Data.agent = {row, item_id, target_id}
+    % obj.agentSetting : Start 時点の agent のディープコピー（設定再現用）
+    % obj.modeSource : mode ファイルのソースコード
     properties
         Data
+        agentSetting = [] % Start 時点の agent のスナップショット
+        modeSource = "" % mode ファイルのソース文字列
         k; % time index for logging
         target % 保存対象の agent indices : example 2:4 : default 1:N
         items % 追加で保存するアイテム名
@@ -323,6 +327,30 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
         function set_time_handler(obj, timeObj)
             obj.timeHandler = timeObj;
+        end
+
+        function save_agent_setting(obj, agent, modeName)
+            % save_agent_setting(agent, modeName)
+            % agent : 保存する agent（Start 時点の状態をディープコピーする）
+            % modeName : mode ファイル名（例 "SimHL"）。ソースコードを modeSource に保存する
+            arguments
+                obj
+                agent
+                modeName = ""
+            end
+            try
+                obj.agentSetting = getArrayFromByteStream(getByteStreamFromArray(agent));
+            catch ME
+                warning("ACSL:LOGGER", "agent のディープコピーに失敗したため参照を保存します（save 時点の状態になります）: %s", ME.message);
+                obj.agentSetting = agent;
+            end
+            modeName = string(modeName);
+            if strlength(modeName) > 0
+                modeFile = which(modeName);
+                if ~isempty(modeFile)
+                    obj.modeSource = string(fileread(modeFile));
+                end
+            end
         end
 
     end
