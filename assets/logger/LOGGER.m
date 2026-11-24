@@ -7,8 +7,12 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
     % At every logging, LOGGER gathers the data listed in items from target
     % obj.Data.t : time
     % obj.Data.agent = {row, item_id, target_id}
+    % obj.agentSetting : Start 時点の agent のシリアライズ済みバイト列（get_agent_setting() で復元）
+    % obj.modeSource : mode ファイルのソースコード
     properties
         Data
+        agentSetting = [] % Start 時点の agent のスナップショット（uint8 バイト列）
+        modeSource = "" % mode ファイルのソース文字列
         k; % time index for logging
         target % 保存対象の agent indices : example 2:4 : default 1:N
         items % 追加で保存するアイテム名
@@ -323,6 +327,52 @@ classdef LOGGER < handle % handleクラスにしないとmethodの中で値を�
 
         function set_time_handler(obj, timeObj)
             obj.timeHandler = timeObj;
+        end
+
+        function save_agent_setting(obj, agent, modeName)
+            % save_agent_setting(agent, modeName)
+            % agent : 保存する agent（Start 時点の状態をディープコピーする）
+            % modeName : mode ファイル名（例 "SimHL"）。ソースコードを modeSource に保存する
+            arguments
+                obj
+                agent
+                modeName = ""
+            end
+            % バイト列(uint8)のまま保持する。ここでデシリアライズすると serialport 等の
+            % loadobj が走り、実験中に使用中の COM ポート等へ再接続しようとしてしまうため。
+            % 復元は get_agent_setting() で必要な時のみ行う。
+            try
+                obj.agentSetting = getByteStreamFromArray(agent);
+            catch ME
+                warning("ACSL:LOGGER", "agent のシリアライズに失敗したため参照を保存します（save 時点の状態になります）: %s", ME.message);
+                obj.agentSetting = agent;
+            end
+            modeName = string(modeName);
+            if strlength(modeName) > 0
+                modeFile = which(modeName);
+                if ~isempty(modeFile)
+                    obj.modeSource = string(fileread(modeFile));
+                end
+            end
+        end
+
+        function agent = get_agent_setting(obj)
+            % agent = get_agent_setting()
+            % save_agent_setting で保存した Start 時点の agent を復元する
+            % 注意：serialport 等のハードウェア接続を持つオブジェクトは復元時に再接続を試みる
+            if isa(obj.agentSetting, "uint8")
+                [prevMsg, prevId] = lastwarn;
+                lastwarn("");
+                agent = getArrayFromByteStream(obj.agentSetting);
+                [warnMsg, warnId] = lastwarn;
+                if contains(warnMsg + " " + warnId, "serial", "IgnoreCase", true)
+                    fprintf("※ 上記の serialport 接続に関する警告は、復元時に実験機器へ再接続を試みたことによるもので、無視してかまいません。\n");
+                elseif strlength(string(warnMsg)) == 0
+                    lastwarn(prevMsg, prevId); % 警告が出なかった場合は元の lastwarn を戻す
+                end
+            else
+                agent = obj.agentSetting;
+            end
         end
 
     end

@@ -15,6 +15,8 @@ if app.fStart % to stop
 else % to start
 
     if ~app.isReady
+        % 細かい設定を再現できるよう、Start 時点の agent と mode ファイルを logger に保存
+        app.logger.save_agent_setting(app.agent, app.initial_setting.mode);
         for cha = ['a','t','f','l']
             app.fStart = 1;
             app.cha = cha;
