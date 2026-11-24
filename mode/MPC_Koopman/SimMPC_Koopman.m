@@ -31,8 +31,14 @@ initial_state.w = [0; 0; 0];
 
 %% クープマンモデルをプラントに設定する場合
 
-% load("EstimationResult_12state_2_7_Exp_sprine+zsprine+P2Pz_torque_incon_150data_vzからz算出.mat",'est') %vzから算出したzで学習、総推力
-load("KL_26_MPC_fixed.mat","est")
+% The plant and prediction model are intentionally separate for comparisons.
+if ~isfield(Setting,"prediction_model")
+    Setting.prediction_model = "KL_26_MPC_fixed.mat";
+end
+predictionPath = fullfile("Koopman_Linearization","Koopman_Linear_by_Data", ...
+    "refult_of_KL_Miya",Setting.prediction_model);
+predictionData = load(predictionPath,"est");
+predictionEst = predictionData.est;
 
 A = est.A;
 B = est.B;
@@ -57,10 +63,18 @@ plant_model.param.dim(1) = size(C,1);
 agent.plant = MODEL_CLASS(agent,plant_model);
 
 % The EKF Jacobian uses rigid-body parameters in the Euler model's input order.
+A = predictionEst.A;
+B = predictionEst.B;
+C = predictionEst.C;
+agent = DRONE;
+% Fixed nonlinear plant. Its parameters are held constant across candidates.
 euler_model = Model_EulerAngle(dt,initial_state,1);
 agent.parameter = DRONE_PARAM("DIATONE");
 agent.parameter.parameter_order = euler_model.parameter_order;
 agent.parameter.update_parameter();
+agent.plant = MODEL_CLASS(agent,euler_model);
+
+% The EKF uses the same fixed nonlinear plant model.
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,euler_model),["p", "q"])));
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
 trajectory_args = {"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4};
@@ -70,7 +84,11 @@ controller_setting = Controller_MPC_Koopman(agent);
 controller_setting.param.A = A;
 controller_setting.param.B = B;
 controller_setting.param.C = C;
-controller_setting.param.observable = observable;
+if isfield(predictionEst,"observable")
+    controller_setting.param.observable = predictionEst.observable;
+else
+    controller_setting.param.observable = @quaternions_all;
+end
 controller_setting.param.ref_input = [agent.parameter.mass*agent.parameter.gravity;0;0;0];
 controller_setting.param.input.u = controller_setting.param.ref_input;
 % Light simulation tuning: improve tracking without the torque of the 4x case.

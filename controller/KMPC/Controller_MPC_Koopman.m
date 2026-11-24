@@ -21,6 +21,7 @@ function Controller = Controller_MPC_Koopman(~)
     Controller_param.A = est.A; %クープマンモデルの係数行列
     Controller_param.B = est.B; %クープマンモデルの入力ベクトル
     Controller_param.C = est.C; %クープマンモデルの出力ベクトル
+    Controller_param.observable = @quaternions_all;
 
     %% 重み
     Controller_param.weight.P = diag([75; 75; 150]);    % 位置

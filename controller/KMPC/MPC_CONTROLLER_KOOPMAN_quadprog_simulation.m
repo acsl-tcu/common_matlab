@@ -26,13 +26,17 @@ methods
         %-- 変数定義
         obj.self = self; %agentへの接続
         %---MPCパラメータ設定---%
+        % This comparison requires the Optimization Toolbox implementation.
+        qpAll = which('quadprog','-all');
+        if ischar(qpAll), qpAll = {qpAll}; end
+        optQp = qpAll(contains(string(qpAll), string(fullfile('toolbox','optim'))));
+        assert(~isempty(optQp),'Optimization Toolbox quadprog was not found.');
+        addpath(fileparts(optQp{1}),'-begin');
         obj.solver = @quadprog;
-        if strcmpi(fileparts(which('quadprog')),fileparts(which('mskoptimset')))
-            obj.options = mskoptimset('Display','off');
-        else
-            obj.options = optimoptions('quadprog','Display','none',...
-                'MaxIterations',1e9,'ConstraintTolerance',1e-5);
-        end
+        assert(contains(which('quadprog'),'MATLAB') || contains(which('quadprog'),'R2024b'), ...
+            'Optimization Toolbox quadprog was not selected.');
+        obj.options = optimoptions('quadprog','Display','none',...
+            'MaxIterations',1e9,'ConstraintTolerance',1e-5);
         obj.param = param.param; %Controller_MPC_Koopmanの値を保存
 
         %%
@@ -99,6 +103,7 @@ methods
         %% 保存するデータ
         obj.result.weight = Param.weight;
         obj.result.exitflag = exitflag;
+        obj.result.calculation_time = calT;
         result = obj.result; % controllerの値の保存
 
         %% 情報表示
