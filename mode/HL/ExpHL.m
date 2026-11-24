@@ -22,19 +22,19 @@ initial_state.w = [0; 0; 0];
 
 agent = DRONE;
 % agent.plant = DRONE_EXP_MODEL(agent,Model_Drone_Exp(dt, initial_state, "udp", )[1, 252]));
-agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM3"));
+agent.plant = DRONE_EXP_MODEL(agent, Model_Drone_Exp(dt, initial_state, "serial", "COM6"));
 agent.parameter = DRONE_PARAM("iFlight");
 agent.sensor.set_function_class("motive", MOTIVE(agent,motive, dt));
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
-center = [0;0;0.6];
+center = [0;0;1];
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",center,"radius",0},4}); % hovering
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_circle",{"freq",10,"center",center,"radius",1.0},4}); % circle
-ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1, "yaw_follow",0}, 4}); % lemniscate
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",180, "xlim",[-1.5,1.5], "ylim",[-1.5,1.5], "zlim",[0.5,1.7], "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
+% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_lemniscate",{"freq",10, "center",center, "radius",1, "x",1, "yaw_follow",0}, 4}); % lemniscate
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",180, "xlim",[-1.5,1.5], "ylim",[-1.5,1.5], "zlim",[0.5,1.7], "yaw_follow",1, "seed",1, "coverage",0}}); %           Random B-spline
 
 agent.reference.set_function_class("time_varying", ref) % 最終的なset
-agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",0.6));
+agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",center(3,1)));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"vd",0));
 agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENCE(agent));
 
@@ -99,5 +99,6 @@ else
     p = [NaN; NaN; NaN];
 end
 u = agent(idx).controller.result.input;
-v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', u');
+% v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f]",agent(idx).cha, time.t, xd(1:3)', p', u');
+v = sprintf("%c %.3f : R [%7.3f,%7.3f,%7.3f] : P [%7.3f,%7.3f,%7.3f] : U [%7.3f,%7.3f,%7.3f,%7.3f] : MotiveFlag=%d",agent(idx).cha, time.t, xd(1:3)', p', u', agent(idx).sensor.motive.bias.calibrated);
 end
