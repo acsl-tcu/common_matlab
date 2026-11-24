@@ -51,21 +51,23 @@ sigma = 0.1;
 % agent.plant.param(1) = 1.0; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.7; % ５％増->0.7875, ５％減->0.7125
 % agent.plant.param(1) = 0.8;
+delta_m = 1.0;
+agent.plant.param(1) = agent.plant.param(1)*delta_m;
 
 % agent.plant.param(6) = 0.12;
 % agent.plant.param(7) = 0.12;
 % agent.plant.param(8) = 0.12;
-c = 0.15;
-agent.plant.param(6) = 2.2*10^-3*c;
-agent.plant.param(7) = 2.7*10^-3*c;
-agent.plant.param(8) = 4.5*10^-3*c;
+c = 2;
+agent.plant.param(6) = agent.plant.param(6)*c;
+agent.plant.param(7) = agent.plant.param(7)*c;
+agent.plant.param(8) = agent.plant.param(8)*c;
 % ===================================================================================================================================================
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,Model_EulerAngle(dt, initial_state, 1)))));
 
 
 % agent.sensor.set_function_class("motive", MOTIVE(agent,motive));
-% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); % 標準偏差 10^-3
-agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
+agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.001, struct("output_list",["p","q"]))); rng(1);% 標準偏差 10^-3
+% agent.sensor.set_function_class("direct", DIRECT_SENSOR(agent, 0.0, struct("output_list",["p","q"]))); % 真値を使う
 
 
 % リファレンス設定 ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -83,7 +85,7 @@ ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_saddle",{"freq",10, "center",[base'
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_flower",{"freq",10, "center",center, "radius",1.0}, 4}); %                     flower
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_heart",{"freq",10, "center",center, "radius",1.0}, 4}); %                      heart
 % ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_star",{"freq",15, "center",center, "radius",1.0}, 4}); %                       star
-% ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",600, "yaw_follow",0, "seed",1, "coverage",0}}); %           Random B-spline
+ref = TIME_VARYING_REFERENCE(agent,{"gen_ref_random_bspline",{"T",180, "yaw_follow",0, "seed",1, "coverage",0}}); %           Random B-spline
 % 
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",center, "j",[0;1;takeoff_zd], "k",center, "z",[0;0;takeoff_zd+1], "x",center, "c",[-1;-1;takeoff_zd], "v",center, "b",[1;-1;takeoff_zd+1], "n",center), 7.5};
 % refpoints = {struct("f",center, "g",[1;0;takeoff_zd], "h",[1;1;takeoff_zd], "j",center, "k",[0;0;takeoff_zd+0.5]), 7.5};
@@ -100,6 +102,8 @@ agent.reference.set_function_class("go2ini", GO_TO_FLIGHT_INITIAL_STATE_REFERENC
 
 % agent.controller.set_function_class("nominal", HLC(agent,Controller_HL(dt)));
 agent.controller.set_function_class("nominal", FUNCTIONAL_HLC_SERVO(agent, Controller_FHL_Servo(dt))); % 位置偏差に対するサーボ系HL
+
+% agent.controller.set_function_class("mec", Ideal_MEC(agent, agent.plant.param, "gyro",true));
 
 % Learn Sim
 onnxName = "2026-5-19_17_42_47__DNN12__Plant_data_Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__Activation=ReLU__1000000epoch.onnx";
@@ -126,7 +130,7 @@ ptName = "2026-10-8_15_22_45__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__S
 
 
 ptName = "2026-11-11_19_0_43__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__500epoch_model.pt"; % 500epoch model
-% ptName = "2026-10-23_22_56_53__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__100000epoch_model.pt";
+ptName = "2026-10-23_22_56_53__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__100000epoch_model.pt";
 
 % すぺくとるせいきか
 ptName = "2026-11-6_19_7_30__DNN12__Sim_Bspline_YawFollow__jxjyjz0.12__Euler__Step=1__SN__500epoch_model.pt";
@@ -143,24 +147,26 @@ onnxName = "2026-7-15_12_0_4__DNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__1
 
 RNNptName = "2026-7-17_14_28_21__RNN12__Sim_60ptsSpline__m0.7875_jxjy0.19__Euler__90000epoch_model";
 
-% agent.controller.set_function_class("nnmec", onnxNNMEC(agent, onnxName));
-% agent.controller.set_function_class("nnmec", PythonNNMEC(agent, ptName));
+% agent.controller.set_function_class("mec", onnxNNMEC(agent, onnxName));
+agent.controller.set_function_class("mec", PythonNNMEC(agent, ptName));
 
-% agent.controller.set_function_class("nnmec", PythonRNNMEC(agent, RNNptName, "len",1));
+% agent.controller.set_function_class("mec", PythonRNNMEC(agent, RNNptName, "len",1));
 
 
 % cha_allocation ==============================================
 agent.cha_allocation.f.reference = "time_varying";
-agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
-agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
+% agent.cha_allocation.a.reference = ["takeoff", "go2ini"];
+% agent.cha_allocation.t.reference = ["takeoff", "go2ini"];
+agent.cha_allocation.a.reference = "takeoff";
+agent.cha_allocation.t.reference = "takeoff";
 agent.cha_allocation.l.reference = "landing";
 
-% agent.set_cha_allocation_for_all("controller", ["nominal","nnmec"])
+agent.set_cha_allocation_for_all("controller", ["nominal","mec"])
 
-% 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
-cha_schedule = {"t", 15;
-                "f", 45;
-                "l", 50};
+% % 自動フェーズ切替 {cha, 終了時刻[s]; ...}  'a'キー押下で開始し，最後の終了時刻で停止 (不要ならコメントアウト)
+% cha_schedule = {"t", 15;
+%                 "f", 45;
+%                 "l", 50};
 
 
 function post(app)
@@ -178,8 +184,8 @@ app.logger.plot({1, "input2:4", ""},"fig_num",51, "phase",phase, "Fontsize",FS, 
 % app.logger.plot({1, "controller.result.delta_input", ""},"fig_num",53, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "controller.result.nominal_input", ""},"fig_num",54, "phase",phase, "Fontsize",FS, "Linewidth",LW);
 app.logger.plot({1, "p1-p2", "re"},"fig_num",70, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-app.logger.plot({1, "p1-p2-p3", "re"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
-show_animation(app);
+% app.logger.plot({1, "p1-p2-p3", "re"},"fig_num",71, "color",0, "phase",phase, "Fontsize",FS, "Linewidth",LW);
+% show_animation(app);
 % plot_calc_time(app.logger, app.time);
 end
 
