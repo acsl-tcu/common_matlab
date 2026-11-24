@@ -32,28 +32,37 @@ fileNames = [
     % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_10_35_57__SaddleT=5__Ntimes_SimHL__trial1000.mat";
     % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_06_Montecalro_Sim4Model_error\2026-10-12_12_44_47__SaddleT=5__Ntimes_SimHL_with_NNMEC__trial1000.mat"
 
-    % ↓ モデル誤差が大きい場所でNN-MECが有効なことがわかる
-    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-10-28_18_2_32__Ntimes_SimHL__trial1000.mat";
-    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-11-7_15_15_24__Ntimes_SimNNMEC__trial1000.mat";
-    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]\2026-11-10_1_21_38__Ntimes_SimNNMEC_SN__trial1000.mat";
+    % % ↓ モデル誤差が大きい場所でNN-MECが有効なことがわかる
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 1M epoch\2026-10-28_18_2_32__SimHL__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 500epoch\2026-11-12_13_27_43__SimNNMEC_500epoch__trial1000.mat";
+    "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 1M epoch\2026-11-7_15_15_24__SimNNMEC_1Mepoch__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 1M epoch\2026-11-10_1_21_38__SimNNMEC_SN_1Mepoch__trial1000.mat";
 
-    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.18 0.24]\2026-11-9_16_29_12__Ntimes_SimNNMEC__trial1000.mat"
+    % 500 epoch時点モデルでのw/, w/o SN比較
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 500epoch\2026-10-28_18_2_32__SimHL__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 500epoch\2026-11-12_13_27_43__SimNNMEC_500epoch__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] w, wo SN 500epoch\2026-11-13_14_52_39__SimNNMEC_SN__500epoch__trial1000.mat";
+
+    % % w/ SN 500,1M epochモデル比較
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] SN 1M,500epoch\2026-10-28_18_2_32__SimHL__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] SN 1M,500epoch\2026-11-13_14_52_39__SimNNMEC_SN__500epoch__trial1000.mat";
+    % "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] SN 1M,500epoch\2026-11-10_1_21_38__SimNNMEC_SN_1Mepoch__trial1000.mat";
     ];
 % 凡例ラベル（fileNames と同じ数）。空ならファイルの ptName（無ければファイル名）を使う
 labels = [
     "w/o NN-MEC";
-    "w/ NN-MEC";
-    "w/ NN-MEC (SN)";
+    "w/ NN-MEC 500 epoch";
+    "w/ NN-MEC 1M epoch";
     ];
 nSigma = 2;             % 時系列の描画で 平均 ± nSigma×標準偏差 をバンドで描く
 fExcludeFailed = true;  % true: 時系列の統計から発散/墜落した試行を除く（途中で打ち切られて長さが揃わないため）
 fPlotEachTrial = false; % true: 時系列・xy 軌跡に各試行も細線で重ねて描く
 plotPhase = 'f';       % 時系列を描画するフェーズ（'a','t','f','l' の組合せ）
 fLegend = true;         % true: 全ての図に凡例を表示する
-fSaveFig = true;       % true: 図を figDir に figFormats の形式で保存する
+fSaveFig = false;       % true: 図を figDir に figFormats の形式で保存する
 figFormats = ["png", "pdf"]; % 保存形式（複数指定可）: "png","jpg","tif" 等のラスタ形式，"pdf","eps","emf" のベクトル形式
 figDir = fullfile(dataDir, "compare_fig");
-figDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20]";
+figDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\02_Sim data\2026_10_25_Montecalro_Sim4Model_error__YawFollow\m=[0.7125 0.7875], jxjy=[0.06 0.20] SN 1M,500epoch\figures";
 
 FS = 14; % FontSize
 LW = 1.0;% LineWidth
@@ -260,7 +269,11 @@ for paramIdx = 1:paramN
     xlabel(data(1).paramNames(paramIdx)); ylabel("RMSE norm [m]"); grid on; grid minor
     set(gca, "FontSize", FS, "XTickLabelRotation", 45);
 end
-if fLegend; legend("Interpreter", "none", "Location", "best"); end
+if fLegend
+    % 凡例は tiledlayout 全体の上（タイトルの位置）に横並びで置く
+    legendHandle = legend("Interpreter", "none", "NumColumns", fileN);
+    legendHandle.Layout.Tile = "north";
+end
 
 % パラメータと各軸 RMSE の散布図（行: x, y, z の RMSE，列: パラメータ。x: 失敗試行）
 figure(202); clf; set(gcf, "Name", "param_vs_rmseXYZ");
@@ -279,7 +292,11 @@ for rmseIdx = 1:numel(axisRmseNames)
         set(gca, "FontSize", FS, "XTickLabelRotation", 45);
     end
 end
-if fLegend; legend("Interpreter", "none", "Location", "best"); end
+if fLegend
+    % 凡例は tiledlayout 全体の上（タイトルの位置）に横並びで置く
+    legendHandle = legend("Interpreter", "none", "NumColumns", fileN);
+    legendHandle.Layout.Tile = "north";
+end
 
 % ファイル間 RMSE の散布図（対応比較できる場合。y=x より下なら縦軸側の方が誤差が小さい）
 for fileIdx = find(fPaired)'
@@ -334,6 +351,8 @@ plot_compare_band(304, "delta_input", logList, labelList, colors, @(trialLog) tr
 figure(305); clf; set(gcf, "Name", "xy_trajectory"); hold on
 minSpeedXY = 1e-2; % [m/s] 平均軌跡の xy 速度がこれ未満のステップ（離陸中のホバなど）は法線方向が定まらないためバンドを描かない
 fRefPlotted = false;
+legendFileHandle = gobjects(0, 2); % 凡例用 [バンド, 平均] （1行 = 1データ）
+legendRefHandle = gobjects(0);
 for fileIdx = 1:fileN
     if isempty(logList{fileIdx}); continue; end
     [tXY, pMean, pStack] = stack_trials(logList{fileIdx}, @(trialLog) trialLog.plant.state.p, plotPhase);
@@ -350,20 +369,21 @@ for fileIdx = 1:fileN
     % 自己交差する軌跡（8の字など）でも崩れないよう，隣接ステップ間の四角形を並べたパッチで描く（NaN を含む面は描画されない）
     stepN = size(xyMean, 1);
     bandFaces = [(1:stepN - 1)', (2:stepN)', stepN + (2:stepN)', stepN + (1:stepN - 1)'];
-    patch("Faces", bandFaces, "Vertices", [upperXY; lowerXY], "FaceColor", colors(fileIdx, :), "FaceAlpha", 0.2, "EdgeColor", "none", ...
+    bandHandle = patch("Faces", bandFaces, "Vertices", [upperXY; lowerXY], "FaceColor", colors(fileIdx, :), "FaceAlpha", 0.2, "EdgeColor", "none", ...
           "DisplayName", labelList(fileIdx) + " ±" + nSigma + "\sigma");
     if fPlotEachTrial
         plot(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), "Color", [colors(fileIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
     end
-    plot(pMean(:, 1), pMean(:, 2), "Color", colors(fileIdx, :), "LineWidth", 2 * LW, "DisplayName", labelList(fileIdx) + " mean");
+    meanHandle = plot(pMean(:, 1), pMean(:, 2), "Color", colors(fileIdx, :), "LineWidth", 2 * LW, "DisplayName", labelList(fileIdx) + " mean");
+    legendFileHandle(end + 1, :) = [bandHandle, meanHandle];
     if ~fRefPlotted
         [~, refMean] = stack_trials(logList{fileIdx}, @(trialLog) trialLog.reference.state.p, plotPhase);
-        plot(refMean(:, 1), refMean(:, 2), "k--", "LineWidth", LW, "DisplayName", "reference");
+        legendRefHandle = plot(refMean(:, 1), refMean(:, 2), "k--", "Lin*/eWidth", LW, "DisplayName", "reference");
         fRefPlotted = true;
     end
 end
 xlabel("x [m]"); ylabel("y [m]"); axis equal; grid on; grid minor
-if fLegend; legend("Interpreter", "tex", "Location", "best"); end
+if fLegend; legend_by_file(gca, legendFileHandle, legendRefHandle, "northoutside"); end
 set(gca, "FontSize", FS);
 
 %% 図の保存 ===========================================================================================================================================
@@ -404,6 +424,8 @@ for colIdx = 1:numel(yLabels)
     axList(colIdx) = nexttile; hold on
 end
 fRefPlotted = false;
+legendFileHandle = gobjects(0, 2); % 凡例用 [バンド, 平均] （1段目の軸のもの。1行 = 1データ）
+legendRefHandle = gobjects(0);
 for fileIdx = 1:numel(logList)
     if isempty(logList{fileIdx}); continue; end
     try
@@ -418,17 +440,21 @@ for fileIdx = 1:numel(logList)
         ax = axList(colIdx);
         upper = valueMean(:, colIdx) + opts.nSigma * valueStd(:, colIdx);
         lower = valueMean(:, colIdx) - opts.nSigma * valueStd(:, colIdx);
-        fill(ax, [t; flipud(t)], [upper; flipud(lower)], color, "FaceAlpha", 0.2, "EdgeColor", "none", ...
+        bandHandle = fill(ax, [t; flipud(t)], [upper; flipud(lower)], color, "FaceAlpha", 0.2, "EdgeColor", "none", ...
              "DisplayName", labelList(fileIdx) + " ±" + opts.nSigma + "\sigma");
         if opts.fPlotEachTrial
             plot(ax, t, squeeze(valueStack(:, colIdx, :)), "Color", [color, 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
         end
-        plot(ax, t, valueMean(:, colIdx), "Color", color, "LineWidth", 2 * opts.LW, "DisplayName", labelList(fileIdx) + " mean");
+        meanHandle = plot(ax, t, valueMean(:, colIdx), "Color", color, "LineWidth", 2 * opts.LW, "DisplayName", labelList(fileIdx) + " mean");
+        if colIdx == 1
+            legendFileHandle(end + 1, :) = [bandHandle, meanHandle];
+        end
     end
     if ~isempty(getRef) && ~fRefPlotted
         [tRef, refMean] = stack_trials(logList{fileIdx}, getRef, opts.plotPhase);
         for colIdx = 1:min(numel(yLabels), size(refMean, 2))
-            plot(axList(colIdx), tRef, refMean(:, colIdx), "k--", "LineWidth", opts.LW, "DisplayName", "reference");
+            refHandle = plot(axList(colIdx), tRef, refMean(:, colIdx), "k--", "LineWidth", opts.LW, "DisplayName", "reference");
+            if colIdx == 1; legendRefHandle = refHandle; end
         end
         fRefPlotted = true;
     end
@@ -438,7 +464,23 @@ for colIdx = 1:numel(yLabels)
     set(axList(colIdx), "FontSize", opts.FS);
 end
 xlabel(axList(end), "time [s]");
-if opts.fLegend; legend(axList(1), "Interpreter", "tex", "Location", "best"); end
+if opts.fLegend
+    % 1段目の軸だけが縮まないよう，凡例は tiledlayout 全体の上(north)に置く
+    legend_by_file(axList(1), legendFileHandle, legendRefHandle, "layoutNorth");
+end
+end
+
+function legend_by_file(ax, fileHandle, refHandle, location)
+% 凡例を横向きにし，1行に1データ分（[バンド, 平均]）を並べる（データの種類数だけ行が増える）。reference は最後の行に置く
+% location : "northoutside" など legend の Location，または "layoutNorth"（tiledlayout 全体の上）
+if isempty(fileHandle) && isempty(refHandle); return; end
+handles = [reshape(fileHandle.', 1, []), refHandle];
+legendHandle = legend(ax, handles, "Interpreter", "tex", "Orientation", "horizontal", "NumColumns", max(size(fileHandle, 2), 1));
+if location == "layoutNorth"
+    legendHandle.Layout.Tile = "north";
+else
+    legendHandle.Location = location;
+end
 end
 
 function [t, valueMean, valueStack] = stack_trials(trialLogs, getValue, plotPhase)
