@@ -29,13 +29,14 @@ end
 %   ファイルは rootDir からの相対パス・絶対パスで指定し，ワイルドカード（*）や string 配列で複数指定できる
 %   ファイルを "" にすると選択ダイアログで複数選択する
 groups = {
-    "w/o NN-MEC", "Data/tmp_exp/LemniscateT=10x4_HL*_Log*.mat";
-    "w/ NN-MEC", "Data/tmp_exp/LemniscateT=10x4_NNMEC*_Log*.mat";
+    "w/o NN-MEC", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL_*_Log*.mat";
+    "w/ NN-MEC", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL-NNMEC_*_Log*.mat";
+    "w/ NN-MEC(SN)", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL-NNMECwithSN_*_Log*.mat"
     };
 agentIdx = 1;           % ログ内の agent 番号
 alignPhase = 'f';       % このフェーズの開始時刻を t = 0 に揃える（RMSE もこのフェーズ区間で計算する）
 plotPhase = 'f';        % 描画するフェーズ（'t','f','l' の組合せ。'a' は離陸時に時刻がリセットされるため指定不可）
-timeRange = [10 40];         % [t0 t1] : 描画する区間（alignPhase 開始からの相対時刻 [s]）。空なら全試行に共通する区間
+timeRange = [0 40];         % [t0 t1] : 描画する区間（alignPhase 開始からの相対時刻 [s]）。空なら全試行に共通する区間
 dtResample = 0.01;      % [s] 共通時刻の間隔（実験ログは dt が不等間隔のため，この間隔に線形補間して試行間の統計をとる）
 refPeriod = 10;         % [s] 目標軌道の周期 T。xy・3次元軌跡の目標値（reference）は alignPhase 開始から1周期分だけ描く（時系列は全区間）。空なら全区間を描く
 costWeight = [1 1 1 1]; % 制御コストのトータル J_total = Σ costWeight_i ∫ u_i^2 dt の重み（u = [T, tau_x, tau_y, tau_z]）

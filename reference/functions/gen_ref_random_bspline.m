@@ -23,14 +23,14 @@ arguments
     param.xlim = [-2 2] % x方向の範囲 [m]
     param.ylim = [-2 2] % y方向の範囲 [m]
     param.zlim = [0.5 1.7] % z方向の範囲 [m]
-    param.speed = [0.1 1] % 水平速度の大きさ(速さ)の範囲 [min max] [m/s]（向きは旋回で決まる．min > 0 が必要）
+    param.speed = [0.1 0.8] % 水平速度の大きさ(速さ)の範囲 [min max] [m/s]（向きは旋回で決まる．min > 0 が必要）
     param.vz_max = 0.5 % 鉛直速度の上限 [m/s]
     param.turn_max = pi/6 % 制御点1つあたりの最大旋回角 [rad]（degree*turn_max < pi で速度が0にならない）
     param.knot_dt = 0.5 % 制御点の時間間隔 [s]
     param.degree = 6 % Bスプラインの次数（yaw_followでyawの4階微分まで連続にするには6以上）
     param.yaw_follow = 0 % 1: yaw角を進行方向に向ける, 0: yaw角一定(start_yaw)
     param.max_tilt = pi/4 % 傾き角の上限 [rad]（加速度から求める）
-    param.max_yaw_rate = pi/4 % yaw角速度の上限 [rad/s]（yaw_follow時）
+    param.max_yaw_rate = pi/2 % yaw角速度の上限 [rad/s]（yaw_follow時）
     param.yaw_wind_max = 2*pi % yaw角の累積回転量 |yaw - start_yaw| の上限の目安 [rad]（超えたら始点のyaw角付近まで逆回りに旋回する．infで制限なし）
     param.coverage = 0.7 % 各軸の (軌道の幅)/(指定範囲の幅) の下限
     param.seed = [] % []: 毎回異なる軌道（使ったseedを表示），整数: 同じ軌道を再現
