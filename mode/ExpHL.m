@@ -67,8 +67,8 @@ agent.cha_allocation.l.reference = "landing";
 agent.set_cha_allocation_for_all("controller", "nominal");
 agent.cha_allocation.a.controller = "nominal";
 agent.cha_allocation.t.controller = "nominal";
-% agent.cha_allocation.f.controller = "hlcEDMD";
-agent.cha_allocation.f.controller = "nominal";
+agent.cha_allocation.f.controller = "hlcEDMD";
+% agent.cha_allocation.f.controller = "nominal";
 agent.cha_allocation.l.controller = "nominal";
 
 % agent.cha_allocation.f.controller = ["nominal", "mec"];
@@ -90,7 +90,7 @@ app.logger.plot({1, "controller.result.input", ""},"fig_num",5,"phase",'f');
  app.logger.plot({1, "controller.result.delta_u_edmd", ""},"fig_num", 10,"phase",'f', "color",0);
  % app.logger.plot({1, "controller.result.u_explore", "er"},"fig_num", 11,"phase",'f');
  app.logger.plot({{1, "controller.result.delta_u_edmd2", ""},{1, "controller.result.input2", ""},{1, "controller.result.u_nom2", ""}},"fig_num", 12,"phase",'f');
- app.logger.plot({{1, "controller.result.delta_u_edmd3", ""},{1, "controller.result.input3", ""},{1, "controller.result.u_nom3", ""}},"fig_num", 13,"phase",'f');
+ % app.logger.plot({{1, "controller.result.delta_u_edmd3", ""},{1, "controller.result.input3", ""},{1, "controller.result.u_nom3", ""}},"fig_num", 13,"phase",'f');
  app.logger.plot({1,"sensor.result.bias_eul",""},"fig_num", 14,"phase",'tfl');
 
  % result.u_nom
