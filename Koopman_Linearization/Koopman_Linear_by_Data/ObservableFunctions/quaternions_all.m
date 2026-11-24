@@ -25,6 +25,7 @@ if size(x,1) == 13
     u3 = 0;
     u4 = 0;
 % 状態がオイラー角を用いた12次元の場合
+
 elseif size(x,1) == 12 || size(x,1) == 16
     P1 = x(1,1);
     P2 = x(2,1);
@@ -172,12 +173,12 @@ qdotdot=[    %qdotの一階微分の項
 
              ];
 
-%% まとめ
-z = [common_z; isobe_z]; % 00先輩のあの26状態がコレ．
+%%
+
+%% まとめどの観測量を選ぶか
+z = [common_z; isobe_z;Rdot]; % 00先輩のあの26状態がコレ．
 
 % z = [common_z; isobe_z;Rdot;qdotdot]; % 01
 
 end
 
-% % % % これはセグウェイモデルの改善用
-% % % z = x;

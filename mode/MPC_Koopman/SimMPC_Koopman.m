@@ -37,10 +37,22 @@ load("KL_26_MPC_fixed.mat","est")
 A = est.A;
 B = est.B;
 C = est.C;
+assert(isfield(est,'observable') && isa(est.observable,'function_handle'), ...
+    'SimMPC_Koopman:MissingObservable', ...
+    'Run train_kmpc_fixed.m to save the observable with A, B and C.');
+observable = est.observable;
+initial_vector = [initial_state.p;initial_state.q;initial_state.v;initial_state.w];
+initial_lift = observable(initial_vector);
+assert(iscolumn(initial_lift) && numel(initial_lift)==size(A,1) && ...
+    isequal(size(A),[numel(initial_lift),numel(initial_lift)]) && ...
+    isequal(size(B),[numel(initial_lift),4]) && ...
+    isequal(size(C),[12,numel(initial_lift)]) && all(isfinite(initial_lift)), ...
+    'SimMPC_Koopman:ObservableSize', ...
+    'The saved observable and the Koopman A, B, C dimensions do not match. Retrain the model.');
 agent = DRONE;
 agent.parameter = POINT_MASS_PARAM("rigid","row","A",A,"B",B,"C",C,"D",0);
 plant_model = Model_Discrete(dt,initial_state,1,"FREE",agent);
-plant_model.param.method = @(x,u,p) discrete_linear_model(observables_quaternion_base(x),u,p);
+plant_model.param.method = @(x,u,p) discrete_linear_model(observable(x),u,p);
 plant_model.param.dim(1) = size(C,1);
 agent.plant = MODEL_CLASS(agent,plant_model);
 
@@ -52,11 +64,13 @@ agent.parameter.update_parameter();
 agent.estimator.set_function_class("ekf", EKF(agent, Estimator_EKF(agent,dt,MODEL_CLASS(agent,euler_model),["p", "q"])));
 agent.sensor.set_function_class("motive", MOTIVE(agent, motive));
 trajectory_args = {"gen_ref_circle",{"freq",10,"center",[0;0;1],"radius",1.0},4};
+
 agent.reference.set_function_class("time_varying", TIME_VARYING_REFERENCE(agent,trajectory_args));
 controller_setting = Controller_MPC_Koopman(agent);
 controller_setting.param.A = A;
 controller_setting.param.B = B;
 controller_setting.param.C = C;
+controller_setting.param.observable = observable;
 controller_setting.param.ref_input = [agent.parameter.mass*agent.parameter.gravity;0;0;0];
 controller_setting.param.input.u = controller_setting.param.ref_input;
 % Light simulation tuning: improve tracking without the torque of the 4x case.

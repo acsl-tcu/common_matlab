@@ -1,10 +1,11 @@
 % Rebuild the 26-observable model in physical coordinates.
-cd(fileparts(fileparts(mfilename('fullpath'))));
+cd(fileparts(fileparts(fileparts(mfilename('fullpath')))));
 addpath(genpath(pwd));
 files = dir(fullfile('datasets','*.mat'));
 assert(~isempty(files),'No training files found in datasets.');
 Data = struct('X',[],'Y',[],'U',[]);
 samplePeriods = [];
+
 for fileIndex = 1:numel(files)
     d = ImportFromExpData_tutorial(fullfile(files(fileIndex).folder,files(fileIndex).name),0,3,0,0,0,2);
     assert(isequal(size(d.X),size(d.Y)));
@@ -13,7 +14,9 @@ for fileIndex = 1:numel(files)
     Data.U = [Data.U d.U];
     samplePeriods = [samplePeriods diff(d.T)];
 end
-est = KL(Data.X,Data.U,Data.Y,@quaternions_all,struct('weight',0));
+
+est = KL(Data.X,Data.U,Data.Y,@quaternions_all,struct('weight',0));%ここの@quaternions_allを右クリックして，観測量を変更できる
+
 est.observable = @quaternions_all;
 est.normalized = false;
 est.dt = median(samplePeriods);

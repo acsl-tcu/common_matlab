@@ -23,7 +23,11 @@ function [H, f] = change_equation(Param)
     Qf = blkdiag(Param.weight.Pf, Param.weight.QWf(1:3,1:3), Param.weight.Vf, Param.weight.QWf(4:6,4:6)); %状態の終端コスト
     Horizon = Param.H; %ホライズン数
 
-    Xc = observables_quaternion_base(Param.current); %現在状態,観測量：状態+非線形項
+    if isfield(Param,'observable')
+        Xc = Param.observable(Param.current); %同定時と同じ観測量を使用
+    else
+        Xc = observables_quaternion_base(Param.current); %従来の呼び出しと互換
+    end
     % Xc = [Param.current;1];
     r  = Param.ref(1:12,:);
     r = r(:); %目標値、列ベクトルに変換
