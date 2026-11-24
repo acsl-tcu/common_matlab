@@ -1,0 +1,17 @@
+Independent, non-MATLAB Python numerical check (2026-11-23)
+
+Constructed time-Taylor jets for the 19-state suspended-load equations
+with augmented thrust T, dT, input ddT and fixed interval torques.
+Ran 50 randomized normalized quaternion/cable configurations for each of
+two point-protection modes (load and drone), 100 trials total.
+Fourth h derivative tested at four different control values against the
+affine expression in [ddT,tauX,tauY] at fixed 21-state and tauZ.
+
+Maximum fourth-derivative input-affinity residual: 2.2737367544323206e-12
+Maximum lower-derivative input sensitivity: 0
+Nonzero fourth-derivative input row: 100/100 tested configurations
+
+This numerical check is not a MATLAB code execution or a proof. It does not
+establish feasibility for all states, intersample safety, physical actuator
+implementation, uncertainty robustness, or a real-time bound. The MATLAB
+self-test is supplied but has not been executed in this environment.

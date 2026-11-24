@@ -1,0 +1,108 @@
+CBF ID3 standalone, offline, ORIGINAL PROGRAM UNMODIFIED
+Mode: reconstructed
+RECONSTRUCTION ONLY: drone position/input from log, other 19-state components and barrier memory are hypothesized.
+Do not attribute 26.450 s failure cause to an exact replay.
+Original obstacle: scene_cylinders_high_side / a, single_ellipsoid, not a synthetic sphere.
+P from DRONE_PARAM_SUSPENDED_LOAD, mL=0.14, L=2 in log reconstruction.
+lambda=[2 4 8 16], dt=0.025 if reconstructed.
+
+THEORY: H=diag(w_i/s_i^2), dimensionless input xi=deltaU_i/s_i.
+For discrete second difference delta2T_N, physically weighted by s_T [N], equivalent nuT=delta2T/dt^2 uses s_nu=s_T/dt^2 [N/s^2].
+Paper scale nuT=100 N/s^2 -> delta2T scale = 100*dt^2 N (at 25 ms = 0.0625 N). Paper torque scale 2.5 Nm belongs to OTHER aircraft; NOT imposed as actual limits.
+Pure QP diagonal reparameterization without input limits cannot change feasibility; it changes the selected correction.
+For a single active linear row a*v>=b (without saturation), delta_v=(b-a*vNom)_+ H^-1*a/(a^T H^-1 a).
+Its predicted constraint-correction share is (s_i*a_i)^2 / sum_j (s_j*a_j)^2 for identity normalized weights. See weight_sweep.csv. Bound saturation / multiple rows alter it.
+A very tall obstacle may make lateral geometric avoidance preferable, but a one-step high-order constraint plus nominal-distance QP has NO explicit cost for going around it.
+Continuous dynamic extension qTdot=nuT, Tdot=qT is DIFFERENT from sample-constant physical T. See continuous_vs_ZOH.csv.
+
+CASE RECON_t026.200 t=26.2
+  Assumptions: Physical P drone position from log; q=[1;0;0;0], cable vertical, vL=[0;0.5;0], angular rates zero. Synthetic measured history from constant-velocity approach.
+  Raw HLC nominal [T,tx,ty,tz]: [8.45 -0.00013 3.42e-05 0]
+  ID3 internally clipped QP reference: [8.45 -0.00013 3.42e-05 0]
+  CBF is CALLED with raw preclip HLC input; its internal QP reference is clipped first. The HLC applies a final physical clip after CBF.
+  Obstacle axes [m]: [1.326128 1.327773 4.334364]
+  Gradient of geometric h wrt load XYZ [m/m]: [-0.3308592 -0.9463782 0.2947335]
+  Barrier start h: 0.3882703 (recorded h=0.388; reconstructed discrepancy=0.000270336)
+  Phi stages at now: [0.3882703;0.007580592;0.0001727565;-2.358641e-05]
+  ALERT: already outside the nested 4-stage safe set.
+  Nominal residual [phi4;ZOH]: [-0.0001044863 0.3659456]
+  Jacobian rows [delta2T,tauX,tauY]:
+     [0.00019798484 7.3766005e-06 -1.944708e-06]
+     [-0.00025409036 3.8810521e-06 -7.8000596e-07]
+  FD relative consistency: 6.401541e-12
+  Max achievable margin of EACH individual linearized row: 0.002191561
+  Joint linearized input-box feasible: 1; witness: [-0.1848205 -1 -1]; margin: 0
+  Nonlinear grid witness: 1, best margin: 0.002141549
+  Best physical [T,tauX,tauY]: [20 1 -1]
+  Continuous endpoint-matched nuT [N/s^2]: -2368 (paper comparison scale 100)
+  Continuous - ZOH h end [m]: 5.6859365e-05
+
+CASE RECON_t026.400 t=26.4
+  Assumptions: Physical P drone position from log; q=[1;0;0;0], cable vertical, vL=[0;0.5;0], angular rates zero. Synthetic measured history from constant-velocity approach.
+  Raw HLC nominal [T,tx,ty,tz]: [2.28 -0.00203 0.000534 0]
+  ID3 internally clipped QP reference: [2.28 -0.00203 0.000534 0]
+  CBF is CALLED with raw preclip HLC input; its internal QP reference is clipped first. The HLC applies a final physical clip after CBF.
+  Obstacle axes [m]: [1.326128 1.327773 4.334364]
+  Gradient of geometric h wrt load XYZ [m/m]: [-0.3266457 -0.9445875 0.2068871]
+  Barrier start h: 0.2982914 (recorded h=0.298; reconstructed discrepancy=0.000291351)
+  Phi stages at now: [0.2982914;0.00310434;-0.0002743371;-0.0001130163]
+  ALERT: already outside the nested 4-stage safe set.
+  Nominal residual [phi4;ZOH]: [-0.0009873437 0.2775578]
+  Jacobian rows [delta2T,tauX,tauY]:
+     [0.00014442605 1.8969577e-06 -5.0174929e-07]
+     [-0.00025008864 9.9141609e-07 -2.1055893e-07]
+  FD relative consistency: 3.78077e-12
+  Max achievable margin of EACH individual linearized row: 0.001574289
+  Joint linearized input-box feasible: 1; witness: [-2.508041 -1 -1]; margin: 0
+  Nonlinear grid witness: 1, best margin: 0.001426659
+  Best physical [T,tauX,tauY]: [20 1 -1]
+  Continuous endpoint-matched nuT [N/s^2]: -29932.8 (paper comparison scale 100)
+  Continuous - ZOH h end [m]: 0.00053389473
+
+CASE RECON_t026.425 t=26.425
+  Assumptions: Physical P drone position from log; q=[1;0;0;0], cable vertical, vL=[0;0.5;0], angular rates zero. Synthetic measured history from constant-velocity approach.
+  Raw HLC nominal [T,tx,ty,tz]: [-0.375 0.0348 -0.00933 0]
+  ID3 internally clipped QP reference: [0 0.0348 -0.00933 0]
+  CBF is CALLED with raw preclip HLC input; its internal QP reference is clipped first. The HLC applies a final physical clip after CBF.
+  Obstacle axes [m]: [1.326128 1.327773 4.334364]
+  Gradient of geometric h wrt load XYZ [m/m]: [-0.3218002 -0.9455837 0.1726226]
+  Barrier start h: 0.2873345 (recorded h=0.287; reconstructed discrepancy=0.00033454)
+  Phi stages at now: [0.2873345;0.002544335;-0.0003315095;-0.0001246156]
+  ALERT: already outside the nested 4-stage safe set.
+  Nominal residual [phi4;ZOH]: [-0.001117678 0.2671661]
+  Jacobian rows [delta2T,tauX,tauY]:
+     [0.0001233506 0 0]
+     [-0.0002485217 0 0]
+  FD relative consistency: 1.346938e-07
+  Max achievable margin of EACH individual linearized row: 0.001349334
+  Joint linearized input-box feasible: 1; witness: [-4.496018 -1 -1]; margin: 0
+  Nonlinear grid witness: 1, best margin: 0.001159419
+  Best physical [T,tauX,tauY]: [20 1 -1]
+  Continuous endpoint-matched nuT [N/s^2]: -43382.4 (paper comparison scale 100)
+  Continuous - ZOH h end [m]: 0.00063518651
+
+CASE RECON_t026.450 t=26.45
+  Assumptions: Physical P drone position from log; q=[1;0;0;0], cable vertical, vL=[0;0.5;0], angular rates zero. Synthetic measured history from constant-velocity approach.
+  Raw HLC nominal [T,tx,ty,tz]: [-5.65 -0.0466 0.0122 0]
+  ID3 internally clipped QP reference: [0 -0.0466 0.0122 0]
+  CBF is CALLED with raw preclip HLC input; its internal QP reference is clipped first. The HLC applies a final physical clip after CBF.
+  Obstacle axes [m]: [1.326128 1.327773 4.334364]
+  Gradient of geometric h wrt load XYZ [m/m]: [-0.3141145 -0.9478179 0.1237053]
+  Barrier start h: 0.2774576 (recorded h=0.277; reconstructed discrepancy=0.000457609)
+  Phi stages at now: [0.2774576;0.002023062;-0.0003859886;-0.0001358272]
+  ALERT: already outside the nested 4-stage safe set.
+  Nominal residual [phi4;ZOH]: [-0.0008273708 0.2572794]
+  Jacobian rows [delta2T,tauX,tauY]:
+     [9.0020807e-05 0 0]
+     [-0.00024660984 0 0]
+  FD relative consistency: 1.367057e-07
+  Max achievable margin of EACH individual linearized row: 0.0009730453
+  Joint linearized input-box feasible: 1; witness: [-10.67912 -1 -1]; margin: -1.084202e-19
+  Nonlinear grid witness: 1, best margin: 0.0007807807
+  Best physical [T,tauX,tauY]: [20 1 -1]
+  Continuous endpoint-matched nuT [N/s^2]: -63584 (paper comparison scale 100)
+  Continuous - ZOH h end [m]: 0.00059756688
+
+INTERPRETATION: Current h and nested phi_i are distinct. If a current stage is already negative, satisfying a future stage does not retroactively establish forward invariance.
+INTERPRETATION: A negative max of one linearized row proves only local linearized box infeasibility. No nonlinear witness does not prove nonlinear global infeasibility.
+Generated functions and obstacle approximation were called read-only. Neither are independently mathematically certified by this test.

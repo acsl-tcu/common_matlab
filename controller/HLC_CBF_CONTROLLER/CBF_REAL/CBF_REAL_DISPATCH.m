@@ -19,6 +19,9 @@ switch cfg.cbfId
     case 2
         [u,info]=CBF_REAL_SCHEME_02_XY( ...
             agent,cfg,x,uNom,P,dt,varargin{:});
+    case 3
+        [u,info]=CBF_REAL_SCHEME_03_PAPER_EXTENSION( ...
+            agent,cfg,x,uNom,P,dt,varargin{:});
     otherwise
         error('CBFReal:UnknownCBF','Unknown cbfId=%d.',cfg.cbfId);
 end

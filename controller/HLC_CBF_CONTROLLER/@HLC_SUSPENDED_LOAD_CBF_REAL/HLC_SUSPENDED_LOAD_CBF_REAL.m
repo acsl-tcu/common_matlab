@@ -21,6 +21,11 @@ methods
     
         obj.cbfConfig = CBF_REAL_INIT(cbfId, param);
         obj.result = struct();
+        if obj.cbfConfig.cbfId==3
+            % Input-side adapter only. MODEL_CLASS.m is NOT modified.
+            % ode15s sees true T(s), while the held control is ddot(T).
+            CBF_REAL_PAPER_INPUT_ADAPTER('install',self);
+        end
     end
 
     function result = do(obj, varargin)
@@ -84,6 +89,49 @@ methods
         %disp("time: "+ num2str(t,2)+" z position of drone:
         %"+num2str(model.state.p(3),3)+" estimated load mass:
         %"+num2str(P(6),4)+" dst:(x,y) "+num2str(P(end-1:end),4))
+        % PAPER ID3 is activated only for the flight ('f') phase.
+        % During takeoff/landing keep original HLC + physical box exactly:
+        % obstacle CBF is not called and there is no fictitious thrust rate.
+        if obj.cbfConfig.cbfId==3 && ~strcmp(char(obj.self.cha),'f')
+            loBase=[0;-1;-1;-1]; hiBase=[20;1;1;1];
+            applied=min(max(double(tmp(:)),loBase),hiBase);
+            obj.cbfConfig.paperThrustState=struct( ...
+                'initialized',false,'T',NaN,'q',NaN);
+            obj.result.cbf=struct('cbfId',3,'success',true, ...
+                'status','PAPER_BYPASS_NON_FLIGHT', ...
+                'nominal',double(tmp(:)),'nominalRaw',double(tmp(:)), ...
+                'input',applied,'modified',any(applied~=tmp(:)), ...
+                'nominalFeasible',all(tmp(:)>=loBase & tmp(:)<=hiBase), ...
+                'observedParts',0,'elapsedMs',0,'maxViolation',0, ...
+                'stageValues',[],'barrierResiduals',[], ...
+                'paperHold',[],'paperStateCommitted',false, ...
+                'sampledDataObstacleCertified',false);
+            obj.result.input=applied;
+            obj.result.xd=xd;
+            obj.result.x=x;
+            result=obj.result;
+            return;
+        end
+        % At first flight cycle, seed T from the actual previously applied
+        % held thrust (last takeoff sample). q=0 is an explicit hybrid
+        % initialization; we never fabricate q from the current HLC raw T.
+        if obj.cbfConfig.cbfId==3 && ...
+                ~obj.cbfConfig.paperThrustState.initialized
+            if ~isfield(obj.result,'input') || ...
+                    ~isnumeric(obj.result.input) || ...
+                    numel(obj.result.input)~=4 || ...
+                    any(~isfinite(obj.result.input(:)))
+                error('CBFPaper:MissingTakeoffHandoff', ...
+                    'Cannot initialize paper thrust: last applied HLC input missing.');
+            end
+            lastThrust=double(obj.result.input(1));
+            if lastThrust<0 || lastThrust>20
+                error('CBFPaper:InvalidTakeoffHandoff', ...
+                    'Last applied HLC thrust outside [0,20] N.');
+            end
+            obj.cbfConfig.paperThrustState=struct( ...
+                'initialized',true,'T',lastThrust,'q',0);
+        end
         cbfOut = CBF_REAL_DISPATCH( ...
             obj.self, obj.cbfConfig, ...
             x, tmp, P, Param.dt, varargin{:});
@@ -98,8 +146,36 @@ methods
         if isfield(obj.cbfConfig,'failurePolicy')
             policy = char(obj.cbfConfig.failurePolicy);
         end
-        
+        % ID3 research simulation must CONTINUE on an infeasible CBF.
+        % This deliberately overrides older ID3 configs with policy='stop'.
+        % An uncertified fallback is NOT a safety certificate.
+        if obj.cbfConfig.cbfId==3
+            policy = 'continueBounded';
+        end
+
         candidate = cbfOut.input;
+        if obj.cbfConfig.cbfId==3 && ~cbfOut.success
+            % Unlike physical-thrust ZOH, paper-style ID3 MUST carry a
+            % coherent [T,q] and ddot(T)-hold through an unsuccessful QP.
+            % The local actuator-only backup uses the same scalar bounds
+            % and viability functions as the paper ID3 scheme. No CBF
+            % constraint is claimed satisfied by this continuation.
+            [candidate,fb] = CBF_REAL_SCHEME_03_PAPER_EXTENSION( ...
+                'fallback',obj.cbfConfig,tmp,Param.dt);
+            obj.result.cbf.paperHold = fb.paperHold;
+            obj.result.cbf.paperNu = fb.paperNu;
+            obj.result.cbf.paperThrust0 = fb.paperThrust0;
+            obj.result.cbf.paperRate0 = fb.paperRate0;
+            obj.result.cbf.paperThrustEnd = fb.paperThrustEnd;
+            obj.result.cbf.paperRateEnd = fb.paperRateEnd;
+            obj.result.cbf.paperStateCommitted = false;
+            obj.result.cbf.paperActuatorFallbackStatus = fb.status;
+            obj.result.cbf.paperActuatorFallbackRateReset = fb.rateReset;
+            obj.result.cbf.paperActuatorFallbackRateResetReason = fb.rateResetReason;
+            obj.result.cbf.paperUncertifiedFailureStatus = cbfOut.info.status;
+            obj.result.cbf.input = candidate;
+            obj.result.cbf.modified = any(abs(candidate(:)-tmp(:))>1e-9);
+        end
 
         low  = [0;-1;-1;-1];
         high = [20;1;1;1];
@@ -161,6 +237,32 @@ methods
         
         % 最終物理入力
         obj.result.input = applied;
+        % ID3 ONLY, SIMULATION: the held control is nuT, NOT physical T.
+        % MODEl_CLASS.do will use paperHold to integrate a quadratic thrust
+        % profile. Advance extended state only when plant is advanced.
+        if obj.cbfConfig.cbfId==3
+            if ~isfield(obj.result.cbf,'paperHold') || ...
+                    isempty(obj.result.cbf.paperHold) || ...
+                    ~obj.result.cbf.paperHold.active
+                error('CBFPaper:MissingHold', ...
+                    'ID3 output has no valid paper-style thrust hold.');
+            end
+            hh=obj.result.cbf.paperHold;
+            if abs(applied(1)-hh.T0)>1e-9
+                error('CBFPaper:ThrustClipChanged', ...
+                    'The post-CBF clipping changed initial thrust state.');
+            end
+            % In arming/stop/quit MODEL_CLASS does not advance the plant.
+            % Do not advance [T,qT] in such a phase either.
+            phase=char(obj.self.cha);
+            if strcmp(phase,'f')
+                obj.cbfConfig.paperThrustState=struct( ...
+                    'initialized',true,'T',hh.Tend,'q',hh.qEnd);
+                obj.result.cbf.paperStateCommitted=true;
+            else
+                obj.result.cbf.paperStateCommitted=false;
+            end
+        end
         % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
         obj.result.xd = xd;
         obj.result.x = x;

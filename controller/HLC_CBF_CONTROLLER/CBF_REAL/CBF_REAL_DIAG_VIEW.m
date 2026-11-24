@@ -100,9 +100,16 @@ needsLine=partsPresent || (isfinite(a.modified) && a.modified~=0) || ...
     strcmp(verdict,'UNCERTIFIED') || generic_active_tilt_limits(info);
 if ~needsLine,return;end
 stage=member(info,'stageValues');
+discCur=member(info,'discreteCurrentStages');
+discNext=member(info,'discreteNextStages');
 if isnumeric(stage) && size(stage,1)>=5 && ~isempty(stage)
     m=min(double(stage(1:5,:)),[],2);
     stageText=sprintf('h/psi1..4=[%.3g %.3g %.3g %.3g %.3g]',m);
+elseif isnumeric(discCur) && isnumeric(discNext) && ...
+        size(discCur,1)==4 && size(discNext,1)==5 && ...
+        ~isempty(discCur) && size(discCur,2)==size(discNext,2)
+    m=min([double(discCur);double(discNext(5,:))],[],2);
+    stageText=sprintf('sampled phi0..3(k),phi4(k+1)=[%.3g %.3g %.3g %.3g %.3g]',m);
 else
     stageText='h/psi1..4=NOT_EVALUATED';
 end

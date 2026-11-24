@@ -1,0 +1,16 @@
+Date: 2026-11-23
+New: exact analytic one-hold thrust bounds from 0 <= T(s) <= 20
+Independent Python analytic-extrema verification with deterministic seed:
+  random initial conditions = 60000
+  admissible continuous profiles checked at calculated endpoints = 87003
+  initial pairs with no finite feasible constant-ddT candidate = 30999
+  result: PASS
+Examples at dt=.025 s:
+  T=10, dT=0       -> ddT between -32000 and 32000 N/s^2
+  T=19.5, dT=100   -> ddT <= -10000 N/s^2 (internal maximum)
+  T=0.5, dT=-100   -> ddT >= 10000 N/s^2 (internal minimum)
+  T=0, dT=-1       -> infeasible (outward velocity at boundary)
+  T=20, dT=1       -> infeasible (outward velocity at boundary)
+Scope: this checks the exact quadratic thrust profile assumption only.
+NOT checked: MATLAB execution, model/actuator matching, obstacle CBF continuous safety,
+25ms deadline, physical acceleration limits, real flight.

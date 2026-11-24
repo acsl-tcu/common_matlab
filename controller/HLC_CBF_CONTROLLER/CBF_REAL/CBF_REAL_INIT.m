@@ -4,6 +4,7 @@ function cfg = CBF_REAL_INIT(cbfId,hlcParam)
 %   cbfId = 0 : CBFを使用しない（従来HLCと同じ入力制限）
 %   cbfId = 1 : 機体球・吊り荷球・紐楕円体 + 実入力4変数同時最適化
 %   cbfId = 2 : 3D attitude-dependent cable ellipsoid only, tauX/tauY adjusted
+%   cbfId = 3 : Liu-2026 CT-4 HOCBF, dynamic thrust extension + XY torques (Sim only)
 %
 % CBF方式・機体等の近似・オプションはCBF_REAL/SCHEMES/*.mで管理する。
 % 01 uses analytic ZOH jets only; prior experimental HOCBF and joint filter
@@ -75,6 +76,27 @@ switch cbfId
         cfg.xyCableRadiusM=0.20;      % transverse SEMI-axis [m]
         cfg.xyCableAxialMarginM=0.02; % a=L/2+axialMargin [m]
         cfg.failurePolicy='continueBounded'; % Research Sim: bounded but uncertified on CBF failure
+    case 3
+        % PAPER-STYLE augmentation, not original physical thrust ZOH.
+        % Physical thrust T(s) varies quadratically while nuT/tau are ZOH.
+        cfg.name='PAPER_DYNAMIC_THRUST_IHOCBF_INPUT_ADAPTER_SIM_ONLY';
+        schemeFile='CBF_REAL_SCHEME_03_PAPER_EXTENSION.m';
+        generatedSubfolder=fullfile('HOCBF_D2T_OBSTACLE_3D','GENERATED');
+        requiredGenerated={'CBF_REAL_D2T_JET.m', ...
+                           'CBF_REAL_D2T_OBSTACLE_EVAL.m'};
+        cfg.paperThrustState=struct('initialized',false,'T',NaN,'q',NaN);
+        cfg.paperThrustBounds=[0;20];
+        cfg.paperAccelMaxNps2=100; % TEST assumption, not actuator proof
+        cfg.paperRateMaxNps=40; % TEST assumption, not actuator proof
+        cfg.paperControlScale=[100;1;1]; % non-paper normalization study choice
+        cfg.paperLambda=[2;4;8;16];
+        cfg.paperCableRadiusM=0.20;
+        cfg.paperCableAxialMarginM=0.02;
+        cfg.paperPhysicalCableRadiusM=0.015;
+        cfg.paperStateProjectionLimit=0.005;
+        cfg.paperMaxParts=36;
+        % Never apply an uncertified fallback on a QP failure.
+        cfg.failurePolicy='continueBounded';
     otherwise
         error('CBFReal:UnknownCBF', ...
             'Unknown cbfId=%d; register a scheme in INIT and DISPATCH.',cbfId);
@@ -123,7 +145,12 @@ for k=1:numel(requiredGenerated)
 end
 
 % MATLABは@class下の任意のサブフォルダを自動でpathに入れない。
-addpath(schemeDir,commonDir,generatedDir,'-begin');
+if cbfId==3
+    sourceDir=fileparts(generatedDir);
+    addpath(cbfDir,schemeDir,sourceDir,commonDir,generatedDir,'-begin');
+else
+    addpath(schemeDir,commonDir,generatedDir,'-begin');
+end
 % 古い同名生成関数がpathの別位置から呼ばれないよう検査する。
 files=[{schemeFile},requiredGenerated];
 dirs=[{schemeDir},repmat({generatedDir},1,numel(requiredGenerated))];
