@@ -55,7 +55,8 @@ settings.fcolor = 0; % default=1 -> フェーズごとの背景色あり
 %%%%%%%%%%%%%%%%%%%%%%%% chose target %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % settings.target = ["p", "v", "q", "w", "input", "input2:4", "p1-p2"];
 % settings.target = ["p",  "input", "estimator.result.state.pL",{{"p", "r"},{"estimator.result.state.pL", "e"}}, "p1-p2"];
-settings.target = {"p","q", "input", {"p", "estimator.result.state.pL"}, "p1-p2","estimator.result.state.mL","estimator.result.theat","v"};
+% settings.target = {"p","q", "input", {"p", "estimator.result.state.pL"}, "estimator.result.state.mL","controller.result.theatx","controller.result.theatx","v"};
+settings.target = ["estimator.result.state.pT"];
 % settings.target = {"p","q","p1-p2", "input"};
 % settings.target = { "p", "estimator.result.state.pL"};
 % settings.target = ["p","q", "input"];
@@ -74,8 +75,8 @@ settings.target = {"p","q", "input", {"p", "estimator.result.state.pL"}, "p1-p2"
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % settings.phase = "tfl";
-settings.phase = "f";
-settings.fontsize = 11;    % default=11 オススメ=18　
+settings.phase = "tf";
+settings.fontsize = 18;    % default=11 オススメ=18　
 % settings.fontsize = 22;    % 報告書向け
 % settings.fontsize = 24;    % スライド向け
 settings.legend_fontsize = settings.fontsize - 4;   % 凡例のフォントサイズ（ここを変えれば全プロットに反映）
