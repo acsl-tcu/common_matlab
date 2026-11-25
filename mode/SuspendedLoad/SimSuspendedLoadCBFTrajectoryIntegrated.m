@@ -8,7 +8,7 @@ cbfMode = 0;    % 0: 実入力CBF
 %%-----CBF診断表示設定-------
 cbfDiagConsole = true;  % 実行中の表示
 cbfDiagGraphs  = true;  % 終了後のグラフ
-
+trajCorrectionEnabled = true;  % false: 軌道修正・追加ログ・グラフを全て無効
 
 %%------------
 in_prog_func = @(app) in_prog(app);
@@ -103,13 +103,35 @@ end
 
 agent.controller.set_function_class("hlc_suspended", hlc);
 
+if cbfMode == 0 && trajCorrectionEnabled
+    trajCfg = struct( ...
+        'dt',dt, ...
+        'cbfId',realCBFId, ...
+        'method','RK4', ...       % 'RK4' or 'MIDPOINT'
+        'nSubsteps',2, ...
+        'returnOmega',0.5, ...   % 研究用初期値（保証済みではない）
+        'returnQuietCycles',8, ...
+        'settlePositionM',1e-5, ...
+        'settleVelocityMps',1e-5);
+    agent.reference.set_function_class('cbf_traj', ...
+        CBF_TRAJ_REFERENCE(agent,trajCfg));
+end
+
 % CBF診断履歴を初期化
 CBF_REAL_DIAG_VIEW('reset');
 
 % 実際に使用しているHLCの結果を診断関数へ渡す
-logger.display_func = @(agent,time) CBF_REAL_DIAG_VIEW( ...
-    'display',agent,time, ...
-    build_display_vector(agent,time),cbfDiagConsole,hlc);
+if cbfMode == 0 && trajCorrectionEnabled
+    logger.display_func = @(agent,time) CBF_TRAJ_DIAG_VIEW( ...
+        'display',agent,time, ...
+        CBF_REAL_DIAG_VIEW('display',agent,time, ...
+            build_display_vector(agent,time),cbfDiagConsole,hlc), ...
+        cbfDiagConsole);
+else
+    logger.display_func = @(agent,time) CBF_REAL_DIAG_VIEW( ...
+        'display',agent,time, ...
+        build_display_vector(agent,time),cbfDiagConsole,hlc);
+end
 
 agent.set_cha_allocation_for_all("sensor","motive");
 agent.set_cha_allocation_for_all("estimator",["ekf","loadstate"]);
@@ -117,7 +139,11 @@ agent.cha_allocation.a.reference =["takeoff","sload"]; % aも忘れずにセッ�
 agent.cha_allocation.t.reference =["takeoff","sload"];
 % agent.cha_allocation.f.reference =["timevarying","sload"];
 %%----------ウェイポイントリファレンス-------------
-agent.cha_allocation.f.reference = ["waypoint","sload"];
+if cbfMode == 0 && trajCorrectionEnabled
+    agent.cha_allocation.f.reference = ["waypoint","sload","cbf_traj"];
+else
+    agent.cha_allocation.f.reference = ["waypoint","sload"];
+end
 %%-----------------------------------------------
 agent.cha_allocation.l.reference =["landing","sload"];
 
@@ -159,27 +185,41 @@ agent.sensor.set_function_class("cbf_spherical", ...
 % Motiveと球形模擬センサを両方使用
 agent.set_cha_allocation_for_all( ...
     "sensor", ["motive", "cbf_spherical"]);
-post_func = @(app) post(app, worldObstacles, cbfDiagGraphs);
+post_func = @(app) post(app, worldObstacles, cbfDiagGraphs, ...
+    cbfMode == 0 && trajCorrectionEnabled);
 %%
 
 %%
 
-function post(app, worldObstacles, cbfDiagGraphs)
-% シミュレーション終了後の結果表示とアニメーション作成。
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
-% app.logger.plot({1, "state.mL", "e"},"phase","tfl");
-%app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
-% app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
-% app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
-app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
-app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
-app.logger.plot({1, "controller.result.controllertime_total", ""}, "phase", "f", "fig_num", 4);
-% app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
-% app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
-% app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
-% app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
+function post(app, worldObstacles, cbfDiagGraphs, trajCorrectionEnabled)
+% % シミュレーション終了後の結果表示とアニメーション作成。
+% app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
+% % app.logger.plot({1, "state.mL", "e"},"phase","tfl");
+% %app.logger.plot({1, "estimator.result.ekf_mL", ""},"phase","tfl", "fig_num",2);
+% % app.logger.plot({1, "p", "er"},"phase","tf", "fig_num",1); % 位置: p_x,p_y,p_z
+% % app.logger.plot({1, "q", "e"}, "phase","tfl", "fig_num",2 ); % 角度: θ_roll, θ_pitch, θ_yaw
+% app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+% app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);% 速度: v_x, v_y, v_z
+% app.logger.plot({1, "controller.result.controllertime_total", ""}, "phase", "f", "fig_num", 4);
+% % app.logger.plot({1, "w", "e"}, "phase","tf", "fig_num",4); % 角速度: ω_roll, ω_ptich, ω_yaw
+% % app.logger.plot({1, "input", ""}, "phase","f", "fig_num",5); % 制御入力: Thrust, roll, pitch, yaw
+% % app.logger.plot({{1, "reference.result.state.xd1:3", ""},{1,"reference.result.state.xd5:7",""}},"phase","f","fig_num",4);
+% % app.logger.plot({{1, "reference.result.state.xd9:11", ""},{1,"reference.result.state.xd13:15",""}},"phase","f","fig_num",5);
+if trajCorrectionEnabled
+    % 軌道修正時：構造体の連結を避けてグラフを描画
+    CBF_TRAJ_DIAG_VIEW('baseplot',app.logger,app.UIAxes);
+else
+    % 軌道修正なし：従来の描画処理
+    app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"ax",app.UIAxes,"phase","tfl");
+    app.logger.plot({{1, "p", "er"},{1, "estimator.result.state.pL", "e"}},"phase","f","fig_num",2);
+    app.logger.plot({{1, "v1:2", "er"},{1,"estimator.result.state.vL1:2",""}},"fig_num",3);
+    app.logger.plot({1, "controller.result.controllertime_total", ""},"phase","f","fig_num",4);
+end
 if cbfDiagGraphs
     CBF_REAL_DIAG_VIEW('plot',app.logger,20);
+end
+if trajCorrectionEnabled && cbfDiagGraphs
+    CBF_TRAJ_DIAG_VIEW('plot',app.logger,30);
 end
 show_suspended_load_animation(app, worldObstacles); % アニメーション描画
 end

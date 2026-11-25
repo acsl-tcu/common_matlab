@@ -3,7 +3,7 @@ classdef CBF_TRAJ_REFERENCE < handle
 % Reads previous interval's already-existing controller.result.{x,tmp,input,cbf};
 % updates signed [position;velocity] correction and passes a new 28-jet
 % to the UNMODIFIED HLC. Works only in flight, never modifies controllers.
-% Every flight reference result has cbfTraj.before28 and cbfTraj.after28.
+% Every phase emits cbfTraj; non-flight references retain original size.
     properties
         self
         cfg
@@ -21,6 +21,9 @@ classdef CBF_TRAJ_REFERENCE < handle
             if ~isstruct(cfg) || ~all(isfield(cfg,must))
                 error('CBFTraj:Configuration','Incomplete Sim trajectory correction configuration');
             end
+            if ~isfield(cfg,'enabled'),cfg.enabled=true;end
+            validateattributes(cfg.enabled,{'logical','numeric'},{'scalar','finite'});
+            cfg.enabled=logical(cfg.enabled);
             obj.cfg=cfg;
         end
         function out=do(obj,varargin)
@@ -32,24 +35,24 @@ classdef CBF_TRAJ_REFERENCE < handle
                 error('CBFTraj:ReferenceMissing', ...
                     'CBF trajectory reference must run AFTER SLOAD/waypoint');
             end
-            before28=double(base.state.xd(:));
+            beforeXd=double(base.state.xd(:));
+            currentTime=double(time.t);
+            % Non-flight generators supply 20 entries, not 28. Never resize
+            % or overwrite their state, even when trajectory correction is ON.
+            if ~strcmp(cha,'f') || ~obj.cfg.enabled
+                obj.d=zeros(3,1);obj.w=zeros(3,1);
+                obj.mode='NOMINAL';obj.quietCount=0;obj.lastFlightTime=[];
+                if ~strcmp(cha,'f'),status='NON_FLIGHT';else,status='DISABLED';end
+                out=makeOutput(obj,base,beforeXd,currentTime,status, ...
+                    zeros(6,1),emptyPhysical(status),NaN,cha);
+                return
+            end
+            before28=beforeXd;
             if numel(before28)~=28 || any(~isfinite(before28))
                 error('CBFTraj:Reference28Invalid','Expected finite base 28x1 after SLOAD');
             end
-            currentTime=double(time.t);
-            if ~strcmp(cha,'f')
-                obj.d=zeros(3,1);obj.w=zeros(3,1);
-                obj.mode='NOMINAL';obj.quietCount=0;obj.lastFlightTime=[];
-                out=makeOutput(obj,base,before28,currentTime,'NON_FLIGHT', ...
-                    zeros(6,1),[],NaN);
-                return
-            end
             deltaPV=zeros(6,1);fromTime=NaN;
-            previous=struct('valid',false,'active',false,'status','FIRST_FLIGHT_CYCLE', ...
-                'T0',NaN,'Tdot0',NaN,'TddotApplied',NaN, ...
-                'TddotBaseline',NaN,'TendApplied',NaN,'TendBaseline',NaN, ...
-                'TdotEndApplied',NaN,'TdotEndBaseline',NaN, ...
-                'elapsedMs',NaN);
+            previous=emptyPhysical('FIRST_FLIGHT_CYCLE');
             updateStatus='FIRST_FLIGHT_CYCLE';
             if ~isempty(obj.lastFlightTime)
                 elapsed=currentTime-obj.lastFlightTime;
@@ -70,7 +73,7 @@ classdef CBF_TRAJ_REFERENCE < handle
             end
             obj.lastFlightTime=currentTime;
             out=makeOutput(obj,base,before28,currentTime,updateStatus, ...
-                deltaPV,previous,fromTime);
+                deltaPV,previous,fromTime,cha);
         end
     end
 end
@@ -111,28 +114,47 @@ else
 end
 end
 
-function out=makeOutput(obj,base,before28,t,status,deltaPV,previous,fromTime)
-if strcmp(obj.mode,'NOMINAL')
-    jet=zeros(28,1);
-else
+function out=makeOutput(obj,base,beforeXd,t,status,deltaPV,previous,fromTime,cha)
+% Preserve the original state completely for pass-through. Dispatcher and
+% LOGGER already copy the state. Only the active flight correction copies
+% and modifies state here.
+out=base;
+jet=zeros(size(beforeXd));
+if strcmp(cha,'f') && obj.cfg.enabled && ~strcmp(obj.mode,'NOMINAL')
     jet=CBF_TRAJ_C6_JET(obj.d,obj.w,obj.mode,obj.cfg.returnOmega);
+    afterXd=beforeXd+jet;
+    st=state_copy(base.state);
+    st.xd=afterXd;
+    if isprop(st,'p'),st.p=afterXd(1:3);end
+    if isprop(st,'v'),st.v=afterXd(5:7);end
+    if isprop(st,'q'),st.q=[0;0;afterXd(4)];end
+    out.state=st;
+else
+    afterXd=beforeXd;
 end
-after28=before28+jet;
-% Preserve previous reference result fields, and replace state by a COPY.
-st=state_copy(base.state);
-st.xd=after28;
-if isprop(st,'p'),st.p=after28(1:3);end
-if isprop(st,'v'),st.v=after28(5:7);end
-if isprop(st,'q'),st.q=[0;0;after28(4)];end
+% The 28-entry fields refer only to actual 28-entry references. Do not
+% fabricate higher derivatives for takeoff/landing. Existing plotting code
+% skips samples whose before28/after28 are not 28 entries.
+before28=[];after28=[];delta28=[];
+if numel(beforeXd)==28
+    before28=beforeXd;after28=afterXd;delta28=jet;
+end
 tele=struct('time',t,'sourceIntervalStart',fromTime, ...
     'sourceIntervalEnd',t,'sourceStatus',status,'cbfId',obj.cfg.cbfId, ...
     'mode',obj.mode,'before28',before28,'after28',after28, ...
-    'delta28',jet,'signedCarryPosition',obj.d,'signedCarryVelocity',obj.w, ...
+    'delta28',delta28,'signedCarryPosition',obj.d,'signedCarryVelocity',obj.w, ...
     'lastIntervalDeltaPV',deltaPV,'quietCount',obj.quietCount, ...
     'physicalModel',obj.cfg.method,'physicalPrevious',previous, ...
-    'interSampleContinuityRequired',false, ...
-    'safetyCertified',false);
-out=base;
-out.state=st;
+    'interSampleContinuityRequired',false,'safetyCertified',false, ...
+    'phase',cha,'enabled',obj.cfg.enabled, ...
+    'beforeXd',beforeXd,'afterXd',afterXd);
 out.cbfTraj=tele;
+end
+
+function p=emptyPhysical(status)
+p=struct('valid',false,'active',false,'status',status, ...
+    'deltaControl',nan(4,1),'baseline',nan(4,1),'applied',nan(4,1), ...
+    'T0',NaN,'Tdot0',NaN,'TddotApplied',NaN,'TddotBaseline',NaN, ...
+    'TendApplied',NaN,'TendBaseline',NaN, ...
+    'TdotEndApplied',NaN,'TdotEndBaseline',NaN,'elapsedMs',NaN);
 end
