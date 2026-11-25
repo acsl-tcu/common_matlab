@@ -24,6 +24,7 @@ classdef onnxNNMEC < handle
         dx_func             % 状態方程式の関数ハンドル
         state_renew_func    % 学習時の状態更新手法に合わせるための関数ハンドル
         gen_data_func       % 入力の次元数に合わせたデータ生成関数ハンドル
+        delta_u_sign_func   % NN出力を補償入力Δuにする関数ハンドル (ファイル名の"DeltaUComp"で符号を切り替え)
         x_pre               % 前時刻の状態
         pre_input           % 前時刻の制御入力
         thrust_lim = 5      % 補償推力入力ΔT の制限値
@@ -81,6 +82,17 @@ classdef onnxNNMEC < handle
                 dim = 12;
                 obj.gen_data_func = @(x_p,x_n) x_p - x_n;
             end
+            % Δuの符号規約をファイル名から判定 (DNNMEC_2025_Python: OUTPUT_MODEL_CLASS.ONNX_DELTA_U_SIGN_TAG)
+            %   "DeltaUComp"あり: 学習時 x_plant ≈ f_n(x, u - Δu) → NN出力がそのまま補償入力
+            %   "DeltaUComp"なし(旧モデル): 学習時 x_plant ≈ f_n(x, u + Δu) → -1倍して補償入力にする
+            if contains(obj.NN_model_filename, "DeltaUComp")
+                obj.delta_u_sign_func = @(nn_output) nn_output;
+                fprintf('Delta u sign: compensation (NN output is used as is)\n');
+            else
+                obj.delta_u_sign_func = @(nn_output) -1*nn_output;
+                fprintf('Delta u sign: legacy (NN output is multiplied by -1)\n');
+            end
+
             dummyInput = dlarray(randn(dim,1,'single'), 'CB'); % 初期化のためのdummy入力
             obj.NNMEC_model = initialize(NN_model, dummyInput); % モデルの初期化
             if opts.view_analyzer, analyzeNetwork(obj.NNMEC_model); end
@@ -132,7 +144,7 @@ classdef onnxNNMEC < handle
 
             % NNへの入力データ
             data = obj.gen_data_func(x_plant, x_nominal);
-            obj.result.delta_input = -1*double(predict(obj.NNMEC_model, data'))'; % predict関数での推論
+            obj.result.delta_input = obj.delta_u_sign_func(double(predict(obj.NNMEC_model, data'))'); % predict関数での推論 (符号はコンストラクタで設定)
             if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end
@@ -190,7 +202,7 @@ classdef onnxNNMEC < handle
             Delta_input = zeros(4,size_plant(2));
             for row = 1:size_plant(2)
                 data = obj.gen_data_func(plant_state(:,row), nominal_state(:,row));
-                Delta_input(:,row) = -1*double(predict(obj.NNMEC_model, data'))'; % predict関数での推論
+                Delta_input(:,row) = obj.delta_u_sign_func(double(predict(obj.NNMEC_model, data'))'); % predict関数での推論 (符号はコンストラクタで設定)
             end
         end
     end
