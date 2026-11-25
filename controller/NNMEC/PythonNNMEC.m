@@ -157,7 +157,7 @@ classdef PythonNNMEC
             data = obj.gen_data_func(x_plant, x_nominal);
             data_py = py.numpy.array(data');
             py_result = obj.NNMEC_model.predict(data_py); % Pythonスクリプトでの推論
-            obj.result.delta_input = (-1*double(py_result))';
+            obj.result.delta_input = double(py_result)'; % NN出力がそのまま補償入力 (旧符号規約のモデルはInferenceWrapper側で符号を反転済み)
             if abs(obj.result.delta_input(1))>obj.thrust_lim, obj.result.delta_input(1) = 0; end % NN関係　閾値での入力制限
             if abs(obj.result.delta_input(2))>obj.tau_lim, obj.result.delta_input(2) = 0; end
             if abs(obj.result.delta_input(3))>obj.tau_lim, obj.result.delta_input(3) = 0; end

@@ -91,6 +91,12 @@ class InferenceWrapper(nn.Module):
         self.model.load_state_dict(state_dict)
         self.model.eval() # 推論モードに設定
 
+        # Δuの符号規約 (DNNMEC_2025_Python の OUTPUT_MODEL_CLASS.DELTA_U_SIGN_CONVENTION)
+        #   'compensation': 学習時 x_plant ≈ f_n(x, u - Δu) → NN出力をそのまま補償入力として使える
+        #   キー無し(旧モデル): 学習時 x_plant ≈ f_n(x, u + Δu) → -1倍して補償入力にする
+        self.delta_u_sign_convention = checkpoint.get('delta_u_sign_convention', 'legacy')
+        self.output_sign = 1.0 if self.delta_u_sign_convention == 'compensation' else -1.0
+
         # SN層は保存されたu,vで正規化済みの重みに固定してパラメトリゼーションを外す
         # (eval時の出力は変わらず、推論毎のσ計算が不要になる)
         if isinstance(self.model, NNModel):
@@ -107,6 +113,7 @@ class InferenceWrapper(nn.Module):
             'output_size': config['output_size'],
             'num_layers': config['num_layers'],
             'activation_function': config['activation_function'],
+            'delta_u_sign_convention': self.delta_u_sign_convention,
         }
 
 
@@ -125,7 +132,7 @@ class InferenceWrapper(nn.Module):
                 out = self.model(x)
             # print(f"[DEBUG] output shape: {out.shape}, values: {out}") # outputの形状と値をMATLABコマンドウィンドウ上に出力
 
-        return out.numpy()
+        return self.output_sign * out.numpy() # 符号規約によらず補償入力Δuを返す
     
 
 if __name__ == "__main__": # デバッグ用のテストコード
