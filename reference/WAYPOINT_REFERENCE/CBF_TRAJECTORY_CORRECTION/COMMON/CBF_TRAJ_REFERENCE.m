@@ -1,160 +1,181 @@
 classdef CBF_TRAJ_REFERENCE < handle
-% Sim-side WAYPOINT decoration. Runs AFTER WAYPOINT and SLOAD reference.
-% Reads previous interval's already-existing controller.result.{x,tmp,input,cbf};
-% updates signed [position;velocity] correction and passes a new 28-jet
-% to the UNMODIFIED HLC. Works only in flight, never modifies controllers.
-% Every phase emits cbfTraj; non-flight references retain original size.
+% REV23: direct causal displacement correction; one order-seven return. Only the
+% five local base-reference constructions are selectable.
     properties
         self
         cfg
-        d=zeros(3,1)
-        w=zeros(3,1)
         mode='NOMINAL'
         quietCount=0
         lastFlightTime=[]
+        previousP=[]
+        comparison=[]
+        correction=zeros(3,7)
+        center=zeros(3,1)
+        anchor=zeros(3,1)
+        probeCounter=0
+        correctionTransition
     end
     methods
         function obj=CBF_TRAJ_REFERENCE(agent,cfg)
             obj.self=agent;
-            must={'dt','cbfId','method','nSubsteps','returnOmega', ...
-                'returnQuietCycles','settlePositionM','settleVelocityMps'};
-            if ~isstruct(cfg) || ~all(isfield(cfg,must))
-                error('CBFTraj:Configuration','Incomplete Sim trajectory correction configuration');
+            req={'dt','cbfId','referenceMethod','waypointRef','hlc'};
+            if ~isstruct(cfg) || ~all(isfield(cfg,req))
+                error('CBFTraj:Configuration','Use REV23 Sim settings in README');
             end
-            if ~isfield(cfg,'enabled'),cfg.enabled=true;end
-            validateattributes(cfg.enabled,{'logical','numeric'},{'scalar','finite'});
-            cfg.enabled=logical(cfg.enabled);
+            obsolete={'correctionMethod','returnMethod','method','nSubsteps', ...
+                'returnDuration','referenceProbeFraction','paperActuator', ...
+                'sensitivityEpsilon','shadowMaxOffsetM','shadowMaxVelocityMps', ...
+                'returnOmega','returnQuietCycles','settlePositionM','settleVelocityMps','settleDerivativeScaledM'};
+            if any(isfield(cfg,obsolete)),error('CBFTraj:ObsoleteConfiguration','Remove old settings; use REV23 README');end
+            validateattributes(cfg.dt,{'numeric'},{'scalar','real','finite','positive'});
+            validateattributes(cfg.cbfId,{'numeric'},{'scalar','integer','>=',0,'<=',3});
+            validateattributes(cfg.referenceMethod,{'numeric'},{'scalar','integer','>=',1,'<=',5});
+            if ~isa(cfg.hlc,'HLC_SUSPENDED_LOAD_CBF_REAL')
+                error('CBFTraj:Configuration','REV23 uses the existing real-input HLC pure functions');
+            end
+            if cfg.hlc.cbfConfig.cbfId~=cfg.cbfId || abs(cfg.hlc.param.dt-cfg.dt)>1e-10
+                error('CBFTraj:Configuration','HLC ID/dt mismatch');
+            end
             obj.cfg=cfg;
+            obj.correctionTransition=transition(obj.rate(),cfg.dt);
         end
         function out=do(obj,varargin)
-            time=varargin{1};
-            cha=char(varargin{2});
+            started=tic;time=varargin{1};cha=char(varargin{2});t=double(time.t);
             base=obj.self.reference.result;
-            if ~isstruct(base) || ~isfield(base,'state') || ...
-                    ~isprop(base.state,'xd')
-                error('CBFTraj:ReferenceMissing', ...
-                    'CBF trajectory reference must run AFTER SLOAD/waypoint');
+            if ~isstruct(base) || ~isfield(base,'state') || ~isprop(base.state,'xd')
+                error('CBFTraj:ReferenceMissing','Run after SLOAD');
             end
-            beforeXd=double(base.state.xd(:));
-            currentTime=double(time.t);
-            % Non-flight generators supply 20 entries, not 28. Never resize
-            % or overwrite their state, even when trajectory correction is ON.
-            if ~strcmp(cha,'f') || ~obj.cfg.enabled
-                obj.d=zeros(3,1);obj.w=zeros(3,1);
-                obj.mode='NOMINAL';obj.quietCount=0;obj.lastFlightTime=[];
-                if ~strcmp(cha,'f'),status='NON_FLIGHT';else,status='DISABLED';end
-                out=makeOutput(obj,base,beforeXd,currentTime,status, ...
-                    zeros(6,1),emptyPhysical(status),NaN,cha);
-                return
+            before=double(base.state.xd(:));deltaPV=zeros(6,1);fromTime=NaN;
+            prev=CBF_TRAJ_PHYSICAL_DIAG('FIRST_FLIGHT_CYCLE');status=prev.status;
+            if ~strcmp(cha,'f')
+                obj.resetCorrection();obj.lastFlightTime=[];obj.previousP=[];
+                out=makeOutput(obj,base,before,t,'NON_FLIGHT',deltaPV,prev,fromTime,cha,started);return
             end
-            before28=beforeXd;
-            if numel(before28)~=28 || any(~isfinite(before28))
-                error('CBFTraj:Reference28Invalid','Expected finite base 28x1 after SLOAD');
+            if numel(before)~=28 || any(~isfinite(before))
+                error('CBFTraj:Reference28Invalid','Expected finite post-SLOAD 28x1 jet');
             end
-            deltaPV=zeros(6,1);fromTime=NaN;
-            previous=emptyPhysical('FIRST_FLIGHT_CYCLE');
-            updateStatus='FIRST_FLIGHT_CYCLE';
             if ~isempty(obj.lastFlightTime)
-                elapsed=currentTime-obj.lastFlightTime;
-                if elapsed<0 || abs(elapsed-obj.cfg.dt)>max(1e-8,1e-4*obj.cfg.dt)
-                    updateStatus='NONREGULAR_FLIGHT_PERIOD';
-                    obj.quietCount=0;
+                elapsed=t-obj.lastFlightTime;
+                if abs(elapsed-obj.cfg.dt)>max(1e-8,1e-4*obj.cfg.dt)
+                    status='NONREGULAR_FLIGHT_PERIOD';obj.degrade();
                 else
                     fromTime=obj.lastFlightTime;
                     ctrl=obj.self.controller.result;
-                    P=obj.self.parameter.get( ...
-                        ["mass","jx","jy","jz","gravity","loadmass","cableL"]);
-                    [deltaPV,previous]=CBF_TRAJ_PHYSICAL_HOLD_DIFF( ...
-                        ctrl,P,obj.cfg.dt,obj.cfg.cbfId, ...
-                        obj.cfg.method,obj.cfg.nSubsteps);
-                    updateStatus=previous.status;
-                    obj=applyLastInterval(obj,deltaPV,previous);
+                    track=strcmp(obj.mode,'CARRY');
+                    % In DEGRADED, the comparison stays latched off until
+                    % a valid quiet return; do not restart and sum errors.
+                    comp=obj.comparison;
+                    [deltaPV,prev,nextComparison]=CBF_TRAJ_PHYSICAL_HOLD_DIFF( ...
+                        ctrl,obj.previousP,obj.cfg.dt,obj.cfg.cbfId,obj.cfg.hlc,comp,track,~strcmp(obj.mode,'DEGRADED'));
+                    status=obj.applyInterval(prev,nextComparison);
                 end
             end
-            obj.lastFlightTime=currentTime;
-            out=makeOutput(obj,base,before28,currentTime,updateStatus, ...
-                deltaPV,previous,fromTime,cha);
+            obj.lastFlightTime=t;
+            % Capture the physical parameters used by the immediately
+            % following HLC, rather than using next-sample mass estimates.
+            obj.previousP=obj.self.parameter.get(["mass","jx","jy","jz","gravity","loadmass","cableL"]);
+            out=makeOutput(obj,base,before,t,status,deltaPV,prev,fromTime,cha,started);
+        end
+        function status=applyInterval(obj,prev,nextComparison)
+            % The pure update is independently testable without live HLC.
+            st=struct('mode',obj.mode,'correction',obj.correction, ...
+                'center',obj.center,'anchor',obj.anchor,'quietCount',obj.quietCount);
+            [st,status,keepComparison]=CBF_TRAJ_CORRECTION_STEP(st,prev,obj.correctionTransition);
+            obj.mode=st.mode;obj.correction=st.correction;obj.center=st.center;
+            obj.anchor=st.anchor;obj.quietCount=st.quietCount;
+            if keepComparison,obj.comparison=nextComparison;else,obj.comparison=[];end
+            if strcmp(obj.mode,'NOMINAL'),obj.resetCorrection();end
+        end
+        function degrade(obj)
+            obj.quietCount=0;obj.comparison=[];
+            if strcmp(obj.mode,'NOMINAL'),return;end
+            % Missing time interval: retain the last valid position; never
+            % extrapolate a stale velocity through an unknown interval.
+            obj.correction(:,2:7)=0;obj.center=obj.correction(:,1);
+            obj.mode='DEGRADED';
+        end
+        function w=rate(obj)
+            % Existing REV20 return pole; not a CARRY tracking filter.
+            w=1.5;
+        end
+        function resetCorrection(obj)
+            obj.mode='NOMINAL';obj.correction=zeros(3,7);obj.center=zeros(3,1);
+            obj.anchor=zeros(3,1);obj.comparison=[];obj.quietCount=0;obj.probeCounter=0;
         end
     end
 end
-
-function obj=applyLastInterval(obj,deltaPV,previous)
-dt=obj.cfg.dt;
-if ~previous.valid
-    % Unknown preceding actuation: do not misclassify it as a clear interval.
-    % Hold extrapolation only; mark explicitly uncertified/unaccounted.
-    obj.quietCount=0;
-    obj.d=obj.d+dt*obj.w;
-    if ~strcmp(obj.mode,'NOMINAL'),obj.mode='CARRY';end
-    return
+function E=transition(w,dt)
+A=zeros(7);A(1:6,2:7)=eye(6);
+for j=0:6,A(7,j+1)=-nchoosek(7,j)*w^(7-j);end
+E=expm(A*dt);
 end
-if previous.active
-    obj.quietCount=0;
-    obj.d=obj.d+dt*obj.w+deltaPV(1:3);
-    obj.w=obj.w+deltaPV(4:6);
-    obj.mode='CARRY';
-else
-    obj.quietCount=obj.quietCount+1;
-    if obj.quietCount>=obj.cfg.returnQuietCycles && ...
-            ~strcmp(obj.mode,'NOMINAL')
-        omega=obj.cfg.returnOmega;
-        t=omega*dt;
-        Phi=exp(-t)*[1+t,dt;-omega^2*dt,1-t];
-        oldD=obj.d;oldW=obj.w;
-        obj.d=Phi(1,1)*oldD+Phi(1,2)*oldW;
-        obj.w=Phi(2,1)*oldD+Phi(2,2)*oldW;
-        obj.mode='RETURN';
-        if norm(obj.d,Inf)<=obj.cfg.settlePositionM && ...
-                norm(obj.w,Inf)<=obj.cfg.settleVelocityMps
-            obj.d=zeros(3,1);obj.w=zeros(3,1);obj.mode='NOMINAL';
-        end
-    else
-        obj.d=obj.d+dt*obj.w;
-    end
-end
-end
-
-function out=makeOutput(obj,base,beforeXd,t,status,deltaPV,previous,fromTime,cha)
-% Preserve the original state completely for pass-through. Dispatcher and
-% LOGGER already copy the state. Only the active flight correction copies
-% and modifies state here.
-out=base;
-jet=zeros(size(beforeXd));
-if strcmp(cha,'f') && obj.cfg.enabled && ~strcmp(obj.mode,'NOMINAL')
-    jet=CBF_TRAJ_C6_JET(obj.d,obj.w,obj.mode,obj.cfg.returnOmega);
-    afterXd=beforeXd+jet;
-    st=state_copy(base.state);
-    st.xd=afterXd;
-    if isprop(st,'p'),st.p=afterXd(1:3);end
-    if isprop(st,'v'),st.v=afterXd(5:7);end
-    if isprop(st,'q'),st.q=[0;0;afterXd(4)];end
+function out=makeOutput(obj,base,before,t,status,dpv,prev,fromTime,cha,started)
+out=base;jet=zeros(size(before));after=before;
+probe=struct('status','NOT_SAMPLED','s',NaN,'selected28',[],'direct28',[], ...
+    'baseError28',[],'maxErrorByOrder',nan(1,7),'yawErrorByOrder',nan(1,7));
+if strcmp(cha,'f') && ~strcmp(obj.mode,'NOMINAL')
+    j=CBF_TRAJ_REFERENCE_EVAL(obj.cfg.referenceMethod,0,obj.cfg.dt,before,[]);
+    jet=reshape([obj.correction;zeros(1,7)],28,1);after=j+jet;
+    st=state_copy(base.state);st.xd=after;
+    if isprop(st,'p'),st.p=after(1:3);end
+    if isprop(st,'v'),st.v=after(5:7);end
+    if isprop(st,'q'),st.q=[0;0;after(4)];end
     out.state=st;
-else
-    afterXd=beforeXd;
+    % Fixed diagnostic cadence (first active tick and every 20 ticks).
+    if mod(obj.probeCounter,20)==0,probe=referenceProbe(obj,before);end
+    obj.probeCounter=obj.probeCounter+1;
 end
-% The 28-entry fields refer only to actual 28-entry references. Do not
-% fabricate higher derivatives for takeoff/landing. Existing plotting code
-% skips samples whose before28/after28 are not 28 entries.
-before28=[];after28=[];delta28=[];
-if numel(beforeXd)==28
-    before28=beforeXd;after28=afterXd;delta28=jet;
-end
-tele=struct('time',t,'sourceIntervalStart',fromTime, ...
-    'sourceIntervalEnd',t,'sourceStatus',status,'cbfId',obj.cfg.cbfId, ...
-    'mode',obj.mode,'before28',before28,'after28',after28, ...
-    'delta28',delta28,'signedCarryPosition',obj.d,'signedCarryVelocity',obj.w, ...
-    'lastIntervalDeltaPV',deltaPV,'quietCount',obj.quietCount, ...
-    'physicalModel',obj.cfg.method,'physicalPrevious',previous, ...
+b28=[];a28=[];d28=[];
+if numel(before)==28,b28=before;a28=after;d28=jet;end
+out.cbfTraj=struct('time',t,'sourceIntervalStart',fromTime,'sourceIntervalEnd',t, ...
+    'sourceStatus',status,'cbfId',obj.cfg.cbfId,'mode',obj.mode, ...
+    'before28',b28,'after28',a28,'delta28',d28, ...
+    'signedCarryPosition',obj.correction(:,1),'signedCarryVelocity',obj.correction(:,2), ...
+    'correctionTarget',obj.center,'episodeAnchor',obj.anchor, ...
+    'lastIntervalDeltaPV',dpv,'quietCount',obj.quietCount, ...
+    'physicalModel','RK4','physicalPrevious',prev, ...
     'interSampleContinuityRequired',false,'safetyCertified',false, ...
-    'phase',cha,'enabled',obj.cfg.enabled, ...
-    'beforeXd',beforeXd,'afterXd',afterXd);
-out.cbfTraj=tele;
+    'phase',cha,'enabled',true,'beforeXd',before,'afterXd',after, ...
+    'referenceMethod',obj.cfg.referenceMethod,'referenceProbe',probe, ...
+    'correctionRevision',23,'elapsedMs',1000*toc(started));
 end
-
-function p=emptyPhysical(status)
-p=struct('valid',false,'active',false,'status',status, ...
-    'deltaControl',nan(4,1),'baseline',nan(4,1),'applied',nan(4,1), ...
-    'T0',NaN,'Tdot0',NaN,'TddotApplied',NaN,'TddotBaseline',NaN, ...
-    'TendApplied',NaN,'TendBaseline',NaN, ...
-    'TdotEndApplied',NaN,'TdotEndBaseline',NaN,'elapsedMs',NaN);
+function p=referenceProbe(obj,before)
+% Optional diagnostic only. Evaluate the actual generator under its known
+% current held governor command over the next local 25ms interval. Never
+% feed the probe into HLC or use it to claim a future plant trajectory.
+p=struct('status','NOT_EVALUATED','s',NaN,'selected28',[],'direct28',[], ...
+    'baseError28',[],'maxErrorByOrder',nan(1,7),'yawErrorByOrder',nan(1,7));
+try
+    wp=obj.cfg.waypointRef;H=obj.cfg.dt;s=H/2;
+    if wp.adaptiveProgress
+        [~,tau,td]=wp_governor_step(wp.rateState,wp.virtualTime,wp.heldRateCommand,0,wp.filterTime);
+        raw=wp.generator.evaluateWarped(tau,td);
+        evaluator=@(u) warpedAt(wp,u);
+    else
+        tau=max(0,obj.lastFlightTime-wp.t);
+        raw=wp.generator.evaluate(tau);
+        evaluator=@(u) wp.generator.evaluate(tau+u);
+    end
+    off=before-raw(:);
+    % SLOAD shifts only position; constant post-SLOAD offset over local step.
+    if any(abs(off(4:end))>1e-8*(1+abs(before(4:end))))
+        p.status='BASE_JET_MISMATCH';return
+    end
+    off(4:end)=0;fn=@(u) reshape(evaluator(u),28,1)+off;
+    direct=fn(s);selected=CBF_TRAJ_REFERENCE_EVAL(obj.cfg.referenceMethod,s,H,before,fn);
+    j=CBF_TRAJ_LOCAL_CORRECTION_JET(obj.mode,obj.correction,s,obj.rate());
+    add=reshape([j;zeros(1,7)],28,1);
+    p.s=s;p.direct28=direct+add;p.selected28=selected+add;
+    p.baseError28=selected-direct;
+    err=reshape(p.baseError28,4,7);
+    p.maxErrorByOrder=max(abs(err(1:3,:)),[],1);
+    p.yawErrorByOrder=abs(err(4,:));
+    p.status='OK';
+catch ME
+    p.status=['PROBE_FAILED:' ME.identifier];
+end
+end
+function v=warpedAt(wp,s)
+[~,tau,td]=wp_governor_step(wp.rateState,wp.virtualTime,wp.heldRateCommand,s,wp.filterTime);
+v=wp.generator.evaluateWarped(tau,td);
 end

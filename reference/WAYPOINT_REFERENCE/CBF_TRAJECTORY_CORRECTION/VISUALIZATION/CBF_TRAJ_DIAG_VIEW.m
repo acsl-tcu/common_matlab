@@ -75,6 +75,28 @@ line=[char(line),sprintf([ ...
     ' prevDeltaV=[%+.3g,%+.3g,%+.3g]'], ...
     char(r.mode),char(r.sourceStatus),raw(1:3),new(1:3),d,w, ...
     delta(1:3),delta(4:6))];
+if isfield(r,'correctionTarget') && isfield(r,'physicalPrevious')
+    h=r.physicalPrevious;target=r.correctionTarget(:);pv=h.modelOffsetPV(:);
+    line=[line,sprintf([' | referenceMethod=%d gate=%d:%s quiet=%d' ...
+        ' compare=%s valid=%d start=%d trajMs=%.3f' ...
+        ' | candidatePV=[%+.4g,%+.4g,%+.4g] targetOffset=[%+.4g,%+.4g,%+.4g]'], ...
+        r.referenceMethod,h.returnGate,char(h.returnGateReason),r.quietCount, ...
+        char(h.comparisonStatus),h.comparisonValid,h.comparisonStarted,r.elapsedMs, ...
+        pv(1:3),target)];
+    if isfield(r,'correctionRevision') && r.correctionRevision==23
+        line=[line,sprintf([' | rev=23 modelDV=[%+.6g,%+.6g,%+.6g]' ...
+            ' anchor=[%+.6g,%+.6g,%+.6g] applyMinusCommand=[%+.3g,%+.3g,%+.3g]'], ...
+            pv(4:6),r.episodeAnchor(:),d-target)];
+    end
+    est=member(agent(1).estimator.result,'state');
+    if isobject(est) && isprop(est,'pL') && isprop(est,'vL')
+        line=[line,sprintf(' | pL=[%+.4g,%+.4g,%+.4g] vL=[%+.4g,%+.4g,%+.4g]',est.pL(:),est.vL(:))];
+    end
+    if all(isfinite(h.comparisonRaw))
+        line=[line,sprintf(' | nominalModelRaw=[%+.4g,%+.4g,%+.4g,%+.4g] replayErr=%g', ...
+            h.comparisonRaw(:),h.replayRawError)];
+    end
+end
 if isfield(r,'cbfId') && isnumeric(r.cbfId) && r.cbfId==3 && ...
         isfield(r,'physicalPrevious') && isstruct(r.physicalPrevious)
     h=r.physicalPrevious;
@@ -176,6 +198,9 @@ n=numel(t);
 pre=nan(n,3);post=pre;loadPos=pre;carryP=pre;carryV=pre;
 modeId=nan(n,1);previousActive=modeId;previousValid=modeId;
 T=nan(n,8);valid=false(n,1);
+modelA=pre;modelB=pre;modelPV=pre;modelV=pre;center=pre;
+gate=nan(n,1);modelValid=gate;comparisonStarted=gate;trajMs=gate;
+jetNorm=nan(n,7);probeError=jetNorm;
 for k=find(phase=='f').'
     e=sample(A,'reference',k); r=member(e,'cbfTraj');
     before=member(r,'before28');after=member(r,'after28');
@@ -194,10 +219,23 @@ for k=find(phase=='f').'
         case 'NOMINAL',modeId(k)=0;
         case 'CARRY',modeId(k)=1;
         case 'RETURN',modeId(k)=2;
+        case 'DEGRADED',modeId(k)=3;
     end
     st=member(sample(A,'estimator',k),'state');
     loadPos(k,:)=finite_row(member(st,'pL'),3);
     h=member(r,'physicalPrevious');
+    gate(k)=flag_value(member(h,'returnGate'));
+    center(k,:)=finite_row(member(r,'correctionTarget'),3);
+    modelValid(k)=flag_value(member(h,'comparisonValid'));
+    comparisonStarted(k)=flag_value(member(h,'comparisonStarted'));
+    a=member(h,'modelActual');b=member(h,'modelNominal');pv=member(h,'modelOffsetPV');
+    if numel(a)==19 && numel(b)==19
+        modelA(k,:)=finite_row(a(8:10),3);modelB(k,:)=finite_row(b(8:10),3);
+    end
+    if numel(pv)==6,modelPV(k,:)=finite_row(pv(1:3),3);modelV(k,:)=finite_row(pv(4:6),3);end
+    trajMs(k)=finite_row(member(r,'elapsedMs'),1);
+    jj=reshape(after(:)-before(:),4,7);jetNorm(k,:)=vecnorm(jj(1:3,:),2,1);
+    probeError(k,:)=finite_row(member(member(r,'referenceProbe'),'maxErrorByOrder'),7);
     previousValid(k)=flag_value(member(h,'valid'));
     if previousValid(k)==1
         previousActive(k)=flag_value(member(h,'active'));
@@ -242,7 +280,7 @@ for j=1:3
     ylabel(ax,[axisNames{j},' [mm/s]']);
 end
 ax=nexttile(tl);stairs(ax,t,modeId,'LineWidth',1.1);grid(ax,'on');
-ylim(ax,[-0.2,2.2]);yticks(ax,[0 1 2]);yticklabels(ax,{'NOMINAL','CARRY','RETURN'});
+ylim(ax,[-0.2,3.2]);yticks(ax,[0 1 2 3]);yticklabels(ax,{'NOMINAL','CARRY','RETURN','DEGRADED'});
 xlabel(ax,'Time [s]');ylabel(ax,'Target mode');
 ax=nexttile(tl);hold(ax,'on');
 stairs(ax,t,previousActive,'DisplayName','Previous physical correction');
@@ -291,6 +329,37 @@ plot(ax,t,vecnorm(loadPos-post,2,2),'-','DisplayName','After-target error');
 xlabel(ax,'Time [s]');ylabel(ax,'Load position error [m]');grid(ax,'on');
 legend(ax,'Location','best');hold(ax,'off');
 title(tl,'Target trajectory geometry and load tracking error');
+
+% Matched-reference closed-loop model comparison, not a measured causal effect.
+fig=figure(figNum+4);clf(fig);tl=tiledlayout(fig,3,2,'TileSpacing','compact');
+for j=1:3
+    ax=nexttile(tl);hold(ax,'on');
+    plot(ax,t,modelA(f,j),'-','DisplayName','Applied model endpoint');
+    plot(ax,t,modelB(f,j),'--','DisplayName','Comparison model endpoint');
+    plot(ax,t,loadPos(:,j),':','DisplayName','Estimated load');
+    ylabel(ax,[axisNames{j} ' [m]']);grid(ax,'on');
+    if j==1,legend(ax,'Location','best');end
+    hold(ax,'off');
+    ax=nexttile(tl);hold(ax,'on');
+    plot(ax,t,modelPV(f,j),'--','DisplayName','Model offset (episode)');
+    plot(ax,t,center(f,j),':','DisplayName','Accepted offset command');
+    plot(ax,t,delta(:,j),'-','DisplayName','Applied target offset');
+    ylabel(ax,[axisNames{j} ' [m]']);grid(ax,'on');
+    if j==1,legend(ax,'Location','best');end
+    hold(ax,'off');
+end
+xlabel(ax,'Time [s]');title(tl,'Model attribution (previous interval) vs actual target offset (CARRY: direct)');
+fig=figure(figNum+5);clf(fig);tl=tiledlayout(fig,4,1,'TileSpacing','compact');
+ax=nexttile(tl);hold(ax,'on');
+stairs(ax,t,gate(f),'DisplayName','Return gate');
+stairs(ax,t,modelValid(f),'--','DisplayName','Comparison valid');
+stairs(ax,t,comparisonStarted(f),':','DisplayName','Comparison started');
+legend(ax,'Location','best');ylim(ax,[-.2,1.2]);grid(ax,'on');hold(ax,'off');
+ax=nexttile(tl);plot(ax,t,jetNorm(f,3:5));legend(ax,{'order 2','order 3','order 4'});grid(ax,'on');ylabel(ax,'Correction norm (m/s^j)');
+ax=nexttile(tl);plot(ax,t,jetNorm(f,6:7));hold(ax,'on');
+plot(ax,t,probeError(f,7),'--');legend(ax,{'order 5','order 6','Probe order 6 error'});grid(ax,'on');ylabel(ax,'m/s^j (XYZ only)');hold(ax,'off');
+ax=nexttile(tl);plot(ax,t,trajMs(f));yline(ax,25,'--','25 ms whole-cycle budget');grid(ax,'on');ylabel(ax,'Trajectory [ms]');xlabel(ax,'Time [s]');
+title(tl,'Return gate, higher-order corrections and trajectory calculation time');
 end
 
 function target_projection(ax,pre,post,i,j,names)
