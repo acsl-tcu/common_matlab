@@ -12,12 +12,18 @@ arguments
     opts.yaw (1,1) double {mustBeFinite} = 0
 end
 %                  x[m]   y[m]   z[m]
+% pointsXYZ = [
+%                    0.0    0.0    3.0;  % Start: after takeoff
+%                    0.0    10.0    3.0;  % W1
+%                    0.0    20.0    3.0;  % W2
+%                    0.0    30.0    3.0;  % W3
+%                    0.0    40.0    3.0]; % Goal
 pointsXYZ = [
-                   0.0    0.0    3.0;  % Start: after takeoff
-                   0.0    10.0    3.0;  % W1
-                   0.0    20.0    3.0;  % W2
-                   0.0    30.0    3.0;  % W3
-                   0.0    40.0    3.0]; % Goal
+    0.0    0.0    3.0;  % Start: after takeoff
+    0.0    0.0    10.0;  % W1
+    0.0    0.0    20.0;  % W2
+    0.0    0.0    30.0;  % W3
+    0.0    0.0    40.0]; % Goal
 ref = gen_ref_waypoint_smooth('pointsXYZ',pointsXYZ, ...
     'speed',opts.speed,'rampTime',opts.rampTime,'maxAccel',opts.maxAccel, ...
     'maxJerk',opts.maxJerk,'maxD6',opts.maxD6, ...
