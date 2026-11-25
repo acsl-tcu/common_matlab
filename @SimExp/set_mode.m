@@ -21,6 +21,11 @@ app.TimeSlider.Value = 0;
 app.TimeSlider.Limits = [Setting.time.ts Setting.time.te];
 app.TimeSlider.MajorTicks = Setting.time.ts:(Setting.time.te-Setting.time.ts)/5:Setting.time.te;
 if isfield(Setting,"motive"); app.motive = Setting.motive; end
+if isfield(Setting,"cha_schedule") && ~Setting.fExp
+  app.cha_schedule = Setting.cha_schedule;
+else
+  app.cha_schedule = {};
+end
 app.clear_axes;
 app.TimeSliderLabel.Text = ["time : " + app.time.t];
 end
