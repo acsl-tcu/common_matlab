@@ -114,7 +114,10 @@ agent.controller.set_function_class("mec", MECKC(agent,Controller_HL(dt)));
 % agent.controller.nominal = FUNCTIONAL_HLC_SERVO(agent,Controller_FHL_Servo(dt));
 % agent.controller.mec=MECKC(agent,Controller_FHL_Servo(dt));
 agent.cha_allocation.controller=["nominal","mec"];%cha_allocationにコントローラー登録
-
+% agent.cha_allocation.a.controller
+% agent.cha_allocation.t.controller
+% agent.cha_allocation.f.controller
+% agent.cha_allocation.l.controller
 % 自動保存名に使用する、この試行の設定。
 Setting.auto_save.trajectory = erase(agent.reference.time_varying.generator_name, "gen_ref_");
 Setting.auto_save.model_indices = find(plant_model.param.param ~= nominal_plant_parameters);

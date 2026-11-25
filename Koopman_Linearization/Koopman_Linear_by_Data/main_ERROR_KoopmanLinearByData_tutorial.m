@@ -401,22 +401,57 @@ disp(zeroU');
 % end
 
 %% 元の誤差座標へ戻す
+%-----------------------元々--------------------------------
 
+% if flg.normalize == 1
+% 
+%     Se = Data.normalization.Se;
+%     Su = Data.normalization.Su;
+% 
+%     % 25次元の正規化を解除
+%     A_reduced = Se * est.A / Se;
+%     B_reduced = Se * est.B / Su;
+% 
+% else
+% 
+%     A_reduced = est.A;
+%     B_reduced = est.B;
+% 
+% end
+%-----------------------元々--------------------------------
+
+%-----------------------改善--------------------------------
+%% 元の誤差座標へ戻す
+
+A_temp = est.A;
+B_temp = est.B;
+
+% 重み付けの解除
+if flg.weight == 1
+
+    Q = est.Q;
+
+    A_temp = Q \ (A_temp * Q);
+    B_temp = Q \ B_temp;
+
+end
+
+% 正規化の解除
 if flg.normalize == 1
 
     Se = Data.normalization.Se;
     Su = Data.normalization.Su;
 
-    % 25次元の正規化を解除
-    A_reduced = Se * est.A / Se;
-    B_reduced = Se * est.B / Su;
+    A_reduced = Se * A_temp / Se;
+    B_reduced = Se * B_temp / Su;
 
 else
 
-    A_reduced = est.A;
-    B_reduced = est.B;
+    A_reduced = A_temp;
+    B_reduced = B_temp;
 
 end
+%-----------------------改善--------------------------------
 
 % 25次元のモデルを保存
 est.A_reduced = A_reduced;
