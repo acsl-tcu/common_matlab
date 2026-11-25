@@ -1,5 +1,5 @@
 classdef CBF_TRAJ_REFERENCE < handle
-% REV23: direct causal displacement correction; one order-seven return. Only the
+% REV38: direct causal displacement correction; one order-seven return. Only the
 % five local base-reference constructions are selectable.
     properties
         self
@@ -8,6 +8,7 @@ classdef CBF_TRAJ_REFERENCE < handle
         quietCount=0
         lastFlightTime=[]
         previousP=[]
+        previousReference=[]
         comparison=[]
         correction=zeros(3,7)
         center=zeros(3,1)
@@ -20,18 +21,18 @@ classdef CBF_TRAJ_REFERENCE < handle
             obj.self=agent;
             req={'dt','cbfId','referenceMethod','waypointRef','hlc'};
             if ~isstruct(cfg) || ~all(isfield(cfg,req))
-                error('CBFTraj:Configuration','Use REV23 Sim settings in README');
+                error('CBFTraj:Configuration','Use REV38 Sim settings in README');
             end
             obsolete={'correctionMethod','returnMethod','method','nSubsteps', ...
                 'returnDuration','referenceProbeFraction','paperActuator', ...
                 'sensitivityEpsilon','shadowMaxOffsetM','shadowMaxVelocityMps', ...
                 'returnOmega','returnQuietCycles','settlePositionM','settleVelocityMps','settleDerivativeScaledM'};
-            if any(isfield(cfg,obsolete)),error('CBFTraj:ObsoleteConfiguration','Remove old settings; use REV23 README');end
+            if any(isfield(cfg,obsolete)),error('CBFTraj:ObsoleteConfiguration','Remove old settings; use REV38 README');end
             validateattributes(cfg.dt,{'numeric'},{'scalar','real','finite','positive'});
             validateattributes(cfg.cbfId,{'numeric'},{'scalar','integer','>=',0,'<=',3});
             validateattributes(cfg.referenceMethod,{'numeric'},{'scalar','integer','>=',1,'<=',5});
             if ~isa(cfg.hlc,'HLC_SUSPENDED_LOAD_CBF_REAL')
-                error('CBFTraj:Configuration','REV23 uses the existing real-input HLC pure functions');
+                error('CBFTraj:Configuration','REV38 uses the existing real-input HLC pure functions');
             end
             if cfg.hlc.cbfConfig.cbfId~=cfg.cbfId || abs(cfg.hlc.param.dt-cfg.dt)>1e-10
                 error('CBFTraj:Configuration','HLC ID/dt mismatch');
@@ -48,7 +49,7 @@ classdef CBF_TRAJ_REFERENCE < handle
             before=double(base.state.xd(:));deltaPV=zeros(6,1);fromTime=NaN;
             prev=CBF_TRAJ_PHYSICAL_DIAG('FIRST_FLIGHT_CYCLE');status=prev.status;
             if ~strcmp(cha,'f')
-                obj.resetCorrection();obj.lastFlightTime=[];obj.previousP=[];
+                obj.resetCorrection();obj.lastFlightTime=[];obj.previousP=[];obj.previousReference=[];
                 out=makeOutput(obj,base,before,t,'NON_FLIGHT',deltaPV,prev,fromTime,cha,started);return
             end
             if numel(before)~=28 || any(~isfinite(before))
@@ -61,12 +62,16 @@ classdef CBF_TRAJ_REFERENCE < handle
                 else
                     fromTime=obj.lastFlightTime;
                     ctrl=obj.self.controller.result;
-                    track=strcmp(obj.mode,'CARRY');
+                    % Keep the original-reference baseline alive during RETURN.
+                    % Do not restart a lost baseline until NOMINAL.
+                    track=strcmp(obj.mode,'CARRY') || ...
+                        (strcmp(obj.mode,'RETURN') && ~isempty(obj.comparison));
+                    allow=strcmp(obj.mode,'NOMINAL') || track;
                     % In DEGRADED, the comparison stays latched off until
                     % a valid quiet return; do not restart and sum errors.
                     comp=obj.comparison;
                     [deltaPV,prev,nextComparison]=CBF_TRAJ_PHYSICAL_HOLD_DIFF( ...
-                        ctrl,obj.previousP,obj.cfg.dt,obj.cfg.cbfId,obj.cfg.hlc,comp,track,~strcmp(obj.mode,'DEGRADED'));
+                        ctrl,obj.previousP,obj.cfg.dt,obj.cfg.cbfId,obj.cfg.hlc,comp,track,allow,obj.previousReference);
                     status=obj.applyInterval(prev,nextComparison);
                 end
             end
@@ -74,7 +79,23 @@ classdef CBF_TRAJ_REFERENCE < handle
             % Capture the physical parameters used by the immediately
             % following HLC, rather than using next-sample mass estimates.
             obj.previousP=obj.self.parameter.get(["mass","jx","jy","jz","gravity","loadmass","cableL"]);
+            % WAYPOINT has already advanced by the previously held command.
+            % Update only the NEXT held command, using the CURRENT corrected
+            % post-SLOAD load position. Do not advance virtual time again.
+            % In NOMINAL, keep the original WAYPOINT behavior untouched.
+            if ~strcmp(obj.mode,'NOMINAL')
+                wp=obj.cfg.waypointRef;
+                if wp.adaptiveProgress
+                    e=wp.load_error(before(1:3)+obj.correction(:,1));
+                    wp.lastPositionError=e;
+                    wp.heldRateCommand=CBF_TRAJ_PROGRESS_COMMAND(e,wp.slowdownStart,wp.slowdownFull,wp.minScale);
+                    wp.lastProgressScale=wp.heldRateCommand;
+                end
+            end
             out=makeOutput(obj,base,before,t,status,deltaPV,prev,fromTime,cha,started);
+            % Save both jets from this exact sample for the next interval.
+            obj.previousReference=struct('before28',out.cbfTraj.before28, ...
+                'after28',out.cbfTraj.after28);
         end
         function status=applyInterval(obj,prev,nextComparison)
             % The pure update is independently testable without live HLC.
@@ -137,7 +158,14 @@ out.cbfTraj=struct('time',t,'sourceIntervalStart',fromTime,'sourceIntervalEnd',t
     'interSampleContinuityRequired',false,'safetyCertified',false, ...
     'phase',cha,'enabled',true,'beforeXd',before,'afterXd',after, ...
     'referenceMethod',obj.cfg.referenceMethod,'referenceProbe',probe, ...
-    'correctionRevision',23,'elapsedMs',1000*toc(started));
+    'correctionRevision',38,'elapsedMs',1000*toc(started));
+if strcmp(cha,'f')
+    wp=obj.cfg.waypointRef;
+    out.cbfTraj.governorRate=wp.rateState(6);
+    out.cbfTraj.governorCommand=wp.heldRateCommand;
+    out.cbfTraj.governorError=wp.lastPositionError;
+    out.cbfTraj.virtualTime=wp.virtualTime;
+end
 end
 function p=referenceProbe(obj,before)
 % Optional diagnostic only. Evaluate the actual generator under its known

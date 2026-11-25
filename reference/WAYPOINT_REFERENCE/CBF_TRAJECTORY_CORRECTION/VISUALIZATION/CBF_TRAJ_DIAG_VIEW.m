@@ -83,10 +83,15 @@ if isfield(r,'correctionTarget') && isfield(r,'physicalPrevious')
         r.referenceMethod,h.returnGate,char(h.returnGateReason),r.quietCount, ...
         char(h.comparisonStatus),h.comparisonValid,h.comparisonStarted,r.elapsedMs, ...
         pv(1:3),target)];
-    if isfield(r,'correctionRevision') && r.correctionRevision==23
-        line=[line,sprintf([' | rev=23 modelDV=[%+.6g,%+.6g,%+.6g]' ...
+    if isfield(r,'correctionRevision') && any(r.correctionRevision==[23,30,38])
+        line=[line,sprintf([' | rev=%d modelDV=[%+.6g,%+.6g,%+.6g]' ...
             ' anchor=[%+.6g,%+.6g,%+.6g] applyMinusCommand=[%+.3g,%+.3g,%+.3g]'], ...
-            pv(4:6),r.episodeAnchor(:),d-target)];
+            r.correctionRevision,pv(4:6),r.episodeAnchor(:),d-target)];
+        if any(r.correctionRevision==[30,38]),line=[line,' basis=ORIGINAL'];end
+    end
+    if isfield(r,'governorRate')
+        line=[line,sprintf(' | progressRate=%.6f progressCmd=%.6f progressErr=%.6g virtualTime=%.6f', ...
+            r.governorRate,r.governorCommand,r.governorError,r.virtualTime)];
     end
     est=member(agent(1).estimator.result,'state');
     if isobject(est) && isprop(est,'pL') && isprop(est,'vL')
@@ -330,25 +335,25 @@ xlabel(ax,'Time [s]');ylabel(ax,'Load position error [m]');grid(ax,'on');
 legend(ax,'Location','best');hold(ax,'off');
 title(tl,'Target trajectory geometry and load tracking error');
 
-% Matched-reference closed-loop model comparison, not a measured causal effect.
+% Original-reference model comparison; not a measured causal effect.
 fig=figure(figNum+4);clf(fig);tl=tiledlayout(fig,3,2,'TileSpacing','compact');
 for j=1:3
     ax=nexttile(tl);hold(ax,'on');
     plot(ax,t,modelA(f,j),'-','DisplayName','Applied model endpoint');
-    plot(ax,t,modelB(f,j),'--','DisplayName','Comparison model endpoint');
+    plot(ax,t,modelB(f,j),'--','DisplayName','Original-reference nominal endpoint');
     plot(ax,t,loadPos(:,j),':','DisplayName','Estimated load');
     ylabel(ax,[axisNames{j} ' [m]']);grid(ax,'on');
     if j==1,legend(ax,'Location','best');end
     hold(ax,'off');
     ax=nexttile(tl);hold(ax,'on');
-    plot(ax,t,modelPV(f,j),'--','DisplayName','Model offset (episode)');
+    plot(ax,t,modelPV(f,j),'--','DisplayName','Model offset (original baseline)');
     plot(ax,t,center(f,j),':','DisplayName','Accepted offset command');
     plot(ax,t,delta(:,j),'-','DisplayName','Applied target offset');
     ylabel(ax,[axisNames{j} ' [m]']);grid(ax,'on');
     if j==1,legend(ax,'Location','best');end
     hold(ax,'off');
 end
-xlabel(ax,'Time [s]');title(tl,'Model attribution (previous interval) vs actual target offset (CARRY: direct)');
+xlabel(ax,'Time [s]');title(tl,'Original-reference comparison vs target offset (CARRY: direct)');
 fig=figure(figNum+5);clf(fig);tl=tiledlayout(fig,4,1,'TileSpacing','compact');
 ax=nexttile(tl);hold(ax,'on');
 stairs(ax,t,gate(f),'DisplayName','Return gate');

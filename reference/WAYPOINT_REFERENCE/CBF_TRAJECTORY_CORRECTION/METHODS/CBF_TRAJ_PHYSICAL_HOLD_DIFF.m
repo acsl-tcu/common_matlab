@@ -1,7 +1,7 @@
-function [deltaPV,diag,nextComparison]=CBF_TRAJ_PHYSICAL_HOLD_DIFF(controllerResult,P,dt,cbfId,hlc,comparison,trackComparison,allowComparison)
-% Single method: matched-reference closed-loop causal comparison.
-% Actual and comparison use the recorded same reference; comparison HLC
-% is evaluated purely on its own state (no do/CBF/live state mutation).
+function [deltaPV,diag,nextComparison]=CBF_TRAJ_PHYSICAL_HOLD_DIFF(controllerResult,P,dt,cbfId,hlc,comparison,trackComparison,allowComparison,previousReference)
+% REV30: original-reference closed-loop comparison (REV28B branch B).
+% Actual uses recorded applied input; nominal uses previous original jet.
+% Pure HLC on its own state; no do/CBF/live state mutation.
 % Only the previous completed interval is evaluated. No future plant input.
 nSub=2;
 deltaPV=zeros(6,1);nextComparison=[];
@@ -91,7 +91,7 @@ try
     xA=project_state(propagate(x,applied,policyA,P,dt,nSub));
     if all(diffPhysical==0),xB=xA;else,xB=project_state(propagate(x,uBase,policyB,P,dt,nSub));end
     deltaPV=xA(8:13)-xB(8:13);
-    if any(~isfinite(deltaPV)),error('CBFTraj:NonfiniteLocal');end
+    if any(~isfinite(deltaPV)),error('CBFTraj:NonfiniteLocal','NonfiniteLocal');end
 catch ME
     diag.status=['LOCAL_INVALID:' ME.identifier];diag.returnGate=false;
     diag.elapsedMs=1000*toc(start);return
@@ -103,10 +103,25 @@ if ~allowComparison
 end
 try
     if ~isfield(controllerResult,'xd') || numel(controllerResult.xd)~=28
-        error('CBFTraj:ComparisonReferenceMissing');
+        error('CBFTraj:ComparisonReferenceMissing','ComparisonReferenceMissing');
     end
     xd=double(controllerResult.xd(:));
-    if any(~isfinite(xd)),error('CBFTraj:ComparisonReferenceInvalid');end
+    if any(~isfinite(xd)) || ~isreal(xd),error('CBFTraj:ComparisonReferenceInvalid','ComparisonReferenceInvalid');end
+    % Both references must belong to the completed interval. The live HLC
+    % may wrap only yaw; all other 27 values must match the recorded output.
+    if ~isstruct(previousReference) || ~all(isfield(previousReference,{'before28','after28'}))
+        error('CBFTraj:PreviousReferenceMissing','PreviousReferenceMissing');
+    end
+    baseXd=double(previousReference.before28(:));sentXd=double(previousReference.after28(:));
+    if numel(baseXd)~=28 || numel(sentXd)~=28 || ...
+            ~isreal([baseXd;sentXd]) || any(~isfinite([baseXd;sentXd]))
+        error('CBFTraj:PreviousReferenceInvalid','PreviousReferenceInvalid');
+    end
+    mask=[1:3,5:28];
+    if any(abs(sentXd(mask)-xd(mask))>1e-9*(1+abs(xd(mask))))
+        error('CBFTraj:PreviousReferenceAlignment','PreviousReferenceAlignment');
+    end
+    diag.comparisonReference28=baseXd;
     if isempty(comparison)
         % Verify the generated pure HLC matches the recorded live request.
         check=nominal_hlc(hlc,x,xd,P,false);
@@ -114,39 +129,43 @@ try
         if any(abs(check-raw)>1e-7*(1+abs(raw)))
             error('CBFTraj:HLCReplayMismatch','Recorded raw input does not match pure HLC');
         end
-        xb=x;tb=policyA(1:2).';rawB=raw;
-        % At the common starting state use the exact recorded envelope.
-        yb=xB;tbEnd=[diag.TendBaseline;diag.TdotEndBaseline];
-        if cbfId~=3,tbEnd=[uBase(1);0];end
-        diag.comparisonStarted=true;
+        xb=x;tb=policyA(1:2).';
     else
         xb=project_state(rebase_state(x,comparison.actual,comparison.nominal));
         tb=comparison.thrust;
-        rawB=nominal_hlc(hlc,xb,xd,P,true);
-        diag.comparisonRaw=rawB;
-        if any(rawB<[0;-1;-1;-1]-1e-8 | rawB>[20;1;1;1]+1e-8)
-            error('CBFTraj:ComparisonRawOutsideBox');
-        end
+    end
+    % Same original-reference branch as REV28B offline test B.
+    rawB=nominal_hlc(hlc,xb,baseXd,P,true);
+    diag.comparisonRaw=rawB;
+    if any(rawB<[0;-1;-1;-1]-1e-8 | rawB>[20;1;1;1]+1e-8)
+        error('CBFTraj:ComparisonRawOutsideBox','ComparisonRawOutsideBox');
+    end
+    if isempty(comparison) && all(abs(rawB-raw)<=1e-12*(1+abs(raw)))
+        % Same initial state and request: reuse the recorded envelope.
+        yb=xB;tbEnd=[diag.TendBaseline;diag.TdotEndBaseline];
+        if cbfId~=3,tbEnd=[uBase(1);0];end
+    else
         [yb,tbEnd]=baseline_step(xb,tb,rawB,P,dt,nSub,cbfId,hlc.cbfConfig);
     end
+    diag.comparisonStarted=isempty(comparison);
     % Reject a comparison outside its configured diagnostic domain;
     % never clip its output and never retain a divergent velocity.
     diag.comparisonRaw=rawB;
     if any(~isfinite(rawB)) || any(rawB<[0;-1;-1;-1]-1e-8 | rawB>[20;1;1;1]+1e-8)
-        error('CBFTraj:ComparisonRawOutsideBox');
+        error('CBFTraj:ComparisonRawOutsideBox','ComparisonRawOutsideBox');
     end
     [~,ra0]=rhs(x,at(applied,policyA,0),P);
     [~,ra1]=rhs(xA,at(applied,policyA,dt),P);
     [~,rb0]=rhs(x,at(uBase,policyB,0),P);
     [~,rb1]=rhs(xB,at(uBase,policyB,dt),P);
     if any(~isfinite([ra0,ra1,rb0,rb1])) || max([ra0,ra1,rb0,rb1])>=0
-        error('CBFTraj:ComparisonCableSlack');
+        error('CBFTraj:ComparisonCableSlack','ComparisonCableSlack');
     end
     pv=xA(8:13)-yb(8:13);
     diag.modelActual=xA;diag.modelNominal=yb;diag.modelOffsetPV=pv;
     diag.comparisonThrustEnd=tbEnd;
     if any(~isfinite([pv;tbEnd])) || norm(pv(1:3),Inf)>5 || norm(pv(4:6),Inf)>5
-        error('CBFTraj:ComparisonDomain');
+        error('CBFTraj:ComparisonDomain','ComparisonDomain');
     end
     nextComparison=struct('actual',xA,'nominal',yb,'thrust',tbEnd);
     diag.comparisonValid=true;diag.comparisonStatus='OK';
@@ -169,9 +188,9 @@ vs=hlc.Vs_SuspendedLoadxyDst(x,xd.',vf,P,a.F2,a.F3,a.F4);
 uf=hlc.Uf_SuspendedLoadxyDst(x,xd.',vf,P);
 beta=hlc.Beta2_SuspendedLoadxyDst(x,xd.',vf,P);
 b=hlc.V2_alpha2_SuspendedLoadxyDst(x,xd.',vf,vs.',P);
-if any(~isfinite(beta(:))) || rcond(beta)<1e-12,error('CBFTraj:ComparisonHLCIllConditioned');end
+if any(~isfinite(beta(:))) || rcond(beta)<1e-12,error('CBFTraj:ComparisonHLCIllConditioned','ComparisonHLCIllConditioned');end
 raw=[uf(1);beta\b];
-if ~isreal(raw) || any(~isfinite(raw)),error('CBFTraj:ComparisonHLCNonfinite');end
+if ~isreal(raw) || any(~isfinite(raw)),error('CBFTraj:ComparisonHLCNonfinite','ComparisonHLCNonfinite');end
 end
 
 function y=propagate(x,u,thrust,P,dt,nSub)

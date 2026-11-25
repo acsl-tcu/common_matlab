@@ -4,7 +4,7 @@ function jet=CBF_TRAJ_LOCAL_CORRECTION_JET(mode,j0,s,omega)
 if s==0,jet=j0;return;end
 switch mode
     case 'CARRY'
-        jet=[j0(:,1)+s*j0(:,2),j0(:,2),zeros(3,5)];
+        jet=[j0(:,1),zeros(3,6)];
     case 'RETURN'
         jet=CBF_TRAJ_RETURN_JET(j0,s,omega);
     case {'NOMINAL','DEGRADED'}

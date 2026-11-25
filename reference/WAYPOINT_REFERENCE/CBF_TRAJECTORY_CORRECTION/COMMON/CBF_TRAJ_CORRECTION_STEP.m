@@ -1,6 +1,6 @@
 function [st,status,keepComparison]=CBF_TRAJ_CORRECTION_STEP(st,prev,E)
-% REV23 pure causal mode/jet update. E is the exact 7th-order homogeneous
-% return transition expm(A*dt). CARRY overwrites the TOTAL episode offset;
+% REV38 (REV37 D_OUTWARD) pure causal mode/jet update. E is the exact 7th-order homogeneous
+% return transition expm(A*dt). CARRY overwrites the TOTAL original-reference offset;
 % it does not integrate it, filter it or add it twice.
 prior=st.mode;status=prev.status;keepComparison=false;
 % Only a previously selected RETURN law is advanced. A valid new CARRY
@@ -19,9 +19,13 @@ if strcmp(prior,'DEGRADED')
     status='COMPARISON_LATCHED_OFF';
 elseif prev.active || strcmp(prior,'CARRY')
     if ~strcmp(prior,'CARRY')
-        % At t_k, preserve the position of the old local return law;
-        % anchor is then constant throughout the new comparison episode.
-        st.anchor=st.correction(:,1);st.mode='CARRY';
+        % An original-reference comparison is a TOTAL offset, not an
+        % increment relative to the remaining RETURN offset.
+        % Never reseed from the actual state during RETURN.
+        if strcmp(prior,'RETURN') && prev.comparisonStarted
+            st=hold_invalid(st);status='RETURN_BASELINE_RESTART_REJECTED';return
+        end
+        st.anchor=zeros(3,1);st.mode='CARRY';
     end
     if ~prev.comparisonValid
         st=hold_invalid(st);status=['COMPARISON_INVALID:' prev.comparisonStatus];return
@@ -30,17 +34,27 @@ elseif prev.active || strcmp(prior,'CARRY')
     if numel(pv)~=6 || ~isreal(pv) || any(~isfinite(pv))
         st=hold_invalid(st);status='COMPARISON_TARGET_INVALID';return
     end
-    candidate=st.anchor+pv(1:3);
+    candidate=pv(1:3);
+    st.anchor=zeros(3,1);
     % Retain REV20's diagnostic domain (not a physical safety constraint).
     if norm(candidate,Inf)>5 || norm(pv(4:6),Inf)>5
         st=hold_invalid(st);status='COMPARISON_TARGET_DOMAIN';return
     end
-    st.correction=[candidate,pv(4:6),zeros(3,5)];
+    % Preserve all original derivatives of orders 1..6.
+    st.correction=[candidate,zeros(3,6)];
     st.center=candidate;keepComparison=true;
+elseif strcmp(prior,'RETURN')
+    % Maintain the same comparison baseline without using its offset for
+    % the analytic return. If invalid, discard it and prohibit reseeding
+    % until NOMINAL. A later intervention then enters DEGRADED.
+    keepComparison=prev.comparisonValid && ~prev.comparisonStarted;
+    if ~keepComparison && ~strcmp(prev.comparisonStatus,'NOT_USED')
+        status=['RETURN_BASELINE_LOST:' prev.comparisonStatus];
+    end
 end
 if prev.active || ~prev.returnGate
     st.quietCount=0;
-    if strcmp(st.mode,'RETURN'),st=hold_invalid(st);end
+    if strcmp(st.mode,'RETURN'),st=hold_invalid(st);keepComparison=false;end
     return
 end
 if strcmp(st.mode,'NOMINAL'),st.quietCount=0;return;end
@@ -51,7 +65,9 @@ if st.quietCount>=8 && any(strcmp(st.mode,{'CARRY','DEGRADED'}))
             dot(prev.modelOffsetPV(1:3),prev.modelOffsetPV(4:6))>0
         status='QUIET_WAIT_OUTWARD_MODEL_MOTION';return
     end
-    st.mode='RETURN';st.center=zeros(3,1);keepComparison=false;
+    st.mode='RETURN';st.center=zeros(3,1);
+    % CARRY retains the valid baseline for a possible re-intervention.
+    % DEGRADED has no valid baseline to retain.
     % No return propagation at this switch: current jet is its initial jet.
 end
 if strcmp(st.mode,'RETURN') && max(abs(st.correction),[],'all')<=1e-5
