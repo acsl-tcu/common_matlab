@@ -101,7 +101,7 @@ app.logger.plot({1, "p", "er"},"phase","tf",  "Fontsize",FS, "Linewidth",LW, "fi
 % app.logger.plot({1, "estimator.result.state.pT", "e"},"phase","tf", "Fontsize",FS, "Linewidth",LW,"fig_num",51);
 app.logger.plot({1, "controller.result.theatx", "e"},"phase","f", "Fontsize",FS, "Linewidth",LW,"fig_num",52);
 app.logger.plot({1, "controller.result.theaty", "e"},"phase","f", "Fontsize",FS, "Linewidth",LW,"fig_num",53);
-% app.logger.plot({1, "controller.result.beta2", "e"}, "phase","f", "Fontsize",FS, "Linewidth",LW);
+% app.logger.plot({1, "c.result.beta2", "e"}, "phase","f", "Fontsize",FS, "Linewidth",LW);
 % app.logger.plot({1, "controller.result.input", "e"}, "phase","f");
 
 % ノルム確認 6
