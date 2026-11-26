@@ -4,7 +4,7 @@
 %   - 時刻合わせ : 実験は試行ごとに離陸・飛行開始の時刻が異なり dt も不等間隔のため，
 %                  alignPhase（既定 'f'）の開始時刻を t = 0 に揃え，全試行に共通する区間を dtResample 間隔に線形補間して統計をとる
 %   - 統計比較   : 試行ごとの位置 RMSE（推定値 - 目標値）と制御コスト（∫u_i^2 dt の成分ごととトータル），条件ごとの平均・標準偏差（alignPhase 区間）
-%   - 描画       : 位置・位置誤差・姿勢・速度・入力・補償入力の時系列（平均 ± nσ），xy 軌跡と法線方向の ±nσ バンド，3次元軌跡，RMSE の比較
+%   - 描画       : 位置・位置誤差・姿勢・速度・入力・補償入力・プロポ入力(inner_input)の時系列（平均 ± nσ），xy 軌跡と法線方向の ±nσ バンド，3次元軌跡，RMSE の比較
 % ※ 実験では真値（plant）が無いため，位置・姿勢などは estimator の値を使う
 % ※ ログは LOGGER で読み込み，値は trial_data(trial, variable, attribute)（LOGGER.data と同じ指定）で取り出す
 %
@@ -29,9 +29,9 @@ end
 %   ファイルは rootDir からの相対パス・絶対パスで指定し，ワイルドカード（*）や string 配列で複数指定できる
 %   ファイルを "" にすると選択ダイアログで複数選択する
 groups = {
-    "w/o NN-MEC", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL_*_Log*.mat";
-    "w/ NN-MEC", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL-NNMEC_*_Log*.mat";
-    "w/ NN-MEC(SN)", "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\LemniscateT=10_HL-NNMECwithSN_*_Log*.mat"
+    "w/o NN-MEC", ;
+    "w/ NN-MEC", ;
+    "w/ NN-MEC(SN)", ;
     };
 agentIdx = 1;           % ログ内の agent 番号
 alignPhase = 'f';       % このフェーズの開始時刻を t = 0 に揃える（RMSE もこのフェーズ区間で計算する）
@@ -44,12 +44,13 @@ nSigma = 1;             % 平均 ± nSigma×標準偏差 をバンドで描く
 yMarginRatio = 1.1;     % 時系列の縦軸の範囲 : 描画した全要素の (最小値〜最大値) の幅をこの倍率で広げる（中心はそのまま）
 fPlotEachTrial = false; % true: 時系列・xy 軌跡に各試行も細線で重ねて描く
 fLegend = true;         % true: 全ての図に凡例を表示する
-fSaveFig = false;       % true: 図を figDir に figFormats の形式で保存する
-figFormats = ["png", "pdf"]; % 保存形式（複数指定可）: "png","jpg","tif" 等のラスタ形式，"pdf","eps","emf" のベクトル形式
-figDir = fullfile("Data", "compare_exp_fig");
+fSaveFig = false;       % true: 図を figDir に figFormats の形式で保存する（.fig は常に figDir/fig に保存する）
+figFormats = ["png"]; % 保存形式（複数指定可）: "png","jpg","tif" 等のラスタ形式，"pdf","eps","emf" のベクトル形式
+% figDir = fullfile("Data", "compare_exp_fig");
+figDir = "\\192.168.100.209\ws2026\Work2026\YosukeKOSEKI\Results\03_Exp data\2026_11_24 compare without, with SN-NNMEC\figures";
 
 FS = 12; % FontSize
-LW = 0.5;% LineWidth
+LW = 0.75;% LineWidth
 MS = 7;  % MarkerSize [pt]
 MA = 0.5;% MarkerAlpha（散布図のマーカーの不透明度。1: 不透明, 0: 透明）
 LA = 0.6;% LineAlpha（時系列・xy・3次元軌跡の平均線の不透明度。1: 不透明, 0: 透明）
@@ -126,6 +127,9 @@ rmseStatTable = groupsummary(trialTable, "label", ["mean", "std"], rmseNames);
 rmseStatTable = rmseStatTable(match_label_order(rmseStatTable.label, labelList), :);
 costStatTable = groupsummary(trialTable, "label", ["mean", "std"], costNames);
 costStatTable = costStatTable(match_label_order(costStatTable.label, labelList), :);
+% 試行が1回だけの条件は標準偏差を定義できないため NaN にする（groupsummary は 0 を返すため）
+rmseStatTable = invalidate_single_trial_std(rmseStatTable, rmseNames);
+costStatTable = invalidate_single_trial_std(costStatTable, costNames);
 settingText = settingText + sprintf("alignStart : 離陸からの %s 開始時刻 [s], alignDuration : %s の継続時間 [s]\n", alignPhase, alignPhase);
 settingText = settingText + sprintf("評価区間 : 共通時刻 %.3f 〜 %.3f s のうち %s の区間\n", tStart, tEnd, alignPhase);
 settingText = settingText + sprintf("RMSE : estimator.p - reference.p [m]\n");
@@ -163,8 +167,12 @@ plot_compare_band(303, "velocity", group, colors, @(trial) trial_data(trial, "v"
 % 入力
 plot_compare_band(304, "input", group, colors, @(trial) trial_data(trial, "input", ""), ["$T$ [N]", "$\tau_x$ [Nm]", "$\tau_y$ [Nm]", "$\tau_z$ [Nm]"], ...
                   [], tGrid, plotOpts);
-% NN による補償入力（delta_input を持たない制御器のグループは描画しない）
+% NN による補償入力（delta_input を持たない制御器のグループは描画せず，全グループが持たなければ figure も作らない）
 plot_compare_band(305, "delta_input", group, colors, @(trial) trial_data(trial, "controller.result.delta_input", ""), ["$\Delta T$ [N]", "$\Delta\tau_x$ [Nm]", "$\Delta\tau_y$ [Nm]", "$\Delta\tau_z$ [Nm]"], ...
+                  [], tGrid, plotOpts);
+% プロポ（送信機）に送る入力 inner_input（8ch のうち 1〜4ch : roll, pitch, thrust, yaw）
+% inner_input を保存していないログ（シミュレーション等）のグループは描画せず，全グループが持たなければ figure も作らない
+plot_compare_band(308, "inner_input", group, colors, @(trial) trial_inner_input(trial, 1:4), ["$u_{roll}$", "$u_{pitch}$", "$u_{thrust}$", "$u_{yaw}$"], ...
                   [], tGrid, plotOpts);
 
 % xy 軌跡（平均軌跡を太線。バンドは平均軌跡の法線方向（進行方向に垂直）の偏差の ±nσ，fPlotEachTrial で各試行を細線表示）
@@ -180,18 +188,28 @@ for groupIdx = 1:groupN
     normalXY = [-velY, velX] ./ speedXY;
     normalXY(speedXY < minSpeedXY, :) = NaN;
     crossDev = reshape(sum((pStack(:, 1:2, :) - xyMean) .* normalXY, 2), size(pStack, 1), []); % [ステップ × 試行] 法線方向の偏差
-    crossStd = std(crossDev, 0, 2, "omitnan");
-    upperXY = xyMean + nSigma * crossStd .* normalXY;
-    lowerXY = xyMean - nSigma * crossStd .* normalXY;
-    % 自己交差する軌跡（8の字など）でも崩れないよう，隣接ステップ間の四角形を並べたパッチで描く（NaN を含む面は描画されない）
-    stepN = size(xyMean, 1);
-    bandFaces = [(1:stepN - 1)', (2:stepN)', stepN + (2:stepN)', stepN + (1:stepN - 1)'];
-    patch("Faces", bandFaces, "Vertices", [upperXY; lowerXY], "FaceColor", colors(groupIdx, :), "FaceAlpha", BA, "EdgeColor", "none", ...
-          "DisplayName", labelList(groupIdx) + " $\pm" + nSigma + "\sigma$");
-    if fPlotEachTrial
-        plot(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), "Color", [colors(groupIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+    fMultiTrial = size(pStack, 3) > 1; % 試行が1回だけの条件は σ を定義できないため，バンドを描かず軌跡のみ描く
+    if fMultiTrial
+        crossStd = std(crossDev, 0, 2, "omitnan");
+        upperXY = xyMean + nSigma * crossStd .* normalXY;
+        lowerXY = xyMean - nSigma * crossStd .* normalXY;
+        % 自己交差する軌跡（8の字など）でも崩れないよう，隣接ステップ間の四角形を並べたパッチで描く
+        % NaN の頂点を含む面はベクトル形式の保存（exportgraphics）で失敗するため，あらかじめ取り除く
+        stepN = size(xyMean, 1);
+        bandFaces = [(1:stepN - 1)', (2:stepN)', stepN + (2:stepN)', stepN + (1:stepN - 1)'];
+        bandVertices = [upperXY; lowerXY];
+        fValidVertex = all(isfinite(bandVertices), 2);
+        bandFaces = bandFaces(all(fValidVertex(bandFaces), 2), :);
+        patch("Faces", bandFaces, "Vertices", bandVertices, "FaceColor", colors(groupIdx, :), "FaceAlpha", BA, "EdgeColor", "none", ...
+              "DisplayName", labelList(groupIdx) + " $\pm" + nSigma + "\sigma$");
+        if fPlotEachTrial
+            plot(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), "Color", [colors(groupIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+        end
+        meanName = labelList(groupIdx) + " mean";
+    else
+        meanName = labelList(groupIdx);
     end
-    plot(pMean(:, 1), pMean(:, 2), "Color", [colors(groupIdx, :), LA], "LineWidth", 2 * LW, "DisplayName", labelList(groupIdx) + " mean");
+    plot(pMean(:, 1), pMean(:, 2), "Color", [colors(groupIdx, :), LA], "LineWidth", 2 * LW, "DisplayName", meanName);
     if ~fRefPlotted
         refMean = stack_trials(group(groupIdx).trials, @(trial) trial_data(trial, "p", "r"), tGrid);
         plot(refMean(refMask, 1), refMean(refMask, 2), "k--", "LineWidth", LW, "DisplayName", "reference");
@@ -207,10 +225,15 @@ figure(307); clf; set(gcf, "Name", "xyz_trajectory"); hold on
 fRefPlotted = false;
 for groupIdx = 1:groupN
     [pMean, pStack] = stack_trials(group(groupIdx).trials, @(trial) trial_data(trial, "p", "e"), tGrid);
-    if fPlotEachTrial
-        plot3(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), squeeze(pStack(:, 3, :)), "Color", [colors(groupIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+    if size(pStack, 3) > 1
+        if fPlotEachTrial
+            plot3(squeeze(pStack(:, 1, :)), squeeze(pStack(:, 2, :)), squeeze(pStack(:, 3, :)), "Color", [colors(groupIdx, :), 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+        end
+        meanName = labelList(groupIdx) + " mean";
+    else
+        meanName = labelList(groupIdx); % 試行が1回だけの条件は平均ではないため条件名のみ
     end
-    plot3(pMean(:, 1), pMean(:, 2), pMean(:, 3), "Color", [colors(groupIdx, :), LA], "LineWidth", 2 * LW, "DisplayName", labelList(groupIdx) + " mean");
+    plot3(pMean(:, 1), pMean(:, 2), pMean(:, 3), "Color", [colors(groupIdx, :), LA], "LineWidth", 2 * LW, "DisplayName", meanName);
     if ~fRefPlotted
         refMean = stack_trials(group(groupIdx).trials, @(trial) trial_data(trial, "p", "r"), tGrid);
         plot3(refMean(refMask, 1), refMean(refMask, 2), refMean(refMask, 3), "k--", "LineWidth", LW, "DisplayName", "reference");
@@ -224,6 +247,8 @@ set(gca, "FontSize", FS);
 %% 図の保存 ===========================================================================================================================================
 if fSaveFig
     if ~exist(figDir, "dir"); mkdir(figDir); end
+    figFileDir = fullfile(figDir, "fig"); % .fig は figFormats によらず常に figDir/fig に保存する
+    if ~exist(figFileDir, "dir"); mkdir(figFileDir); end
     vectorFormats = ["pdf", "eps", "emf"];
     for figHandle = findobj("Type", "figure")'
         % ファイル名 : fig<番号>_<Figure の Name>（Name が無い図は番号のみ）
@@ -234,11 +259,18 @@ if fSaveFig
         for figFormat = lower(figFormats)
             figPath = fullfile(figDir, figBaseName + "." + figFormat);
             if ismember(figFormat, vectorFormats)
-                exportgraphics(figHandle, figPath, "ContentType", "vector");
+                try
+                    exportgraphics(figHandle, figPath, "ContentType", "vector");
+                catch err
+                    % ベクトル形式で書き出せない図（透明度付きの大量のパッチ等）は，同じ形式のまま画像として埋め込んで保存する
+                    warning("Compare_Ntimes_Exp: %s をベクトル形式で保存できなかったため，画像として埋め込んで保存します（%s）。", figPath, err.message);
+                    exportgraphics(figHandle, figPath, "ContentType", "image", "Resolution", 300);
+                end
             else
                 exportgraphics(figHandle, figPath, "Resolution", 300);
             end
         end
+        savefig(figHandle, fullfile(figFileDir, figBaseName + ".fig"));
     end
     % 使用したログと RMSE の表も txt で保存する
     fileId = fopen(fullfile(figDir, "exp_summary.txt"), "w", "n", "UTF-8");
@@ -304,6 +336,12 @@ function value = trial_data(trial, variable, attribute)
 value = trial.logger.data(trial.agentIdx, variable, attribute, "phase", trial.plotPhase);
 end
 
+function value = trial_inner_input(trial, channels)
+% プロポに送る入力 inner_input（[ステップ × 8ch]）のうち channels 列を取り出す（trial.t と同じ長さ）
+value = trial_data(trial, "inner_input", "");
+value = value(:, channels);
+end
+
 function value = resample_value(trial, getValue, tGrid)
 % getValue(trial) を共通時刻 tGrid に線形補間する（時刻が重複するステップは最初の値を使う）
 [tUnique, uniqueIdx] = unique(trial.t, "stable");
@@ -321,6 +359,24 @@ end
 function plot_compare_band(figNum, figName, group, colors, getValue, yLabels, getRef, tGrid, opts)
 % 各グループの全試行について getValue(trial) の各列の 平均(太線) と 平均 ± nσ(バンド) を時系列で重ね描きする
 % getRef があれば1つ目に描画できたグループの目標値の平均を黒破線で描く
+% 値を取り出せるグループが1つも無い場合（例 : 全グループが delta_input を持たない）は figure を作らない
+groupN = numel(group);
+meanList = cell(groupN, 1);
+stackList = cell(groupN, 1);
+fHasData = false(groupN, 1);
+for groupIdx = 1:groupN
+    try
+        [meanList{groupIdx}, stackList{groupIdx}] = stack_trials(group(groupIdx).trials, getValue, tGrid);
+        fHasData(groupIdx) = true;
+    catch err
+        fprintf("Figure %d : %s は描画しません（%s）\n", figNum, group(groupIdx).label, err.message);
+    end
+end
+if ~any(fHasData)
+    fprintf("Figure %d (%s) : 描画できるグループが無いため figure を作成しません\n", figNum, figName);
+    return
+end
+
 figure(figNum); clf; set(gcf, "Name", figName);
 tiledlayout(numel(yLabels), 1, "TileSpacing", "compact");
 axList = gobjects(numel(yLabels), 1);
@@ -328,25 +384,29 @@ for colIdx = 1:numel(yLabels)
     axList(colIdx) = nexttile; hold on
 end
 fRefPlotted = false;
-for groupIdx = 1:numel(group)
-    try
-        [valueMean, valueStack] = stack_trials(group(groupIdx).trials, getValue, tGrid);
-    catch err
-        fprintf("Figure %d : %s は描画しません（%s）\n", figNum, group(groupIdx).label, err.message);
-        continue
-    end
+for groupIdx = find(fHasData)'
+    valueMean = meanList{groupIdx};
+    valueStack = stackList{groupIdx};
+    fMultiTrial = size(valueStack, 3) > 1; % 試行が1回だけの条件は σ を定義できないため，バンドを描かず時系列のみ描く
     valueStd = std(valueStack, 0, 3, "omitnan");
     color = colors(groupIdx, :);
+    if fMultiTrial
+        meanName = group(groupIdx).label + " mean";
+    else
+        meanName = group(groupIdx).label;
+    end
     for colIdx = 1:min(numel(yLabels), size(valueMean, 2))
         ax = axList(colIdx);
-        upper = valueMean(:, colIdx) + opts.nSigma * valueStd(:, colIdx);
-        lower = valueMean(:, colIdx) - opts.nSigma * valueStd(:, colIdx);
-        fill(ax, [tGrid; flipud(tGrid)], [upper; flipud(lower)], color, "FaceAlpha", opts.BA, "EdgeColor", "none", ...
-             "DisplayName", group(groupIdx).label + " $\pm" + opts.nSigma + "\sigma$");
-        if opts.fPlotEachTrial
-            plot(ax, tGrid, squeeze(valueStack(:, colIdx, :)), "Color", [color, 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+        if fMultiTrial
+            upper = valueMean(:, colIdx) + opts.nSigma * valueStd(:, colIdx);
+            lower = valueMean(:, colIdx) - opts.nSigma * valueStd(:, colIdx);
+            fill(ax, [tGrid; flipud(tGrid)], [upper; flipud(lower)], color, "FaceAlpha", opts.BA, "EdgeColor", "none", ...
+                 "DisplayName", group(groupIdx).label + " $\pm" + opts.nSigma + "\sigma$");
+            if opts.fPlotEachTrial
+                plot(ax, tGrid, squeeze(valueStack(:, colIdx, :)), "Color", [color, 0.2], "LineWidth", 0.5, "HandleVisibility", "off");
+            end
         end
-        plot(ax, tGrid, valueMean(:, colIdx), "Color", [color, opts.LA], "LineWidth", 2 * opts.LW, "DisplayName", group(groupIdx).label + " mean");
+        plot(ax, tGrid, valueMean(:, colIdx), "Color", [color, opts.LA], "LineWidth", 2 * opts.LW, "DisplayName", meanName);
     end
     if ~isempty(getRef) && ~fRefPlotted
         refMean = stack_trials(group(groupIdx).trials, getRef, tGrid);
@@ -377,6 +437,12 @@ for metricIdx = 1:numel(metricNames)
     nexttile; hold on
     for groupIdx = 1:numel(labelList)
         values = trialTable.(metricNames(metricIdx))(trialTable.label == labelList(groupIdx));
+        if numel(values) == 1
+            % 試行が1回だけの条件は σ を定義できないため，平均 ± 1σ を描かず試行の点のみ描く（凡例は条件名）
+            scatter(groupIdx, values, opts.MS^2, colors(groupIdx, :), "filled", "MarkerFaceAlpha", opts.MA, "MarkerEdgeAlpha", opts.MA, ...
+                    "DisplayName", labelList(groupIdx));
+            continue
+        end
         jitter = 0.15 * (linspace(0, 1, numel(values))' - 0.5); % 点の重なりを避けるため横にずらす
         scatter(groupIdx + jitter, values, opts.MS^2, colors(groupIdx, :), "filled", "MarkerFaceAlpha", opts.MA, "MarkerEdgeAlpha", opts.MA, "HandleVisibility", "off");
         errorbar(groupIdx + 0.3, mean(values), std(values), "o", "Color", colors(groupIdx, :), "MarkerFaceColor", colors(groupIdx, :), ...
@@ -389,6 +455,14 @@ end
 if opts.fLegend
     metricLegend = legend("Interpreter", "latex", "Orientation", "horizontal");
     metricLegend.Layout.Tile = "north";
+end
+end
+
+function statTable = invalidate_single_trial_std(statTable, metricNames)
+% groupsummary の結果のうち，試行が1回だけ（GroupCount == 1）の条件の std_* 列を NaN にする
+fSingle = statTable.GroupCount == 1;
+for metricName = metricNames
+    statTable.("std_" + metricName)(fSingle) = NaN;
 end
 end
 
