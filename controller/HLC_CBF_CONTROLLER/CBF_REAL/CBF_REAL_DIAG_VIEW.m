@@ -219,6 +219,21 @@ else
         if ~isempty(items),hard=strjoin(items,';');end
     end
 end
+allStages=member(info,'paperAllStages');
+if iscell(allStages)&&~isempty(allStages)
+    items={};
+    for j=1:numel(allStages)
+        v=allStages{j};label=sprintf('constraint%d',j);if numel(labels)>=j,label=char(labels{j});end
+        for k=1:numel(v)
+            if isfinite(v(k))&&v(k)<-1e-8
+                if k==1,tag='h';else,tag=sprintf('psi%d',k-1);end
+                items{end+1}=sprintf('%s/%s=%+.3g',label,tag,v(k)); %#ok<AGROW>
+            end
+        end
+    end
+    if ~isempty(items),stages=strjoin(items,';');end
+    return;
+end
 S=member(info,'stageValues');
 if isnumeric(S) && size(S,1)>=5 && ~isempty(S)
     items={}; names={'h','psi1','psi2','psi3','psi4'};
@@ -627,9 +642,15 @@ for k=1:n
     for j=1:numel(labels)
         c=find(strcmp(names,char(labels{j})),1);
         if isempty(c),continue;end
-        A=member(info,'stageValues');
-        if isnumeric(A) && size(A,1)>=5 && size(A,2)>=j
-            stage(k,:,c)=double(A(1:5,j)).';
+        mixed=member(info,'paperAllStages');
+        if iscell(mixed) && numel(mixed)>=j
+            v=double(mixed{j}(:));
+            stage(k,1:numel(v),c)=v.';
+        else
+            A=member(info,'stageValues');
+            if isnumeric(A) && size(A,1)>=5 && size(A,2)>=j
+                stage(k,:,c)=double(A(1:5,j)).';
+            end
         end
         h(k,c)=indexed_numeric(member(info,'currentH'),j);
         lower(k,c)=indexed_numeric(member(info,'intervalLowerBounds'),j);

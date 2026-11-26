@@ -83,12 +83,28 @@ switch cbfId
         schemeFile='CBF_REAL_SCHEME_03_PAPER_EXTENSION.m';
         generatedSubfolder=fullfile('HOCBF_D2T_OBSTACLE_3D','GENERATED');
         requiredGenerated={'CBF_REAL_D2T_JET.m', ...
-                           'CBF_REAL_D2T_OBSTACLE_EVAL.m'};
+                           'CBF_REAL_D2T_OBSTACLE_EVAL.m', ...
+                           'CBF_REAL_D2T_ALL_EVAL.m'};
         cfg.paperThrustState=struct('initialized',false,'T',NaN,'q',NaN);
         cfg.paperThrustBounds=[0;20];
-        cfg.paperAccelMaxNps2=100; % TEST assumption, not actuator proof
-        cfg.paperRateMaxNps=40; % TEST assumption, not actuator proof
-        cfg.paperControlScale=[100;1;1]; % non-paper normalization study choice
+        % REV60: no fixed dT/ddT caps. Kernel uses current T,q,H and bounds.
+        cfg.paperTorqueBounds=[-1,1;-1,1;-1,1]; % existing physical limits
+        cfg.paperControlScale=[100;1;1]; % objective weights ONLY, not bounds
+        cfg.paperPlaneMethod='CENTER'; % CENTER / SHAPE / PW / SELECTIVE / FIXED_SHAPE
+        cfg.paperDroneSphereEnabled=true;
+        cfg.paperLoadSphereEnabled=true;
+        cfg.paperBodyTiltEnabled=true;
+        cfg.paperBodyTiltMaxDeg=40;
+        cfg.paperBodyTiltLambda=[2;2]; % design gains (REV58 trial values)
+        cfg.paperCableTiltEnabled=true;
+        cfg.paperCableTiltMaxDeg=60;
+        cfg.paperCableTiltLambda=[1;2;8;16];
+        cfg.paperGroundEnabled=true; % flight phase only, point heights
+        cfg.paperGroundZ=0;
+        cfg.paperGroundLambda=[2;4;8;16];
+        cfg.paperTensionEnabled=false; % generated, opt-in (REV58 conflicts)
+        cfg.paperTensionMinN=0;
+        cfg.paperTensionLambda=[2;2];
         cfg.paperLambda=[2;4;8;16];
         cfg.paperCableRadiusM=0.20;
         cfg.paperCableAxialMarginM=0.02;
@@ -162,6 +178,9 @@ for k=1:numel(files)
         error('CBFReal:PathShadowed', ...
             'Function %s resolves to %s, expected %s',fn,found,wanted);
     end
+end
+if cbfId==3 && ~same_path(which('CBF_REAL_D2T_INPUT_KERNEL'),fullfile(fileparts(generatedDir),'CBF_REAL_D2T_INPUT_KERNEL.m'))
+    error('CBFReal:PathShadowed','Missing or shadowed REV60 thrust kernel');
 end
 cfg.generatorRoot=generatorRoot;
 fprintf('[CBF REAL INIT] id=%d %s / dt=%.6g s\n', ...
