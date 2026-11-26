@@ -4,8 +4,10 @@ function G = hinf_genplant(P, opt)
 %   拡張状態 xa = [x(6); xw(2)]（8 次）に対する状態フィードバック v = -K*xa で設計する。
 %   z = [alpha*sqrt(Qshape)*x ; W_theta(x3/g) ; r0*Wr*x3 ; rho_v*v]
 if nargin < 2, opt = struct(); end
-d = struct('alpha',0.01, 'Qshape',[100 800 600 1000 1 1], 'b_int',0.3, 'rho_v',0.003, ...
-    'k_th',3, 'w_w',2.5, 'z_w',0.7,"k_I",0.01);
+% d = struct('alpha',0.01, 'Qshape',[100 800 600 1000 1 1], 'b_int',0.3, 'rho_v',0.003, ...
+%     'k_th',3, 'w_w',2.5, 'z_w',0.7,"k_I",0.01); %original
+ d= struct('alpha',0.01, 'Qshape',[200 800 800 1000 1 1], 'b_int',0.3, 'rho_v',0.003, ...
+    'k_th',3, 'w_w',3.4, 'z_w',0.7,"k_I",0.01);
 %'alpha':誤差の抑え　'Qshape':それぞれの重み
 %
 %'w_w',2.5, 'z_w',0.7,"k_I",0.01 W_θ（バンドパス）の設定

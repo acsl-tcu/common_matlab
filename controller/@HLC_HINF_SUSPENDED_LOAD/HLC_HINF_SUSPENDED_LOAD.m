@@ -9,6 +9,7 @@ classdef HLC_HINF_SUSPENDED_LOAD < handle
     methods
 
         function obj = HLC_HINF_SUSPENDED_LOAD(self, param)
+            fprintf("このcontrollerはHLC_HINF_SUSPENDED_LOAD");
             obj.self = self;
             obj.param = param;
         end
@@ -74,7 +75,7 @@ classdef HLC_HINF_SUSPENDED_LOAD < handle
                 xi(1,i) = -vi(1);                              % Vs は「目標-実際」を返すので符号を反転
                 xi(2,i) = -vi(2);
             end
-            vs(1:2) = Hinf_HLC(xi, Param.dt, 10,P(5));
+            vs(1:2) = Hinf_HLC(xi, Param.dt, 3,P(5));
 
             uf = obj.Uf_SuspendedLoadxyDst(x, xd', vf, P); % 第一層の仮想入力の実入力(推力)への変換
             % h234  = obj.H234_SuspendedLoadxyDst(x,xd',vf,P);  % ただの単位行列なのでなくてもいい
