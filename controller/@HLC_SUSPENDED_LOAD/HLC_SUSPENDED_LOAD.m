@@ -9,6 +9,7 @@ classdef HLC_SUSPENDED_LOAD < handle
     methods
 
         function obj = HLC_SUSPENDED_LOAD(self, param)
+              fprintf("このcontrollerはHLC_SUSPENDED_LOAD");
             obj.self = self;
             obj.param = param;
         end
@@ -91,8 +92,8 @@ classdef HLC_SUSPENDED_LOAD < handle
             obj.result.input = [max(0, min(20, tmp(1))); max(-1, min(1, tmp(2))); max(-1, min(1, tmp(3))); max(-1, min(1, tmp(4)))]; %+[normrnd(0,0.01,1);normrnd(0,0.001,[3,1])]*1; %入力にノイズを付与可能
             % obj.result.input = [0.0,0,0,(0.5236+0.04)*9.81]';%
 
-            obj.result.theatx=atan2(model.state.pT(1), -model.state.pT(3));
-            obj.result.theaty=atan2(model.state.pT(2), -model.state.pT(3));
+            obj.result.theatx=atan2d(model.state.pT(1), -model.state.pT(3));
+            obj.result.theaty=atan2d(model.state.pT(2), -model.state.pT(3));
 
 
             obj.result.xd = xd;

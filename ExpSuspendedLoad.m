@@ -30,7 +30,7 @@ agent.parameter = DRONE_PARAM_SUSPENDED_LOAD("DIATONE");
 agent.parameter.set("mass", 0.762); %
 agent.parameter.set("cableL", 0.99); %1.037 0.992,0.647,p0.613,0.460,0.956 長門0.97 武蔵0.55
 % agent.parameter.set("cableL",1.047);%0.992,0.647,p0.613,0.460,0.956
-agent.parameter.set("loadmass", 0.0953); %0.0968); %0.968 %0.14棒入り
+agent.parameter.set("loadmass", 0.094); %0.0968); %0.968 %0.14棒入り
 % agent.parameter.set("loadmass",0.6);%0.0968);%0.968 フィラトケース0.239
 agent.parameter.set("jx", 0.06); %0.0968); %0.968
 agent.parameter.set("jy", 0.06); %0.0968); %0.968
@@ -61,8 +61,8 @@ agent.reference.set_function_class("sload", SUSPENDED_LOAD_REF_ADJUST(agent));
 agent.reference.set_function_class("takeoff", TAKEOFF_REFERENCE(agent,"zd",1.5,"te",5));
 agent.reference.set_function_class("landing", LANDING_REFERENCE(agent,"dt",dt,"zd",agent.estimator.result.state.p(3)-L,"te",10)); % zd = -Lとするのがミソ
 
-% agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
-agent.controller.set_function_class("hlc_hinf_suspended", HLC_HINF_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+agent.controller.set_function_class("hlc_suspended", HLC_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
+% agent.controller.set_function_class("hlc_hinf_suspended", HLC_HINF_SUSPENDED_LOAD(agent,Controller_HL_Suspended_Load(dt,agent)));
 % agent.controller.set_function_class("hl",HLC(agent,Controller_HL(dt)));
 agent.input_transform.set_function_class("thrust2throttle", THRUST2THROTTLE_DRONE(agent, InputTransform_Thrust2Throttle_drone())); % 推力からスロットルに変換
 
